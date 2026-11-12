@@ -422,6 +422,7 @@ async function processOutlookEmails(
                 {
                   fetchImpl: (url, init) => fetchWithRetry(url, init),
                   keepPartialOnLimit: true,
+                  preferMetadataSize: true,
                   onFailure: (stage, status) =>
                     logger.warn('Outlook attachment request failed', {
                       emailId: email.id,

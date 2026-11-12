@@ -55,7 +55,7 @@ export const uploadTool: InternalToolConfig<OneDriveToolParams, OneDriveUploadRe
       required: false,
       visibility: 'user-or-llm',
       description:
-        'What to do when a file with the same name exists: "replace" (Graph default), "rename", or "fail"',
+        'What to do when a file with the same name exists: "replace" (used when unset), "rename", or "fail"',
     },
   },
 

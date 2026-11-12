@@ -21,6 +21,10 @@ function mapManager(manager: unknown): Record<string, unknown> | null {
   }
 }
 
+function wantsManager(value: unknown): boolean {
+  return value === true || value === 'true'
+}
+
 export const getUserTool: ToolConfig<MicrosoftAdGetUserParams, MicrosoftAdGetUserResponse> = {
   id: 'microsoft_ad_get_user',
   name: 'Get Azure AD User',
@@ -55,7 +59,9 @@ export const getUserTool: ToolConfig<MicrosoftAdGetUserParams, MicrosoftAdGetUse
     url: (params) => {
       const userId = params.userId?.trim()
       if (!userId) throw new Error('User ID is required')
-      const expand = params.includeManager ? `&$expand=manager($select=${MANAGER_SELECT})` : ''
+      const expand = wantsManager(params.includeManager)
+        ? `&$expand=manager($select=${MANAGER_SELECT})`
+        : ''
       return `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}?$select=${USER_SELECT}${expand}`
     },
     method: 'GET',
@@ -69,7 +75,7 @@ export const getUserTool: ToolConfig<MicrosoftAdGetUserParams, MicrosoftAdGetUse
       success: true,
       output: {
         user: mapUser(user),
-        ...(params?.includeManager ? { manager: mapManager(user.manager) } : {}),
+        ...(wantsManager(params?.includeManager) ? { manager: mapManager(user.manager) } : {}),
       },
     }
   },

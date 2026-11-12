@@ -12,6 +12,10 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseUpdateRecord')
 
+function isReturnRecord(value: unknown): boolean {
+  return value === true || value === 'true'
+}
+
 export const dataverseUpdateRecordTool: ToolConfig<
   DataverseUpdateRecordParams,
   DataverseUpdateRecordResponse
@@ -84,7 +88,7 @@ export const dataverseUpdateRecordTool: ToolConfig<
       'OData-Version': '4.0',
       Accept: 'application/json',
       'If-Match': '*',
-      ...(params.returnRecord === true && {
+      ...(isReturnRecord(params.returnRecord) && {
         Prefer: 'return=representation,odata.include-annotations="*"',
       }),
     }),
@@ -112,7 +116,7 @@ export const dataverseUpdateRecordTool: ToolConfig<
     }
 
     const record =
-      params?.returnRecord === true && response.status === 200
+      isReturnRecord(params?.returnRecord) && response.status === 200
         ? await response.json().catch(() => null)
         : undefined
 

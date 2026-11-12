@@ -14,8 +14,8 @@ export interface SharepointSite {
 export interface SharepointPage {
   '@odata.type'?: string
   id?: string
-  name: string
-  title: string
+  name?: string
+  title?: string
   description?: string | null
   webUrl?: string
   pageLayout?: string

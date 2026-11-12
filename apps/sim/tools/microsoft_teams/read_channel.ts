@@ -92,7 +92,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Include thread replies for each root message (Graph returns up to 1,000 replies per message)',
+        'Include thread replies for each root message (Graph caps the replies returned per message; hasMoreReplies is true when more exist)',
     },
     top: {
       type: 'number',
@@ -164,6 +164,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
             hasMore,
             nextPageToken,
           },
+          messages: [],
           messageCount: 0,
           teamId: params?.teamId ?? '',
           channelId: params?.channelId ?? '',
@@ -301,6 +302,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
         content: formattedMessages,
         metadata,
         attachments: flattenedUploads,
+        messages: metadata.messages,
         messageCount: metadata.messageCount,
         teamId: metadata.teamId,
         channelId: metadata.channelId,

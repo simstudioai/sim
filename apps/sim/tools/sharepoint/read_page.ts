@@ -45,8 +45,8 @@ const PAGE_AUDIT_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
 function toPage(page: GraphApiPageFields): SharepointPage {
   return {
     id: page.id,
-    name: page.name ?? '',
-    title: page.title || page.name || '',
+    name: page.name,
+    title: page.title || page.name,
     webUrl: page.webUrl,
     pageLayout: page.pageLayout,
     description: page.description ?? null,

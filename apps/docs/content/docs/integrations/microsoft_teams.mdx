@@ -112,6 +112,8 @@ Write or update content in a Microsoft Teams chat
 | `createdTime` | string | Timestamp when message was created |
 | `url` | string | Web URL to the message |
 | `updatedContent` | boolean | Whether content was successfully updated |
+| `content` | string | Content of the sent message |
+| `attachmentCount` | number | Number of attachments sent with the message |
 | `files` | file[] | Files attached to the message |
 
 </ReferenceDetails>
@@ -129,7 +131,7 @@ Read content from a Microsoft Teams channel
 | `teamId` | string | Yes | The ID of the team to read from \(e.g., "12345678-abcd-1234-efgh-123456789012" - a GUID from team listings\) |
 | `channelId` | string | Yes | The ID of the channel to read from \(e.g., "19:abc123def456@thread.tacv2" - from channel listings\) |
 | `includeAttachments` | boolean | No | Download and include message attachments \(hosted contents\) into storage |
-| `includeReplies` | boolean | No | Include thread replies for each root message \(Graph returns up to 1,000 replies per message\) |
+| `includeReplies` | boolean | No | Include thread replies for each root message \(Graph caps the replies returned per message; hasMoreReplies is true when more exist\) |
 | `top` | number | No | Number of root messages to return per page \(1-50, default 50\) |
 | `pageToken` | string | No | Page token from a previous read \(nextPageToken\) to fetch the next page |
 
@@ -178,6 +180,8 @@ Write or send a message to a Microsoft Teams channel
 | `createdTime` | string | Timestamp when message was created |
 | `url` | string | Web URL to the message |
 | `updatedContent` | boolean | Whether content was successfully updated |
+| `content` | string | Content of the sent message |
+| `attachmentCount` | number | Number of attachments sent with the message |
 | `files` | file[] | Files attached to the message |
 
 </ReferenceDetails>

@@ -34,11 +34,12 @@ const MAX_ERROR_MESSAGE_LENGTH = 2000
 const MAX_TOKEN_RESPONSE_BYTES = 256 * 1024
 const MAX_PROJECTED_ROWS = 10_000
 /**
- * Serialized bytes the projected rows and records may take together. The projection carries each
- * row twice (positional and keyed), so it is bounded below the inline tool response cap rather
- * than left to fail there with a generic size error.
+ * Serialized bytes the projected tables may take together. The projection carries each row twice
+ * (positional and keyed), so it is bounded by the inline tool response cap, minus each table's
+ * actual envelope and a small margin for the response wrapper, rather than left to fail there
+ * with a generic size error.
  */
-const MAX_PROJECTED_BYTES = MAX_TOOL_RESPONSE_BODY_BYTES - 512 * 1024
+const MAX_PROJECTED_BYTES = MAX_TOOL_RESPONSE_BODY_BYTES - 16 * 1024
 
 interface CachedToken {
   accessToken: string
@@ -245,6 +246,16 @@ function projectTable(
   const allRows = table.Rows ?? []
   const rows: unknown[][] = []
   const records: Array<Record<string, unknown>> = []
+  const envelope: AzureDataExplorerResultTable = {
+    tableName: table.TableName ?? null,
+    columns,
+    rows: [],
+    records: [],
+    rowCount: allRows.length,
+    totalRowCount: allRows.length,
+    truncated: false,
+  }
+  budget.bytes -= Buffer.byteLength(JSON.stringify(envelope))
   for (const row of allRows) {
     if (budget.rows <= 0) break
     const record: Record<string, unknown> = {}

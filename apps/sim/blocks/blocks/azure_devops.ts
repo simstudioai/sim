@@ -195,15 +195,31 @@ export const AzureDevOpsBlock: BlockConfig = {
       title: 'Max Results',
       type: 'short-input',
       placeholder: '50',
-      condition: {
-        field: 'operation',
-        value: [
-          'azure_devops_list_builds',
-          'azure_devops_list_pipelines',
-          'azure_devops_query_work_items',
-          'azure_devops_get_comments',
-        ],
-      },
+      condition: { field: 'operation', value: 'azure_devops_list_builds' },
+      mode: 'advanced',
+    },
+    {
+      id: 'pipelinesTop',
+      title: 'Max Results',
+      type: 'short-input',
+      placeholder: 'Server default when empty',
+      condition: { field: 'operation', value: 'azure_devops_list_pipelines' },
+      mode: 'advanced',
+    },
+    {
+      id: 'queryTop',
+      title: 'Max Results',
+      type: 'short-input',
+      placeholder: 'Server default when empty',
+      condition: { field: 'operation', value: 'azure_devops_query_work_items' },
+      mode: 'advanced',
+    },
+    {
+      id: 'commentsTop',
+      title: 'Max Results',
+      type: 'short-input',
+      placeholder: 'Server default when empty',
+      condition: { field: 'operation', value: 'azure_devops_get_comments' },
       mode: 'advanced',
     },
     {
@@ -606,10 +622,15 @@ export const AzureDevOpsBlock: BlockConfig = {
       title: 'Iteration Path',
       type: 'short-input',
       placeholder: 'e.g. MyProject\\Sprint 1',
-      condition: {
-        field: 'operation',
-        value: ['azure_devops_create_work_item', 'azure_devops_update_work_item'],
-      },
+      condition: { field: 'operation', value: 'azure_devops_create_work_item' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateIterationPath',
+      title: 'Iteration Path',
+      type: 'short-input',
+      placeholder: 'e.g. MyProject\\Sprint 2',
+      condition: { field: 'operation', value: 'azure_devops_update_work_item' },
       mode: 'advanced',
     },
     {
@@ -688,7 +709,7 @@ export const AzureDevOpsBlock: BlockConfig = {
           case 'azure_devops_list_pipelines':
             return {
               ...base,
-              top: params.top ? Number(params.top) : undefined,
+              top: params.pipelinesTop ? Number(params.pipelinesTop) : undefined,
               continuationToken: (params.continuationToken as string) || undefined,
             }
           case 'azure_devops_get_pipeline':
@@ -734,7 +755,7 @@ export const AzureDevOpsBlock: BlockConfig = {
             return {
               ...base,
               wiqlQuery: params.wiqlQuery as string,
-              top: params.top ? Number(params.top) : undefined,
+              top: params.queryTop ? Number(params.queryTop) : undefined,
             }
           case 'azure_devops_get_work_item':
             return { ...base, workItemId: Number(params.workItemId) }
@@ -774,7 +795,7 @@ export const AzureDevOpsBlock: BlockConfig = {
               completedWork: params.completedWork ? Number(params.completedWork) : undefined,
               description: (params.description as string) || undefined,
               areaPath: (params.areaPath as string) || undefined,
-              iterationPath: (params.iterationPath as string) || undefined,
+              iterationPath: (params.updateIterationPath as string) || undefined,
               tags: (params.tags as string) || undefined,
             }
           case 'azure_devops_add_comment':
@@ -788,7 +809,7 @@ export const AzureDevOpsBlock: BlockConfig = {
             return {
               ...base,
               workItemId: Number(params.workItemId),
-              top: params.top ? Number(params.top) : undefined,
+              top: params.commentsTop ? Number(params.commentsTop) : undefined,
               continuationToken: (params.continuationToken as string) || undefined,
             }
           default:
@@ -807,6 +828,9 @@ export const AzureDevOpsBlock: BlockConfig = {
     runId: { type: 'number', description: 'Pipeline run ID' },
     resultFilter: { type: 'string', description: 'Build result filter' },
     top: { type: 'number', description: 'Maximum number of results' },
+    pipelinesTop: { type: 'number', description: 'Maximum pipelines to return (list pipelines)' },
+    queryTop: { type: 'number', description: 'Maximum work items to return (query work items)' },
+    commentsTop: { type: 'number', description: 'Maximum comments to return (get comments)' },
     buildId: { type: 'number', description: 'Build ID' },
     logId: { type: 'number', description: 'Build log ID' },
     fromBuildId: { type: 'number', description: 'Starting build ID for work item range' },
@@ -847,6 +871,7 @@ export const AzureDevOpsBlock: BlockConfig = {
     },
     areaPath: { type: 'string', description: 'Area path' },
     iterationPath: { type: 'string', description: 'Iteration path' },
+    updateIterationPath: { type: 'string', description: 'New iteration path (update work item)' },
     tags: { type: 'string', description: 'Semicolon-separated tags' },
     state: {
       type: 'string',

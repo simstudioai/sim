@@ -346,7 +346,7 @@ Query and list records from a Microsoft Dataverse table. Supports OData query op
 | `expand` | string | No | Navigation properties to expand \(OData $expand\) |
 | `count` | string | No | Set to "true" to include total record count in response \(OData $count\) |
 | `pageSize` | number | No | Records per page \(Prefer: odata.maxpagesize, 1-5000\). Defaults to 100 when Max Results is not set. Dataverse ignores $top when a page size is sent. When following nextLink, pass the same pageSize used for the first page, as Dataverse requires. |
-| `nextLink` | string | No | nextLink returned by a previous page. When set, the other query options are ignored and the same page size must be used. |
+| `nextLink` | string | No | nextLink returned by a previous page. When set, the other query options are ignored and the same page size must be used. It is empty on the last page; stop when empty. |
 
 #### Output
 

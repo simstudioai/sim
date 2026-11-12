@@ -28,8 +28,10 @@ interface OutlookDownloadAttachmentMetadata {
 export interface OutlookAttachmentDownloadOptions {
   /** Fetch implementation, e.g. a retrying fetch for background polling. */
   fetchImpl?: (url: string, init: RequestInit) => Promise<Response>
-  /** Return attachments already downloaded when the byte budget is exceeded instead of throwing. */
+  /** Skip attachments that exceed the byte budget and keep the rest, instead of throwing. */
   keepPartialOnLimit?: boolean
+  /** Report Graph's declared attachment size, falling back to the downloaded byte length. */
+  preferMetadataSize?: boolean
   /** Called when Graph answers a metadata or content request with a non-OK status. */
   onFailure?: (stage: 'metadata' | 'content', status: number) => void
 }
@@ -47,10 +49,9 @@ export async function downloadAttachments(
   const handleError = (error: unknown) => {
     if (options.keepPartialOnLimit && isPayloadSizeLimitError(error)) {
       budget.signal?.throwIfAborted()
-      return true
+      return
     }
     rethrowAttachmentDownloadError(error, budget.signal)
-    return false
   }
   try {
     budget.signal?.throwIfAborted()
@@ -92,10 +93,12 @@ export async function downloadAttachments(
             attachment.contentType ||
             content.headers.get('content-type') ||
             'application/octet-stream',
-          size: buffer.byteLength,
+          size: options.preferMetadataSize
+            ? (attachment.size ?? buffer.byteLength)
+            : buffer.byteLength,
         })
       } catch (error) {
-        if (handleError(error)) break
+        handleError(error)
       }
     }
   } catch (error) {

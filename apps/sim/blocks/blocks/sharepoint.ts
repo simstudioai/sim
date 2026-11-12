@@ -1240,8 +1240,17 @@ Return ONLY the filter expression - no explanations, no quotes around the whole 
       placeholder: 'Comma-separated column names, e.g. Title,Status,DueDate',
       condition: {
         field: 'operation',
-        value: ['sharepoint_get_list', 'sharepoint_get_list_item'],
+        value: 'sharepoint_get_list',
+        and: { field: 'includeColumns', value: 'true', not: true },
       },
+      mode: 'advanced',
+    },
+    {
+      id: 'itemSelectFields',
+      title: 'Fields to Return',
+      type: 'short-input',
+      placeholder: 'Comma-separated column names, e.g. Title,Status,DueDate',
+      condition: { field: 'operation', value: 'sharepoint_get_list_item' },
       mode: 'advanced',
     },
     {
@@ -1477,6 +1486,10 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           result.top = undefined
           result.selectFields = undefined
         }
+        if (rest.operation === 'sharepoint_get_list_item') {
+          result.selectFields = cleanString(result.itemSelectFields)
+        }
+        result.itemSelectFields = undefined
 
         if (columnDefinitions && rest.operation === 'sharepoint_create_list') {
           result.pageContent = columnDefinitions
@@ -1505,6 +1518,10 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     filter: { type: 'string', description: 'OData $filter for list items' },
     top: { type: 'number', description: 'Maximum list items per page' },
     selectFields: { type: 'string', description: 'Comma-separated item field names to return' },
+    itemSelectFields: {
+      type: 'string',
+      description: 'Comma-separated field names to return (get list item)',
+    },
     includeColumns: { type: 'boolean', description: 'Include columns in response' },
     includeItems: { type: 'boolean', description: 'Include items in response' },
     listDisplayName: { type: 'string', description: 'List display name' },

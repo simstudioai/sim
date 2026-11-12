@@ -11,6 +11,11 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseSearch')
 
+/** A numeric option counts as provided unless it is absent or blank, so an explicit 0 is still sent. */
+function isSet(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== ''
+}
+
 export const dataverseSearchTool: ToolConfig<DataverseSearchParams, DataverseSearchResponse> = {
   id: 'microsoft_dataverse_search',
   name: 'Search Microsoft Dataverse',
@@ -122,8 +127,8 @@ export const dataverseSearchTool: ToolConfig<DataverseSearchParams, DataverseSea
       if (params.entities) body.entities = params.entities
       if (params.filter) body.filter = params.filter
       if (params.facets) body.facets = params.facets
-      if (params.top) body.top = params.top
-      if (params.skip) body.skip = params.skip
+      if (isSet(params.top)) body.top = params.top
+      if (isSet(params.skip)) body.skip = params.skip
       if (params.orderBy) body.orderby = params.orderBy
 
       const options: Record<string, string> = {}

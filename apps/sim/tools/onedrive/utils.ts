@@ -67,7 +67,7 @@ export function toOneDriveFile(item: MicrosoftGraphDriveItem) {
     size: item.size?.toString() || '0',
     createdTime: item.createdDateTime,
     modifiedTime: item.lastModifiedDateTime,
-    parents: item.parentReference?.id ? [item.parentReference.id] : [],
+    parents: item.parentReference ? [item.parentReference.id] : [],
     ...driveItemDetails(item),
     parentReference: toParentReference(item.parentReference),
   }

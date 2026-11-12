@@ -85,6 +85,10 @@ function buildUploadUrl(
   input: SharePointUploadFileInput,
   fileName: string
 ): { url: string; replaceUrl: string } {
+  const trimmedName = fileName.trim()
+  if (trimmedName === '.' || trimmedName === '..') {
+    throw new Error('File name cannot be "." or ".."')
+  }
   const folderPath = input.folderPath?.trim() || ''
   const normalizedPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`
   const cleanPath = normalizedPath.endsWith('/') ? normalizedPath.slice(0, -1) : normalizedPath

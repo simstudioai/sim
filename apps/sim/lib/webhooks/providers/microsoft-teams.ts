@@ -15,6 +15,7 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import {
+  isPayloadSizeLimitError,
   readResponseJsonWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
@@ -45,13 +46,25 @@ const MAX_TEAMS_MESSAGE_BYTES = 5 * 1024 * 1024
 /** Read one attachment body against the per-notification byte budget. */
 async function readTeamsAttachment(
   response: Parameters<typeof readResponseToBufferWithLimit>[0],
-  budget: AttachmentDownloadBudget
+  budget: AttachmentDownloadBudget,
+  attachmentName: string
 ): Promise<Buffer> {
-  const buffer = await readResponseToBufferWithLimit(response, {
-    maxBytes: budget.remainingBytes,
-    label: 'Teams attachment',
-  })
-  return budget.consume(buffer, 'Teams attachment')
+  try {
+    const buffer = await readResponseToBufferWithLimit(response, {
+      maxBytes: budget.remainingBytes,
+      label: 'Teams attachment',
+    })
+    return budget.consume(buffer, 'Teams attachment')
+  } catch (error) {
+    if (isPayloadSizeLimitError(error)) {
+      logger.warn('Skipping Teams attachment over the per-notification byte budget', {
+        attachmentName,
+        observedBytes: error.observedBytes,
+        remainingBytes: budget.remainingBytes,
+      })
+    }
+    throw error
+  }
 }
 
 function validateMicrosoftTeamsSignature(
@@ -306,7 +319,11 @@ async function formatTeamsGraphNotification(
                     )
 
                     if (directRes?.ok) {
-                      buffer = await readTeamsAttachment(directRes, attachmentBudget)
+                      buffer = await readTeamsAttachment(
+                        directRes,
+                        attachmentBudget,
+                        attachmentName
+                      )
                       mimeType =
                         directRes.headers.get('content-type') ||
                         contentTypeHint ||
@@ -325,7 +342,11 @@ async function formatTeamsGraphNotification(
                       })
 
                       if (graphRes.ok) {
-                        buffer = await readTeamsAttachment(graphRes, attachmentBudget)
+                        buffer = await readTeamsAttachment(
+                          graphRes,
+                          attachmentBudget,
+                          attachmentName
+                        )
                         mimeType =
                           graphRes.headers.get('content-type') ||
                           contentTypeHint ||
@@ -380,7 +401,11 @@ async function formatTeamsGraphNotification(
                       })
 
                       if (directRes.ok) {
-                        buffer = await readTeamsAttachment(directRes, attachmentBudget)
+                        buffer = await readTeamsAttachment(
+                          directRes,
+                          attachmentBudget,
+                          attachmentName
+                        )
                         mimeType =
                           directRes.headers.get('content-type') ||
                           contentTypeHint ||
@@ -405,7 +430,11 @@ async function formatTeamsGraphNotification(
                         )
 
                         if (downloadRes?.ok) {
-                          buffer = await readTeamsAttachment(downloadRes, attachmentBudget)
+                          buffer = await readTeamsAttachment(
+                            downloadRes,
+                            attachmentBudget,
+                            attachmentName
+                          )
                           const fileInfo = metadata.file as Record<string, unknown> | undefined
                           mimeType =
                             downloadRes.headers.get('content-type') ||
@@ -434,7 +463,7 @@ async function formatTeamsGraphNotification(
                       'teams-attachment-generic'
                     )
                     if (ares?.ok) {
-                      buffer = await readTeamsAttachment(ares, attachmentBudget)
+                      buffer = await readTeamsAttachment(ares, attachmentBudget, attachmentName)
                       mimeType =
                         ares.headers.get('content-type') ||
                         contentTypeHint ||

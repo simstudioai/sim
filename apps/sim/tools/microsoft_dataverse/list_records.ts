@@ -25,6 +25,11 @@ function getExplicitPageSize(params: DataverseListRecordsParams): number | undef
   return pageSize
 }
 
+/** A numeric query option counts as provided unless it is absent or blank, so an explicit 0 is still sent. */
+function isSet(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== ''
+}
+
 /** Dataverse serves the same environment on `org.crm…` and `org.api.crm…`; compare them as one host. */
 function environmentHost(url: URL): string {
   return url.host.toLowerCase().replace(/^([^.]+)\.api\./, '$1.')
@@ -144,7 +149,7 @@ export const dataverseListRecordsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'nextLink returned by a previous page. When set, the other query options are ignored and the same page size must be used.',
+        'nextLink returned by a previous page. When set, the other query options are ignored and the same page size must be used. It is empty on the last page; stop when empty.',
     },
   },
 
@@ -157,7 +162,7 @@ export const dataverseListRecordsTool: ToolConfig<
       if (params.select) queryParts.push(`$select=${encodeURIComponent(params.select)}`)
       if (params.filter) queryParts.push(`$filter=${encodeURIComponent(params.filter)}`)
       if (params.orderBy) queryParts.push(`$orderby=${encodeURIComponent(params.orderBy)}`)
-      if (params.top) queryParts.push(`$top=${params.top}`)
+      if (isSet(params.top)) queryParts.push(`$top=${params.top}`)
       if (params.expand) queryParts.push(`$expand=${encodeURIComponent(params.expand)}`)
       if (params.count) queryParts.push(`$count=${params.count}`)
       const query = queryParts.length > 0 ? `?${queryParts.join('&')}` : ''
@@ -176,7 +181,7 @@ export const dataverseListRecordsTool: ToolConfig<
       const preferParts = ['odata.include-annotations="*"']
       const pageSize =
         getExplicitPageSize(params) ??
-        (params.nextLink || !params.top ? DATAVERSE_DEFAULT_PAGE_SIZE : undefined)
+        (params.nextLink || !isSet(params.top) ? DATAVERSE_DEFAULT_PAGE_SIZE : undefined)
       if (pageSize !== undefined) {
         preferParts.push(`odata.maxpagesize=${pageSize}`)
       }

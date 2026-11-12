@@ -64,7 +64,7 @@ interface OneDriveFile {
   size?: string
   createdTime?: string
   modifiedTime?: string
-  parents?: string[]
+  parents?: Array<string | undefined>
   isFolder?: boolean
   childCount?: number | null
   description?: string | null

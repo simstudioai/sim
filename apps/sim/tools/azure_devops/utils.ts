@@ -3,7 +3,7 @@ import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import type { AzureDevOpsComment, AzureDevOpsWorkItem } from '@/tools/azure_devops/types'
 import type { OutputProperty } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -64,7 +64,7 @@ export async function fetchWorkItemsChunk(
   }
 
   const data = await readResponseJsonWithLimit<{ value?: AzureDevOpsRawWorkItem[] }>(response, {
-    maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+    maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
     label: 'Azure DevOps work items response',
     signal,
   })
