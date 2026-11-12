@@ -28,6 +28,7 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import { BrandIcon } from '@/blocks/brand-icon'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkspaceCredential, useWorkspaceCredentials } from '@/hooks/queries/credentials'
+import { useIntegrationAvailability } from '@/hooks/queries/integration-availability'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -100,6 +101,16 @@ export function CredentialSelector({
 
   const credentialKind = subBlock.credentialKind
   const isMergedKinds = credentialKind === 'any'
+  const { data: integrationAvailability, isSuccess: isAvailabilityReady } =
+    useIntegrationAvailability({
+      enabled: !isAllCredentials && credentialKind !== 'service-account',
+    })
+  const oauthConnectAvailable =
+    isAvailabilityReady &&
+    (integrationAvailability?.oauthServiceAvailability.some(
+      ({ providerId, available }) => providerId === effectiveProviderId && available
+    ) ??
+      false)
 
   const credentials = useMemo(() => {
     // A service-account picker lists only the reusable service-account
@@ -233,8 +244,9 @@ export function CredentialSelector({
       setShowSetupModal(true)
       return
     }
+    if (!oauthConnectAvailable) return
     setShowConnectModal(true)
-  }, [credentialKind])
+  }, [credentialKind, oauthConnectAvailable])
 
   const getProviderIcon = useCallback((providerName: OAuthProvider) => {
     const { baseProvider } = parseProvider(providerName)
@@ -278,7 +290,9 @@ export function CredentialSelector({
     // Suppress the setup action when the service-account flow is preview-gated
     // for this viewer (a custom Slack bot needs slack_v2) — existing accounts
     // above stay selectable.
-    if (credentialKind !== 'service-account' || !serviceAccountConnectHidden) {
+    if (
+      credentialKind === 'service-account' ? !serviceAccountConnectHidden : oauthConnectAvailable
+    ) {
       options.push({
         label:
           credentialKind === 'service-account'
@@ -302,6 +316,7 @@ export function CredentialSelector({
     credentialKind,
     subBlock.credentialLabels,
     serviceAccountConnectHidden,
+    oauthConnectAvailable,
     serviceAccountTarget,
     provider,
     getProviderIcon,
@@ -323,11 +338,15 @@ export function CredentialSelector({
         section: labels?.oauthGroup ?? `${getProviderName(provider)} accounts`,
         items: [
           ...credentials.filter((c) => c.type !== 'service_account').map(toOption),
-          {
-            label: labels?.oauthConnect ?? `Connect ${getProviderName(provider)} account`,
-            value: '__connect_account__',
-            iconElement: <SquareArrowUpRight className='size-3' />,
-          },
+          ...(oauthConnectAvailable
+            ? [
+                {
+                  label: labels?.oauthConnect ?? `Connect ${getProviderName(provider)} account`,
+                  value: '__connect_account__',
+                  iconElement: <SquareArrowUpRight className='size-3' />,
+                },
+              ]
+            : []),
         ],
       },
       {
@@ -355,6 +374,7 @@ export function CredentialSelector({
     subBlock.credentialLabels,
     credentials,
     serviceAccountConnectHidden,
+    oauthConnectAvailable,
     serviceAccountTarget,
     provider,
     getProviderIcon,
@@ -407,10 +427,6 @@ export function CredentialSelector({
   const handleComboboxChange = useCallback(
     (value: string) => {
       if (value === '__connect_account__') {
-        if (isMergedKinds) {
-          setShowConnectModal(true)
-          return
-        }
         handleAddCredential()
         return
       }
@@ -432,14 +448,7 @@ export function CredentialSelector({
       setIsEditing(true)
       setEditingValue(value)
     },
-    [
-      isAllCredentials,
-      isMergedKinds,
-      allWorkspaceCredentials,
-      credentials,
-      handleAddCredential,
-      handleSelect,
-    ]
+    [isAllCredentials, allWorkspaceCredentials, credentials, handleAddCredential, handleSelect]
   )
 
   return (
@@ -470,31 +479,32 @@ export function CredentialSelector({
             <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-[var(--caution)]' />
             {dataversePolicy.message}
           </div>
-          {!dataversePolicy.hasInvalidEnvironment && (
-            <Chip
-              variant='primary'
-              fullWidth
-              onClick={() => {
-                if (dataversePolicy.requiresSeparateCredential) {
-                  setShowConnectModal(true)
-                  return
-                }
-                writeOAuthReturnContext({
-                  origin: 'workflow',
-                  workflowId: activeWorkflowId || '',
-                  displayName: selectedCredential?.name ?? getProviderName(provider),
-                  providerId: effectiveProviderId,
-                  preCount: credentials.filter((c) => c.type !== 'service_account').length,
-                  workspaceId,
-                  reconnect: true,
-                  requestedAt: Date.now(),
-                })
-                setShowOAuthModal(true)
-              }}
-            >
-              {dataversePolicy.actionLabel}
-            </Chip>
-          )}
+          {!dataversePolicy.hasInvalidEnvironment &&
+            (!dataversePolicy.requiresSeparateCredential || oauthConnectAvailable) && (
+              <Chip
+                variant='primary'
+                fullWidth
+                onClick={() => {
+                  if (dataversePolicy.requiresSeparateCredential) {
+                    setShowConnectModal(true)
+                    return
+                  }
+                  writeOAuthReturnContext({
+                    origin: 'workflow',
+                    workflowId: activeWorkflowId || '',
+                    displayName: selectedCredential?.name ?? getProviderName(provider),
+                    providerId: effectiveProviderId,
+                    preCount: credentials.filter((c) => c.type !== 'service_account').length,
+                    workspaceId,
+                    reconnect: true,
+                    requestedAt: Date.now(),
+                  })
+                  setShowOAuthModal(true)
+                }}
+              >
+                {dataversePolicy.actionLabel}
+              </Chip>
+            )}
         </div>
       )}
 
