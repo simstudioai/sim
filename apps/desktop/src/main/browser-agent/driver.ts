@@ -334,8 +334,8 @@ interface DriverScopeState {
   snapshotTargets: Map<number, PageExecutionTarget>
   /** Monotonic ref floor shared by every frame in this browser scope. */
   nextElementRefId: number
-  /** Every ref this scope issued and the frame it belongs to, so a later snapshot may reuse it there. */
-  issuedRefTargets: Map<number, string>
+  /** Every ref this scope issued and its frame: a later snapshot may reuse it there, and an action may still name it. */
+  issuedRefTargets: Map<number, { key: string; target: PageExecutionTarget }>
   /** Invalidates captures that finish after a tab/navigation/timeout race. */
   snapshotCaptureEpoch: number
   /** Cancels a timed-out multi-step action before any later native dispatch. */
@@ -1777,9 +1777,28 @@ function requireSnapshotForElementAction(): void {
   )
 }
 
+/**
+ * The frame that owns a ref: the latest snapshot's, or for a ref an earlier
+ * snapshot issued, its frame while that frame still belongs to the tab the
+ * latest snapshot covered. The page then confirms the element itself.
+ */
+function elementTarget(elementId: number): PageExecutionTarget | undefined {
+  const state = driverScopeState()
+  const latest = state.snapshotTargets.get(elementId)
+  if (latest) return latest
+  const issued = state.issuedRefTargets.get(elementId)
+  const contents = session.automationTab()?.view.webContents
+  if (!issued || !contents || contents.isDestroyed()) return undefined
+  if (!('routingId' in issued.target)) return issued.target === contents ? contents : undefined
+  const frame = issued.target
+  return contents.mainFrame.framesInSubtree.find(
+    (candidate) => !candidate.isDestroyed() && sameWebFrame(candidate, frame)
+  )
+}
+
 function pageTargetForElement(elementId: number): PageExecutionTarget {
   requireSnapshotForElementAction()
-  const target = driverScopeState().snapshotTargets.get(elementId)
+  const target = elementTarget(elementId)
   if (!target || ('isDestroyed' in target && target.isDestroyed())) {
     throw new ToolError(
       'That element id is not present in the current snapshot. Call browser_snapshot and use a visible ref from that result.'
@@ -1876,7 +1895,13 @@ function assertElementActionCurrent(
   assertActiveContents(contents)
   const state = driverScopeState()
   const active = session.automationTab()
-  if (state.snapshotTabId !== active?.id || state.snapshotTargets.get(elementId) !== target) {
+  const owner = elementTarget(elementId)
+  if (
+    state.snapshotTabId !== active?.id ||
+    !owner ||
+    (owner !== target &&
+      !('routingId' in owner && 'routingId' in target && sameWebFrame(owner, target)))
+  ) {
     throw new ToolError(
       'The page changed before input could be dispatched. Take a fresh browser_snapshot and try again.'
     )
@@ -2466,7 +2491,7 @@ async function captureSnapshot(
   const mainRefs = validateSnapshotRefs(
     mainSnapshot,
     mainStartingElementId,
-    (ref) => state.issuedRefTargets.get(ref) === pageTargetKey(contents)
+    (ref) => state.issuedRefTargets.get(ref)?.key === pageTargetKey(contents)
   )
   if (!mainRefs) {
     throw new ToolError('The page returned invalid element ids. Try browser_snapshot again.')
@@ -2531,7 +2556,7 @@ async function captureSnapshot(
       const frameRefs = validateSnapshotRefs(
         frameSnapshot,
         frameStartingElementId,
-        (ref) => state.issuedRefTargets.get(ref) === pageTargetKey(frame)
+        (ref) => state.issuedRefTargets.get(ref)?.key === pageTargetKey(frame)
       )
       if (!frameRefs) {
         unreadableCrossOriginFrames++
@@ -2585,7 +2610,9 @@ async function captureSnapshot(
         (targetLineIndexes.get(elementId) ?? Number.POSITIVE_INFINITY) < visibleOutlineLines.length
     )
   )
-  for (const [ref, target] of targets) state.issuedRefTargets.set(ref, pageTargetKey(target))
+  for (const [ref, target] of targets) {
+    state.issuedRefTargets.set(ref, { key: pageTargetKey(target), target })
+  }
   state.snapshotTabId = capturedTabId
   return {
     ...omit(mainSnapshot, ['refIds', 'refLineIndexes', 'nextElementId']),

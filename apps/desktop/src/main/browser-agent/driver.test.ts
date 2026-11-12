@@ -3121,11 +3121,42 @@ describe('credential protection', () => {
     expect(forged).toMatchObject({ ok: false })
   })
 
+  it('acts on a ref an earlier snapshot of the same page issued', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      collectSnapshot: {
+        url: 'https://example.com/',
+        title: 'Example',
+        outline: '- button "Pins" [ref=4]\n- button "Files" [ref=5]',
+        truncated: false,
+        refIds: [4, 5],
+        refLineIndexes: { 4: 0, 5: 1 },
+        nextElementId: 6,
+      },
+    })
+    await driver.executeTool('chat-test', 'browser_snapshot', {})
+    respondWith(contents, {
+      collectSnapshot: {
+        url: 'https://example.com/',
+        title: 'Example',
+        outline: '- dialog "Pick a time" [ref=6]',
+        truncated: false,
+        refIds: [6],
+        refLineIndexes: { 6: 0 },
+        nextElementId: 7,
+      },
+    })
+    await driver.executeTool('chat-test', 'browser_find', { query: 'time' })
+
+    const clicked = await driver.executeTool('chat-test', 'browser_click', { elementId: 4 })
+    expect(clicked).toMatchObject({ ok: true, result: { dispatched: true } })
+  })
+
   it.each([
     ['browser_snapshot', 'true'],
     ['browser_find', 'false'],
   ] as const)(
-    'passes the current root ref to %s and invalidates previous refs',
+    'passes the current root ref to %s',
     async (tool, markNew) => {
       const contents = await openPage()
       respondWith(contents, {
@@ -3151,8 +3182,6 @@ describe('credential protection', () => {
               expression.includes(`.apply(null, [1,0,${markNew},`)
           )
       ).toBe(true)
-      const stale = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
-      expect(stale).toMatchObject({ ok: false })
     }
   )
 

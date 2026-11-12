@@ -28,6 +28,17 @@
  * the keystroke refusal that read it.
  */
 
+/** What a snapshot recorded about an element, so a later action can confirm it is the same one. */
+interface SnapshotRefLocator {
+  url: string
+  tag: string
+  role: string
+  name: string
+  attributes: Record<string, string>
+  ancestor: string
+  context: string
+}
+
 declare global {
   interface Window {
     __simAgentElements?: Element[]
@@ -45,6 +56,8 @@ declare global {
     __simAgentNextElementId?: number
     /** Each element's ref and the identity it was issued for, so a later snapshot keeps the ref. */
     __simAgentIssuedRefs?: WeakMap<Element, { id: number; identity: string; namespace: number }>
+    /** Refs issued by earlier snapshots of this document, resolvable while their element lives. */
+    __simAgentEarlierRefs?: Map<number, { element: WeakRef<Element>; locator: SnapshotRefLocator }>
     /** Elements an earlier snapshot of this document listed; a later snapshot marks the rest `new`. */
     __simAgentShownElements?: WeakSet<Element>
     /** Installed by {@link installPageHelpers} before every page function; cached per call. */
@@ -311,15 +324,7 @@ export function collectSnapshot(
 
   const registry: Element[] = []
   const refLineIndexes: Record<number, number> = {}
-  const locators: Array<{
-    url: string
-    tag: string
-    role: string
-    name: string
-    attributes: Record<string, string>
-    ancestor: string
-    context: string
-  }> = []
+  const locators: SnapshotRefLocator[] = []
   window.__simAgentElements = registry
   const previouslyShown = window.__simAgentShownElements
   const shown = previouslyShown ?? new WeakSet<Element>()
@@ -597,6 +602,11 @@ export function collectSnapshot(
   // within the browser scope (refNamespace) that issued them.
   const issuedRefs = window.__simAgentIssuedRefs ?? new WeakMap()
   window.__simAgentIssuedRefs = issuedRefs
+  // A ref from an earlier snapshot still resolves while its element lives,
+  // even when a later scoped, query, or modal-covered snapshot left it out.
+  const earlierRefs = window.__simAgentEarlierRefs ?? new Map()
+  window.__simAgentEarlierRefs = earlierRefs
+  const earlierRefCap = 5000
   const registerElement = (el: Element, role: string, name: string): number => {
     const locator = {
       url: pageUrlFor(el),
@@ -619,6 +629,10 @@ export function collectSnapshot(
     issuedRefs.set(el, { id, identity, namespace: refNamespace })
     registry[id] = el
     locators[id] = locator
+    earlierRefs.delete(id)
+    earlierRefs.set(id, { element: new WeakRef(el), locator })
+    const oldest = earlierRefs.keys().next()
+    if (earlierRefs.size > earlierRefCap && !oldest.done) earlierRefs.delete(oldest.value)
     refCount++
     window.__simAgentNextElementId = nextElementId
     return id
@@ -875,7 +889,8 @@ export function collectSnapshot(
       window.__simAgentStaleReason = 'the scoped snapshot root left the DOM'
       return null
     }
-    const locator = locators[id]
+    const earlier = locators[id] ? undefined : earlierRefs.get(id)
+    const locator = locators[id] ?? earlier?.locator
     if (!locator) {
       window.__simAgentStaleReason = `id ${id} is not in the current snapshot's registry`
       return null
@@ -1006,7 +1021,7 @@ export function collectSnapshot(
       return true
     }
 
-    const current = registry[id]
+    const current = registry[id] ?? earlier?.element.deref()
     if (current?.isConnected) {
       if (!identityMatches(current, true)) {
         window.__simAgentStaleReason = `the node is still mounted but its identity drifted (now <${String(current.tagName || '').toLowerCase()}> role=${roleFor(current) || 'none'} name="${nameFor(current).slice(0, 60)}")`

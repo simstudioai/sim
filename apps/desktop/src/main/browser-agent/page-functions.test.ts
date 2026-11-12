@@ -721,6 +721,26 @@ describe('collectSnapshot', () => {
     expect(clickElement(refFor(first, 'Pins'))).toMatchObject({ dispatched: true })
   })
 
+  it('acts on a ref from an earlier snapshot that a later scoped snapshot left out', () => {
+    document.body.innerHTML = '<button>Pins</button><section><button>Files</button></section>'
+    for (const button of Array.from(document.querySelectorAll('button'))) visible(button)
+    const pins = refFor(outlineOf(collectSnapshot()), 'Pins')
+    const section = refFor(outlineOf(collectSnapshot()), 'Files')
+    collectSnapshot(100, section)
+
+    expect(clickElement(pins)).toMatchObject({ dispatched: true })
+  })
+
+  it('refuses a ref from an earlier snapshot once its element left the DOM', () => {
+    document.body.innerHTML = '<button>Pins</button><button>Files</button>'
+    for (const button of Array.from(document.querySelectorAll('button'))) visible(button)
+    const pins = refFor(outlineOf(collectSnapshot()), 'Pins')
+    ;(document.querySelector('button') as HTMLButtonElement).remove()
+    collectSnapshot()
+
+    expect(clickElement(pins)).toMatchObject({ error: 'stale' })
+  })
+
   it('never gives a ref to a different element across snapshots', () => {
     document.body.innerHTML = '<button>Pins</button>'
     const original = visible(document.querySelector('button') as HTMLButtonElement)
