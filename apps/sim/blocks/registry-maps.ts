@@ -345,7 +345,7 @@ import { PowerBIBlock, PowerBIBlockMeta } from '@/blocks/blocks/powerbi'
 import { ProfoundBlock, ProfoundBlockMeta, ProfoundV2Block } from '@/blocks/blocks/profound'
 import { ProspeoBlock, ProspeoBlockMeta } from '@/blocks/blocks/prospeo'
 import { PulseBlock, PulseBlockMeta, PulseV2Block, PulseV3Block } from '@/blocks/blocks/pulse'
-import { QdrantBlock, QdrantBlockMeta } from '@/blocks/blocks/qdrant'
+import { QdrantBlock, QdrantBlockMeta, QdrantV2Block } from '@/blocks/blocks/qdrant'
 import { QuartrBlock, QuartrBlockMeta, QuartrV2Block } from '@/blocks/blocks/quartr'
 import { QuickBooksBlock, QuickBooksBlockMeta } from '@/blocks/blocks/quickbooks'
 import { QuiverBlock, QuiverBlockMeta, QuiverV2Block, QuiverV3Block } from '@/blocks/blocks/quiver'
@@ -832,6 +832,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   pulse_v2: PulseV2Block,
   pulse_v3: PulseV3Block,
   qdrant: QdrantBlock,
+  qdrant_v2: QdrantV2Block,
   quartr: QuartrBlock,
   quartr_v2: QuartrV2Block,
   quickbooks: QuickBooksBlock,

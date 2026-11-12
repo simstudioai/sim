@@ -139,6 +139,7 @@ import {
   PowerBIIcon,
   ProfoundIcon,
   PulseIcon,
+  QdrantIcon,
   QuartrIcon,
   QuickBooksIcon,
   QuiverIcon,
@@ -1947,6 +1948,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'splunk',
+  },
+  qdrant: {
+    name: 'Qdrant',
+    icon: QdrantIcon,
+    services: {
+      qdrant: {
+        name: 'Qdrant',
+        description: 'Upsert, search, and fetch points in a Qdrant vector database.',
+        providerId: 'qdrant',
+        serviceAccountProviderId: 'qdrant-service-account',
+        icon: QdrantIcon,
+        baseProviderIcon: QdrantIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'qdrant',
   },
   railway: {
     name: 'Railway',

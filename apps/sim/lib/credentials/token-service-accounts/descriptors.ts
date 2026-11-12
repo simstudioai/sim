@@ -267,6 +267,7 @@ export const KALSHI_SERVICE_ACCOUNT_PROVIDER_ID = 'kalshi-service-account' as co
 export const SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID = 'splunk-service-account' as const
 export const CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID = 'cbinsights-service-account' as const
 export const RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID = 'railway-service-account' as const
+export const QDRANT_SERVICE_ACCOUNT_PROVIDER_ID = 'qdrant-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -404,6 +405,7 @@ export type TokenServiceAccountProviderId =
   | typeof SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof QDRANT_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FLOW_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
@@ -2754,6 +2756,32 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       "Create an account or workspace token in your Railway account settings, or a project token in a project's settings. A workspace token is scoped to one workspace, so enter that workspace's ID as well.",
     invalidCredentialsHelp:
       'Railway rejected this token. Check that the token type matches the scope you created it with, and for a workspace token that the workspace ID is the one it was created in.',
+  },
+  [QDRANT_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: QDRANT_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Qdrant',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste a Qdrant database API key',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Instance URL',
+        placeholder: 'https://xyz-example.eu-central.aws.cloud.qdrant.io:6333',
+        secret: false,
+        url: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/qdrant',
+    helpText:
+      'For Qdrant Cloud, create a database API key on the cluster and enter the cluster URL with its port (6333). For a self-hosted instance, enter the key set as its service API key and a URL Sim can reach.',
+    invalidCredentialsHelp:
+      'Qdrant rejected this API key. Check that the key belongs to this cluster or instance and has not expired.',
   },
 }
 

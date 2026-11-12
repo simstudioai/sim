@@ -21868,7 +21868,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "qdrant",
+      "type": "qdrant_v2",
       "slug": "qdrant",
       "name": "Qdrant",
       "description": "Use Qdrant vector database",
@@ -21893,11 +21893,12 @@
       "operationCount": 3,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "qdrant",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["vector-search", "knowledge-base"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "quartr_v2",

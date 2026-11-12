@@ -408,6 +408,14 @@ export const PLANETSCALE_CREDENTIAL_OAUTH = tokenCredentialOAuth('planetscale', 
 })
 export const PROFOUND_CREDENTIAL_OAUTH = tokenCredentialOAuth('profound', { apiKey: 'accessToken' })
 export const PULSE_CREDENTIAL_OAUTH = tokenCredentialOAuth('pulse', { apiKey: 'accessToken' })
+/**
+ * Credential policy for every Qdrant tool. A saved Qdrant API key fills the key and the instance
+ * URL it was verified against, so a run reaches only that instance.
+ */
+export const QDRANT_CREDENTIAL_OAUTH = tokenCredentialOAuth('qdrant', {
+  apiKey: 'accessToken',
+  url: 'domain',
+})
 export const QUARTR_CREDENTIAL_OAUTH = tokenCredentialOAuth('quartr', { apiKey: 'accessToken' })
 export const QUIVER_CREDENTIAL_OAUTH = tokenCredentialOAuth('quiver', { apiKey: 'accessToken' })
 /**
@@ -605,6 +613,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   planetscale: PLANETSCALE_CREDENTIAL_OAUTH,
   profound: PROFOUND_CREDENTIAL_OAUTH,
   pulse: PULSE_CREDENTIAL_OAUTH,
+  qdrant: QDRANT_CREDENTIAL_OAUTH,
   quartr: QUARTR_CREDENTIAL_OAUTH,
   quiver: QUIVER_CREDENTIAL_OAUTH,
   railway: RAILWAY_CREDENTIAL_OAUTH,

@@ -1019,6 +1019,33 @@ export const validateJupyterServiceAccount = tokenCheckValidator({
   },
 })
 
+/**
+ * Listing collections (`GET /collections`) is a read every Qdrant key may run (a collection-scoped
+ * key sees a filtered list), sent with the `api-key` header the tools send. The instance URL is
+ * one the user chose, so the check runs through the guarded egress, and an answer without a
+ * collection list (a proxy or login page) is not taken as proof. A self-hosted instance with no
+ * API key configured accepts any key; the credential still binds the instance URL.
+ * https://api.qdrant.tech/api-reference/collections/get-collections
+ */
+export const validateQdrantServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Qdrant',
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain = '' }) => ({
+    url: `${domain}/collections`,
+    headers: { 'api-key': apiToken, Accept: 'application/json' },
+  }),
+  acceptsBody: (body) => {
+    if (!Array.isArray(toRecord(toRecord(body).result).collections)) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Qdrant returned no collection list',
+      })
+    }
+    return true
+  },
+})
+
 /** The token types a Railway credential names, each read by the query its scope allows. */
 const RAILWAY_TOKEN_TYPES = new Set(['account', 'workspace', 'project'])
 /** A Railway workspace ID, sent only as a GraphQL variable. */

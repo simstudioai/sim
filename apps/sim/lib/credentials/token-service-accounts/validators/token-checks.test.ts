@@ -35,6 +35,7 @@ import {
   validateOktaServiceAccount,
   validatePlaneServiceAccount,
   validatePlanetScaleServiceAccount,
+  validateQdrantServiceAccount,
   validateRailwayServiceAccount,
   validateResendServiceAccount,
   validateServiceNowServiceAccount,
@@ -1163,5 +1164,69 @@ describe('Railway saved token verification', () => {
     await expect(
       validateRailwayServiceAccount({ apiToken: 'bad', domain: 'account' })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+})
+
+describe('Qdrant saved API key verification', () => {
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
+
+  function reply(response: Response) {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.9',
+      originalHostname: 'qdrant.example.com',
+    })
+    secureFetch.mockReset().mockResolvedValue(response)
+  }
+
+  it('lists collections on the URL the tools use, with the api-key header, through the guarded egress', async () => {
+    reply(jsonResponse({ result: { collections: [{ name: 'docs' }] }, status: 'ok' }))
+
+    await expect(
+      validateQdrantServiceAccount({ apiToken: 'qdrant-key', domain: 'qdrant.example.com:6333/' })
+    ).resolves.toMatchObject({ normalizedDomain: 'https://qdrant.example.com:6333' })
+    expect(inputValidationMockFns.mockValidateUrlWithDNS).toHaveBeenCalledWith(
+      'https://qdrant.example.com:6333/collections',
+      'url',
+      'configuredEndpoint',
+      expect.anything()
+    )
+    expect(secureFetch).toHaveBeenCalledWith(
+      'https://qdrant.example.com:6333/collections',
+      '203.0.113.9',
+      expect.objectContaining({
+        method: 'GET',
+        maxRedirects: 0,
+        headers: expect.objectContaining({ 'api-key': 'qdrant-key' }),
+      })
+    )
+  })
+
+  it('rejects a key Qdrant refuses', async () => {
+    reply(new Response('Must provide an API key or an Authorization bearer token', { status: 401 }))
+
+    await expect(
+      validateQdrantServiceAccount({ apiToken: 'bad', domain: 'https://qdrant.example.com' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('does not take a 200 without a collection list, such as a proxy page, as proof', async () => {
+    reply(jsonResponse({ ok: true }))
+
+    await expect(
+      validateQdrantServiceAccount({ apiToken: 'any', domain: 'https://qdrant.example.com' })
+    ).rejects.toMatchObject({ code: 'provider_unavailable' })
+  })
+
+  it('refuses a URL carrying credentials or a query before any request', async () => {
+    reply(jsonResponse({ result: { collections: [] } }))
+
+    await expect(
+      validateQdrantServiceAccount({
+        apiToken: 'key',
+        domain: 'https://user:pw@qdrant.example.com',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(secureFetch).not.toHaveBeenCalled()
   })
 })

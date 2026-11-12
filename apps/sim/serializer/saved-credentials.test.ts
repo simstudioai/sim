@@ -91,6 +91,7 @@ import { PlaneBlock, PlaneV2Block } from '@/blocks/blocks/plane'
 import { PlanetScaleBlock, PlanetScaleV2Block } from '@/blocks/blocks/planetscale'
 import { ProfoundBlock, ProfoundV2Block } from '@/blocks/blocks/profound'
 import { PulseV2Block, PulseV3Block } from '@/blocks/blocks/pulse'
+import { QdrantBlock, QdrantV2Block } from '@/blocks/blocks/qdrant'
 import { QuartrBlock, QuartrV2Block } from '@/blocks/blocks/quartr'
 import { QuiverV2Block, QuiverV3Block } from '@/blocks/blocks/quiver'
 import { RailwayBlock, RailwayV2Block } from '@/blocks/blocks/railway'
@@ -420,6 +421,13 @@ const VERSIONS: Array<{
   },
   { legacy: GongBlock, successor: GongV2Block, secretIds: ['accessKey', 'accessKeySecret'] },
   {
+    legacy: QdrantBlock,
+    successor: QdrantV2Block,
+    secretIds: ['url', 'apiKey'],
+    optionalIds: ['apiKey'],
+    legacyOperation: 'upsert',
+  },
+  {
     legacy: RailwayBlock,
     successor: RailwayV2Block,
     secretIds: ['apiKey', 'tokenType'],
@@ -467,10 +475,14 @@ function firstOperation(config: BlockConfig): string | undefined {
   return operations(config)[0]
 }
 
+/** One title per field id: a field repeated per operation (Qdrant's URL) is still one field. */
 function fieldTitles(config: BlockConfig, ids: readonly string[]): string[] {
-  return config.subBlocks
-    .filter((subBlock) => ids.includes(subBlock.id) && !isTriggerModeSubBlock(subBlock))
-    .map((subBlock) => subBlock.title ?? subBlock.id)
+  const titles = new Map<string, string>()
+  for (const subBlock of config.subBlocks) {
+    if (!ids.includes(subBlock.id) || isTriggerModeSubBlock(subBlock)) continue
+    if (!titles.has(subBlock.id)) titles.set(subBlock.id, subBlock.title ?? subBlock.id)
+  }
+  return [...titles.values()]
 }
 
 function buildBlock(config: BlockConfig, values: Record<string, string>): BlockState {

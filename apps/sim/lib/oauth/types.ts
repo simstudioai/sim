@@ -55,6 +55,7 @@ export const DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID = 'databricks-service-accoun
 export const MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID = 'microsoft-app-service-account' as const
 
 export type OAuthProvider =
+  | 'qdrant'
   | 'railway'
   | 'cbinsights'
   | 'splunk'
@@ -244,6 +245,7 @@ export type OAuthProvider =
   | 'zoho-desk'
 
 export type OAuthService =
+  | 'qdrant'
   | 'railway'
   | 'cbinsights'
   | 'splunk'

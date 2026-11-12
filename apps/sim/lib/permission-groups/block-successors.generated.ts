@@ -129,6 +129,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   profound: 'profound_v2',
   pulse: 'pulse_v3',
   pulse_v2: 'pulse_v3',
+  qdrant: 'qdrant_v2',
   quartr: 'quartr_v2',
   quiver: 'quiver_v3',
   quiver_v2: 'quiver_v3',

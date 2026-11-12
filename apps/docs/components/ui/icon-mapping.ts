@@ -677,6 +677,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   pulse_v2: PulseIcon,
   pulse_v3: PulseIcon,
   qdrant: QdrantIcon,
+  qdrant_v2: QdrantIcon,
   quartr: QuartrIcon,
   quartr_v2: QuartrIcon,
   quickbooks: QuickBooksIcon,

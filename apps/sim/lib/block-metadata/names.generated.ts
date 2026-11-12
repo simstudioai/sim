@@ -224,7 +224,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   profound_v2: 'Profound',
   prospeo: 'Prospeo',
   pulse_v3: 'Pulse',
-  qdrant: 'Qdrant',
+  qdrant_v2: 'Qdrant',
   quartr_v2: 'Quartr',
   quickbooks: 'QuickBooks',
   quiver_v3: 'Quiver',

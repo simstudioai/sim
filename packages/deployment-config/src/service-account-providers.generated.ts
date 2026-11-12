@@ -114,6 +114,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   planetscale: 'planetscale-service-account',
   profound: 'profound-service-account',
   pulse: 'pulse-service-account',
+  qdrant: 'qdrant-service-account',
   quartr: 'quartr-service-account',
   quiver: 'quiver-service-account',
   railway: 'railway-service-account',
