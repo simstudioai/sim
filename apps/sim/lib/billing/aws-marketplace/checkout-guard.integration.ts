@@ -4,15 +4,20 @@ import { generateId } from '@sim/utils/id'
 import { inArray } from 'drizzle-orm'
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 
-const PRODUCT = 'product-placeholder'
 const ACCOUNT = '000000000000'
 const TEAM_PLAN = 'team_6000'
+const RETIRED_PRODUCT = 'retired-product-placeholder'
 
-const marketplace = vi.hoisted(() => ({ enabled: true }))
+const marketplace = vi.hoisted(() => ({ enabled: true, product: 'product-placeholder' }))
+const PRODUCT = marketplace.product
 
-vi.mock('@/lib/billing/aws-marketplace/config', () => ({
-  isAwsMarketplaceEnabled: () => marketplace.enabled,
-}))
+vi.mock('@/lib/billing/aws-marketplace/config', async () => {
+  const { parseAwsMarketplaceProducts } = await vi.importActual<
+    typeof import('@/lib/billing/aws-marketplace/products')
+  >('@/lib/billing/aws-marketplace/products')
+  const sold = parseAwsMarketplaceProducts(`${marketplace.product}=contract`)
+  return { getAwsMarketplaceProducts: () => (marketplace.enabled ? sold : new Map()) }
+})
 
 import {
   assertPersonalCheckoutAllowed,
@@ -61,12 +66,13 @@ async function insertLicense(link: {
   organizationId: string | null
   linkedByUserId: string
   status: LicenseStatus
+  productCode?: string
 }) {
   const now = new Date()
   await db.insert(awsMarketplaceLicense).values({
     id: generateId(),
     licenseArn: `license-${generateId()}`,
-    productCode: PRODUCT,
+    productCode: link.productCode ?? PRODUCT,
     customerAwsAccountId: ACCOUNT,
     dimension: 'enterprise',
     quantity: 25,
@@ -129,6 +135,21 @@ describe('Stripe checkout for an AWS Marketplace-billed reference', () => {
 
   it('allows an organization whose license is inactive', async () => {
     const { ownerId, organizationId } = await organizationWithLicense('inactive')
+
+    await expect(
+      authorizeSubscriptionReference(ownerId, organizationId, 'upgrade-subscription', TEAM_PLAN)
+    ).resolves.toBe(true)
+  })
+
+  it('allows an organization whose only license is on a listing this deployment no longer sells', async () => {
+    const ownerId = await createUser()
+    const organizationId = await createOwnedOrganization(ownerId)
+    await insertLicense({
+      organizationId,
+      linkedByUserId: ownerId,
+      status: 'active',
+      productCode: RETIRED_PRODUCT,
+    })
 
     await expect(
       authorizeSubscriptionReference(ownerId, organizationId, 'upgrade-subscription', TEAM_PLAN)

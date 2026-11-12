@@ -53,14 +53,15 @@ export interface AwsMarketplaceProduct {
   readonly plan: AwsMarketplacePlan
 }
 
+/** The products a deployment sells, by product code. */
+export type AwsMarketplaceProducts = ReadonlyMap<string, AwsMarketplaceProduct>
+
 /**
  * Parses `AWS_MARKETPLACE_PRODUCTS`: comma-separated `<product code>=<plan>` pairs, for example
  * `abc123=contract,def456=platform-with-usage`. Throws on a malformed entry, an unknown plan, or a
  * repeated code.
  */
-export function parseAwsMarketplaceProducts(
-  value: string
-): ReadonlyMap<string, AwsMarketplaceProduct> {
+export function parseAwsMarketplaceProducts(value: string): AwsMarketplaceProducts {
   const products = new Map<string, AwsMarketplaceProduct>()
   for (const entry of value.split(',')) {
     const [productCode, planId, ...rest] = entry.split('=').map((part) => part.trim())

@@ -24,7 +24,10 @@
 #   3. An IAM role for the ServiceAccount below that allows license-manager:ListReceivedLicenses
 #      (the CloudFormation template creates it).
 #   4. An ACM certificate for the two hostnames below.
-#   5. Two Secrets in the install namespace (no secret ever goes in this file):
+#   5. Two Secrets in the install namespace (no secret ever goes in this file). The template's
+#      DatabasePasswordArn and CacheAuthTokenArn outputs are the ARNs of the Secrets Manager
+#      secrets holding the two passwords; read each password with:
+#        aws secretsmanager get-secret-value --secret-id <arn> --query SecretString --output text
 #        kubectl create secret generic sim-app-secrets --namespace sim \
 #          --from-literal=BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
 #          --from-literal=ENCRYPTION_KEY=$(openssl rand -hex 32) \
@@ -48,8 +51,9 @@ app:
     NEXT_PUBLIC_APP_URL: "https://sim.example.com" # EDIT: your public URL
     BETTER_AUTH_URL: "https://sim.example.com" # EDIT: same as NEXT_PUBLIC_APP_URL
     NEXT_PUBLIC_SOCKET_URL: "wss://sim-ws.example.com" # EDIT: the realtime hostname below
-    # The listing's product ID. Its presence turns on the AWS License Manager check.
-    AWS_MARKETPLACE_LICENSE_PRODUCT_SKU: "prod-ptrlmodsen2jg"
+    # The listing's product ID, which the Marketplace chart sets; rendered from this repository,
+    # set it to the product ID shown on the listing. Its presence turns on the License Manager check.
+    AWS_MARKETPLACE_LICENSE_PRODUCT_SKU: "prod-xxxxxxxxxxxxx" # EDIT
 
 realtime:
   replicaCount: 2

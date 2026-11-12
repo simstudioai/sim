@@ -6,6 +6,7 @@ import {
   member,
   organization,
   outboxEvent,
+  subscription,
   user,
 } from '@sim/db/schema'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
@@ -352,6 +353,7 @@ afterAll(async () => {
     .delete(awsMarketplaceLicense)
     .where(inArray(awsMarketplaceLicense.licenseArn, licenseArns))
   if (organizationIds.length) {
+    await db.delete(subscription).where(inArray(subscription.referenceId, organizationIds))
     await db.delete(organization).where(inArray(organization.id, organizationIds))
   }
   if (userIds.length) {
@@ -777,6 +779,72 @@ describe('linking a claimed license', () => {
 
     expect(error).toMatchObject({ code: 'conflict' })
     expect((await readLicense(license.licenseArn))?.organizationId).toBe(otherOrganizationId)
+  })
+
+  it('refuses an organization with a live Stripe self-serve subscription, but not Enterprise or an abandoned checkout', async () => {
+    async function organizationWith(sub: { plan: string; status: string; bound: boolean }) {
+      const planOwnerId = await createUser()
+      const id = await createOrganization([{ userId: planOwnerId, role: 'owner' }])
+      await db.insert(subscription).values({
+        id: generateId(),
+        plan: sub.plan,
+        referenceId: id,
+        status: sub.status,
+        stripeSubscriptionId: sub.bound ? `sub_${generateId()}` : null,
+        metadata: { plan: sub.plan, referenceId: id, seats: 10, monthlyPrice: 100 },
+      })
+      return { id, planOwnerId }
+    }
+    async function linkTo(organization: { id: string; planOwnerId: string }) {
+      const license = await createClaimedLicense()
+      entitlementsByLicense.set(license.licenseArn, [currentEntitlement()])
+      const refusal = await linkAwsMarketplaceLicense
+        .execute({
+          principal: createSessionPrincipal({ userId: organization.planOwnerId }),
+          input: {
+            ...CONTACT,
+            organizationId: organization.id,
+            licenseId: license.id,
+            claimToken: license.token,
+          },
+        })
+        .then(
+          () => null,
+          (error: unknown) => error
+        )
+      return { license, refusal }
+    }
+
+    const trial = await linkTo(
+      await organizationWith({ plan: 'team_6000', status: 'trialing', bound: true })
+    )
+    const onEnterprise = await organizationWith({
+      plan: 'enterprise',
+      status: 'active',
+      bound: true,
+    })
+    const enterprise = await linkTo(onEnterprise)
+    const abandoned = await organizationWith({
+      plan: 'team_6000',
+      status: 'incomplete',
+      bound: false,
+    })
+    const afterAbandoned = await linkTo(abandoned)
+
+    expect(trial.refusal).toMatchObject({
+      code: 'conflict',
+      message: expect.stringMatching(/already pays/),
+    })
+    expect(await readLicense(trial.license.licenseArn)).toMatchObject({
+      organizationId: null,
+      claimTokenHash: hashClaimToken(trial.license.token),
+    })
+    expect(enterprise.refusal).toBeNull()
+    expect(afterAbandoned.refusal).toBeNull()
+    expect((await readLicense(enterprise.license.licenseArn))?.organizationId).toBe(onEnterprise.id)
+    expect((await readLicense(afterAbandoned.license.licenseArn))?.organizationId).toBe(
+      abandoned.id
+    )
   })
 
   it('links under a newer active read without overwriting it with its own older one', async () => {
