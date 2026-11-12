@@ -125,4 +125,30 @@ describe('client credential token cache', () => {
     await expect(resolve()).resolves.toEqual({ accessToken: 'replacement-token' })
     expect(mint).toHaveBeenCalledTimes(2)
   })
+  it('keeps a token minted within the minimum age, and drops it once it is older', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const mint = vi.fn<clientAccounts.ClientCredentialAccountMinter>()
+      mint
+        .mockResolvedValueOnce({ ...token, accessToken: 'refused-token' })
+        .mockResolvedValueOnce({ ...token, accessToken: 'replacement-token' })
+      vi.spyOn(clientAccounts, 'getClientCredentialAccountMinter').mockReturnValue(mint)
+      const resolve = () => {
+        queueTableRows(credential, [storedCredential])
+        return resolveServiceAccountToken('ramp-refused-aged', RAMP_SERVICE_ACCOUNT_PROVIDER_ID)
+      }
+
+      await expect(resolve()).resolves.toEqual({ accessToken: 'refused-token' })
+      vi.advanceTimersByTime(30_000)
+      forgetRejectedClientCredentialToken('refused-token', { minimumAgeMs: 60_000 })
+      await expect(resolve()).resolves.toEqual({ accessToken: 'refused-token' })
+
+      vi.advanceTimersByTime(31_000)
+      forgetRejectedClientCredentialToken('refused-token', { minimumAgeMs: 60_000 })
+      await expect(resolve()).resolves.toEqual({ accessToken: 'replacement-token' })
+      expect(mint).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

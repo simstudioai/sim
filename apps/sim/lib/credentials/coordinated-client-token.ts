@@ -154,9 +154,11 @@ function isServable(expiresAt: Date): boolean {
  * to reuse one token rather than accumulate them. Minting happens only under a
  * transaction-scoped advisory lock keyed by the application, so two workers never race two
  * tokens into existence; a token minted with a different secret is never served, and a token the
- * provider rejects is expired through {@link invalidateCoordinatedClientToken}. A rejected
- * exchange is remembered for 30 seconds so a hot workflow on a revoked secret does not hammer the
- * token endpoint. Tokens are encrypted at rest.
+ * provider rejects is expired through {@link invalidateCoordinatedClientToken}. An exchange that
+ * fails validation, whether refused for the credentials or answered with an outage, is remembered
+ * for 30 seconds, the same backoff the per-instance mint cache applies, so a hot workflow neither
+ * hammers the token endpoint with a revoked secret nor floods a struggling one. Tokens are
+ * encrypted at rest.
  */
 export async function resolveCoordinatedClientToken(
   input: CoordinatedClientTokenInput

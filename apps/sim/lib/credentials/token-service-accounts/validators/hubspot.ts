@@ -101,11 +101,12 @@ const HUBSPOT_KEY_PREFIX = /^pat-/
  * tokens, so one code path covers both regions.
  *
  * That endpoint is documented only for private app tokens, and live probing
- * shows it returns a bare 404 (HTML) for a token it does not recognize. So a
- * 400, 403 or 404, a 401 for a `pat-` key (which may be a service key), or a
- * 200 without a portal falls back to the Account Information API, and a key
- * that route refuses is settled by a contacts read, the route HubSpot documents
- * for service keys. A token-info 401 for any other token is a rejection.
+ * shows it returns a bare 404 (HTML) for a token it does not recognize. So any
+ * non-transient 4xx other than 401 (408 and 429 are transient), a 401 for a
+ * `pat-` key (which may be a service key), or a 200 without a portal falls back
+ * to the Account Information API, and a key that route refuses is settled by a
+ * contacts read, the route HubSpot documents for service keys. A token-info 401
+ * for any other token is a rejection.
  *
  * The display name is `HubSpot portal {hubId}` when the portal is known — the
  * account-info `uiDomain` is the shared regional host (e.g. `app.hubspot.com`),

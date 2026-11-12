@@ -70,7 +70,6 @@ export async function exchangeClientCredentialsGrant(
         client_secret: request.clientSecret,
         ...extraFields,
       }).toString(),
-      redirect: 'error',
       cache: 'no-store',
       signal,
     },

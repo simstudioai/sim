@@ -94,7 +94,6 @@ async function exchangeClientCredentials(
         scope,
         expires_in: REQUESTED_TOKEN_LIFETIME_SECONDS,
       }),
-      redirect: 'error',
       cache: 'no-store',
       signal,
     },
@@ -135,7 +134,6 @@ async function verifyStaffUser(
     {
       method: 'GET',
       headers: { Accept: 'application/json', Authorization: authorization },
-      redirect: 'error',
       cache: 'no-store',
       signal,
     },

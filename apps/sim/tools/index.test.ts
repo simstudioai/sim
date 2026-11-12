@@ -3823,15 +3823,21 @@ describe('Internal Route Trust', () => {
       )
     }
 
-    it.each([401, 403])(
-      'drops the cached token after a %i so the next call mints one',
-      async (status) => {
-        const result = await runWith('service_account', status)
+    it('drops the cached token after a 401 so the next call mints one', async () => {
+      const result = await runWith('service_account', 401)
 
-        expect(result.success).toBe(false)
-        expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('minted-token')
-      }
-    )
+      expect(result.success).toBe(false)
+      expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('minted-token')
+    })
+
+    it('drops the cached token after a 403 only once it is old enough to blame', async () => {
+      const result = await runWith('service_account', 403)
+
+      expect(result.success).toBe(false)
+      expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('minted-token', {
+        minimumAgeMs: 60_000,
+      })
+    })
 
     it('keeps the token after a call the provider accepts', async () => {
       const result = await runWith('service_account', 200)

@@ -67,7 +67,6 @@ export async function mintDatadogServiceAccountToken(
     datadogApiUrl(site, '/api/v1/validate'),
     {
       method: 'GET',
-      redirect: 'error',
       signal: options?.signal,
       headers: { Accept: 'application/json', 'DD-API-KEY': apiKey },
     },
