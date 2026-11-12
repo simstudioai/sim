@@ -22,7 +22,8 @@ export function resolveDocumentId(params: {
  * request targets the document's first tab, matching the API default.
  */
 export function resolveTabId(tabId: unknown): string | undefined {
-  if (typeof tabId !== 'string') return undefined
+  if (tabId === undefined || tabId === null) return undefined
+  if (typeof tabId !== 'string') throw new Error('Tab ID must be a string')
   const trimmed = tabId.trim()
   return trimmed || undefined
 }
@@ -32,7 +33,8 @@ export function resolveTabId(tabId: unknown): string | undefined {
  * string (agent tool-calls). Returns `undefined` when absent or not finite.
  */
 export function parseOptionalNumber(value: unknown): number | undefined {
-  if (value === undefined || value === null || value === '') return undefined
+  if (value === undefined || value === null) return undefined
+  if (typeof value === 'string' && value.trim() === '') return undefined
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : undefined
 }

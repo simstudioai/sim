@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getContentTool } from '@/tools/google_drive/get_content'
 import { MAX_EXPORT_BYTES } from '@/tools/google_drive/utils'
@@ -5,10 +6,6 @@ import { MAX_EXPORT_BYTES } from '@/tools/google_drive/utils'
 const transform = getContentTool.transformResponse as NonNullable<
   typeof getContentTool.transformResponse
 >
-
-function metadataResponse(metadata: Record<string, unknown>): Response {
-  return new Response(JSON.stringify(metadata), { status: 200 })
-}
 
 function streamOf(totalBytes: number, chunkBytes = 1024 * 1024): ReadableStream<Uint8Array> {
   let sent = 0
@@ -36,7 +33,7 @@ describe('google_drive_get_content byte limits', () => {
   it('refuses a binary file whose declared size exceeds the download cap before fetching it', async () => {
     await expect(
       transform(
-        metadataResponse({
+        jsonResponse({
           id: 'file-1',
           name: 'huge.bin',
           mimeType: 'application/octet-stream',
@@ -56,7 +53,7 @@ describe('google_drive_get_content byte limits', () => {
 
     await expect(
       transform(
-        metadataResponse({
+        jsonResponse({
           id: 'doc-1',
           name: 'Doc',
           mimeType: 'application/vnd.google-apps.document',

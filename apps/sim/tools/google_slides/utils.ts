@@ -135,14 +135,14 @@ export function authJsonHeaders(accessToken: string) {
  */
 export function slidesPresentationUrl(
   presentationId: string | undefined,
-  pageObjectId?: string,
+  pageObjectId?: string | number,
   suffix = ''
 ): string {
   const id = presentationId?.trim()
   if (!id) throw new Error('Presentation ID is required')
   const base = `https://slides.googleapis.com/v1/presentations/${safeUrlPathSegment(id, 'presentationId')}`
   if (pageObjectId === undefined) return `${base}${suffix}`
-  const pageId = pageObjectId.trim()
+  const pageId = String(pageObjectId).trim()
   if (!pageId) throw new Error('Page Object ID is required')
   return `${base}/pages/${safeUrlPathSegment(pageId, 'pageObjectId')}${suffix}`
 }
@@ -177,6 +177,7 @@ function textContentToString(text: SlidesTextContent | undefined): string {
   return elements
     .map((element) => element.textRun?.content ?? element.autoText?.content ?? '')
     .join('')
+    .replace(/\v/g, '\n')
 }
 
 function pageElementText(element: SlidesPageElement): string[] {
