@@ -1,4 +1,5 @@
 import type { RemoveContactsFromListParams } from '@/tools/sendgrid/types'
+import { SENDGRID_REGION_PARAM, sendGridApiBase } from '@/tools/sendgrid/utils'
 import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -13,6 +14,7 @@ export const sendGridRemoveContactsFromListTool: ToolConfig<
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENDGRID_REGION_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -39,7 +41,7 @@ export const sendGridRemoveContactsFromListTool: ToolConfig<
         .split(',')
         .map((id) => id.trim())
         .join(',')
-      return `https://api.sendgrid.com/v3/marketing/lists/${params.listId}/contacts?contact_ids=${encodeURIComponent(contactIds)}`
+      return `${sendGridApiBase(params.region)}/marketing/lists/${params.listId}/contacts?contact_ids=${encodeURIComponent(contactIds)}`
     },
     method: 'DELETE',
     headers: (params) => ({

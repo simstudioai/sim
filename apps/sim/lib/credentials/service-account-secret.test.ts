@@ -892,6 +892,8 @@ describe('a token provider whose region or host defaults to the one it always us
       'https://connect.squareupsandbox.com/v2/locations',
       'sandbox',
     ],
+    ['sendgrid-service-account', undefined, 'https://api.sendgrid.com/v3/scopes', 'global'],
+    ['sendgrid-service-account', 'eu', 'https://api.eu.sendgrid.com/v3/scopes', 'eu'],
   ])('%s with %s is checked at %s and stored as %s', async (providerId, domain, url, stored) => {
     const result = await verifyAndBuildServiceAccountSecret(providerId, {
       apiToken: 'token-1',
@@ -909,6 +911,7 @@ describe('a token provider whose region or host defaults to the one it always us
     ['launchdarkly-service-account', 'app.launchdarkly.example.com'],
     ['langsmith-service-account', 'eu.api.smith.langchain.com.example.com'],
     ['square-service-account', 'connect.squareupsandbox.com'],
+    ['sendgrid-service-account', 'api.eu.sendgrid.com'],
   ])(
     'refuses %s with an unlisted region or host %s without sending the token',
     async (providerId, domain) => {

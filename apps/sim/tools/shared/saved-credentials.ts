@@ -362,7 +362,10 @@ export const ROCKETLANE_CREDENTIAL_OAUTH = tokenCredentialOAuth('rocketlane', {
   apiKey: 'accessToken',
 })
 export const ROOTLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('rootly', { apiKey: 'accessToken' })
-export const SENDGRID_CREDENTIAL_OAUTH = tokenCredentialOAuth('sendgrid', { apiKey: 'accessToken' })
+export const SENDGRID_CREDENTIAL_OAUTH = tokenCredentialOAuth('sendgrid', {
+  apiKey: 'accessToken',
+  region: 'domain',
+})
 export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', { apiKey: 'accessToken' })
 export const SERVICENOW_CREDENTIAL_OAUTH = tokenCredentialOAuth('servicenow', {
   instanceUrl: 'domain',

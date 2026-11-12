@@ -17,6 +17,7 @@ import {
   DEFAULT_LAUNCHDARKLY_INSTANCE,
   LAUNCHDARKLY_INSTANCE_OPTIONS,
 } from '@/tools/launchdarkly/utils'
+import { DEFAULT_SENDGRID_REGION, SENDGRID_REGION_OPTIONS } from '@/tools/sendgrid/utils'
 import { DEFAULT_SQUARE_ENVIRONMENT, SQUARE_ENVIRONMENT_OPTIONS } from '@/tools/square/types'
 
 /** Discriminator stored inside every encrypted token service-account secret blob. */
@@ -1357,10 +1358,20 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Paste your SendGrid API key',
         secret: true,
       },
+      {
+        id: 'domain',
+        label: 'Region',
+        placeholder: 'Select a region',
+        secret: false,
+        options: SENDGRID_REGION_OPTIONS,
+        defaultValue: DEFAULT_SENDGRID_REGION,
+        hintMessage:
+          'global (default), or eu for a key of an EU regional subuser, which SendGrid serves from api.eu.sendgrid.com.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/sendgrid',
     helpText:
-      'Create a key in SendGrid under Settings > API Keys. A restricted key only works for the actions it is scoped to.',
+      'Create a key in SendGrid under Settings > API Keys. A restricted key only works for the actions it is scoped to. Choose EU subuser for a key of an EU regional subuser; Marketing Campaigns actions (contacts and lists) are not available to EU subusers.',
   },
   [SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID,

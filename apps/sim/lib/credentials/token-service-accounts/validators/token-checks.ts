@@ -47,6 +47,7 @@ import {
   PLANETSCALE_API_ORIGIN,
   planetScaleHeaders,
 } from '@/tools/planetscale/utils'
+import { SENDGRID_REGIONS, sendGridApiBase } from '@/tools/sendgrid/utils'
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
 import { SQUARE_ENVIRONMENTS, squareBaseUrl } from '@/tools/square/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
@@ -1356,11 +1357,16 @@ export const validateRootlyServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** SendGrid's scopes endpoint lists the scopes of the key that calls it, so any valid key gets 200 and a bad one 401. */
+/**
+ * SendGrid's scopes endpoint lists the scopes of the key that calls it, so any valid key gets 200
+ * and a bad one 401. SendGrid serves it on both the global host and the EU host of regional
+ * subusers: https://www.twilio.com/docs/sendgrid/api-reference/api-key-permissions/retrieve-a-list-of-scopes-for-which-this-user-has-access
+ */
 export const validateSendGridServiceAccount = tokenCheckValidator({
   serviceLabel: 'SendGrid',
-  request: ({ apiToken }) => ({
-    url: 'https://api.sendgrid.com/v3/scopes',
+  domain: allowedDomain(SENDGRID_REGIONS),
+  request: ({ apiToken, domain }) => ({
+    url: `${sendGridApiBase(domain)}/scopes`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })

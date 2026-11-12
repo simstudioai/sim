@@ -14,7 +14,12 @@ describe('required fields for a service-account create', () => {
     )
   })
 
-  it.each(['launchdarkly-service-account', 'langsmith-service-account', 'square-service-account'])(
+  it.each([
+    'launchdarkly-service-account',
+    'langsmith-service-account',
+    'square-service-account',
+    'sendgrid-service-account',
+  ])(
     'lets a %s create omit the region or host it defaults, as it could before one existed',
     (providerId) => {
       expect(getMissingServiceAccountFields(providerId, { apiToken: 'token' })).toEqual([])

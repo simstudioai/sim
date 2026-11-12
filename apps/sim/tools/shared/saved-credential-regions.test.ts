@@ -6,6 +6,7 @@ import * as langsmithTools from '@/tools/langsmith'
 import * as launchDarklyTools from '@/tools/launchdarkly'
 import * as newRelicTools from '@/tools/new_relic'
 import { prepareToolRequestUrl } from '@/tools/request-transport'
+import * as sendGridTools from '@/tools/sendgrid'
 import * as squareTools from '@/tools/square'
 import { isInternalToolConfig, type ToolConfig } from '@/tools/types'
 
@@ -71,6 +72,16 @@ const FAMILIES: {
     ],
     refusesUnknownRegion: true,
   },
+  {
+    service: 'SendGrid',
+    tools: sendGridTools,
+    defaultHost: 'api.sendgrid.com',
+    regions: [
+      ['global', 'api.sendgrid.com'],
+      ['eu', 'api.eu.sendgrid.com'],
+    ],
+    refusesUnknownRegion: true,
+  },
 ]
 
 /**
@@ -124,6 +135,15 @@ describe('internal operations of a regional tool family', () => {
       const tool = squareTools.squareCreateCatalogImageTool
       const params = { ...placeholderParams(tool), environment }
       expect(tool.operation.input(params)).toMatchObject({ environment })
+    }
+  )
+
+  it.each([undefined, 'eu'])(
+    'hands the SendGrid mail send the credential region (%s)',
+    (region) => {
+      const tool = sendGridTools.sendGridSendMailTool
+      const params = { ...placeholderParams(tool), region }
+      expect(tool.operation.input(params)).toMatchObject({ region })
     }
   )
 })

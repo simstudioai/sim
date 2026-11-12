@@ -5,6 +5,7 @@ import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
 export const sendGridSendInputSchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
+  region: z.enum(['global', 'eu']).optional(),
   from: z.string().min(1, 'From email is required'),
   fromName: z.string().optional().nullable(),
   to: z.string().min(1, 'To email is required'),
