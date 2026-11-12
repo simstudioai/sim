@@ -7,6 +7,7 @@ import {
 } from '@/tools/trello/shared'
 import type { TrelloUpdateListParams, TrelloUpdateListResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloUpdateListTool: ToolConfig<TrelloUpdateListParams, TrelloUpdateListResponse> = {
   id: 'trello_update_list',
@@ -69,7 +70,9 @@ export const trelloUpdateListTool: ToolConfig<TrelloUpdateListParams, TrelloUpda
         throw new Error('TRELLO_API_KEY environment variable is not set')
       }
 
-      const url = new URL(`${TRELLO_API_BASE_URL}/lists/${params.listId.trim()}`)
+      const url = new URL(
+        `${TRELLO_API_BASE_URL}/lists/${safeUrlPathSegment(params.listId, 'listId')}`
+      )
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)
 

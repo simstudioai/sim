@@ -1,14 +1,30 @@
+import { transformIssueData } from '@/tools/jira/retrieve'
 import type { JiraSearchIssuesParams, JiraSearchIssuesResponse } from '@/tools/jira/types'
 import { SEARCH_ISSUE_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 /**
  * Transforms a raw Jira search result issue into typed output.
  */
 function transformSearchIssue(issue: any) {
   const fields = issue?.fields ?? {}
+  const full = transformIssueData(issue)
   return {
+    descriptionAdf: full.descriptionAdf,
+    renderedDescription: full.renderedDescription,
+    environment: full.environment,
+    creator: full.creator,
+    fixVersions: full.fixVersions,
+    resolutiondate: full.resolutiondate,
+    timetracking: full.timetracking,
+    parent: full.parent,
+    issuelinks: full.issuelinks,
+    subtasks: full.subtasks,
+    votes: full.votes,
+    watches: full.watches,
+    attachments: full.attachments,
+    customFields: full.customFields,
     id: issue.id ?? '',
     key: issue.key ?? '',
     self: issue.self ?? '',
@@ -119,6 +135,13 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       visibility: 'user-or-llm',
       description: 'Array of field names to return (default: all fields).',
     },
+    expand: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated expansions: renderedFields, names, schema, transitions, operations, editmeta, changelog',
+    },
     cloudId: {
       type: 'string',
       required: false,
@@ -141,6 +164,7 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
         } else {
           query.set('fields', '*all')
         }
+        if (params.expand) query.set('expand', params.expand)
         const qs = query.toString()
         return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/search/jql${qs ? `?${qs}` : ''}`
       }
@@ -155,7 +179,11 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
     body: () => undefined as any,
   },
 
-  transformResponse: async (response: Response, params?: JiraSearchIssuesParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: JiraSearchIssuesParams,
+    context?: ToolResponseContext
+  ) => {
     const performSearch = async (cloudId: string) => {
       const query = new URLSearchParams()
       if (params?.jql) query.set('jql', params.jql)
@@ -166,6 +194,7 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       } else {
         query.set('fields', '*all')
       }
+      if (params?.expand) query.set('expand', params.expand)
       const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${query.toString()}`
       const searchResponse = await fetch(searchUrl, {
         method: 'GET',
@@ -173,6 +202,7 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
           Accept: 'application/json',
           Authorization: `Bearer ${params!.accessToken}`,
         },
+        signal: context?.signal,
       })
 
       if (!searchResponse.ok) {
@@ -190,7 +220,9 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
     let data: any
 
     if (!params?.cloudId) {
-      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
+      const cloudId = await getJiraCloudId(params!.domain, params!.accessToken, {
+        signal: context?.signal,
+      })
       data = await performSearch(cloudId)
     } else {
       if (!response.ok) {
@@ -212,6 +244,7 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
         nextPageToken: data?.nextPageToken ?? null,
         isLast: data?.isLast ?? !data?.nextPageToken,
         total: null,
+        names: data?.names ?? null,
       },
     }
   },
@@ -232,6 +265,12 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       optional: true,
     },
     isLast: { type: 'boolean', description: 'Whether this is the last page of results' },
+    names: {
+      type: 'json',
+      description:
+        'Map of field ID to display name (e.g., customfield_10020 → "Sprint"). Only returned when expand includes names.',
+      optional: true,
+    },
     total: {
       type: 'number',
       description:

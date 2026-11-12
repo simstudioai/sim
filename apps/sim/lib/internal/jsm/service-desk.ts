@@ -167,8 +167,11 @@ const REQUEST_OWNERSHIP = [
   'PARTICIPATED_REQUESTS',
   'APPROVER',
   'ALL_REQUESTS',
+  'ORGANIZATION',
+  'ALL_ORGANIZATIONS',
 ] as const
 const REQUEST_STATUS = ['OPEN_REQUESTS', 'CLOSED_REQUESTS', 'ALL_REQUESTS'] as const
+const APPROVAL_STATUS = ['MY_PENDING_APPROVAL', 'MY_HISTORY_APPROVAL'] as const
 
 function requireAction<T extends readonly string[]>(
   action: string,
@@ -193,11 +196,18 @@ export async function executeJsmGetRequests(input: JsmRequestsBody, signal?: Abo
     const result = validateEnum(input.requestStatus, REQUEST_STATUS, 'requestStatus')
     if (!result.isValid) throw new JsmOperationError(result.error || 'Invalid requestStatus', 400)
   }
+  if (input.approvalStatus) {
+    const result = validateEnum(input.approvalStatus, APPROVAL_STATUS, 'approvalStatus')
+    if (!result.isValid) throw new JsmOperationError(result.error || 'Invalid approvalStatus', 400)
+  }
+  if (input.organizationId) validateId(input.organizationId, 'organizationId')
   const client = await createJsmClient(input, signal)
   const query = new URLSearchParams()
   append(query, 'serviceDeskId', input.serviceDeskId)
   append(query, 'requestOwnership', input.requestOwnership)
   append(query, 'requestStatus', input.requestStatus)
+  append(query, 'approvalStatus', input.approvalStatus)
+  append(query, 'organizationId', input.organizationId)
   append(query, 'requestTypeId', input.requestTypeId)
   append(query, 'searchTerm', input.searchTerm)
   append(query, 'expand', input.expand)
@@ -221,6 +231,27 @@ function currentStatus(data: Record<string, unknown>) {
         statusDate: value.statusDate ?? null,
       }
     : null
+}
+
+function webUrl(data: Record<string, unknown>): string | null {
+  const web = toRecord(data._links).web
+  return typeof web === 'string' ? web : null
+}
+
+function requestFieldValues(data: Record<string, unknown>) {
+  return toArray(data.requestFieldValues).map((entry) => {
+    const field = toRecord(entry)
+    return {
+      fieldId: field.fieldId ?? null,
+      label: field.label ?? null,
+      value: field.value ?? null,
+      ...(field.renderedValue !== undefined ? { renderedValue: field.renderedValue } : {}),
+    }
+  })
+}
+
+function expandedValues(value: unknown): unknown[] | null {
+  return value === undefined ? null : toArray(toRecord(value).values)
 }
 
 function reporter(data: Record<string, unknown>, includeActive: boolean) {
@@ -285,8 +316,10 @@ export async function executeJsmCreateRequest(input: JsmRequestBody, signal?: Ab
       createdDate: data.createdDate ?? null,
       currentStatus: currentStatus(data),
       reporter: reporter(data, false),
+      requestFieldValues: requestFieldValues(data),
       success: true,
       url: `https://${input.domain}/browse/${String(data.issueKey)}`,
+      webUrl: webUrl(data),
     },
   }
 }
@@ -316,15 +349,11 @@ export async function executeJsmGetRequest(input: JsmRequestBody, signal?: Abort
       createdDate: data.createdDate ?? null,
       currentStatus: currentStatus(data),
       reporter: reporter(data, true),
-      requestFieldValues: toArray(data.requestFieldValues).map((entry) => {
-        const field = toRecord(entry)
-        return {
-          fieldId: field.fieldId ?? null,
-          label: field.label ?? null,
-          value: field.value ?? null,
-        }
-      }),
+      requestFieldValues: requestFieldValues(data),
       url: `https://${input.domain}/browse/${String(data.issueKey)}`,
+      webUrl: webUrl(data),
+      participants: expandedValues(data.participants),
+      slas: expandedValues(data.sla),
       request: data,
     },
   }

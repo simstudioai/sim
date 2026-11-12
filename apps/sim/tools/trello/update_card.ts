@@ -4,9 +4,12 @@ import {
   extractTrelloErrorMessage,
   mapTrelloCard,
   TRELLO_API_BASE_URL,
+  TRELLO_CARD_OUTPUT_DESCRIPTION,
+  TRELLO_CARD_OUTPUT_PROPERTIES,
 } from '@/tools/trello/shared'
 import type { TrelloUpdateCardParams, TrelloUpdateCardResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpdateCardResponse> = {
   id: 'trello_update_card',
@@ -68,6 +71,44 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
       visibility: 'user-or-llm',
       description: 'Mark the due date as complete',
     },
+    start: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Start date (ISO 8601 format)',
+    },
+    pos: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Position of the card in its list (top, bottom, or positive float)',
+    },
+    idBoard: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Trello board ID to move the card to (use with idList)',
+    },
+    labelIds: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Replace the card labels with these label IDs',
+      items: {
+        type: 'string',
+        description: 'A Trello label ID',
+      },
+    },
+    memberIds: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Replace the card members with these member IDs',
+      items: {
+        type: 'string',
+        description: 'A Trello member ID',
+      },
+    },
   },
 
   request: {
@@ -81,7 +122,9 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
         throw new Error('TRELLO_API_KEY environment variable is not set')
       }
 
-      const url = new URL(`${TRELLO_API_BASE_URL}/cards/${params.cardId.trim()}`)
+      const url = new URL(
+        `${TRELLO_API_BASE_URL}/cards/${safeUrlPathSegment(params.cardId, 'cardId')}`
+      )
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)
 
@@ -101,6 +144,11 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
       if (params.idList !== undefined) body.idList = params.idList.trim()
       if (params.due !== undefined) body.due = params.due
       if (params.dueComplete !== undefined) body.dueComplete = params.dueComplete
+      if (params.start !== undefined) body.start = params.start
+      if (params.pos !== undefined) body.pos = params.pos
+      if (params.idBoard !== undefined) body.idBoard = params.idBoard.trim()
+      if (params.labelIds?.length) body.idLabels = params.labelIds
+      if (params.memberIds?.length) body.idMembers = params.memberIds
 
       if (Object.keys(body).length === 0) {
         throw new Error('At least one field must be provided to update')
@@ -150,52 +198,9 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
   outputs: {
     card: {
       type: 'json',
-      description:
-        'Updated card (id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete)',
+      description: `Updated card (${TRELLO_CARD_OUTPUT_DESCRIPTION})`,
       optional: true,
-      properties: {
-        id: { type: 'string', description: 'Card ID' },
-        name: { type: 'string', description: 'Card name' },
-        desc: { type: 'string', description: 'Card description' },
-        url: { type: 'string', description: 'Full card URL' },
-        idBoard: { type: 'string', description: 'Board ID containing the card' },
-        idList: { type: 'string', description: 'List ID containing the card' },
-        closed: { type: 'boolean', description: 'Whether the card is archived' },
-        labelIds: {
-          type: 'array',
-          description: 'Label IDs applied to the card',
-          items: {
-            type: 'string',
-            description: 'A Trello label ID',
-          },
-        },
-        labels: {
-          type: 'array',
-          description: 'Labels applied to the card',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'Label ID' },
-              name: { type: 'string', description: 'Label name' },
-              color: {
-                type: 'string',
-                description: 'Label color',
-                optional: true,
-              },
-            },
-          },
-        },
-        due: {
-          type: 'string',
-          description: 'Card due date in ISO 8601 format',
-          optional: true,
-        },
-        dueComplete: {
-          type: 'boolean',
-          description: 'Whether the due date is complete',
-          optional: true,
-        },
-      },
+      properties: TRELLO_CARD_OUTPUT_PROPERTIES,
     },
   },
 }

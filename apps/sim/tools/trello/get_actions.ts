@@ -7,6 +7,7 @@ import {
 } from '@/tools/trello/shared'
 import type { TrelloGetActionsParams, TrelloGetActionsResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloGetActionsTool: ToolConfig<TrelloGetActionsParams, TrelloGetActionsResponse> = {
   id: 'trello_get_actions',
@@ -88,8 +89,8 @@ export const trelloGetActionsTool: ToolConfig<TrelloGetActionsParams, TrelloGetA
       }
 
       const path = params.boardId
-        ? `/boards/${params.boardId.trim()}/actions`
-        : `/cards/${params.cardId?.trim()}/actions`
+        ? `/boards/${safeUrlPathSegment(params.boardId, 'boardId')}/actions`
+        : `/cards/${safeUrlPathSegment(params.cardId ?? '', 'cardId')}/actions`
       const url = new URL(`${TRELLO_API_BASE_URL}${path}`)
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)

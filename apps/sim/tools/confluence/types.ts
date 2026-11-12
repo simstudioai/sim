@@ -78,6 +78,11 @@ export const PAGE_ITEM_PROPERTIES = {
     optional: true,
   },
   authorId: { type: 'string', description: 'Account ID of the page author' },
+  ownerId: {
+    type: 'string',
+    description: 'Account ID of the current page owner',
+    optional: true,
+  },
   createdAt: { type: 'string', description: 'ISO 8601 timestamp when the page was created' },
   version: {
     type: 'object',
@@ -126,10 +131,16 @@ export const SPACE_ITEM_PROPERTIES = {
   homepageId: { type: 'string', description: 'ID of the space homepage', optional: true },
   description: {
     type: 'object',
-    description: 'Space description',
+    description: 'Space description (plain text)',
     properties: SPACE_DESCRIPTION_OUTPUT_PROPERTIES,
     optional: true,
   },
+  spaceOwnerId: {
+    type: 'string',
+    description: 'Account ID of the space owner',
+    optional: true,
+  },
+  webUrl: { type: 'string', description: 'URL to view the space in Confluence', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -273,6 +284,16 @@ export const ATTACHMENT_ITEM_PROPERTIES = {
     optional: true,
   },
   comment: { type: 'string', description: 'Comment/description of the attachment', optional: true },
+  createdAt: {
+    type: 'string',
+    description: 'ISO 8601 timestamp when the attachment was created',
+    optional: true,
+  },
+  fileId: {
+    type: 'string',
+    description: 'Media file ID of the attachment',
+    optional: true,
+  },
   version: {
     type: 'object',
     description: 'Attachment version information',
@@ -311,6 +332,19 @@ export const LABEL_ITEM_PROPERTIES = {
   name: { type: 'string', description: 'Label name' },
   prefix: { type: 'string', description: 'Label prefix/type (e.g., global, my, team)' },
 } as const satisfies Record<string, OutputProperty>
+
+/**
+ * Labels returned inline on a page or blog post (first 50, via include-labels).
+ */
+export const CONTENT_LABELS_OUTPUT: OutputProperty = {
+  type: 'array',
+  description: 'Labels on the content (first 50)',
+  items: {
+    type: 'object',
+    properties: LABEL_ITEM_PROPERTIES,
+  },
+  optional: true,
+}
 
 /**
  * Complete label object output definition.
@@ -427,6 +461,10 @@ export interface ConfluenceRetrieveResponse extends ToolResponse {
     pageId: string
     content: string
     title: string
+    ownerId?: string | null
+    lastOwnerId?: string | null
+    parentType?: string | null
+    labels?: Array<{ id: string; name: string; prefix: string }>
   }
 }
 

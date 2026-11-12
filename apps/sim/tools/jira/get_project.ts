@@ -2,9 +2,10 @@ import type { JiraGetProjectParams, JiraGetProjectResponse } from '@/tools/jira/
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 function buildProjectUrl(cloudId: string, projectIdOrKey: string): string {
-  return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/project/${encodeURIComponent(projectIdOrKey)}`
+  return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/project/${safeUrlPathSegment(projectIdOrKey, 'projectId')}`
 }
 
 export const jiraGetProjectTool: ToolConfig<JiraGetProjectParams, JiraGetProjectResponse> = {

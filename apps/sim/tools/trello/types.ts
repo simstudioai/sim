@@ -37,6 +37,51 @@ export interface TrelloList {
   idBoard: string
 }
 
+export interface TrelloCardBadges {
+  votes: number | null
+  comments: number | null
+  attachments: number | null
+  checkItems: number | null
+  checkItemsChecked: number | null
+  description: boolean | null
+  subscribed: boolean | null
+  location: boolean | null
+  due: string | null
+  start: string | null
+  dueComplete: boolean | null
+}
+
+export interface TrelloCardCheckItem {
+  id: string
+  name: string
+  state: string | null
+  pos: number | null
+  idChecklist: string | null
+  due: string | null
+  idMember: string | null
+}
+
+export interface TrelloCardChecklist {
+  id: string
+  name: string
+  idCard: string | null
+  idBoard: string | null
+  pos: number | null
+  checkItems: TrelloCardCheckItem[]
+}
+
+export interface TrelloCardAttachment {
+  id: string
+  name: string | null
+  url: string | null
+  mimeType: string | null
+  bytes: number | null
+  date: string | null
+  idMember: string | null
+  isUpload: boolean | null
+  pos: number | null
+}
+
 export interface TrelloCard {
   id: string
   name: string
@@ -49,6 +94,18 @@ export interface TrelloCard {
   labels: TrelloLabel[]
   due: string | null
   dueComplete: boolean | null
+  start: string | null
+  pos: number | null
+  shortUrl: string | null
+  shortLink: string | null
+  idShort: number | null
+  idMembers: string[]
+  idChecklists: string[]
+  dateLastActivity: string | null
+  badges: TrelloCardBadges | null
+  checklists: TrelloCardChecklist[] | null
+  attachments: TrelloCardAttachment[] | null
+  members: TrelloMember[] | null
 }
 
 export interface TrelloActionCardTarget {
@@ -95,6 +152,8 @@ export interface TrelloListCardsParams {
   boardId?: string
   listId?: string
   filter?: string
+  since?: string
+  before?: string
 }
 
 export interface TrelloCreateCardParams {
@@ -105,6 +164,7 @@ export interface TrelloCreateCardParams {
   pos?: string
   due?: string
   dueComplete?: boolean
+  start?: string
   labelIds?: string[]
   memberIds?: string[]
 }
@@ -118,6 +178,11 @@ export interface TrelloUpdateCardParams {
   idList?: string
   due?: string
   dueComplete?: boolean
+  start?: string
+  pos?: string
+  idBoard?: string
+  labelIds?: string[]
+  memberIds?: string[]
 }
 
 export interface TrelloDeleteCardParams {
@@ -165,6 +230,9 @@ export interface TrelloCreateListParams {
 export interface TrelloGetCardParams {
   accessToken: string
   cardId: string
+  includeChecklists?: boolean
+  includeAttachments?: boolean
+  includeMembers?: boolean
 }
 
 export interface TrelloAddChecklistParams {
@@ -234,6 +302,9 @@ export interface TrelloSearchParams {
   idBoards?: string[]
   modelTypes?: string
   cardsLimit?: number
+  cardsPage?: number
+  boardsLimit?: number
+  partial?: boolean
 }
 
 export interface TrelloListListsResponse extends ToolResponse {

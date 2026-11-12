@@ -83,26 +83,14 @@ List cards from a Trello board or list
 | `boardId` | string | No | Trello board ID to list open cards from. Provide either boardId or listId |
 | `listId` | string | No | Trello list ID to list cards from. Provide either boardId or listId |
 | `filter` | string | No | Which cards to return: open, closed, or all \(defaults to open\) |
+| `since` | string | No | Only return cards created since this date \(ISO 8601\) or card ID |
+| `before` | string | No | Only return cards created before this date \(ISO 8601\) or card ID |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `cards` | array | Cards returned from the selected Trello board or list |
-|   ↳ `id` | string | Card ID |
-|   ↳ `name` | string | Card name |
-|   ↳ `desc` | string | Card description |
-|   ↳ `url` | string | Full card URL |
-|   ↳ `idBoard` | string | Board ID containing the card |
-|   ↳ `idList` | string | List ID containing the card |
-|   ↳ `closed` | boolean | Whether the card is archived |
-|   ↳ `labelIds` | array | Label IDs applied to the card |
-|   ↳ `labels` | array | Labels applied to the card |
-|     ↳ `id` | string | Label ID |
-|     ↳ `name` | string | Label name |
-|     ↳ `color` | string | Label color |
-|   ↳ `due` | string | Card due date in ISO 8601 format |
-|   ↳ `dueComplete` | boolean | Whether the due date is complete |
 | `count` | number | Number of cards returned |
 
 </ReferenceDetails>
@@ -121,19 +109,15 @@ Search Trello cards and boards by keyword
 | `idBoards` | array | No | Restrict the search to these board IDs |
 | `modelTypes` | string | No | Comma-separated result types to search: cards, boards, or all \(default all\) |
 | `cardsLimit` | number | No | Maximum number of cards to return \(1-1000, default 10\) |
+| `cardsPage` | number | No | Page of card results to return \(0-100, default 0\) |
+| `boardsLimit` | number | No | Maximum number of boards to return \(1-1000, default 10\) |
+| `partial` | boolean | No | Match the start of words as well as whole words \(default false\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `cards` | array | Cards matching the search query |
-|   ↳ `id` | string | Card ID |
-|   ↳ `name` | string | Card name |
-|   ↳ `desc` | string | Card description |
-|   ↳ `url` | string | Full card URL |
-|   ↳ `idBoard` | string | Board ID containing the card |
-|   ↳ `idList` | string | List ID containing the card |
-|   ↳ `closed` | boolean | Whether the card is archived |
 | `boards` | array | Boards matching the search query |
 |   ↳ `id` | string | Board ID |
 |   ↳ `name` | string | Board name |
@@ -160,6 +144,7 @@ Create a new card in a Trello list
 | `desc` | string | No | Description of the card |
 | `pos` | string | No | Position of the card \(top, bottom, or positive float\) |
 | `due` | string | No | Due date \(ISO 8601 format\) |
+| `start` | string | No | Start date \(ISO 8601 format\) |
 | `dueComplete` | boolean | No | Whether the due date should be marked complete |
 | `labelIds` | array | No | Label IDs to attach to the card |
 | `memberIds` | array | No | Member IDs to assign to the card |
@@ -168,21 +153,7 @@ Create a new card in a Trello list
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `card` | json | Created card \(id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete\) |
-|   ↳ `id` | string | Card ID |
-|   ↳ `name` | string | Card name |
-|   ↳ `desc` | string | Card description |
-|   ↳ `url` | string | Full card URL |
-|   ↳ `idBoard` | string | Board ID containing the card |
-|   ↳ `idList` | string | List ID containing the card |
-|   ↳ `closed` | boolean | Whether the card is archived |
-|   ↳ `labelIds` | array | Label IDs applied to the card |
-|   ↳ `labels` | array | Labels applied to the card |
-|     ↳ `id` | string | Label ID |
-|     ↳ `name` | string | Label name |
-|     ↳ `color` | string | Label color |
-|   ↳ `due` | string | Card due date in ISO 8601 format |
-|   ↳ `dueComplete` | boolean | Whether the due date is complete |
+| `card` | json | Created card \($\{TRELLO_CARD_OUTPUT_DESCRIPTION\}\) |
 
 </ReferenceDetails>
 
@@ -203,26 +174,17 @@ Update an existing card on Trello
 | `idList` | string | No | Trello list ID to move card to \(24-character hex string\) |
 | `due` | string | No | Due date \(ISO 8601 format\) |
 | `dueComplete` | boolean | No | Mark the due date as complete |
+| `start` | string | No | Start date \(ISO 8601 format\) |
+| `pos` | string | No | Position of the card in its list \(top, bottom, or positive float\) |
+| `idBoard` | string | No | Trello board ID to move the card to \(use with idList\) |
+| `labelIds` | array | No | Replace the card labels with these label IDs |
+| `memberIds` | array | No | Replace the card members with these member IDs |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `card` | json | Updated card \(id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete\) |
-|   ↳ `id` | string | Card ID |
-|   ↳ `name` | string | Card name |
-|   ↳ `desc` | string | Card description |
-|   ↳ `url` | string | Full card URL |
-|   ↳ `idBoard` | string | Board ID containing the card |
-|   ↳ `idList` | string | List ID containing the card |
-|   ↳ `closed` | boolean | Whether the card is archived |
-|   ↳ `labelIds` | array | Label IDs applied to the card |
-|   ↳ `labels` | array | Labels applied to the card |
-|     ↳ `id` | string | Label ID |
-|     ↳ `name` | string | Label name |
-|     ↳ `color` | string | Label color |
-|   ↳ `due` | string | Card due date in ISO 8601 format |
-|   ↳ `dueComplete` | boolean | Whether the due date is complete |
+| `card` | json | Updated card \($\{TRELLO_CARD_OUTPUT_DESCRIPTION\}\) |
 
 </ReferenceDetails>
 
@@ -460,26 +422,15 @@ Retrieve a single Trello card by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `cardId` | string | Yes | Trello card ID \(24-character hex string\) |
+| `includeChecklists` | boolean | No | Include each card checklist with its items \(default false\) |
+| `includeAttachments` | boolean | No | Include card attachments \(default false\) |
+| `includeMembers` | boolean | No | Include member objects for the members on the card \(default false\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `card` | json | Card \(id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete\) |
-|   ↳ `id` | string | Card ID |
-|   ↳ `name` | string | Card name |
-|   ↳ `desc` | string | Card description |
-|   ↳ `url` | string | Full card URL |
-|   ↳ `idBoard` | string | Board ID containing the card |
-|   ↳ `idList` | string | List ID containing the card |
-|   ↳ `closed` | boolean | Whether the card is archived |
-|   ↳ `labelIds` | array | Label IDs applied to the card |
-|   ↳ `labels` | array | Labels applied to the card |
-|     ↳ `id` | string | Label ID |
-|     ↳ `name` | string | Label name |
-|     ↳ `color` | string | Label color |
-|   ↳ `due` | string | Card due date in ISO 8601 format |
-|   ↳ `dueComplete` | boolean | Whether the due date is complete |
+| `card` | json | Card \($\{TRELLO_CARD_OUTPUT_DESCRIPTION\}\) |
 
 </ReferenceDetails>
 

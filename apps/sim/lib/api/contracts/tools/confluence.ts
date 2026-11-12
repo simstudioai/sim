@@ -111,12 +111,14 @@ export const confluenceListAttachmentsQuerySchema = confluencePageScopedSchema.e
 
 export const confluenceCreateCommentBodySchema = confluencePageScopedSchema.extend({
   comment: z.string({ error: 'Comment is required' }).min(1, 'Comment is required'),
+  parentCommentId: z.string().optional(),
 })
 
 export const confluenceListCommentsQuerySchema = confluencePageScopedSchema.extend({
   limit: z.string().optional().default('25'),
   bodyFormat: z.string().optional().default('storage'),
   cursor: z.string().optional(),
+  commentType: z.enum(['footer', 'inline']).optional(),
 })
 
 export const confluenceUpdateCommentBodySchema = confluenceCommentScopedBaseSchema
@@ -196,6 +198,8 @@ export const confluencePagesByLabelQuerySchema = confluenceBaseSchema.extend({
 export const confluenceSearchBodySchema = confluenceBaseSchema.extend({
   query: z.string({ error: 'Search query is required' }).min(1, 'Search query is required'),
   limit: z.number().optional().default(25),
+  cql: z.string().optional(),
+  cursor: z.string().optional(),
 })
 
 export const confluenceSearchInSpaceBodySchema = confluenceBaseSchema.extend({
@@ -203,6 +207,7 @@ export const confluenceSearchInSpaceBodySchema = confluenceBaseSchema.extend({
   query: z.string().optional(),
   limit: z.number().optional().default(25),
   contentType: z.string().optional(),
+  cursor: z.string().optional(),
 })
 
 export const confluenceSpaceBlogPostsBodySchema = confluenceSpaceScopedSchema.extend({

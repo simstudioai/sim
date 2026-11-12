@@ -2,6 +2,7 @@ import { env } from '@/lib/core/config/env'
 import { extractTrelloErrorMessage, getIdArray, TRELLO_API_BASE_URL } from '@/tools/trello/shared'
 import type { TrelloAddLabelParams, TrelloAddLabelResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloAddLabelTool: ToolConfig<TrelloAddLabelParams, TrelloAddLabelResponse> = {
   id: 'trello_add_label',
@@ -49,7 +50,9 @@ export const trelloAddLabelTool: ToolConfig<TrelloAddLabelParams, TrelloAddLabel
         throw new Error('TRELLO_API_KEY environment variable is not set')
       }
 
-      const url = new URL(`${TRELLO_API_BASE_URL}/cards/${params.cardId.trim()}/idLabels`)
+      const url = new URL(
+        `${TRELLO_API_BASE_URL}/cards/${safeUrlPathSegment(params.cardId, 'cardId')}/idLabels`
+      )
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)
       url.searchParams.set('value', params.labelId.trim())

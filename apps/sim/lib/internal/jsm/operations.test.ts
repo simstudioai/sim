@@ -35,8 +35,8 @@ vi.mock('@/lib/internal/jsm/client', () => ({
 
 vi.mock('@/tools/jsm/utils', () => ({ mapAssetObject: mocks.mapAssetObject }))
 
-import { executeJsmSearchObjectsAql } from '@/lib/internal/jsm/assets'
-import { executeJsmCreateRequest } from '@/lib/internal/jsm/service-desk'
+import { executeJsmListObjectTypes, executeJsmSearchObjectsAql } from '@/lib/internal/jsm/assets'
+import { executeJsmCreateRequest, executeJsmGetRequests } from '@/lib/internal/jsm/service-desk'
 
 const BASE = {
   domain: 'example.atlassian.net',
@@ -64,11 +64,35 @@ describe('JSM operations', () => {
     })
   })
 
-  it('normalizes Assets AQL pagination and forwards the execution signal', async () => {
+  it('accepts the organization ownership filter with its organization ID', async () => {
+    mocks.client.json.mockResolvedValueOnce({ values: [], size: 0, isLastPage: true })
+    await executeJsmGetRequests({
+      ...BASE,
+      requestOwnership: 'ORGANIZATION',
+      organizationId: '3',
+    })
+    expect(mocks.client.json.mock.calls.at(-1)?.[0]).toBe(
+      'service:/request?requestOwnership=ORGANIZATION&organizationId=3'
+    )
+  })
+
+  it('sends AQL paging as startAt/maxResults query params and reads the values page', async () => {
     const controller = new AbortController()
-    mocks.client.json.mockResolvedValueOnce({ objectEntries: [{ id: 'object-1' }] })
-    await executeJsmSearchObjectsAql(
-      { ...BASE, qlQuery: 'objectType = Host', page: '2', resultsPerPage: '10' },
+    mocks.client.json.mockResolvedValueOnce({
+      startAt: 10,
+      maxResults: 10,
+      total: 11,
+      isLast: 'true',
+      values: [{ id: 'object-1' }],
+    })
+    const result = await executeJsmSearchObjectsAql(
+      {
+        ...BASE,
+        qlQuery: 'objectType = Host',
+        page: '2',
+        resultsPerPage: '10',
+        objectSchemaId: '6',
+      },
       controller.signal
     )
     expect(mocks.createJsmAssetsClient).toHaveBeenCalledWith(
@@ -76,18 +100,71 @@ describe('JSM operations', () => {
       controller.signal
     )
     expect(mocks.client.json).toHaveBeenCalledWith(
-      'assets:/object/aql',
+      'assets:/object/aql?startAt=10&maxResults=10&includeAttributes=true',
       {
         method: 'POST',
-        body: JSON.stringify({
-          qlQuery: 'objectType = Host',
-          page: 2,
-          resultsPerPage: 10,
-          includeAttributes: true,
-        }),
+        body: JSON.stringify({ qlQuery: '(objectType = Host) AND objectSchemaId = 6' }),
       },
       controller.signal,
       true
     )
+    expect(result.output).toMatchObject({
+      objects: [{ id: 'object-1' }],
+      total: 11,
+      pageNumber: 2,
+      isLast: true,
+    })
+  })
+
+  it('rejects a non-numeric AQL scope ID instead of splicing it into the query', async () => {
+    await expect(
+      executeJsmSearchObjectsAql({
+        ...BASE,
+        qlQuery: 'objectType = Host',
+        objectTypeId: '1 OR objectType != Host',
+      })
+    ).rejects.toThrow('objectTypeId must be a numeric ID')
+  })
+
+  it('falls back to the flat object-types listing when the schema listing comes back empty', async () => {
+    mocks.client.value.mockReset()
+    mocks.client.value.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      { id: '1', name: 'Host', abstractObjectType: false },
+      { id: '2', name: 'Base', abstractObjectType: true },
+    ])
+    const result = await executeJsmListObjectTypes({
+      ...BASE,
+      schemaId: '6',
+      excludeAbstract: true,
+    })
+    expect(mocks.client.value.mock.calls.map((call) => call[0])).toEqual([
+      'assets:/objectschema/6/objecttypes?excludeAbstract=true',
+      'assets:/objectschema/6/objecttypes/flat',
+    ])
+    expect(result.output).toMatchObject({ objectTypes: [{ id: '1', name: 'Host' }], total: 1 })
+  })
+
+  it('keeps a non-empty schema listing without a second request', async () => {
+    mocks.client.value.mockReset()
+    mocks.client.value.mockResolvedValueOnce([{ id: '1', name: 'Host' }])
+    const result = await executeJsmListObjectTypes({ ...BASE, schemaId: '6' })
+    expect(mocks.client.value).toHaveBeenCalledTimes(1)
+    expect(result.output).toMatchObject({ objectTypes: [{ id: '1', name: 'Host' }], total: 1 })
+  })
+
+  it('keeps a trailing AQL order by clause after the scope filter', async () => {
+    mocks.client.json.mockResolvedValueOnce({ values: [], total: 0, isLast: 'true' })
+    await executeJsmSearchObjectsAql({
+      ...BASE,
+      qlQuery: 'Name = "sort order by date" ORDER BY "Created Date" desc',
+      objectSchemaId: '6',
+    })
+    expect(mocks.client.json.mock.calls.at(-1)?.[1]).toEqual({
+      method: 'POST',
+      body: JSON.stringify({
+        qlQuery:
+          '(Name = "sort order by date") AND objectSchemaId = 6 ORDER BY "Created Date" desc',
+      }),
+    })
   })
 })

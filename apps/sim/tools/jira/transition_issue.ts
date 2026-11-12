@@ -1,7 +1,8 @@
 import type { JiraTransitionIssueParams, JiraTransitionIssueResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
-import { getJiraCloudId, toAdf } from '@/tools/jira/utils'
+import { getJiraCloudId, parseJiraFieldMap, toAdf } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const jiraTransitionIssueTool: ToolConfig<
   JiraTransitionIssueParams,
@@ -55,6 +56,13 @@ export const jiraTransitionIssueTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Resolution name to set during transition (e.g., "Fixed", "Won\'t Fix")',
     },
+    fields: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Fields to set on the transition screen, as a JSON object mapping field IDs to Jira values (e.g., {"assignee": {"accountId": "5b10..."}, "customfield_10010": "value"}). The resolution param takes precedence over a resolution set here.',
+    },
     cloudId: {
       type: 'string',
       required: false,
@@ -67,7 +75,7 @@ export const jiraTransitionIssueTool: ToolConfig<
   request: {
     url: (params: JiraTransitionIssueParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/transitions`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}/transitions`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -88,7 +96,7 @@ export const jiraTransitionIssueTool: ToolConfig<
   transformResponse: async (response: Response, params?: JiraTransitionIssueParams) => {
     const performTransition = async (cloudId: string) => {
       // First, fetch available transitions to get the name and target status
-      const transitionsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/transitions`
+      const transitionsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey, 'issueKey')}/transitions`
       const transitionsResp = await fetch(transitionsUrl, {
         method: 'GET',
         headers: {
@@ -158,7 +166,7 @@ export const jiraTransitionIssueTool: ToolConfig<
 
       // Fetch transition metadata for the response
       try {
-        const transitionsUrl = `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/transitions`
+        const transitionsUrl = `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}/transitions`
         const transitionsResp = await fetch(transitionsUrl, {
           method: 'GET',
           headers: {
@@ -219,6 +227,9 @@ function buildTransitionBody(params: JiraTransitionIssueParams) {
   const body: any = {
     transition: { id: params.transitionId },
   }
+
+  const extraFields = parseJiraFieldMap(params.fields)
+  if (extraFields) body.fields = extraFields
 
   if (params.resolution) {
     body.fields = {

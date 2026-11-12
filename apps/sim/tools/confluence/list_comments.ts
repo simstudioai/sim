@@ -1,4 +1,4 @@
-import { COMMENTS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
+import { COMMENT_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceListCommentsParams {
@@ -8,6 +8,7 @@ export interface ConfluenceListCommentsParams {
   limit?: number
   bodyFormat?: string
   cursor?: string
+  commentType?: 'footer' | 'inline'
   cloudId?: string
 }
 
@@ -69,14 +70,20 @@ export const confluenceListCommentsTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Format for the comment body: storage, atlas_doc_format, view, or export_view (default: storage)',
+      description: 'Format for the comment body: storage or atlas_doc_format (default: storage)',
     },
     cursor: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Pagination cursor from previous response',
+    },
+    commentType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Which comments to list: footer (comments at the bottom of the page) or inline (comments attached to highlighted text). Default: footer',
     },
     cloudId: {
       type: 'string',
@@ -101,6 +108,9 @@ export const confluenceListCommentsTool: InternalToolConfig<
       if (params.cursor) {
         query.set('cursor', params.cursor)
       }
+      if (params.commentType) {
+        query.set('commentType', params.commentType)
+      }
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
@@ -122,7 +132,41 @@ export const confluenceListCommentsTool: InternalToolConfig<
 
   outputs: {
     ts: TIMESTAMP_OUTPUT,
-    comments: COMMENTS_OUTPUT,
+    comments: {
+      type: 'array',
+      description: 'Array of Confluence comments',
+      items: {
+        type: 'object',
+        properties: {
+          ...COMMENT_ITEM_PROPERTIES,
+          commentType: {
+            type: 'string',
+            description: 'Comment type that was listed (footer or inline)',
+            optional: true,
+          },
+          resolutionStatus: {
+            type: 'string',
+            description: 'Inline comment resolution status (open, reopened, resolved, dangling)',
+            optional: true,
+          },
+          inlineOriginalSelection: {
+            type: 'string',
+            description: 'Page text the inline comment is attached to',
+            optional: true,
+          },
+          inlineMarkerRef: {
+            type: 'string',
+            description: 'Marker reference of the highlighted text for an inline comment',
+            optional: true,
+          },
+          webUrl: {
+            type: 'string',
+            description: 'URL to view the comment in Confluence',
+            optional: true,
+          },
+        },
+      },
+    },
     nextCursor: {
       type: 'string',
       description: 'Cursor for fetching the next page of results',

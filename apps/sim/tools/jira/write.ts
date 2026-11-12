@@ -1,5 +1,6 @@
 import type { JiraWriteParams, JiraWriteResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
+import { parseJiraFieldMap } from '@/tools/jira/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
 interface JiraWriteOperationEnvelope {
@@ -144,6 +145,13 @@ export const jiraWriteTool: InternalToolConfig<JiraWriteParams, JiraWriteRespons
       visibility: 'user-or-llm',
       description: 'Value for the custom field',
     },
+    customFields: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Additional fields as a JSON object mapping field IDs to Jira field values (e.g., {"customfield_10016": 5, "customfield_10020": 42, "customfield_10050": {"value": "Option A"}}). Numeric keys become customfield_<n>. Explicit params take precedence for the same field.',
+    },
   },
 
   operation: {
@@ -167,6 +175,7 @@ export const jiraWriteTool: InternalToolConfig<JiraWriteParams, JiraWriteRespons
         environment: params.environment,
         customFieldId: params.customFieldId,
         customFieldValue: params.customFieldValue,
+        customFields: parseJiraFieldMap(params.customFields),
       }
     },
   },

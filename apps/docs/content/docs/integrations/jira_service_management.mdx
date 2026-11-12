@@ -98,7 +98,8 @@ Get all service desks from Jira Service Management
 |   ↳ `projectId` | string | Associated Jira project ID |
 |   ↳ `projectName` | string | Associated project name |
 |   ↳ `projectKey` | string | Associated project key |
-|   ↳ `name` | string | Service desk name |
+|   ↳ `projectTypeKey` | string | Associated project type key \(e.g., service_desk\) |
+|   ↳ `name` | string | Service desk name \(not returned by the Service Desk API; use projectName\) |
 |   ↳ `description` | string | Service desk description |
 |   ↳ `leadDisplayName` | string | Project lead display name |
 | `total` | number | Total number of service desks |
@@ -177,8 +178,14 @@ Create a new service request in Jira Service Management
 | `createdDate` | json | Creation date with iso8601, friendly, epochMillis |
 | `currentStatus` | json | Current status with status name and category |
 | `reporter` | json | Reporter user with accountId, displayName, emailAddress |
+| `requestFieldValues` | array | Field values stored on the created request |
+|   ↳ `fieldId` | string | Field identifier |
+|   ↳ `label` | string | Human-readable field label |
+|   ↳ `value` | json | Field value |
+|   ↳ `renderedValue` | json | HTML-rendered field value |
 | `success` | boolean | Whether the request was created successfully |
 | `url` | string | URL to the created request |
+| `webUrl` | string | Customer portal URL for the request \(from _links.web\) |
 
 </ReferenceDetails>
 
@@ -194,7 +201,7 @@ Get a single service request from Jira Service Management
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueIdOrKey` | string | Yes | Issue ID or key \(e.g., SD-123\) |
-| `expand` | string | No | Comma-separated fields to expand: participant, status, sla, requestType, serviceDesk, attachment, comment, action |
+| `expand` | string | No | Comma-separated fields to expand: participant, status, sla, requestType, serviceDesk, attachment, comment, action, comment.attachment, comment.renderedBody |
 
 #### Output
 
@@ -221,6 +228,18 @@ Get a single service request from Jira Service Management
 |   ↳ `value` | json | Field value |
 |   ↳ `renderedValue` | json | HTML-rendered field value |
 | `url` | string | URL to the request |
+| `webUrl` | string | Customer portal URL for the request \(from _links.web\) |
+| `participants` | array | Request participants \(returned when expand includes participant\) |
+|   ↳ `accountId` | string | Atlassian account ID |
+|   ↳ `displayName` | string | User display name |
+|   ↳ `emailAddress` | string | User email address |
+|   ↳ `active` | boolean | Whether the account is active |
+| `slas` | array | SLA records \(returned when expand includes sla\) |
+|   ↳ `id` | string | SLA metric ID |
+|   ↳ `name` | string | SLA metric name |
+|   ↳ `slaDisplayFormat` | string | How the SLA time is displayed \(e.g., NEW_SLA_FORMAT\) |
+|   ↳ `completedCycles` | json | Completed SLA cycles with startTime, stopTime, breachTime, breached, goalDuration, elapsedTime, remainingTime \(each time as DateDTO, durations as DurationDTO\) |
+|   ↳ `ongoingCycle` | json | Ongoing SLA cycle with startTime, breachTime, breached, paused, withinCalendarHours, goalDuration, elapsedTime, remainingTime |
 | `request` | json | The service request object |
 
 </ReferenceDetails>
@@ -237,8 +256,10 @@ Get multiple service requests from Jira Service Management
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `serviceDeskId` | string | No | Filter by service desk ID \(e.g., "1", "2"\) |
-| `requestOwnership` | string | No | Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, APPROVER, ALL_REQUESTS |
+| `requestOwnership` | string | No | Filter by ownership: OWNED_REQUESTS, PARTICIPATED_REQUESTS, APPROVER, ORGANIZATION \(with organizationId\), ALL_ORGANIZATIONS, ALL_REQUESTS |
 | `requestStatus` | string | No | Filter by status: OPEN_REQUESTS, CLOSED_REQUESTS, ALL_REQUESTS |
+| `approvalStatus` | string | No | Filter approver requests: MY_PENDING_APPROVAL or MY_HISTORY_APPROVAL \(only with requestOwnership APPROVER\) |
+| `organizationId` | string | No | Filter by customer organization ID \(only with requestOwnership ORGANIZATION\) |
 | `requestTypeId` | string | No | Filter by request type ID |
 | `searchTerm` | string | No | Search term to filter requests \(e.g., "password reset", "laptop"\) |
 | `expand` | string | No | Comma-separated fields to expand: participant, status, sla, requestType, serviceDesk, attachment, comment, action |
@@ -270,6 +291,12 @@ Get multiple service requests from Jira Service Management
 |     ↳ `label` | string | Human-readable field label |
 |     ↳ `value` | json | Field value |
 |     ↳ `renderedValue` | json | HTML-rendered field value |
+|   ↳ `_links` | json | Request links: web \(customer portal URL\), agent, jiraRest, self |
+|   ↳ `participants` | json | Paged participants \(values, size, isLastPage\) when expand includes participant |
+|   ↳ `sla` | json | Paged SLA records \(values with ongoingCycle, completedCycles\) when expand includes sla |
+|   ↳ `status` | json | Paged status history when expand includes status |
+|   ↳ `requestType` | json | Request type details when expand includes requestType |
+|   ↳ `serviceDesk` | json | Service desk details when expand includes serviceDesk |
 | `total` | number | Total number of requests in current page |
 | `isLastPage` | boolean | Whether this is the last page |
 
@@ -428,6 +455,9 @@ Get organizations for a service desk in Jira Service Management
 | `organizations` | array | List of organizations |
 |   ↳ `id` | string | Organization ID |
 |   ↳ `name` | string | Organization name |
+|   ↳ `uuid` | string | Organization UUID |
+|   ↳ `created` | json | Creation date with iso8601, friendly, epochMillis |
+|   ↳ `scimManaged` | boolean | Whether the organization is managed by SCIM |
 | `total` | number | Total number of organizations |
 | `isLastPage` | boolean | Whether this is the last page |
 
@@ -538,6 +568,7 @@ Get SLA information for a service request in Jira Service Management
 | `slas` | array | List of SLA metrics |
 |   ↳ `id` | string | SLA metric ID |
 |   ↳ `name` | string | SLA metric name |
+|   ↳ `slaDisplayFormat` | string | How the SLA time is displayed \(e.g., NEW_SLA_FORMAT\) |
 |   ↳ `completedCycles` | json | Completed SLA cycles with startTime, stopTime, breachTime, breached, goalDuration, elapsedTime, remainingTime \(each time as DateDTO, durations as DurationDTO\) |
 |   ↳ `ongoingCycle` | json | Ongoing SLA cycle with startTime, breachTime, breached, paused, withinCalendarHours, goalDuration, elapsedTime, remainingTime |
 | `total` | number | Total number of SLAs |
@@ -1272,7 +1303,7 @@ Search Assets (Insight/CMDB) objects using AQL (Assets Query Language), e.g. obj
 | `workspaceId` | string | No | Assets workspace ID \(resolved automatically when omitted\) |
 | `qlQuery` | string | Yes | AQL query string \(e.g., objectType = "Host" AND "Operating System" = "Ubuntu"\) |
 | `page` | number | No | Page number \(1-based, defaults to 1\) |
-| `resultsPerPage` | number | No | Results per page \(e.g., 25, 50\) |
+| `resultsPerPage` | number | No | Results per page \(e.g., 25, 50; defaults to 25\) |
 | `includeAttributes` | boolean | No | Include resolved attribute values on each object \(defaults to true\) |
 | `objectTypeId` | string | No | Optionally scope the search to a single object type ID |
 | `objectSchemaId` | string | No | Optionally scope the search to a single object schema ID |
@@ -1288,9 +1319,12 @@ Search Assets (Insight/CMDB) objects using AQL (Assets Query Language), e.g. obj
 |   ↳ `objectKey` | string | Object key \(e.g., HOST-123\) |
 |   ↳ `objectType` | json | Object type metadata |
 |   ↳ `attributes` | json | Resolved attribute values |
-| `total` | number | Total number of matching objects \(totalFilterCount\) |
+| `total` | number | Total number of matching objects |
 | `pageNumber` | number | Current page number |
 | `pageSize` | number | Number of objects on this page |
+| `startAt` | number | Index of the first object on this page |
+| `maxResults` | number | Maximum objects requested for this page |
+| `isLast` | boolean | Whether this is the last page of results |
 
 </ReferenceDetails>
 
