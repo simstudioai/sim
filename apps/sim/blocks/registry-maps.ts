@@ -466,6 +466,7 @@ import {
   VideoGeneratorV3Block,
 } from '@/blocks/blocks/video_generator'
 import { VisionBlock, VisionV2Block } from '@/blocks/blocks/vision'
+import { VoyageAIBlock, VoyageAIBlockMeta } from '@/blocks/blocks/voyageai'
 import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock, WealthboxBlockMeta } from '@/blocks/blocks/wealthbox'
 import { WebflowBlock, WebflowBlockMeta } from '@/blocks/blocks/webflow'
@@ -976,6 +977,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   video_generator_v3: VideoGeneratorV3Block,
   vision: VisionBlock,
   vision_v2: VisionV2Block,
+  voyageai: VoyageAIBlock,
   wait: WaitBlock,
   wealthbox: WealthboxBlock,
   webflow: WebflowBlock,
@@ -1304,6 +1306,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   uptimerobot: UptimeRobotBlockMeta,
   vanta: VantaBlockMeta,
   vercel: VercelBlockMeta,
+  voyageai: VoyageAIBlockMeta,
   wealthbox: WealthboxBlockMeta,
   webflow: WebflowBlockMeta,
   whatsapp: WhatsAppBlockMeta,
