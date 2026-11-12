@@ -2,7 +2,7 @@
 title: MySQL
 description: Connect to MySQL database
 integration:
-  type: "mysql"
+  type: "mysql_v2"
   color: "#FFFFFF"
 ---
 
@@ -31,12 +31,6 @@ Execute SELECT query on MySQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | MySQL server hostname or IP address |
-| `port` | number | Yes | MySQL server port \(default: 3306\) |
-| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `query` | string | Yes | SQL SELECT query to execute \(e.g., SELECT * FROM users WHERE active = 1\) |
 
 #### Output
@@ -59,12 +53,6 @@ Insert new record into MySQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | MySQL server hostname or IP address |
-| `port` | number | Yes | MySQL server port \(default: 3306\) |
-| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to insert into \(e.g., users, orders\) |
 | `data` | object | Yes | Data to insert as key-value pairs |
 
@@ -88,12 +76,6 @@ Update existing records in MySQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | MySQL server hostname or IP address |
-| `port` | number | Yes | MySQL server port \(default: 3306\) |
-| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to update \(e.g., users, orders\) |
 | `data` | object | Yes | Data to update as key-value pairs |
 | `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
@@ -118,12 +100,6 @@ Delete records from MySQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | MySQL server hostname or IP address |
-| `port` | number | Yes | MySQL server port \(default: 3306\) |
-| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to delete from \(e.g., users, orders\) |
 | `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
 
@@ -147,12 +123,6 @@ Execute raw SQL query on MySQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | MySQL server hostname or IP address |
-| `port` | number | Yes | MySQL server port \(default: 3306\) |
-| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `query` | string | Yes | Raw SQL query to execute \(e.g., CREATE TABLE users \(id INT PRIMARY KEY, name VARCHAR\(255\)\)\) |
 
 #### Output
@@ -175,12 +145,6 @@ Introspect MySQL database schema to retrieve table structures, columns, and rela
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | MySQL server hostname or IP address |
-| `port` | number | Yes | MySQL server port \(default: 3306\) |
-| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 
 #### Output
 

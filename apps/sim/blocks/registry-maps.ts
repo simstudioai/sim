@@ -298,8 +298,8 @@ import { ModalBlock, ModalBlockMeta } from '@/blocks/blocks/modal'
 import { MondayBlock, MondayBlockMeta } from '@/blocks/blocks/monday'
 import { MongoDBBlock, MongoDBBlockMeta } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
-import { MSSQLBlock, MSSQLBlockMeta } from '@/blocks/blocks/mssql'
-import { MySQLBlock, MySQLBlockMeta } from '@/blocks/blocks/mysql'
+import { MSSQLBlock, MSSQLBlockMeta, MSSQLV2Block } from '@/blocks/blocks/mssql'
+import { MySQLBlock, MySQLBlockMeta, MySQLV2Block } from '@/blocks/blocks/mysql'
 import { Neo4jBlock, Neo4jBlockMeta } from '@/blocks/blocks/neo4j'
 import { NetSuiteBlock, NetSuiteBlockMeta } from '@/blocks/blocks/netsuite'
 import { NeverBounceBlock, NeverBounceBlockMeta } from '@/blocks/blocks/neverbounce'
@@ -339,7 +339,7 @@ import {
   PlanetScaleV2Block,
 } from '@/blocks/blocks/planetscale'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
-import { PostgreSQLBlock, PostgreSQLBlockMeta } from '@/blocks/blocks/postgresql'
+import { PostgreSQLBlock, PostgreSQLBlockMeta, PostgreSQLV2Block } from '@/blocks/blocks/postgresql'
 import { PostHogBlock, PostHogBlockMeta } from '@/blocks/blocks/posthog'
 import { PowerBIBlock, PowerBIBlockMeta } from '@/blocks/blocks/powerbi'
 import { ProfoundBlock, ProfoundBlockMeta, ProfoundV2Block } from '@/blocks/blocks/profound'
@@ -787,7 +787,9 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   mongodb: MongoDBBlock,
   mothership: MothershipBlock,
   mssql: MSSQLBlock,
+  mssql_v2: MSSQLV2Block,
   mysql: MySQLBlock,
+  mysql_v2: MySQLV2Block,
   neo4j: Neo4jBlock,
   netsuite: NetSuiteBlock,
   new_relic: NewRelicBlock,
@@ -823,6 +825,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   planetscale_v2: PlanetScaleV2Block,
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
+  postgresql_v2: PostgreSQLV2Block,
   posthog: PostHogBlock,
   powerbi: PowerBIBlock,
   profound: ProfoundBlock,

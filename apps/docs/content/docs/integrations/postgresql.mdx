@@ -2,7 +2,7 @@
 title: PostgreSQL
 description: Connect to PostgreSQL database
 integration:
-  type: "postgresql"
+  type: "postgresql_v2"
   color: "#336791"
 ---
 
@@ -29,12 +29,6 @@ Execute a SELECT query on PostgreSQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | PostgreSQL server hostname or IP address |
-| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `query` | string | Yes | SQL SELECT query to execute |
 
 #### Output
@@ -57,12 +51,6 @@ Insert data into PostgreSQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | PostgreSQL server hostname or IP address |
-| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to insert data into |
 | `data` | object | Yes | Data object to insert \(key-value pairs\) |
 
@@ -86,12 +74,6 @@ Update data in PostgreSQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | PostgreSQL server hostname or IP address |
-| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to update data in |
 | `data` | object | Yes | Data object with fields to update \(key-value pairs\) |
 | `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
@@ -116,12 +98,6 @@ Delete data from PostgreSQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | PostgreSQL server hostname or IP address |
-| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to delete data from |
 | `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
 
@@ -145,12 +121,6 @@ Execute raw SQL query on PostgreSQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | PostgreSQL server hostname or IP address |
-| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `query` | string | Yes | Raw SQL query to execute |
 
 #### Output
@@ -173,12 +143,6 @@ Introspect PostgreSQL database schema to retrieve table structures, columns, and
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | PostgreSQL server hostname or IP address |
-| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `schema` | string | No | Schema to introspect \(default: public\) |
 
 #### Output

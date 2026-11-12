@@ -18045,7 +18045,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "mssql",
+      "type": "mssql_v2",
       "slug": "microsoft-sql-server",
       "name": "Microsoft SQL Server",
       "description": "Connect to Microsoft SQL Server database",
@@ -18082,11 +18082,12 @@
       "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "none",
+      "authType": "oauth",
+      "oauthServiceId": "mssql",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "microsoft_teams",
@@ -18605,7 +18606,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "mysql",
+      "type": "mysql_v2",
       "slug": "mysql",
       "name": "MySQL",
       "description": "Connect to MySQL database",
@@ -18642,11 +18643,12 @@
       "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "none",
+      "authType": "oauth",
+      "oauthServiceId": "mysql",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "neo4j",
@@ -21365,7 +21367,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "postgresql",
+      "type": "postgresql_v2",
       "slug": "postgresql",
       "name": "PostgreSQL",
       "description": "Connect to PostgreSQL database",
@@ -21402,11 +21404,12 @@
       "operationCount": 6,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "none",
+      "authType": "oauth",
+      "oauthServiceId": "postgresql",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "posthog",
