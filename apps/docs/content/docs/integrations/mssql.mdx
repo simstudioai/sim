@@ -10,7 +10,17 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Microsoft SQL Server](https://www.microsoft.com/sql-server) to query or modify rows, execute T-SQL, and inspect tables, keys, and indexes. Configure the host, port, database, credentials, and TLS settings for your instance.
+Use [Microsoft SQL Server](https://www.microsoft.com/sql-server) to query or modify rows, execute T-SQL, and inspect tables, keys, and indexes.
+
+### Connection setup
+
+In **Integrations**, add a connection with the host, port, database, username, password, and transport-security settings. Sim proves the connection with `SELECT 1` before saving it encrypted, then reads it on the server for each run; the block, the workflow, and agents never see the password. Reconnect the connection from Integrations when its credentials change. The runtime must be able to reach the database host.
+
+- **Encrypt connection** encrypts the connection with TLS; leave it enabled.
+- **Trust server certificate** skips certificate validation. Enable it only for a server with a self-signed certificate you trust.
+- Named instances are not supported; give the instance a static TCP port and connect to that port.
+
+Workflows built before saved connections keep their inline connection fields and run unchanged.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
