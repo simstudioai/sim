@@ -148,6 +148,22 @@ describe('mintNetSuiteServiceAccountToken', () => {
     await expect(mintNetSuiteServiceAccountToken(FIELDS)).rejects.toMatchObject({ code, status })
   })
 
+  it("carries the token endpoint's Retry-After on a throttled answer", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ error: 'busy' }, { status: 429, headers: { 'Retry-After': '7' } })
+        )
+    )
+
+    await expect(mintNetSuiteServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      retryAfterMs: 7_000,
+    })
+  })
+
   it('redacts credentials and a reflected assertion from provider error metadata', async () => {
     let assertion = ''
     vi.stubGlobal(

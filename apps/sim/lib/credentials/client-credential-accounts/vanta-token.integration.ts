@@ -151,6 +151,11 @@ beforeAll(async () => {
       response.writeHead(502).end()
       return
     }
+    if (parsed.client_id.endsWith('-garbled')) {
+      response.writeHead(200, { 'Content-Type': 'text/html' })
+      response.end('<html>upstream proxy error</html>')
+      return
+    }
     await sleep(15)
     const identity = `${request.headers['x-provider-origin']}:${parsed.client_id}`
     const issued = (applications.get(identity)?.issued ?? 0) + 1
@@ -373,6 +378,24 @@ describe('Vanta application token lifecycle against shared storage', () => {
     await expect(resolveVantaClientToken(input)).rejects.toMatchObject({
       code: 'provider_unavailable',
       status: 502,
+    })
+
+    expect(tokenRequests).toBe(count + 1)
+    const stored = await readStoredRow(keys.failureKey)
+    expect(stored.expiresAt.getTime() - before).toBeGreaterThanOrEqual(15_000)
+  })
+
+  it('paces a Vanta that answers 200 with an unreadable body like any other failing exchange', async () => {
+    const input = fields('garbled')
+    const keys = previousBuildKeys(input, READ)
+    const count = tokenRequests
+    const before = Date.now()
+
+    await expect(resolveVantaClientToken(input)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+    })
+    await expect(resolveVantaClientToken(input)).rejects.toMatchObject({
+      code: 'provider_unavailable',
     })
 
     expect(tokenRequests).toBe(count + 1)

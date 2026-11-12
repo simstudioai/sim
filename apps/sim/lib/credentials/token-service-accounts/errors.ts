@@ -157,7 +157,7 @@ export function providerFailureCode(
  * as delay-seconds or an HTTP-date (RFC 9110 section 10.2.3); `undefined` for any other status or
  * a missing or unparsable header. Uncapped: the caller that waits decides how long is too long.
  */
-export function providerRetryAfterMs(response: ProviderResponse): number | undefined {
+export function throttledRetryAfterMs(response: ProviderResponse): number | undefined {
   if (response.status !== 429 && response.status !== 503) return undefined
   return parseRetryAfter(response.headers.get('retry-after'), Number.POSITIVE_INFINITY) ?? undefined
 }
@@ -307,6 +307,6 @@ export async function throwForProviderResponse(
     providerFailureCode(res.status),
     res.status,
     { step, body, ...context },
-    { retryAfterMs: providerRetryAfterMs(res) }
+    { retryAfterMs: throttledRetryAfterMs(res) }
   )
 }

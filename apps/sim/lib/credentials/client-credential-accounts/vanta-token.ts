@@ -8,9 +8,9 @@ import {
 import {
   fetchProvider,
   isTransientProviderStatus,
-  providerRetryAfterMs,
   requireClientSecret,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 
 const SCOPES = VANTA_PERMISSION_OPTIONS.map((option) => option.value)
@@ -98,14 +98,20 @@ async function exchangeToken(
         : 'provider_unavailable',
       response.status,
       { step: STEP, reason: 'provider rejected token exchange' },
-      { retryAfterMs: providerRetryAfterMs(response) }
+      { retryAfterMs: throttledRetryAfterMs(response) }
     )
   }
-  const payload = await readResponseJsonWithLimit<unknown>(response, {
-    maxBytes: 64 * 1024,
-    label: 'Vanta authentication response',
-    signal,
-  })
+  let payload: unknown
+  try {
+    payload = await readResponseJsonWithLimit<unknown>(response, {
+      maxBytes: 64 * 1024,
+      label: 'Vanta authentication response',
+      signal,
+    })
+  } catch {
+    signal?.throwIfAborted()
+    throw unavailable('provider returned an unreadable token response')
+  }
   if (
     !isRecordLike(payload) ||
     typeof payload.access_token !== 'string' ||

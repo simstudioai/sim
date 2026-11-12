@@ -68,7 +68,8 @@ export async function mintSailPointServiceAccountToken(
         {
           step: STEP,
           tenant: host,
-        }
+        },
+        { retryAfterMs: error.retryAfterMs }
       )
     }
     if (isHostNotFound(error)) {

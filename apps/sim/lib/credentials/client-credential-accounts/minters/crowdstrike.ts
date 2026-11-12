@@ -82,7 +82,8 @@ export async function mintCrowdStrikeServiceAccountToken(
       throw new TokenServiceAccountValidationError(
         providerFailureCode(error.status),
         error.status,
-        { step: STEP, cloud }
+        { step: STEP, cloud },
+        { retryAfterMs: error.retryAfterMs }
       )
     }
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {

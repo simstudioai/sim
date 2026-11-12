@@ -254,6 +254,17 @@ describe('mintDocuSignServiceAccountToken', () => {
     })
   })
 
+  it("carries the token endpoint's Retry-After on a throttled answer", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ error: 'busy' }, { status: 429, headers: { 'Retry-After': '7' } })
+    )
+
+    await expect(mintDocuSignServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      retryAfterMs: 7_000,
+    })
+  })
+
   it('keeps the key, assertion, and access token out of every failure', async () => {
     const failures: unknown[] = []
     mockFetch.mockResolvedValueOnce(

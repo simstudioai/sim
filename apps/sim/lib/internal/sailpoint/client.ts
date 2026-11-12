@@ -9,6 +9,7 @@ import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { throttledRetryAfterMs } from '@/lib/credentials/token-service-accounts/errors'
 
 /** API client credentials typed inline on the legacy block. */
 export interface SailPointCredentials {
@@ -29,7 +30,9 @@ export type SailPointAuth = SailPointCredentials | SailPointTokenCredentials
 export class SailPointAuthError extends Error {
   constructor(
     message: string,
-    readonly status: number
+    readonly status: number,
+    /** The token endpoint's `Retry-After` on a 429 or 503, in milliseconds. */
+    readonly retryAfterMs?: number
   ) {
     super(message)
     this.name = 'SailPointAuthError'
@@ -228,7 +231,8 @@ export async function requestSailPointToken(
     if (!response.ok) {
       throw new SailPointAuthError(
         getSailPointErrorMessage(data, 'Failed to authenticate with SailPoint'),
-        response.status
+        response.status,
+        throttledRetryAfterMs(response)
       )
     }
     if (!isRecordLike(data) || typeof data.access_token !== 'string' || !data.access_token) {

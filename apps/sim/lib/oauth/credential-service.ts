@@ -777,13 +777,15 @@ async function resolveMintedServiceAccountToken(
     if (cached && cached.expiresAtMs - Date.now() > CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS) {
       return { ...cached.token }
     }
-    const stillValid =
+    /** The cached token while more than the expiry margin of it is left, checked at each use. */
+    const stillValid = () =>
       cached && cached.expiresAtMs - Date.now() > TOKEN_EXPIRY_MARGIN_MS ? cached : undefined
 
     const failedEntry = clientCredentialMintFailureCache.get(cacheIdentity)
     const failed = failedEntry?.secretFingerprint === secretFingerprint ? failedEntry : undefined
     if (failed && Date.now() < failed.retryAtMs) {
-      if (stillValid && failed.kind !== 'permanent') return { ...stillValid.token }
+      const fallback = failed.kind === 'permanent' ? undefined : stillValid()
+      if (fallback) return { ...fallback.token }
       throw failed.error
     }
 
@@ -817,13 +819,14 @@ async function resolveMintedServiceAccountToken(
         retryAtMs,
         expiresAtMs: retryAtMs + TOKEN_FAILURE_STREAK_RETENTION_MS,
       })
-      if (stillValid && failure.kind !== 'permanent') {
+      const fallback = failure.kind === 'permanent' ? undefined : stillValid()
+      if (fallback) {
         logger.warn('Serving a still-valid client-credential token after its refresh failed', {
           credentialId,
           failure: failure.kind,
           retryInMs: failure.replayMs,
         })
-        return { ...stillValid.token }
+        return { ...fallback.token }
       }
       throw error
     }

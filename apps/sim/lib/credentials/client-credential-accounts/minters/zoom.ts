@@ -11,6 +11,7 @@ import {
   readProviderErrorSnippet,
   requireClientSecret,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 
 const ZOOM_TOKEN_URL = 'https://zoom.us/oauth/token'
@@ -88,10 +89,12 @@ export async function mintZoomServiceAccountToken(
         ...(hint ? { hint } : {}),
       })
     }
-    throw new TokenServiceAccountValidationError('provider_unavailable', res.status, {
-      step: 'zoom_token_mint',
-      body,
-    })
+    throw new TokenServiceAccountValidationError(
+      'provider_unavailable',
+      res.status,
+      { step: 'zoom_token_mint', body },
+      { retryAfterMs: throttledRetryAfterMs(res) }
+    )
   }
 
   const payload = await parseProviderJson<ZoomTokenResponse>(res, 'zoom_token_mint')

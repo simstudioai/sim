@@ -102,6 +102,17 @@ describe('SailPoint API client token exchange', () => {
     await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({ code })
   })
 
+  it("carries the token endpoint's Retry-After on an unavailable answer", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({ error: 'unavailable' }, { status: 503, headers: { 'Retry-After': '7' } })
+    )
+
+    await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      retryAfterMs: 7_000,
+    })
+  })
+
   it('treats a network failure or refused redirect as a provider failure', async () => {
     mockFetch.mockRejectedValue(new TypeError('fetch failed: unexpected redirect'))
 

@@ -207,6 +207,16 @@ describe('Ramp client credential exchange', () => {
     }
   )
 
+  it("carries the token endpoint's Retry-After on a throttled answer", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ error: 'busy' }, { status: 429, headers: { 'Retry-After': '7' } })
+    )
+
+    await expect(mintRampServiceAccountToken(FIELDS, { skipIdentity: true })).rejects.toMatchObject(
+      { code: 'provider_unavailable', retryAfterMs: 7_000 }
+    )
+  })
+
   it.each([400, 401, 403, 408, 429, 500])(
     'classifies provider failure %s without retaining its secret-bearing body',
     async (status) => {

@@ -2,6 +2,7 @@ import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import { throttledRetryAfterMs } from '@/lib/credentials/token-service-accounts/errors'
 import type { CrowdStrikeCloud, CrowdStrikeInlineCredentials } from '@/tools/crowdstrike/types'
 
 export type JsonRecord = Record<string, unknown>
@@ -160,7 +161,12 @@ export function getFalconErrorMessage(data: unknown, fallback: string): string {
 export class CrowdStrikeAuthError extends Error {
   readonly status: number
 
-  constructor(message: string, status: number) {
+  constructor(
+    message: string,
+    status: number,
+    /** The token endpoint's `Retry-After` on a 429 or 503, in milliseconds. */
+    readonly retryAfterMs?: number
+  ) {
     super(message)
     this.name = 'CrowdStrikeAuthError'
     this.status = status >= 400 && status <= 599 ? status : 502
@@ -263,7 +269,8 @@ export async function requestCrowdStrikeToken(
   if (!response.ok) {
     throw new CrowdStrikeAuthError(
       getFalconErrorMessage(data, 'Failed to authenticate with CrowdStrike'),
-      response.status
+      response.status,
+      throttledRetryAfterMs(response)
     )
   }
   if (!isRecordLike(data) || typeof data.access_token !== 'string' || !data.access_token.trim()) {

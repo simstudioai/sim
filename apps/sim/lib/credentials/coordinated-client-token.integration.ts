@@ -333,6 +333,22 @@ describe('coordinated token resolution while the provider fails', () => {
     expect(exchange).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps refusing for every worker a refusal whose code the shared row cannot store', async () => {
+    const exchange = issuingOnce('consent-refresh', 4 * 60_000, async () => {
+      throw new TokenServiceAccountValidationError('consent_required', 400, { step: 'mint' })
+    })
+    await resolveCoordinatedClientToken(input('consent-refresh', exchange))
+
+    for (let call = 0; call < 2; call++) {
+      await expect(
+        resolveCoordinatedClientToken(input('consent-refresh', exchange))
+      ).rejects.toBeInstanceOf(TokenServiceAccountValidationError)
+    }
+    expect(exchange).toHaveBeenCalledTimes(2)
+    const payload: unknown = JSON.parse((await failureRowOf('consent-refresh')).decrypted)
+    expect(previousBuildDecodesFailure.coordinated(payload)).toBe(true)
+  })
+
   it('never serves a still-valid token to a different secret whose refresh fails', async () => {
     const exchange = issuingOnce('rotated-refresh', 4 * 60_000, failing(429))
     await resolveCoordinatedClientToken(input('rotated-refresh', exchange))

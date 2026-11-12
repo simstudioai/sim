@@ -64,6 +64,17 @@ describe('ZoomInfo client credentials exchange', () => {
     await expect(mintZoomInfoServiceAccountToken(FIELDS)).rejects.toMatchObject({ code })
   })
 
+  it("carries the token endpoint's Retry-After on a throttled answer", async () => {
+    mockSecureFetchWithValidation.mockResolvedValue(
+      Response.json({ error: 'busy' }, { status: 429, headers: { 'Retry-After': '7' } })
+    )
+
+    await expect(mintZoomInfoServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      retryAfterMs: 7_000,
+    })
+  })
+
   it('treats a refused redirect or network failure as a provider failure', async () => {
     mockSecureFetchWithValidation.mockRejectedValue(new Error('Too many redirects (max: 0)'))
 

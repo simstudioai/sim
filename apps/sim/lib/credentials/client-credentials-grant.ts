@@ -5,9 +5,9 @@ import {
   fetchProvider,
   providerFailureCode,
   providerFailureReason,
-  providerRetryAfterMs,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 
 const MAX_TOKEN_RESPONSE_BYTES = 64 * 1024
@@ -35,7 +35,7 @@ export interface ClientCredentialsGrantRequest {
   /**
    * Maps a refused exchange to a provider-specific error. Without it, a refusal is
    * `invalid_credentials` for a non-transient 4xx and `provider_unavailable` otherwise.
-   * `retryAfterMs` is the refusal's `Retry-After` (see {@link providerRetryAfterMs}), which an
+   * `retryAfterMs` is the refusal's `Retry-After` (see {@link throttledRetryAfterMs}), which an
    * error the provider would answer differently later should carry.
    */
   classifyRefusal?: (
@@ -86,7 +86,7 @@ export async function exchangeClientCredentialsGrant(
   if (!response.ok) {
     const body = await readProviderErrorSnippet(response)
     signal?.throwIfAborted()
-    const retryAfterMs = providerRetryAfterMs(response)
+    const retryAfterMs = throttledRetryAfterMs(response)
     throw request.classifyRefusal
       ? request.classifyRefusal(response.status, body, retryAfterMs)
       : new TokenServiceAccountValidationError(

@@ -5,6 +5,7 @@ import {
   MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
+import { throttledRetryAfterMs } from '@/lib/credentials/token-service-accounts/errors'
 import {
   assertSafeZoomInfoUrl,
   ZOOMINFO_API_BASE,
@@ -51,7 +52,11 @@ export class ZoomInfoOperationError extends Error {
  * provider status), and carries that status for the saved-credential minter.
  */
 export class ZoomInfoTokenError extends ZoomInfoOperationError {
-  constructor(readonly tokenStatus: number) {
+  constructor(
+    readonly tokenStatus: number,
+    /** The token endpoint's `Retry-After` on a 429 or 503, in milliseconds. */
+    readonly retryAfterMs?: number
+  ) {
     super(`ZoomInfo token request failed: HTTP ${tokenStatus}`, 500)
     this.name = 'ZoomInfoTokenError'
   }
@@ -129,7 +134,7 @@ export async function requestZoomInfoToken(
   if (!response.ok) {
     const text = await response.text().catch(() => '')
     logger.warn('ZoomInfo token fetch failed', { requestId, status: response.status, error: text })
-    throw new ZoomInfoTokenError(response.status)
+    throw new ZoomInfoTokenError(response.status, throttledRetryAfterMs(response))
   }
   const data: unknown = await response.json()
   if (!isRecordLike(data) || typeof data.access_token !== 'string' || !data.access_token.trim()) {

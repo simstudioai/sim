@@ -92,12 +92,14 @@ interface StoredApplicationToken {
 /**
  * A remembered exchange failure, replayed until its row's `expiresAt`. Builds before failure
  * kinds stored `{ code, status }` only and ignore other keys, so `consecutiveFailures` is
- * written only for outages and throttling, to grow their backoff while they continue.
+ * written only for outages and throttling, to grow their backoff while they continue, and
+ * `refusal` only for a refusal whose code those builds read as `provider_unavailable`.
  */
 interface StoredFailure {
   code: 'invalid_credentials' | 'grant_not_permitted' | 'site_not_found' | 'provider_unavailable'
   status: number
   consecutiveFailures?: number
+  refusal?: true
 }
 
 const STORED_FAILURE_CODES: ReadonlySet<string> = new Set([
@@ -204,7 +206,13 @@ function decodeFailure(value: string, step: string): StoredFailure {
     ...(Number.isSafeInteger(parsed.consecutiveFailures) && Number(parsed.consecutiveFailures) > 0
       ? { consecutiveFailures: Number(parsed.consecutiveFailures) }
       : {}),
+    ...(parsed.refusal === true ? { refusal: true } : {}),
   }
+}
+
+/** Whether a remembered failure refused the credentials, so no stored token is served for it. */
+function isRememberedRefusal(failure: StoredFailure): boolean {
+  return failure.refusal === true || isPermanentTokenFailureCode(failure.code)
 }
 
 /** The error a remembered failure is replayed as, with how long it is still replayed. */
@@ -232,7 +240,7 @@ async function consecutiveFailuresBefore(
   if (!row || Date.now() - row.expiresAt.getTime() > TOKEN_FAILURE_STREAK_RETENTION_MS) return 0
   try {
     const failure = decodeFailure((await decryptSecret(row.encryptedValue)).decrypted, step)
-    if (isPermanentTokenFailureCode(failure.code)) return 0
+    if (isRememberedRefusal(failure)) return 0
     return failure.consecutiveFailures ?? 1
   } catch {
     return 0
@@ -332,7 +340,7 @@ export async function resolveCoordinatedClientToken(
   > => {
     if (!failureRow || failureRow.expiresAt.getTime() <= Date.now()) return undefined
     const failure = decodeFailure((await decryptSecret(failureRow.encryptedValue)).decrypted, step)
-    if (!isPermanentTokenFailureCode(failure.code)) {
+    if (!isRememberedRefusal(failure)) {
       const fallback = await fallbackFrom(applicationRow)
       if (fallback) return fallback
     }
@@ -413,14 +421,17 @@ export async function resolveCoordinatedClientToken(
           await consecutiveFailuresBefore(failureRow, step)
         )
         const replayMs = Math.max(assessed.replayMs, input.minExchangeIntervalMs ?? 0)
+        const code = STORED_FAILURE_CODES.has(error.code)
+          ? (error.code as StoredFailure['code'])
+          : 'provider_unavailable'
         const failure: StoredFailure = {
-          code: STORED_FAILURE_CODES.has(error.code)
-            ? (error.code as StoredFailure['code'])
-            : 'provider_unavailable',
+          code,
           status: error.status,
-          ...(assessed.kind === 'permanent'
-            ? {}
-            : { consecutiveFailures: assessed.consecutiveFailures }),
+          ...(assessed.kind !== 'permanent'
+            ? { consecutiveFailures: assessed.consecutiveFailures }
+            : isPermanentTokenFailureCode(code)
+              ? {}
+              : { refusal: true }),
         }
         const { encrypted } = await encryptSecret(JSON.stringify(failure))
         const expiresAt = new Date(Date.now() + replayMs)
