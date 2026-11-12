@@ -291,6 +291,14 @@ describe('outbound receiver backoff', () => {
     expect(logger().info).toHaveBeenCalledOnce()
   })
 
+  it('keeps backing off while polls succeed but their batches cannot be read', async () => {
+    const malformed = () => Response.json({ requests: 'not a list' })
+    const delays = await delaysFor(Array.from({ length: 5 }, () => malformed))
+    expect(delays[4]).toBeGreaterThanOrEqual(3200)
+    expect(logger().warn).toHaveBeenCalledOnce()
+    expect(logger().info).not.toHaveBeenCalled()
+  })
+
   it('warns again, and backs off from the start, when an outage turns into a refused key', async () => {
     const delays = await delaysFor([lost, lost, lost, refused(401), refused(401)])
     expect(delays[3]).toBeLessThanOrEqual(36_000)

@@ -102,10 +102,6 @@ export async function receiveSimControls(
         }
         throw new Error(`Transport poll refused (HTTP ${response.status})`)
       }
-      if (outage) {
-        logger.info('Sim transport reconnected')
-        outage = undefined
-      }
       phase = 'parse'
       const batch = SimChannelBatchEnvelope.parse(await response.json())
       const controls = batch.requests.flatMap((raw) => receiveControl(raw) ?? [])
@@ -130,6 +126,11 @@ export async function receiveSimControls(
       )
       const failed = replies.find((reply) => reply.status === 'rejected')
       if (failed?.status === 'rejected') throw failed.reason
+      // Only a whole iteration (poll, batch, replies) ends an outage.
+      if (outage) {
+        logger.info('Sim transport reconnected')
+        outage = undefined
+      }
     } catch (error) {
       if (signal.aborted) return
       const keyRefused = error instanceof TransportKeyRefused
