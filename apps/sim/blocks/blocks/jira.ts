@@ -1184,7 +1184,10 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               issueKey: effectiveIssueKey,
               ...(effectiveProjectId && { projectId: effectiveProjectId }),
-              includeAttachments: params.includeAttachments === true ? true : undefined,
+              includeAttachments:
+                params.includeAttachments === true || params.includeAttachments === 'true'
+                  ? true
+                  : undefined,
             }
           }
           case 'read-bulk': {
@@ -1266,7 +1269,10 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
-              includeAttachments: params.includeAttachments === true ? true : undefined,
+              includeAttachments:
+                params.includeAttachments === true || params.includeAttachments === 'true'
+                  ? true
+                  : undefined,
             }
           }
           case 'add_attachment': {

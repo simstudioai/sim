@@ -105,10 +105,19 @@ function toParentReference(parent: NonNullable<JiraWriteInput['parent']>): unkno
   return /^\d+$/.test(parent) ? { id: parent } : { key: parent }
 }
 
-function putAdditionalFields(fields: JsonObject, customFields: JsonObject | undefined): void {
+/**
+ * Merges `customFields` under the explicit fields. `reserved` names fields an explicit
+ * param sets outside this body (the create flow assigns after creation), which
+ * `customFields` must not override either.
+ */
+function putAdditionalFields(
+  fields: JsonObject,
+  customFields: JsonObject | undefined,
+  reserved: string[] = []
+): void {
   if (!customFields) return
   for (const [fieldId, value] of Object.entries(customFields)) {
-    if (!(fieldId in fields)) fields[fieldId] = value
+    if (!(fieldId in fields) && !reserved.includes(fieldId)) fields[fieldId] = value
   }
 }
 
@@ -163,7 +172,7 @@ export async function executeJiraWrite(input: JiraWriteInput, context: JiraOpera
   putOptionalIssueFields(fields, input, false)
   if (input.parent) fields.parent = toParentReference(input.parent)
   if (input.reporter) fields.reporter = { accountId: input.reporter }
-  putAdditionalFields(fields, input.customFields)
+  putAdditionalFields(fields, input.customFields, input.assignee ? ['assignee'] : [])
 
   const response = await client.request(
     client.issuePath(),
