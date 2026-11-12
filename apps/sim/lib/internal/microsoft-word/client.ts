@@ -6,23 +6,10 @@ import {
 import { DOCX_MIME_TYPE } from '@/lib/microsoft-word/document.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { parseGraphErrorMessage } from '@/tools/microsoft_excel/utils'
-import type { MicrosoftWordDocumentMetadata } from '@/tools/microsoft_word/types'
+import type { MicrosoftWordGraphDriveItem as GraphDriveItem } from '@/tools/microsoft_word/types'
 
-/** Microsoft Graph `driveItem` fields the Word routes project. */
-interface GraphDriveItem {
-  id?: string
-  name?: string
-  size?: number
-  webUrl?: string
-  createdDateTime?: string
-  lastModifiedDateTime?: string
-  /** An eTag for the item's content, unchanged when only metadata changes. */
-  cTag?: string
-  /** An eTag for the whole item, metadata included. */
-  eTag?: string
-  file?: { mimeType?: string }
-  folder?: Record<string, unknown>
-}
+/** Byte cap for Graph JSON metadata and error bodies; document bytes use `MAX_FILE_SIZE`. */
+const MAX_GRAPH_JSON_BYTES = 2 * 1024 * 1024
 
 /**
  * The token that identifies the exact content an edit was based on.
@@ -81,22 +68,6 @@ async function raiseGraphError(response: {
   )
 }
 
-/** Projects a Graph `driveItem` onto the metadata shape the Word tools return. */
-export function toDocumentMetadata(
-  item: GraphDriveItem,
-  fallbackId: string
-): MicrosoftWordDocumentMetadata {
-  return {
-    documentId: item.id ?? fallbackId,
-    name: item.name ?? null,
-    mimeType: item.file?.mimeType ?? null,
-    webViewLink: item.webUrl ?? null,
-    size: item.size ?? null,
-    createdTime: item.createdDateTime ?? null,
-    modifiedTime: item.lastModifiedDateTime ?? null,
-  }
-}
-
 /**
  * Fetches a drive item's metadata and rejects folders, which have no document
  * content and would otherwise fail later with an opaque Graph error.
@@ -110,6 +81,7 @@ export async function fetchDocumentItem(
 ): Promise<GraphDriveItem> {
   const response = await graphFetch(basePath, 'documentUrl', {
     headers: { Authorization: `Bearer ${accessToken}` },
+    maxResponseBytes: MAX_GRAPH_JSON_BYTES,
     signal,
   })
 
@@ -270,6 +242,7 @@ export async function replaceContentIfUnchanged(
         'if-match': expectedTag,
       },
       body: '{}',
+      maxResponseBytes: MAX_GRAPH_JSON_BYTES,
       signal,
     }
   )
@@ -330,6 +303,7 @@ async function uploadSessionBytes(
           'Content-Range': `bytes ${start}-${end}/${total}`,
         },
         body: fragment,
+        maxResponseBytes: MAX_GRAPH_JSON_BYTES,
         signal,
       },
       // The upload URL is named by a Graph response rather than configured, so
@@ -375,6 +349,7 @@ export async function uploadDocumentContent(
       'Content-Length': String(content.length),
     },
     body: content,
+    maxResponseBytes: MAX_GRAPH_JSON_BYTES,
     signal,
   })
 

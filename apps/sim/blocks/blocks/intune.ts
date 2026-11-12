@@ -246,13 +246,13 @@ export const IntuneBlock: BlockConfig = {
     devices: {
       type: 'json',
       description:
-        'Managed devices (id, deviceName, operatingSystem, osVersion, complianceState, userPrincipalName, lastSyncDateTime, isEncrypted, serialNumber, manufacturer, model)',
+        'Managed devices (id, deviceName, operatingSystem, osVersion, complianceState, userPrincipalName, lastSyncDateTime, isEncrypted, serialNumber, manufacturer, model, managementAgent, deviceEnrollmentType, jailBroken, isSupervised, complianceGracePeriodExpirationDateTime, exchangeAccessState, imei, phoneNumber, wiFiMacAddress, deviceActionResults)',
       condition: { field: 'operation', value: ['intune_list_devices', 'intune_list_app_devices'] },
     },
     device: {
       type: 'json',
       description:
-        'Managed device (id, deviceName, operatingSystem, osVersion, complianceState, managementState, userPrincipalName, lastSyncDateTime, isEncrypted, serialNumber, storage capacity)',
+        'Managed device (id, deviceName, operatingSystem, osVersion, complianceState, userPrincipalName, lastSyncDateTime, isEncrypted, serialNumber, storage capacity, managementAgent, deviceEnrollmentType, deviceRegistrationState, jailBroken, isSupervised, complianceGracePeriodExpirationDateTime, partnerReportedThreatState, exchangeAccessState, imei, phoneNumber, wiFiMacAddress, deviceActionResults with actionName and actionState of remote actions)',
       condition: { field: 'operation', value: ['intune_get_device'] },
     },
     apps: {
@@ -270,25 +270,25 @@ export const IntuneBlock: BlockConfig = {
     policies: {
       type: 'json',
       description:
-        'Compliance policy metadata (id, displayName, description, createdDateTime, lastModifiedDateTime, version)',
+        'Compliance policy metadata (id, displayName, description, createdDateTime, lastModifiedDateTime, version, odataType naming the platform policy type)',
       condition: { field: 'operation', value: ['intune_list_compliance_policies'] },
     },
     policy: {
       type: 'json',
       description:
-        'Common compliance policy metadata (id, displayName, description, createdDateTime, lastModifiedDateTime, version); excludes platform-specific rule settings',
+        'Common compliance policy metadata (id, displayName, description, createdDateTime, lastModifiedDateTime, version, odataType naming the platform policy type); excludes platform-specific rule settings',
       condition: { field: 'operation', value: ['intune_get_compliance_policy'] },
     },
     configurations: {
       type: 'json',
       description:
-        'Device configuration metadata (id, displayName, description, createdDateTime, lastModifiedDateTime, version)',
+        'Device configuration metadata (id, displayName, description, createdDateTime, lastModifiedDateTime, version, odataType naming the platform configuration type)',
       condition: { field: 'operation', value: ['intune_list_device_configurations'] },
     },
     configuration: {
       type: 'json',
       description:
-        'Common device configuration metadata (id, displayName, description, createdDateTime, lastModifiedDateTime, version); excludes platform-specific settings',
+        'Common device configuration metadata (id, displayName, description, createdDateTime, lastModifiedDateTime, version, odataType naming the platform configuration type); excludes platform-specific settings',
       condition: { field: 'operation', value: ['intune_get_device_configuration'] },
     },
     deviceStatuses: {

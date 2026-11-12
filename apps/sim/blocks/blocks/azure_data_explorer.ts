@@ -540,6 +540,11 @@ export const AzureDataExplorerBlock: BlockConfig = {
     rowCount: { type: 'number', description: 'Rows carried in this result, after the row cap' },
     totalRowCount: { type: 'number', description: 'Rows Kusto returned, before the row cap' },
     truncated: { type: 'boolean', description: 'Whether rows were dropped to stay within the cap' },
+    additionalResults: {
+      type: 'json',
+      description:
+        'Further result tables when a query batch or fork returns more than one (Run Query); each has tableName, columns, rows, records, rowCount, totalRowCount, truncated',
+    },
     databases: { type: 'json', description: 'Database names (List Databases)' },
     tables: { type: 'json', description: 'Table names (List Tables)' },
     extentIds: { type: 'json', description: 'Extent IDs created (Ingest Rows Inline)' },

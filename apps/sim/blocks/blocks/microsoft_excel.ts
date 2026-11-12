@@ -82,6 +82,7 @@ function normalizeExcelAgentParams(params: Record<string, unknown>, separateShee
     'showTotals',
     'rowHidden',
     'columnHidden',
+    'valuesOnly',
   ])
     result[field] = optionalBoolean(params[field])
   for (const field of [
@@ -1505,6 +1506,19 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       value: () => '',
     },
     {
+      id: 'valuesOnly',
+      title: 'Used Range Cells',
+      type: 'dropdown',
+      description: 'Applies only when no cell range is set and the used range is read.',
+      condition: { field: 'operation', value: ['read'] },
+      mode: 'advanced',
+      options: [
+        { label: 'Cells with values', id: '' },
+        { label: 'Cells with values or formatting', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
       id: 'fontUnderline',
       title: 'Underline',
       type: 'dropdown',
@@ -2006,7 +2020,8 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               throw new Error('Sheet name is required. Please select or enter a sheet name.')
             }
             const rangeParams = { ...base, sheetName: effectiveSheetName, cellRange: trimmedRange }
-            if (operation === 'read') return rangeParams
+            if (operation === 'read')
+              return { ...rangeParams, valuesOnly: optionalBoolean(params.valuesOnly) }
             return {
               ...rangeParams,
               values: optionalJson(values),
@@ -2048,6 +2063,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     numberFormat: { type: 'json', description: 'Number Formats' },
     columnHidden: { type: 'string', description: 'Hide Columns' },
     rowHidden: { type: 'string', description: 'Hide Rows' },
+    valuesOnly: { type: 'string', description: 'Used range counts only cells with values' },
     fontUnderline: { type: 'string', description: 'Underline' },
     operation: { type: 'string', description: 'Operation to perform' },
     fileSource: { type: 'string', description: 'File source (onedrive or sharepoint)' },

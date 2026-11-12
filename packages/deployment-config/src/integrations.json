@@ -3088,6 +3088,10 @@
           "description": "Remove a member from a group in Azure AD (Microsoft Entra ID)"
         },
         {
+          "name": "List User Memberships",
+          "description": "List the groups, directory roles, and administrative units a user is a member of in Azure AD (Microsoft Entra ID)"
+        },
+        {
           "name": "Assign License",
           "description": "Add or remove subscription licenses (SKUs) on a user in Microsoft Entra ID. Removing a license immediately revokes the access it granted to the associated services."
         },
@@ -3180,7 +3184,7 @@
           "description": "Get a single conditional access policy by ID, including the conditions it matches and the controls it enforces. Read-only."
         }
       ],
-      "operationCount": 36,
+      "operationCount": 37,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -3188,7 +3192,7 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity", "microsoft-365"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "azure_data_explorer_v2",
@@ -3202,7 +3206,7 @@
       "operations": [
         {
           "name": "Run Query",
-          "description": "Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table."
+          "description": "Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table (plus any further tables a batch or fork produces)."
         },
         {
           "name": "List Databases",
@@ -3295,7 +3299,7 @@
         },
         {
           "name": "List Builds",
-          "description": "List builds in an Azure DevOps project. Optionally filter by pipeline definition, status, result, or branch."
+          "description": "List builds in an Azure DevOps project. Optionally filter by pipeline definition, status, result, reason, requester, branch, or time range, and page with a continuation token."
         },
         {
           "name": "List Build Logs",
@@ -3315,7 +3319,7 @@
         },
         {
           "name": "Query Work Items",
-          "description": "Execute a WIQL query to search for work items in Azure DevOps and return full field details. Use TOP N in your query to limit results (Azure enforces a 200-item maximum per batch fetch)."
+          "description": "Execute a WIQL query to search for work items in Azure DevOps and return full field details. Supports flat queries and link queries (FROM WorkItemLinks). Use the top parameter to limit results."
         },
         {
           "name": "Get Work Item",
@@ -3366,7 +3370,7 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["version-control", "ci-cd", "project-management"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "bitbucket",

@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import type { OneDriveMoveResponse, OneDriveToolParams } from '@/tools/onedrive/types'
+import {
+  driveItemDetails,
+  ONEDRIVE_FILE_OUTPUT_PROPERTIES,
+  toParentReference,
+} from '@/tools/onedrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OneDriveMoveTool')
 
@@ -44,7 +50,7 @@ export const moveTool: ToolConfig<OneDriveToolParams, OneDriveMoveResponse> = {
 
   request: {
     url: (params) =>
-      `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(params.fileId || '')}`,
+      `https://graph.microsoft.com/v1.0/me/drive/items/${safeUrlPathSegment(params.fileId ?? '', 'fileId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -84,6 +90,8 @@ export const moveTool: ToolConfig<OneDriveToolParams, OneDriveMoveResponse> = {
           createdTime: data.createdDateTime,
           modifiedTime: data.lastModifiedDateTime,
           parents: data.parentReference ? [data.parentReference.id] : [],
+          ...driveItemDetails(data),
+          parentReference: toParentReference(data.parentReference),
         },
       },
     }
@@ -94,6 +102,7 @@ export const moveTool: ToolConfig<OneDriveToolParams, OneDriveMoveResponse> = {
     file: {
       type: 'object',
       description: 'The updated file object with its new name and/or parent folder',
+      properties: ONEDRIVE_FILE_OUTPUT_PROPERTIES,
     },
   },
 }

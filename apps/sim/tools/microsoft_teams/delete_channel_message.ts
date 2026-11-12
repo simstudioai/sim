@@ -3,6 +3,7 @@ import type {
   MicrosoftTeamsDeleteResponse,
 } from '@/tools/microsoft_teams/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteChannelMessageTool: ToolConfig<
   MicrosoftTeamsDeleteMessageParams,
@@ -61,7 +62,7 @@ export const deleteChannelMessageTool: ToolConfig<
       if (!teamId || !channelId || !messageId) {
         throw new Error('Team ID, Channel ID, and Message ID are required')
       }
-      return `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/softDelete`
+      return `https://graph.microsoft.com/v1.0/teams/${safeUrlPathSegment(teamId, 'Team ID')}/channels/${safeUrlPathSegment(channelId, 'Channel ID')}/messages/${safeUrlPathSegment(messageId, 'Message ID')}/softDelete`
     },
     method: 'POST',
     headers: (params) => {

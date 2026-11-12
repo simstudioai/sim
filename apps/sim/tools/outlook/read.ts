@@ -11,7 +11,9 @@ import type {
   OutlookReadResponse,
 } from '@/tools/outlook/types'
 import { OUTLOOK_MESSAGE_OUTPUT_PROPERTIES } from '@/tools/outlook/types'
+import { cleanOutlookMessage } from '@/tools/outlook/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface OutlookDownloadAttachmentMetadata {
   '@odata.type'?: string
@@ -127,7 +129,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
 
       // If folder is provided, read from that specific folder
       if (params.folder) {
-        return `https://graph.microsoft.com/v1.0/me/mailFolders/${params.folder}/messages?$top=${maxResults}&$orderby=createdDateTime desc`
+        return `https://graph.microsoft.com/v1.0/me/mailFolders/${safeUrlPathSegment(params.folder, 'folder', { allowSeparators: true })}/messages?$top=${maxResults}&$orderby=createdDateTime desc`
       }
 
       // Otherwise fetch from all messages (default behavior)
@@ -183,39 +185,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
         }
       }
 
-      cleanedMessages.push({
-        id: message.id,
-        subject: message.subject,
-        bodyPreview: message.bodyPreview,
-        body: {
-          contentType: message.body?.contentType,
-          content: message.body?.content,
-        },
-        sender: {
-          name: message.sender?.emailAddress?.name,
-          address: message.sender?.emailAddress?.address,
-        },
-        from: {
-          name: message.from?.emailAddress?.name,
-          address: message.from?.emailAddress?.address,
-        },
-        toRecipients:
-          message.toRecipients?.map((recipient) => ({
-            name: recipient.emailAddress?.name,
-            address: recipient.emailAddress?.address,
-          })) || [],
-        ccRecipients:
-          message.ccRecipients?.map((recipient) => ({
-            name: recipient.emailAddress?.name,
-            address: recipient.emailAddress?.address,
-          })) || [],
-        receivedDateTime: message.receivedDateTime,
-        sentDateTime: message.sentDateTime,
-        hasAttachments: message.hasAttachments,
-        attachments: attachments || [],
-        isRead: message.isRead,
-        importance: message.importance,
-      })
+      cleanedMessages.push({ ...cleanOutlookMessage(message), attachments: attachments || [] })
     }
 
     // Flatten all attachments from all emails to top level for FileToolProcessor

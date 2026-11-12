@@ -123,6 +123,10 @@ export function projectPowerBIReport(value: unknown): PowerBIReport {
     webUrl: toStringOrNull(data.webUrl),
     embedUrl: toStringOrNull(data.embedUrl),
     description: toStringOrNull(data.description),
+    format: toStringOrNull(data.format),
+    isOwnedByMe: toBooleanOrNull(data.isOwnedByMe),
+    appId: toStringOrNull(data.appId),
+    originalReportId: toStringOrNull(data.originalReportId),
   }
 }
 

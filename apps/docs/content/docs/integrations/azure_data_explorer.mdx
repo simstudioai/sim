@@ -52,7 +52,7 @@ Run Kusto Query Language queries against Azure Data Explorer and Fabric Eventhou
 
 ### Azure Data Explorer Query
 
-Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table.
+Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table (plus any further tables a batch or fork produces).
 
 <ReferenceDetails>
 
@@ -80,7 +80,15 @@ Run a Kusto Query Language (KQL) query against an Azure Data Explorer database a
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
-| `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
+| `truncated` | boolean | Whether rows were dropped to stay within the row or size cap — narrow the query if true |
+| `additionalResults` | array | Further result tables, present only when a query batch \(statements separated by ;\) or fork returns more than one; the row and size caps are shared across all tables |
+|   ↳ `tableName` | string | Result table name |
+|   ↳ `columns` | array | Column metadata \(name, type, dataType\) |
+|   ↳ `rows` | array | Rows as positional arrays |
+|   ↳ `records` | array | Rows keyed by column name |
+|   ↳ `rowCount` | number | Rows carried after the caps |
+|   ↳ `totalRowCount` | number | Rows Kusto returned |
+|   ↳ `truncated` | boolean | Whether rows were dropped by the caps |
 
 </ReferenceDetails>
 

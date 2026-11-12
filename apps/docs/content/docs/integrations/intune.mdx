@@ -67,7 +67,7 @@ Read one page of devices from Microsoft Intune
 |   ↳ `id` | string | Intune managed device ID |
 |   ↳ `deviceName` | string | Device name |
 |   ↳ `managedDeviceOwnerType` | string | Ownership: company, personal, or unknown |
-|   ↳ `managementState` | string | Current device management state |
+|   ↳ `managementState` | string | Device management state; not part of the Graph v1.0 managedDevice resource, so usually null |
 |   ↳ `enrolledDateTime` | string | Enrollment time |
 |   ↳ `lastSyncDateTime` | string | Last check-in time |
 |   ↳ `operatingSystem` | string | Operating system |
@@ -84,6 +84,33 @@ Read one page of devices from Microsoft Intune
 |   ↳ `model` | string | Device model |
 |   ↳ `totalStorageSpaceInBytes` | number | Total storage capacity in bytes |
 |   ↳ `freeStorageSpaceInBytes` | number | Available storage in bytes |
+|   ↳ `managedDeviceName` | string | Intune-generated or administrator-assigned device name |
+|   ↳ `managementAgent` | string | Management channel, such as mdm, eas, easMdm, or configurationManagerClient |
+|   ↳ `deviceEnrollmentType` | string | Enrollment type, such as userEnrollment or windowsAzureADJoin |
+|   ↳ `enrollmentProfileName` | string | Assigned enrollment profile name; empty when none was assigned |
+|   ↳ `deviceRegistrationState` | string | Registration state, such as registered, notRegistered, or revoked |
+|   ↳ `deviceCategoryDisplayName` | string | Device category display name |
+|   ↳ `jailBroken` | string | Whether the device is jailbroken or rooted, as reported by Intune |
+|   ↳ `isSupervised` | boolean | Device supervised status |
+|   ↳ `azureADRegistered` | boolean | Whether the device is Microsoft Entra registered |
+|   ↳ `complianceGracePeriodExpirationDateTime` | string | When the device compliance grace period expires |
+|   ↳ `managementCertificateExpirationDate` | string | Device management certificate expiration date |
+|   ↳ `partnerReportedThreatState` | string | Mobile Threat Defense partner threat state, such as secured or highSeverity |
+|   ↳ `exchangeAccessState` | string | Exchange access state: none, unknown, allowed, blocked, or quarantined |
+|   ↳ `exchangeAccessStateReason` | string | Reason for the Exchange access state |
+|   ↳ `exchangeLastSuccessfulSyncDateTime` | string | Last time the device contacted Exchange |
+|   ↳ `easActivated` | boolean | Whether Exchange ActiveSync is activated |
+|   ↳ `androidSecurityPatchLevel` | string | Android security patch level |
+|   ↳ `imei` | string | Device IMEI |
+|   ↳ `meid` | string | Device MEID |
+|   ↳ `phoneNumber` | string | Device phone number |
+|   ↳ `subscriberCarrier` | string | Subscriber carrier |
+|   ↳ `wiFiMacAddress` | string | Wi-Fi MAC address |
+|   ↳ `deviceActionResults` | array | Status of remote actions requested on the device, such as rebootNow or retire |
+|     ↳ `actionName` | string | Action name |
+|     ↳ `actionState` | string | Action state, such as pending, done, failed, or notSupported |
+|     ↳ `startDateTime` | string | Action start time |
+|     ↳ `lastUpdatedDateTime` | string | Last action state update time |
 
 </ReferenceDetails>
 
@@ -107,7 +134,7 @@ Read device details from Microsoft Intune
 |   ↳ `id` | string | Intune managed device ID |
 |   ↳ `deviceName` | string | Device name |
 |   ↳ `managedDeviceOwnerType` | string | Ownership: company, personal, or unknown |
-|   ↳ `managementState` | string | Current device management state |
+|   ↳ `managementState` | string | Device management state; not part of the Graph v1.0 managedDevice resource, so usually null |
 |   ↳ `enrolledDateTime` | string | Enrollment time |
 |   ↳ `lastSyncDateTime` | string | Last check-in time |
 |   ↳ `operatingSystem` | string | Operating system |
@@ -124,6 +151,33 @@ Read device details from Microsoft Intune
 |   ↳ `model` | string | Device model |
 |   ↳ `totalStorageSpaceInBytes` | number | Total storage capacity in bytes |
 |   ↳ `freeStorageSpaceInBytes` | number | Available storage in bytes |
+|   ↳ `managedDeviceName` | string | Intune-generated or administrator-assigned device name |
+|   ↳ `managementAgent` | string | Management channel, such as mdm, eas, easMdm, or configurationManagerClient |
+|   ↳ `deviceEnrollmentType` | string | Enrollment type, such as userEnrollment or windowsAzureADJoin |
+|   ↳ `enrollmentProfileName` | string | Assigned enrollment profile name; empty when none was assigned |
+|   ↳ `deviceRegistrationState` | string | Registration state, such as registered, notRegistered, or revoked |
+|   ↳ `deviceCategoryDisplayName` | string | Device category display name |
+|   ↳ `jailBroken` | string | Whether the device is jailbroken or rooted, as reported by Intune |
+|   ↳ `isSupervised` | boolean | Device supervised status |
+|   ↳ `azureADRegistered` | boolean | Whether the device is Microsoft Entra registered |
+|   ↳ `complianceGracePeriodExpirationDateTime` | string | When the device compliance grace period expires |
+|   ↳ `managementCertificateExpirationDate` | string | Device management certificate expiration date |
+|   ↳ `partnerReportedThreatState` | string | Mobile Threat Defense partner threat state, such as secured or highSeverity |
+|   ↳ `exchangeAccessState` | string | Exchange access state: none, unknown, allowed, blocked, or quarantined |
+|   ↳ `exchangeAccessStateReason` | string | Reason for the Exchange access state |
+|   ↳ `exchangeLastSuccessfulSyncDateTime` | string | Last time the device contacted Exchange |
+|   ↳ `easActivated` | boolean | Whether Exchange ActiveSync is activated |
+|   ↳ `androidSecurityPatchLevel` | string | Android security patch level |
+|   ↳ `imei` | string | Device IMEI |
+|   ↳ `meid` | string | Device MEID |
+|   ↳ `phoneNumber` | string | Device phone number |
+|   ↳ `subscriberCarrier` | string | Subscriber carrier |
+|   ↳ `wiFiMacAddress` | string | Wi-Fi MAC address |
+|   ↳ `deviceActionResults` | array | Status of remote actions requested on the device, such as rebootNow or retire |
+|     ↳ `actionName` | string | Action name |
+|     ↳ `actionState` | string | Action state, such as pending, done, failed, or notSupported |
+|     ↳ `startDateTime` | string | Action start time |
+|     ↳ `lastUpdatedDateTime` | string | Last action state update time |
 
 </ReferenceDetails>
 
@@ -206,7 +260,7 @@ Read one page of managed devices that have a detected application installed
 |   ↳ `id` | string | Intune managed device ID |
 |   ↳ `deviceName` | string | Device name |
 |   ↳ `managedDeviceOwnerType` | string | Ownership: company, personal, or unknown |
-|   ↳ `managementState` | string | Current device management state |
+|   ↳ `managementState` | string | Device management state; not part of the Graph v1.0 managedDevice resource, so usually null |
 |   ↳ `enrolledDateTime` | string | Enrollment time |
 |   ↳ `lastSyncDateTime` | string | Last check-in time |
 |   ↳ `operatingSystem` | string | Operating system |
@@ -223,6 +277,33 @@ Read one page of managed devices that have a detected application installed
 |   ↳ `model` | string | Device model |
 |   ↳ `totalStorageSpaceInBytes` | number | Total storage capacity in bytes |
 |   ↳ `freeStorageSpaceInBytes` | number | Available storage in bytes |
+|   ↳ `managedDeviceName` | string | Intune-generated or administrator-assigned device name |
+|   ↳ `managementAgent` | string | Management channel, such as mdm, eas, easMdm, or configurationManagerClient |
+|   ↳ `deviceEnrollmentType` | string | Enrollment type, such as userEnrollment or windowsAzureADJoin |
+|   ↳ `enrollmentProfileName` | string | Assigned enrollment profile name; empty when none was assigned |
+|   ↳ `deviceRegistrationState` | string | Registration state, such as registered, notRegistered, or revoked |
+|   ↳ `deviceCategoryDisplayName` | string | Device category display name |
+|   ↳ `jailBroken` | string | Whether the device is jailbroken or rooted, as reported by Intune |
+|   ↳ `isSupervised` | boolean | Device supervised status |
+|   ↳ `azureADRegistered` | boolean | Whether the device is Microsoft Entra registered |
+|   ↳ `complianceGracePeriodExpirationDateTime` | string | When the device compliance grace period expires |
+|   ↳ `managementCertificateExpirationDate` | string | Device management certificate expiration date |
+|   ↳ `partnerReportedThreatState` | string | Mobile Threat Defense partner threat state, such as secured or highSeverity |
+|   ↳ `exchangeAccessState` | string | Exchange access state: none, unknown, allowed, blocked, or quarantined |
+|   ↳ `exchangeAccessStateReason` | string | Reason for the Exchange access state |
+|   ↳ `exchangeLastSuccessfulSyncDateTime` | string | Last time the device contacted Exchange |
+|   ↳ `easActivated` | boolean | Whether Exchange ActiveSync is activated |
+|   ↳ `androidSecurityPatchLevel` | string | Android security patch level |
+|   ↳ `imei` | string | Device IMEI |
+|   ↳ `meid` | string | Device MEID |
+|   ↳ `phoneNumber` | string | Device phone number |
+|   ↳ `subscriberCarrier` | string | Subscriber carrier |
+|   ↳ `wiFiMacAddress` | string | Wi-Fi MAC address |
+|   ↳ `deviceActionResults` | array | Status of remote actions requested on the device, such as rebootNow or retire |
+|     ↳ `actionName` | string | Action name |
+|     ↳ `actionState` | string | Action state, such as pending, done, failed, or notSupported |
+|     ↳ `startDateTime` | string | Action start time |
+|     ↳ `lastUpdatedDateTime` | string | Last action state update time |
 
 </ReferenceDetails>
 
@@ -251,6 +332,7 @@ Read one page of compliance policies from Microsoft Intune
 |   ↳ `createdDateTime` | string | Creation time |
 |   ↳ `lastModifiedDateTime` | string | Last modification time |
 |   ↳ `version` | number | Policy or configuration version |
+|   ↳ `odataType` | string | Graph @odata.type naming the platform-specific policy type, such as #microsoft.graph.windows10CompliancePolicy |
 
 </ReferenceDetails>
 
@@ -277,6 +359,7 @@ Read common metadata for an Intune compliance policy
 |   ↳ `createdDateTime` | string | Creation time |
 |   ↳ `lastModifiedDateTime` | string | Last modification time |
 |   ↳ `version` | number | Policy or configuration version |
+|   ↳ `odataType` | string | Graph @odata.type naming the platform-specific policy type, such as #microsoft.graph.windows10CompliancePolicy |
 
 </ReferenceDetails>
 
@@ -336,6 +419,7 @@ Read one page of device configurations from Microsoft Intune
 |   ↳ `createdDateTime` | string | Creation time |
 |   ↳ `lastModifiedDateTime` | string | Last modification time |
 |   ↳ `version` | number | Policy or configuration version |
+|   ↳ `odataType` | string | Graph @odata.type naming the platform-specific policy type, such as #microsoft.graph.windows10CompliancePolicy |
 
 </ReferenceDetails>
 
@@ -362,6 +446,7 @@ Read common metadata for an Intune device configuration
 |   ↳ `createdDateTime` | string | Creation time |
 |   ↳ `lastModifiedDateTime` | string | Last modification time |
 |   ↳ `version` | number | Policy or configuration version |
+|   ↳ `odataType` | string | Graph @odata.type naming the platform-specific policy type, such as #microsoft.graph.windows10CompliancePolicy |
 
 </ReferenceDetails>
 

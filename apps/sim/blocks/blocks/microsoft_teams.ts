@@ -15,6 +15,34 @@ const CHAT_FIELD = ['chatSelector', 'manualChatId'] as const
 const CHANNEL_FIELD = ['channelSelector', 'manualChannelId'] as const
 const ATTACHMENT_FIELD = ['attachmentFiles', 'fileReferences'] as const
 
+/** Operations that address a message in either a chat or a channel, so neither id set is required. */
+const MESSAGE_LOOKUP_OPERATIONS = ['get_message', 'set_reaction', 'unset_reaction'] as const
+const TEAM_REQUIRED_OPERATIONS = [
+  'read_channel',
+  'write_channel',
+  'update_channel_message',
+  'delete_channel_message',
+  'reply_to_message',
+  'list_team_members',
+  'list_channel_members',
+  'list_channels',
+] as const
+const CHAT_REQUIRED_OPERATIONS = [
+  'read_chat',
+  'write_chat',
+  'update_chat_message',
+  'delete_chat_message',
+  'list_chat_members',
+] as const
+const CHANNEL_REQUIRED_OPERATIONS = [
+  'read_channel',
+  'write_channel',
+  'update_channel_message',
+  'delete_channel_message',
+  'reply_to_message',
+  'list_channel_members',
+] as const
+
 export const MicrosoftTeamsBlock: BlockConfig = {
   type: 'microsoft_teams',
   name: 'Microsoft Teams',
@@ -178,9 +206,10 @@ export const MicrosoftTeamsBlock: BlockConfig = {
           'list_team_members',
           'list_channel_members',
           'list_channels',
+          ...MESSAGE_LOOKUP_OPERATIONS,
         ],
       },
-      required: true,
+      required: { field: 'operation', value: [...TEAM_REQUIRED_OPERATIONS] },
     },
     {
       id: 'manualTeamId',
@@ -201,9 +230,10 @@ export const MicrosoftTeamsBlock: BlockConfig = {
           'list_team_members',
           'list_channel_members',
           'list_channels',
+          ...MESSAGE_LOOKUP_OPERATIONS,
         ],
       },
-      required: true,
+      required: { field: 'operation', value: [...TEAM_REQUIRED_OPERATIONS] },
     },
     {
       id: 'chatSelector',
@@ -224,9 +254,10 @@ export const MicrosoftTeamsBlock: BlockConfig = {
           'update_chat_message',
           'delete_chat_message',
           'list_chat_members',
+          ...MESSAGE_LOOKUP_OPERATIONS,
         ],
       },
-      required: true,
+      required: { field: 'operation', value: [...CHAT_REQUIRED_OPERATIONS] },
     },
     {
       id: 'manualChatId',
@@ -244,9 +275,10 @@ export const MicrosoftTeamsBlock: BlockConfig = {
           'update_chat_message',
           'delete_chat_message',
           'list_chat_members',
+          ...MESSAGE_LOOKUP_OPERATIONS,
         ],
       },
-      required: true,
+      required: { field: 'operation', value: [...CHAT_REQUIRED_OPERATIONS] },
     },
     {
       id: 'channelSelector',
@@ -268,9 +300,10 @@ export const MicrosoftTeamsBlock: BlockConfig = {
           'delete_channel_message',
           'reply_to_message',
           'list_channel_members',
+          ...MESSAGE_LOOKUP_OPERATIONS,
         ],
       },
-      required: true,
+      required: { field: 'operation', value: [...CHANNEL_REQUIRED_OPERATIONS] },
     },
     {
       id: 'manualChannelId',
@@ -289,9 +322,10 @@ export const MicrosoftTeamsBlock: BlockConfig = {
           'delete_channel_message',
           'reply_to_message',
           'list_channel_members',
+          ...MESSAGE_LOOKUP_OPERATIONS,
         ],
       },
-      required: true,
+      required: { field: 'operation', value: [...CHANNEL_REQUIRED_OPERATIONS] },
     },
     {
       id: 'messageId',
@@ -342,10 +376,53 @@ export const MicrosoftTeamsBlock: BlockConfig = {
       required: true,
     },
     {
+      id: 'contentType',
+      title: 'Message Format',
+      type: 'dropdown',
+      options: [
+        { label: 'Plain Text', id: 'text' },
+        { label: 'HTML', id: 'html' },
+      ],
+      value: () => 'text',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [
+          'write_chat',
+          'write_channel',
+          'update_chat_message',
+          'update_channel_message',
+          'reply_to_message',
+        ],
+      },
+    },
+    {
       id: 'includeAttachments',
       title: 'Include Attachments',
       type: 'switch',
       condition: { field: 'operation', value: ['read_chat', 'read_channel'] },
+    },
+    {
+      id: 'includeReplies',
+      title: 'Include Thread Replies',
+      type: 'switch',
+      condition: { field: 'operation', value: 'read_channel' },
+    },
+    {
+      id: 'top',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '50 (max 50)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['read_chat', 'read_channel', 'list_chats'] },
+    },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'nextPageToken from a previous run',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['read_chat', 'read_channel', 'list_chats'] },
     },
     // File upload (basic mode)
     {
@@ -571,6 +648,10 @@ export const MicrosoftTeamsBlock: BlockConfig = {
       type: 'boolean',
       description: 'Download and include message attachments',
     },
+    contentType: { type: 'string', description: 'Message body format: text or html' },
+    includeReplies: { type: 'boolean', description: 'Include thread replies (channel reads)' },
+    top: { type: 'number', description: 'Page size (1-50)' },
+    pageToken: { type: 'string', description: 'nextPageToken from a previous read or list' },
   },
   outputs: {
     content: { type: 'string', description: 'Formatted message content from chat/channel' },
@@ -608,6 +689,44 @@ export const MicrosoftTeamsBlock: BlockConfig = {
     hasMore: {
       type: 'boolean',
       description: 'Whether Graph indicated additional pages beyond this response',
+    },
+    nextPageToken: {
+      type: 'string',
+      description: 'Pass as Page Token to fetch the next page; null on the last page',
+    },
+    chatId: { type: 'string', description: 'Chat ID that was read or written' },
+    teamId: { type: 'string', description: 'Team ID that was read or written' },
+    attachmentCount: { type: 'number', description: 'Total number of attachments found' },
+    replyToId: { type: 'string', description: 'Parent message ID (channel replies)' },
+    from: {
+      type: 'json',
+      description:
+        'Get Message sender identity set: user, application (bot), or device, each with id and displayName',
+    },
+    senderId: { type: 'string', description: 'Get Message sender user or application ID' },
+    senderType: {
+      type: 'string',
+      description: 'Get Message sender kind: user, application, device',
+    },
+    subject: { type: 'string', description: 'Get Message subject' },
+    summary: { type: 'string', description: 'Get Message summary (channel messages)' },
+    importance: { type: 'string', description: 'Get Message importance: normal, high, urgent' },
+    webUrl: { type: 'string', description: 'Get Message link in Teams' },
+    contentType: { type: 'string', description: 'Get Message body type: text or html' },
+    lastModifiedDateTime: {
+      type: 'string',
+      description: 'Get Message last change time (including reactions)',
+    },
+    lastEditedDateTime: { type: 'string', description: 'Get Message last edit time' },
+    deletedDateTime: { type: 'string', description: 'Get Message deletion time' },
+    mentions: {
+      type: 'json',
+      description: 'Get Message mentions: id, mentionText, mentioned (user/application/...)',
+    },
+    reactions: {
+      type: 'json',
+      description:
+        'Get Message reactions: reactionType, displayName, createdDateTime, userId, userDisplayName',
     },
     type: { type: 'string', description: 'Type of Teams message' },
     id: { type: 'string', description: 'Unique message identifier' },

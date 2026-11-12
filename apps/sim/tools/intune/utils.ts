@@ -3,6 +3,7 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type {
   IntuneDetectedApp,
+  IntuneDeviceActionResult,
   IntuneDeviceStatus,
   IntuneManagedDevice,
   IntunePageParams,
@@ -202,6 +203,43 @@ export function mapIntuneManagedDevice(value: unknown): IntuneManagedDevice {
     model: toStringOrNull(data.model),
     totalStorageSpaceInBytes: toNumberOrNull(data.totalStorageSpaceInBytes),
     freeStorageSpaceInBytes: toNumberOrNull(data.freeStorageSpaceInBytes),
+    managedDeviceName: toStringOrNull(data.managedDeviceName),
+    managementAgent: toStringOrNull(data.managementAgent),
+    deviceEnrollmentType: toStringOrNull(data.deviceEnrollmentType),
+    enrollmentProfileName: toStringOrNull(data.enrollmentProfileName),
+    deviceRegistrationState: toStringOrNull(data.deviceRegistrationState),
+    deviceCategoryDisplayName: toStringOrNull(data.deviceCategoryDisplayName),
+    jailBroken: toStringOrNull(data.jailBroken),
+    isSupervised: toBooleanOrNull(data.isSupervised),
+    azureADRegistered: toBooleanOrNull(data.azureADRegistered),
+    complianceGracePeriodExpirationDateTime: toStringOrNull(
+      data.complianceGracePeriodExpirationDateTime
+    ),
+    managementCertificateExpirationDate: toStringOrNull(data.managementCertificateExpirationDate),
+    partnerReportedThreatState: toStringOrNull(data.partnerReportedThreatState),
+    exchangeAccessState: toStringOrNull(data.exchangeAccessState),
+    exchangeAccessStateReason: toStringOrNull(data.exchangeAccessStateReason),
+    exchangeLastSuccessfulSyncDateTime: toStringOrNull(data.exchangeLastSuccessfulSyncDateTime),
+    easActivated: toBooleanOrNull(data.easActivated),
+    androidSecurityPatchLevel: toStringOrNull(data.androidSecurityPatchLevel),
+    imei: toStringOrNull(data.imei),
+    meid: toStringOrNull(data.meid),
+    phoneNumber: toStringOrNull(data.phoneNumber),
+    subscriberCarrier: toStringOrNull(data.subscriberCarrier),
+    wiFiMacAddress: toStringOrNull(data.wiFiMacAddress),
+    deviceActionResults: Array.isArray(data.deviceActionResults)
+      ? data.deviceActionResults.map(mapIntuneDeviceActionResult)
+      : [],
+  }
+}
+
+function mapIntuneDeviceActionResult(value: unknown): IntuneDeviceActionResult {
+  const data = toRecord(value)
+  return {
+    actionName: toStringOrNull(data.actionName),
+    actionState: toStringOrNull(data.actionState),
+    startDateTime: toStringOrNull(data.startDateTime),
+    lastUpdatedDateTime: toStringOrNull(data.lastUpdatedDateTime),
   }
 }
 
@@ -229,6 +267,7 @@ export function mapIntunePolicy(value: unknown): IntunePolicy {
     createdDateTime: toStringOrNull(data.createdDateTime),
     lastModifiedDateTime: toStringOrNull(data.lastModifiedDateTime),
     version: toNumberOrNull(data.version),
+    odataType: toStringOrNull(data['@odata.type']),
   }
 }
 

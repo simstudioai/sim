@@ -292,6 +292,49 @@ export const OutlookBlock: BlockConfig = {
       required: false,
     },
     {
+      id: 'replyTo',
+      title: 'Reply-To',
+      type: 'short-input',
+      placeholder: 'Addresses replies should go to (comma-separated)',
+      condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'mailImportance',
+      title: 'Importance',
+      type: 'dropdown',
+      options: [
+        { label: 'Low', id: 'low' },
+        { label: 'Normal', id: 'normal' },
+        { label: 'High', id: 'high' },
+      ],
+      condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'replyCc',
+      title: 'CC',
+      type: 'short-input',
+      placeholder: 'CC recipients (comma-separated)',
+      condition: { field: 'operation', value: ['reply_outlook', 'forward_outlook'] },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'replyBcc',
+      title: 'BCC',
+      type: 'short-input',
+      placeholder: 'BCC recipients (comma-separated)',
+      condition: {
+        field: 'operation',
+        value: ['reply_outlook', 'reply_all_outlook', 'forward_outlook'],
+      },
+      mode: 'advanced',
+      required: false,
+    },
+    {
       id: 'folderSelector',
       title: 'Folder',
       type: 'folder-selector',
@@ -940,6 +983,9 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
           calResponseType,
           calComment,
           calSendResponse,
+          mailImportance,
+          replyCc,
+          replyBcc,
           ...rest
         } = params
 
@@ -959,6 +1005,21 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
 
         if (rest.operation === 'read_outlook') {
           rest.folder = effectiveFolder || 'INBOX'
+        }
+
+        if (['send_outlook', 'draft_outlook'].includes(rest.operation) && mailImportance) {
+          rest.importance = mailImportance
+        }
+
+        if (['reply_outlook', 'forward_outlook'].includes(rest.operation) && replyCc) {
+          rest.cc = replyCc
+        }
+
+        if (
+          ['reply_outlook', 'reply_all_outlook', 'forward_outlook'].includes(rest.operation) &&
+          replyBcc
+        ) {
+          rest.bcc = replyBcc
         }
 
         if (rest.operation === 'search_outlook' && searchQuery) {
@@ -1123,6 +1184,13 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
     categories: { type: 'string', description: 'Comma-separated category names' },
     flagStatus: { type: 'string', description: 'Follow-up flag status' },
     importance: { type: 'string', description: 'Message importance level' },
+    replyTo: { type: 'string', description: 'Reply-To addresses for sent or drafted email' },
+    mailImportance: {
+      type: 'string',
+      description: 'Importance of a sent or drafted email (low, normal, high)',
+    },
+    replyCc: { type: 'string', description: 'CC recipients for a reply or forward' },
+    replyBcc: { type: 'string', description: 'BCC recipients for a reply, reply-all, or forward' },
     calendarId: {
       type: 'string',
       description: 'Calendar to read from or write to (canonical param); blank = default calendar',
@@ -1164,7 +1232,7 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
     results: {
       type: 'json',
       description:
-        'Operation results. Calendar operations return the event(s): {id, subject, start, end, isAllDay, location, organizer, attendees, onlineMeeting, webLink, bodyPreview}',
+        'Operation results. Read and Search return messages: {id, subject, bodyPreview, body, sender, from, toRecipients, ccRecipients, bccRecipients, replyTo, receivedDateTime, sentDateTime, hasAttachments, isRead, importance, internetMessageId, conversationId, parentFolderId, categories, flag, isDraft, webLink}. Calendar operations return the event(s): {id, subject, start, end, isAllDay, location, organizer, attendees, onlineMeeting, webLink, bodyPreview}',
     },
     status: { type: 'string', description: 'Email send status (sent)' },
     timestamp: { type: 'string', description: 'Operation timestamp' },

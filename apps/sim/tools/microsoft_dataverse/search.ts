@@ -157,6 +157,18 @@ export const dataverseSearchTool: ToolConfig<DataverseSearchParams, DataverseSea
       }
     }
 
+    const searchError = parsedResponse?.Error
+    if (searchError) {
+      const message =
+        typeof searchError.message === 'string' && searchError.message.trim()
+          ? searchError.message.trim()
+          : typeof searchError.code === 'string' && searchError.code.trim()
+            ? `Dataverse Search error: ${searchError.code.trim()}`
+            : 'Dataverse Search returned an error'
+      logger.error('Dataverse search returned an error', { code: searchError.code })
+      throw new Error(message)
+    }
+
     const results = parsedResponse?.Value ?? []
     const totalCount = parsedResponse?.Count ?? 0
     const facets = parsedResponse?.Facets ?? null

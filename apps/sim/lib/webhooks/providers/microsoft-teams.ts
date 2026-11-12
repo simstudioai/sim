@@ -14,7 +14,12 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
+import {
+  readResponseJsonWithLimit,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
+import { AttachmentDownloadBudget } from '@/lib/uploads/utils/attachment-download-budget'
 import {
   getCredentialAccessToken,
   getNotificationUrl,
@@ -31,8 +36,23 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { extractMessageAttachments, extractMessageDetails } from '@/tools/microsoft_teams/utils'
 
 const logger = createLogger('WebhookProvider:MicrosoftTeams')
+
+const MAX_TEAMS_MESSAGE_BYTES = 5 * 1024 * 1024
+
+/** Read one attachment body against the per-notification byte budget. */
+async function readTeamsAttachment(
+  response: Parameters<typeof readResponseToBufferWithLimit>[0],
+  budget: AttachmentDownloadBudget
+): Promise<Buffer> {
+  const buffer = await readResponseToBufferWithLimit(response, {
+    maxBytes: budget.remainingBytes,
+    label: 'Teams attachment',
+  })
+  return budget.consume(buffer, 'Teams attachment')
+}
 
 function validateMicrosoftTeamsSignature(
   hmacSecret: string,
@@ -201,6 +221,7 @@ async function formatTeamsGraphNotification(
   const includeAttachments = providerConfig.includeAttachments !== false
 
   let message: Record<string, unknown> | null = null
+  const attachmentBudget = new AttachmentDownloadBudget()
   const rawAttachments: Array<{ name: string; data: Buffer; contentType: string; size: number }> =
     []
   let accessToken: string | null = null
@@ -240,7 +261,10 @@ async function formatTeamsGraphNotification(
         const msgUrl = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(resolvedChatId)}/messages/${encodeURIComponent(resolvedMessageId)}`
         const res = await fetch(msgUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
         if (res.ok) {
-          message = (await res.json()) as Record<string, unknown>
+          message = await readResponseJsonWithLimit<Record<string, unknown>>(res, {
+            maxBytes: MAX_TEAMS_MESSAGE_BYTES,
+            label: 'Teams message',
+          })
 
           if (includeAttachments && (message?.attachments as unknown[] | undefined)?.length) {
             const attachments = Array.isArray(message?.attachments)
@@ -282,8 +306,7 @@ async function formatTeamsGraphNotification(
                     )
 
                     if (directRes?.ok) {
-                      const arrayBuffer = await directRes.arrayBuffer()
-                      buffer = Buffer.from(arrayBuffer)
+                      buffer = await readTeamsAttachment(directRes, attachmentBudget)
                       mimeType =
                         directRes.headers.get('content-type') ||
                         contentTypeHint ||
@@ -302,8 +325,7 @@ async function formatTeamsGraphNotification(
                       })
 
                       if (graphRes.ok) {
-                        const arrayBuffer = await graphRes.arrayBuffer()
-                        buffer = Buffer.from(arrayBuffer)
+                        buffer = await readTeamsAttachment(graphRes, attachmentBudget)
                         mimeType =
                           graphRes.headers.get('content-type') ||
                           contentTypeHint ||
@@ -358,8 +380,7 @@ async function formatTeamsGraphNotification(
                       })
 
                       if (directRes.ok) {
-                        const arrayBuffer = await directRes.arrayBuffer()
-                        buffer = Buffer.from(arrayBuffer)
+                        buffer = await readTeamsAttachment(directRes, attachmentBudget)
                         mimeType =
                           directRes.headers.get('content-type') ||
                           contentTypeHint ||
@@ -368,7 +389,10 @@ async function formatTeamsGraphNotification(
                         continue
                       }
                     } else {
-                      const metadata = (await metadataRes.json()) as Record<string, unknown>
+                      const metadata = await readResponseJsonWithLimit<Record<string, unknown>>(
+                        metadataRes,
+                        { maxBytes: MAX_TEAMS_MESSAGE_BYTES, label: 'Teams attachment metadata' }
+                      )
                       const downloadUrl = metadata['@microsoft.graph.downloadUrl'] as
                         | string
                         | undefined
@@ -381,8 +405,7 @@ async function formatTeamsGraphNotification(
                         )
 
                         if (downloadRes?.ok) {
-                          const arrayBuffer = await downloadRes.arrayBuffer()
-                          buffer = Buffer.from(arrayBuffer)
+                          buffer = await readTeamsAttachment(downloadRes, attachmentBudget)
                           const fileInfo = metadata.file as Record<string, unknown> | undefined
                           mimeType =
                             downloadRes.headers.get('content-type') ||
@@ -411,8 +434,7 @@ async function formatTeamsGraphNotification(
                       'teams-attachment-generic'
                     )
                     if (ares?.ok) {
-                      const arrayBuffer = await ares.arrayBuffer()
-                      buffer = Buffer.from(arrayBuffer)
+                      buffer = await readTeamsAttachment(ares, attachmentBudget)
                       mimeType =
                         ares.headers.get('content-type') ||
                         contentTypeHint ||
@@ -449,6 +471,8 @@ async function formatTeamsGraphNotification(
     }
   }
 
+  const changeType = typeof notification.changeType === 'string' ? notification.changeType : null
+
   if (!message) {
     logger.warn('No message data available for Teams notification', {
       chatId: resolvedChatId,
@@ -462,12 +486,15 @@ async function formatTeamsGraphNotification(
       text: '',
       created_at: '',
       attachments: [],
+      change_type: changeType,
     }
   }
 
   const messageText = (message.body as Record<string, unknown>)?.content || ''
   const from = ((message.from as Record<string, unknown>)?.user as Record<string, unknown>) || {}
   const createdAt = (message.createdDateTime as string) || ''
+
+  const details = extractMessageDetails(message)
 
   return {
     message_id: resolvedMessageId,
@@ -476,6 +503,21 @@ async function formatTeamsGraphNotification(
     text: messageText,
     created_at: createdAt,
     attachments: rawAttachments,
+    change_type: changeType,
+    from_id: details.senderId,
+    from_type: details.senderType,
+    from_identity: details.from,
+    message_type: typeof message.messageType === 'string' ? message.messageType : null,
+    content_type: details.contentType,
+    subject: details.subject,
+    importance: details.importance,
+    web_url: details.webUrl,
+    last_modified_at: details.lastModifiedDateTime,
+    last_edited_at: details.lastEditedDateTime,
+    deleted_at: details.deletedDateTime,
+    mentions: details.mentions,
+    reactions: details.reactions,
+    attachment_metadata: extractMessageAttachments(message),
   }
 }
 

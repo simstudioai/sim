@@ -3,6 +3,7 @@ import type {
   DataverseUpdateRecordParams,
   DataverseUpdateRecordResponse,
 } from '@/tools/microsoft_dataverse/types'
+import { DATAVERSE_RECORD_OUTPUT } from '@/tools/microsoft_dataverse/types'
 import {
   DATAVERSE_OAUTH_CONFIG,
   getDataverseRequestBaseUrl,
@@ -55,6 +56,13 @@ export const dataverseUpdateRecordTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Record data to update as a JSON object with column names as keys',
     },
+    returnRecord: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Return the updated record, including formatted values (Prefer: return=representation)',
+    },
   },
 
   request: {
@@ -76,6 +84,9 @@ export const dataverseUpdateRecordTool: ToolConfig<
       'OData-Version': '4.0',
       Accept: 'application/json',
       'If-Match': '*',
+      ...(params.returnRecord === true && {
+        Prefer: 'return=representation,odata.include-annotations="*"',
+      }),
     }),
     body: (params) => {
       let data = params.data
@@ -100,10 +111,16 @@ export const dataverseUpdateRecordTool: ToolConfig<
       throw new Error(errorMessage)
     }
 
+    const record =
+      params?.returnRecord === true && response.status === 200
+        ? await response.json().catch(() => null)
+        : undefined
+
     return {
       success: true,
       output: {
         recordId: params?.recordId ?? '',
+        ...(record !== undefined && { record }),
         success: true,
       },
     }
@@ -111,6 +128,11 @@ export const dataverseUpdateRecordTool: ToolConfig<
 
   outputs: {
     recordId: { type: 'string', description: 'The ID of the updated record' },
+    record: {
+      ...DATAVERSE_RECORD_OUTPUT,
+      description: 'The updated record (only when returnRecord is true)',
+      optional: true,
+    },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

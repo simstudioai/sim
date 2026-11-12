@@ -11,6 +11,7 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GraphErrorBody {
   error?: { message?: string }
@@ -77,6 +78,12 @@ function readJson<T>(
   })
 }
 
+function driveItemUrl(driveId: string, itemId: string): string {
+  const drive = safeUrlPathSegment(driveId, 'driveId', { allowSeparators: true })
+  const item = safeUrlPathSegment(itemId, 'itemId', { allowSeparators: true })
+  return `https://graph.microsoft.com/v1.0/drives/${drive}/items/${item}`
+}
+
 function graphErrorMessage(
   data: SharePointUploadedItem | GraphErrorBody,
   fallback: string
@@ -114,7 +121,7 @@ export class SharePointClient {
   }
 
   async getMetadata(driveId: string, itemId: string): Promise<SharePointDriveItemMetadata> {
-    const url = `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}`
+    const url = driveItemUrl(driveId, itemId)
     const response = await this.pinnedFetch(url, 'metadataUrl', {
       headers: { Authorization: this.authorization },
     })
@@ -134,7 +141,7 @@ export class SharePointClient {
   }
 
   async download(driveId: string, itemId: string): Promise<Buffer> {
-    const url = `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}/content`
+    const url = `${driveItemUrl(driveId, itemId)}/content`
     const response = await this.pinnedFetch(url, 'downloadUrl', {
       headers: { Authorization: this.authorization },
       stripAuthOnRedirect: true,

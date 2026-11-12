@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
-import type { CanvasLayout } from '@/tools/sharepoint/types'
+import type { CanvasLayout, SharepointListItem } from '@/tools/sharepoint/types'
+import type { OutputProperty } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SharepointUtils')
 
@@ -7,6 +9,15 @@ export function optionalTrim(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined
   const trimmed = String(value).trim()
   return trimmed || undefined
+}
+
+/**
+ * Encodes one Graph path id. Separators stay percent-encoded rather than rejected so every id
+ * that worked before (composite site ids `host,guid,guid`, drive ids `b!...`) is sent unchanged;
+ * empty and dot-segment values are rejected.
+ */
+export function graphPathSegment(value: string, paramName: string): string {
+  return safeUrlPathSegment(value, paramName, { allowSeparators: true })
 }
 
 export function escapeODataString(value: string): string {
@@ -90,28 +101,14 @@ export function extractTextFromCanvasLayout(canvasLayout: CanvasLayout | null | 
   const textParts: string[] = []
 
   for (const section of canvasLayout.horizontalSections) {
-    logger.info('Processing section', {
-      sectionId: section.id,
-      hasColumns: !!section.columns,
-      hasWebparts: !!section.webparts,
-      columnsCount: section.columns?.length || 0,
-    })
-
     if (section.columns) {
       for (const column of section.columns) {
         if (column.webparts) {
           for (const webpart of column.webparts) {
-            logger.info('Processing webpart', {
-              webpartId: webpart.id,
-              hasInnerHtml: !!webpart.innerHtml,
-              innerHtml: webpart.innerHtml,
-            })
-
             if (webpart.innerHtml) {
               const text = stripHtmlTags(webpart.innerHtml)
               if (text) {
                 textParts.push(text)
-                logger.info('Extracted text', { text })
               }
             }
           }
@@ -131,7 +128,6 @@ export function extractTextFromCanvasLayout(canvasLayout: CanvasLayout | null | 
   logger.info('Final extracted content', {
     textPartsCount: textParts.length,
     finalContentLength: finalContent.length,
-    finalContent,
   })
 
   return finalContent
@@ -203,4 +199,39 @@ export function cleanODataMetadata<T>(obj: T): T {
   }
 
   return cleaned as T
+}
+
+/** Maps a Graph listItem to its id, column values, and baseItem metadata. */
+export function mapListItem(item: Record<string, unknown>): SharepointListItem {
+  return {
+    id: item.id as string,
+    fields: item.fields as Record<string, unknown> | undefined,
+    webUrl: (item.webUrl as string | undefined) ?? null,
+    createdDateTime: (item.createdDateTime as string | undefined) ?? null,
+    lastModifiedDateTime: (item.lastModifiedDateTime as string | undefined) ?? null,
+    createdBy: (item.createdBy as SharepointListItem['createdBy']) ?? null,
+    lastModifiedBy: (item.lastModifiedBy as SharepointListItem['lastModifiedBy']) ?? null,
+  }
+}
+
+export const LIST_ITEM_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
+  id: { type: 'string', description: 'Item ID' },
+  fields: { type: 'object', description: 'Field values for the item' },
+  webUrl: { type: 'string', description: 'URL that displays the item', optional: true },
+  createdDateTime: { type: 'string', description: 'When the item was created', optional: true },
+  lastModifiedDateTime: {
+    type: 'string',
+    description: 'When the item was last modified',
+    optional: true,
+  },
+  createdBy: {
+    type: 'object',
+    description: 'Identity set of the creator (e.g. user.displayName, user.email)',
+    optional: true,
+  },
+  lastModifiedBy: {
+    type: 'object',
+    description: 'Identity set of the last modifier (e.g. user.displayName, user.email)',
+    optional: true,
+  },
 }

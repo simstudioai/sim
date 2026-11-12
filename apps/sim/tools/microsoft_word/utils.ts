@@ -1,8 +1,41 @@
 import { validatePathSegment } from '@/lib/core/security/input-validation'
 import { MicrosoftWordInputError } from '@/lib/internal/microsoft-word/errors'
 import { GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
+import type {
+  MicrosoftWordDocumentMetadata,
+  MicrosoftWordGraphDriveItem,
+  MicrosoftWordIdentity,
+} from '@/tools/microsoft_word/types'
 
 export const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
+
+function toIdentity(
+  identitySet: MicrosoftWordGraphDriveItem['createdBy']
+): MicrosoftWordIdentity | null {
+  const identity = identitySet?.user ?? identitySet?.application ?? identitySet?.device
+  if (!identity) return null
+  return { id: identity.id ?? null, displayName: identity.displayName ?? null }
+}
+
+/** Projects a Graph `driveItem` onto the metadata shape the Word tools return. */
+export function toDocumentMetadata(
+  item: MicrosoftWordGraphDriveItem,
+  fallbackId: string
+): MicrosoftWordDocumentMetadata {
+  return {
+    documentId: item.id ?? fallbackId,
+    name: item.name ?? null,
+    mimeType: item.file?.mimeType ?? null,
+    webViewLink: item.webUrl ?? null,
+    size: item.size ?? null,
+    createdTime: item.createdDateTime ?? null,
+    modifiedTime: item.lastModifiedDateTime ?? null,
+    driveId: item.parentReference?.driveId ?? null,
+    parentFolderId: item.parentReference?.id ?? null,
+    createdBy: toIdentity(item.createdBy),
+    lastModifiedBy: toIdentity(item.lastModifiedBy),
+  }
+}
 
 /**
  * Returns the Graph drive base path for a Word document.

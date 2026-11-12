@@ -148,6 +148,38 @@ export const outlookPollingTrigger: TriggerConfig = {
         type: 'string',
         description: 'Thread ID for conversation threading',
       },
+      bcc: {
+        type: 'string',
+        description: 'BCC recipients (only present on messages you sent)',
+      },
+      replyTo: {
+        type: 'string',
+        description: 'Reply-To addresses, comma-separated (empty when the sender set none)',
+      },
+      internetMessageId: {
+        type: 'string',
+        description: 'RFC 2822 Message-ID header value',
+      },
+      importance: {
+        type: 'string',
+        description: 'Message importance (low, normal, high)',
+      },
+      categories: {
+        type: 'array',
+        description: 'Category names assigned to the message',
+      },
+      flagStatus: {
+        type: 'string',
+        description: 'Follow-up flag status (notFlagged, flagged, complete)',
+      },
+      bodyPreview: {
+        type: 'string',
+        description: 'First 255 characters of the body as plain text',
+      },
+      webLink: {
+        type: 'string',
+        description: 'URL that opens the message in Outlook on the web',
+      },
     },
     timestamp: {
       type: 'string',

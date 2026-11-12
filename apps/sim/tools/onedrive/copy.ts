@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { OneDriveCopyResponse, OneDriveToolParams } from '@/tools/onedrive/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OneDriveCopyTool')
 
@@ -49,7 +50,7 @@ export const copyTool: ToolConfig<OneDriveToolParams, OneDriveCopyResponse> = {
 
   request: {
     url: (params) =>
-      `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(params.fileId || '')}/copy`,
+      `https://graph.microsoft.com/v1.0/me/drive/items/${safeUrlPathSegment(params.fileId ?? '', 'fileId')}/copy`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

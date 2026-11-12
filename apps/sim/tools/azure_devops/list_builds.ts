@@ -7,7 +7,7 @@ export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = 
   id: 'azure_devops_list_builds',
   name: 'Azure DevOps List Builds',
   description:
-    'List builds in an Azure DevOps project. Optionally filter by pipeline definition, status, result, or branch.',
+    'List builds in an Azure DevOps project. Optionally filter by pipeline definition, status, result, reason, requester, branch, or time range, and page with a continuation token.',
   version: '1.0.0',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
@@ -55,6 +55,46 @@ export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = 
       visibility: 'user-or-llm',
       description: 'Filter by source branch name (e.g. "refs/heads/main")',
     },
+    reasonFilter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Filter by build reason: manual, individualCI, batchedCI, schedule, pullRequest, buildCompletion, resourceTrigger',
+    },
+    requestedFor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter to builds requested for this user (email or ID)',
+    },
+    minTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ISO 8601 date-time; only builds that finished/started/queued after it (per queryOrder)',
+    },
+    maxTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ISO 8601 date-time; only builds that finished/started/queued before it (per queryOrder)',
+    },
+    queryOrder: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Sort order: queueTimeDescending, queueTimeAscending, startTimeDescending, startTimeAscending, finishTimeDescending, finishTimeAscending',
+    },
+    continuationToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Continuation token from a previous List Builds call, to fetch the next page',
+    },
     accessToken: {
       type: 'string',
       required: true,
@@ -72,6 +112,13 @@ export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = 
       if (params.statusFilter) url.searchParams.set('statusFilter', params.statusFilter)
       if (params.resultFilter) url.searchParams.set('resultFilter', params.resultFilter)
       if (params.branchName) url.searchParams.set('branchName', params.branchName)
+      if (params.reasonFilter) url.searchParams.set('reasonFilter', params.reasonFilter)
+      if (params.requestedFor) url.searchParams.set('requestedFor', params.requestedFor)
+      if (params.minTime) url.searchParams.set('minTime', params.minTime)
+      if (params.maxTime) url.searchParams.set('maxTime', params.maxTime)
+      if (params.queryOrder) url.searchParams.set('queryOrder', params.queryOrder)
+      if (params.continuationToken)
+        url.searchParams.set('continuationToken', params.continuationToken)
       return url.toString()
     },
     method: 'GET',
@@ -96,6 +143,9 @@ export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = 
       sourceVersion: b.sourceVersion,
       definition: { id: b.definition?.id ?? 0, name: b.definition?.name ?? '' },
       webUrl: b._links?.web?.href ?? '',
+      reason: b.reason ?? null,
+      requestedFor: b.requestedFor?.displayName ?? null,
+      tags: b.tags ?? [],
     }))
 
     const content =
@@ -119,6 +169,7 @@ export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = 
         metadata: {
           count: data.count ?? builds.length,
           builds,
+          continuationToken: response.headers.get('x-ms-continuationtoken'),
         },
       },
     }
@@ -131,6 +182,13 @@ export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = 
       description: 'Builds metadata',
       properties: {
         count: { type: 'number', description: 'Total number of builds returned' },
+        continuationToken: {
+          type: 'string',
+          description:
+            'Token for the next page (from the x-ms-continuationtoken header); pass it back as continuationToken. Null on the last page.',
+          optional: true,
+          nullable: true,
+        },
         builds: {
           type: 'array',
           description: 'Array of build objects',
@@ -167,6 +225,24 @@ export const listBuildsTool: ToolConfig<ListBuildsParams, ListBuildsResponse> = 
                 },
               },
               webUrl: { type: 'string', description: 'Browser URL for the build' },
+              reason: {
+                type: 'string',
+                description: 'Why the build was created (e.g. manual, individualCI, pullRequest)',
+                optional: true,
+                nullable: true,
+              },
+              requestedFor: {
+                type: 'string',
+                description: 'Display name of the user the build was queued for',
+                optional: true,
+                nullable: true,
+              },
+              tags: {
+                type: 'array',
+                description: 'Build tags',
+                optional: true,
+                items: { type: 'string' },
+              },
             },
           },
         },
@@ -187,6 +263,9 @@ interface AzureDevOpsBuildItem {
   sourceVersion: string
   definition: { id: number; name: string }
   webUrl: string
+  reason: string | null
+  requestedFor: string | null
+  tags: string[]
 }
 
 interface AzureDevOpsRawBuild {
@@ -201,4 +280,7 @@ interface AzureDevOpsRawBuild {
   sourceVersion: string
   definition?: { id: number; name?: string }
   _links?: { web?: { href: string } }
+  reason?: string
+  requestedFor?: { displayName?: string }
+  tags?: string[]
 }

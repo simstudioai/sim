@@ -33,7 +33,7 @@ export const azureDataExplorerQueryTool: InternalToolConfig<
   id: 'azure_data_explorer_query',
   name: 'Azure Data Explorer Query',
   description:
-    'Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table.',
+    'Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table (plus any further tables a batch or fork produces).',
   version: '1.0.0',
   oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
@@ -144,7 +144,25 @@ export const azureDataExplorerQueryTool: InternalToolConfig<
     truncated: {
       type: 'boolean',
       description:
-        'Whether rows were dropped to stay within the row cap — narrow the query if true',
+        'Whether rows were dropped to stay within the row or size cap — narrow the query if true',
+    },
+    additionalResults: {
+      type: 'array',
+      description:
+        'Further result tables, present only when a query batch (statements separated by ;) or fork returns more than one; the row and size caps are shared across all tables',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          tableName: { type: 'string', description: 'Result table name', nullable: true },
+          columns: { type: 'array', description: 'Column metadata (name, type, dataType)' },
+          rows: { type: 'array', description: 'Rows as positional arrays' },
+          records: { type: 'array', description: 'Rows keyed by column name' },
+          rowCount: { type: 'number', description: 'Rows carried after the caps' },
+          totalRowCount: { type: 'number', description: 'Rows Kusto returned' },
+          truncated: { type: 'boolean', description: 'Whether rows were dropped by the caps' },
+        },
+      },
     },
   },
 }

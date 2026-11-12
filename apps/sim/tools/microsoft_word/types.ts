@@ -14,6 +14,45 @@ export interface MicrosoftWordDocumentMetadata {
   size: number | null
   createdTime: string | null
   modifiedTime: string | null
+  /** Drive holding the document; pass it as `driveId` to address a SharePoint document. */
+  driveId?: string | null
+  parentFolderId?: string | null
+  createdBy?: MicrosoftWordIdentity | null
+  lastModifiedBy?: MicrosoftWordIdentity | null
+}
+
+export interface MicrosoftWordIdentity {
+  id: string | null
+  displayName: string | null
+}
+
+interface GraphIdentitySet {
+  user?: { id?: string; displayName?: string }
+  application?: { id?: string; displayName?: string }
+  device?: { id?: string; displayName?: string }
+}
+
+/**
+ * Microsoft Graph `driveItem` fields the Word tools project.
+ *
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/driveitem
+ */
+export interface MicrosoftWordGraphDriveItem {
+  id?: string
+  name?: string
+  size?: number
+  webUrl?: string
+  createdDateTime?: string
+  lastModifiedDateTime?: string
+  /** An eTag for the item's content, unchanged when only metadata changes. */
+  cTag?: string
+  /** An eTag for the whole item, metadata included. */
+  eTag?: string
+  file?: { mimeType?: string }
+  folder?: Record<string, unknown>
+  parentReference?: { id?: string; driveId?: string }
+  createdBy?: GraphIdentitySet
+  lastModifiedBy?: GraphIdentitySet
 }
 
 export interface MicrosoftWordToolParams {

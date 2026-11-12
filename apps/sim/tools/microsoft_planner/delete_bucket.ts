@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerDeleteBucketResponse,
   MicrosoftPlannerToolParams,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MicrosoftPlannerDeleteBucket')
 
@@ -15,6 +17,7 @@ export const deleteBucketTool: ToolConfig<
   name: 'Delete Microsoft Planner Bucket',
   description: 'Delete a bucket from Microsoft Planner',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -48,7 +51,7 @@ export const deleteBucketTool: ToolConfig<
       if (!bucketId) {
         throw new Error('Bucket ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/buckets/${bucketId}`
+      return `https://graph.microsoft.com/v1.0/planner/buckets/${safeUrlPathSegment(bucketId, 'bucketId')}`
     },
     method: 'DELETE',
     headers: (params) => {

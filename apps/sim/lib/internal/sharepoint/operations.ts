@@ -17,6 +17,7 @@ import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { SharepointSkippedFile, SharepointUploadError } from '@/tools/sharepoint/types'
+import { assertNoDotPathSegments, safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SharePointOperations')
 export const MAX_SHAREPOINT_UPLOAD_BYTES = 250 * 1024 * 1024
@@ -95,8 +96,9 @@ function buildUploadUrl(
   const driveId = input.driveId?.trim()
   const siteId = input.siteId.trim() || 'root'
   const url = driveId
-    ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/root:${encodedPath}:/content`
-    : `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/drive/root:${encodedPath}:/content`
+    ? `https://graph.microsoft.com/v1.0/drives/${safeUrlPathSegment(driveId, 'driveId', { allowSeparators: true })}/root:${encodedPath}:/content`
+    : `https://graph.microsoft.com/v1.0/sites/${safeUrlPathSegment(siteId, 'siteId', { allowSeparators: true })}/drive/root:${encodedPath}:/content`
+  assertNoDotPathSegments(url)
   return { url, replaceUrl: `${url}?@microsoft.graph.conflictBehavior=replace` }
 }
 
@@ -158,7 +160,13 @@ export async function executeSharePointUploadFile(
         throw error
       }
 
-      const { url, replaceUrl } = buildUploadUrl(input, fileName)
+      let uploadUrls: { url: string; replaceUrl: string }
+      try {
+        uploadUrls = buildUploadUrl(input, fileName)
+      } catch (error) {
+        return failureResponse(getErrorMessage(error, 'Invalid upload path'), 400)
+      }
+      const { url, replaceUrl } = uploadUrls
       const contentType = downloadedContentType || userFile.type || 'application/octet-stream'
       const uploadResult = await client.upload(url, buffer, contentType)
       if (!uploadResult.ok) {

@@ -195,7 +195,77 @@ export const AzureDevOpsBlock: BlockConfig = {
       title: 'Max Results',
       type: 'short-input',
       placeholder: '50',
+      condition: {
+        field: 'operation',
+        value: [
+          'azure_devops_list_builds',
+          'azure_devops_list_pipelines',
+          'azure_devops_query_work_items',
+          'azure_devops_get_comments',
+        ],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'definitionIds',
+      title: 'Pipeline Definition IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated, e.g. 12,34',
       condition: { field: 'operation', value: 'azure_devops_list_builds' },
+      mode: 'advanced',
+    },
+    {
+      id: 'statusFilter',
+      title: 'Filter by Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        { label: 'In Progress', id: 'inProgress' },
+        { label: 'Completed', id: 'completed' },
+        { label: 'Cancelling', id: 'cancelling' },
+        { label: 'Postponed', id: 'postponed' },
+        { label: 'Not Started', id: 'notStarted' },
+      ],
+      condition: { field: 'operation', value: 'azure_devops_list_builds' },
+      mode: 'advanced',
+    },
+    {
+      id: 'branchName',
+      title: 'Branch',
+      type: 'short-input',
+      placeholder: 'e.g. refs/heads/main',
+      condition: { field: 'operation', value: 'azure_devops_list_builds' },
+      mode: 'advanced',
+    },
+    {
+      id: 'minTime',
+      title: 'After',
+      type: 'short-input',
+      placeholder: 'ISO 8601, e.g. 2026-01-01T00:00:00Z',
+      condition: { field: 'operation', value: 'azure_devops_list_builds' },
+      mode: 'advanced',
+    },
+    {
+      id: 'maxTime',
+      title: 'Before',
+      type: 'short-input',
+      placeholder: 'ISO 8601, e.g. 2026-01-31T23:59:59Z',
+      condition: { field: 'operation', value: 'azure_devops_list_builds' },
+      mode: 'advanced',
+    },
+    {
+      id: 'continuationToken',
+      title: 'Continuation Token',
+      type: 'short-input',
+      placeholder: 'From a previous page',
+      condition: {
+        field: 'operation',
+        value: [
+          'azure_devops_list_builds',
+          'azure_devops_list_pipelines',
+          'azure_devops_get_comments',
+        ],
+      },
       mode: 'advanced',
     },
     {
@@ -218,6 +288,22 @@ export const AzureDevOpsBlock: BlockConfig = {
       type: 'short-input',
       required: true,
       condition: { field: 'operation', value: 'azure_devops_get_build_log' },
+    },
+    {
+      id: 'startLine',
+      title: 'Start Line',
+      type: 'short-input',
+      placeholder: 'First line to return',
+      condition: { field: 'operation', value: 'azure_devops_get_build_log' },
+      mode: 'advanced',
+    },
+    {
+      id: 'endLine',
+      title: 'End Line',
+      type: 'short-input',
+      placeholder: 'Last line to return',
+      condition: { field: 'operation', value: 'azure_devops_get_build_log' },
+      mode: 'advanced',
     },
     {
       id: 'fromBuildId',
@@ -477,7 +563,10 @@ export const AzureDevOpsBlock: BlockConfig = {
       title: 'Iteration Path',
       type: 'short-input',
       placeholder: 'e.g. MyProject\\Sprint 1',
-      condition: { field: 'operation', value: 'azure_devops_create_work_item' },
+      condition: {
+        field: 'operation',
+        value: ['azure_devops_create_work_item', 'azure_devops_update_work_item'],
+      },
       mode: 'advanced',
     },
     {
@@ -507,6 +596,18 @@ export const AzureDevOpsBlock: BlockConfig = {
       type: 'long-input',
       required: true,
       condition: { field: 'operation', value: 'azure_devops_add_comment' },
+    },
+    {
+      id: 'commentFormat',
+      title: 'Comment Format',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Markdown', id: 'markdown' },
+        { label: 'HTML', id: 'html' },
+      ],
+      condition: { field: 'operation', value: 'azure_devops_add_comment' },
+      mode: 'advanced',
     },
     ...getTrigger('azure_devops_build_failed').subBlocks,
     ...getTrigger('azure_devops_work_item_created').subBlocks,
@@ -542,7 +643,11 @@ export const AzureDevOpsBlock: BlockConfig = {
         }
         switch (params.operation) {
           case 'azure_devops_list_pipelines':
-            return base
+            return {
+              ...base,
+              top: params.top ? Number(params.top) : undefined,
+              continuationToken: (params.continuationToken as string) || undefined,
+            }
           case 'azure_devops_get_pipeline':
             return { ...base, pipelineId: Number(params.pipelineId) }
           case 'azure_devops_list_pipeline_runs':
@@ -554,11 +659,23 @@ export const AzureDevOpsBlock: BlockConfig = {
               ...base,
               resultFilter: (params.resultFilter as string) || undefined,
               top: params.top ? Number(params.top) : undefined,
+              definitionIds: (params.definitionIds as string) || undefined,
+              statusFilter: (params.statusFilter as string) || undefined,
+              branchName: (params.branchName as string) || undefined,
+              minTime: normalizeDate(params.minTime),
+              maxTime: normalizeDate(params.maxTime),
+              continuationToken: (params.continuationToken as string) || undefined,
             }
           case 'azure_devops_list_build_logs':
             return { ...base, buildId: Number(params.buildId) }
           case 'azure_devops_get_build_log':
-            return { ...base, buildId: Number(params.buildId), logId: Number(params.logId) }
+            return {
+              ...base,
+              buildId: Number(params.buildId),
+              logId: Number(params.logId),
+              startLine: params.startLine ? Number(params.startLine) : undefined,
+              endLine: params.endLine ? Number(params.endLine) : undefined,
+            }
           case 'azure_devops_get_build_timeline':
             return { ...base, buildId: Number(params.buildId) }
           case 'azure_devops_get_work_items_between_builds':
@@ -568,7 +685,11 @@ export const AzureDevOpsBlock: BlockConfig = {
               toBuildId: Number(params.toBuildId),
             }
           case 'azure_devops_query_work_items':
-            return { ...base, wiqlQuery: params.wiqlQuery as string }
+            return {
+              ...base,
+              wiqlQuery: params.wiqlQuery as string,
+              top: params.top ? Number(params.top) : undefined,
+            }
           case 'azure_devops_get_work_item':
             return { ...base, workItemId: Number(params.workItemId) }
           case 'azure_devops_get_work_items_batch':
@@ -607,6 +728,7 @@ export const AzureDevOpsBlock: BlockConfig = {
               completedWork: params.completedWork ? Number(params.completedWork) : undefined,
               description: (params.description as string) || undefined,
               areaPath: (params.areaPath as string) || undefined,
+              iterationPath: (params.iterationPath as string) || undefined,
               tags: (params.tags as string) || undefined,
             }
           case 'azure_devops_add_comment':
@@ -614,9 +736,15 @@ export const AzureDevOpsBlock: BlockConfig = {
               ...base,
               workItemId: Number(params.workItemId),
               text: params.commentText as string,
+              format: (params.commentFormat as string) || undefined,
             }
           case 'azure_devops_get_comments':
-            return { ...base, workItemId: Number(params.workItemId) }
+            return {
+              ...base,
+              workItemId: Number(params.workItemId),
+              top: params.top ? Number(params.top) : undefined,
+              continuationToken: (params.continuationToken as string) || undefined,
+            }
           default:
             return base
         }
@@ -679,6 +807,15 @@ export const AzureDevOpsBlock: BlockConfig = {
       description: 'Basic-process work item state (To Do, Doing, Done)',
     },
     commentText: { type: 'string', description: 'Comment text' },
+    commentFormat: { type: 'string', description: 'Comment format (markdown or html)' },
+    definitionIds: { type: 'string', description: 'Comma-separated pipeline definition IDs' },
+    statusFilter: { type: 'string', description: 'Build status filter' },
+    branchName: { type: 'string', description: 'Source branch filter (e.g. refs/heads/main)' },
+    minTime: { type: 'string', description: 'Only builds after this ISO 8601 time' },
+    maxTime: { type: 'string', description: 'Only builds before this ISO 8601 time' },
+    continuationToken: { type: 'string', description: 'Continuation token for the next page' },
+    startLine: { type: 'number', description: 'First log line to return' },
+    endLine: { type: 'number', description: 'Last log line to return' },
   },
 
   outputs: {

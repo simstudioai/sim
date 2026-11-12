@@ -52,6 +52,13 @@ export const writeChatTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'Files to attach to the message',
     },
+    contentType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Body format: "text" (default) or "html". Mentions and attachments always send HTML',
+    },
   },
 
   outputs: {
@@ -70,6 +77,7 @@ export const writeChatTool: InternalToolConfig<
       chatId: params.chatId,
       content: params.content,
       files: params.files ?? null,
+      contentType: params.contentType === 'html' ? 'html' : undefined,
     }),
   },
   transformResponse: async (response) => {
