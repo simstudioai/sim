@@ -1,7 +1,8 @@
 /**
  * A saved token whose vendor states an expiry at verification records it on the credential row,
  * the workspace credential list reports it, and replacing the token replaces (or clears) it, so a
- * reconnected credential never keeps the previous token's expiry.
+ * reconnected credential never keeps the previous token's expiry. A provider refusing a token past
+ * that expiry is explained as the expiry, with the provider's own failure kept underneath.
  */
 
 import { db } from '@sim/db'
@@ -19,6 +20,7 @@ import { toWorkspaceCredential } from '@/lib/credentials/application/presentatio
 import { updateCredentialRecord } from '@/lib/credentials/orchestration'
 import { createCredentialRecord } from '@/lib/credentials/orchestration/credential-create'
 import { listVisibleWorkspaceCredentials } from '@/lib/credentials/queries'
+import { explainExpiredSavedToken } from '@/lib/credentials/saved-token-expiry'
 import { GITHUB_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/token-service-accounts/descriptors'
 
 const userId = generateId()
@@ -169,5 +171,70 @@ describe('saved token expiry', () => {
 
     expect(await storedExpiry(credentialId)).toBeNull()
     expect(await listedExpiry(credentialId)).toBeUndefined()
+  })
+
+  describe('explaining a refused token', () => {
+    const refusal = {
+      status: 401,
+      statusText: 'Unauthorized',
+      data: { message: 'Bad credentials' },
+    }
+
+    async function savedCredential(expiresAt: Date | null) {
+      const created = await create(`Explained ${generateId()}`, `ghp_${generateId()}`)
+      const credentialId = created.credential?.id ?? ''
+      await db
+        .update(credential)
+        .set({ accessTokenExpiresAt: expiresAt })
+        .where(eq(credential.id, credentialId))
+      return credentialId
+    }
+
+    it('names the expiry when the refused token is past it, keeping the provider failure', async () => {
+      const credentialId = await savedCredential(new Date('2026-01-15T00:00:00.000Z'))
+
+      const explained = await explainExpiredSavedToken(credentialId, refusal)
+
+      expect(explained?.message).toBe(
+        'The saved GitHub personal access token expired on 2026-01-15. Create a new personal access token and reconnect the credential.'
+      )
+      expect(explained).toMatchObject({
+        status: 401,
+        statusText: 'Unauthorized',
+        data: { message: 'Bad credentials' },
+      })
+    })
+
+    it.each([
+      ['an expiry still ahead', new Date(Date.now() + 30 * DAY_MS)],
+      ['no recorded expiry', null],
+    ])('leaves the refusal to stand for %s', async (_, expiresAt) => {
+      const credentialId = await savedCredential(expiresAt)
+
+      expect(await explainExpiredSavedToken(credentialId, refusal)).toBeNull()
+    })
+
+    it('ignores the expiry of a credential that is not a saved service account', async () => {
+      const credentialId = generateId()
+      await db.insert(credential).values({
+        id: credentialId,
+        workspaceId,
+        type: 'personal_token',
+        providerId: 'gitlab',
+        displayName: 'Personal GitLab token',
+        providerSubjectId: '1',
+        providerTenantId: 'https://gitlab.example.com',
+        encryptedPersonalToken: 'sealed',
+        grantedScopes: ['api'],
+        accessTokenExpiresAt: new Date('2026-01-15T00:00:00.000Z'),
+        createdBy: userId,
+      })
+
+      expect(await explainExpiredSavedToken(credentialId, refusal)).toBeNull()
+    })
+
+    it('leaves the refusal to stand for a credential that no longer exists', async () => {
+      expect(await explainExpiredSavedToken(generateId(), refusal)).toBeNull()
+    })
   })
 })
