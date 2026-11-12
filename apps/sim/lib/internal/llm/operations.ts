@@ -12,7 +12,10 @@ import {
   inspectModelInputProjectionState,
   inspectModelInputProvenanceRequest,
 } from '@/lib/execution/model-input-provenance'
-import { resolveBedrockCredentialSession } from '@/lib/internal/llm/bedrock-credential'
+import {
+  BedrockCredentialError,
+  resolveBedrockCredentialSession,
+} from '@/lib/internal/llm/bedrock-credential'
 import { resolveVertexAccessToken } from '@/lib/internal/llm/credentials'
 import { LlmOperationError } from '@/lib/internal/llm/errors'
 import type { LlmProviderOperationInput } from '@/lib/internal/llm/input'
@@ -142,6 +145,13 @@ async function prepareProviderRequest(
     }
   } catch (error) {
     if (error instanceof LlmOperationError) throw error
+    if (error instanceof BedrockCredentialError && error.reason === 'unauthorized') {
+      logger.warn('Bedrock credential access denied', {
+        requestId: context.requestId,
+        credentialId: input.bedrockCredential,
+      })
+      fail(401, error.message)
+    }
     logger.error('Failed to resolve provider credential', {
       requestId: context.requestId,
       provider: input.provider,
