@@ -3,7 +3,7 @@ import { subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { APIError } from 'better-auth/api'
 import { and, eq, isNotNull } from 'drizzle-orm'
-import { getAwsMarketplaceProductCode } from '@/lib/billing/aws-marketplace/config'
+import { isAwsMarketplaceEnabled } from '@/lib/billing/aws-marketplace/config'
 import { holdsMarketplaceLicense } from '@/lib/billing/aws-marketplace/repository'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import {
@@ -64,7 +64,7 @@ async function assertNoBoundIncompleteSubscription(referenceId: string): Promise
  * license lookup fails.
  */
 async function assertNotBilledThroughMarketplace(referenceId: string): Promise<void> {
-  if (!getAwsMarketplaceProductCode()) return
+  if (!isAwsMarketplaceEnabled()) return
   if (!(await holdsMarketplaceLicense(referenceId))) return
 
   logger.warn('Blocking checkout - reference is billed through AWS Marketplace', { referenceId })

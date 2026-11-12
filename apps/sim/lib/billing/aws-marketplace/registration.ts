@@ -7,8 +7,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { AWS_MARKETPLACE_CLAIM_TTL_MS, issueClaimToken } from '@/lib/billing/aws-marketplace/claim'
 import { getMeteringClient } from '@/lib/billing/aws-marketplace/client'
+import { findAwsMarketplaceProduct } from '@/lib/billing/aws-marketplace/config'
 import { type EntitlementSummary, verifyLicense } from '@/lib/billing/aws-marketplace/entitlements'
 import type { AwsMarketplaceOnboardingError } from '@/lib/billing/aws-marketplace/onboarding'
+import type { AwsMarketplaceProduct } from '@/lib/billing/aws-marketplace/products'
 import { saveRegisteredLicense } from '@/lib/billing/aws-marketplace/repository'
 
 const logger = createLogger('AwsMarketplaceRegistration')
@@ -29,28 +31,29 @@ function errorName(error: unknown): string | undefined {
 
 /** AWS may not have finished right after a purchase, so an empty answer is asked again briefly. */
 async function readEntitlements(
-  productCode: string,
+  product: AwsMarketplaceProduct,
   licenseArn: string
 ): Promise<{ summary: EntitlementSummary; verifiedAt: Date }> {
   let verifiedAt = new Date()
-  let summary = await verifyLicense(productCode, licenseArn)
+  let summary = await verifyLicense(product, licenseArn)
   for (const delayMs of NO_ENTITLEMENT_RETRY_DELAYS_MS) {
     if (summary.entitlementCount > 0) break
     await sleep(delayMs)
     verifiedAt = new Date()
-    summary = await verifyLicense(productCode, licenseArn)
+    summary = await verifyLicense(product, licenseArn)
   }
   return { summary, verifiedAt }
 }
 
 /**
- * Turns the registration token AWS posts to the fulfillment URL into a license row. Every
- * registration reads the license's entitlements. A license AWS has not confirmed yet still gets a
+ * Turns the registration token AWS posts to the fulfillment URL into a license row. Every listing
+ * shares the one fulfillment URL, so the product comes from the code AWS resolves the token to,
+ * and a code this deployment does not sell is refused. Every registration reads the license's
+ * entitlements. A license AWS has not confirmed yet still gets a
  * claim, so the buyer can leave contact details; only a lapsed one does not. The token itself is
  * never logged.
  */
 export async function registerAwsMarketplaceBuyer(
-  productCode: string,
   registrationToken: string
 ): Promise<AwsMarketplaceRegistration> {
   let customer: ResolveCustomerCommandOutput
@@ -68,7 +71,8 @@ export async function registerAwsMarketplaceBuyer(
     return { kind: 'unavailable' }
   }
 
-  if (customer.ProductCode !== productCode) {
+  const product = findAwsMarketplaceProduct(customer.ProductCode)
+  if (!product) {
     logger.warn('AWS Marketplace registration is for another product')
     return { kind: 'invalid' }
   }
@@ -84,11 +88,11 @@ export async function registerAwsMarketplaceBuyer(
   }
 
   try {
-    const verification = await readEntitlements(productCode, customer.LicenseArn)
+    const verification = await readEntitlements(product, customer.LicenseArn)
     const claim = issueClaimToken()
     const saved = await saveRegisteredLicense({
       licenseArn: customer.LicenseArn,
-      productCode,
+      productCode: product.productCode,
       customerAwsAccountId: customer.CustomerAWSAccountId,
       agreementId: customer.Metadata?.AgreementId ?? null,
       verification,

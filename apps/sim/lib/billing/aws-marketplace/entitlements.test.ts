@@ -13,23 +13,40 @@ vi.mock('@aws-sdk/client-marketplace-entitlement-service', () => ({
 }))
 
 import { verifyLicense } from '@/lib/billing/aws-marketplace/entitlements'
+import {
+  AWS_MARKETPLACE_PLANS,
+  type AwsMarketplaceProduct,
+} from '@/lib/billing/aws-marketplace/products'
 
-const PRODUCT = 'product-placeholder'
+const CONTRACT: AwsMarketplaceProduct = {
+  productCode: 'product-placeholder',
+  planId: 'contract',
+  plan: AWS_MARKETPLACE_PLANS.contract,
+}
+const USAGE: AwsMarketplaceProduct = {
+  productCode: 'usage-product-placeholder',
+  planId: 'platform-with-usage',
+  plan: AWS_MARKETPLACE_PLANS['platform-with-usage'],
+}
 const LICENSE = 'license-placeholder'
 const NOW = new Date('2026-06-01T00:00:00.000Z')
 
 function entitlement(overrides: Partial<Entitlement> = {}): Entitlement {
   return {
-    ProductCode: PRODUCT,
+    ProductCode: CONTRACT.productCode,
     Dimension: 'enterprise',
     Value: { IntegerValue: 25 },
     ...overrides,
   }
 }
 
-function read(...entitlements: Entitlement[]) {
+function readAs(product: AwsMarketplaceProduct, ...entitlements: Entitlement[]) {
   mockSend.mockResolvedValueOnce({ Entitlements: entitlements })
-  return verifyLicense(PRODUCT, LICENSE)
+  return verifyLicense(product, LICENSE)
+}
+
+function read(...entitlements: Entitlement[]) {
+  return readAs(CONTRACT, ...entitlements)
 }
 
 describe('verifyLicense', () => {
@@ -85,6 +102,29 @@ describe('verifyLicense', () => {
     expect(summary).toMatchObject({ active: true, dimension: 'b-current', quantity: 50 })
   })
 
+  it('does not let a current usage entitlement stand in for a required platform one', async () => {
+    const summary = await readAs(USAGE, entitlement({ Dimension: 'llm_credits' }))
+    expect(summary).toMatchObject({ active: false, entitlementCount: 1, dimension: null })
+  })
+
+  it('reads a lapsed platform as inactive even while usage is current', async () => {
+    const summary = await readAs(
+      USAGE,
+      entitlement({ Dimension: 'llm_credits' }),
+      entitlement({ Dimension: 'platform', ExpirationDate: new Date('2026-01-01T00:00:00.000Z') })
+    )
+    expect(summary).toMatchObject({ active: false, entitlementCount: 2, dimension: 'platform' })
+  })
+
+  it('reads a current platform as active and describes it, not the usage dimension', async () => {
+    const summary = await readAs(
+      USAGE,
+      entitlement({ Dimension: 'llm_credits', Value: { IntegerValue: 7 } }),
+      entitlement({ Dimension: 'platform', Value: { IntegerValue: 1 } })
+    )
+    expect(summary).toMatchObject({ active: true, dimension: 'platform', quantity: 1 })
+  })
+
   it('reads quantity only from an integer value, never from another value kind', async () => {
     expect((await read(entitlement({ Value: { DoubleValue: 1200.5 } }))).quantity).toBeNull()
   })
@@ -95,7 +135,7 @@ describe('verifyLicense', () => {
       .mockResolvedValueOnce({ Entitlements: [], NextToken: 't2' })
       .mockResolvedValueOnce({ Entitlements: [entitlement({ Dimension: 'two' })] })
 
-    const summary = await verifyLicense(PRODUCT, LICENSE)
+    const summary = await verifyLicense(CONTRACT, LICENSE)
 
     expect(summary).toMatchObject({ entitlementCount: 2, dimension: 'one' })
     expect(mockSend.mock.calls.map(([command]) => command.input.NextToken)).toEqual([

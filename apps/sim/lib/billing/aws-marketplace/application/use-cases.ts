@@ -3,7 +3,10 @@ import { db } from '@sim/db'
 import type { AwsMarketplaceClaim } from '@/lib/api/contracts/aws-marketplace'
 import { awsMarketplaceOperations } from '@/lib/billing/aws-marketplace/application/operations'
 import { hashClaimToken } from '@/lib/billing/aws-marketplace/claim'
-import { getAwsMarketplaceProductCode } from '@/lib/billing/aws-marketplace/config'
+import {
+  findAwsMarketplaceProduct,
+  isAwsMarketplaceEnabled,
+} from '@/lib/billing/aws-marketplace/config'
 import { verifyLicense } from '@/lib/billing/aws-marketplace/entitlements'
 import {
   type AwsMarketplaceLicenseRecord,
@@ -27,10 +30,15 @@ import { requireOrganizationSubjectMembership } from '@/lib/core/application/org
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 /** The same answer as an unknown route, so a deployment that does not sell on AWS shows nothing. */
-function requireProductCode(): string {
-  const productCode = getAwsMarketplaceProductCode()
-  if (!productCode) throw new OrchestrationError('not_found', 'Not found')
-  return productCode
+function requireMarketplaceEnabled(): void {
+  if (!isAwsMarketplaceEnabled()) throw new OrchestrationError('not_found', 'Not found')
+}
+
+/** The listing a license was sold under; one this deployment no longer sells reads as unknown. */
+function requireLicenseProduct(license: AwsMarketplaceLicenseRecord) {
+  const product = findAwsMarketplaceProduct(license.productCode)
+  if (!product) throw new OrchestrationError('not_found', 'Not found')
+  return product
 }
 
 function isClaimOpen(license: AwsMarketplaceLicenseRecord, now: Date): boolean {
@@ -115,7 +123,7 @@ export const readAwsMarketplaceClaim: OperationUseCase<
   operation: awsMarketplaceOperations.readClaim,
   async execute({ principal, input }) {
     assertOperationPrincipal(principal, awsMarketplaceOperations.readClaim)
-    requireProductCode()
+    requireMarketplaceEnabled()
     if (!input.claimToken) return { status: 'missing' }
     const license = await findLicenseByClaimHash(hashClaimToken(input.claimToken))
     if (!license || !isClaimOpen(license, new Date())) return { status: 'missing' }
@@ -169,7 +177,7 @@ function contactOf(input: BuyerContact) {
  * rechecks the claim under the row lock, so two tabs racing one claim take it at most once.
  */
 async function verifyClaimedLicense(input: ClaimInput, organizationId: string | null) {
-  const productCode = requireProductCode()
+  requireMarketplaceEnabled()
   const claimHash = input.claimToken ? hashClaimToken(input.claimToken) : null
   const claimed = requireOpenClaim(
     claimHash ? await findLicenseByClaimHash(claimHash) : null,
@@ -179,12 +187,12 @@ async function verifyClaimedLicense(input: ClaimInput, organizationId: string | 
   requireLinkableTo(claimed, organizationId)
 
   const verifiedAt = new Date()
-  const summary = await verifyLicense(productCode, claimed.licenseArn)
+  const summary = await verifyLicense(requireLicenseProduct(claimed), claimed.licenseArn)
   const verification = { summary, verifiedAt }
   if (!summary.active) {
     const outcome = await recordLicenseVerification({
       licenseArn: claimed.licenseArn,
-      productCode,
+      productCode: claimed.productCode,
       verification,
     })
     throw new OrchestrationError(
@@ -321,7 +329,7 @@ export const saveAwsMarketplaceClaimContact: OperationUseCase<
   operation: awsMarketplaceOperations.saveClaimContact,
   async execute({ principal, input }) {
     assertOperationPrincipal(principal, awsMarketplaceOperations.saveClaimContact)
-    const productCode = requireProductCode()
+    requireMarketplaceEnabled()
     const claimHash = input.claimToken ? hashClaimToken(input.claimToken) : null
     const claimed = requireOpenClaim(
       claimHash ? await findLicenseByClaimHash(claimHash) : null,
@@ -329,7 +337,7 @@ export const saveAwsMarketplaceClaimContact: OperationUseCase<
       claimHash
     )
     const verifiedAt = new Date()
-    const summary = await verifyLicense(productCode, claimed.licenseArn)
+    const summary = await verifyLicense(requireLicenseProduct(claimed), claimed.licenseArn)
     return db.transaction(async (tx) => {
       const locked = requireOpenClaim(
         await lockLicense(tx, input.licenseId),
@@ -360,7 +368,7 @@ function toLicenseStatusList(rows: Awaited<ReturnType<typeof listOrganizationLic
 export const listOrganizationAwsMarketplaceLicenses = defineAuthorizedOrganizationUseCase({
   operation: awsMarketplaceOperations.listOrganizationLicenses,
   async execute({ context }: OrganizationUseCaseContext<{ organizationId: string }>) {
-    if (!getAwsMarketplaceProductCode()) return []
+    if (!isAwsMarketplaceEnabled()) return []
     return toLicenseStatusList(await listOrganizationLicenses(context.organizationId))
   },
 })
@@ -374,7 +382,7 @@ export const listAccountAwsMarketplaceLicenses: OperationUseCase<
   operation: awsMarketplaceOperations.listAccountLicenses,
   async execute({ principal }) {
     assertOperationPrincipal(principal, awsMarketplaceOperations.listAccountLicenses)
-    if (!getAwsMarketplaceProductCode()) return []
+    if (!isAwsMarketplaceEnabled()) return []
     return toLicenseStatusList(await listAccountLicenses(principal.userId))
   },
 }

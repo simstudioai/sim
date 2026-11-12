@@ -11,7 +11,7 @@ const TEAM_PLAN = 'team_6000'
 const productCode = vi.hoisted(() => ({ current: 'product-placeholder' as string | null }))
 
 vi.mock('@/lib/billing/aws-marketplace/config', () => ({
-  getAwsMarketplaceProductCode: () => productCode.current,
+  isAwsMarketplaceEnabled: () => productCode.current !== null,
 }))
 
 import {

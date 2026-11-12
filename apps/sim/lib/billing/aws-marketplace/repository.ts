@@ -323,18 +323,18 @@ export async function recordLicenseVerification(input: {
  * Returns whether any stored license was involved.
  */
 export async function applyAgreementRenewal(input: {
-  productCode: string
+  productCodes: readonly string[]
   previousAgreementId: string
   agreementId: string
 }): Promise<boolean> {
-  const { productCode, previousAgreementId, agreementId } = input
+  const { productCodes, previousAgreementId, agreementId } = input
   return db.transaction(async (tx) => {
     const predecessors = await tx
       .select()
       .from(awsMarketplaceLicense)
       .where(
         and(
-          eq(awsMarketplaceLicense.productCode, productCode),
+          inArray(awsMarketplaceLicense.productCode, [...productCodes]),
           or(
             eq(awsMarketplaceLicense.agreementId, previousAgreementId),
             eq(awsMarketplaceLicense.renewedAgreementId, previousAgreementId)
@@ -361,7 +361,7 @@ export async function applyAgreementRenewal(input: {
       .from(awsMarketplaceLicense)
       .where(
         and(
-          eq(awsMarketplaceLicense.productCode, productCode),
+          inArray(awsMarketplaceLicense.productCode, [...productCodes]),
           eq(awsMarketplaceLicense.agreementId, agreementId)
         )
       )
@@ -389,7 +389,7 @@ export async function applyAgreementRenewal(input: {
 
 /** Tells the team of an AWS advisory on an agreement we hold; redelivery cannot send it twice. */
 export async function enqueueAgreementAdvisory(input: {
-  productCode: string
+  productCodes: readonly string[]
   agreementId: string
   state: 'issued' | 'resolved'
   detail: string
@@ -399,7 +399,7 @@ export async function enqueueAgreementAdvisory(input: {
     const rows = await tx
       .select({ id: awsMarketplaceLicense.id })
       .from(awsMarketplaceLicense)
-      .where(belongsToAgreement(input.productCode, input.agreementId))
+      .where(belongsToAgreement(input.productCodes, input.agreementId))
       .limit(MAX_LICENSES_PER_AGREEMENT)
     if (rows.length === 0) return false
     const noticeId = `aws-marketplace-advisory-${input.messageId}`
@@ -425,9 +425,9 @@ export async function enqueueAgreementAdvisory(input: {
   })
 }
 
-function belongsToAgreement(productCode: string, agreementId: string) {
+function belongsToAgreement(productCodes: readonly string[], agreementId: string) {
   return and(
-    eq(awsMarketplaceLicense.productCode, productCode),
+    inArray(awsMarketplaceLicense.productCode, [...productCodes]),
     or(
       eq(awsMarketplaceLicense.agreementId, agreementId),
       eq(awsMarketplaceLicense.renewedAgreementId, agreementId)
@@ -439,37 +439,47 @@ function belongsToAgreement(productCode: string, agreementId: string) {
  * The licenses an agreement covers, least recently attempted first, so a redelivered message moves
  * on to the ones an earlier delivery did not reach.
  */
-export async function listLicensesForAgreement(
-  productCode: string,
-  agreementId: string
-): Promise<string[]> {
-  const rows = await db
-    .select({ licenseArn: awsMarketplaceLicense.licenseArn })
-    .from(awsMarketplaceLicense)
-    .where(belongsToAgreement(productCode, agreementId))
-    .orderBy(asc(awsMarketplaceLicense.lastVerificationAttemptAt))
-    .limit(MAX_LICENSES_PER_AGREEMENT)
-  return rows.map((row) => row.licenseArn)
+/** A license to re-read, with the product it was sold under. */
+export interface LicenseToVerify {
+  licenseArn: string
+  productCode: string
 }
 
-/** This product's licenses longest since an attempt, up to `limit`, none attempted after `cutoff`. */
+export async function listLicensesForAgreement(
+  productCodes: readonly string[],
+  agreementId: string
+): Promise<LicenseToVerify[]> {
+  return db
+    .select({
+      licenseArn: awsMarketplaceLicense.licenseArn,
+      productCode: awsMarketplaceLicense.productCode,
+    })
+    .from(awsMarketplaceLicense)
+    .where(belongsToAgreement(productCodes, agreementId))
+    .orderBy(asc(awsMarketplaceLicense.lastVerificationAttemptAt))
+    .limit(MAX_LICENSES_PER_AGREEMENT)
+}
+
+/** Licenses of these products longest since an attempt, up to `limit`, none after `cutoff`. */
 export async function listLicensesDueForReverify(
-  productCode: string,
+  productCodes: readonly string[],
   cutoff: Date,
   limit: number
-): Promise<string[]> {
-  const rows = await db
-    .select({ licenseArn: awsMarketplaceLicense.licenseArn })
+): Promise<LicenseToVerify[]> {
+  return db
+    .select({
+      licenseArn: awsMarketplaceLicense.licenseArn,
+      productCode: awsMarketplaceLicense.productCode,
+    })
     .from(awsMarketplaceLicense)
     .where(
       and(
-        eq(awsMarketplaceLicense.productCode, productCode),
+        inArray(awsMarketplaceLicense.productCode, [...productCodes]),
         lt(awsMarketplaceLicense.lastVerificationAttemptAt, cutoff)
       )
     )
     .orderBy(asc(awsMarketplaceLicense.lastVerificationAttemptAt))
     .limit(limit)
-  return rows.map((row) => row.licenseArn)
 }
 
 /** Stamps an attempt to verify a license, before its outcome is known. */
@@ -717,10 +727,12 @@ export async function getLicensesByIds(licenseIds: readonly string[]) {
     .where(inArray(awsMarketplaceLicense.id, [...licenseIds]))
 }
 
-/** Organizations already linked to another license of this AWS account, for the team to match. */
+/**
+ * Organizations already linked to another license of this AWS account, on any listing, for the
+ * team to match: a buyer moving to a new listing usually wants the organization they already have.
+ */
 export async function listOrganizationsLinkedToAccount(input: {
   customerAwsAccountId: string
-  productCode: string
   excludingLicenseArn: string
 }): Promise<Array<{ id: string; name: string }>> {
   return db
@@ -730,7 +742,6 @@ export async function listOrganizationsLinkedToAccount(input: {
     .where(
       and(
         eq(awsMarketplaceLicense.customerAwsAccountId, input.customerAwsAccountId),
-        eq(awsMarketplaceLicense.productCode, input.productCode),
         ne(awsMarketplaceLicense.licenseArn, input.excludingLicenseArn)
       )
     )
