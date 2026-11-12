@@ -422,8 +422,8 @@ describe('getting a keyless Google Cloud token for a run', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it.each(['google-drive', 'gmail', 'google-sheets', undefined])(
-    'refuses the Workspace service %s before contacting Google',
+  it.each(['google-drive', 'gmail', 'google-sheets', 'google-ads', undefined])(
+    'refuses %s, which keyless credentials do not serve, before contacting Google',
     async (service) => {
       fakeGoogle(fetch)
 

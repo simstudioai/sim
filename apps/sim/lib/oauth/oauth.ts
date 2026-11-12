@@ -501,6 +501,13 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/adwords',
         ],
+        /**
+         * A JSON-key service account the Google Ads account added as a user signs in as itself
+         * (https://developers.google.com/google-ads/api/docs/oauth/service-accounts). Keyless
+         * Google credentials stay refused here: Ads is not in `GOOGLE_KEYLESS_SERVICES`, since
+         * Google documents no Workload Identity Federation path for it.
+         */
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-bigquery': {
         name: 'Google BigQuery',
