@@ -15,6 +15,13 @@ export const userProfileTool: ToolConfig<AmplitudeUserProfileParams, AmplitudeUs
     oauth: AMPLITUDE_PROFILE_CREDENTIAL_OAUTH,
 
     params: {
+      apiKey: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Amplitude API Key. With it, the request authenticates with both keys over Basic auth',
+      },
       secretKey: {
         type: 'string',
         required: true,
@@ -64,9 +71,15 @@ export const userProfileTool: ToolConfig<AmplitudeUserProfileParams, AmplitudeUs
         return url.toString()
       },
       method: 'GET',
-      headers: (params) => ({
-        Authorization: `Api-Key ${params.secretKey}`,
-      }),
+      headers: (params) => {
+        const apiKey = params.apiKey?.trim()
+        // Without an API key (an inline block that never asked for one), keep the secret-key-only header.
+        return {
+          Authorization: apiKey
+            ? `Basic ${btoa(`${apiKey}:${params.secretKey}`)}`
+            : `Api-Key ${params.secretKey}`,
+        }
+      },
     },
 
     transformResponse: async (response: Response) => {

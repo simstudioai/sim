@@ -12,7 +12,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Amplitude](https://amplitude.com/) to send events, update user and group properties, and query product analytics from a workflow. The HTTP and Dashboard REST APIs use API-key and secret-key authentication.
 
-Connect an Amplitude project once as an Amplitude credential: in Amplitude, open **Settings > Projects**, choose the project, and copy the **API key** and **secret key** from its **General** tab. Enter `eu` as the data residency only for a project hosted in Amplitude's EU data center. Sim checks the pair by listing the project's events, a read with no billing cost. Event and identify operations send the API key, analytics operations send both keys, and **User Profile** sends the secret key; User Profile is not available for EU projects. Workflows built with the earlier Amplitude block keep the keys they entered in the block.
+Connect an Amplitude project once as an Amplitude credential: in Amplitude, open **Settings > Projects**, choose the project, and copy the **API key** and **secret key** from its **General** tab. Enter `eu` as the data residency only for a project hosted in Amplitude's EU data center. Sim checks the pair by listing the project's events, a read with no billing cost. Event and identify operations send the API key, analytics operations and **User Profile** send both keys; User Profile is not available for EU projects. Workflows built with the earlier Amplitude block keep the keys they entered in the block.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]

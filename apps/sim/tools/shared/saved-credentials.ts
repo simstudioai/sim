@@ -215,7 +215,7 @@ export const ALGOLIA_CREDENTIAL_OAUTH = tokenCredentialOAuth('algolia', {
  * project API key (as its account id), the secret key (as its token), and the data residency
  * region (as its domain). Each policy maps only the params its tools declare: the Dashboard REST
  * tools send both keys to the region's host, the ingestion tools send the API key to the
- * region's host, and the User Profile tool sends the secret key to its single US host.
+ * region's host, and the User Profile tool sends both keys to its single US host.
  */
 export const AMPLITUDE_CREDENTIAL_OAUTH = tokenCredentialOAuth('amplitude', {
   apiKey: 'providerWorkspaceId',
@@ -227,6 +227,7 @@ export const AMPLITUDE_INGESTION_CREDENTIAL_OAUTH = tokenCredentialOAuth('amplit
   dataResidency: 'domain',
 })
 export const AMPLITUDE_PROFILE_CREDENTIAL_OAUTH = tokenCredentialOAuth('amplitude', {
+  apiKey: 'providerWorkspaceId',
   secretKey: 'accessToken',
 })
 export const APIFY_CREDENTIAL_OAUTH = tokenCredentialOAuth('apify', { apiKey: 'accessToken' })

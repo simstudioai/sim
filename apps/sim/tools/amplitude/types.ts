@@ -140,6 +140,7 @@ export interface AmplitudeUserActivityResponse extends ToolResponse {
  * User Profile params (User Profile API).
  */
 export interface AmplitudeUserProfileParams {
+  apiKey?: string
   secretKey: string
   userId?: string
   deviceId?: string
