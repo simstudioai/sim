@@ -1118,7 +1118,7 @@ export const SharepointV2Block: BlockConfig = {
       id: 'searchQuery',
       title: 'Site Search',
       type: 'short-input',
-      placeholder: 'Keywords to search sites (default: all sites)',
+      placeholder: 'Keywords to search sites (ignored when Group ID or a site is set)',
       condition: { field: 'operation', value: 'sharepoint_list_sites' },
       mode: 'advanced',
     },

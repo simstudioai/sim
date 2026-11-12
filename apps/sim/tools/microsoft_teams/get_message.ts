@@ -193,7 +193,11 @@ export const getMessageTool: ToolConfig<
         metadata,
         ...details,
         messageId: metadata.messageId,
-        sender: metadata.messages[0].sender,
+        sender:
+          details.from?.user?.displayName ??
+          details.from?.application?.displayName ??
+          details.from?.device?.displayName ??
+          metadata.messages[0].sender,
         messageType: metadata.messages[0].messageType,
         createdTime: metadata.createdTime,
         url: metadata.url,
