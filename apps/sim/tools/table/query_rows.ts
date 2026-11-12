@@ -1,5 +1,5 @@
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
-import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { TABLE_COLUMNS_PARAM, TABLE_ID_PARAM } from '@/tools/table/params'
 import { tableSuccess } from '@/tools/table/response'
 import type { TableQueryResponse, TableRowQueryParams } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
@@ -31,14 +31,7 @@ export const tableQueryRowsTool: InternalToolConfig<TableRowQueryParams, TableQu
       description: 'Sort order as {field: "asc"|"desc"}',
       visibility: 'user-or-llm',
     },
-    columns: {
-      type: 'array',
-      required: false,
-      items: { type: 'string' },
-      description:
-        'Stable column IDs or table column names to include in each row data object. Omit or pass an empty array to return all columns. A reference that matches no column is ignored.',
-      visibility: 'user-or-llm',
-    },
+    columns: TABLE_COLUMNS_PARAM,
     limit: {
       type: 'number',
       required: false,
