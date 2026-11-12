@@ -399,9 +399,13 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     )
   })
 
-  it.each([undefined, '  '])(
-    'keeps the stored region of a token credential when a reconnect leaves it blank (%j)',
-    async (domain) => {
+  it.each([
+    { domain: undefined, expected: 'eu' },
+    { domain: '  ', expected: 'eu' },
+    { domain: 'federal', expected: 'federal' },
+  ])(
+    'sends region $expected when a token credential stored on eu is reconnected with $domain',
+    async ({ domain, expected }) => {
       mockCredential({ providerId: 'launchdarkly-service-account', displayName: 'Flags (eu)' })
       mockStoredBlob({
         type: 'token_service_account',
@@ -412,7 +416,7 @@ describe('performUpdateCredential — service-account secret rotation', () => {
       mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
         providerId: 'launchdarkly-service-account',
         encryptedServiceAccountKey: 'new-cipher',
-        displayName: 'LaunchDarkly (eu)',
+        displayName: `LaunchDarkly (${expected})`,
         auditMetadata: {},
       })
 
@@ -425,32 +429,10 @@ describe('performUpdateCredential — service-account secret rotation', () => {
 
       expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
         'launchdarkly-service-account',
-        expect.objectContaining({ apiToken: 'new-token', domain: 'eu' })
+        expect.objectContaining({ apiToken: 'new-token', domain: expected })
       )
     }
   )
-
-  it('moves a token credential to the region a reconnect names', async () => {
-    mockCredential({ providerId: 'launchdarkly-service-account', displayName: 'Flags' })
-    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
-      providerId: 'launchdarkly-service-account',
-      encryptedServiceAccountKey: 'new-cipher',
-      displayName: 'LaunchDarkly (federal)',
-      auditMetadata: {},
-    })
-
-    await performUpdateCredential({
-      credentialId: 'cred-1',
-      userId: 'user-1',
-      apiToken: 'new-token',
-      domain: 'federal',
-    })
-
-    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
-      'launchdarkly-service-account',
-      expect.objectContaining({ domain: 'federal' })
-    )
-  })
 
   it('fails the reconnect when the stored secret cannot be decrypted', async () => {
     mockCredential()
