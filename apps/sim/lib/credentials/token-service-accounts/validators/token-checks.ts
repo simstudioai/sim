@@ -30,6 +30,7 @@ import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 import { gongAuthorization } from '@/tools/gong/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
 import { buildJotformHeaders, buildJotformUrl, JOTFORM_REGION_HOSTS } from '@/tools/jotform/utils'
+import { LANGSMITH_REGIONS, langsmithApiBase } from '@/tools/langsmith/utils'
 import { LAUNCHDARKLY_INSTANCES, launchDarklyApiBase } from '@/tools/launchdarkly/utils'
 import {
   getLogfireBaseUrl,
@@ -915,11 +916,15 @@ export const validateJupyterServiceAccount = tokenCheckValidator({
   },
 })
 
-/** LangSmith's workspace list answers 200 for a valid API key and 401/403 otherwise. */
+/**
+ * LangSmith's workspace list answers 200 for a valid API key and 401/403 otherwise, in the region
+ * the key's organization lives in; a key from another region is not recognized.
+ */
 export const validateLangsmithServiceAccount = tokenCheckValidator({
   serviceLabel: 'LangSmith',
-  request: ({ apiToken }) => ({
-    url: 'https://api.smith.langchain.com/api/v1/workspaces',
+  domain: allowedDomain(LANGSMITH_REGIONS),
+  request: ({ apiToken, domain }) => ({
+    url: `${langsmithApiBase(domain)}/workspaces`,
     headers: { 'X-Api-Key': apiToken, Accept: 'application/json' },
   }),
 })

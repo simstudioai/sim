@@ -862,6 +862,24 @@ describe('a token provider whose region or host defaults to the one it always us
       'https://app.launchdarkly.us/api/v2/caller-identity',
       'federal',
     ],
+    [
+      'langsmith-service-account',
+      undefined,
+      'https://api.smith.langchain.com/api/v1/workspaces',
+      'us',
+    ],
+    [
+      'langsmith-service-account',
+      'eu',
+      'https://eu.api.smith.langchain.com/api/v1/workspaces',
+      'eu',
+    ],
+    [
+      'langsmith-service-account',
+      'azure-us',
+      'https://azure.api.smith.langchain.com/api/v1/workspaces',
+      'azure-us',
+    ],
   ])('%s with %s is checked at %s and stored as %s', async (providerId, domain, url, stored) => {
     const result = await verifyAndBuildServiceAccountSecret(providerId, {
       apiToken: 'token-1',
@@ -875,7 +893,10 @@ describe('a token provider whose region or host defaults to the one it always us
     })
   })
 
-  it.each([['launchdarkly-service-account', 'app.launchdarkly.example.com']])(
+  it.each([
+    ['launchdarkly-service-account', 'app.launchdarkly.example.com'],
+    ['langsmith-service-account', 'eu.api.smith.langchain.com.example.com'],
+  ])(
     'refuses %s with an unlisted region or host %s without sending the token',
     async (providerId, domain) => {
       await expect(

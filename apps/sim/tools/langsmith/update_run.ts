@@ -1,6 +1,10 @@
 import { filterUndefined } from '@sim/utils/object'
 import type { LangsmithUpdateRunParams, LangsmithUpdateRunResponse } from '@/tools/langsmith/types'
-import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
+import {
+  LANGSMITH_REGION_PARAM,
+  langsmithApiBase,
+  truncateLangsmithErrorText,
+} from '@/tools/langsmith/utils'
 import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -14,6 +18,7 @@ export const langsmithUpdateRunTool: ToolConfig<
   version: '1.0.0',
   oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
+    region: LANGSMITH_REGION_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -76,7 +81,8 @@ export const langsmithUpdateRunTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => `${LANGSMITH_API_BASE}/runs/${encodeURIComponent(params.runId.trim())}`,
+    url: (params) =>
+      `${langsmithApiBase(params.region)}/runs/${encodeURIComponent(params.runId.trim())}`,
     method: 'PATCH',
     headers: (params) => ({
       'X-Api-Key': params.apiKey,

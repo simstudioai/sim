@@ -1,9 +1,54 @@
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import type { LangsmithRunPayload } from '@/tools/langsmith/types'
+import type { ToolConfig } from '@/tools/types'
 
-/** Versioned LangSmith API base. Only `/api/v1/*` paths are declared in the published OpenAPI spec. */
-export const LANGSMITH_API_BASE = 'https://api.smith.langchain.com/api/v1'
+/**
+ * LangSmith regions and the API host each one answers on. An API key only authenticates in the
+ * region its organization lives in; GCP US is the default.
+ * See https://docs.langchain.com/langsmith/trace-with-langgraph
+ */
+const LANGSMITH_REGION_ORIGINS = {
+  us: 'https://api.smith.langchain.com',
+  eu: 'https://eu.api.smith.langchain.com',
+  apac: 'https://apac.api.smith.langchain.com',
+  'aws-us': 'https://aws.api.smith.langchain.com',
+  'azure-us': 'https://azure.api.smith.langchain.com',
+} as const
+
+type LangsmithRegion = keyof typeof LANGSMITH_REGION_ORIGINS
+
+export const LANGSMITH_REGIONS: ReadonlySet<string> = new Set(Object.keys(LANGSMITH_REGION_ORIGINS))
+
+/** The region every LangSmith credential and tool used before regions could be chosen. */
+export const DEFAULT_LANGSMITH_REGION: LangsmithRegion = 'us'
+
+export const LANGSMITH_REGION_OPTIONS = [
+  { value: 'us', label: 'GCP US (smith.langchain.com)' },
+  { value: 'eu', label: 'GCP EU (eu.smith.langchain.com)' },
+  { value: 'apac', label: 'GCP APAC (apac.smith.langchain.com)' },
+  { value: 'aws-us', label: 'AWS US (aws.smith.langchain.com)' },
+  { value: 'azure-us', label: 'Azure US (azure.smith.langchain.com)' },
+] as const satisfies ReadonlyArray<{ value: LangsmithRegion; label: string }>
+
+/**
+ * Versioned LangSmith API base of a region; only `/api/v1/*` paths are declared in the published
+ * OpenAPI spec. Absent means GCP US, so tools run without a saved credential keep their host; an
+ * unknown region is refused rather than sent to a host its key was not issued for.
+ */
+export function langsmithApiBase(region?: string): string {
+  const key = region ?? DEFAULT_LANGSMITH_REGION
+  if (!LANGSMITH_REGIONS.has(key)) throw new Error(`Unknown LangSmith region: ${key}`)
+  return `${LANGSMITH_REGION_ORIGINS[key as LangsmithRegion]}/api/v1`
+}
+
+/** The region a saved LangSmith credential was verified in; only the credential fills it. */
+export const LANGSMITH_REGION_PARAM = {
+  type: 'string',
+  required: false,
+  visibility: 'hidden',
+  description: 'LangSmith region of the selected credential: us, eu, apac, aws-us, or azure-us',
+} as const satisfies ToolConfig['params'][string]
 
 /** Ellipsis appended to an upstream error body that had to be cut short. */
 const ERROR_TEXT_SUFFIX = '...'

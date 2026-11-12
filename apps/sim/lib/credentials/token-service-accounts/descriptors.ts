@@ -12,6 +12,7 @@
  * `@/lib/credentials/token-service-accounts/server`.
  */
 
+import { DEFAULT_LANGSMITH_REGION, LANGSMITH_REGION_OPTIONS } from '@/tools/langsmith/utils'
 import {
   DEFAULT_LAUNCHDARKLY_INSTANCE,
   LAUNCHDARKLY_INSTANCE_OPTIONS,
@@ -1156,8 +1157,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Paste your LangSmith API key',
         secret: true,
       },
+      {
+        id: 'domain',
+        label: 'Region',
+        placeholder: 'Select a region',
+        secret: false,
+        options: LANGSMITH_REGION_OPTIONS,
+        defaultValue: DEFAULT_LANGSMITH_REGION,
+        hintMessage:
+          'us (default), eu, apac, aws-us, or azure-us: the LangSmith region your organization is in.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/langsmith',
+    helpText:
+      'Choose the region shown in the address you sign in at (for example eu.smith.langchain.com); a key only works in its own region.',
+    invalidCredentialsHelp:
+      'LangSmith rejected this API key. Check that it is active and that the region matches the one your organization is in.',
   },
   [LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID,

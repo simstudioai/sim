@@ -1481,7 +1481,10 @@ describe('token credentials saved before their provider had a region or host to 
     vi.clearAllMocks()
   })
 
-  it.each([['launchdarkly-service-account', 'us']])(
+  it.each([
+    ['launchdarkly-service-account', 'us'],
+    ['langsmith-service-account', 'us'],
+  ])(
     'resolves a %s token stored without one to the host it always used (%s)',
     async (providerId, domain) => {
       storeBlob({ type: 'token_service_account', providerId, apiToken: 'legacy-token' })

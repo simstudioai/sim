@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import * as langsmithTools from '@/tools/langsmith'
 import * as launchDarklyTools from '@/tools/launchdarkly'
 import { prepareToolRequestUrl } from '@/tools/request-transport'
 import type { ToolConfig } from '@/tools/types'
@@ -25,6 +26,18 @@ const FAMILIES: {
       ['us', 'app.launchdarkly.com'],
       ['eu', 'app.eu.launchdarkly.com'],
       ['federal', 'app.launchdarkly.us'],
+    ],
+  },
+  {
+    service: 'LangSmith',
+    tools: langsmithTools,
+    defaultHost: 'api.smith.langchain.com',
+    regions: [
+      ['us', 'api.smith.langchain.com'],
+      ['eu', 'eu.api.smith.langchain.com'],
+      ['apac', 'apac.api.smith.langchain.com'],
+      ['aws-us', 'aws.api.smith.langchain.com'],
+      ['azure-us', 'azure.api.smith.langchain.com'],
     ],
   },
 ]

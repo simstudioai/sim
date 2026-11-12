@@ -299,6 +299,7 @@ export const JUPYTER_CREDENTIAL_OAUTH = tokenCredentialOAuth('jupyter', {
 })
 export const LANGSMITH_CREDENTIAL_OAUTH = tokenCredentialOAuth('langsmith', {
   apiKey: 'accessToken',
+  region: 'domain',
 })
 export const LAUNCHDARKLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('launchdarkly', {
   apiKey: 'accessToken',
