@@ -99,9 +99,8 @@ interface TokenCheck {
 }
 
 /**
- * The vendor just accepted the token, so a stated expiry less than this far ahead contradicts the
- * request itself: GitHub has reported a moment one minute after the request as the expiry of a
- * token valid for a year. Such a reading is dropped rather than recorded as fact.
+ * The vendor just accepted the token, so a stated expiry that has passed or is imminent contradicts
+ * the request itself and is dropped rather than recorded as fact.
  */
 const MIN_CREDIBLE_EXPIRY_AHEAD_MS = 60 * 60 * 1000
 
