@@ -505,7 +505,7 @@ export const IdentityCenterBlock: BlockConfig = {
             result.instanceArn = rest.instanceArn
             result.principalId = rest.principalId
             result.principalType = rest.principalType
-            if (rest.filterAccountId) result.accountId = rest.filterAccountId
+            result.accountId = rest.filterAccountId || undefined
             if (maxResults) {
               const parsed = Number.parseInt(String(maxResults), 10)
               if (!Number.isNaN(parsed)) result.maxResults = parsed
