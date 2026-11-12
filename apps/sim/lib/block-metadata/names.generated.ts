@@ -309,6 +309,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   video_generator_v3: 'Video Generator',
   vision: 'Vision (Legacy)',
   vision_v2: 'Vision',
+  voyageai: 'Voyage AI',
   wait: 'Wait',
   wealthbox: 'Wealthbox',
   webflow: 'Webflow',

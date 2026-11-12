@@ -1,0 +1,88 @@
+---
+title: Voyage AI
+description: Contextualized embeddings and reranking
+integration:
+  type: "voyageai"
+  color: "#7B4DFF"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[Voyage AI](https://www.voyageai.com/) provides embedding and reranking models for search and retrieval.
+
+With the Voyage AI block, you can:
+
+- **Embed documents with context**: Send the full text of each document. Voyage splits it into chunks, and every chunk vector reflects the whole document around it, so retrieval finds the right passage even when the chunk alone is ambiguous. Search queries are embedded with the same model and Input Type set to Query.
+- **Rerank results**: Reorder retrieved texts by relevance to a query, so your agent reads the best matches first.
+
+Create an API key in the [Voyage AI dashboard](https://dash.voyageai.com/) and paste it into the block, or store it once as a workspace key under Settings > BYOK.
+
+In Sim, the Voyage AI block lets your agents index documents for search and tighten the results they retrieve before answering.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Embed documents with Voyage AI contextualized models, so each chunk vector reflects the whole document around it, and rerank texts against a query with Voyage AI rerankers.
+
+## Actions
+
+### Voyage AI Contextualized Embeddings
+
+Embed documents with a contextualized model: Voyage splits each document into chunks, and every chunk vector also reflects the whole document it came from
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | array | Yes | Texts to embed, as a list of strings. For document: the full text of each document, which Voyage chunks itself. For query: one search query per entry. |
+| `model` | string | Yes | Embedding model: voyage-context-4 or voyage-context-3 |
+| `inputType` | string | Yes | What the embeddings are for: document \(documents to index, chunked by Voyage\) or query \(search queries\) |
+| `dimensions` | number | No | Output dimensions: 256, 512, 1024 \(default\), or 2048 |
+| `apiKey` | string | Yes | Your Voyage AI API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `embeddings` | json | Embedding vectors grouped by document: one list per input document, one vector per chunk, in input order |
+| `chunks` | json | The text of each chunk, grouped like embeddings. Returned for documents, which Voyage chunks itself |
+| `model` | string | Model used |
+| `dimensions` | number | Dimensionality of each vector |
+| `totalTokens` | number | Tokens billed for the request |
+
+</ReferenceDetails>
+
+### Voyage AI Rerank
+
+Rank a list of texts by relevance to a query with a Voyage AI reranker, most relevant first
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The query to rank the documents against |
+| `documents` | array | Yes | The texts to rank, as a list of strings \(up to 1,000\) |
+| `model` | string | Yes | Reranker model: rerank-3, rerank-3-lite, rerank-2.5 or rerank-2.5-lite |
+| `topK` | number | No | Number of most relevant documents to return. Defaults to all of them. |
+| `apiKey` | string | Yes | Your Voyage AI API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Documents ranked by relevance, most relevant first |
+|   ↳ `index` | number | Position of the document in the input list |
+|   ↳ `relevanceScore` | number | Relevance of the document to the query |
+|   ↳ `document` | string | The document text |
+| `model` | string | Reranker model used |
+| `totalTokens` | number | Tokens billed for the request |
+
+</ReferenceDetails>
+
+

@@ -19,6 +19,21 @@ const baseInput = {
   model: 'text-embedding-3-small',
 }
 
+describe('embedding model naming', () => {
+  it('refuses a Voyage request that names no model rather than picking one', async () => {
+    const response = await executeEmbedding(
+      { provider: 'voyage', apiKey: 'key', input: 'hello' } as Parameters<
+        typeof executeEmbedding
+      >[0],
+      {}
+    )
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('model is required')
+    expect(mockEmbed).not.toHaveBeenCalled()
+  })
+})
+
 describe('embedding operation admission limits', () => {
   it('rejects a JSON-encoded array after expansion when it exceeds the item cap', async () => {
     const input = JSON.stringify(Array.from({ length: MAX_EMBEDDING_INPUTS + 1 }, () => 'x'))

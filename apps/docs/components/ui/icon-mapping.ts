@@ -822,6 +822,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   video_generator_v3: VideoIcon,
   vision: EyeIcon,
   vision_v2: EyeIcon,
+  voyageai: EmbeddingsIcon,
   wait: CirclePause,
   wealthbox: WealthboxIcon,
   webflow: WebflowIcon,

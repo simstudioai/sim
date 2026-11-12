@@ -489,6 +489,7 @@ const BLOCKS: Record<string, string> = {
   video_generator_v3: '{"namespace":"videoGenerator"}',
   vision: '{"namespace":"legacy.vision"}',
   vision_v2: '{"namespace":"legacy.visionV2"}',
+  voyageai: '{"namespace":"voyageai","methods":{"voyageai_contextualized_embeddings":"contextualizedEmbeddings","voyageai_rerank":"rerank"}}',
   wait: '{"namespace":"wait"}',
   wealthbox: '{"namespace":"wealthbox","methods":{"read_contact":"readContact","read_note":"readNote","read_task":"readTask","write_contact":"writeContact","write_note":"writeNote","write_task":"writeTask"},"paramAliases":{"action":{"oauthCredential":"credential"}}}',
   webflow: '{"namespace":"webflow","methods":{"create":"createItem","delete":"deleteItem","get":"getItem","list":"listItems","update":"updateItem"},"triggers":{"webflow_collection_item_changed":"collectionItemChanged","webflow_collection_item_created":"collectionItemCreated","webflow_collection_item_deleted":"collectionItemDeleted","webflow_form_submission":"formSubmission"},"paramAliases":{"action":{"oauthCredential":"credential"},"trigger":{"oauthCredential":"credential"}}}',
