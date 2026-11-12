@@ -3631,6 +3631,9 @@ async function executeToolInner(
         activation,
         element: prepared.element,
         refRecovered: prepared.refRecovered === true,
+        ...(typeof prepared.clickedThrough === 'string'
+          ? { clickedThrough: prepared.clickedThrough }
+          : {}),
         effectObserved,
         possibleEffectObserved,
         effect,

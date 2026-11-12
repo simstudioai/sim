@@ -693,6 +693,29 @@ describe('collectSnapshot', () => {
     expect(focusElementForTyping(ref)).toMatchObject({ error: 'stale' })
   })
 
+  it('clicks through a nested control that fills the whole target', () => {
+    document.body.innerHTML = '<a href="#slot"><span role="button">3:00 PM</span></a>'
+    const link = visible(document.querySelector('a') as HTMLAnchorElement)
+    const slot = visible(document.querySelector('span') as HTMLSpanElement)
+    register(link)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => slot })
+
+    expect(clickElement(0)).toMatchObject({ clickedThrough: '3:00 PM' })
+  })
+
+  it('still refuses a nested control that covers only part of the target', () => {
+    document.body.innerHTML = '<a href="#card">Card title <button>Save</button></a>'
+    const link = visible(document.querySelector('a') as HTMLAnchorElement)
+    const save = visible(document.querySelector('button') as HTMLButtonElement)
+    register(link)
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: (x: number) => (x <= 50 ? save : document.body),
+    })
+
+    expect(clickElement(0)).toMatchObject({ error: 'nested-control' })
+  })
+
   it('refuses to recover a ref when replacement is ambiguous', () => {
     document.body.innerHTML = '<button>Close</button>'
     const original = visible(document.querySelector('button') as HTMLButtonElement)
