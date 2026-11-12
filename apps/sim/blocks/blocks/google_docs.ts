@@ -561,7 +561,7 @@ Return ONLY the text to insert - no explanations, no extra text.`,
       id: 'tabId',
       title: 'Tab ID',
       type: 'short-input',
-      placeholder: 'Tab ID (leave empty for the first tab)',
+      placeholder: 'Tab ID (empty: first tab; for Find & Replace: all tabs)',
       condition: {
         field: 'operation',
         value: [

@@ -209,6 +209,8 @@ function formatPeopleDate(date: PeopleDate | undefined): string | null {
 export function parsePeopleDate(value: string, paramName: string): PeopleDate {
   const match = value.trim().match(/^(?:(\d{4})-|--)?(\d{1,2})-(\d{1,2})$/)
   const year = match?.[1] ? Number(match[1]) : undefined
+  if (year === 0)
+    throw new Error(`${paramName} year must be 0001 or later; omit the year for a yearless date`)
   const month = Number(match?.[2])
   const day = Number(match?.[3])
   const probe = new Date(Date.UTC(year ?? 2000, month - 1, day))

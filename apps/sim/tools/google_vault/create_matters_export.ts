@@ -138,6 +138,14 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
         )
       }
 
+      if (
+        params.dataScope === 'UNPROCESSED_DATA' &&
+        params.corpus !== 'MAIL' &&
+        params.corpus !== 'GROUPS'
+      ) {
+        throw new Error('Unprocessed data scope is only supported for MAIL and GROUPS')
+      }
+
       const includeSharedDrives =
         params.corpus === 'DRIVE' && String(params.includeSharedDrives) === 'true'
 
@@ -149,7 +157,7 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
         startTime: params.startTime || undefined,
         endTime: params.endTime || undefined,
         ...scope,
-        ...(includeSharedDrives && { driveOptions: { includeSharedDrives: true } }),
+        ...(includeSharedDrives && { driveOptions: { sharedDrivesOption: 'INCLUDED' } }),
       }
 
       const exportOptionsKey =

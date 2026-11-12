@@ -105,6 +105,12 @@ describe('Gmail attachment downloads', () => {
 })
 
 describe('Gmail recipient headers', () => {
+  const readTransform = gmailReadTool.transformResponse as NonNullable<
+    typeof gmailReadTool.transformResponse
+  >
+  const readV2Transform = gmailReadV2Tool.transformResponse as NonNullable<
+    typeof gmailReadV2Tool.transformResponse
+  >
   const headers = [
     { name: 'From', value: 'Ana <ana@example.com>' },
     { name: 'To', value: 'bo@example.com' },
@@ -123,7 +129,7 @@ describe('Gmail recipient headers', () => {
   }
 
   it('returns Cc on a single read and keeps absent headers null', async () => {
-    const legacy = await gmailReadTool.transformResponse!(Response.json(ccMessage), {
+    const legacy = await readTransform(Response.json(ccMessage), {
       accessToken: 'token',
       messageId: 'm1',
       folder: '',
@@ -138,7 +144,7 @@ describe('Gmail recipient headers', () => {
       date: '',
     })
 
-    const v2 = await gmailReadV2Tool.transformResponse!(Response.json(ccMessage), {
+    const v2 = await readV2Transform(Response.json(ccMessage), {
       accessToken: 'token',
       messageId: 'm1',
       folder: '',
@@ -148,7 +154,7 @@ describe('Gmail recipient headers', () => {
 
   it('returns Cc for every message in a multi-message read summary', async () => {
     fetchMock.mockImplementation(async () => Response.json(ccMessage))
-    const result = await gmailReadTool.transformResponse!(
+    const result = await readTransform(
       Response.json({
         messages: [
           { id: 'm1', threadId: 't1' },

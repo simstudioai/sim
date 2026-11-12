@@ -173,27 +173,32 @@ export const getPageTool: ToolConfig<GetPageParams, GetPageResponse> = {
       description:
         'Revision ID of the presentation; pass as requiredRevisionId in a batch update writeControl',
       optional: true,
+      nullable: true,
     },
     pageProperties: {
       type: 'json',
       description: 'Page properties (background fill, color scheme)',
       optional: true,
+      nullable: true,
     },
     layoutProperties: {
       type: 'json',
       description:
         'Layout properties (masterObjectId, name, displayName); set only for LAYOUT pages',
       optional: true,
+      nullable: true,
     },
     notesProperties: {
       type: 'json',
       description: 'Notes properties (speakerNotesObjectId); set only for NOTES pages',
       optional: true,
+      nullable: true,
     },
     masterProperties: {
       type: 'json',
       description: 'Master properties (displayName); set only for MASTER pages',
       optional: true,
+      nullable: true,
     },
     pageText: {
       type: 'string',

@@ -461,6 +461,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       mode: 'advanced',
     },
     {
+      id: 'listTimeZone',
+      title: 'Response Time Zone',
+      type: 'short-input',
+      placeholder: 'America/Los_Angeles (default: calendar time zone)',
+      condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
+    },
+    {
       id: 'pageToken',
       title: 'Page Token',
       type: 'short-input',
@@ -1061,6 +1069,15 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           processedParams.minAccessRole = undefined
         }
 
+        const listTimeZone = processedParams.listTimeZone
+        processedParams.listTimeZone = undefined
+        if (operation === 'list') {
+          processedParams.timeZone =
+            typeof listTimeZone === 'string' && listTimeZone.trim()
+              ? listTimeZone.trim()
+              : undefined
+        }
+
         return {
           oauthCredential,
           ...processedParams,
@@ -1091,6 +1108,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     colorId: { type: 'string', description: 'Event color ID' },
     reminders: { type: 'json', description: 'Reminder overrides [{ method, minutes }]' },
     updatedMin: { type: 'string', description: 'Only events modified since this time' },
+    listTimeZone: { type: 'string', description: 'Time zone used for List Events response times' },
 
     timeMin: { type: 'string', description: 'Start time filter' },
     timeMax: { type: 'string', description: 'End time filter' },

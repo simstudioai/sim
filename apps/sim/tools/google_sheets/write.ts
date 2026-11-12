@@ -72,7 +72,7 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
       const range = params.range || 'Sheet1!A2'
 
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId?.trim()}/values/${encodeURIComponent(range)}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(params.spreadsheetId, 'spreadsheetId')}/values/${encodeURIComponent(range)}`
       )
 
       // Default to USER_ENTERED if not specified
@@ -256,7 +256,7 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
     includeValuesInResponse: {
       type: 'boolean',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'Whether to include the written values in the response',
     },
     ...RESPONSE_RENDER_PARAMS,

@@ -5398,7 +5398,6 @@
   "apps/sim/tools/github/utils.server.ts#GITHUB_MAX_RESPONSE_BYTES",
   "apps/sim/tools/gitlab/utils.ts#GITLAB_ACCESS_LEVELS",
   "apps/sim/tools/gmail/utils.ts#buildBodyAlternatives",
-  "apps/sim/tools/gmail/utils.ts#extractMessageBody",
   "apps/sim/tools/gmail/utils.ts#fetchThreadingHeaders",
   "apps/sim/tools/gong/utils.ts#parseGongJsonField",
   "apps/sim/tools/google_forms/utils.ts#FORMS_API_BASE",

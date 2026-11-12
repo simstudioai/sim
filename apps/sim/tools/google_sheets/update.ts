@@ -70,7 +70,7 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
       const range = params.range || 'Sheet1!A2'
 
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId?.trim()}/values/${encodeURIComponent(range)}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(params.spreadsheetId, 'spreadsheetId')}/values/${encodeURIComponent(range)}`
       )
 
       // Default to USER_ENTERED if not specified
@@ -242,7 +242,7 @@ export const updateV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Up
     includeValuesInResponse: {
       type: 'boolean',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'Whether to include the updated values in the response',
     },
     ...RESPONSE_RENDER_PARAMS,

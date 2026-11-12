@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
@@ -197,7 +197,7 @@ export function flattenDocumentTabs(tabs: unknown): GoogleDocsTabContent[] {
   const visit = (list: unknown[]) => {
     for (const tab of list) {
       if (!isRecordLike(tab)) continue
-      const props = isRecordLike(tab.tabProperties) ? tab.tabProperties : {}
+      const props = toRecord(tab.tabProperties)
       out.push({
         tabId: readString(props.tabId) ?? null,
         title: readString(props.title) ?? null,

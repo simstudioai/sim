@@ -130,6 +130,14 @@ export const createSavedQueryTool: ToolConfig<GoogleVaultCreateSavedQueryParams>
         )
       }
 
+      if (
+        params.dataScope === 'UNPROCESSED_DATA' &&
+        params.corpus !== 'MAIL' &&
+        params.corpus !== 'GROUPS'
+      ) {
+        throw new Error('Unprocessed data scope is only supported for MAIL and GROUPS')
+      }
+
       const includeSharedDrives =
         params.corpus === 'DRIVE' && String(params.includeSharedDrives) === 'true'
 
@@ -143,7 +151,7 @@ export const createSavedQueryTool: ToolConfig<GoogleVaultCreateSavedQueryParams>
           startTime: params.startTime || undefined,
           endTime: params.endTime || undefined,
           ...scope,
-          ...(includeSharedDrives && { driveOptions: { includeSharedDrives: true } }),
+          ...(includeSharedDrives && { driveOptions: { sharedDrivesOption: 'INCLUDED' } }),
         },
       }
     },

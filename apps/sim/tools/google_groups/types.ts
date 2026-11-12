@@ -223,7 +223,7 @@ export interface GoogleGroupsRemoveAliasResponse extends ToolResponse {
 /**
  * Group settings fields returned by the Groups Settings API
  */
-export interface GoogleGroupsSettings {
+interface GoogleGroupsSettings {
   email: string | null
   name: string | null
   description: string | null

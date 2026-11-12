@@ -134,9 +134,14 @@ function parseReminderOverrides(
   return parsed.map((entry: unknown) => {
     const method =
       typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'method') : undefined
-    const minutes = Number(
+    const rawMinutes =
       typeof entry === 'object' && entry !== null ? Reflect.get(entry, 'minutes') : undefined
-    )
+    const minutes =
+      typeof rawMinutes === 'number'
+        ? rawMinutes
+        : typeof rawMinutes === 'string' && rawMinutes.trim() !== ''
+          ? Number(rawMinutes)
+          : Number.NaN
     if (method !== 'email' && method !== 'popup') {
       throw new Error('Each reminder needs a method of "email" or "popup"')
     }

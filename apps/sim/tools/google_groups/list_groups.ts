@@ -74,13 +74,12 @@ export const listGroupsTool: ToolConfig<GoogleGroupsListParams, GoogleGroupsResp
     url: (params) => {
       const url = new URL('https://admin.googleapis.com/admin/directory/v1/groups')
 
-      if (params.customer) {
-        url.searchParams.set('customer', params.customer)
-      } else if (!params.domain && !params.userKey) {
-        url.searchParams.set('customer', 'my_customer')
-      }
       if (params.userKey) {
         url.searchParams.set('userKey', params.userKey)
+      } else if (params.customer) {
+        url.searchParams.set('customer', params.customer)
+      } else if (!params.domain) {
+        url.searchParams.set('customer', 'my_customer')
       }
       if (params.orderBy) {
         url.searchParams.set('orderBy', params.orderBy)

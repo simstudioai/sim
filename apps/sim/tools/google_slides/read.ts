@@ -150,11 +150,13 @@ export const readTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesReadRespon
           description:
             'Revision ID of the presentation (only for users with edit access); pass as requiredRevisionId in a batch update writeControl',
           optional: true,
+          nullable: true,
         },
         locale: {
           type: 'string',
           description: 'Presentation locale as an IETF BCP 47 language tag',
           optional: true,
+          nullable: true,
         },
       },
     },

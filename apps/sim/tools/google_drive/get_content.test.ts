@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getContentTool } from '@/tools/google_drive/get_content'
 import { MAX_EXPORT_BYTES } from '@/tools/google_drive/utils'
 
@@ -31,10 +31,6 @@ describe('google_drive_get_content byte limits', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('refuses a binary file whose declared size exceeds the download cap before fetching it', async () => {

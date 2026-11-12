@@ -193,6 +193,12 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
         throw new Error('Sheet name is required')
       }
 
+      if (params.majorDimension === 'COLUMNS' && params.filterColumn?.trim()) {
+        throw new Error(
+          'Filtering requires majorDimension ROWS; remove majorDimension or the filter'
+        )
+      }
+
       const cellRange = params.cellRange?.trim() || 'A1:Z1000'
       const fullRange = `${sheetName}!${cellRange}`
 

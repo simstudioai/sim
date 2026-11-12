@@ -98,7 +98,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
   ) => {
     const signal = context?.signal
     if (!response.ok) {
-      const errorDetails = await response.json().catch(() => ({}))
+      const errorDetails = await readErrorJson(response)
       logger.error('Failed to get file metadata', {
         status: response.status,
         statusText: response.statusText,

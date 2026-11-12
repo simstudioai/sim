@@ -76,7 +76,7 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
       const range = params.range || 'Sheet1'
 
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId?.trim()}/values/${encodeURIComponent(range)}:append`
+        `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(params.spreadsheetId, 'spreadsheetId')}/values/${encodeURIComponent(range)}:append`
       )
 
       // Default to USER_ENTERED if not specified
@@ -288,7 +288,7 @@ export const appendV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Ap
     includeValuesInResponse: {
       type: 'boolean',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'Whether to include the appended values in the response',
     },
     ...RESPONSE_RENDER_PARAMS,

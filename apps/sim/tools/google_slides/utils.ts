@@ -161,6 +161,7 @@ interface SlidesPageElement {
   shape?: { text?: SlidesTextContent }
   table?: { tableRows?: Array<{ tableCells?: Array<{ text?: SlidesTextContent }> }> }
   elementGroup?: { children?: SlidesPageElement[] }
+  wordArt?: { renderedText?: string }
 }
 
 export interface SlidesPage {
@@ -186,6 +187,7 @@ function pageElementText(element: SlidesPageElement): string[] {
     )
   }
   if (element.elementGroup) return (element.elementGroup.children ?? []).flatMap(pageElementText)
+  if (element.wordArt?.renderedText) return [element.wordArt.renderedText]
   return []
 }
 

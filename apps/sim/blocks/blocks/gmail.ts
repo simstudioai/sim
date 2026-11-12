@@ -705,10 +705,10 @@ const GMAIL_V2_OPERATION_TOOLS: Record<string, string> = {
   untrash_thread_gmail: 'gmail_untrash_thread_v2',
 }
 
-function selectGmailV2ToolId(params: Record<string, any>): string {
+function selectGmailV2ToolId(params: Record<string, unknown>): string {
+  const operation = typeof params.operation === 'string' ? params.operation : ''
   return (
-    (Object.hasOwn(GMAIL_V2_OPERATION_TOOLS, params.operation) &&
-      GMAIL_V2_OPERATION_TOOLS[params.operation]) ||
+    (Object.hasOwn(GMAIL_V2_OPERATION_TOOLS, operation) && GMAIL_V2_OPERATION_TOOLS[operation]) ||
     selectGmailToolId(params)
   )
 }
@@ -1137,7 +1137,7 @@ export const GmailV2Block: BlockConfig = {
     body_text: { type: 'string', description: 'Plain text email body' },
     body_html: { type: 'string', description: 'HTML email body' },
     labels: {
-      type: 'string',
+      type: 'json',
       description:
         'Email labels (trigger, comma-separated); for List Labels, the label array [{id, name, type, messageListVisibility, labelListVisibility}]',
     },
