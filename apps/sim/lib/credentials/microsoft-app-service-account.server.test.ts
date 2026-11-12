@@ -742,8 +742,8 @@ describe('getting a Microsoft app token for a run', () => {
     expect(tokens[1]?.form.client_secret).toBe('rotated')
   })
 
-  it.each(['microsoft-ad', 'sharepoint', 'microsoft-intune'])(
-    'refuses a national-cloud credential for %s, whose tools call the global Graph, without minting',
+  it.each(['microsoft-ad', 'sharepoint', 'microsoft-intune', 'microsoft-dataverse'])(
+    'refuses a national-cloud credential for %s, whose tools call the global cloud, without minting',
     async (service) => {
       fakeMicrosoft(fetch)
       storeCredential(

@@ -756,6 +756,7 @@ const MICROSOFT_APP_SERVICE_AUDIENCES: Record<string, MicrosoftAppAudience> = {
     // The environment is part of the stored secret, so one secret version has one environment.
     key: 'dataverse',
     select: (config) => {
+      requireCloud(config, ['global'], 'Dataverse')
       if (!config.environmentUrl) {
         throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
           step: 'microsoft_app_environment',
