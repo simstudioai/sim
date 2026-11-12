@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { and, eq, lte } from 'drizzle-orm'
-import { UserFailure } from '@/lib/core/errors/user-failure'
 import { getTokenServiceAccountDescriptor } from '@/lib/credentials/token-service-accounts/descriptors'
 
 /** The provider's own failure that a saved token's expiry explains. */
@@ -13,11 +12,12 @@ interface ProviderRefusal {
 
 /**
  * A provider refused a saved token that is past the expiry its vendor stated when it was saved.
- * Only replacing the token restores the credential, so it is the user's to fix. It keeps the
- * provider's `status`, `statusText`, and `data`, so callers that branch on the HTTP failure still
- * see it; the boundary that replaces the refusal with it carries the refusal's log attribution over.
+ * Its message tells the user to replace the token, while the failure stays the provider's refusal:
+ * it keeps the provider's `status`, `statusText`, and `data`, so callers that branch on the HTTP
+ * failure still see it, and the boundary that replaces the refusal with it carries the refusal's
+ * log attribution over.
  */
-class SavedTokenExpiredError extends UserFailure {
+class SavedTokenExpiredError extends Error {
   readonly status: number
   readonly statusText?: string
   readonly data?: unknown
@@ -59,7 +59,7 @@ export async function explainExpiredSavedToken(
   const token = descriptor ? `${descriptor.serviceLabel} ${descriptor.tokenNoun}` : 'token'
   const replacement = descriptor?.tokenNoun ?? 'token'
   return new SavedTokenExpiredError(
-    `The saved ${token} expired on ${row.expiresAt.toISOString().slice(0, 10)}. Create a new ${replacement} and reconnect the credential.`,
+    `The saved ${token} expired on ${row.expiresAt.toISOString().slice(0, 10)} UTC. Create a new ${replacement} and reconnect the credential.`,
     refusal
   )
 }

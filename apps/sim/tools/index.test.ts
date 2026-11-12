@@ -486,7 +486,6 @@ vi.mock('@/tools/utils.server', async (importOriginal) => {
 
 import type { QueryClient } from '@tanstack/react-query'
 import { adoptToolFailure, classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
-import { UserFailure } from '@/lib/core/errors/user-failure'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
 import { ApiBlockHandler } from '@/executor/handlers/api/handler'
 import { buildBlockExecutionError } from '@/executor/utils/errors'
@@ -3837,7 +3836,7 @@ describe('Internal Route Trust', () => {
 
     it('reports the expiry instead of the bare refusal', async () => {
       mockExplainExpiredSavedToken.mockImplementation(async (_id, refusal) =>
-        Object.assign(new UserFailure(EXPIRED), refusal)
+        Object.assign(new Error(EXPIRED), refusal)
       )
 
       const result = await callWith('service_account', 401)
@@ -3851,7 +3850,7 @@ describe('Internal Route Trust', () => {
 
     it("logs the explained refusal as the provider's refusal, with its response body", async () => {
       mockExplainExpiredSavedToken.mockImplementation(async (_id, refusal) =>
-        Object.assign(new UserFailure(EXPIRED), refusal)
+        Object.assign(new Error(EXPIRED), refusal)
       )
       mockToolsLogger.warn.mockClear()
 
@@ -3964,7 +3963,7 @@ describe('Internal Route Trust', () => {
     it('reports an expired saved token instead of the bare refusal', async () => {
       mockExplainExpiredSavedToken.mockReset()
       mockExplainExpiredSavedToken.mockImplementation(async (_id, refusal) =>
-        Object.assign(new UserFailure('The saved token expired.'), refusal)
+        Object.assign(new Error('The saved token expired.'), refusal)
       )
 
       const result = await runWith('service_account', 401)

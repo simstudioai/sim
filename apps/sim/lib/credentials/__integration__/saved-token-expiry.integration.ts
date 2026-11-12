@@ -35,9 +35,9 @@ const DAY_MS = 24 * 60 * 60 * 1000
 /** Expiry GitHub reports for each fixture token; a token without one never expires. */
 const tokenExpirations = new Map<string, Date>()
 
-/** GitHub's header form, whole seconds in UTC. */
+/** GitHub's header form, whole seconds with a numeric offset, here UTC's. */
 function githubExpirationHeader(expiresAt: Date): string {
-  return `${expiresAt.toISOString().slice(0, 19).replace('T', ' ')} UTC`
+  return `${expiresAt.toISOString().slice(0, 19).replace('T', ' ')} +0000`
 }
 
 function expiringToken(daysAhead: number): { token: string; expiresAt: Date } {
@@ -239,7 +239,7 @@ describe('saved token expiry', () => {
       const explained = await explainExpiredSavedToken(credentialId, refusal)
 
       expect(explained?.message).toBe(
-        'The saved GitHub personal access token expired on 2026-01-15. Create a new personal access token and reconnect the credential.'
+        'The saved GitHub personal access token expired on 2026-01-15 UTC. Create a new personal access token and reconnect the credential.'
       )
       expect(explained).toMatchObject({
         status: 401,
