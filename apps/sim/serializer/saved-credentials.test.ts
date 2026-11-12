@@ -14,6 +14,10 @@ import { ApolloBlock, ApolloV2Block } from '@/blocks/blocks/apollo'
 import { AppConfigBlock, AppConfigV2Block } from '@/blocks/blocks/appconfig'
 import { AshbyBlock, AshbyV2Block } from '@/blocks/blocks/ashby'
 import { AthenaBlock, AthenaV2Block } from '@/blocks/blocks/athena'
+import {
+  AzureDataExplorerBlock,
+  AzureDataExplorerV2Block,
+} from '@/blocks/blocks/azure_data_explorer'
 import { AzureDevOpsBlock, AzureDevOpsV2Block } from '@/blocks/blocks/azure_devops'
 import { BrexBlock, BrexV2Block } from '@/blocks/blocks/brex'
 import { BrightDataBlock, BrightDataV2Block } from '@/blocks/blocks/brightdata'
@@ -340,6 +344,11 @@ const VERSIONS: Array<{
     successor: PlaneV2Block,
     secretIds: ['apiKey', 'baseUrl'],
     optionalIds: ['baseUrl'],
+  },
+  {
+    legacy: AzureDataExplorerBlock,
+    successor: AzureDataExplorerV2Block,
+    secretIds: ['tenantId', 'clientId', 'clientSecret'],
   },
   {
     legacy: AzureDevOpsBlock,

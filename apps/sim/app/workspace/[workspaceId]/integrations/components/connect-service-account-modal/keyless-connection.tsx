@@ -75,6 +75,13 @@ export function useKeylessSetup<P extends WorkloadIdentityProvider>({
     reconnectAuthType,
     /** A reconnected keyless Google credential's domain-wide delegation; a reconnect keeps it. */
     reconnectDelegation: setup.data?.reconnectDelegation,
+    /** A reconnected Microsoft app credential's national cloud; a reconnect reopens on it. */
+    reconnectCloud: setup.data?.reconnectCloud,
+    /**
+     * Whether the reconnect fields above came back. False while they load, after a failed
+     * lookup, and for an organization credential, whose stored secret this lookup never reads.
+     */
+    reconnectFieldsLoaded: workspaceScoped && setup.isSuccess,
     isReconnect: Boolean(credentialId),
     subjectChoice,
     setSubjectChoice,

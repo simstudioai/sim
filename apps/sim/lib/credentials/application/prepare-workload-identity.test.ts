@@ -235,6 +235,27 @@ describe('preparing a reconnect', () => {
     }
   })
 
+  it('reports a national-cloud Microsoft credential’s cloud, so the dialog reopens on it', async () => {
+    reconnecting(
+      {
+        type: 'microsoft_app_credential_v1',
+        config: { ...appConfig, authType: 'client_secret', clientSecret: 'value', cloud: 'usgov' },
+      },
+      { providerId: 'microsoft-app-service-account' }
+    )
+    await expect(prepare('microsoft')).resolves.toMatchObject({
+      reconnectAuthType: 'client_secret',
+      reconnectCloud: 'usgov',
+    })
+  })
+
+  it('reports no cloud for a global Microsoft credential or another provider', async () => {
+    reconnecting(STORED_MODES[9].secret, { providerId: 'microsoft-app-service-account' })
+    expect(await prepare('microsoft')).not.toHaveProperty('reconnectCloud')
+    reconnecting(keylessSecret)
+    expect(await prepare()).not.toHaveProperty('reconnectCloud')
+  })
+
   it('gives Google no fixed audience', async () => {
     reconnecting(STORED_MODES[11].secret, { providerId: 'google-service-account' })
     expect(await prepare('google')).not.toHaveProperty('audience')

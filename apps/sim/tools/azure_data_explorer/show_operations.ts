@@ -7,6 +7,7 @@ import {
   renderOperationId,
   transformAzureDataExplorerResponse,
 } from '@/tools/azure_data_explorer/utils'
+import { AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const azureDataExplorerShowOperationsTool: InternalToolConfig<
@@ -18,6 +19,7 @@ export const azureDataExplorerShowOperationsTool: InternalToolConfig<
   description:
     'Check the state of administrative operations on a cluster, such as an async ingestion. Given an operation ID it returns that operation latest update; with no ID it returns the operations from the last two weeks.',
   version: '1.0.0',
+  oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {
       type: 'string',

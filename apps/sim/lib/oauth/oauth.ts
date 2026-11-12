@@ -18,6 +18,7 @@ import {
   AshbyIcon,
   AtlassianIcon,
   AttioIcon,
+  AzureDataExplorerIcon,
   AzureIcon,
   BitbucketIcon,
   BoxCompanyIcon,
@@ -645,6 +646,17 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'offline_access',
         ],
       },
+      'azure-data-explorer': {
+        name: 'Azure Data Explorer',
+        description:
+          'Query and manage Azure Data Explorer clusters as a Microsoft Entra app registration.',
+        providerId: 'azure-data-explorer',
+        icon: AzureDataExplorerIcon,
+        baseProviderIcon: MicrosoftIcon,
+        serviceAccountProviderId: 'microsoft-app-service-account',
+        authType: 'service_account',
+        scopes: [],
+      },
       'microsoft-dataverse': {
         name: 'Microsoft Dataverse',
         description: 'Connect to Microsoft Dataverse and manage records.',
@@ -715,6 +727,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-powerbi',
         icon: PowerBIIcon,
         baseProviderIcon: MicrosoftIcon,
+        serviceAccountProviderId: 'microsoft-app-service-account',
         scopes: [
           'https://analysis.windows.net/powerbi/api/Workspace.Read.All',
           'https://analysis.windows.net/powerbi/api/Report.Read.All',

@@ -7,8 +7,15 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
+  MicrosoftAppCredentialError,
+  resolveMicrosoftAppResourceToken,
+} from '@/lib/credentials/microsoft-app-service-account.server'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import {
   type AzureDataExplorerInput,
+  type AzureDataExplorerRequest,
   assertSafeAzureDataExplorerClusterUri,
+  kustoCredentialClouds,
   resolveEntraAuthority,
 } from '@/lib/internal/azure-data-explorer/schema'
 import type { AzureDataExplorerTable } from '@/tools/azure_data_explorer/types'
@@ -41,7 +48,7 @@ export class AzureDataExplorerOperationError extends Error {
   }
 }
 
-function resolveResource(input: AzureDataExplorerInput, clusterUrl: URL): string {
+function resolveResource(input: AzureDataExplorerRequest, clusterUrl: URL): string {
   return (input.resource || clusterUrl.origin).replace(/\/+$/, '')
 }
 
@@ -247,16 +254,110 @@ function extractKustoError(body: unknown, status: number): string {
   return `Azure Data Explorer request failed with HTTP ${status}`
 }
 
+/** Signs a request in with the inline client secret it carries. */
 export async function requestAzureDataExplorer(
   input: AzureDataExplorerInput,
   requestId: string,
   signal?: AbortSignal
 ): Promise<AzureDataExplorerTable> {
+  return sendAzureDataExplorerRequest(
+    input,
+    (clusterUrl) =>
+      fetchAccessToken(
+        input,
+        resolveEntraAuthority(clusterUrl.hostname),
+        resolveResource(input, clusterUrl),
+        requestId,
+        signal
+      ),
+    requestId,
+    signal
+  )
+}
+
+/** What a tool caller is told when the Microsoft app credential cannot be used, by refusal code. */
+function appCredentialRefusal(error: TokenServiceAccountValidationError) {
+  switch (error.code) {
+    case 'provider_unavailable':
+      return new AzureDataExplorerOperationError(
+        'Microsoft Entra is temporarily unavailable; try again in a moment',
+        503
+      )
+    case 'cloud_mismatch':
+      return new AzureDataExplorerOperationError(
+        'The Microsoft app credential signs in to a different Microsoft cloud than this cluster; choose a credential registered in the cluster’s cloud',
+        400
+      )
+    default:
+      return new AzureDataExplorerOperationError(
+        'Microsoft Entra rejected the Microsoft app credential; check the app registration and reconnect the credential',
+        403
+      )
+  }
+}
+
+/**
+ * Runs a request as an executor-authorized Microsoft app credential that belongs to `scope`, the
+ * run's own workspace or organization. The token audience is the allowlisted host of the
+ * `resource` override or of the cluster, as `https://<host>` (Kusto's documented resource ID, the
+ * cluster URI without port or path), and both that host and the cluster must be in the
+ * credential's cloud.
+ * @see https://learn.microsoft.com/en-us/kusto/api/rest/authenticate-with-msal
+ */
+export async function requestAzureDataExplorerAsApp(
+  input: AzureDataExplorerRequest,
+  credential: { credentialId: string; scope: { workspaceId?: string; organizationId?: string } },
+  requestId: string,
+  signal?: AbortSignal
+): Promise<AzureDataExplorerTable> {
+  return sendAzureDataExplorerRequest(
+    input,
+    async (clusterUrl) => {
+      const audienceHost = input.resource
+        ? assertSafeAzureDataExplorerClusterUri(input.resource, 'resource').hostname
+        : clusterUrl.hostname
+      const clusterClouds = kustoCredentialClouds(clusterUrl.hostname)
+      try {
+        return await resolveMicrosoftAppResourceToken(
+          credential.credentialId,
+          credential.scope,
+          {
+            resource: `https://${audienceHost.toLowerCase()}`,
+            clouds: kustoCredentialClouds(audienceHost).filter((cloud) =>
+              clusterClouds.includes(cloud)
+            ),
+            serviceLabel: 'Azure Data Explorer',
+          },
+          signal
+        )
+      } catch (error) {
+        if (error instanceof MicrosoftAppCredentialError) {
+          throw new AzureDataExplorerOperationError(error.message, 403)
+        }
+        if (!(error instanceof TokenServiceAccountValidationError)) throw error
+        logger.warn('Microsoft app credential refused for Azure Data Explorer', {
+          requestId,
+          code: error.code,
+          ...error.logDetail,
+        })
+        throw appCredentialRefusal(error)
+      }
+    },
+    requestId,
+    signal
+  )
+}
+
+async function sendAzureDataExplorerRequest(
+  input: AzureDataExplorerRequest,
+  getAccessToken: (clusterUrl: URL) => Promise<string>,
+  requestId: string,
+  signal?: AbortSignal
+): Promise<AzureDataExplorerTable> {
   signal?.throwIfAborted()
   const clusterUrl = assertSafeAzureDataExplorerClusterUri(input.clusterUri)
-  const resource = resolveResource(input, clusterUrl)
-  const authority = resolveEntraAuthority(clusterUrl.hostname)
-  const accessToken = await fetchAccessToken(input, authority, resource, requestId, signal)
+  const accessToken = await getAccessToken(clusterUrl)
+  signal?.throwIfAborted()
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,

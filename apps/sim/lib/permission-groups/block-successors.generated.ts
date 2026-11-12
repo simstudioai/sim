@@ -19,6 +19,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   appconfig: 'appconfig_v2',
   ashby: 'ashby_v2',
   athena: 'athena_v2',
+  azure_data_explorer: 'azure_data_explorer_v2',
   azure_devops: 'azure_devops_v2',
   box: 'box_v2',
   brex: 'brex_v2',
