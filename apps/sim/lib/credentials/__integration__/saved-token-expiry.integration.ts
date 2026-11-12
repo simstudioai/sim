@@ -6,7 +6,7 @@
  */
 
 import { db } from '@sim/db'
-import { credential, permissions, user, workspace } from '@sim/db/schema'
+import { credential, member, organization, permissions, user, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
@@ -16,7 +16,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-import { toWorkspaceCredential } from '@/lib/credentials/application/presentation'
+import {
+  toOrganizationCredential,
+  toWorkspaceCredential,
+} from '@/lib/credentials/application/presentation'
 import { updateCredentialRecord } from '@/lib/credentials/orchestration'
 import { createCredentialRecord } from '@/lib/credentials/orchestration/credential-create'
 import { listVisibleWorkspaceCredentials } from '@/lib/credentials/queries'
@@ -25,6 +28,7 @@ import { GITHUB_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/token-serv
 
 const userId = generateId()
 const workspaceId = generateId()
+const organizationId = generateId()
 const originalFetch = globalThis.fetch
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -98,6 +102,20 @@ describe('saved token expiry', () => {
       ownerId: userId,
       billedAccountUserId: userId,
     })
+    await db.insert(organization).values({
+      id: organizationId,
+      name: 'Token expiry fixture',
+      slug: organizationId,
+      createdAt: now,
+      updatedAt: now,
+    })
+    await db.insert(member).values({
+      id: generateId(),
+      userId,
+      organizationId,
+      role: 'owner',
+      createdAt: now,
+    })
     await db.insert(permissions).values({
       id: generateId(),
       userId,
@@ -129,6 +147,8 @@ describe('saved token expiry', () => {
   afterAll(async () => {
     vi.unstubAllGlobals()
     await db.delete(credential).where(eq(credential.workspaceId, workspaceId))
+    await db.delete(credential).where(eq(credential.organizationId, organizationId))
+    await db.delete(organization).where(eq(organization.id, organizationId))
     await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
@@ -150,6 +170,29 @@ describe('saved token expiry', () => {
     const credentialId = created.credential?.id ?? ''
     expect(await storedExpiry(credentialId)).toBeNull()
     expect(await listedExpiry(credentialId)).toBeUndefined()
+  })
+
+  it('reports the expiry of an organization-owned token', async () => {
+    const { token, expiresAt } = expiringToken(30)
+
+    const created = await createCredentialRecord(
+      {
+        organizationId,
+        type: 'service_account',
+        userId,
+        providerId: GITHUB_SERVICE_ACCOUNT_PROVIDER_ID,
+        displayName: 'Organization token',
+        apiToken: token,
+      },
+      { authorizeWorkspace: false }
+    )
+
+    expect(created.success).toBe(true)
+    const [row] = await db
+      .select()
+      .from(credential)
+      .where(eq(credential.id, created.credential?.id ?? ''))
+    expect(toOrganizationCredential(row).expiresAt).toBe(expiresAt.toISOString())
   })
 
   it('replaces the expiry when the token is replaced with another expiring token', async () => {

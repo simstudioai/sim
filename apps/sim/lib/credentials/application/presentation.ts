@@ -88,6 +88,7 @@ export function toOrganizationCredential(row: CredentialRow): OrganizationCreden
   ) {
     throw new Error('Organization credential presentation requires an organization connection')
   }
+  const expiresAt = savedTokenExpiresAt(row)
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -100,6 +101,7 @@ export function toOrganizationCredential(row: CredentialRow): OrganizationCreden
     accountId: row.accountId,
     envKey: null,
     envOwnerUserId: null,
+    ...(expiresAt ? { expiresAt: expiresAt.toISOString() } : {}),
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
