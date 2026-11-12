@@ -88,6 +88,18 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
   }
   const byId = new Map(nodes.map((node) => [node.elementId, node]))
   const rows = new Map(nodes.map((node) => [node.elementId, nodeRow(node)]))
+  /** An open sheet or popover blocks the rest of its window, so its rows outrank everything behind it. */
+  const modalIds = new Set<string>()
+  for (const node of nodes) {
+    let current: ComputerUseSnapshot['nodes'][number] | undefined = node
+    for (let depth = 0; current && depth < 64; depth++) {
+      if (current.role === 'AXSheet' || current.role === 'AXPopover') {
+        modalIds.add(node.elementId)
+        break
+      }
+      current = current.parentId ? byId.get(current.parentId) : undefined
+    }
+  }
   const priority = (node: ComputerUseSnapshot['nodes'][number]) => {
     const visible =
       selectedWindow &&
@@ -120,7 +132,9 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
               ? 60
               : node.label || node.value
                 ? 20
-                : 0) + (visible ? 15 : 0)
+                : 0) +
+      (visible ? 15 : 0) +
+      (modalIds.has(node.elementId) ? 40 : 0)
     )
   }
   const selected = new Set<string>()

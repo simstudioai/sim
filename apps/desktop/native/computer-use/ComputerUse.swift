@@ -219,6 +219,8 @@ struct AXTraversalEntry<Element> {
     let depth: Int
     let menu: Bool
     let priority: Bool
+    /// Inside an open sheet or popover, which blocks the rest of its window, so it is read first.
+    var modal = false
 }
 struct AXTraversalQueue<Element> {
     private var priority: [AXTraversalEntry<Element>] = []
@@ -365,7 +367,8 @@ final class Snapshot {
                 // An open menu's items and their submenus come first; a closed menu (no height) keeps its items last.
                 let openMenu = role == kAXMenuRole ? (elementRect(element)?.height ?? 0) > 0 : isMenu && entry.priority
                 let deferChildren = !openMenu && (entry.menu || role == kAXMenuRole)
-                for child in children { queue.append(AXTraversalEntry(element: child, parent: element, depth: entry.depth + 1, menu: deferChildren, priority: openMenu)) }
+                let modal = entry.modal || role == kAXSheetRole || role == "AXPopover"
+                for child in children { queue.append(AXTraversalEntry(element: child, parent: element, depth: entry.depth + 1, menu: deferChildren, priority: openMenu || modal, modal: modal)) }
             } else if entry.depth >= 64 { truncated = true }
         }
         if queue.hasPending || queue.truncated { truncated = true }

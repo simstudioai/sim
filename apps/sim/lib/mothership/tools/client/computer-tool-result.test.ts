@@ -198,6 +198,39 @@ describe('native computer model projection', () => {
     expect(result).toMatchObject({ dispatched: true, sequence: { completedSteps: 1 } })
   })
 
+  it("keeps an open sheet's controls when the window behind it exceeds the budget", () => {
+    const state = snapshot()
+    const behind = Array.from({ length: 400 }, (_, index) => ({
+      elementId: `row-${index}`,
+      parentId: 'window',
+      role: 'AXButton',
+      label: `Row action ${index} `.repeat(4),
+      actions: ['AXPress'],
+      x: 40,
+      y: 60,
+      width: 100,
+      height: 20,
+      windowId: '1',
+    }))
+    state.nodes = [
+      { elementId: 'window', role: 'AXWindow', actions: [], windowId: '1' },
+      ...behind,
+      { elementId: 'sheet', parentId: 'window', role: 'AXSheet', actions: [], windowId: '1' },
+      {
+        elementId: 'save',
+        parentId: 'sheet',
+        role: 'AXButton',
+        label: 'Save',
+        actions: ['AXPress'],
+      },
+    ]
+    const result = computerToolResultForModel(state)
+    if (!('accessibilityTree' in result)) throw new Error('Missing projected tree')
+    const ids = new Set(result.accessibilityTree.split('\n').map((row) => row.split(' ')[0]))
+    expect(ids.size).toBeLessThan(state.nodes.length)
+    expect(ids.has('save')).toBe(true)
+  })
+
   it('does not split an emoji when bounding text for the model', () => {
     const state = snapshot()
     state.nodes[0] = {
