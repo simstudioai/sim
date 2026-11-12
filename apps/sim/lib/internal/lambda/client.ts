@@ -211,6 +211,7 @@ export function mapFunctionConfiguration(fc: FunctionConfiguration) {
       ? {
           retentionPeriodInDays: fc.DurableConfig.RetentionPeriodInDays ?? null,
           executionTimeout: fc.DurableConfig.ExecutionTimeout ?? null,
+          kmsKeyArn: fc.DurableConfig.KMSKeyArn ?? null,
         }
       : null,
     tenancyConfig: fc.TenancyConfig

@@ -276,6 +276,48 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
     {
+      id: 'changeSetTags',
+      title: 'Tags (JSON)',
+      type: 'code',
+      placeholder: '[\n  {"key": "env", "value": "prod"}\n]',
+      condition: { field: 'operation', value: 'create_change_set' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a CloudFormation stack tags JSON array based on the user's description.
+Each item must be an object with "key" and "value" string fields.
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the tags to apply...',
+      },
+    },
+    {
+      id: 'roleArn',
+      title: 'Service Role ARN',
+      type: 'short-input',
+      placeholder: 'arn:aws:iam::123456789012:role/cfn-deploy (optional)',
+      condition: {
+        field: 'operation',
+        value: ['create_stack', 'update_stack', 'create_change_set'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'enableTerminationProtection',
+      title: 'Termination Protection',
+      type: 'switch',
+      condition: { field: 'operation', value: 'create_stack' },
+      mode: 'advanced',
+    },
+    {
+      id: 'changeSetNextToken',
+      title: 'Next Token',
+      type: 'short-input',
+      placeholder: 'nextToken from a previous Describe Change Set call',
+      condition: { field: 'operation', value: 'describe_change_set' },
+      mode: 'advanced',
+    },
+    {
       id: 'onFailure',
       title: 'On Failure',
       type: 'dropdown',
@@ -437,6 +479,11 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
               ...(parsedTimeoutInMinutes !== undefined && {
                 timeoutInMinutes: parsedTimeoutInMinutes,
               }),
+              ...(rest.roleArn && { roleArn: rest.roleArn }),
+              ...((rest.enableTerminationProtection === true ||
+                rest.enableTerminationProtection === 'true') && {
+                enableTerminationProtection: true,
+              }),
             }
           }
 
@@ -457,6 +504,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
               ...(parameters && { parameters: parseJson(parameters, 'parameters') }),
               ...(rest.capabilities && { capabilities: rest.capabilities }),
               ...(tags && { tags: parseJson(tags, 'tags') }),
+              ...(rest.roleArn && { roleArn: rest.roleArn }),
             }
           }
 
@@ -501,6 +549,8 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
               ...(rest.capabilities && { capabilities: rest.capabilities }),
               ...(rest.changeSetType && { changeSetType: rest.changeSetType }),
               ...(rest.changeSetDescription && { description: rest.changeSetDescription }),
+              tags: rest.changeSetTags ? parseJson(rest.changeSetTags, 'tags') : undefined,
+              ...(rest.roleArn && { roleArn: rest.roleArn }),
             }
           }
 
@@ -512,6 +562,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
               awsSecretAccessKey,
               changeSetName: rest.changeSetName,
               ...(rest.stackName && { stackName: rest.stackName }),
+              ...(rest.changeSetNextToken && { nextToken: rest.changeSetNextToken }),
             }
           }
 
@@ -637,6 +688,16 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     parameters: { type: 'json', description: 'Stack input parameters' },
     capabilities: { type: 'string', description: 'Comma-separated capabilities to acknowledge' },
     tags: { type: 'json', description: 'Tags to apply to the stack' },
+    changeSetTags: { type: 'json', description: 'Tags to apply through a change set' },
+    roleArn: { type: 'string', description: 'IAM service role ARN CloudFormation assumes' },
+    enableTerminationProtection: {
+      type: 'boolean',
+      description: 'Enable termination protection on a new stack',
+    },
+    changeSetNextToken: {
+      type: 'string',
+      description: 'Pagination token for Describe Change Set changes',
+    },
     onFailure: { type: 'string', description: 'Action to take on stack creation failure' },
     timeoutInMinutes: { type: 'number', description: 'Stack creation timeout in minutes' },
     retainResources: {
@@ -652,7 +713,8 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
   outputs: {
     stacks: {
       type: 'array',
-      description: 'List of CloudFormation stacks with status, outputs, and tags',
+      description:
+        'CloudFormation stacks [{stackName, stackId, stackStatus, stackStatusReason, detailedStatus, creationTime, lastUpdatedTime, deletionTime, description, outputs [{outputKey, outputValue, description, exportName}], parameters [{parameterKey, parameterValue, resolvedValue}], tags, capabilities, driftInformation, roleArn, parentId, rootId, changeSetId, notificationArns, timeoutInMinutes, disableRollback, enableTerminationProtection}]',
     },
     resources: {
       type: 'array',
@@ -660,7 +722,8 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     },
     events: {
       type: 'array',
-      description: 'Stack events with resource status and timestamps',
+      description:
+        'Stack events [{eventId, logicalResourceId, physicalResourceId, resourceType, resourceStatus, resourceStatusReason, detailedStatus, resourceProperties, clientRequestToken, operationId, hook fields, timestamp}]',
     },
     stackDriftDetectionId: {
       type: 'string',
@@ -704,7 +767,8 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     },
     parameters: {
       type: 'array',
-      description: 'Template parameters',
+      description:
+        'Template parameters (validate/template summary) or change set parameters (parameterKey, parameterValue, resolvedValue)',
     },
     capabilities: {
       type: 'array',
@@ -756,7 +820,40 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     },
     changes: {
       type: 'array',
-      description: 'List of resource changes a change set would make',
+      description:
+        'Resource changes a change set would make [{action, logicalResourceId, physicalResourceId, resourceType, replacement, scope, details}]',
+    },
+    tags: {
+      type: 'array',
+      description: 'Tags associated with the change set',
+    },
+    notificationArns: {
+      type: 'array',
+      description: 'SNS topic ARNs for change set stack events',
+    },
+    includeNestedStacks: {
+      type: 'boolean',
+      description: 'Whether change sets were created for nested stacks',
+    },
+    parentChangeSetId: {
+      type: 'string',
+      description: 'Parent change set ID, for nested change sets',
+    },
+    rootChangeSetId: {
+      type: 'string',
+      description: 'Top-level change set ID, for nested change sets',
+    },
+    onStackFailure: {
+      type: 'string',
+      description: 'Behavior when change set stack operations fail',
+    },
+    importExistingResources: {
+      type: 'boolean',
+      description: 'Whether the change set imports existing resources',
+    },
+    nextToken: {
+      type: 'string',
+      description: 'Pagination token for the next page of change set changes',
     },
   },
 }

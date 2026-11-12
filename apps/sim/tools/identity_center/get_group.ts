@@ -69,6 +69,7 @@ export const getGroupTool: InternalToolConfig<
         groupId: data.groupId ?? '',
         displayName: data.displayName ?? null,
         description: data.description ?? null,
+        externalIds: data.externalIds ?? [],
       },
     }
   },
@@ -77,5 +78,16 @@ export const getGroupTool: InternalToolConfig<
     groupId: { type: 'string', description: 'Identity Store group ID (use as principalId)' },
     displayName: { type: 'string', description: 'Display name of the group', optional: true },
     description: { type: 'string', description: 'Group description', optional: true },
+    externalIds: {
+      type: 'array',
+      description: 'External identity provider IDs linked to the group',
+      items: {
+        type: 'object',
+        properties: {
+          issuer: { type: 'string', description: 'Identity provider that issued the ID' },
+          id: { type: 'string', description: 'Identifier at the issuer' },
+        },
+      },
+    },
   },
 }

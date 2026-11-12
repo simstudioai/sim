@@ -63,7 +63,12 @@ List EC2 instances with their state, type, networking, and tags
 |   ↳ `instanceId` | string | Instance ID |
 |   ↳ `instanceType` | string | Instance type \(e.g., t3.micro\) |
 |   ↳ `state` | string | Instance state \(pending, running, stopping, stopped, shutting-down, terminated\) |
+|   ↳ `stateCode` | number | Numeric state code \(0 pending, 16 running, 32 shutting-down, 48 terminated, 64 stopping, 80 stopped\) |
 |   ↳ `stateReason` | string | Reason for the most recent state transition |
+|   ↳ `stateReasonCode` | string | Code for the most recent state change \(e.g., Client.UserInitiatedShutdown\) |
+|   ↳ `stateTransitionReason` | string | Reason for the most recent state transition, including when it happened |
+|   ↳ `reservationId` | string | Reservation ID the instance was launched in |
+|   ↳ `ownerId` | string | AWS account ID that owns the reservation |
 |   ↳ `launchTime` | string | Launch time \(ISO 8601\) |
 |   ↳ `availabilityZone` | string | Availability Zone |
 |   ↳ `vpcId` | string | VPC ID |
@@ -75,11 +80,36 @@ List EC2 instances with their state, type, networking, and tags
 |   ↳ `imageId` | string | AMI ID used to launch the instance |
 |   ↳ `keyName` | string | Key pair name |
 |   ↳ `platformDetails` | string | Platform details \(e.g., Linux/UNIX, Windows\) |
+|   ↳ `platform` | string | Set to Windows for Windows instances; null for Linux/UNIX |
 |   ↳ `architecture` | string | CPU architecture |
 |   ↳ `iamInstanceProfileArn` | string | ARN of the attached IAM instance profile |
+|   ↳ `ipv6Address` | string | Primary IPv6 address |
+|   ↳ `tenancy` | string | Placement tenancy \(default, dedicated, host\) |
+|   ↳ `instanceLifecycle` | string | Lifecycle type \(e.g., spot, scheduled, capacity-block\); null for On-Demand |
+|   ↳ `spotInstanceRequestId` | string | Spot Instance request ID |
+|   ↳ `monitoringState` | string | Detailed monitoring state \(disabled, disabling, enabled, pending\) |
+|   ↳ `ebsOptimized` | boolean | Whether the instance is EBS-optimized |
+|   ↳ `rootDeviceName` | string | Root device name \(e.g., /dev/xvda\) |
+|   ↳ `rootDeviceType` | string | Root device type \(ebs or instance-store\) |
+|   ↳ `metadataHttpTokens` | string | IMDS token requirement; required means IMDSv2 only, optional allows IMDSv1 |
 |   ↳ `securityGroups` | array | Attached security groups |
 |     ↳ `groupId` | string | Security group ID |
 |     ↳ `groupName` | string | Security group name |
+|   ↳ `blockDeviceMappings` | array | Attached EBS volumes |
+|     ↳ `deviceName` | string | Device name \(e.g., /dev/sdh\) |
+|     ↳ `volumeId` | string | EBS volume ID |
+|     ↳ `status` | string | Attachment state \(attaching, attached, detaching, detached\) |
+|     ↳ `attachTime` | string | Attach time \(ISO 8601\) |
+|     ↳ `deleteOnTermination` | boolean | Whether the volume is deleted when the instance terminates |
+|   ↳ `networkInterfaces` | array | Attached network interfaces |
+|     ↳ `networkInterfaceId` | string | Network interface ID |
+|     ↳ `subnetId` | string | Subnet ID |
+|     ↳ `vpcId` | string | VPC ID |
+|     ↳ `privateIpAddress` | string | Primary private IPv4 address |
+|     ↳ `publicIp` | string | Associated public IPv4 address |
+|     ↳ `macAddress` | string | MAC address |
+|     ↳ `status` | string | Interface status \(available, associated, attaching, in-use, detaching\) |
+|     ↳ `deviceIndex` | number | Device index on the instance \(0 is the primary interface\) |
 
 </ReferenceDetails>
 

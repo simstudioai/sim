@@ -48,7 +48,7 @@ export const sendBulkEmailTool: InternalToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON array of destination objects with toAddresses (string[]) and optional templateData (JSON string); falls back to defaultTemplateData when omitted',
+        'JSON array of destination objects with toAddresses (string[]), optional ccAddresses and bccAddresses (string[]), and optional templateData (JSON string); templateData falls back to defaultTemplateData when omitted',
     },
     defaultTemplateData: {
       type: 'string',
@@ -56,11 +56,30 @@ export const sendBulkEmailTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Default JSON template data used when a destination does not specify its own',
     },
+    replyToAddresses: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated list of reply-to email addresses',
+    },
     configurationSetName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'SES configuration set name for tracking',
+    },
+    fromName: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Friendly sender name shown with the From address (e.g., Acme Support)',
+    },
+    emailTags: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Default message tags applied to every destination for filtering sending events, as a JSON array of {"name", "value"} objects (letters, digits, _ and - only, up to 256 characters)',
     },
   },
 
@@ -74,6 +93,9 @@ export const sendBulkEmailTool: InternalToolConfig<
       destinations: params.destinations,
       defaultTemplateData: params.defaultTemplateData,
       configurationSetName: params.configurationSetName,
+      replyToAddresses: params.replyToAddresses,
+      fromName: params.fromName,
+      emailTags: Array.isArray(params.emailTags) ? params.emailTags : undefined,
     }),
   },
 

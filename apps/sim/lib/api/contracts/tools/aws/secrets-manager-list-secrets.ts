@@ -12,6 +12,26 @@ const ListSecretsSchema = z.object({
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   maxResults: z.number().min(1).max(100).nullish(),
   nextToken: z.string().nullish(),
+  filters: z
+    .array(
+      z.object({
+        key: z.enum([
+          'description',
+          'name',
+          'tag-key',
+          'tag-value',
+          'primary-region',
+          'owning-service',
+          'all',
+        ]),
+        values: z.array(z.string().min(1)).min(1).max(10),
+      })
+    )
+    .max(10)
+    .nullish(),
+  sortOrder: z.enum(['asc', 'desc']).nullish(),
+  sortBy: z.enum(['created-date', 'last-accessed-date', 'last-changed-date', 'name']).nullish(),
+  includePlannedDeletion: z.boolean().nullish(),
 })
 
 const RotationRulesResponseSchema = z.object({
@@ -26,6 +46,10 @@ const ListSecretsResponseSchema = z.object({
       name: z.string(),
       arn: z.string(),
       description: z.string().nullable(),
+      kmsKeyId: z.string().nullable(),
+      rotationLambdaARN: z.string().nullable(),
+      owningService: z.string().nullable(),
+      primaryRegion: z.string().nullable(),
       createdDate: z.string().nullable(),
       lastChangedDate: z.string().nullable(),
       lastAccessedDate: z.string().nullable(),

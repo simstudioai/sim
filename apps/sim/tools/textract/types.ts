@@ -85,7 +85,18 @@ interface TextractDocumentMetadata {
   pages: number
 }
 
-interface TextractNormalizedOutput {
+interface TextractAsyncJobWarning {
+  errorCode: string | null
+  pages: number[]
+}
+
+interface TextractAsyncJobOutput {
+  jobStatus?: string | null
+  statusMessage?: string | null
+  warnings?: TextractAsyncJobWarning[]
+}
+
+interface TextractNormalizedOutput extends TextractAsyncJobOutput {
   blocks: TextractBlock[]
   documentMetadata: TextractDocumentMetadata
   modelVersion?: string
@@ -140,7 +151,7 @@ interface TextractExpenseDocument {
 }
 
 export interface TextractAnalyzeExpenseOutput extends ToolResponse {
-  output: {
+  output: TextractAsyncJobOutput & {
     expenseDocuments: TextractExpenseDocument[]
     documentMetadata: TextractDocumentMetadata
     modelVersion?: string

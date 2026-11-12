@@ -342,6 +342,48 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
       mode: 'advanced',
     },
     {
+      id: 'encryptionOption',
+      title: 'Result Encryption',
+      type: 'dropdown',
+      options: [
+        { label: 'Workgroup default', id: '' },
+        { label: 'SSE-S3', id: 'SSE_S3' },
+        { label: 'SSE-KMS', id: 'SSE_KMS' },
+        { label: 'CSE-KMS', id: 'CSE_KMS' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'start_query' },
+      mode: 'advanced',
+    },
+    {
+      id: 'kmsKey',
+      title: 'KMS Key',
+      type: 'short-input',
+      placeholder: 'arn:aws:kms:us-east-1:123456789012:key/...',
+      condition: {
+        field: 'operation',
+        value: 'start_query',
+        and: { field: 'encryptionOption', value: ['SSE_KMS', 'CSE_KMS'] },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'expectedBucketOwner',
+      title: 'Expected Bucket Owner',
+      type: 'short-input',
+      placeholder: '123456789012',
+      condition: { field: 'operation', value: 'start_query' },
+      mode: 'advanced',
+    },
+    {
+      id: 'clientRequestToken',
+      title: 'Client Request Token',
+      type: 'short-input',
+      placeholder: 'Unique 32-128 character idempotency token',
+      condition: { field: 'operation', value: 'start_query' },
+      mode: 'advanced',
+    },
+    {
       id: 'queryExecutionId',
       title: 'Query Execution ID',
       type: 'short-input',
@@ -670,6 +712,12 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
               ...(resultReuseEnabled !== undefined && { resultReuseEnabled }),
               ...(resultReuseEnabled &&
                 resultReuseMaxAgeInMinutes !== undefined && { resultReuseMaxAgeInMinutes }),
+              ...(rest.encryptionOption && { encryptionOption: rest.encryptionOption }),
+              ...(rest.encryptionOption &&
+                rest.encryptionOption !== 'SSE_S3' &&
+                rest.kmsKey && { kmsKey: rest.kmsKey }),
+              ...(rest.expectedBucketOwner && { expectedBucketOwner: rest.expectedBucketOwner }),
+              ...(rest.clientRequestToken && { clientRequestToken: rest.clientRequestToken }),
             }
 
           case 'get_query_execution':
@@ -1014,6 +1062,19 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
       description: 'Comma-separated prepared statement names (up to 256)',
     },
     tableName: { type: 'string', description: 'Table name to get metadata for' },
+    encryptionOption: {
+      type: 'string',
+      description: 'Query result encryption (SSE_S3, SSE_KMS, CSE_KMS)',
+    },
+    kmsKey: { type: 'string', description: 'KMS key for SSE_KMS or CSE_KMS result encryption' },
+    expectedBucketOwner: {
+      type: 'string',
+      description: 'Account ID expected to own the output location bucket',
+    },
+    clientRequestToken: {
+      type: 'string',
+      description: 'Idempotency token for starting a query (32-128 characters)',
+    },
   },
   outputs: {
     queryExecutionId: {
@@ -1081,9 +1142,38 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
       type: 'string',
       description: 'S3 location of query results',
     },
+    servicePreProcessingTimeInMillis: {
+      type: 'number',
+      description: 'Time Athena spent preprocessing the query, in ms',
+    },
+    serviceProcessingTimeInMillis: {
+      type: 'number',
+      description: 'Time Athena spent publishing results after execution, in ms',
+    },
+    dataManifestLocation: {
+      type: 'string',
+      description: 'S3 location of the manifest of files written by the query',
+    },
+    reusedPreviousResult: {
+      type: 'boolean',
+      description: 'Whether the query reused a previous result',
+    },
+    athenaError: {
+      type: 'json',
+      description:
+        'Failure details for a FAILED query (errorCategory, errorType, retryable, errorMessage)',
+    },
+    executionParameters: {
+      type: 'array',
+      description: 'Values supplied for the query placeholders',
+    },
+    substatementType: {
+      type: 'string',
+      description: 'Kind of statement that was run (e.g., SELECT, INSERT)',
+    },
     columns: {
       type: 'array',
-      description: 'Column metadata (name and type)',
+      description: 'Column metadata (name, type, label, precision, scale, nullable, caseSensitive)',
     },
     rows: {
       type: 'array',
@@ -1212,7 +1302,7 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
     },
     engineVersion: {
       type: 'json',
-      description: 'Workgroup engine version (selected and effective)',
+      description: 'Engine version of the workgroup or query execution (selected and effective)',
     },
     identityCenterApplicationArn: {
       type: 'string',

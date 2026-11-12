@@ -52,6 +52,8 @@ export const getAccountTool: InternalToolConfig<SESGetAccountParams, SESGetAccou
         max24HourSend: data.max24HourSend ?? 0,
         maxSendRate: data.maxSendRate ?? 0,
         sentLast24Hours: data.sentLast24Hours ?? 0,
+        productionAccessEnabled: data.productionAccessEnabled ?? null,
+        enforcementStatus: data.enforcementStatus ?? null,
       },
     }
   },
@@ -64,5 +66,15 @@ export const getAccountTool: InternalToolConfig<SESGetAccountParams, SESGetAccou
     max24HourSend: { type: 'number', description: 'Maximum emails allowed per 24-hour period' },
     maxSendRate: { type: 'number', description: 'Maximum emails allowed per second' },
     sentLast24Hours: { type: 'number', description: 'Number of emails sent in the last 24 hours' },
+    productionAccessEnabled: {
+      type: 'boolean',
+      description: 'Whether the account has production access (false while in the SES sandbox)',
+      optional: true,
+    },
+    enforcementStatus: {
+      type: 'string',
+      description: 'Account sending status: HEALTHY, PROBATION, or SHUTDOWN',
+      optional: true,
+    },
   },
 }

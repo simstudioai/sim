@@ -223,6 +223,15 @@ export const STSBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'sourceIdentity',
+      title: 'Source Identity',
+      type: 'short-input',
+      placeholder: 'alice@example.com',
+      condition: { field: 'operation', value: 'assume_role' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
       id: 'externalId',
       title: 'External ID',
       type: 'short-input',
@@ -308,6 +317,7 @@ export const STSBlock: BlockConfig = {
             if (rest.tokenCode) result.tokenCode = rest.tokenCode
             if (rest.policyArns) result.policyArns = rest.policyArns
             if (rest.transitiveTagKeys) result.transitiveTagKeys = rest.transitiveTagKeys
+            result.sourceIdentity = rest.sourceIdentity || undefined
             if (rest.tags) {
               const rows = rest.tags
               if (typeof rows === 'string') {
@@ -394,6 +404,10 @@ export const STSBlock: BlockConfig = {
       description: 'Comma-separated tag keys that propagate through role chaining',
     },
     externalId: { type: 'string', description: 'External ID for cross-account access' },
+    sourceIdentity: {
+      type: 'string',
+      description: 'Source identity to set on the assumed role session',
+    },
     serialNumber: { type: 'string', description: 'MFA device serial number' },
     tokenCode: { type: 'string', description: 'MFA token code' },
     targetAccessKeyId: { type: 'string', description: 'Access key ID to look up' },

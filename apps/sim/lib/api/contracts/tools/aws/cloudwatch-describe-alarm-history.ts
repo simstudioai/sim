@@ -51,6 +51,8 @@ const DescribeAlarmHistoryResponseSchema = z.object({
         timestamp: z.number().optional(),
         historyItemType: z.string().optional(),
         historySummary: z.string().optional(),
+        historyData: z.string().optional(),
+        alarmContributorId: z.string().optional(),
       })
     ),
   }),

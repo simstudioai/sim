@@ -73,7 +73,8 @@ export const introspectTool: InternalToolConfig<
     tables: { type: 'array', description: 'List of table names in the region' },
     tableDetails: {
       type: 'json',
-      description: 'Detailed schema information for a specific table',
+      description:
+        'Detailed schema for a specific table (tableName, tableStatus, keySchema, attributeDefinitions, globalSecondaryIndexes, localSecondaryIndexes, itemCount, tableSizeBytes, billingMode, tableArn, creationDateTime, deletionProtectionEnabled, streamEnabled, streamViewType, latestStreamArn)',
       optional: true,
     },
   },

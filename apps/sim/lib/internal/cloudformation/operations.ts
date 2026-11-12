@@ -76,6 +76,8 @@ export async function executeCloudformationCreateChangeSet(
         Capabilities: parseCapabilities(input.capabilities),
         ChangeSetType: input.changeSetType,
         Description: input.description,
+        Tags: toStackTags(input.tags),
+        RoleARN: input.roleArn,
       }),
       { abortSignal: signal }
     )
@@ -106,6 +108,8 @@ export async function executeCloudformationCreateStack(
         Tags: toStackTags(input.tags),
         OnFailure: input.onFailure,
         TimeoutInMinutes: input.timeoutInMinutes,
+        RoleARN: input.roleArn,
+        EnableTerminationProtection: input.enableTerminationProtection,
       }),
       { abortSignal: signal }
     )
@@ -153,6 +157,7 @@ export async function executeCloudformationDescribeChangeSet(
       new DescribeChangeSetCommand({
         ChangeSetName: input.changeSetName,
         ...(input.stackName ? { StackName: input.stackName } : {}),
+        ...(input.nextToken ? { NextToken: input.nextToken } : {}),
       }),
       { abortSignal: signal }
     )
@@ -162,6 +167,18 @@ export async function executeCloudformationDescribeChangeSet(
       physicalResourceId: change.ResourceChange?.PhysicalResourceId,
       resourceType: change.ResourceChange?.ResourceType,
       replacement: change.ResourceChange?.Replacement,
+      type: change.Type,
+      policyAction: change.ResourceChange?.PolicyAction,
+      scope: change.ResourceChange?.Scope ?? [],
+      changeSetId: change.ResourceChange?.ChangeSetId,
+      details: (change.ResourceChange?.Details ?? []).map((detail) => ({
+        attribute: detail.Target?.Attribute,
+        name: detail.Target?.Name,
+        requiresRecreation: detail.Target?.RequiresRecreation,
+        evaluation: detail.Evaluation,
+        changeSource: detail.ChangeSource,
+        causingEntity: detail.CausingEntity,
+      })),
     }))
     return {
       success: true,
@@ -177,6 +194,20 @@ export async function executeCloudformationDescribeChangeSet(
         creationTime: response.CreationTime?.getTime(),
         capabilities: response.Capabilities ?? [],
         changes,
+        parameters: (response.Parameters ?? []).map((parameter) => ({
+          parameterKey: parameter.ParameterKey ?? '',
+          parameterValue: parameter.ParameterValue,
+          usePreviousValue: parameter.UsePreviousValue,
+          resolvedValue: parameter.ResolvedValue,
+        })),
+        tags: (response.Tags ?? []).map((tag) => ({ key: tag.Key ?? '', value: tag.Value ?? '' })),
+        notificationArns: response.NotificationARNs ?? [],
+        includeNestedStacks: response.IncludeNestedStacks,
+        parentChangeSetId: response.ParentChangeSetId,
+        rootChangeSetId: response.RootChangeSetId,
+        onStackFailure: response.OnStackFailure,
+        importExistingResources: response.ImportExistingResources,
+        nextToken: response.NextToken ?? null,
       },
     }
   } finally {
@@ -244,6 +275,15 @@ export async function executeCloudformationDescribeStackEvents(
       resourceStatus: event.ResourceStatus,
       resourceStatusReason: event.ResourceStatusReason,
       timestamp: event.Timestamp?.getTime(),
+      operationId: event.OperationId,
+      resourceProperties: event.ResourceProperties,
+      clientRequestToken: event.ClientRequestToken,
+      detailedStatus: event.DetailedStatus,
+      hookType: event.HookType,
+      hookStatus: event.HookStatus,
+      hookStatusReason: event.HookStatusReason,
+      hookInvocationPoint: event.HookInvocationPoint,
+      hookFailureMode: event.HookFailureMode,
     }))
     return { success: true, output: { events } }
   } finally {
@@ -290,8 +330,27 @@ export async function executeCloudformationDescribeStacks(
         outputKey: output.OutputKey ?? '',
         outputValue: output.OutputValue ?? '',
         description: output.Description,
+        exportName: output.ExportName,
       })),
       tags: (stack.Tags ?? []).map((tag) => ({ key: tag.Key ?? '', value: tag.Value ?? '' })),
+      parameters: (stack.Parameters ?? []).map((parameter) => ({
+        parameterKey: parameter.ParameterKey ?? '',
+        parameterValue: parameter.ParameterValue,
+        usePreviousValue: parameter.UsePreviousValue,
+        resolvedValue: parameter.ResolvedValue,
+      })),
+      capabilities: stack.Capabilities ?? [],
+      changeSetId: stack.ChangeSetId,
+      deletionTime: stack.DeletionTime?.getTime(),
+      disableRollback: stack.DisableRollback,
+      notificationArns: stack.NotificationARNs ?? [],
+      timeoutInMinutes: stack.TimeoutInMinutes,
+      roleArn: stack.RoleARN,
+      parentId: stack.ParentId,
+      rootId: stack.RootId,
+      detailedStatus: stack.DetailedStatus,
+      deletionMode: stack.DeletionMode,
+      retainExceptOnCreate: stack.RetainExceptOnCreate,
     }))
     return { success: true, output: { stacks } }
   } finally {
@@ -366,6 +425,7 @@ export async function executeCloudformationGetTemplateSummary(
           parameterType: parameter.ParameterType,
           noEcho: parameter.NoEcho,
           description: parameter.Description,
+          allowedValues: parameter.ParameterConstraints?.AllowedValues ?? [],
         })),
         capabilities: response.Capabilities ?? [],
         capabilitiesReason: response.CapabilitiesReason,
@@ -458,6 +518,7 @@ export async function executeCloudformationUpdateStack(
         Parameters: toStackParameters(input.parameters),
         Capabilities: parseCapabilities(input.capabilities),
         Tags: toStackTags(input.tags),
+        RoleARN: input.roleArn,
       }),
       { abortSignal: signal }
     )

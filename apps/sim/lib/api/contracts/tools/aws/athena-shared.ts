@@ -105,6 +105,25 @@ export const athenaEngineVersionSchema = z.object({
   effectiveEngineVersion: z.string().nullable(),
 })
 
+/** Query execution fields beyond the core status and statistics. */
+export const athenaQueryExecutionDetailsShape = {
+  servicePreProcessingTimeInMillis: z.number().nullable(),
+  serviceProcessingTimeInMillis: z.number().nullable(),
+  dataManifestLocation: z.string().nullable(),
+  reusedPreviousResult: z.boolean().nullable(),
+  athenaError: z
+    .object({
+      errorCategory: z.number().nullable(),
+      errorType: z.number().nullable(),
+      retryable: z.boolean().nullable(),
+      errorMessage: z.string().nullable(),
+    })
+    .nullable(),
+  executionParameters: z.array(z.string()).nullable(),
+  substatementType: z.string().nullable(),
+  engineVersion: athenaEngineVersionSchema.nullable(),
+}
+
 export const athenaSuccessResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({ success: z.literal(true) }),

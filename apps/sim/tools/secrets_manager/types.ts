@@ -15,18 +15,35 @@ export interface SecretsManagerGetSecretParams extends SecretsManagerConnectionC
 export interface SecretsManagerListSecretsParams extends SecretsManagerConnectionConfig {
   maxResults?: number | null
   nextToken?: string | null
+  filters?: Array<{
+    key:
+      | 'description'
+      | 'name'
+      | 'tag-key'
+      | 'tag-value'
+      | 'primary-region'
+      | 'owning-service'
+      | 'all'
+    values: string[]
+  }> | null
+  sortOrder?: 'asc' | 'desc' | null
+  sortBy?: 'created-date' | 'last-accessed-date' | 'last-changed-date' | 'name' | null
+  includePlannedDeletion?: boolean | null
 }
 
 export interface SecretsManagerCreateSecretParams extends SecretsManagerConnectionConfig {
   name: string
   secretValue: string
   description?: string | null
+  kmsKeyId?: string | null
+  tags?: Array<{ key: string; value: string }> | null
 }
 
 export interface SecretsManagerUpdateSecretParams extends SecretsManagerConnectionConfig {
   secretId: string
   secretValue: string
   description?: string | null
+  kmsKeyId?: string | null
 }
 
 export interface SecretsManagerDeleteSecretParams extends SecretsManagerConnectionConfig {
@@ -39,6 +56,7 @@ export interface SecretsManagerGetSecretResponse extends ToolResponse {
   output: {
     name: string
     secretValue: string
+    secretBinary: string | null
     arn: string
     versionId: string
     versionStages: string[]
@@ -59,6 +77,10 @@ export interface SecretsManagerListSecretsResponse extends ToolResponse {
       name: string
       arn: string
       description: string | null
+      kmsKeyId: string | null
+      rotationLambdaARN: string | null
+      owningService: string | null
+      primaryRegion: string | null
       createdDate: string | null
       lastChangedDate: string | null
       lastAccessedDate: string | null

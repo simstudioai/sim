@@ -51,6 +51,19 @@ export const s3ListObjectsTool: InternalToolConfig = {
       visibility: 'user-or-llm',
       description: 'Token for pagination from previous list response',
     },
+    delimiter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Character that groups keys (usually /). Keys sharing a prefix up to the delimiter are returned once in commonPrefixes instead of in objects, like folders.',
+    },
+    startAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Key to start listing after (e.g., folder/file-100.txt)',
+    },
   },
 
   operation: {
@@ -62,6 +75,8 @@ export const s3ListObjectsTool: InternalToolConfig = {
       prefix: params.prefix,
       maxKeys: params.maxKeys !== undefined ? Number(params.maxKeys) : undefined,
       continuationToken: params.continuationToken,
+      delimiter: params.delimiter,
+      startAfter: params.startAfter,
     }),
   },
 
@@ -85,6 +100,7 @@ export const s3ListObjectsTool: InternalToolConfig = {
       success: true,
       output: {
         objects: data.output.objects || [],
+        commonPrefixes: data.output.commonPrefixes ?? [],
         metadata: {
           isTruncated: data.output.isTruncated,
           nextContinuationToken: data.output.nextContinuationToken,
@@ -106,8 +122,19 @@ export const s3ListObjectsTool: InternalToolConfig = {
           size: { type: 'number', description: 'Object size in bytes' },
           lastModified: { type: 'string', description: 'Last modified timestamp' },
           etag: { type: 'string', description: 'Entity tag' },
+          storageClass: {
+            type: 'string',
+            description: 'Storage class (e.g., STANDARD, GLACIER)',
+            optional: true,
+          },
         },
       },
+    },
+    commonPrefixes: {
+      type: 'array',
+      description: 'Folder-like prefixes grouped by the delimiter (empty without a delimiter)',
+      items: { type: 'string', description: 'Common prefix' },
+      optional: true,
     },
     metadata: {
       type: 'object',

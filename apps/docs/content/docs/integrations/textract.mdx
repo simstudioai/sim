@@ -74,6 +74,11 @@ Parse documents using AWS Textract OCR and document analysis
 | `documentMetadata` | object | Metadata about the analyzed document |
 |   ↳ `pages` | number | Number of pages in the document |
 | `modelVersion` | string | Version of the Textract model used for processing |
+| `jobStatus` | string | Async job status: SUCCEEDED or PARTIAL_SUCCESS \(multi-page mode only\) |
+| `statusMessage` | string | Why an async job only partially succeeded \(multi-page mode only\) |
+| `warnings` | array | Async job warnings for pages Textract could not fully process |
+|   ↳ `errorCode` | string | Warning error code |
+|   ↳ `pages` | array | Page numbers the warning applies to |
 
 </ReferenceDetails>
 
@@ -107,6 +112,11 @@ Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense
 | `documentMetadata` | object | Metadata about the analyzed document |
 |   ↳ `pages` | number | Number of pages in the document |
 | `modelVersion` | string | Version of the AnalyzeExpense model used \(multi-page/async only\) |
+| `jobStatus` | string | Async job status: SUCCEEDED or PARTIAL_SUCCESS \(multi-page mode only\) |
+| `statusMessage` | string | Why an async job only partially succeeded \(multi-page mode only\) |
+| `warnings` | array | Async job warnings for pages Textract could not fully process |
+|   ↳ `errorCode` | string | Warning error code |
+|   ↳ `pages` | array | Page numbers the warning applies to |
 
 </ReferenceDetails>
 

@@ -9,6 +9,8 @@ import {
 import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
+const S3_USER_METADATA_HEADER_PREFIX = 'x-amz-meta-'
+
 export const s3GetObjectTool: ToolConfig = {
   id: 's3_get_object',
   name: 'S3 Get Object',
@@ -139,6 +141,13 @@ export const s3GetObjectTool: ToolConfig = {
     const fileName = params.objectKey.split('/').pop() || params.objectKey
     const arrayBuffer = await response.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
+    const userMetadata: Record<string, string> = {}
+    response.headers.forEach((value, name) => {
+      const lowerName = name.toLowerCase()
+      if (lowerName.startsWith(S3_USER_METADATA_HEADER_PREFIX)) {
+        userMetadata[lowerName.slice(S3_USER_METADATA_HEADER_PREFIX.length)] = value
+      }
+    })
 
     // Generate pre-signed URL for download
     const url = generatePresignedUrl(params, 3600)
@@ -158,6 +167,11 @@ export const s3GetObjectTool: ToolConfig = {
           size: buffer.length,
           name: fileName,
           lastModified: lastModified,
+          etag: response.headers.get('etag') ?? null,
+          versionId: response.headers.get('x-amz-version-id') ?? null,
+          storageClass: response.headers.get('x-amz-storage-class') ?? null,
+          serverSideEncryption: response.headers.get('x-amz-server-side-encryption') ?? null,
+          userMetadata,
         },
       },
     }
@@ -174,7 +188,8 @@ export const s3GetObjectTool: ToolConfig = {
     },
     metadata: {
       type: 'object',
-      description: 'File metadata including type, size, name, and last modified date',
+      description:
+        'File metadata: fileType, size, name, lastModified, etag, versionId (versioned buckets), storageClass (omitted by S3 for STANDARD), serverSideEncryption, and userMetadata (x-amz-meta-* values keyed without the prefix)',
     },
   },
 }

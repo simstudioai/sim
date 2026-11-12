@@ -58,6 +58,7 @@ Invoke a Lambda function synchronously for its response payload, asynchronously 
 | `logType` | string | No | Set to Tail to return the last 4 KB of the execution log |
 | `clientContext` | string | No | Base64-encoded JSON passed to the function in the client context object \(max 3,583 bytes\) |
 | `qualifier` | string | No | Version number or alias name to act on. Omit to target the function itself |
+| `tenantId` | string | No | Tenant identifier for a function with tenant isolation enabled \(required by those functions, rejected by others\) |
 
 #### Output
 
@@ -116,7 +117,7 @@ Get a function's configuration, code location, tags, and reserved concurrency
 | --------- | ---- | ----------- |
 | `configuration` | json | The function's configuration \(ARN, runtime, handler, memory, state, layers, VPC, and logging settings\) |
 | `tagsError` | json | Why the tags could not be read, when a partial tag-read failure occurred |
-| `code` | json | Presigned download URL for the deployment package, or the container image URI |
+| `code` | json | Deployment package location \(repositoryType, location presigned download URL, imageUri, resolvedImageUri, sourceKmsKeyArn, and error when the code cannot be retrieved\) |
 | `tags` | json | The function's tags |
 | `reservedConcurrentExecutions` | number | Concurrency reserved for this function, if any |
 
@@ -250,6 +251,8 @@ Update a function's settings such as memory, timeout, role, and environment vari
 | `snapStartApplyOn` | string | No | Set to PublishedVersions to snapshot the initialized environment when a version is published |
 | `logFormat` | string | No | Format the function sends CloudWatch logs in |
 | `logGroup` | string | No | CloudWatch log group the function sends logs to |
+| `applicationLogLevel` | string | No | Minimum application log level sent to CloudWatch: TRACE, DEBUG, INFO, WARN, ERROR, or FATAL. Requires the JSON log format |
+| `systemLogLevel` | string | No | Minimum system log level sent to CloudWatch: DEBUG, INFO, or WARN. Requires the JSON log format |
 | `revisionId` | string | No | Update the resource only if its current revision ID matches this value |
 
 #### Output

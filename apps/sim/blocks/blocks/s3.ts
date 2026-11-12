@@ -63,6 +63,14 @@ function s3ToolParams(params: BlockToolParams) {
         content: params.content,
         contentType: params.contentType,
         acl: params.acl,
+        metadata: params.objectMetadata,
+        storageClass: params.storageClass,
+        serverSideEncryption: params.serverSideEncryption,
+        sseKmsKeyId:
+          typeof params.serverSideEncryption === 'string' &&
+          params.serverSideEncryption.startsWith('aws:kms')
+            ? params.sseKmsKeyId
+            : undefined,
       }
     }
 
@@ -93,6 +101,8 @@ function s3ToolParams(params: BlockToolParams) {
         prefix: params.prefix,
         maxKeys: params.maxKeys ? Number.parseInt(params.maxKeys as string, 10) : undefined,
         continuationToken: params.continuationToken,
+        delimiter: params.delimiter,
+        startAfter: params.startAfter,
       }
 
     case 'delete_object':
@@ -463,6 +473,69 @@ export const S3Block: BlockConfig = {
       condition: { field: 'operation', value: 'put_object' },
       mode: 'advanced',
     },
+    {
+      id: 'objectMetadata',
+      title: 'Object Metadata',
+      type: 'code',
+      language: 'json',
+      placeholder: '{"department": "finance", "source": "sim"}',
+      condition: { field: 'operation', value: 'put_object' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a flat JSON object of S3 user-defined object metadata from the description. Keys are lowercase names without the x-amz-meta- prefix and every value is a string. Return ONLY the JSON object.',
+        placeholder: 'Describe the metadata to attach...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'storageClass',
+      title: 'Storage Class',
+      type: 'dropdown',
+      options: [
+        { label: 'Bucket default', id: '' },
+        { label: 'Standard', id: 'STANDARD' },
+        { label: 'Intelligent-Tiering', id: 'INTELLIGENT_TIERING' },
+        { label: 'Standard-IA', id: 'STANDARD_IA' },
+        { label: 'One Zone-IA', id: 'ONEZONE_IA' },
+        { label: 'Glacier Instant Retrieval', id: 'GLACIER_IR' },
+        { label: 'Glacier Flexible Retrieval', id: 'GLACIER' },
+        { label: 'Glacier Deep Archive', id: 'DEEP_ARCHIVE' },
+        { label: 'Reduced Redundancy', id: 'REDUCED_REDUNDANCY' },
+      ],
+      value: () => '',
+      placeholder: 'Select storage class (default: Standard)',
+      condition: { field: 'operation', value: 'put_object' },
+      mode: 'advanced',
+    },
+    {
+      id: 'serverSideEncryption',
+      title: 'Server-Side Encryption',
+      type: 'dropdown',
+      options: [
+        { label: 'Bucket default', id: '' },
+        { label: 'SSE-S3 (AES256)', id: 'AES256' },
+        { label: 'SSE-KMS (aws:kms)', id: 'aws:kms' },
+        { label: 'DSSE-KMS (aws:kms:dsse)', id: 'aws:kms:dsse' },
+      ],
+      value: () => '',
+      placeholder: 'Select encryption (default: bucket setting)',
+      condition: { field: 'operation', value: 'put_object' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sseKmsKeyId',
+      title: 'KMS Key ID',
+      type: 'short-input',
+      placeholder: 'KMS key ID or ARN (for aws:kms; default: aws/s3 managed key)',
+      condition: {
+        field: 'operation',
+        value: 'put_object',
+        and: { field: 'serverSideEncryption', value: ['aws:kms', 'aws:kms:dsse'] },
+      },
+      mode: 'advanced',
+    },
 
     {
       id: 's3Uri',
@@ -493,6 +566,22 @@ export const S3Block: BlockConfig = {
       title: 'Continuation Token',
       type: 'short-input',
       placeholder: 'Token for pagination (from previous response)',
+      condition: { field: 'operation', value: 'list_objects' },
+      mode: 'advanced',
+    },
+    {
+      id: 'delimiter',
+      title: 'Delimiter',
+      type: 'short-input',
+      placeholder: 'e.g., / to group keys into folders (commonPrefixes)',
+      condition: { field: 'operation', value: 'list_objects' },
+      mode: 'advanced',
+    },
+    {
+      id: 'startAfter',
+      title: 'Start After Key',
+      type: 'short-input',
+      placeholder: 'List keys after this one (e.g., folder/file-100.txt)',
       condition: { field: 'operation', value: 'list_objects' },
       mode: 'advanced',
     },
@@ -719,6 +808,10 @@ export const S3Block: BlockConfig = {
     content: { type: 'string', description: 'Text content to upload' },
     contentType: { type: 'string', description: 'Content-Type header' },
     acl: { type: 'string', description: 'Access control list' },
+    objectMetadata: { type: 'json', description: 'User-defined object metadata (x-amz-meta-*)' },
+    storageClass: { type: 'string', description: 'Storage class for the uploaded object' },
+    serverSideEncryption: { type: 'string', description: 'Server-side encryption algorithm' },
+    sseKmsKeyId: { type: 'string', description: 'KMS key ID for SSE-KMS' },
     // Download inputs
     s3Uri: { type: 'string', description: 'S3 object URL' },
     getObjectRegion: { type: 'string', description: 'Optional AWS region override for downloads' },
@@ -726,6 +819,8 @@ export const S3Block: BlockConfig = {
     prefix: { type: 'string', description: 'Prefix filter' },
     maxKeys: { type: 'number', description: 'Maximum results' },
     continuationToken: { type: 'string', description: 'Pagination token' },
+    delimiter: { type: 'string', description: 'Delimiter that groups keys into common prefixes' },
+    startAfter: { type: 'string', description: 'Key to start listing after' },
     // Copy inputs
     sourceBucket: { type: 'string', description: 'Source bucket name' },
     sourceKey: { type: 'string', description: 'Source object key' },
@@ -750,7 +845,15 @@ export const S3Block: BlockConfig = {
       description: 'S3 URI (s3://bucket/key) for use with other AWS services',
     },
     file: { type: 'file', description: 'Downloaded file stored in execution files' },
-    objects: { type: 'json', description: 'List of objects (for list operation)' },
+    objects: {
+      type: 'json',
+      description:
+        'List of objects (for list operation): [{key, size, lastModified, etag, storageClass}]',
+    },
+    commonPrefixes: {
+      type: 'json',
+      description: 'Folder-like prefixes grouped by the delimiter (for list operation)',
+    },
     buckets: { type: 'json', description: 'List of buckets (for list buckets operation)' },
     deleted: { type: 'json', description: 'Deletion status (boolean) or deleted objects (array)' },
     errors: { type: 'json', description: 'Failed deletions (for batch delete operation)' },

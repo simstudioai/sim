@@ -64,6 +64,11 @@ const DOWNLOAD_CASES: DownloadCase[] = [
         size,
         name: 'download.pdf',
         lastModified: 'Fri, 11 Sep 2026 12:00:00 GMT',
+        etag: null,
+        versionId: null,
+        storageClass: null,
+        serverSideEncryption: null,
+        userMetadata: {},
       })
       expect(output.url).toMatch(
         /^https:\/\/test-bucket\.s3\.us-east-1\.amazonaws\.com\/folder\/download\.pdf\?/

@@ -47,6 +47,20 @@ export const getTool: InternalToolConfig<DynamoDBGetParams, DynamoDBGetResponse>
       visibility: 'user-or-llm',
       description: 'Use strongly consistent read',
     },
+    projectionExpression: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Attributes to retrieve (e.g., "pk, #name, email"). Returns all attributes if omitted',
+    },
+    expressionAttributeNames: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Attribute name mappings for reserved words used in projectionExpression (e.g., {"#name": "name"})',
+    },
   },
 
   operation: {
@@ -57,6 +71,11 @@ export const getTool: InternalToolConfig<DynamoDBGetParams, DynamoDBGetResponse>
       tableName: params.tableName,
       key: params.key,
       ...(params.consistentRead !== undefined && { consistentRead: params.consistentRead }),
+      ...(params.projectionExpression && { projectionExpression: params.projectionExpression }),
+      ...(params.projectionExpression &&
+        params.expressionAttributeNames && {
+          expressionAttributeNames: params.expressionAttributeNames,
+        }),
     }),
   },
 

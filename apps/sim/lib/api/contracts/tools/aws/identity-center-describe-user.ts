@@ -24,6 +24,8 @@ const ResponseSchema = z.object({
   email: z.string().nullable(),
   userStatus: z.string().nullable(),
   title: z.string().nullable(),
+  givenName: z.string().nullable(),
+  familyName: z.string().nullable(),
   externalIds: z.array(z.object({ issuer: z.string(), id: z.string() })),
 })
 

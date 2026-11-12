@@ -62,6 +62,12 @@ export const deleteTool: InternalToolConfig<DynamoDBDeleteParams, DynamoDBDelete
       description:
         'Expression attribute values used in conditionExpression (e.g., {":status": "active"})',
     },
+    returnValues: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Set to "ALL_OLD" to return the deleted item as attributes (default: "NONE")',
+    },
   },
 
   operation: {
@@ -78,6 +84,7 @@ export const deleteTool: InternalToolConfig<DynamoDBDeleteParams, DynamoDBDelete
       ...(params.expressionAttributeValues && {
         expressionAttributeValues: params.expressionAttributeValues,
       }),
+      ...(params.returnValues && { returnValues: params.returnValues }),
     }),
   },
 
@@ -92,6 +99,7 @@ export const deleteTool: InternalToolConfig<DynamoDBDeleteParams, DynamoDBDelete
       success: true,
       output: {
         message: data.message || 'Item deleted successfully',
+        ...(data.attributes !== undefined && { attributes: data.attributes ?? null }),
       },
       error: undefined,
     }
@@ -99,5 +107,10 @@ export const deleteTool: InternalToolConfig<DynamoDBDeleteParams, DynamoDBDelete
 
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
+    attributes: {
+      type: 'json',
+      description: 'Deleted item, when returnValues is ALL_OLD (null if no item existed)',
+      optional: true,
+    },
   },
 }

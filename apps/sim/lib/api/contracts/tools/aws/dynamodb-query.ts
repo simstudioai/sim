@@ -24,7 +24,22 @@ const QuerySchema = z.object({
   indexName: z.string().optional(),
   limit: z.number().positive().optional(),
   exclusiveStartKey: z.record(z.string(), z.unknown()).optional(),
-  scanIndexForward: z.boolean().optional(),
+  scanIndexForward: z
+    .union([z.boolean(), z.enum(['true', 'false'])])
+    .optional()
+    .transform((val) => {
+      if (val === false || val === 'false') return false
+      if (val === true || val === 'true') return true
+      return undefined
+    }),
+  projectionExpression: z.string().optional(),
+  consistentRead: z
+    .union([z.boolean(), z.enum(['true', 'false'])])
+    .optional()
+    .transform((val) => {
+      if (val === true || val === 'true') return true
+      return undefined
+    }),
 })
 
 const QueryResponseSchema = z.object({
@@ -32,6 +47,7 @@ const QueryResponseSchema = z.object({
   // untyped-response: DynamoDB Items are arbitrary user attribute-value records
   items: z.array(z.record(z.string(), z.unknown())),
   count: z.number(),
+  scannedCount: z.number().nullable(),
   // untyped-response: DynamoDB LastEvaluatedKey mirrors the table's primary key shape
   lastEvaluatedKey: z.record(z.string(), z.unknown()).optional(),
 })

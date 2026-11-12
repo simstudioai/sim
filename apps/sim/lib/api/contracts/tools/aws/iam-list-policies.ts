@@ -21,6 +21,7 @@ const Schema = z.object({
   pathPrefix: iamPolicyPathPrefixSchema.optional().nullable(),
   maxItems: iamMaxItemsSchema.optional().nullable(),
   marker: iamMarkerSchema.optional().nullable(),
+  policyUsageFilter: z.enum(['PermissionsPolicy', 'PermissionsBoundary']).optional().nullable(),
 })
 
 /**

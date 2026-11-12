@@ -75,6 +75,14 @@ export const getQueryExecutionTool: InternalToolConfig<
         queryQueueTimeInMillis: data.output.queryQueueTimeInMillis ?? null,
         totalExecutionTimeInMillis: data.output.totalExecutionTimeInMillis ?? null,
         outputLocation: data.output.outputLocation ?? null,
+        servicePreProcessingTimeInMillis: data.output.servicePreProcessingTimeInMillis ?? null,
+        serviceProcessingTimeInMillis: data.output.serviceProcessingTimeInMillis ?? null,
+        dataManifestLocation: data.output.dataManifestLocation ?? null,
+        reusedPreviousResult: data.output.reusedPreviousResult ?? null,
+        athenaError: data.output.athenaError ?? null,
+        executionParameters: data.output.executionParameters ?? null,
+        substatementType: data.output.substatementType ?? null,
+        engineVersion: data.output.engineVersion ?? null,
       },
     }
   },
@@ -137,6 +145,49 @@ export const getQueryExecutionTool: InternalToolConfig<
     outputLocation: {
       type: 'string',
       description: 'S3 location of query results',
+      optional: true,
+    },
+    servicePreProcessingTimeInMillis: {
+      type: 'number',
+      description:
+        'Time Athena spent preprocessing the query before submitting it, in milliseconds',
+      optional: true,
+    },
+    serviceProcessingTimeInMillis: {
+      type: 'number',
+      description:
+        'Time Athena spent finalizing and publishing results after execution, in milliseconds',
+      optional: true,
+    },
+    dataManifestLocation: {
+      type: 'string',
+      description: 'S3 location of the manifest file listing files written by the query',
+      optional: true,
+    },
+    reusedPreviousResult: {
+      type: 'boolean',
+      description: 'Whether the query reused a previous result instead of scanning data',
+      optional: true,
+    },
+    athenaError: {
+      type: 'json',
+      description:
+        'Failure details for a FAILED query (errorCategory: 1 system, 2 user, 3 other; errorType; retryable; errorMessage)',
+      optional: true,
+    },
+    executionParameters: {
+      type: 'array',
+      description: "Values supplied for the query's ? placeholders",
+      optional: true,
+    },
+    substatementType: {
+      type: 'string',
+      description: 'Kind of query statement that was run (e.g., SELECT, INSERT, CREATE_TABLE)',
+      optional: true,
+    },
+    engineVersion: {
+      type: 'json',
+      description: 'Engine version used (selectedEngineVersion, effectiveEngineVersion)',
       optional: true,
     },
   },

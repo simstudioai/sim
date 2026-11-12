@@ -40,6 +40,7 @@ Assume an IAM role and receive temporary security credentials
 | `policyArns` | string | No | Comma-separated ARNs of up to 10 IAM managed policies to use as session policies |
 | `tags` | string | No | JSON object of up to 50 session tag key/value pairs for attribute-based access control |
 | `transitiveTagKeys` | string | No | Comma-separated tag keys that propagate through role chaining |
+| `sourceIdentity` | string | No | Source identity to set on the role session \(2-64 characters; cannot start with aws:\) |
 
 #### Output
 

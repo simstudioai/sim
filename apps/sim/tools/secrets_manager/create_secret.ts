@@ -52,6 +52,19 @@ export const createSecretTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Description of the secret',
     },
+    kmsKeyId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ARN, key ID, or alias of the KMS key used to encrypt the secret (defaults to aws/secretsmanager)',
+    },
+    tags: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Tags to attach to the new secret, as an array of {key, value} pairs',
+    },
   },
 
   operation: {
@@ -62,6 +75,8 @@ export const createSecretTool: InternalToolConfig<
       name: params.name,
       secretValue: params.secretValue,
       description: params.description,
+      kmsKeyId: params.kmsKeyId,
+      tags: params.tags,
     }),
   },
 

@@ -75,6 +75,13 @@ export const updateStackTool: InternalToolConfig<
       description:
         'Tags to apply to the stack and its resources (e.g., [{"key": "env", "value": "prod"}])',
     },
+    roleArn: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ARN of an IAM service role CloudFormation assumes for stack operations (defaults to the caller credentials or the role previously used for the stack)',
+    },
   },
 
   operation: {
@@ -90,6 +97,7 @@ export const updateStackTool: InternalToolConfig<
       ...(params.parameters && { parameters: params.parameters }),
       ...(params.capabilities && { capabilities: params.capabilities }),
       ...(params.tags && { tags: params.tags }),
+      ...(params.roleArn && { roleArn: params.roleArn }),
     }),
   },
 

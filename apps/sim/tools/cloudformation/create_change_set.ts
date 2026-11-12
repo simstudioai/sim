@@ -88,6 +88,20 @@ export const createChangeSetTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Description of the change set for reference',
     },
+    tags: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Tags to apply to the stack and its resources when the change set executes (e.g., [{"key": "env", "value": "prod"}])',
+    },
+    roleArn: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ARN of an IAM service role CloudFormation assumes for stack operations (defaults to the caller credentials or the role previously used for the stack)',
+    },
   },
 
   operation: {
@@ -105,6 +119,8 @@ export const createChangeSetTool: InternalToolConfig<
       ...(params.capabilities && { capabilities: params.capabilities }),
       ...(params.changeSetType && { changeSetType: params.changeSetType }),
       ...(params.description && { description: params.description }),
+      ...(params.tags && { tags: params.tags }),
+      ...(params.roleArn && { roleArn: params.roleArn }),
     }),
   },
 

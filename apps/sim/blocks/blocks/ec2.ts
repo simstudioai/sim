@@ -766,7 +766,7 @@ Return ONLY the JSON array, no explanation.`,
     instances: {
       type: 'array',
       description:
-        'Instances (describe_instances) or per-instance state transitions (start, stop, terminate)',
+        'Instances (describe_instances: instanceId, instanceType, state, stateReason, launchTime, IPs, vpcId, subnetId, platform, architecture, iamInstanceProfileArn, securityGroups, blockDeviceMappings, networkInterfaces, metadataHttpTokens, tags) or per-instance state transitions (start, stop, terminate)',
     },
     instanceStatuses: {
       type: 'array',

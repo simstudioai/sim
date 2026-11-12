@@ -52,6 +52,12 @@ export const updateSecretTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Updated description of the secret',
     },
+    kmsKeyId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'ARN, key ID, or alias of a new KMS key to encrypt the new secret version',
+    },
   },
 
   operation: {
@@ -62,6 +68,7 @@ export const updateSecretTool: InternalToolConfig<
       secretId: params.secretId,
       secretValue: params.secretValue,
       description: params.description,
+      kmsKeyId: params.kmsKeyId,
     }),
   },
 

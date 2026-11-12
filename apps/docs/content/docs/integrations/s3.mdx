@@ -36,6 +36,10 @@ Upload a file to an AWS S3 bucket
 | `content` | string | No | Text content to upload \(alternative to file\) |
 | `contentType` | string | No | Content-Type header \(auto-detected from file if not provided\) |
 | `acl` | string | No | Access control list \(e.g., private, public-read\) |
+| `metadata` | json | No | User-defined object metadata stored as x-amz-meta-* headers, as a JSON object of string values \(e.g., \{"department": "finance"\}\) |
+| `storageClass` | string | No | Storage class \(e.g., STANDARD, STANDARD_IA, INTELLIGENT_TIERING, GLACIER_IR\). Defaults to STANDARD. |
+| `serverSideEncryption` | string | No | Server-side encryption algorithm: AES256, aws:kms, or aws:kms:dsse |
+| `sseKmsKeyId` | string | No | KMS key ID or ARN to encrypt with when serverSideEncryption is aws:kms |
 
 #### Output
 
@@ -43,7 +47,7 @@ Upload a file to an AWS S3 bucket
 | --------- | ---- | ----------- |
 | `url` | string | URL of the uploaded S3 object |
 | `uri` | string | S3 URI of the uploaded object \(s3://bucket/key\) |
-| `metadata` | object | Upload metadata including ETag and location |
+| `metadata` | object | Upload metadata: etag, location, key, bucket, versionId \(versioned buckets\), and serverSideEncryption |
 
 </ReferenceDetails>
 
@@ -66,7 +70,7 @@ Retrieve an object from an AWS S3 bucket
 | --------- | ---- | ----------- |
 | `url` | string | Pre-signed URL for downloading the S3 object |
 | `file` | file | Downloaded file stored in execution files |
-| `metadata` | object | File metadata including type, size, name, and last modified date |
+| `metadata` | object | File metadata: fileType, size, name, lastModified, etag, versionId \(versioned buckets\), storageClass \(omitted by S3 for STANDARD\), serverSideEncryption, and userMetadata \(x-amz-meta-* values keyed without the prefix\) |
 
 </ReferenceDetails>
 
@@ -85,6 +89,8 @@ List objects in an AWS S3 bucket
 | `prefix` | string | No | Prefix to filter objects \(e.g., folder/, images/2024/\) |
 | `maxKeys` | number | No | Maximum number of objects to return \(default: 1000\) |
 | `continuationToken` | string | No | Token for pagination from previous list response |
+| `delimiter` | string | No | Character that groups keys \(usually /\). Keys sharing a prefix up to the delimiter are returned once in commonPrefixes instead of in objects, like folders. |
+| `startAfter` | string | No | Key to start listing after \(e.g., folder/file-100.txt\) |
 
 #### Output
 
@@ -95,6 +101,8 @@ List objects in an AWS S3 bucket
 |   ↳ `size` | number | Object size in bytes |
 |   ↳ `lastModified` | string | Last modified timestamp |
 |   ↳ `etag` | string | Entity tag |
+|   ↳ `storageClass` | string | Storage class \(e.g., STANDARD, GLACIER\) |
+| `commonPrefixes` | array | Folder-like prefixes grouped by the delimiter \(empty without a delimiter\) |
 | `metadata` | object | Listing metadata including pagination info |
 
 </ReferenceDetails>

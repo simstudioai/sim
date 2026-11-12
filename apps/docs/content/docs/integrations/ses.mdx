@@ -39,6 +39,8 @@ Send an email via AWS SES using simple or HTML content
 | `bccAddresses` | string | No | Comma-separated list of BCC email addresses |
 | `replyToAddresses` | string | No | Comma-separated list of reply-to email addresses |
 | `configurationSetName` | string | No | SES configuration set name for tracking |
+| `fromName` | string | No | Friendly sender name shown with the From address \(e.g., Acme Support\) |
+| `emailTags` | json | No | Message tags for filtering sending events, as a JSON array of \{"name", "value"\} objects \(letters, digits, _ and - only, up to 256 characters\) |
 
 #### Output
 
@@ -65,7 +67,10 @@ Send an email using an SES email template with dynamic template data
 | `templateData` | string | Yes | JSON string of key-value pairs for template variable substitution |
 | `ccAddresses` | string | No | Comma-separated list of CC email addresses |
 | `bccAddresses` | string | No | Comma-separated list of BCC email addresses |
+| `replyToAddresses` | string | No | Comma-separated list of reply-to email addresses |
 | `configurationSetName` | string | No | SES configuration set name for tracking |
+| `fromName` | string | No | Friendly sender name shown with the From address \(e.g., Acme Support\) |
+| `emailTags` | json | No | Message tags for filtering sending events, as a JSON array of \{"name", "value"\} objects \(letters, digits, _ and - only, up to 256 characters\) |
 
 #### Output
 
@@ -88,9 +93,12 @@ Send emails to multiple recipients using an SES template with per-recipient data
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `fromAddress` | string | Yes | Verified sender email address |
 | `templateName` | string | Yes | Name of the SES email template to use |
-| `destinations` | string | Yes | JSON array of destination objects with toAddresses \(string\[\]\) and optional templateData \(JSON string\); falls back to defaultTemplateData when omitted |
+| `destinations` | string | Yes | JSON array of destination objects with toAddresses \(string\[\]\), optional ccAddresses and bccAddresses \(string\[\]\), and optional templateData \(JSON string\); templateData falls back to defaultTemplateData when omitted |
 | `defaultTemplateData` | string | No | Default JSON template data used when a destination does not specify its own |
+| `replyToAddresses` | string | No | Comma-separated list of reply-to email addresses |
 | `configurationSetName` | string | No | SES configuration set name for tracking |
+| `fromName` | string | No | Friendly sender name shown with the From address \(e.g., Acme Support\) |
+| `emailTags` | json | No | Default message tags applied to every destination for filtering sending events, as a JSON array of \{"name", "value"\} objects \(letters, digits, _ and - only, up to 256 characters\) |
 
 #### Output
 
@@ -146,6 +154,8 @@ Get SES account sending quota and status information
 | `max24HourSend` | number | Maximum emails allowed per 24-hour period |
 | `maxSendRate` | number | Maximum emails allowed per second |
 | `sentLast24Hours` | number | Number of emails sent in the last 24 hours |
+| `productionAccessEnabled` | boolean | Whether the account has production access \(false while in the SES sandbox\) |
+| `enforcementStatus` | string | Account sending status: HEALTHY, PROBATION, or SHUTDOWN |
 
 </ReferenceDetails>
 
