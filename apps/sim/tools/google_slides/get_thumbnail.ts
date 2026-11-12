@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { slidesPresentationUrl } from '@/tools/google_slides/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleSlidesGetThumbnailTool')
@@ -79,16 +80,6 @@ export const getThumbnailTool: ToolConfig<GetThumbnailParams, GetThumbnailRespon
 
   request: {
     url: (params) => {
-      const presentationId = params.presentationId?.trim()
-      const pageObjectId = params.pageObjectId?.trim()
-
-      if (!presentationId) {
-        throw new Error('Presentation ID is required')
-      }
-      if (!pageObjectId) {
-        throw new Error('Page Object ID is required')
-      }
-
       // Build the URL with query parameters for thumbnail properties
       let size = (params.thumbnailSize || 'MEDIUM').toUpperCase()
       if (!THUMBNAIL_SIZES.includes(size as (typeof THUMBNAIL_SIZES)[number])) {
@@ -102,7 +93,7 @@ export const getThumbnailTool: ToolConfig<GetThumbnailParams, GetThumbnailRespon
       }
 
       // The API uses thumbnailProperties as query parameters
-      let url = `https://slides.googleapis.com/v1/presentations/${presentationId}/pages/${pageObjectId}/thumbnail?thumbnailProperties.thumbnailSize=${size}`
+      let url = `${slidesPresentationUrl(params.presentationId, params.pageObjectId ?? '', '/thumbnail')}?thumbnailProperties.thumbnailSize=${size}`
 
       // Add mimeType if not the default (PNG)
       if (mimeType !== 'PNG') {

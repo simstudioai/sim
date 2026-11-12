@@ -1,6 +1,7 @@
 import type { GoogleVaultAddMatterPermissionsParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const addMattersPermissionsTool: ToolConfig<GoogleVaultAddMatterPermissionsParams> = {
   id: 'google_vault_add_matters_permissions',
@@ -55,7 +56,7 @@ export const addMattersPermissionsTool: ToolConfig<GoogleVaultAddMatterPermissio
 
   request: {
     url: (params) =>
-      `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}:addPermissions`,
+      `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}:addPermissions`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

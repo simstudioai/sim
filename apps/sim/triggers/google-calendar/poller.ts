@@ -137,15 +137,45 @@ export const googleCalendarPollingTrigger: TriggerConfig = {
       },
       attendees: {
         type: 'json',
-        description: 'Event attendees',
+        description:
+          'Event attendees [{ email, displayName, responseStatus (needsAction, declined, tentative, accepted), optional, organizer, self }]',
       },
       creator: {
         type: 'json',
-        description: 'Event creator',
+        description: 'Event creator { email, displayName, self }',
       },
       organizer: {
         type: 'json',
-        description: 'Event organizer',
+        description: 'Event organizer { email, displayName, self }',
+      },
+      hangoutLink: {
+        type: 'string',
+        description: 'Google Meet link',
+      },
+      conferenceData: {
+        type: 'json',
+        description:
+          'Conference details: conferenceId, conferenceSolution { name }, entryPoints [{ entryPointType, uri, label, pin, meetingCode, passcode }]',
+      },
+      recurringEventId: {
+        type: 'string',
+        description: 'Recurring series ID when the event is an instance of a recurring event',
+      },
+      originalStartTime: {
+        type: 'json',
+        description: 'Original start time of a recurring event instance',
+      },
+      visibility: {
+        type: 'string',
+        description: 'Visibility: default, public, private, or confidential',
+      },
+      transparency: {
+        type: 'string',
+        description: 'Show as: opaque (busy) or transparent (free)',
+      },
+      iCalUID: {
+        type: 'string',
+        description: 'iCalendar UID',
       },
     },
     calendarId: {

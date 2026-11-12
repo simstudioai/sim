@@ -1,5 +1,6 @@
 import { CALENDAR_API_BASE } from '@/tools/google_calendar/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface GoogleCalendarDeleteCalendarParams {
   accessToken: string
@@ -18,7 +19,7 @@ interface GoogleCalendarDeleteCalendarResponse {
 }
 
 const buildDeleteCalendarUrl = (params: GoogleCalendarDeleteCalendarParams) =>
-  `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(params.calendarId.trim())}`
+  `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(params.calendarId, 'calendarId')}`
 
 export const deleteCalendarTool: ToolConfig<
   GoogleCalendarDeleteCalendarParams,

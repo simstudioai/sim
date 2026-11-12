@@ -1,5 +1,6 @@
 import type { GoogleDriveToolParams } from '@/tools/google_drive/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleDriveDeleteParams extends GoogleDriveToolParams {
   fileId: string
@@ -40,7 +41,9 @@ export const deleteTool: ToolConfig<GoogleDriveDeleteParams, GoogleDriveDeleteRe
 
   request: {
     url: (params) => {
-      const url = new URL(`https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}`)
+      const url = new URL(
+        `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId, 'fileId')}`
+      )
       url.searchParams.append('supportsAllDrives', 'true')
       return url.toString()
     },

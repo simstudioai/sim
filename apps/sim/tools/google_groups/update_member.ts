@@ -3,6 +3,7 @@ import type {
   GoogleGroupsUpdateMemberParams,
 } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateMemberTool: ToolConfig<GoogleGroupsUpdateMemberParams, GoogleGroupsResponse> = {
   id: 'google_groups_update_member',
@@ -46,8 +47,12 @@ export const updateMemberTool: ToolConfig<GoogleGroupsUpdateMemberParams, Google
 
   request: {
     url: (params) => {
-      const encodedGroupKey = encodeURIComponent(params.groupKey)
-      const encodedMemberKey = encodeURIComponent(params.memberKey)
+      const encodedGroupKey = safeUrlPathSegment(params.groupKey, 'groupKey', {
+        allowSeparators: true,
+      })
+      const encodedMemberKey = safeUrlPathSegment(params.memberKey, 'memberKey', {
+        allowSeparators: true,
+      })
       return `https://admin.googleapis.com/admin/directory/v1/groups/${encodedGroupKey}/members/${encodedMemberKey}`
     },
     method: 'PATCH',

@@ -1,5 +1,6 @@
 import type { GoogleGroupsResponse, GoogleGroupsUpdateParams } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateGroupTool: ToolConfig<GoogleGroupsUpdateParams, GoogleGroupsResponse> = {
   id: 'google_groups_update_group',
@@ -48,7 +49,9 @@ export const updateGroupTool: ToolConfig<GoogleGroupsUpdateParams, GoogleGroupsR
 
   request: {
     url: (params) => {
-      const encodedGroupKey = encodeURIComponent(params.groupKey)
+      const encodedGroupKey = safeUrlPathSegment(params.groupKey, 'groupKey', {
+        allowSeparators: true,
+      })
       return `https://admin.googleapis.com/admin/directory/v1/groups/${encodedGroupKey}`
     },
     method: 'PATCH',

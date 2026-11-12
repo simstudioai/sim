@@ -1,4 +1,13 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import {
+  assertKnownSizeWithinLimit,
+  consumeOrCancelBody,
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import type {
   GoogleDriveFile,
   GoogleDriveGetContentResponse,
@@ -10,10 +19,29 @@ import {
   ALL_REVISION_FIELDS,
   DEFAULT_EXPORT_FORMATS,
   GOOGLE_WORKSPACE_MIME_TYPES,
+  MAX_EXPORT_BYTES,
+  MAX_METADATA_RESPONSE_BYTES,
 } from '@/tools/google_drive/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('GoogleDriveGetContentTool')
+
+interface GoogleApiErrorBody {
+  error?: { message?: string }
+}
+
+async function readErrorJson(response: Response): Promise<GoogleApiErrorBody> {
+  try {
+    const text = await readResponseTextWithLimit(response, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'Google Drive error response',
+    })
+    return JSON.parse(text) as GoogleApiErrorBody
+  } catch {
+    return {}
+  }
+}
 
 export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetContentResponse> = {
   id: 'google_drive_get_content',
@@ -57,147 +85,150 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
 
   request: {
     url: (params) =>
-      `https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`,
+      `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId ?? '', 'fileId')}?fields=${ALL_FILE_FIELDS}&supportsAllDrives=true`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
     }),
   },
-  transformResponse: async (response: Response, params?: GoogleDriveToolParams) => {
-    try {
-      if (!response.ok) {
-        const errorDetails = await response.json().catch(() => ({}))
-        logger.error('Failed to get file metadata', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorDetails,
+  transformResponse: async (
+    response: Response,
+    params?: GoogleDriveToolParams,
+    context?: ToolResponseContext
+  ) => {
+    const signal = context?.signal
+    if (!response.ok) {
+      const errorDetails = await readErrorJson(response)
+      logger.error('Failed to get file metadata', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorDetails,
+      })
+      throw new Error(errorDetails.error?.message || 'Failed to get file metadata')
+    }
+
+    const metadata: GoogleDriveFile = await readResponseJsonWithLimit<GoogleDriveFile>(response, {
+      maxBytes: MAX_METADATA_RESPONSE_BYTES,
+      label: 'Google Drive file metadata',
+      signal,
+    })
+    const fileId = metadata.id
+    const encodedFileId = safeUrlPathSegment(fileId, 'fileId')
+    const mimeType = metadata.mimeType
+    const authHeader = `Bearer ${params?.accessToken || ''}`
+
+    let content: string
+
+    if (GOOGLE_WORKSPACE_MIME_TYPES.includes(mimeType)) {
+      const exportFormat = params?.mimeType || DEFAULT_EXPORT_FORMATS[mimeType] || 'text/plain'
+      logger.info('Exporting Google Workspace file', { fileId, mimeType, exportFormat })
+
+      const exportResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${encodedFileId}/export?mimeType=${encodeURIComponent(exportFormat)}&supportsAllDrives=true`,
+        { headers: { Authorization: authHeader }, signal }
+      )
+
+      if (!exportResponse.ok) {
+        const exportError = await readErrorJson(exportResponse)
+        logger.error('Failed to export file', {
+          status: exportResponse.status,
+          statusText: exportResponse.statusText,
+          error: exportError,
         })
-        throw new Error(errorDetails.error?.message || 'Failed to get file metadata')
+        throw new Error(exportError.error?.message || 'Failed to export Google Workspace file')
       }
 
-      const metadata: GoogleDriveFile = await response.json()
-      const fileId = metadata.id
-      const mimeType = metadata.mimeType
-      const authHeader = `Bearer ${params?.accessToken || ''}`
+      content = await readResponseTextWithLimit(exportResponse, {
+        maxBytes: MAX_EXPORT_BYTES,
+        label: `Exported Google Drive file ${fileId}`,
+        signal,
+      })
+    } else {
+      logger.info('Downloading regular file', { fileId, mimeType })
 
-      let content: string
+      assertKnownSizeWithinLimit(
+        Number(metadata.size),
+        MAX_FILE_SIZE,
+        `Google Drive file ${fileId}`
+      )
 
-      if (GOOGLE_WORKSPACE_MIME_TYPES.includes(mimeType)) {
-        const exportFormat = params?.mimeType || DEFAULT_EXPORT_FORMATS[mimeType] || 'text/plain'
-        logger.info('Exporting Google Workspace file', {
-          fileId,
-          mimeType,
-          exportFormat,
+      const downloadResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${encodedFileId}?alt=media&supportsAllDrives=true`,
+        { headers: { Authorization: authHeader }, signal }
+      )
+
+      if (!downloadResponse.ok) {
+        const downloadError = await readErrorJson(downloadResponse)
+        logger.error('Failed to download file', {
+          status: downloadResponse.status,
+          statusText: downloadResponse.statusText,
+          error: downloadError,
         })
+        throw new Error(downloadError.error?.message || 'Failed to download file')
+      }
 
-        const exportResponse = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportFormat)}&supportsAllDrives=true`,
-          {
-            headers: {
-              Authorization: authHeader,
-            },
-          }
+      content = await readResponseTextWithLimit(downloadResponse, {
+        maxBytes: MAX_FILE_SIZE,
+        label: `Google Drive file ${fileId}`,
+        signal,
+      })
+    }
+
+    const includeRevisions = params?.includeRevisions !== false
+    const canReadRevisions = metadata.capabilities?.canReadRevisions === true
+    if (includeRevisions && canReadRevisions) {
+      try {
+        const revisionsResponse = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${encodedFileId}/revisions?fields=revisions(${ALL_REVISION_FIELDS})&pageSize=100`,
+          { headers: { Authorization: authHeader }, signal }
         )
 
-        if (!exportResponse.ok) {
-          const exportError = await exportResponse.json().catch(() => ({}))
-          logger.error('Failed to export file', {
-            status: exportResponse.status,
-            statusText: exportResponse.statusText,
-            error: exportError,
+        if (revisionsResponse.ok) {
+          const revisionsData = await readResponseJsonWithLimit<{
+            revisions?: GoogleDriveRevision[]
+          }>(revisionsResponse, {
+            maxBytes: MAX_METADATA_RESPONSE_BYTES,
+            label: 'Google Drive revisions',
+            signal,
           })
-          throw new Error(exportError.error?.message || 'Failed to export Google Workspace file')
-        }
-
-        content = await exportResponse.text()
-      } else {
-        logger.info('Downloading regular file', {
-          fileId,
-          mimeType,
-        })
-
-        const downloadResponse = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
-          {
-            headers: {
-              Authorization: authHeader,
-            },
-          }
-        )
-
-        if (!downloadResponse.ok) {
-          const downloadError = await downloadResponse.json().catch(() => ({}))
-          logger.error('Failed to download file', {
-            status: downloadResponse.status,
-            statusText: downloadResponse.statusText,
-            error: downloadError,
+          metadata.revisions = revisionsData.revisions
+          logger.info('Fetched file revisions', {
+            fileId,
+            revisionCount: metadata.revisions?.length || 0,
           })
-          throw new Error(downloadError.error?.message || 'Failed to download file')
-        }
-
-        content = await downloadResponse.text()
-      }
-
-      const includeRevisions = params?.includeRevisions !== false
-      const canReadRevisions = metadata.capabilities?.canReadRevisions === true
-      if (includeRevisions && canReadRevisions) {
-        try {
-          const revisionsResponse = await fetch(
-            `https://www.googleapis.com/drive/v3/files/${fileId}/revisions?fields=revisions(${ALL_REVISION_FIELDS})&pageSize=100`,
-            {
-              headers: {
-                Authorization: authHeader,
-              },
-            }
-          )
-
-          if (revisionsResponse.ok) {
-            const revisionsData = await revisionsResponse.json()
-            metadata.revisions = revisionsData.revisions as GoogleDriveRevision[]
-            logger.info('Fetched file revisions', {
-              fileId,
-              revisionCount: metadata.revisions?.length || 0,
-            })
-          } else {
-            logger.warn('Failed to fetch revisions, continuing without them', {
-              status: revisionsResponse.status,
-              statusText: revisionsResponse.statusText,
-            })
-          }
-        } catch (revisionError: any) {
-          logger.warn('Error fetching revisions, continuing without them', {
-            error: revisionError.message,
+        } else {
+          await consumeOrCancelBody(revisionsResponse)
+          logger.warn('Failed to fetch revisions, continuing without them', {
+            status: revisionsResponse.status,
+            statusText: revisionsResponse.statusText,
           })
         }
-      } else if (includeRevisions && !canReadRevisions) {
-        logger.info('Skipping revision fetch - user does not have canReadRevisions permission', {
-          fileId,
+      } catch (revisionError) {
+        signal?.throwIfAborted()
+        logger.warn('Error fetching revisions, continuing without them', {
+          error: getErrorMessage(revisionError),
         })
       }
-
-      logger.info('File content retrieved successfully', {
+    } else if (includeRevisions && !canReadRevisions) {
+      logger.info('Skipping revision fetch - user does not have canReadRevisions permission', {
         fileId,
-        name: metadata.name,
-        mimeType: metadata.mimeType,
-        contentLength: content.length,
-        hasOwners: !!metadata.owners?.length,
-        hasPermissions: !!metadata.permissions?.length,
-        hasRevisions: !!metadata.revisions?.length,
       })
+    }
 
-      return {
-        success: true,
-        output: {
-          content,
-          metadata,
-        },
-      }
-    } catch (error: any) {
-      logger.error('Error in transform response', {
-        error: error.message,
-        stack: error.stack,
-      })
-      throw error
+    logger.info('File content retrieved successfully', {
+      fileId,
+      name: metadata.name,
+      mimeType: metadata.mimeType,
+      contentLength: content.length,
+      hasRevisions: !!metadata.revisions?.length,
+    })
+
+    return {
+      success: true,
+      output: {
+        content,
+        metadata,
+      },
     }
   },
 

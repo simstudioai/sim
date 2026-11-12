@@ -1,4 +1,5 @@
 import { generateRandomString } from '@sim/utils/random'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /** 1 point = 12700 EMU (English Metric Units). */
 export const PT_TO_EMU = 12700
@@ -128,9 +129,83 @@ export function authJsonHeaders(accessToken: string) {
   }
 }
 
-/** Resolve the batchUpdate URL for a given presentation. */
-export function batchUpdateUrl(presentationId: string | undefined): string {
+/**
+ * Resolve the Slides API URL for a presentation, optionally followed by a
+ * `/pages/{pageObjectId}` path and a trailing suffix such as `/thumbnail`.
+ */
+export function slidesPresentationUrl(
+  presentationId: string | undefined,
+  pageObjectId?: string | number,
+  suffix = ''
+): string {
   const id = presentationId?.trim()
   if (!id) throw new Error('Presentation ID is required')
-  return `https://slides.googleapis.com/v1/presentations/${id}:batchUpdate`
+  const base = `https://slides.googleapis.com/v1/presentations/${safeUrlPathSegment(id, 'presentationId')}`
+  if (pageObjectId === undefined) return `${base}${suffix}`
+  const pageId = String(pageObjectId).trim()
+  if (!pageId) throw new Error('Page Object ID is required')
+  return `${base}/pages/${safeUrlPathSegment(pageId, 'pageObjectId')}${suffix}`
+}
+
+/** Resolve the batchUpdate URL for a given presentation. */
+export function batchUpdateUrl(presentationId: string | undefined): string {
+  return slidesPresentationUrl(presentationId, undefined, ':batchUpdate')
+}
+
+interface SlidesTextContent {
+  textElements?: Array<{ textRun?: { content?: string }; autoText?: { content?: string } }>
+}
+
+interface SlidesPageElement {
+  objectId?: string
+  shape?: { text?: SlidesTextContent }
+  table?: { tableRows?: Array<{ tableCells?: Array<{ text?: SlidesTextContent }> }> }
+  elementGroup?: { children?: SlidesPageElement[] }
+  wordArt?: { renderedText?: string }
+}
+
+export interface SlidesPage {
+  objectId?: string
+  pageElements?: SlidesPageElement[]
+  slideProperties?: { isSkipped?: boolean; notesPage?: SlidesPage }
+  notesProperties?: { speakerNotesObjectId?: string }
+}
+
+function textContentToString(text: SlidesTextContent | undefined): string {
+  const elements = text?.textElements
+  if (!Array.isArray(elements)) return ''
+  return elements
+    .map((element) => element.textRun?.content ?? element.autoText?.content ?? '')
+    .join('')
+    .replace(/\v/g, '\n')
+}
+
+function pageElementText(element: SlidesPageElement): string[] {
+  if (element.shape) return [textContentToString(element.shape.text)]
+  if (element.table) {
+    return (element.table.tableRows ?? []).flatMap((row) =>
+      (row.tableCells ?? []).map((cell) => textContentToString(cell.text))
+    )
+  }
+  if (element.elementGroup) return (element.elementGroup.children ?? []).flatMap(pageElementText)
+  if (element.wordArt?.renderedText) return [element.wordArt.renderedText]
+  return []
+}
+
+/** Plain text of every shape, table cell, and grouped element on a page, one block per line. */
+export function extractPageText(page: SlidesPage | undefined): string {
+  return (page?.pageElements ?? [])
+    .flatMap(pageElementText)
+    .map((text) => text.trimEnd())
+    .filter((text) => text.length > 0)
+    .join('\n')
+}
+
+/** Speaker notes of a slide, read from the notes page shape named by `speakerNotesObjectId`. */
+export function extractSpeakerNotes(slide: SlidesPage | undefined): string {
+  const notesPage = slide?.slideProperties?.notesPage
+  const notesId = notesPage?.notesProperties?.speakerNotesObjectId
+  if (!notesId) return ''
+  const notesShape = notesPage?.pageElements?.find((element) => element.objectId === notesId)
+  return textContentToString(notesShape?.shape?.text).trimEnd()
 }

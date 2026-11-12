@@ -53,13 +53,14 @@ Create a new contact in Google Contacts
 | `organization` | string | No | Organization/company name |
 | `jobTitle` | string | No | Job title at the organization |
 | `notes` | string | No | Notes or biography for the contact |
+| `birthday` | string | No | Birthday as YYYY-MM-DD, or MM-DD when the year is unknown |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Contact creation confirmation message |
-| `metadata` | json | Created contact metadata including resource name and details |
+| `metadata` | json | Created contact \(resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames\) |
 
 </ReferenceDetails>
 
@@ -80,7 +81,7 @@ Get a specific contact from Google Contacts
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Contact retrieval confirmation message |
-| `metadata` | json | Contact details including name, email, phone, and organization |
+| `metadata` | json | Contact details \(resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames\) |
 
 </ReferenceDetails>
 
@@ -103,7 +104,7 @@ List contacts from Google Contacts
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Summary of found contacts count |
-| `metadata` | json | List of contacts with pagination tokens |
+| `metadata` | json | totalItems, nextPageToken, and contacts: \[\{resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames\}\] |
 
 </ReferenceDetails>
 
@@ -125,7 +126,7 @@ Search contacts in Google Contacts by name, email, phone, or organization
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Summary of search results count |
-| `metadata` | json | Search results with matching contacts |
+| `metadata` | json | contacts: \[\{resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames\}\] |
 
 </ReferenceDetails>
 
@@ -150,13 +151,14 @@ Update an existing contact in Google Contacts
 | `organization` | string | No | Updated organization/company name |
 | `jobTitle` | string | No | Updated job title |
 | `notes` | string | No | Updated notes or biography |
+| `birthday` | string | No | Birthday as YYYY-MM-DD, or MM-DD when the year is unknown |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Contact update confirmation message |
-| `metadata` | json | Updated contact metadata |
+| `metadata` | json | Updated contact \(resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames\) |
 
 </ReferenceDetails>
 
