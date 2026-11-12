@@ -261,6 +261,7 @@ Pre-built values files for common scenarios live in [`helm/sim/examples/`](https
 | `values-development.yaml` | Local dev / `kind` / `minikube`. Minimal resources, no TLS. |
 | `values-production.yaml` | Generic production: HA, network policy, autoscaling, monitoring. |
 | `values-aws.yaml` | EKS — EBS GP3 storage, ALB ingress, IRSA-friendly. |
+| `values-aws-marketplace.yaml` | EKS from the AWS Marketplace listing — Sim's images only, RDS + ElastiCache, Enterprise from the Marketplace license. |
 | `values-gcp.yaml` | GKE — Persistent Disk storage, GCP managed certs, Workload Identity. |
 | `values-azure.yaml` | AKS — managed-csi storage, NGINX ingress, GPU node pools. |
 | `values-external-db.yaml` | Production with a managed Postgres (RDS, Cloud SQL, Azure DB). |
@@ -284,6 +285,15 @@ helm install sim oci://ghcr.io/simstudioai/charts/sim \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
   --set postgresql.auth.password="$POSTGRES_PASSWORD"
 ```
+
+### AWS Marketplace
+
+The AWS Marketplace listing ships this chart with `values-aws-marketplace.yaml` as its defaults
+and every image pointed at the AWS Marketplace registry. It needs your own Amazon RDS for
+PostgreSQL 17 and Amazon ElastiCache: [`aws-marketplace-prerequisites.yaml`](https://github.com/simstudioai/sim/tree/main/helm/sim/examples/aws-marketplace-prerequisites.yaml)
+is a CloudFormation template that creates both, plus the IAM role the chart's ServiceAccount
+uses to check your Marketplace license in AWS License Manager. While that license is active the
+Enterprise suite is on; without it Sim runs as the open-source core.
 
 ---
 

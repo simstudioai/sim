@@ -80,6 +80,7 @@
     "@aws-sdk/client-iam": "3.1162.0",
     "@aws-sdk/client-identitystore": "3.1162.0",
     "@aws-sdk/client-lambda": "3.1162.0",
+    "@aws-sdk/client-license-manager": "3.1162.0",
     "@aws-sdk/client-marketplace-entitlement-service": "3.1162.0",
     "@aws-sdk/client-marketplace-metering": "3.1162.0",
     "@aws-sdk/client-organizations": "3.1162.0",
