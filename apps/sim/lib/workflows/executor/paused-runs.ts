@@ -14,6 +14,7 @@ import {
   resumeKeyset,
   textKey,
 } from '@/lib/api/list-query'
+import { PAUSE_POINT_ROWS } from '@/lib/workflows/executor/pause-point-sql'
 
 /** A paused run of an active workflow, with the raw `pause_points` its detail is built from. */
 interface WorkspacePausedRunRow {
@@ -35,25 +36,8 @@ const PAUSED_RUN_KEYS: readonly KeysetKey<WorkspacePausedRunRow>[] = [
 const POINT_WAITS_ON_HUMAN = sql`coalesce(point.value ->> 'pauseKind', 'human') <> 'time'
     and coalesce(point.value ->> 'resumeStatus', 'paused') = 'paused'`
 
-/**
- * A paused run with a pause point still waiting on a human. `pause_points` is an object keyed
- * by context id, or an array on legacy rows; both shapes are read, as `normalizePausePoints`
- * reads them, and each set function only ever receives the shape it accepts.
- */
-const WAITS_ON_HUMAN = sql`exists (
-  select 1 from (
-    select value from jsonb_each(
-      case when jsonb_typeof(${pausedExecutions.pausePoints}) = 'object'
-        then ${pausedExecutions.pausePoints} else '{}'::jsonb end
-    )
-    union all
-    select value from jsonb_array_elements(
-      case when jsonb_typeof(${pausedExecutions.pausePoints}) = 'array'
-        then ${pausedExecutions.pausePoints} else '[]'::jsonb end
-    )
-  ) as point(value)
-  where ${POINT_WAITS_ON_HUMAN}
-)`
+/** A paused run with a pause point still waiting on a human. */
+const WAITS_ON_HUMAN = sql`exists (select 1 from ${PAUSE_POINT_ROWS} where ${POINT_WAITS_ON_HUMAN})`
 
 /** The cursor that resumes the list after `row`. */
 export function pausedRunCursorKeys(row: WorkspacePausedRunRow): CursorKey[] {

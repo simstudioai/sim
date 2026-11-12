@@ -122,6 +122,54 @@ describe('non-JSON responses', () => {
   })
 })
 
+describe('request ids on errors', () => {
+  it("reads an internal route's request id stamped beside the error", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'Workflow not found', requestId: 'req-body' }), {
+          status: 404,
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    )
+    await expect(client().request('/api/workflows/missing')).rejects.toMatchObject({
+      message: 'Workflow not found',
+      requestId: 'req-body',
+    })
+  })
+
+  it('keeps the x-request-id of a 200 that is not JSON', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('<html></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html', 'x-request-id': 'req-200' },
+        })
+      )
+    )
+    await expect(client().request('/api/v2/workflows')).rejects.toMatchObject({
+      requestId: 'req-200',
+    })
+  })
+
+  it('keeps the x-request-id of a redirect', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(null, {
+          status: 308,
+          headers: { location: 'https://www.sim.example/api/v2/tables', 'x-request-id': 'req-308' },
+        })
+      )
+    )
+    await expect(client().request('/api/v2/tables')).rejects.toMatchObject({
+      requestId: 'req-308',
+    })
+  })
+})
+
 describe('a request that never answers', () => {
   it('bounds a request by default, above every timeout the server itself applies', async () => {
     // A synchronous workflow run is allowed 3000s on a paid plan, so a tighter

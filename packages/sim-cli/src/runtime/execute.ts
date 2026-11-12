@@ -584,7 +584,8 @@ export async function executeOperation(
           reconciliation:
             'Find the operation using this requestId, or retry identical inputs with the same requestId.',
         },
-        failure.exitCode
+        failure.exitCode,
+        failure.requestId
       )
     }
     throw error

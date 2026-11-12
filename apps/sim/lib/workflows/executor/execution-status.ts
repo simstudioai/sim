@@ -83,6 +83,11 @@ function pickEarliestPausePoint(points: PausePoint[]): PausePoint | null {
   }, null)
 }
 
+/** A point no resume can act on any more: it resumed, or its resumed execution failed. */
+function isSettledPausePoint(point: PausePoint): boolean {
+  return point.resumeStatus === 'resumed' || point.resumeStatus === 'failed'
+}
+
 function extractError(executionData: unknown): string | null {
   if (!executionData || typeof executionData !== 'object') return null
   const data = executionData as ExecutionDataShape
@@ -519,8 +524,15 @@ async function readWorkflowExecutionStatus(
     )
     .limit(1)
 
+  /**
+   * An open pause record makes the run read `paused` unless the log has finished and no point
+   * is left to resume: a resume that ran and failed marks its point `failed` and fails the log
+   * but leaves the record open, and that point can never be resumed again.
+   */
   const isCurrentlyPaused =
-    !!pausedRow && (pausedRow.status === 'paused' || pausedRow.status === 'partially_resumed')
+    !!pausedRow &&
+    (pausedRow.status === 'paused' || pausedRow.status === 'partially_resumed') &&
+    !(hasTerminalLog && normalizePausePoints(pausedRow.pausePoints).every(isSettledPausePoint))
 
   let status: WorkflowExecutionStatusResponse['status']
   if (isCurrentlyPaused) {
