@@ -650,9 +650,8 @@ export const IAMBlock: BlockConfig = {
           case 'create_user': {
             result.userName = rest.userName
             if (rest.path) result.path = rest.path
-            if (rest.permissionsBoundary) result.permissionsBoundary = rest.permissionsBoundary
-            const userTags = serializeTags(rest.tags)
-            if (userTags) result.tags = userTags
+            result.permissionsBoundary = rest.permissionsBoundary || undefined
+            result.tags = serializeTags(rest.tags)
             break
           }
           case 'get_role':
@@ -668,9 +667,8 @@ export const IAMBlock: BlockConfig = {
               const parsed = Number.parseInt(String(maxSessionDuration), 10)
               if (!Number.isNaN(parsed)) result.maxSessionDuration = parsed
             }
-            if (rest.permissionsBoundary) result.permissionsBoundary = rest.permissionsBoundary
-            const roleTags = serializeTags(rest.tags)
-            if (roleTags) result.tags = roleTags
+            result.permissionsBoundary = rest.permissionsBoundary || undefined
+            result.tags = serializeTags(rest.tags)
             break
           }
           case 'attach_user_policy':

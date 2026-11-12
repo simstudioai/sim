@@ -24,9 +24,22 @@ const QuerySchema = z.object({
   indexName: z.string().optional(),
   limit: z.number().positive().optional(),
   exclusiveStartKey: z.record(z.string(), z.unknown()).optional(),
-  scanIndexForward: z.boolean().optional(),
+  scanIndexForward: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((val) => {
+      if (val === false || val === 'false') return false
+      if (val === true || val === 'true') return true
+      return undefined
+    }),
   projectionExpression: z.string().optional(),
-  consistentRead: z.boolean().optional(),
+  consistentRead: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((val) => {
+      if (val === true || val === 'true') return true
+      return undefined
+    }),
 })
 
 const QueryResponseSchema = z.object({

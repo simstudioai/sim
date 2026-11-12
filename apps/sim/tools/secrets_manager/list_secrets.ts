@@ -5,6 +5,13 @@ import type {
 import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
+/** Accepts a boolean or its string form; anything else (empty, null) is left unset. */
+function parseOptionalBoolean(value: unknown): boolean | undefined {
+  if (value === true || value === 'true') return true
+  if (value === false || value === 'false') return false
+  return undefined
+}
+
 export const listSecretsTool: InternalToolConfig<
   SecretsManagerListSecretsParams,
   SecretsManagerListSecretsResponse
@@ -82,9 +89,9 @@ export const listSecretsTool: InternalToolConfig<
       maxResults: params.maxResults,
       nextToken: params.nextToken,
       filters: params.filters,
-      sortOrder: params.sortOrder,
-      sortBy: params.sortBy,
-      includePlannedDeletion: params.includePlannedDeletion,
+      sortOrder: params.sortOrder || undefined,
+      sortBy: params.sortBy || undefined,
+      includePlannedDeletion: parseOptionalBoolean(params.includePlannedDeletion),
     }),
   },
 

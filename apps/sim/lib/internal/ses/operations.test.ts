@@ -1,5 +1,5 @@
 import { SESv2Client } from '@aws-sdk/client-sesv2'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   executeSesSendBulkEmail,
   executeSesSendEmail,
@@ -16,14 +16,13 @@ function captureSentInput() {
   const send = vi
     .spyOn(SESv2Client.prototype, 'send')
     .mockImplementation(async () => ({ MessageId: 'message-id', BulkEmailEntryResults: [] }))
-  return () => (send.mock.calls[0]?.[0] as { input: Record<string, unknown> }).input
+  return () => {
+    const command = send.mock.calls[0]?.[0]
+    return (command && 'input' in command ? command.input : {}) as Record<string, unknown>
+  }
 }
 
 describe('SES send operations', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('sends Reply-To on a templated email', async () => {
     const sentInput = captureSentInput()
 
@@ -87,12 +86,39 @@ describe('SES send operations', () => {
     })
 
     const send = vi.mocked(SESv2Client.prototype.send)
-    const fromOf = (index: number) =>
-      (send.mock.calls[index]?.[0] as { input: { FromEmailAddress: string } }).input
-        .FromEmailAddress
+    const fromOf = (index: number) => {
+      const command = send.mock.calls[index]?.[0]
+      return command && 'input' in command
+        ? (command.input as { FromEmailAddress?: string }).FromEmailAddress
+        : undefined
+    }
     expect(sentInput().FromEmailAddress).toBe(
       `=?utf-8?B?${Buffer.from('Café "Ops"').toString('base64')}?= <sender@example.com>`
     )
     expect(fromOf(1)).toBe('"Acme \\"Ops\\"" <sender@example.com>')
+  })
+
+  it('splits a long non-ASCII From name into encoded words of at most 75 characters', async () => {
+    const sentInput = captureSentInput()
+    const name = 'Équipe de support client — Société Générale Ünïcødé Ops'
+
+    await executeSesSendEmail({
+      ...CONNECTION,
+      fromAddress: 'sender@example.com',
+      fromName: name,
+      toAddresses: 'to@example.com',
+      subject: 'Hi',
+      bodyText: 'Hello',
+    })
+
+    const [display, address] = sentInput().FromEmailAddress.split(' <')
+    const words = display.split(' ')
+    expect(words.length).toBeGreaterThan(1)
+    for (const word of words) expect(word.length).toBeLessThanOrEqual(75)
+    const decoded = words
+      .map((word) => Buffer.from(word.slice('=?utf-8?B?'.length, -2), 'base64').toString('utf8'))
+      .join('')
+    expect(decoded).toBe(name)
+    expect(address).toBe('sender@example.com>')
   })
 })

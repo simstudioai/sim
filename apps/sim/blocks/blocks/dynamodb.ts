@@ -772,9 +772,7 @@ Return ONLY the expression - no explanations.`,
           if (params.consistentRead === 'true' || params.consistentRead === true) {
             result.consistentRead = true
           }
-          if (params.getProjectionExpression) {
-            result.projectionExpression = params.getProjectionExpression
-          }
+          result.projectionExpression = params.getProjectionExpression || undefined
           const getNames = parseJson(params.getExpressionAttributeNames, 'expressionAttributeNames')
           if (getNames !== undefined) result.expressionAttributeNames = getNames
         }
@@ -811,19 +809,19 @@ Return ONLY the expression - no explanations.`,
             'expressionAttributeValues'
           )
           if (values !== undefined) result.expressionAttributeValues = values
-          if (params.indexName) result.indexName = params.indexName
+          result.indexName = params.indexName || undefined
           if (params.queryLimit) result.limit = Number.parseInt(String(params.queryLimit), 10)
           const esk = parseJson(params.queryExclusiveStartKey, 'exclusiveStartKey')
           if (esk !== undefined) result.exclusiveStartKey = esk
-          if (params.scanIndexForward === 'false' || params.scanIndexForward === false) {
-            result.scanIndexForward = false
-          }
-          if (params.queryProjectionExpression) {
-            result.projectionExpression = params.queryProjectionExpression
-          }
-          if (params.queryConsistentRead === 'true' || params.queryConsistentRead === true) {
-            result.consistentRead = true
-          }
+          result.scanIndexForward =
+            params.scanIndexForward === 'false' || params.scanIndexForward === false
+              ? false
+              : undefined
+          result.projectionExpression = params.queryProjectionExpression || undefined
+          result.consistentRead =
+            params.queryConsistentRead === 'true' || params.queryConsistentRead === true
+              ? true
+              : undefined
         }
 
         if (op === 'scan') {
@@ -848,10 +846,11 @@ Return ONLY the expression - no explanations.`,
           if (lim) result.limit = Number.parseInt(String(lim), 10)
           const esk = parseJson(params.scanExclusiveStartKey, 'exclusiveStartKey')
           if (esk !== undefined) result.exclusiveStartKey = esk
-          if (params.scanIndexName) result.indexName = params.scanIndexName
-          if (params.scanConsistentRead === 'true' || params.scanConsistentRead === true) {
-            result.consistentRead = true
-          }
+          result.indexName = params.scanIndexName || undefined
+          result.consistentRead =
+            params.scanConsistentRead === 'true' || params.scanConsistentRead === true
+              ? true
+              : undefined
           if (
             params.scanSegment !== undefined &&
             params.scanSegment !== null &&

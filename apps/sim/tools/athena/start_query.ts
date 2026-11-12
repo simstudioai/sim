@@ -159,7 +159,10 @@ export const startQueryTool: InternalToolConfig<AthenaStartQueryParams, AthenaSt
             resultReuseMaxAgeInMinutes: params.resultReuseMaxAgeInMinutes,
           }),
           ...(params.encryptionOption && { encryptionOption: params.encryptionOption }),
-          ...(params.kmsKey && { kmsKey: params.kmsKey }),
+          ...(params.kmsKey &&
+            (params.encryptionOption === 'SSE_KMS' || params.encryptionOption === 'CSE_KMS') && {
+              kmsKey: params.kmsKey,
+            }),
           ...(params.expectedBucketOwner && { expectedBucketOwner: params.expectedBucketOwner }),
           ...(params.clientRequestToken && { clientRequestToken: params.clientRequestToken }),
         }

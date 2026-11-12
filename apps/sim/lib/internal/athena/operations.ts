@@ -471,7 +471,9 @@ export async function executeAthenaStartQuery(
                   ? {
                       EncryptionConfiguration: {
                         EncryptionOption: input.encryptionOption,
-                        ...(input.kmsKey ? { KmsKey: input.kmsKey } : {}),
+                        ...(input.kmsKey && input.encryptionOption !== 'SSE_S3'
+                          ? { KmsKey: input.kmsKey }
+                          : {}),
                       },
                     }
                   : {}),

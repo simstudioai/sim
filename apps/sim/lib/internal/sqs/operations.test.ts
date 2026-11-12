@@ -11,8 +11,6 @@ vi.mock('@/lib/internal/sqs/client', () => ({
   createSqsClient: mockCreateSqsClient,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
-
 import {
   executeSqsDeleteMessageBatch,
   executeSqsListDeadLetterSourceQueues,
@@ -29,7 +27,6 @@ const QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue'
 
 describe('SQS operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     envFlagsMock.isHosted = true
     mockCreateSqsClient.mockReturnValue({ send: mockSend, destroy: mockDestroy })
   })
@@ -70,6 +67,7 @@ describe('SQS operations', () => {
     'https://ec2-1-2-3-4.compute-1.amazonaws.com/123456789012/test-queue',
     'https://abc123.execute-api.us-east-1.amazonaws.com/123456789012/test-queue',
     'http://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+    'https://sqs.us-east-1.amazonaws.com.evil.example/123456789012/test-queue',
   ])('refuses %s, which the SDK would use as the request host', async (queueUrl) => {
     mockSend.mockResolvedValue({ MessageId: 'id' })
 
@@ -100,6 +98,8 @@ describe('SQS operations', () => {
     'https://sqs.us-east-1.api.aws/123456789012/test-queue',
     'https://sqs-fips.us-gov-west-1.amazonaws.com/123456789012/test-queue',
     'https://queue.amazonaws.com/123456789012/test-queue',
+    'https://sqs.cn-north-1.api.amazonwebservices.com.cn/123456789012/test-queue',
+    'https://sqs.eusc-de-east-1.amazonaws.eu/123456789012/test-queue',
   ])('accepts the AWS queue URL %s', async (queueUrl) => {
     mockSend.mockResolvedValue({ MessageId: 'id' })
 

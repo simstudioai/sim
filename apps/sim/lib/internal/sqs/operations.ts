@@ -48,19 +48,42 @@ import { isHosted } from '@/lib/core/config/env-flags'
 import { createSqsClient } from '@/lib/internal/sqs/client'
 import type { SqsConnectionConfig } from '@/tools/sqs/types'
 
+/** DNS suffixes of every AWS partition, from the SDK partition table. */
+const AWS_DNS_SUFFIXES = [
+  'amazonaws.com',
+  'amazonaws.com.cn',
+  'amazonaws.eu',
+  'c2s.ic.gov',
+  'sc2s.sgov.gov',
+  'csp.hci.ic.gov',
+  'cloud.adc-e.uk',
+]
+
+/** Dual-stack DNS suffixes of every AWS partition, from the SDK partition table. */
+const AWS_DUAL_STACK_DNS_SUFFIXES = [
+  'api.aws',
+  'api.amazonwebservices.com.cn',
+  'api.amazonwebservices.eu',
+  'api.aws.ic.gov',
+  'api.aws.scloud',
+  'api.aws.hci.ic.gov',
+  'api.cloud-aws.adc-e.uk',
+]
+
+const escapeSuffix = (suffix: string) => suffix.replaceAll('.', '\\.')
+const anyOf = (suffixes: string[]) => `(${suffixes.map(escapeSuffix).join('|')})`
+
 /**
- * Hostnames of SQS endpoints in every AWS partition: regional (incl. FIPS),
- * legacy `queue.amazonaws.com`, dual-stack `api.aws`, and VPC interface endpoints.
- * Anchored so other `amazonaws.com` hosts (EC2, API Gateway, ELB) never match.
+ * Hostnames of SQS endpoints: regional and FIPS, dual-stack, VPC interface, and the
+ * legacy `queue.amazonaws.com` forms. Anchored so other AWS hosts (EC2, API
+ * Gateway, ELB) never match.
  */
 const AWS_SQS_HOSTS = [
-  /^sqs(-fips)?\.[a-z0-9-]+\.amazonaws\.com(\.cn)?$/,
+  new RegExp(`^sqs(-fips)?\\.[a-z0-9-]+\\.${anyOf(AWS_DNS_SUFFIXES)}$`),
+  new RegExp(`^sqs(-fips)?\\.[a-z0-9-]+\\.${anyOf(AWS_DUAL_STACK_DNS_SUFFIXES)}$`),
+  new RegExp(`^vpce-[a-z0-9-]+\\.sqs\\.[a-z0-9-]+\\.vpce\\.${anyOf(AWS_DNS_SUFFIXES)}$`),
   /^([a-z0-9-]+\.)?queue\.amazonaws\.com(\.cn)?$/,
-  /^sqs(-fips)?\.[a-z0-9-]+\.api\.aws$/,
-  /^vpce-[a-z0-9-]+\.sqs\.[a-z0-9-]+\.vpce\.amazonaws\.com(\.cn)?$/,
-  /^sqs\.[a-z0-9-]+\.c2s\.ic\.gov$/,
-  /^sqs\.[a-z0-9-]+\.sc2s\.sgov\.gov$/,
-] as const
+]
 
 /**
  * The SQS client sends each request to the host of its `QueueUrl` (the SDK's

@@ -40,7 +40,7 @@ Send an email via AWS SES using simple or HTML content
 | `replyToAddresses` | string | No | Comma-separated list of reply-to email addresses |
 | `configurationSetName` | string | No | SES configuration set name for tracking |
 | `fromName` | string | No | Friendly sender name shown with the From address \(e.g., Acme Support\) |
-| `emailTags` | json | No | Message tags for filtering sending events, as a JSON array of \{"name", "value"\} objects \(letters, digits, _, -, . and @ only\) |
+| `emailTags` | json | No | Message tags for filtering sending events, as a JSON array of \{"name", "value"\} objects \(letters, digits, _ and - only, up to 256 characters\) |
 | `attachments` | file[] | No | Files to attach to the email \(up to 28MB in total\) |
 
 #### Output
@@ -71,7 +71,7 @@ Send an email using an SES email template with dynamic template data
 | `replyToAddresses` | string | No | Comma-separated list of reply-to email addresses |
 | `configurationSetName` | string | No | SES configuration set name for tracking |
 | `fromName` | string | No | Friendly sender name shown with the From address \(e.g., Acme Support\) |
-| `emailTags` | json | No | Message tags for filtering sending events, as a JSON array of \{"name", "value"\} objects \(letters, digits, _, -, . and @ only\) |
+| `emailTags` | json | No | Message tags for filtering sending events, as a JSON array of \{"name", "value"\} objects \(letters, digits, _ and - only, up to 256 characters\) |
 | `attachments` | file[] | No | Files to attach to the email \(up to 28MB in total\) |
 
 #### Output
@@ -100,7 +100,7 @@ Send emails to multiple recipients using an SES template with per-recipient data
 | `replyToAddresses` | string | No | Comma-separated list of reply-to email addresses |
 | `configurationSetName` | string | No | SES configuration set name for tracking |
 | `fromName` | string | No | Friendly sender name shown with the From address \(e.g., Acme Support\) |
-| `emailTags` | json | No | Default message tags applied to every destination for filtering sending events, as a JSON array of \{"name", "value"\} objects \(letters, digits, _, -, . and @ only\) |
+| `emailTags` | json | No | Default message tags applied to every destination for filtering sending events, as a JSON array of \{"name", "value"\} objects \(letters, digits, _ and - only, up to 256 characters\) |
 
 #### Output
 

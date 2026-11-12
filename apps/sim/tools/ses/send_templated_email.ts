@@ -90,7 +90,7 @@ export const sendTemplatedEmailTool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Message tags for filtering sending events, as a JSON array of {"name", "value"} objects (letters, digits, _, -, . and @ only)',
+        'Message tags for filtering sending events, as a JSON array of {"name", "value"} objects (letters, digits, _ and - only, up to 256 characters)',
     },
     attachments: {
       type: 'file[]',
@@ -114,7 +114,7 @@ export const sendTemplatedEmailTool: InternalToolConfig<
       replyToAddresses: params.replyToAddresses,
       configurationSetName: params.configurationSetName,
       fromName: params.fromName,
-      emailTags: params.emailTags,
+      emailTags: Array.isArray(params.emailTags) ? params.emailTags : undefined,
       attachments: params.attachments,
     }),
   },

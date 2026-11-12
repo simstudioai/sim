@@ -63,7 +63,27 @@ function formatFromAddress(address: string, name?: string | null): string {
   if (/^[\x20-\x7e]*$/.test(friendlyName)) {
     return `"${friendlyName.replace(/(["\\])/g, '\\$1')}" <${address}>`
   }
-  return `=?utf-8?B?${Buffer.from(friendlyName, 'utf8').toString('base64')}?= <${address}>`
+  return `${encodeMimeWords(friendlyName)} <${address}>`
+}
+
+/** Bytes per encoded word, so `=?utf-8?B?…?=` stays within RFC 2047's 75 characters. */
+const MIME_WORD_MAX_BYTES = 45
+
+/** Encodes text as RFC 2047 B-encoded words, splitting only between characters. */
+function encodeMimeWords(text: string): string {
+  const words: string[] = []
+  let chunk = ''
+  for (const char of text) {
+    if (Buffer.byteLength(chunk + char, 'utf8') > MIME_WORD_MAX_BYTES) {
+      words.push(chunk)
+      chunk = ''
+    }
+    chunk += char
+  }
+  if (chunk) words.push(chunk)
+  return words
+    .map((word) => `=?utf-8?B?${Buffer.from(word, 'utf8').toString('base64')}?=`)
+    .join(' ')
 }
 
 function toMessageTags(tags?: SesEmailTag[] | null) {

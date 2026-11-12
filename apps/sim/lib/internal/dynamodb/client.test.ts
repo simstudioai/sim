@@ -35,7 +35,7 @@ describe('DynamoDB item unmarshalling', () => {
       expressionAttributeValues: { ':pk': 'USER#1' },
     })
 
-    expect(JSON.parse(JSON.stringify(result))).toEqual({
+    expect(await Response.json(result).json()).toEqual({
       items: [
         {
           pk: 'USER#1',

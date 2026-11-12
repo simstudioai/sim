@@ -79,7 +79,7 @@ export const sendBulkEmailTool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Default message tags applied to every destination for filtering sending events, as a JSON array of {"name", "value"} objects (letters, digits, _, -, . and @ only)',
+        'Default message tags applied to every destination for filtering sending events, as a JSON array of {"name", "value"} objects (letters, digits, _ and - only, up to 256 characters)',
     },
   },
 
@@ -95,7 +95,7 @@ export const sendBulkEmailTool: InternalToolConfig<
       configurationSetName: params.configurationSetName,
       replyToAddresses: params.replyToAddresses,
       fromName: params.fromName,
-      emailTags: params.emailTags,
+      emailTags: Array.isArray(params.emailTags) ? params.emailTags : undefined,
     }),
   },
 

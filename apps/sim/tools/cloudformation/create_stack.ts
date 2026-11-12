@@ -5,6 +5,13 @@ import type {
 import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
+/** Accepts a boolean or its string form; anything else (empty, null) is left unset. */
+function parseOptionalBoolean(value: unknown): boolean | undefined {
+  if (value === true || value === 'true') return true
+  if (value === false || value === 'false') return false
+  return undefined
+}
+
 export const createStackTool: InternalToolConfig<
   CloudFormationCreateStackParams,
   CloudFormationCreateStackResponse
@@ -107,8 +114,8 @@ export const createStackTool: InternalToolConfig<
       ...(params.onFailure && { onFailure: params.onFailure }),
       ...(params.timeoutInMinutes !== undefined && { timeoutInMinutes: params.timeoutInMinutes }),
       ...(params.roleArn && { roleArn: params.roleArn }),
-      ...(params.enableTerminationProtection !== undefined && {
-        enableTerminationProtection: params.enableTerminationProtection,
+      ...(parseOptionalBoolean(params.enableTerminationProtection) !== undefined && {
+        enableTerminationProtection: parseOptionalBoolean(params.enableTerminationProtection),
       }),
     }),
   },

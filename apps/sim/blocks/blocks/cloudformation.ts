@@ -549,7 +549,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
               ...(rest.capabilities && { capabilities: rest.capabilities }),
               ...(rest.changeSetType && { changeSetType: rest.changeSetType }),
               ...(rest.changeSetDescription && { description: rest.changeSetDescription }),
-              ...(rest.changeSetTags && { tags: parseJson(rest.changeSetTags, 'tags') }),
+              tags: rest.changeSetTags ? parseJson(rest.changeSetTags, 'tags') : undefined,
               ...(rest.roleArn && { roleArn: rest.roleArn }),
             }
           }

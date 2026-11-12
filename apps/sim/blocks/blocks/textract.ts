@@ -271,10 +271,12 @@ function parseTextractQueries(value: unknown): TextractQueryParam[] {
       const text = entry.trim()
       return text ? [{ Text: text }] : []
     }
-    if (typeof entry !== 'object' || entry === null) return []
-    const record = entry as Record<string, unknown>
+    const record =
+      typeof entry === 'object' && entry !== null ? (entry as Record<string, unknown>) : {}
     const text = typeof record.Text === 'string' ? record.Text.trim() : ''
-    if (!text) return []
+    if (!text) {
+      throw new Error('Each query must be a question string or an object with a non-empty "Text"')
+    }
     return [
       {
         Text: text,

@@ -271,7 +271,7 @@ Output:
   "is_premium": true
 }
 
-Values are bound as literal parameters, so SQL expressions such as NOW() are stored as text. Leave out columns that should take a database default.`,
+Values are bound as literal parameters, so SQL expressions such as NOW() are not evaluated: they are stored as text in text columns and fail on other column types. Leave out columns that should take a database default.`,
         placeholder: 'Describe the data you want to insert...',
         generationType: 'json-object',
       },
@@ -399,7 +399,7 @@ To cast a string to a specific type, use an array of entries with a typeHint of 
 
 Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         placeholder: 'Describe the values for each :placeholder...',
-        generationType: 'json-object',
+        generationType: 'json-value',
       },
     },
     {

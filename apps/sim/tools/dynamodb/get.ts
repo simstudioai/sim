@@ -72,9 +72,10 @@ export const getTool: InternalToolConfig<DynamoDBGetParams, DynamoDBGetResponse>
       key: params.key,
       ...(params.consistentRead !== undefined && { consistentRead: params.consistentRead }),
       ...(params.projectionExpression && { projectionExpression: params.projectionExpression }),
-      ...(params.expressionAttributeNames && {
-        expressionAttributeNames: params.expressionAttributeNames,
-      }),
+      ...(params.projectionExpression &&
+        params.expressionAttributeNames && {
+          expressionAttributeNames: params.expressionAttributeNames,
+        }),
     }),
   },
 

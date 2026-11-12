@@ -317,7 +317,7 @@ export const STSBlock: BlockConfig = {
             if (rest.tokenCode) result.tokenCode = rest.tokenCode
             if (rest.policyArns) result.policyArns = rest.policyArns
             if (rest.transitiveTagKeys) result.transitiveTagKeys = rest.transitiveTagKeys
-            if (rest.sourceIdentity) result.sourceIdentity = rest.sourceIdentity
+            result.sourceIdentity = rest.sourceIdentity || undefined
             if (rest.tags) {
               const rows = rest.tags
               if (typeof rows === 'string') {

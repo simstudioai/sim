@@ -24,7 +24,13 @@ const ScanSchema = z.object({
   limit: z.number().positive().optional(),
   exclusiveStartKey: z.record(z.string(), z.unknown()).optional(),
   indexName: z.string().optional(),
-  consistentRead: z.boolean().optional(),
+  consistentRead: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((val) => {
+      if (val === true || val === 'true') return true
+      return undefined
+    }),
   segment: z.number().int().min(0).max(999999).optional(),
   totalSegments: z.number().int().min(1).max(1000000).optional(),
 })

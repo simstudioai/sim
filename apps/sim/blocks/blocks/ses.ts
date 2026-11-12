@@ -381,7 +381,7 @@ export const SESBlock: BlockConfig = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate an Amazon SES message tag list as a JSON array of objects, each with a "name" and a "value". Names and values may contain only letters, digits, underscores, hyphens, periods, and @. Return ONLY the JSON array.',
+          'Generate an Amazon SES message tag list as a JSON array of objects, each with a "name" and a "value". Names and values may contain only letters, digits, underscores, and hyphens, up to 256 characters. Return ONLY the JSON array.',
         generationType: 'json-array',
       },
     },
@@ -709,10 +709,9 @@ export const SESBlock: BlockConfig = {
         const sendAttachments = normalizeFileInput(attachments)
 
         const applySendOptions = (target: Record<string, unknown>, replyToAddresses: unknown) => {
-          if (rest.fromName) target.fromName = rest.fromName
-          if (replyToAddresses) target.replyToAddresses = replyToAddresses
-          const emailTags = parseEmailTags(rest.emailTags)
-          if (emailTags !== undefined) target.emailTags = emailTags
+          target.fromName = rest.fromName || undefined
+          target.replyToAddresses = replyToAddresses || undefined
+          target.emailTags = parseEmailTags(rest.emailTags)
         }
 
         const connectionConfig = {
@@ -788,7 +787,7 @@ export const SESBlock: BlockConfig = {
             if (rest.bccAddresses) result.bccAddresses = rest.bccAddresses
             if (rest.configurationSetName) result.configurationSetName = rest.configurationSetName
             applySendOptions(result, rest.replyToAddresses)
-            if (sendAttachments) result.attachments = sendAttachments
+            result.attachments = sendAttachments
             break
           case 'send_templated_email':
             result.fromAddress = rest.fromAddress
@@ -799,7 +798,7 @@ export const SESBlock: BlockConfig = {
             if (rest.bccAddresses) result.bccAddresses = rest.bccAddresses
             if (rest.configurationSetName) result.configurationSetName = rest.configurationSetName
             applySendOptions(result, rest.templateReplyToAddresses)
-            if (sendAttachments) result.attachments = sendAttachments
+            result.attachments = sendAttachments
             break
           case 'send_bulk_email':
             result.fromAddress = rest.fromAddress
