@@ -1,12 +1,14 @@
 # See which workflows need your attention
 
-Edition identity: `manual-workflow-run-controls`. Part of the November 11 editorial catch-up through v0.9.54. Published on the review date, not backdated to the source releases. Canonical: https://www.sim.ai/changelog/workflow-run-controls.
+Edition identity: `manual-workflow-run-controls`. Canonical: https://www.sim.ai/changelog/workflow-run-controls.
 
-## Editorial selection
+## Date and scope
 
-Reviewed the complete commit inventory since v0.9.32 alongside every published stable release through v0.9.54. The four focused stories cover Search/browser work, reusable credentials/access, workflow management, and media creation. Internal refactors, dependency and CI changes, routine validation/retry fixes, and marketing-library edits stay in technical history. People remains gated and its redesign was reverted; scheduled-job runtime without a public creation path is not announced. Provider/model additions do not lead just because they are new. No forced length or category quota.
+Retrospective edition dated 2026-11-11, using the Pacific calendar day of the release anchoring this story. This is an editorial date for the catch-up, not a claim that this article was already public then. The updated timestamp records the current review; later additions name their actual release. Browser coverage is anchored to the expanded v0.9.44 experience. Existing published article dates and RSS identities remain unchanged.
 
-Each section identifies the actual release carrying its changes. There is no single release URL or reused technical-release RSS identifier; the canonical article URL identifies this edition. The image-to-video story incorporates the unfinished automated November 9 brief without duplicating an existing published article.
+Reviewed the complete change inventory since v0.9.32 through v0.9.54, then inspected substantive candidates and their released behavior. Five focused stories cover Search, browser/desktop work, credentials/access, workflow management, and media creation. Short supporting notes explain practical changes. The editorial reference was Gumloop’s direct headlines and compact grouped improvements; no competitor claims or copy were reused.
+
+Routine maintenance, refactors, dependency/CI work and marketing-library posts remain in technical history. Files pagination preserves existing search/filter capabilities and has no measured speed claim, so it is not presented as a new feature. People remains gated/reverted; scheduled-job runtime has no public creation path; Marketplace rollout was not established. Model and integration counts do not displace stronger stories. No forced padding.
 
 ## Sources
 
@@ -21,8 +23,9 @@ Each section identifies the actual release carrying its changes. There is no sin
 | [#9754](https://github.com/simstudioai/sim/pull/9754) | fix(tables): keep leading-zero codes as text when inferring CSV column types | v0.9.47 |
 | [#9848](https://github.com/simstudioai/sim/pull/9848) | chore(sdk): remove the TypeScript and Python SDKs | v0.9.53 |
 | [#9830](https://github.com/simstudioai/sim/pull/9830) | fix(cli): bind sim-setup's containers to loopback, fix reset and env quoting, retire the legacy simstudio CLI | v0.9.53 |
+| [#9464](https://github.com/simstudioai/sim/pull/9464) | feat(workflows): let a synchronous run continue in the background after a wait timeout | v0.9.37 |
 
-All listed source merge commits are ancestors of the successfully deployed v0.9.54 production release. Release membership comes from explicit PR references, not timestamps. Current source, deployed documentation, production availability, permission boundaries and relevant provider restrictions were checked. Read-only verification does not establish a new third-party action, paid generation, keyless cloud setup, or workflow execution.
+Release membership uses explicit PR references. Every listed merge commit is an ancestor of the successfully deployed v0.9.54 production release. Current code, live documentation, availability and access restrictions were reviewed. No new provider write, paid generation, keyless cloud setup or workflow execution is claimed. The canonical article URL supplies a new RSS GUID; no technical-release GUID is reused.
 
 ## Media
 
@@ -35,9 +38,9 @@ Final immutable asset: `/changelog/workflow-paths-v1.jpg`. The shared media fram
 ## Review
 
 - [x] Claim/source/release and access review completed.
-- [x] Media inspected at its native dimensions.
-- [x] Article desktop/mobile layout, links, metadata and discovery checked.
-- [x] Required local repository gates completed; local test suites were not run.
+- [x] Media inspected at native dimensions.
+- [x] Revised article desktop/mobile layout, links, metadata and discovery checked.
+- [x] Required local repository gates completed; test suites are left to CI.
 - [ ] Both current-head reviews and CI completed.
 - [ ] Actual staging deployment and hosted QA completed.
 
