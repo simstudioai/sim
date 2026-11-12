@@ -21,8 +21,7 @@ const CONFIGURED_ENDPOINT_TIMEOUT_MS = 10_000
 /** Form fields the grant itself sets, which an extra field may never replace. */
 const RESERVED_GRANT_FIELDS = ['grant_type', 'client_id', 'client_secret'] as const
 
-/** One OAuth 2.0 client-credentials token request to a fixed or validated token endpoint. */
-export interface ClientCredentialsGrantRequest {
+interface ClientCredentialsGrantFields {
   /** The token endpoint, from a constant or a host the caller already validated. */
   url: string
   clientId: string
@@ -39,13 +38,6 @@ export interface ClientCredentialsGrantRequest {
   /** The longest a token is kept, whatever `expires_in` the provider reports. */
   maxLifetimeSeconds: number
   /**
-   * `configuredEndpoint` when {@link url} is on a host the admin configured rather than a fixed
-   * provider host: the request then goes through {@link postToConfiguredTokenEndpoint}, and
-   * `fetchOptions` does not apply.
-   */
-  egress?: 'configuredEndpoint'
-  fetchOptions?: FetchProviderOptions
-  /**
    * Maps a refused exchange to a provider-specific error. Without it, a refusal is
    * `invalid_credentials` for a non-transient 4xx and `provider_unavailable` otherwise.
    * `retryAfterMs` is the refusal's `Retry-After` (see {@link throttledRetryAfterMs}), which an
@@ -58,6 +50,18 @@ export interface ClientCredentialsGrantRequest {
   ) => TokenServiceAccountValidationError
   signal?: AbortSignal
 }
+
+/**
+ * One OAuth 2.0 client-credentials token request to a fixed or validated token endpoint. With
+ * `egress: 'configuredEndpoint'`, for a URL on a host the admin configured rather than a fixed
+ * provider host, the request goes through {@link postToConfiguredTokenEndpoint}, which takes no
+ * `fetchOptions`.
+ */
+export type ClientCredentialsGrantRequest = ClientCredentialsGrantFields &
+  (
+    | { egress?: undefined; fetchOptions?: FetchProviderOptions }
+    | { egress: 'configuredEndpoint'; fetchOptions?: never }
+  )
 
 /**
  * Exchanges client credentials for an access token: a form POST of `grant_type=client_credentials`
@@ -95,12 +99,61 @@ export async function exchangeClientCredentialsGrant(
           step,
           request.fetchOptions
         )
+  return readAccessTokenResponse(response, {
+    step,
+    label: request.label,
+    startedAt,
+    maxLifetimeSeconds: request.maxLifetimeSeconds,
+    classifyRefusal: request.classifyRefusal,
+    signal,
+  })
+}
+
+/** How {@link readAccessTokenResponse} reads one provider's token response. */
+interface AccessTokenResponseOptions {
+  /** The validation step named in errors and logs. */
+  step: string
+  /** Names the provider's token response in a body-limit error. */
+  label: string
+  /** When the token request was sent; the token's lifetime counts from here. */
+  startedAt: number
+  /** The longest a token is kept, whatever lifetime the provider reports. */
+  maxLifetimeSeconds: number
+  /** The field holding the token, `access_token` unless the provider names it otherwise. */
+  tokenField?: string
+  /** The field holding the lifetime in seconds, `expires_in` unless the provider names it otherwise. */
+  expiresInField?: string
+  /**
+   * Whether a lifetime of 0 means the provider set no expiry, so the token is kept for
+   * {@link maxLifetimeSeconds}. Otherwise a lifetime of 0 is an invalid response.
+   */
+  zeroLifetimeMeansNoExpiry?: boolean
+  /**
+   * Maps a refusal to a provider-specific error, as the grant's own `classifyRefusal` does.
+   * Without it, a refusal is `invalid_credentials` for a non-transient 4xx and
+   * `provider_unavailable` otherwise.
+   */
+  classifyRefusal?: ClientCredentialsGrantFields['classifyRefusal']
+  signal?: AbortSignal
+}
+
+/**
+ * Reads a token endpoint's response: a refusal is classified from its status, and a response
+ * without a non-blank token and a non-negative integer lifetime (positive unless
+ * {@link AccessTokenResponseOptions.zeroLifetimeMeansNoExpiry}) is `provider_unavailable`. The
+ * token expires `min(lifetime, maxLifetimeSeconds)` after the request started.
+ */
+export async function readAccessTokenResponse(
+  response: ProviderResponse,
+  options: AccessTokenResponseOptions
+): Promise<{ accessToken: string; expiresAt: Date }> {
+  const { step, signal } = options
   if (!response.ok) {
     const body = await readProviderErrorSnippet(response)
     signal?.throwIfAborted()
     const retryAfterMs = throttledRetryAfterMs(response)
-    throw request.classifyRefusal
-      ? request.classifyRefusal(response.status, body, retryAfterMs)
+    throw options.classifyRefusal
+      ? options.classifyRefusal(response.status, body, retryAfterMs)
       : new TokenServiceAccountValidationError(
           providerFailureCode(response.status),
           response.status,
@@ -112,7 +165,7 @@ export async function exchangeClientCredentialsGrant(
   try {
     payload = await readResponseJsonWithLimit<unknown>(response, {
       maxBytes: MAX_TOKEN_RESPONSE_BYTES,
-      label: request.label,
+      label: options.label,
       signal,
     })
   } catch (error) {
@@ -125,23 +178,28 @@ export async function exchangeClientCredentialsGrant(
     }
     payload = undefined
   }
+  const token = isRecordLike(payload) ? payload[options.tokenField ?? 'access_token'] : undefined
+  const lifetime = isRecordLike(payload)
+    ? payload[options.expiresInField ?? 'expires_in']
+    : undefined
+  const minimumLifetime = options.zeroLifetimeMeansNoExpiry ? 0 : 1
   if (
-    !isRecordLike(payload) ||
-    typeof payload.access_token !== 'string' ||
-    !payload.access_token.trim() ||
-    typeof payload.expires_in !== 'number' ||
-    !Number.isSafeInteger(payload.expires_in) ||
-    payload.expires_in <= 0
+    typeof token !== 'string' ||
+    !token.trim() ||
+    typeof lifetime !== 'number' ||
+    !Number.isSafeInteger(lifetime) ||
+    lifetime < minimumLifetime
   ) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step,
       reason: 'provider returned an invalid token response',
     })
   }
-  const lifetimeSeconds = Math.min(payload.expires_in, request.maxLifetimeSeconds)
+  const lifetimeSeconds =
+    lifetime === 0 ? options.maxLifetimeSeconds : Math.min(lifetime, options.maxLifetimeSeconds)
   return {
-    accessToken: payload.access_token,
-    expiresAt: new Date(startedAt + lifetimeSeconds * 1000),
+    accessToken: token,
+    expiresAt: new Date(options.startedAt + lifetimeSeconds * 1000),
   }
 }
 

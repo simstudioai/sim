@@ -1,7 +1,17 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { exchangeClientCredentialsGrant } from '@/lib/credentials/client-credentials-grant'
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
+import {
+  exchangeClientCredentialsGrant,
+  postToConfiguredTokenEndpoint,
+} from '@/lib/credentials/client-credentials-grant'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const mockFetch = vi.fn<typeof fetch>()
 
@@ -192,5 +202,57 @@ describe('exchangeClientCredentialsGrant', () => {
     await expect(exchangeClientCredentialsGrant(REQUEST)).rejects.toMatchObject({
       code: 'provider_unavailable',
     })
+  })
+})
+
+describe('postToConfiguredTokenEndpoint', () => {
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithValidation
+  const CONFIGURED = {
+    url: 'https://instance.example.com/oauth/token',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=client_credentials',
+    step: 'configured_token_mint',
+  }
+
+  beforeEach(() => {
+    secureFetch.mockReset()
+  })
+
+  it('reports a host the egress policy refuses as the typed host, not an outage', async () => {
+    secureFetch.mockRejectedValueOnce(new EgressRefusedError('private address'))
+
+    await expect(postToConfiguredTokenEndpoint(CONFIGURED)).rejects.toMatchObject({
+      code: 'host_not_allowed',
+      status: 400,
+    })
+  })
+
+  it.each([
+    ['ENOTFOUND', 'site_not_found', 400],
+    ['EAI_AGAIN', 'provider_unavailable', 502],
+  ])('classifies a %s lookup failure as %s', async (resolverCode, code, status) => {
+    secureFetch.mockRejectedValueOnce(
+      new Error('url hostname could not be resolved', {
+        cause: Object.assign(new Error('lookup failed'), { code: resolverCode }),
+      })
+    )
+
+    await expect(postToConfiguredTokenEndpoint(CONFIGURED)).rejects.toMatchObject({
+      code,
+      status,
+    })
+  })
+
+  it('surfaces a caller abort as the abort', async () => {
+    const controller = new AbortController()
+    secureFetch.mockImplementationOnce(async () => {
+      controller.abort()
+      throw new Error('request aborted')
+    })
+
+    const posting = postToConfiguredTokenEndpoint({ ...CONFIGURED, signal: controller.signal })
+
+    await expect(posting).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(posting).rejects.not.toBeInstanceOf(TokenServiceAccountValidationError)
   })
 })

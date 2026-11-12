@@ -3,7 +3,6 @@ import {
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { EgressRefusedError } from '@/lib/core/network/transport.server'
 
 const { coordinated } = vi.hoisted(() => ({ coordinated: vi.fn() }))
 
@@ -94,10 +93,22 @@ describe('Infisical Universal Auth login', () => {
     expect(minted.expiresInSeconds).toBeGreaterThan(86_000)
   })
 
+  it('serves the token of an identity whose access token TTL is 0 (no expiry) for a day', async () => {
+    secureFetch.mockResolvedValueOnce(
+      login({ accessToken: 'unbounded-token', expiresIn: 0, tokenType: 'Bearer' })
+    )
+
+    const minted = await mintInfisicalUniversalAuthToken(FIELDS)
+
+    expect(minted.accessToken).toBe('unbounded-token')
+    expect(minted.expiresInSeconds).toBeLessThanOrEqual(86_400)
+    expect(minted.expiresInSeconds).toBeGreaterThan(86_000)
+  })
+
   it.each([
     ['a missing access token', { expiresIn: 7200 }],
     ['a blank access token', { accessToken: '  ', expiresIn: 7200 }],
-    ['a zero lifetime', { accessToken: 'token', expiresIn: 0 }],
+    ['a negative lifetime', { accessToken: 'token', expiresIn: -1 }],
     ['a fractional lifetime', { accessToken: 'token', expiresIn: 1.5 }],
     ['a non-object body', ['token']],
   ])('treats %s as the provider failing, not the credentials', async (_case, body) => {
@@ -123,28 +134,6 @@ describe('Infisical Universal Auth login', () => {
     await expect(mintInfisicalUniversalAuthToken(FIELDS)).rejects.toMatchObject({ code, status })
   })
 
-  it('reports an instance the egress policy refuses as the typed host, not an outage', async () => {
-    secureFetch.mockRejectedValueOnce(new EgressRefusedError('private address'))
-
-    await expect(mintInfisicalUniversalAuthToken(FIELDS)).rejects.toMatchObject({
-      code: 'host_not_allowed',
-      status: 400,
-    })
-  })
-
-  it.each([
-    ['ENOTFOUND', 'site_not_found', 400],
-    ['EAI_AGAIN', 'provider_unavailable', 502],
-  ])('classifies a %s lookup failure as %s', async (resolverCode, code, status) => {
-    secureFetch.mockRejectedValueOnce(
-      new Error('url hostname could not be resolved', {
-        cause: Object.assign(new Error('lookup failed'), { code: resolverCode }),
-      })
-    )
-
-    await expect(mintInfisicalUniversalAuthToken(FIELDS)).rejects.toMatchObject({ code, status })
-  })
-
   it('never logs in to an instance URL carrying credentials or another scheme', async () => {
     for (const domain of ['https://user:pass@secrets.example.com', 'ftp://secrets.example.com']) {
       await expect(mintInfisicalUniversalAuthToken({ ...FIELDS, domain })).rejects.toMatchObject({
@@ -162,17 +151,5 @@ describe('Infisical Universal Auth login', () => {
       mintInfisicalUniversalAuthToken({ ...FIELDS, clientId: '  ' })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(secureFetch).not.toHaveBeenCalled()
-  })
-
-  it('surfaces a caller abort as the abort', async () => {
-    const controller = new AbortController()
-    secureFetch.mockImplementationOnce(async () => {
-      controller.abort()
-      throw new Error('request aborted')
-    })
-
-    await expect(
-      mintInfisicalUniversalAuthToken(FIELDS, { signal: controller.signal })
-    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 })

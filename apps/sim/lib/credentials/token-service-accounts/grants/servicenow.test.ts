@@ -3,7 +3,6 @@ import {
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { EgressRefusedError } from '@/lib/core/network/transport.server'
 
 const { coordinated } = vi.hoisted(() => ({ coordinated: vi.fn() }))
 
@@ -76,51 +75,6 @@ describe('ServiceNow client credentials grant', () => {
         clientSecret: 'sn-secret',
       })
     )
-  })
-
-  it.each([
-    [401, 'invalid_credentials'],
-    [400, 'invalid_credentials'],
-    [429, 'provider_unavailable'],
-    [503, 'provider_unavailable'],
-  ])('classifies a %s token refusal as %s', async (status, code) => {
-    secureFetch.mockResolvedValueOnce(
-      tokenResponse({ error: 'access_denied', error_description: 'denied' }, status)
-    )
-
-    await expect(mintServiceNowClientCredentialsToken(FIELDS)).rejects.toMatchObject({
-      code,
-      status,
-    })
-  })
-
-  it('treats a token response without an expiry as the provider failing', async () => {
-    secureFetch.mockResolvedValueOnce(tokenResponse({ access_token: 'sn-token' }))
-
-    await expect(mintServiceNowClientCredentialsToken(FIELDS)).rejects.toMatchObject({
-      code: 'provider_unavailable',
-    })
-  })
-
-  it('reports an instance the egress policy refuses as the typed host', async () => {
-    secureFetch.mockRejectedValueOnce(new EgressRefusedError('private address'))
-
-    await expect(mintServiceNowClientCredentialsToken(FIELDS)).rejects.toMatchObject({
-      code: 'host_not_allowed',
-      status: 400,
-    })
-  })
-
-  it('reports an instance that does not resolve as the typed host', async () => {
-    secureFetch.mockRejectedValueOnce(
-      new Error('url hostname could not be resolved', {
-        cause: Object.assign(new Error('lookup failed'), { code: 'ENOTFOUND' }),
-      })
-    )
-
-    await expect(mintServiceNowClientCredentialsToken(FIELDS)).rejects.toMatchObject({
-      code: 'site_not_found',
-    })
   })
 
   it('never sends the secret to a plain-http instance or one carrying credentials', async () => {

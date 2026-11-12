@@ -1,24 +1,24 @@
-import { isRecordLike } from '@sim/utils/object'
 import { normalizeHttpBaseUrl } from '@/lib/core/security/input-validation'
-import { PayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import { postToConfiguredTokenEndpoint } from '@/lib/credentials/client-credentials-grant'
+import {
+  postToConfiguredTokenEndpoint,
+  readAccessTokenResponse,
+} from '@/lib/credentials/client-credentials-grant'
 import { resolveCoordinatedClientToken } from '@/lib/credentials/coordinated-client-token'
 import type {
   TokenClientCredentialFields,
   TokenClientCredentialMint,
 } from '@/lib/credentials/token-service-accounts/client-credentials'
-import {
-  providerFailureCode,
-  providerFailureReason,
-  readProviderErrorSnippet,
-  TokenServiceAccountValidationError,
-} from '@/lib/credentials/token-service-accounts/errors'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 
 const STEP = 'infisical_universal_auth_login'
-const MAX_LOGIN_RESPONSE_BYTES = 64 * 1024
 /**
  * Infisical access tokens default to a 30-day TTL, and an identity's tokens can be revoked before
- * then, so the shared token is replaced daily; a shorter `expiresIn` is honored as reported.
+ * then, so the shared token is replaced daily; a shorter `expiresIn` is honored as reported. An
+ * `expiresIn` of 0 (an access token TTL of 0, which the attach API accepts) is kept for this long
+ * too: Universal Auth uses 0 for "never expires" on its client secret TTL.
+ *
+ * @see https://infisical.com/docs/api-reference/endpoints/universal-auth/attach
+ * @see https://infisical.com/docs/documentation/platform/identities/universal-auth
  */
 const SERVED_TOKEN_LIFETIME_SECONDS = 24 * 60 * 60
 
@@ -48,50 +48,16 @@ async function loginWithUniversalAuth(
     step: STEP,
     signal,
   })
-  if (!response.ok) {
-    const body = await readProviderErrorSnippet(response)
-    signal?.throwIfAborted()
-    throw new TokenServiceAccountValidationError(
-      providerFailureCode(response.status),
-      response.status,
-      { step: STEP, body }
-    )
-  }
-  let payload: unknown
-  try {
-    payload = await readResponseJsonWithLimit<unknown>(response, {
-      maxBytes: MAX_LOGIN_RESPONSE_BYTES,
-      label: 'Infisical login response',
-      signal,
-    })
-  } catch (error) {
-    signal?.throwIfAborted()
-    if (!(error instanceof SyntaxError || error instanceof PayloadSizeLimitError)) {
-      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
-        step: STEP,
-        reason: `reading the login response failed: ${providerFailureReason(error)}`,
-      })
-    }
-    payload = undefined
-  }
-  if (
-    !isRecordLike(payload) ||
-    typeof payload.accessToken !== 'string' ||
-    !payload.accessToken.trim() ||
-    typeof payload.expiresIn !== 'number' ||
-    !Number.isSafeInteger(payload.expiresIn) ||
-    payload.expiresIn <= 0
-  ) {
-    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
-      step: STEP,
-      reason: 'Infisical returned an invalid login response',
-    })
-  }
-  const lifetimeSeconds = Math.min(payload.expiresIn, SERVED_TOKEN_LIFETIME_SECONDS)
-  return {
-    accessToken: payload.accessToken,
-    expiresAt: new Date(startedAt + lifetimeSeconds * 1000),
-  }
+  return readAccessTokenResponse(response, {
+    step: STEP,
+    label: 'Infisical login response',
+    startedAt,
+    maxLifetimeSeconds: SERVED_TOKEN_LIFETIME_SECONDS,
+    tokenField: 'accessToken',
+    expiresInField: 'expiresIn',
+    zeroLifetimeMeansNoExpiry: true,
+    signal,
+  })
 }
 
 /**
