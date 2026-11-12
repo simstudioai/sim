@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import {
   awsMarketplaceLicense,
   awsMarketplaceUsageReport,
+  awsMarketplaceUsageTally,
   organization,
   usageLog,
   user,
@@ -14,6 +15,7 @@ const CONTRACT_PRODUCT = 'product-placeholder'
 const USAGE_PRODUCT = 'usage-product-placeholder'
 const ACCOUNT = '000000000000'
 const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
 
 interface SentRecord {
   LicenseArn?: string
@@ -40,16 +42,20 @@ vi.mock('@aws-sdk/client-marketplace-metering', () => ({
 
 import { meterAwsMarketplaceUsage } from '@/lib/billing/aws-marketplace/metering'
 
-/** Twenty minutes into an hour, so the previous hour has settled and this one has not. */
+/** Twenty minutes into an hour. */
 const NOW = Math.floor(Date.now() / HOUR_MS) * HOUR_MS + 20 * 60 * 1000
-const CURRENT_HOUR = Math.floor(NOW / HOUR_MS) * HOUR_MS
-const hoursAgo = (hours: number) => new Date(CURRENT_HOUR - hours * HOUR_MS)
-const minutesInto = (hour: Date, minutes: number) => new Date(hour.getTime() + minutes * 60_000)
+const floorHour = (time: number) => new Date(Math.floor(time / HOUR_MS) * HOUR_MS)
+const HOUR = floorHour(NOW)
+const NEXT_HOUR = NOW + HOUR_MS
+const minutesAgo = (minutes: number) => new Date(NOW - minutes * 60_000)
+/** The billing period every fixture's usage falls in, unless a test says otherwise. */
+const PERIOD = { start: new Date(NOW - 10 * DAY_MS), end: new Date(NOW + 20 * DAY_MS) }
 
 const userIds: string[] = []
 const organizationIds: string[] = []
+const licenseIds: string[] = []
 
-/** Every record sent so far, with the request's top-level product code alongside. */
+/** Every record sent for the license, with the request's top-level product code alongside. */
 function sentRecords(licenseArn: string): Array<SentRecord & { productCode?: string }> {
   return meteringSend.mock.calls.flatMap(([command]) =>
     command.input.UsageRecords.filter((record: SentRecord) => record.LicenseArn === licenseArn).map(
@@ -97,6 +103,7 @@ async function insertLicense(
   overrides: Partial<typeof awsMarketplaceLicense.$inferInsert> = {}
 ) {
   const id = generateId()
+  licenseIds.push(id)
   const licenseArn = `arn:aws:license-manager::000000000000:license:l-${id}`
   await db.insert(awsMarketplaceLicense).values({
     id,
@@ -106,7 +113,7 @@ async function insertLicense(
     status: 'active',
     dimension: 'platform',
     organizationId,
-    organizationLinkedAt: hoursAgo(10),
+    organizationLinkedAt: new Date(NOW - 5 * HOUR_MS),
     lastVerifiedAt: new Date(),
     lastVerificationAttemptAt: new Date(),
     ...overrides,
@@ -116,23 +123,29 @@ async function insertLicense(
 
 async function logUsage(
   owner: { organizationId: string; userId: string },
-  at: Date,
-  cost: number,
-  category: 'model' | 'model_unbilled' | 'tool' = 'model'
-) {
+  input: {
+    at: Date
+    cost: number
+    category?: 'model' | 'model_unbilled' | 'tool'
+    period?: { start: Date; end: Date }
+  }
+): Promise<string> {
+  const id = generateId()
+  const period = input.period ?? PERIOD
   await db.insert(usageLog).values({
-    id: generateId(),
+    id,
     userId: owner.userId,
-    category,
+    category: input.category ?? 'model',
     source: 'workflow',
     description: 'metering fixture',
-    cost: cost.toString(),
+    cost: input.cost.toString(),
     billingEntityType: 'organization',
     billingEntityId: owner.organizationId,
-    billingPeriodStart: new Date(at.getTime() - 30 * 24 * HOUR_MS),
-    billingPeriodEnd: new Date(at.getTime() + 30 * 24 * HOUR_MS),
-    createdAt: at,
+    billingPeriodStart: period.start,
+    billingPeriodEnd: period.end,
+    createdAt: input.at,
   })
+  return id
 }
 
 async function reportsFor(organizationId: string) {
@@ -143,12 +156,23 @@ async function reportsFor(organizationId: string) {
     .orderBy(asc(awsMarketplaceUsageReport.hourStart))
 }
 
+/** Charges the usage now, then sends it once its hour has closed. */
+async function chargeAndSend() {
+  await meterAwsMarketplaceUsage(NOW)
+  await meterAwsMarketplaceUsage(NEXT_HOUR)
+}
+
 beforeEach(() => {
   meteringSend.mockReset()
   acceptEverything()
 })
 
 afterEach(async () => {
+  if (licenseIds.length) {
+    await db
+      .delete(awsMarketplaceLicense)
+      .where(inArray(awsMarketplaceLicense.id, licenseIds.splice(0)))
+  }
   if (organizationIds.length) {
     await db.delete(organization).where(inArray(organization.id, organizationIds.splice(0)))
   }
@@ -156,117 +180,171 @@ afterEach(async () => {
 })
 
 describe('AWS Marketplace usage metering', () => {
-  it('bills each settled hour of billed model usage in whole credits, carrying fractions forward', async () => {
+  it('charges whole credits during the hour, carrying fractions, and sends once the hour closes', async () => {
     const owner = await createOrganization()
     const { licenseArn } = await insertLicense(owner.organizationId)
-    await logUsage(owner, minutesInto(hoursAgo(3), 5), 0.01)
-    await logUsage(owner, minutesInto(hoursAgo(3), 40), 0.005)
-    await logUsage(owner, minutesInto(hoursAgo(2), 10), 0.015)
-    await logUsage(owner, minutesInto(hoursAgo(1), 59), 1.2345)
+    await logUsage(owner, { at: minutesAgo(30), cost: 0.015 })
+    await logUsage(owner, { at: minutesAgo(10), cost: 0.01 })
 
     await meterAwsMarketplaceUsage(NOW)
+    await logUsage(owner, { at: minutesAgo(1), cost: 0.006 })
+    await meterAwsMarketplaceUsage(NOW + 5 * 60_000)
+
+    expect(sentRecords(licenseArn)).toEqual([])
+    expect(await reportsFor(owner.organizationId)).toEqual([
+      expect.objectContaining({ hourStart: HOUR, quantity: 3, status: 'pending' }),
+    ])
+
+    await meterAwsMarketplaceUsage(NEXT_HOUR)
 
     expect(sentRecords(licenseArn)).toEqual([
       {
         LicenseArn: licenseArn,
         CustomerAWSAccountId: ACCOUNT,
         Dimension: 'llm_credits',
-        Quantity: 1,
-        Timestamp: hoursAgo(3),
+        Quantity: 3,
+        Timestamp: HOUR,
         productCode: undefined,
       },
-      expect.objectContaining({ Quantity: 2, Timestamp: hoursAgo(2) }),
-      expect.objectContaining({ Quantity: 123, Timestamp: hoursAgo(1) }),
     ])
     expect(await reportsFor(owner.organizationId)).toEqual([
-      expect.objectContaining({
-        status: 'reported',
-        quantityThrough: 1,
-        costThroughUsd: '0.015000',
-      }),
-      expect.objectContaining({
-        status: 'reported',
-        quantityThrough: 3,
-        costThroughUsd: '0.030000',
-      }),
-      expect.objectContaining({
-        status: 'reported',
-        quantityThrough: 126,
-        costThroughUsd: '1.264500',
-      }),
+      expect.objectContaining({ status: 'reported', meteringRecordId: 'record-0' }),
     ])
   })
 
-  it('never bills bring-your-own-key or tool usage, usage before the link, or an unsettled hour', async () => {
+  it('charges cost raised in place after it was first counted', async () => {
     const owner = await createOrganization()
-    const { licenseArn } = await insertLicense(owner.organizationId, {
-      organizationLinkedAt: minutesInto(hoursAgo(2), 30),
+    await insertLicense(owner.organizationId)
+    const usageId = await logUsage(owner, { at: minutesAgo(30), cost: 0.02 })
+    await chargeAndSend()
+
+    await db.update(usageLog).set({ cost: '0.05' }).where(eq(usageLog.id, usageId))
+    await meterAwsMarketplaceUsage(NEXT_HOUR + 5 * 60_000)
+
+    expect(await reportsFor(owner.organizationId)).toEqual([
+      expect.objectContaining({ hourStart: HOUR, quantity: 2, status: 'reported' }),
+      expect.objectContaining({ hourStart: floorHour(NEXT_HOUR), quantity: 3, status: 'pending' }),
+    ])
+  })
+
+  it('never charges bring-your-own-key or tool usage, or usage from before the link', async () => {
+    const owner = await createOrganization()
+    await insertLicense(owner.organizationId, { organizationLinkedAt: minutesAgo(30) })
+    await logUsage(owner, { at: minutesAgo(40), cost: 5 })
+    await logUsage(owner, { at: minutesAgo(20), cost: 7, category: 'model_unbilled' })
+    await logUsage(owner, { at: minutesAgo(15), cost: 9, category: 'tool' })
+    await logUsage(owner, { at: minutesAgo(10), cost: 0.03 })
+
+    await meterAwsMarketplaceUsage(NOW)
+
+    expect(await reportsFor(owner.organizationId)).toEqual([
+      expect.objectContaining({ quantity: 3 }),
+    ])
+  })
+
+  it('charges usage once however often it runs', async () => {
+    const owner = await createOrganization()
+    await insertLicense(owner.organizationId)
+    await logUsage(owner, { at: minutesAgo(10), cost: 0.5 })
+
+    await meterAwsMarketplaceUsage(NOW)
+    await meterAwsMarketplaceUsage(NOW + 60_000)
+    await meterAwsMarketplaceUsage(NOW + 2 * 60_000)
+
+    expect(await reportsFor(owner.organizationId)).toEqual([
+      expect.objectContaining({ quantity: 50 }),
+    ])
+  })
+
+  it('charges the earliest-linked license in force, skipping one past its expiry', async () => {
+    const owner = await createOrganization()
+    const expired = await insertLicense(owner.organizationId, {
+      organizationLinkedAt: new Date(NOW - 9 * HOUR_MS),
+      expiresAt: minutesAgo(5),
     })
-    await logUsage(owner, minutesInto(hoursAgo(2), 10), 5)
-    await logUsage(owner, minutesInto(hoursAgo(2), 45), 0.03)
-    await logUsage(owner, minutesInto(hoursAgo(1), 5), 7, 'model_unbilled')
-    await logUsage(owner, minutesInto(hoursAgo(1), 6), 9, 'tool')
-    await logUsage(owner, minutesInto(hoursAgo(0), 1), 11)
+    const earlier = await insertLicense(owner.organizationId, {
+      organizationLinkedAt: new Date(NOW - 8 * HOUR_MS),
+    })
+    const later = await insertLicense(owner.organizationId, {
+      organizationLinkedAt: new Date(NOW - 7 * HOUR_MS),
+    })
+    await logUsage(owner, { at: minutesAgo(10), cost: 0.07 })
 
-    await meterAwsMarketplaceUsage(NOW)
-
-    expect(sentRecords(licenseArn)).toEqual([
-      expect.objectContaining({ Quantity: 3, Timestamp: hoursAgo(2) }),
-    ])
-  })
-
-  it('bills an hour once, however often it runs', async () => {
-    const owner = await createOrganization()
-    const { licenseArn } = await insertLicense(owner.organizationId)
-    await logUsage(owner, minutesInto(hoursAgo(1), 5), 0.5)
-
-    await meterAwsMarketplaceUsage(NOW)
-    await meterAwsMarketplaceUsage(NOW + 5 * 60_000)
-
-    expect(sentRecords(licenseArn)).toHaveLength(1)
-    expect(await reportsFor(owner.organizationId)).toHaveLength(1)
-  })
-
-  it('bills an hour shared by two licenses of one organization to the earlier-linked one only', async () => {
-    const owner = await createOrganization()
-    const earlier = await insertLicense(owner.organizationId, { organizationLinkedAt: hoursAgo(9) })
-    const later = await insertLicense(owner.organizationId, { organizationLinkedAt: hoursAgo(8) })
-    await logUsage(owner, minutesInto(hoursAgo(1), 5), 0.07)
-
-    await meterAwsMarketplaceUsage(NOW)
+    await chargeAndSend()
 
     expect(sentRecords(earlier.licenseArn)).toEqual([expect.objectContaining({ Quantity: 7 })])
+    expect(sentRecords(expired.licenseArn)).toEqual([])
     expect(sentRecords(later.licenseArn)).toEqual([])
   })
 
   it('meters nothing for a contract-only listing', async () => {
     const owner = await createOrganization()
-    const { licenseArn } = await insertLicense(owner.organizationId, {
-      productCode: CONTRACT_PRODUCT,
-    })
-    await logUsage(owner, minutesInto(hoursAgo(1), 5), 4)
+    await insertLicense(owner.organizationId, { productCode: CONTRACT_PRODUCT })
+    await logUsage(owner, { at: minutesAgo(10), cost: 4 })
 
-    await meterAwsMarketplaceUsage(NOW)
+    await chargeAndSend()
 
-    expect(sentRecords(licenseArn)).toEqual([])
     expect(await reportsFor(owner.organizationId)).toEqual([])
   })
 
-  it('bills a lapsed license up to its expiry, partial hour included, and nothing after', async () => {
+  it('flushes an ended license once, at the hour it ended, even with no expiry from AWS', async () => {
     const owner = await createOrganization()
-    const expiresAt = minutesInto(hoursAgo(1), 20)
+    const endedAt = minutesAgo(10)
     const { licenseArn } = await insertLicense(owner.organizationId, {
       status: 'inactive',
-      expiresAt,
+      expiresAt: null,
+      endedAt,
     })
-    await logUsage(owner, minutesInto(hoursAgo(1), 10), 0.02)
-    await logUsage(owner, minutesInto(hoursAgo(1), 30), 3)
+    await logUsage(owner, { at: minutesAgo(15), cost: 0.02 })
 
     await meterAwsMarketplaceUsage(NOW)
 
     expect(sentRecords(licenseArn)).toEqual([
-      expect.objectContaining({ Quantity: 2, Timestamp: hoursAgo(1) }),
+      expect.objectContaining({ Quantity: 2, Timestamp: floorHour(endedAt.getTime()) }),
     ])
+
+    await logUsage(owner, { at: minutesAgo(1), cost: 3 })
+    await meterAwsMarketplaceUsage(NOW + 5 * 60_000)
+
+    expect(sentRecords(licenseArn)).toHaveLength(1)
+    expect(await reportsFor(owner.organizationId)).toEqual([
+      expect.objectContaining({ quantity: 2, status: 'reported' }),
+    ])
+  })
+
+  it('starts billing a linked license with no link time from the first run that sees it', async () => {
+    const owner = await createOrganization()
+    const { id } = await insertLicense(owner.organizationId, { organizationLinkedAt: null })
+    await logUsage(owner, { at: minutesAgo(10), cost: 5 })
+
+    await meterAwsMarketplaceUsage(NOW)
+    const [stamped] = await db
+      .select({ at: awsMarketplaceLicense.organizationLinkedAt })
+      .from(awsMarketplaceLicense)
+      .where(eq(awsMarketplaceLicense.id, id))
+    await logUsage(owner, { at: new Date(NOW + 1000), cost: 0.04 })
+    await meterAwsMarketplaceUsage(NOW + 60_000)
+
+    expect(stamped?.at).toEqual(new Date(NOW))
+    expect((await reportsFor(owner.organizationId)).map((row) => row.quantity)).toEqual([4])
+  })
+
+  it('keeps counting a period that ended within a day, and leaves an older one alone', async () => {
+    const owner = await createOrganization()
+    await insertLicense(owner.organizationId, { organizationLinkedAt: new Date(NOW - 70 * DAY_MS) })
+    const justEnded = { start: new Date(NOW - 31 * DAY_MS), end: minutesAgo(120) }
+    const longEnded = { start: new Date(NOW - 62 * DAY_MS), end: new Date(NOW - 31 * DAY_MS) }
+    await logUsage(owner, { at: new Date(NOW - 3 * HOUR_MS), cost: 0.04, period: justEnded })
+    await logUsage(owner, { at: new Date(NOW - 35 * DAY_MS), cost: 9, period: longEnded })
+
+    await meterAwsMarketplaceUsage(NOW)
+
+    expect((await reportsFor(owner.organizationId)).map((row) => row.quantity)).toEqual([4])
+    const tallies = await db
+      .select({ periodStart: awsMarketplaceUsageTally.periodStart })
+      .from(awsMarketplaceUsageTally)
+      .where(eq(awsMarketplaceUsageTally.organizationId, owner.organizationId))
+    expect(tallies).toEqual([{ periodStart: justEnded.start }])
   })
 
   it('keeps unprocessed records for the next run and rejects records for an unsubscribed customer', async () => {
@@ -274,8 +352,9 @@ describe('AWS Marketplace usage metering', () => {
     const refused = await createOrganization()
     const retriedLicense = await insertLicense(retried.organizationId)
     const refusedLicense = await insertLicense(refused.organizationId)
-    await logUsage(retried, minutesInto(hoursAgo(1), 5), 0.01)
-    await logUsage(refused, minutesInto(hoursAgo(1), 5), 0.01)
+    await logUsage(retried, { at: minutesAgo(10), cost: 0.01 })
+    await logUsage(refused, { at: minutesAgo(10), cost: 0.01 })
+    await meterAwsMarketplaceUsage(NOW)
     meteringSend.mockImplementation(async (command: { input: { UsageRecords: SentRecord[] } }) => ({
       Results: command.input.UsageRecords.filter(
         (record) => record.LicenseArn === refusedLicense.licenseArn
@@ -285,7 +364,7 @@ describe('AWS Marketplace usage metering', () => {
       ),
     }))
 
-    await meterAwsMarketplaceUsage(NOW)
+    await meterAwsMarketplaceUsage(NEXT_HOUR)
 
     expect(await reportsFor(retried.organizationId)).toEqual([
       expect.objectContaining({ status: 'pending' }),
@@ -295,7 +374,7 @@ describe('AWS Marketplace usage metering', () => {
     ])
 
     acceptEverything()
-    await meterAwsMarketplaceUsage(NOW + 5 * 60_000)
+    await meterAwsMarketplaceUsage(NEXT_HOUR + 5 * 60_000)
 
     expect(await reportsFor(retried.organizationId)).toEqual([
       expect.objectContaining({ status: 'reported' }),
@@ -309,18 +388,21 @@ describe('AWS Marketplace usage metering', () => {
     const throttled = await createOrganization()
     const refusedLicense = await insertLicense(refused.organizationId)
     const throttledLicense = await insertLicense(throttled.organizationId)
-    await logUsage(refused, minutesInto(hoursAgo(1), 5), 0.01)
-    await logUsage(throttled, minutesInto(hoursAgo(1), 5), 0.01)
+    await logUsage(refused, { at: minutesAgo(10), cost: 0.01 })
+    await logUsage(throttled, { at: minutesAgo(10), cost: 0.01 })
+    await meterAwsMarketplaceUsage(NOW)
     meteringSend.mockImplementation(async (command: { input: { UsageRecords: SentRecord[] } }) => {
       const arn = command.input.UsageRecords[0]?.LicenseArn
+      if (arn !== refusedLicense.licenseArn && arn !== throttledLicense.licenseArn) {
+        return { Results: [], UnprocessedRecords: [] }
+      }
       const error = new Error('refused')
       error.name =
         arn === refusedLicense.licenseArn ? 'InvalidLicenseException' : 'ThrottlingException'
-      if (arn === refusedLicense.licenseArn || arn === throttledLicense.licenseArn) throw error
-      return { Results: [], UnprocessedRecords: [] }
+      throw error
     })
 
-    await meterAwsMarketplaceUsage(NOW)
+    await meterAwsMarketplaceUsage(NEXT_HOUR)
 
     expect(await reportsFor(refused.organizationId)).toEqual([
       expect.objectContaining({ status: 'rejected', error: 'InvalidLicenseException' }),
@@ -333,9 +415,10 @@ describe('AWS Marketplace usage metering', () => {
   it('rejects a pending record once it is older than AWS accepts', async () => {
     const owner = await createOrganization()
     const { licenseArn } = await insertLicense(owner.organizationId)
-    await logUsage(owner, minutesInto(hoursAgo(1), 5), 0.01)
-    meteringSend.mockResolvedValue({ Results: [], UnprocessedRecords: [] })
+    await logUsage(owner, { at: minutesAgo(10), cost: 0.01 })
     await meterAwsMarketplaceUsage(NOW)
+    meteringSend.mockResolvedValue({ Results: [], UnprocessedRecords: [] })
+    await meterAwsMarketplaceUsage(NEXT_HOUR)
     meteringSend.mockClear()
 
     await meterAwsMarketplaceUsage(NOW + 25 * HOUR_MS)

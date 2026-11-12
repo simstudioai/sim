@@ -1479,10 +1479,20 @@ describe('license events across listings', () => {
 
     expect(await reconcileAwsMarketplaceLicenses()).toMatchObject({ applied: 1, discarded: 0 })
     expect(deleted).toEqual(['r-0'])
-    expect(await readLicense(licenseArn)).toMatchObject({
-      status: 'inactive',
-      dimension: 'platform',
-    })
+    const lapsed = await readLicense(licenseArn)
+    expect(lapsed).toMatchObject({ status: 'inactive', dimension: 'platform' })
+    expect(lapsed?.endedAt).toBeInstanceOf(Date)
+
+    deliverOnce([licenseUpdated(licenseArn, undefined, undefined, USAGE_PRODUCT)])
+    await reconcileAwsMarketplaceLicenses()
+    expect((await readLicense(licenseArn))?.endedAt).toEqual(lapsed?.endedAt)
+
+    entitlementsByLicense.set(licenseArn, [
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'platform' }),
+    ])
+    deliverOnce([licenseUpdated(licenseArn, undefined, undefined, USAGE_PRODUCT)])
+    await reconcileAwsMarketplaceLicenses()
+    expect(await readLicense(licenseArn)).toMatchObject({ status: 'active', endedAt: null })
   })
 })
 

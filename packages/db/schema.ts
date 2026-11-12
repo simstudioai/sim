@@ -1985,6 +1985,8 @@ export const awsMarketplaceLicense = pgTable(
     linkedByUserId: text('linked_by_user_id').references(() => user.id, { onDelete: 'set null' }),
     /** When `organization_id` last changed to its current value; usage counts from here. */
     organizationLinkedAt: timestamp('organization_linked_at'),
+    /** When a read first found the license no longer granting access; cleared if it returns. */
+    endedAt: timestamp('ended_at'),
     /** Whom to contact about provisioning, as the buyer entered it during setup. */
     contactEmail: text('contact_email'),
     companyName: text('company_name'),
@@ -2007,11 +2009,32 @@ export const awsMarketplaceLicense = pgTable(
 )
 
 /**
- * The usage an organization owes through AWS Marketplace, one row per organization, dimension and
- * closed hour, each billed to exactly one license. The unique key is what keeps an hour from being
- * billed twice, across renewals and overlapping licenses alike. `cost_through_usd` and
- * `quantity_through` are running totals across the organization's rows, so a fraction of a unit
- * carries into the next hour instead of being rounded away or billed twice.
+ * How much of an organization's billed usage AWS Marketplace has been charged for, per dimension
+ * and billing period. Each meter run re-sums the period's usage and charges only the whole units
+ * above `units`, so a cost raised in place after it was first counted is still charged, and a
+ * fraction of a unit waits in `cost_usd` until it adds up. `counted_from` fixes where the period's
+ * sum starts, the moment the organization's billing through AWS began.
+ */
+export const awsMarketplaceUsageTally = pgTable(
+  'aws_marketplace_usage_tally',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    dimension: text('dimension').notNull(),
+    periodStart: timestamp('period_start').notNull(),
+    countedFrom: timestamp('counted_from').notNull(),
+    costUsd: decimal('cost_usd').notNull(),
+    units: integer('units').notNull(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.dimension, table.periodStart] })]
+)
+
+/**
+ * The units owed to AWS Marketplace for usage counted during one hour, on one license and
+ * dimension: the key AWS deduplicates records on. A row gathers units while its hour is open and
+ * is sent once it closes, or at once for a license that has ended.
  */
 export const awsMarketplaceUsageReport = pgTable(
   'aws_marketplace_usage_report',
@@ -2025,9 +2048,7 @@ export const awsMarketplaceUsageReport = pgTable(
       .references(() => awsMarketplaceLicense.id, { onDelete: 'cascade' }),
     dimension: text('dimension').notNull(),
     hourStart: timestamp('hour_start').notNull(),
-    costThroughUsd: decimal('cost_through_usd').notNull(),
     quantity: integer('quantity').notNull(),
-    quantityThrough: integer('quantity_through').notNull(),
     status: awsMarketplaceUsageReportStatusEnum('status').notNull().default('pending'),
     meteringRecordId: text('metering_record_id'),
     /** Why AWS refused the record, or why it can no longer be sent. */
@@ -2037,13 +2058,13 @@ export const awsMarketplaceUsageReport = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('aws_marketplace_usage_report_org_dimension_hour_unique').on(
-      table.organizationId,
+    uniqueIndex('aws_marketplace_usage_report_license_dimension_hour_unique').on(
+      table.licenseId,
       table.dimension,
       table.hourStart
     ),
     index('aws_marketplace_usage_report_status_hour_idx').on(table.status, table.hourStart),
-    index('aws_marketplace_usage_report_license_id_idx').on(table.licenseId),
+    index('aws_marketplace_usage_report_organization_id_idx').on(table.organizationId),
   ]
 )
 

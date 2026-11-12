@@ -68,7 +68,8 @@ function statusFromRead(
 
 /**
  * The columns a read writes. With no answer about access the last-known dimension, quantity, and
- * expiry stay as they were, and only the status can change. An inactive license has nothing to claim.
+ * expiry stay as they were, and only the status can change. An inactive license has nothing to claim,
+ * and the read that first finds it inactive records when it ended.
  */
 function verificationFields(
   prior: AwsMarketplaceLicenseStatus | null,
@@ -78,6 +79,9 @@ function verificationFields(
   const { summary, verifiedAt } = verification
   return {
     status,
+    ...(status === 'inactive'
+      ? prior !== 'inactive' && { endedAt: verifiedAt }
+      : { endedAt: null }),
     lastVerifiedAt: verifiedAt,
     lastVerificationAttemptAt: verifiedAt,
     updatedAt: new Date(),

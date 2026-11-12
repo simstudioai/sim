@@ -1,43 +1,47 @@
 /**
- * Bills AWS Marketplace usage. Each run first turns an organization's closed hours of billed usage
- * into ledger rows, one per organization, dimension and hour, each billed to one license, then
- * sends the rows AWS has not yet accepted. Computing and sending are separate steps, so a failed
- * send retries the same immutable record rather than recomputing it, and the ledger's unique key
- * keeps an hour from being billed twice.
+ * Bills AWS Marketplace usage. Usage cost is recorded in place and can grow after it is first
+ * written, so each run charges what changed in the books rather than what an hour of rows says:
+ * it re-sums every billing period of an organization's billed usage that can still change,
+ * charges the whole units above what that period's tally already counted, and adds them to the
+ * current hour's record for the license being billed. A record is sent once its hour closes, or at
+ * once for a license that has ended, and AWS keeps one record per license, dimension and hour.
  */
 
-import { BatchMeterUsageCommand, type UsageRecord } from '@aws-sdk/client-marketplace-metering'
+import { BatchMeterUsageCommand } from '@aws-sdk/client-marketplace-metering'
 import { db } from '@sim/db'
-import { awsMarketplaceLicense, awsMarketplaceUsageReport, usageLog } from '@sim/db/schema'
+import {
+  awsMarketplaceLicense,
+  awsMarketplaceUsageReport,
+  awsMarketplaceUsageTally,
+  usageLog,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, asc, desc, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm'
 import { getMeteringClient } from '@/lib/billing/aws-marketplace/client'
 import { getAwsMarketplaceProducts } from '@/lib/billing/aws-marketplace/config'
-import type {
-  AwsMarketplaceProduct,
-  AwsMarketplaceUsagePricing,
-} from '@/lib/billing/aws-marketplace/products'
+import type { AwsMarketplaceUsagePricing } from '@/lib/billing/aws-marketplace/products'
 import { toDecimal, toFixedString } from '@/lib/billing/utils/decimal'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('AwsMarketplaceMetering')
 
 const HOUR_MS = 60 * 60 * 1000
-/** Usage is logged as work finishes, so an hour is billed only once this long has passed. */
-const SETTLE_MS = 15 * 60 * 1000
 /** AWS accepts a record up to 24 hours after its timestamp. */
 const AWS_ACCEPTS_MS = 24 * HOUR_MS
+/** AWS takes a license's last usage for about an hour after it ends. */
+const AFTER_END_MS = HOUR_MS
 /**
- * Only hours that start within this window are computed, so every new record still has an hour
- * of AWS's window left for its first send.
+ * A billing period stops changing once it ends, since a request that outlives it records the rest
+ * in the next period; a day of margin covers a request still finishing as the period turns.
  */
-const COMPUTE_WINDOW_MS = AWS_ACCEPTS_MS - HOUR_MS
+const PERIOD_SETTLE_MS = 24 * HOUR_MS
 /** BatchMeterUsage takes at most 25 records. */
 const RECORDS_PER_CALL = 25
-/** Rows sent per run, oldest first; any beyond it go in the next run, 15 minutes later. */
+/** Rows sent per run, oldest first; any beyond it go in the next run. */
 const MAX_ROWS_PER_RUN = 500
 
 /**
@@ -53,12 +57,22 @@ const LICENSE_LEVEL_ERRORS = new Set([
 ])
 
 export interface AwsMarketplaceMeteringSummary {
-  /** Ledger rows written for newly closed hours. */
-  recorded: number
+  /** Units newly charged to a license this run. */
+  charged: number
   reported: number
   rejected: number
   /** Rows left pending for the next run: unprocessed by AWS, or a transient failure. */
   retained: number
+}
+
+interface MeteredLicense {
+  id: string
+  organizationId: string
+  organizationLinkedAt: Date
+  status: 'pending' | 'active' | 'inactive'
+  expiresAt: Date | null
+  endedAt: Date | null
+  usage: AwsMarketplaceUsagePricing
 }
 
 /** A ledger row awaiting AWS, with the license it bills. */
@@ -72,28 +86,31 @@ interface PendingReport {
   customerAwsAccountId: string
 }
 
-interface MeteredLicense {
-  id: string
-  organizationId: string
-  organizationLinkedAt: Date
-  status: 'pending' | 'active' | 'inactive'
-  expiresAt: Date | null
-  usage: AwsMarketplaceUsagePricing
-}
-
 function floorHour(time: number): number {
   return Math.floor(time / HOUR_MS) * HOUR_MS
 }
 
 /**
- * Licenses whose organization may owe usage in the compute window: linked ones on a usage plan
- * that are active, or that lapsed recently enough for their last hours to still reach AWS. The
- * earliest-linked license comes first, so where two overlap during a renewal it bills the shared
- * hours and the other picks up after it ends.
+ * Starts billing for linked licenses that have no link time, such as those linked before it was
+ * recorded: their usage counts from the first run that sees them.
  */
+async function stampUnmarkedLinks(productCodes: string[], now: number): Promise<void> {
+  await db
+    .update(awsMarketplaceLicense)
+    .set({ organizationLinkedAt: new Date(now) })
+    .where(
+      and(
+        inArray(awsMarketplaceLicense.productCode, productCodes),
+        isNotNull(awsMarketplaceLicense.organizationId),
+        isNull(awsMarketplaceLicense.organizationLinkedAt)
+      )
+    )
+}
+
+/** Linked licenses on a plan that bills usage, in force or ended recently enough to still bill. */
 async function listMeteredLicenses(
-  products: ReadonlyMap<string, AwsMarketplaceProduct>,
-  windowStart: Date
+  usageByProduct: ReadonlyMap<string, AwsMarketplaceUsagePricing>,
+  now: number
 ): Promise<MeteredLicense[]> {
   const rows = await db
     .select({
@@ -103,58 +120,135 @@ async function listMeteredLicenses(
       organizationLinkedAt: awsMarketplaceLicense.organizationLinkedAt,
       status: awsMarketplaceLicense.status,
       expiresAt: awsMarketplaceLicense.expiresAt,
+      endedAt: awsMarketplaceLicense.endedAt,
     })
     .from(awsMarketplaceLicense)
     .where(
       and(
-        inArray(awsMarketplaceLicense.productCode, [...products.keys()]),
+        inArray(awsMarketplaceLicense.productCode, [...usageByProduct.keys()]),
         isNotNull(awsMarketplaceLicense.organizationId),
         isNotNull(awsMarketplaceLicense.organizationLinkedAt),
         or(
           eq(awsMarketplaceLicense.status, 'active'),
-          and(
-            eq(awsMarketplaceLicense.status, 'inactive'),
-            gte(awsMarketplaceLicense.expiresAt, windowStart)
-          )
+          gte(awsMarketplaceLicense.endedAt, new Date(now - AFTER_END_MS))
         )
       )
     )
     .orderBy(asc(awsMarketplaceLicense.organizationLinkedAt), asc(awsMarketplaceLicense.id))
-  return rows.flatMap((row) => {
-    const usage = products.get(row.productCode)?.plan.usage
-    if (!usage || !row.organizationId || !row.organizationLinkedAt) return []
-    return [
-      {
-        id: row.id,
-        organizationId: row.organizationId,
-        organizationLinkedAt: row.organizationLinkedAt,
-        status: row.status,
-        expiresAt: row.expiresAt,
-        usage,
-      },
-    ]
+  return rows.flatMap(({ productCode, organizationId, organizationLinkedAt, ...row }) => {
+    const usage = usageByProduct.get(productCode)
+    if (!usage || !organizationId || !organizationLinkedAt) return []
+    return [{ ...row, organizationId, organizationLinkedAt, usage }]
   })
 }
 
 /**
- * Where a license's billable usage ends this run. An active license bills whole hours once they
- * have settled. A lapsed one bills up to its expiry as soon as that has settled, partial hour
- * included, because AWS takes a deprovisioned license's last usage for only about an hour.
+ * The license an organization's newly counted usage is charged to, and the hour it is charged in.
+ * A license still in force wins, the earliest-linked first, so overlapping licenses during a
+ * renewal never both bill. With none in force, a license that ended within the hour AWS allows
+ * takes the usage at the hour it ended, until that record has gone to AWS.
  */
-function billableUntil(license: MeteredLicense, now: number): number {
-  const settled = now - SETTLE_MS
-  const expiry = license.expiresAt?.getTime()
-  if (license.status !== 'active' && expiry !== undefined && expiry <= settled) return expiry
-  return floorHour(settled)
+function chargeTarget(
+  licenses: MeteredLicense[],
+  now: number
+): { license: MeteredLicense; hourStart: number } | null {
+  const inForce = licenses.find(
+    (license) =>
+      license.status === 'active' && (!license.expiresAt || license.expiresAt.getTime() > now)
+  )
+  if (inForce) return { license: inForce, hourStart: floorHour(now) }
+  const ended = licenses
+    .filter((license) => license.endedAt && license.endedAt.getTime() >= now - AFTER_END_MS)
+    .sort((left, right) => (right.endedAt?.getTime() ?? 0) - (left.endedAt?.getTime() ?? 0))[0]
+  return ended?.endedAt ? { license: ended, hourStart: floorHour(ended.endedAt.getTime()) } : null
 }
 
 /**
- * Writes the ledger rows for one license's closed hours not yet billed to its organization, under
- * a lock on the organization and dimension so the running totals extend one chain. Hours with no
- * usage get no row. Usage counts from the moment the organization was linked and, for a lapsed
- * license, until its entitlement expired.
+ * Counts the organization's usage in each billing period still open to change, and returns the
+ * whole units not yet charged. Each period's tally is updated to what it now covers; a period's
+ * first tally fixes where its count starts.
  */
-async function recordLicenseHours(license: MeteredLicense, now: number): Promise<number> {
+async function countNewUnits(
+  tx: DbTransaction,
+  organizationId: string,
+  usage: AwsMarketplaceUsagePricing,
+  countFrom: Date,
+  now: number
+): Promise<number> {
+  const tallies = await tx
+    .select()
+    .from(awsMarketplaceUsageTally)
+    .where(
+      and(
+        eq(awsMarketplaceUsageTally.organizationId, organizationId),
+        eq(awsMarketplaceUsageTally.dimension, usage.dimension)
+      )
+    )
+  const tallyByPeriod = new Map(tallies.map((tally) => [tally.periodStart.getTime(), tally]))
+
+  const periods = await tx
+    .selectDistinct({ periodStart: usageLog.billingPeriodStart })
+    .from(usageLog)
+    .where(
+      and(
+        eq(usageLog.billingEntityType, 'organization'),
+        eq(usageLog.billingEntityId, organizationId),
+        gt(usageLog.billingPeriodEnd, new Date(now - PERIOD_SETTLE_MS))
+      )
+    )
+
+  let newUnits = 0
+  for (const { periodStart } of periods) {
+    if (!periodStart) continue
+    const tally = tallyByPeriod.get(periodStart.getTime())
+    const countedFrom = tally?.countedFrom ?? countFrom
+    const [{ cost }] = await tx
+      .select({ cost: sql<string>`coalesce(sum(${usageLog.cost}), 0)` })
+      .from(usageLog)
+      .where(
+        and(
+          eq(usageLog.billingEntityType, 'organization'),
+          eq(usageLog.billingEntityId, organizationId),
+          eq(usageLog.billingPeriodStart, periodStart),
+          inArray(usageLog.category, [...usage.categories]),
+          gte(usageLog.createdAt, countedFrom)
+        )
+      )
+    const periodCost = toDecimal(cost)
+    const counted = tally?.units ?? 0
+    const units = Math.max(counted, periodCost.dividedToIntegerBy(usage.usdPerUnit).toNumber())
+    newUnits += units - counted
+    await tx
+      .insert(awsMarketplaceUsageTally)
+      .values({
+        organizationId,
+        dimension: usage.dimension,
+        periodStart,
+        countedFrom,
+        costUsd: toFixedString(periodCost),
+        units,
+      })
+      .onConflictDoUpdate({
+        target: [
+          awsMarketplaceUsageTally.organizationId,
+          awsMarketplaceUsageTally.dimension,
+          awsMarketplaceUsageTally.periodStart,
+        ],
+        set: { costUsd: toFixedString(periodCost), units, updatedAt: new Date() },
+      })
+  }
+  return newUnits
+}
+
+/**
+ * Charges one organization's newly counted usage to its license, under a lock on the organization
+ * and dimension so concurrent runs extend one tally. Returns the units charged. With no license
+ * to charge, the usage stays uncounted for the next license that can take it.
+ */
+async function chargeOrganization(licenses: MeteredLicense[], now: number): Promise<number> {
+  const target = chargeTarget(licenses, now)
+  if (!target) return 0
+  const { license, hourStart } = target
   const { usage } = license
   return db.transaction(async (tx) => {
     await acquireAdvisoryXactLock(
@@ -162,71 +256,47 @@ async function recordLicenseHours(license: MeteredLicense, now: number): Promise
       'aws_marketplace_usage',
       `aws-marketplace-usage:${license.organizationId}:${usage.dimension}`
     )
-    const [last] = await tx
-      .select({
-        hourStart: awsMarketplaceUsageReport.hourStart,
-        costThroughUsd: awsMarketplaceUsageReport.costThroughUsd,
-        quantityThrough: awsMarketplaceUsageReport.quantityThrough,
-      })
+    const [record] = await tx
+      .select({ status: awsMarketplaceUsageReport.status })
       .from(awsMarketplaceUsageReport)
       .where(
         and(
-          eq(awsMarketplaceUsageReport.organizationId, license.organizationId),
-          eq(awsMarketplaceUsageReport.dimension, usage.dimension)
+          eq(awsMarketplaceUsageReport.licenseId, license.id),
+          eq(awsMarketplaceUsageReport.dimension, usage.dimension),
+          eq(awsMarketplaceUsageReport.hourStart, new Date(hourStart))
         )
       )
-      .orderBy(desc(awsMarketplaceUsageReport.hourStart))
-      .limit(1)
+    if (record && record.status !== 'pending') return 0
 
-    const from = Math.max(
-      license.organizationLinkedAt.getTime(),
-      floorHour(now - COMPUTE_WINDOW_MS) + HOUR_MS,
-      last ? last.hourStart.getTime() + HOUR_MS : 0
+    const countFrom = licenses.reduce(
+      (earliest, entry) =>
+        entry.organizationLinkedAt < earliest ? entry.organizationLinkedAt : earliest,
+      license.organizationLinkedAt
     )
-    const until = billableUntil(license, now)
-    if (from >= until) return 0
-
-    const hour = sql<Date>`date_trunc('hour', ${usageLog.createdAt})`.mapWith(usageLog.createdAt)
-    const hours = await tx
-      .select({ hourStart: hour, cost: sql<string>`sum(${usageLog.cost})` })
-      .from(usageLog)
-      .where(
-        and(
-          eq(usageLog.billingEntityType, 'organization'),
-          eq(usageLog.billingEntityId, license.organizationId),
-          inArray(usageLog.category, [...usage.categories]),
-          gte(usageLog.createdAt, new Date(from)),
-          lt(usageLog.createdAt, new Date(until))
-        )
-      )
-      .groupBy(hour)
-      .orderBy(hour)
-
-    let costThrough = toDecimal(last?.costThroughUsd)
-    let quantityThrough = last?.quantityThrough ?? 0
-    const rows = hours.flatMap(({ hourStart, cost }) => {
-      const hourCost = toDecimal(cost)
-      if (hourCost.lte(0)) return []
-      costThrough = costThrough.plus(hourCost)
-      const unitsThrough = costThrough.dividedToIntegerBy(usage.usdPerUnit).toNumber()
-      const quantity = unitsThrough - quantityThrough
-      quantityThrough = unitsThrough
-      return [
-        {
-          id: generateId(),
-          organizationId: license.organizationId,
-          licenseId: license.id,
-          dimension: usage.dimension,
-          hourStart,
-          costThroughUsd: toFixedString(costThrough),
-          quantity,
-          quantityThrough,
+    const units = await countNewUnits(tx, license.organizationId, usage, countFrom, now)
+    if (units <= 0) return 0
+    await tx
+      .insert(awsMarketplaceUsageReport)
+      .values({
+        id: generateId(),
+        organizationId: license.organizationId,
+        licenseId: license.id,
+        dimension: usage.dimension,
+        hourStart: new Date(hourStart),
+        quantity: units,
+      })
+      .onConflictDoUpdate({
+        target: [
+          awsMarketplaceUsageReport.licenseId,
+          awsMarketplaceUsageReport.dimension,
+          awsMarketplaceUsageReport.hourStart,
+        ],
+        set: {
+          quantity: sql`${awsMarketplaceUsageReport.quantity} + ${units}`,
+          updatedAt: new Date(),
         },
-      ]
-    })
-    if (rows.length === 0) return 0
-    await tx.insert(awsMarketplaceUsageReport).values(rows)
-    return rows.length
+      })
+    return units
   })
 }
 
@@ -295,15 +365,13 @@ async function sendLicenseReports(
     try {
       const response = await getMeteringClient().send(
         new BatchMeterUsageCommand({
-          UsageRecords: batch.map(
-            (row): UsageRecord => ({
-              LicenseArn: row.licenseArn,
-              CustomerAWSAccountId: row.customerAwsAccountId,
-              Dimension: row.dimension,
-              Quantity: row.quantity,
-              Timestamp: row.hourStart,
-            })
-          ),
+          UsageRecords: batch.map((row) => ({
+            LicenseArn: row.licenseArn,
+            CustomerAWSAccountId: row.customerAwsAccountId,
+            Dimension: row.dimension,
+            Quantity: row.quantity,
+            Timestamp: row.hourStart,
+          })),
         })
       )
       for (const result of response.Results ?? []) {
@@ -347,7 +415,10 @@ async function sendLicenseReports(
   }
 }
 
-/** Sends every pending row still inside AWS's window, oldest first, grouped by license. */
+/**
+ * Sends every pending row whose hour has closed, or whose license has ended so no more usage can
+ * join it, oldest first and grouped by license.
+ */
 async function sendPendingReports(now: number, summary: AwsMarketplaceMeteringSummary) {
   summary.rejected += await rejectExpiredReports(now)
   const pending: PendingReport[] = await db
@@ -365,7 +436,15 @@ async function sendPendingReports(now: number, summary: AwsMarketplaceMeteringSu
       awsMarketplaceLicense,
       eq(awsMarketplaceUsageReport.licenseId, awsMarketplaceLicense.id)
     )
-    .where(eq(awsMarketplaceUsageReport.status, 'pending'))
+    .where(
+      and(
+        eq(awsMarketplaceUsageReport.status, 'pending'),
+        or(
+          lt(awsMarketplaceUsageReport.hourStart, new Date(floorHour(now))),
+          eq(awsMarketplaceLicense.status, 'inactive')
+        )
+      )
+    )
     .orderBy(asc(awsMarketplaceUsageReport.hourStart))
     .limit(MAX_ROWS_PER_RUN)
 
@@ -379,24 +458,32 @@ async function sendPendingReports(now: number, summary: AwsMarketplaceMeteringSu
 }
 
 /**
- * Records every newly closed hour of usage owed through AWS Marketplace and sends what AWS has not
- * accepted yet. Null when no configured listing bills usage. Safe to replay: rows are written once
- * per organization, dimension and hour, and AWS keeps the first record it accepts for an hour.
+ * Charges every organization's newly counted usage owed through AWS Marketplace and sends AWS the
+ * records it can take. Null when no configured listing bills usage. Safe to replay: a period's
+ * tally only moves forward, and AWS keeps the first record for a license, dimension and hour.
  */
 export async function meterAwsMarketplaceUsage(
   now = Date.now()
 ): Promise<AwsMarketplaceMeteringSummary | null> {
-  const products = getAwsMarketplaceProducts()
-  if (![...products.values()].some((product) => product.plan.usage)) return null
+  const usageByProduct = new Map<string, AwsMarketplaceUsagePricing>()
+  for (const [productCode, product] of getAwsMarketplaceProducts()) {
+    if (product.plan.usage) usageByProduct.set(productCode, product.plan.usage)
+  }
+  if (usageByProduct.size === 0) return null
   const summary: AwsMarketplaceMeteringSummary = {
-    recorded: 0,
+    charged: 0,
     reported: 0,
     rejected: 0,
     retained: 0,
   }
-  const licenses = await listMeteredLicenses(products, new Date(now - AWS_ACCEPTS_MS))
-  for (const license of licenses) {
-    summary.recorded += await recordLicenseHours(license, now)
+  await stampUnmarkedLinks([...usageByProduct.keys()], now)
+  const licensesByOrganization = new Map<string, MeteredLicense[]>()
+  for (const license of await listMeteredLicenses(usageByProduct, now)) {
+    const key = `${license.organizationId}:${license.usage.dimension}`
+    licensesByOrganization.set(key, [...(licensesByOrganization.get(key) ?? []), license])
+  }
+  for (const licenses of licensesByOrganization.values()) {
+    summary.charged += await chargeOrganization(licenses, now)
   }
   await sendPendingReports(now, summary)
   return summary
