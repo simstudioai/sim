@@ -133,6 +133,11 @@ export interface ServiceAccountSecretResult {
   /** Slack custom bot: the derived bot user id (for reaction self-drop). */
   botUserId?: string
   /**
+   * When the vendor stops accepting the saved token, for a pasted token whose vendor states it at
+   * verification. Absent when the token never expires or the vendor does not say.
+   */
+  tokenExpiresAt?: Date
+  /**
    * Keyless AWS, Databricks, Snowflake, Microsoft app, or Google: a subject this save binds that
    * the credential did not already hold, which must not belong to another credential of the owner.
    */
@@ -614,6 +619,7 @@ async function buildTokenServiceAccountSecret(
     displayName: validation.displayName,
     auditMetadata: { ...validation.auditMetadata, ...principalMetadata },
     principal: validation.principal,
+    ...(validation.expiresAt ? { tokenExpiresAt: validation.expiresAt } : {}),
   }
 }
 

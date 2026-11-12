@@ -61,6 +61,8 @@ export const workspaceCredentialSchema = z.object({
   envKey: z.string().nullable(),
   envOwnerUserId: z.string().nullable(),
   instanceUrl: z.string().url().optional(),
+  /** ISO time the saved token stops working, when its vendor stated one; absent when it never expires or is unknown. */
+  expiresAt: z.string().optional(),
   createdBy: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),

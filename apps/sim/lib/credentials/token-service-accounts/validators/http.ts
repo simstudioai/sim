@@ -20,6 +20,7 @@ import type {
   TokenServiceAccountValidationResult,
   TokenServiceAccountValidator,
 } from '@/lib/credentials/token-service-accounts/server'
+import { credibleTokenExpiry } from '@/lib/credentials/vendor-token-expiry'
 
 interface TokenCheckRequest {
   url: string
@@ -97,6 +98,32 @@ interface TokenCheck {
    * {@link rejectsKey}.
    */
   provesKey?: (errorBody: unknown) => boolean
+  /**
+   * For a vendor that states when the verified token stops working: reads that moment from the
+   * accepted response, whose `body` is the parsed JSON when {@link acceptsBody} read it. Returns
+   * `undefined` when the vendor states no expiry or one that cannot be read; the token is still
+   * accepted either way.
+   */
+  expiresAt?: (accepted: {
+    headers: ProviderResponse['headers']
+    body: unknown
+  }) => Date | undefined
+}
+
+/** The expiry a check states for an accepted token, when it is credible. */
+function credibleExpiry(
+  check: TokenCheck,
+  accepted: { headers: ProviderResponse['headers']; body: unknown }
+): Date | undefined {
+  return credibleTokenExpiry(check.expiresAt?.(accepted))
+}
+
+/** `accepted` with the expiry the check states, when there is a credible one. */
+function withExpiry(
+  accepted: TokenServiceAccountValidationResult,
+  expiresAt: Date | undefined
+): TokenServiceAccountValidationResult {
+  return expiresAt ? { ...accepted, expiresAt } : accepted
 }
 
 const MAX_CHECK_RESPONSE_BYTES = 64 * 1024
@@ -287,13 +314,22 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       if (!verdict) {
         throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
       }
+      const expiresAt = credibleExpiry(check, { headers: response.headers, body })
       if (typeof verdict === 'object') {
         const name = verdict.displayName
-        return { ...accepted, displayName: where ? `${name} (${where})` : name }
+        return withExpiry(
+          { ...accepted, displayName: where ? `${name} (${where})` : name },
+          expiresAt
+        )
       }
-      return accepted
+      return withExpiry(accepted, expiresAt)
     }
     await response.body?.cancel().catch(() => undefined)
-    return accepted
+    return withExpiry(
+      accepted,
+      response.ok
+        ? credibleExpiry(check, { headers: response.headers, body: undefined })
+        : undefined
+    )
   }
 }

@@ -19,6 +19,7 @@ import {
   readJsonBody,
   tokenCheckValidator,
 } from '@/lib/credentials/token-service-accounts/validators/http'
+import { githubTokenExpiration, gitlabTokenExpiration } from '@/lib/credentials/vendor-token-expiry'
 import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/lib/internal/jupyter/protocol'
 import { ashbyAuthHeaders } from '@/tools/ashby/utils'
 import { BITBUCKET_API_BASE, bitbucketHeaders } from '@/tools/bitbucket/utils'
@@ -654,6 +655,8 @@ export const validateGitHubServiceAccount = tokenCheckValidator({
     }
     return { displayName: `${login.trim()} (GitHub)` }
   },
+  expiresAt: ({ headers }) =>
+    githubTokenExpiration(headers.get('github-authentication-token-expiration')),
 })
 
 /**
@@ -727,6 +730,7 @@ export const validateGitLabServiceAccount = tokenCheckValidator({
     const name = typeof token.name === 'string' ? token.name.trim() : ''
     return usable && name ? { displayName: name } : usable
   },
+  expiresAt: ({ body }) => gitlabTokenExpiration(toRecord(body).expires_at),
 })
 
 /**

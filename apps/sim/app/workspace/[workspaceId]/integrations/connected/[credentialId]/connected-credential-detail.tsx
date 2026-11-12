@@ -15,6 +15,7 @@ import {
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { formatDateTime } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
@@ -38,6 +39,7 @@ import {
   type ServiceAccountProviderId,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { useSavedTokenExpiryLabel } from '@/app/workspace/[workspaceId]/integrations/hooks/use-saved-token-expiry-label'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
   useCreateCredentialDraft,
@@ -98,6 +100,7 @@ export function ConnectedCredentialDetail({
   })
   const connectMicrosoftDataverseOAuthService = useConnectMicrosoftDataverseOAuthService()
   const isAdmin = credential?.role === 'admin'
+  const expiryLabel = useSavedTokenExpiryLabel(credential?.expiresAt)
 
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
@@ -328,6 +331,13 @@ export function ConnectedCredentialDetail({
         {credential.type === 'personal_token' && credential.instanceUrl && (
           <DetailSection title='GitLab instance'>
             <ChipCopyInput value={credential.instanceUrl} copyLabel='Copy GitLab instance' />
+          </DetailSection>
+        )}
+        {credential.expiresAt && (
+          <DetailSection title='Token expiry'>
+            <span className='text-[var(--text-secondary)] text-small'>
+              {formatDateTime(new Date(credential.expiresAt), 'UTC')} · {expiryLabel}
+            </span>
           </DetailSection>
         )}
       </CredentialDetailLayout>

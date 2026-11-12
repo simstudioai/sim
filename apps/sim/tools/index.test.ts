@@ -234,6 +234,14 @@ vi.mock('@/lib/credentials/coordinated-client-token', () => ({
     mockInvalidateCoordinatedClientToken(...args),
 }))
 
+const { mockExplainExpiredSavedToken } = vi.hoisted(() => ({
+  mockExplainExpiredSavedToken: vi.fn(),
+}))
+
+vi.mock('@/lib/credentials/saved-token-expiry', () => ({
+  explainExpiredSavedToken: (...args: unknown[]) => mockExplainExpiredSavedToken(...args),
+}))
+
 vi.mock('@/executor/handlers/workflow/tool-runner', () => ({
   runWorkflowTool: (...args: unknown[]) => mockRunWorkflowTool(...args),
 }))
@@ -3781,6 +3789,106 @@ describe('Internal Route Trust', () => {
     })
   })
 
+  describe('a saved token the provider refuses after it expired', () => {
+    const toolId = 'test_expired_saved_token'
+    const EXPIRED = 'The saved GitHub personal access token expired on 2026-01-15.'
+
+    beforeEach(() => {
+      mockExplainExpiredSavedToken.mockReset()
+      mockExplainExpiredSavedToken.mockResolvedValue(null)
+      mockInvalidateCoordinatedClientToken.mockReset()
+      mockInvalidateCoordinatedClientToken.mockResolvedValue(undefined)
+      ;(tools as Record<string, unknown>)[toolId] = {
+        id: toolId,
+        name: 'Expired Saved Token Test',
+        description: 'Calls a provider with a saved token',
+        version: '1.0.0',
+        oauth: { required: true, provider: 'github' },
+        params: { accessToken: { type: 'string', required: true, visibility: 'hidden' } },
+        request: {
+          url: 'https://api.github.com/user',
+          method: 'GET' as const,
+          headers: (params: Record<string, unknown>) => ({
+            Authorization: `Bearer ${String(params.accessToken)}`,
+          }),
+        },
+      }
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    async function callWith(credentialType: string, status: number) {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType,
+      })
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(
+          new Response(JSON.stringify({ message: 'Bad credentials' }), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          })
+        )
+      )
+      return executeTool(toolId, { credential: 'saved-credential' })
+    }
+
+    it('reports the expiry instead of the bare refusal', async () => {
+      mockExplainExpiredSavedToken.mockImplementation(async (_id, refusal) =>
+        Object.assign(new Error(EXPIRED), refusal)
+      )
+
+      const result = await callWith('service_account', 401)
+
+      expect(result).toMatchObject({ success: false, error: EXPIRED })
+      expect(mockExplainExpiredSavedToken).toHaveBeenCalledWith(
+        'saved-credential',
+        expect.objectContaining({ status: 401, data: { message: 'Bad credentials' } })
+      )
+    })
+
+    it("logs the explained refusal as the provider's refusal, with its response body", async () => {
+      mockExplainExpiredSavedToken.mockImplementation(async (_id, refusal) =>
+        Object.assign(new Error(EXPIRED), refusal)
+      )
+      mockToolsLogger.warn.mockClear()
+
+      const result = await callWith('service_account', 401)
+
+      expect(classifyFailure(adoptToolFailure(new Error(result.error), result))).toBe(
+        'third_party_client'
+      )
+      const [, fields] =
+        mockToolsLogger.warn.mock.calls.find(([message]) => message === 'Error executing tool') ??
+        []
+      expect(fields).toMatchObject({ error: EXPIRED, errorData: { message: 'Bad credentials' } })
+    })
+
+    it("keeps the provider's message when the token has not expired", async () => {
+      const result = await callWith('service_account', 401)
+
+      expect(result).toMatchObject({ success: false, error: 'Bad credentials' })
+    })
+
+    it("keeps the provider's message when the expiry cannot be read", async () => {
+      mockExplainExpiredSavedToken.mockRejectedValue(new Error('database unavailable'))
+
+      const result = await callWith('service_account', 401)
+
+      expect(result).toMatchObject({ success: false, error: 'Bad credentials' })
+    })
+
+    it.each([
+      ['a refusal that is not a 401', 'service_account', 403],
+      ["a signed-in account's refusal", 'oauth', 401],
+    ])('never consults the saved expiry for %s', async (_label, credentialType, status) => {
+      await callWith(credentialType, status)
+
+      expect(mockExplainExpiredSavedToken).not.toHaveBeenCalled()
+    })
+  })
+
   describe('a service-account token an internal operation refuses', () => {
     const toolId = 'test_internal_minted_token_refusal'
     beforeEach(() => {
@@ -3850,6 +3958,21 @@ describe('Internal Route Trust', () => {
       await runWith('oauth', 401)
 
       expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+    })
+
+    it('reports an expired saved token instead of the bare refusal', async () => {
+      mockExplainExpiredSavedToken.mockReset()
+      mockExplainExpiredSavedToken.mockImplementation(async (_id, refusal) =>
+        Object.assign(new Error('The saved token expired.'), refusal)
+      )
+
+      const result = await runWith('service_account', 401)
+
+      expect(result).toMatchObject({ success: false, error: 'The saved token expired.' })
+      expect(mockExplainExpiredSavedToken).toHaveBeenCalledWith(
+        'saved-credential',
+        expect.objectContaining({ status: 401 })
+      )
     })
   })
 

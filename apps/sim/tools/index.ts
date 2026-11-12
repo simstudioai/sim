@@ -23,6 +23,7 @@ import {
 } from '@/lib/core/errors/database-query-error'
 import {
   classifyFailure,
+  inheritFailureMarks,
   logFailureOnce,
   markFailureKind,
   markFailureLogged,
@@ -2326,6 +2327,14 @@ async function executeToolImplementation(
         internalSandboxProfile,
         refreshCredential,
         authorizedServiceAccountCredential,
+      }).catch(async (error: unknown) => {
+        throw authorizedServiceAccountCredential
+          ? await explainExpiredServiceAccountToken(
+              error,
+              authorizedServiceAccountCredential.credentialId,
+              requestId
+            )
+          : error
       })
 
       let finalResult = result
@@ -2424,6 +2433,11 @@ async function executeToolImplementation(
         ).catch(async (error: unknown) => {
           if (authorizedServiceAccountCredential) {
             await expireRejectedServiceAccountToken(error, contextParams.accessToken, requestId)
+            throw await explainExpiredServiceAccountToken(
+              error,
+              authorizedServiceAccountCredential.credentialId,
+              requestId
+            )
           }
           throw error
         })
@@ -3091,6 +3105,37 @@ async function expireRejectedServiceAccountToken(
       requestId,
       error: toError(invalidationError).message,
     })
+  }
+}
+
+/**
+ * A 401 for a saved service-account token past the expiry its vendor stated when it was saved
+ * becomes an error that says so and asks for a new token, keeping the provider's status and body
+ * and the refusal's log attribution and logged response body. Any other failure, or one whose
+ * expiry cannot be read, is returned unchanged.
+ */
+async function explainExpiredServiceAccountToken(
+  error: unknown,
+  credentialId: string,
+  requestId: string
+): Promise<unknown> {
+  if (!(error instanceof Error) || !('status' in error) || error.status !== 401) return error
+  try {
+    const { explainExpiredSavedToken } = await import('@/lib/credentials/saved-token-expiry')
+    const explained = await explainExpiredSavedToken(credentialId, {
+      status: error.status,
+      statusText: 'statusText' in error ? error.statusText : undefined,
+      data: 'data' in error ? error.data : undefined,
+    })
+    if (!explained) return error
+    if (externalHttpFailures.has(error)) externalHttpFailures.add(explained)
+    return inheritFailureMarks(explained, error)
+  } catch (lookupError) {
+    logger.warn('Could not check whether a refused saved token had expired', {
+      requestId,
+      error: toError(lookupError).message,
+    })
+    return error
   }
 }
 

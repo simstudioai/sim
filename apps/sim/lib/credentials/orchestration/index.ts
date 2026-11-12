@@ -488,6 +488,8 @@ export async function updateCredentialRecord(
           },
         })
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
+        // The replaced token's expiry never outlives it: a token that states none clears it.
+        updates.accessTokenExpiresAt = secret.tokenExpiresAt ?? null
         rotatedSlackBotUserId = secret.botUserId
         rotatedAuditMetadata = secret.auditMetadata
         if (needsStoredBoundSubject) rotatedKeylessSecret = secret.encryptedServiceAccountKey

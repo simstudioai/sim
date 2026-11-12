@@ -92,6 +92,17 @@ describe('GitLab personal token verification', () => {
       .mockResolvedValueOnce(respond(details))
     await expect(verifyGitLabPersonalToken('secret')).rejects.toThrow('api scope')
   })
+  it.each([
+    ['midnight UTC on its expiry date', '2027-03-01', new Date('2027-03-01T00:00:00.000Z')],
+    ['no expiry for a date that does not exist', '2027-02-30', null],
+    ['no expiry for a date already past', '2020-01-01', null],
+  ])('records %s', async (_, expiresAt, expected) => {
+    mocks.fetch
+      .mockReset()
+      .mockResolvedValueOnce(respond(user))
+      .mockResolvedValueOnce(respond({ ...token, expires_at: expiresAt }))
+    expect((await verifyGitLabPersonalToken('secret')).expiresAt).toEqual(expected)
+  })
   it('does not reflect provider error bodies or retry failed verification', async () => {
     mocks.fetch.mockReset().mockResolvedValue(respond({ secret: 'sensitive' }, 401))
     await expect(verifyGitLabPersonalToken('secret')).rejects.toThrow('GitLab rejected this token')
