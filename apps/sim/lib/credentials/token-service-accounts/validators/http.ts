@@ -99,19 +99,17 @@ interface TokenCheck {
 }
 
 /**
- * The vendor just accepted the token, so a stated expiry that has passed or is imminent contradicts
- * the request itself and is dropped rather than recorded as fact.
+ * The expiry a check states for an accepted token, when it is still ahead. The vendor just accepted
+ * the token, so a stated expiry that has already passed contradicts the request (a misread value or
+ * a skewed clock) and is dropped rather than recorded as fact; an imminent one is kept.
  */
-const MIN_CREDIBLE_EXPIRY_AHEAD_MS = 60 * 60 * 1000
-
-/** The expiry a check states for an accepted token, when it is a real moment the request can believe. */
 function credibleExpiry(
   check: TokenCheck,
   accepted: { headers: ProviderResponse['headers']; body: unknown }
 ): Date | undefined {
   const expiresAt = check.expiresAt?.(accepted)
   if (!expiresAt || Number.isNaN(expiresAt.getTime())) return undefined
-  return expiresAt.getTime() - Date.now() >= MIN_CREDIBLE_EXPIRY_AHEAD_MS ? expiresAt : undefined
+  return expiresAt.getTime() > Date.now() ? expiresAt : undefined
 }
 
 /** `accepted` with the expiry the check states, when there is a credible one. */

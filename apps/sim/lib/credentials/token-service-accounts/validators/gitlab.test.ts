@@ -121,6 +121,18 @@ describe('GitLab saved token verification', () => {
       expect(result.expiresAt?.toISOString()).toBe('2026-12-01T00:00:00.000Z')
     })
 
+    it('records an expiry that is less than an hour away', async () => {
+      vi.setSystemTime(new Date('2026-11-11T23:30:00.000Z'))
+      fetch.mockResolvedValue(jsonResponse({ ...activeToken, expires_at: '2026-11-12' }))
+
+      const result = await validateGitLabServiceAccount({
+        apiToken: 'test-gitlab-token',
+        domain: 'gitlab.com',
+      })
+
+      expect(result.expiresAt?.toISOString()).toBe('2026-11-12T00:00:00.000Z')
+    })
+
     it.each([
       ['a token without an expiry', null],
       ['an unreadable expiry', 'soon'],

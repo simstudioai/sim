@@ -82,12 +82,18 @@ describe('GitHub saved personal access token verification', () => {
     }
 
     it.each([
-      ['a UTC timestamp', '2026-12-01 10:30:00 UTC', '2026-12-01T10:30:00.000Z'],
+      ['a timestamp with a UTC offset', '2026-12-01 10:30:00 +0000', '2026-12-01T10:30:00.000Z'],
       [
-        'a timestamp with a numeric offset',
+        'a timestamp with a positive offset',
         '2026-12-01 12:30:00 +0200',
         '2026-12-01T10:30:00.000Z',
       ],
+      [
+        'a timestamp with a negative offset',
+        '2026-12-01 03:30:00 -0700',
+        '2026-12-01T10:30:00.000Z',
+      ],
+      ['a timestamp minutes away', '2026-11-11 12:30:00 +0000', '2026-11-11T12:30:00.000Z'],
     ])('records the expiry GitHub reports as %s', async (_, header, expected) => {
       fetch.mockResolvedValue(userReply(header))
 
@@ -99,12 +105,9 @@ describe('GitHub saved personal access token verification', () => {
     it.each([
       ['no expiry header (a token that never expires)', undefined],
       ['an unreadable expiry', 'next Tuesday'],
-      ['an impossible date', '2026-13-45 10:00:00 UTC'],
-      ['an expiry in the past, contradicting the accepted request', '2026-11-10 12:00:00 UTC'],
-      [
-        'an expiry minutes away, which GitHub has wrongly reported for live tokens',
-        '2026-11-11 12:01:00 UTC',
-      ],
+      ['a zone name instead of an offset', '2026-12-01 10:30:00 UTC'],
+      ['an impossible date', '2026-13-45 10:00:00 +0000'],
+      ['an expiry in the past, contradicting the accepted request', '2026-11-10 12:00:00 +0000'],
     ])('records no expiry for %s and still accepts the token', async (_, header) => {
       fetch.mockResolvedValue(userReply(header))
 
