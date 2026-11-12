@@ -56,7 +56,8 @@ export async function mintZoomInfoServiceAccountToken(
       throw new TokenServiceAccountValidationError(
         providerFailureCode(error.tokenStatus),
         error.tokenStatus,
-        { step: STEP }
+        { step: STEP },
+        { retryAfterMs: error.retryAfterMs }
       )
     }
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {

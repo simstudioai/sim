@@ -18,7 +18,7 @@ import {
 } from '@/lib/internal/sailpoint/client'
 
 const STEP = 'sailpoint_token_mint'
-/** Bounds the whole exchange, including its 429 backoff retries. */
+/** Bounds the whole exchange. */
 const TOKEN_EXCHANGE_TIMEOUT_MS = 30_000
 
 /**
@@ -32,6 +32,8 @@ const TOKEN_EXCHANGE_TIMEOUT_MS = 30_000
  * from `expires_in`; the credential cache re-mints before it lapses.
  *
  * The token response names no identity, so the connect-time check is the mint.
+ * A 429 is returned at once with its `Retry-After` rather than retried here, so
+ * the credential resolver's throttling backoff waits as long as SailPoint asks.
  *
  * @see https://developer.sailpoint.com/docs/api/authentication
  */
@@ -57,7 +59,8 @@ export async function mintSailPointServiceAccountToken(
       tokenUrl,
       fields.clientId,
       clientSecret,
-      options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout
+      options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout,
+      { maxThrottleRetries: 0 }
     )
   } catch (error) {
     options?.signal?.throwIfAborted()
@@ -68,7 +71,8 @@ export async function mintSailPointServiceAccountToken(
         {
           step: STEP,
           tenant: host,
-        }
+        },
+        { retryAfterMs: error.retryAfterMs }
       )
     }
     if (isHostNotFound(error)) {

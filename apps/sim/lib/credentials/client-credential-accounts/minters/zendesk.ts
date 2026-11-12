@@ -18,6 +18,7 @@ import {
   providerFailureCode,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 import { zendeskApiTokenCredential } from '@/tools/zendesk/types'
 
@@ -64,7 +65,8 @@ async function throwForZendeskResponse(response: Response, step: string): Promis
   throw new TokenServiceAccountValidationError(
     response.status === 404 ? 'site_not_found' : providerFailureCode(response.status),
     response.status,
-    { step, body }
+    { step, body },
+    { retryAfterMs: throttledRetryAfterMs(response) }
   )
 }
 

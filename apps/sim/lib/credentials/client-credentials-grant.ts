@@ -7,6 +7,7 @@ import {
   providerFailureReason,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 
 const MAX_TOKEN_RESPONSE_BYTES = 64 * 1024
@@ -34,8 +35,14 @@ export interface ClientCredentialsGrantRequest {
   /**
    * Maps a refused exchange to a provider-specific error. Without it, a refusal is
    * `invalid_credentials` for a non-transient 4xx and `provider_unavailable` otherwise.
+   * `retryAfterMs` is the refusal's `Retry-After` (see {@link throttledRetryAfterMs}), which an
+   * error the provider would answer differently later should carry.
    */
-  classifyRefusal?: (status: number, body: string) => TokenServiceAccountValidationError
+  classifyRefusal?: (
+    status: number,
+    body: string,
+    retryAfterMs: number | undefined
+  ) => TokenServiceAccountValidationError
   signal?: AbortSignal
 }
 
@@ -44,7 +51,7 @@ export interface ClientCredentialsGrantRequest {
  * with the client ID and secret in the body, redirects refused so the secret reaches no other host.
  * A response without a non-blank `access_token` and a positive integer `expires_in` is
  * `provider_unavailable`, and the token expires `min(expires_in, maxLifetimeSeconds)` after the
- * request started.
+ * request started. A throttled or unavailable refusal carries its `Retry-After` as `retryAfterMs`.
  *
  * @see https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
  */
@@ -79,12 +86,14 @@ export async function exchangeClientCredentialsGrant(
   if (!response.ok) {
     const body = await readProviderErrorSnippet(response)
     signal?.throwIfAborted()
+    const retryAfterMs = throttledRetryAfterMs(response)
     throw request.classifyRefusal
-      ? request.classifyRefusal(response.status, body)
+      ? request.classifyRefusal(response.status, body, retryAfterMs)
       : new TokenServiceAccountValidationError(
           providerFailureCode(response.status),
           response.status,
-          { step, body }
+          { step, body },
+          { retryAfterMs }
         )
   }
   let payload: unknown

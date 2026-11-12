@@ -133,6 +133,50 @@ describe('token service-account error helpers', () => {
 
       expect(error.code).toBe('provider_unavailable')
     })
+
+    it.each([
+      [429, '120', 120_000],
+      [503, '7', 7_000],
+    ])(
+      'carries the Retry-After a %i asked for in seconds',
+      async (status, retryAfter, retryAfterMs) => {
+        const res = new Response('slow down', { status, headers: { 'Retry-After': retryAfter } })
+
+        const error = await expectValidationError(throwForProviderResponse(res, 'self'))
+
+        expect(error.code).toBe('provider_unavailable')
+        expect(error.retryAfterMs).toBe(retryAfterMs)
+      }
+    )
+
+    it('carries the Retry-After a 429 asked for as an HTTP date', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+        const res = new Response('slow down', {
+          status: 429,
+          headers: { 'Retry-After': 'Thu, 01 Jan 2026 00:01:30 GMT' },
+        })
+
+        const error = await expectValidationError(throwForProviderResponse(res, 'self'))
+
+        expect(error.retryAfterMs).toBe(90_000)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it.each([
+      [500, '30'],
+      [401, '30'],
+      [429, 'soon'],
+    ])('carries no Retry-After for a %i with Retry-After %s', async (status, retryAfter) => {
+      const res = new Response('nope', { status, headers: { 'Retry-After': retryAfter } })
+
+      const error = await expectValidationError(throwForProviderResponse(res, 'self'))
+
+      expect(error.retryAfterMs).toBeUndefined()
+    })
   })
 
   describe('readProviderErrorSnippet', () => {

@@ -102,6 +102,49 @@ describe('SailPoint API client token exchange', () => {
     await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({ code })
   })
 
+  it("carries the token endpoint's Retry-After on an unavailable answer", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({ error: 'unavailable' }, { status: 503, headers: { 'Retry-After': '7' } })
+    )
+
+    await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      retryAfterMs: 7_000,
+    })
+  })
+
+  it('returns the first throttled answer with its Retry-After instead of retrying it', async () => {
+    mockFetch.mockImplementation(async () =>
+      jsonResponse({ error: 'rate limited' }, { status: 429, headers: { 'Retry-After': '120' } })
+    )
+
+    await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      status: 429,
+      retryAfterMs: 120_000,
+    })
+    expect(mockFetch).toHaveBeenCalledOnce()
+  })
+
+  it("keeps a throttled answer's status and Retry-After when its error body cannot be read", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(new TypeError('terminated'))
+          },
+        }),
+        { status: 429, headers: { 'Retry-After': '120' } }
+      )
+    )
+
+    await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      status: 429,
+      retryAfterMs: 120_000,
+    })
+  })
+
   it('treats a network failure or refused redirect as a provider failure', async () => {
     mockFetch.mockRejectedValue(new TypeError('fetch failed: unexpected redirect'))
 

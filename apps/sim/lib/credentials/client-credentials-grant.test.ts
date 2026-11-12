@@ -140,7 +140,11 @@ describe('exchangeClientCredentialsGrant', () => {
     await expect(
       exchangeClientCredentialsGrant({ ...REQUEST, classifyRefusal })
     ).rejects.toMatchObject({ code: 'grant_not_permitted', status: 400 })
-    expect(classifyRefusal).toHaveBeenCalledWith(400, expect.stringContaining('org_mismatch'))
+    expect(classifyRefusal).toHaveBeenCalledWith(
+      400,
+      expect.stringContaining('org_mismatch'),
+      undefined
+    )
   })
 
   it.each([
@@ -156,6 +160,30 @@ describe('exchangeClientCredentialsGrant', () => {
       code: 'provider_unavailable',
       status: 502,
     })
+  })
+
+  it('carries the Retry-After of a throttled exchange, also to a provider classification', async () => {
+    mockFetch.mockImplementation(async () =>
+      jsonResponse({ error: 'slow_down' }, { status: 429, headers: { 'Retry-After': '45' } })
+    )
+
+    await expect(exchangeClientCredentialsGrant(REQUEST)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      status: 429,
+      retryAfterMs: 45_000,
+    })
+    const classifyRefusal = vi.fn(
+      (status: number, _body: string, retryAfterMs?: number) =>
+        new TokenServiceAccountValidationError(
+          'provider_unavailable',
+          status,
+          { step: REQUEST.step },
+          { retryAfterMs }
+        )
+    )
+    await expect(
+      exchangeClientCredentialsGrant({ ...REQUEST, classifyRefusal })
+    ).rejects.toMatchObject({ retryAfterMs: 45_000 })
   })
 
   it('refuses a token response that is not JSON', async () => {

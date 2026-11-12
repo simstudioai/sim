@@ -84,6 +84,39 @@ describe('CrowdStrike API client token exchange', () => {
     await expect(mintCrowdStrikeServiceAccountToken(FIELDS)).rejects.toMatchObject({ code })
   })
 
+  it("carries the token endpoint's Retry-After on a throttled answer", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse(
+        { errors: [{ code: 429, message: 'rate limited' }] },
+        { status: 429, headers: { 'Retry-After': '7' } }
+      )
+    )
+
+    await expect(mintCrowdStrikeServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      retryAfterMs: 7_000,
+    })
+  })
+
+  it("keeps a throttled answer's status and Retry-After when its error body cannot be read", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(new TypeError('terminated'))
+          },
+        }),
+        { status: 429, headers: { 'Retry-After': '7' } }
+      )
+    )
+
+    await expect(mintCrowdStrikeServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      status: 429,
+      retryAfterMs: 7_000,
+    })
+  })
+
   it("reports a redirect to the API client's own cloud as a wrong cloud and never follows it", async () => {
     mockFetch.mockResolvedValue(
       new Response(null, {
