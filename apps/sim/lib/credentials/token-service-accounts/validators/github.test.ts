@@ -94,6 +94,7 @@ describe('GitHub saved personal access token verification', () => {
         '2026-12-01T10:30:00.000Z',
       ],
       ['a timestamp minutes away', '2026-11-11 12:30:00 +0000', '2026-11-11T12:30:00.000Z'],
+      ['a timestamp marked UTC', '2026-12-01 10:30:00 UTC', '2026-12-01T10:30:00.000Z'],
     ])('records the expiry GitHub reports as %s', async (_, header, expected) => {
       fetch.mockResolvedValue(userReply(header))
 
@@ -105,7 +106,8 @@ describe('GitHub saved personal access token verification', () => {
     it.each([
       ['no expiry header (a token that never expires)', undefined],
       ['an unreadable expiry', 'next Tuesday'],
-      ['a zone name instead of an offset', '2026-12-01 10:30:00 UTC'],
+      ['a zone name other than UTC', '2026-12-01 10:30:00 PST'],
+      ['a lowercase utc marker', '2026-12-01 10:30:00 utc'],
       ['an impossible date', '2026-13-45 10:00:00 +0000'],
       ['an expiry in the past, contradicting the accepted request', '2026-11-10 12:00:00 +0000'],
     ])('records no expiry for %s and still accepts the token', async (_, header) => {

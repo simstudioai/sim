@@ -27,11 +27,12 @@ function calendarMomentUtc(
 }
 
 /**
- * `2026-12-01 12:30:00 +0200`. GitHub documents the header but not its value format, so this is
- * parsed strictly by design: the one form accepted is the one in the API responses GitHub's own
- * client library records (octokit/octokit.rb spec cassettes), and any other form is left unread.
+ * `2026-12-01 12:30:00 +0200` or `2026-12-01 10:30:00 UTC`. GitHub documents the header but not
+ * its value format, so this is parsed strictly by design: the two forms accepted are the ones in
+ * the API responses GitHub's own client library records (octokit/octokit.rb spec cassettes), and
+ * any other form is left unread.
  */
-const GITHUB_TOKEN_EXPIRATION = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) ([+-]\d{4})$/
+const GITHUB_TOKEN_EXPIRATION = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) ([+-]\d{4}|UTC)$/
 
 /**
  * Reads GitHub's `GitHub-Authentication-Token-Expiration` response header, which GitHub sends on
@@ -43,8 +44,10 @@ export function githubTokenExpiration(header: string | null): Date | undefined {
   if (!match) return undefined
   const offset = match[7]
   const offsetMinutes =
-    (offset.startsWith('-') ? -1 : 1) *
-    (Number(offset.slice(1, 3)) * 60 + Number(offset.slice(3, 5)))
+    offset === 'UTC'
+      ? 0
+      : (offset.startsWith('-') ? -1 : 1) *
+        (Number(offset.slice(1, 3)) * 60 + Number(offset.slice(3, 5)))
   return calendarMomentUtc(match.slice(1, 7).map(Number), offsetMinutes)
 }
 
