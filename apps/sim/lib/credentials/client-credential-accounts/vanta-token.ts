@@ -8,6 +8,7 @@ import {
 import {
   fetchProvider,
   isTransientProviderStatus,
+  providerRetryAfterMs,
   requireClientSecret,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -91,7 +92,8 @@ async function exchangeToken(
         ? 'invalid_credentials'
         : 'provider_unavailable',
       response.status,
-      { step: STEP, reason: 'provider rejected token exchange' }
+      { step: STEP, reason: 'provider rejected token exchange' },
+      { retryAfterMs: providerRetryAfterMs(response) }
     )
   }
   const payload = await readResponseJsonWithLimit<unknown>(response, {

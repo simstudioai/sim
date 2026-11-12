@@ -137,6 +137,11 @@ beforeAll(async () => {
       )
       return
     }
+    if (parsed.client_id.endsWith('-throttled')) {
+      response.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '90' })
+      response.end(JSON.stringify({ error: 'rate_limited' }))
+      return
+    }
     await sleep(15)
     const identity = `${request.headers['x-provider-origin']}:${parsed.client_id}`
     const issued = (applications.get(identity)?.issued ?? 0) + 1
@@ -319,6 +324,24 @@ describe('Vanta application token lifecycle against shared storage', () => {
     await invalidateVantaClientToken(first.accessToken, first.apiDomain)
     expect((await resolveVantaClientToken(input)).accessToken).toBe(next.accessToken)
     expect(await isActive(next.accessToken)).toBe(true)
+  })
+
+  it('waits as long as a throttled Vanta asks before any worker asks again', async () => {
+    const input = fields('throttled')
+    const keys = previousBuildKeys(input, READ)
+    const count = tokenRequests
+    const before = Date.now()
+
+    await expect(resolveVantaClientToken(input)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      status: 429,
+    })
+    await expect(resolveVantaClientToken(input)).rejects.toMatchObject({ status: 429 })
+
+    expect(tokenRequests).toBe(count + 1)
+    const stored = await readStoredRow(keys.failureKey)
+    expect(stored.expiresAt.getTime() - before).toBeGreaterThanOrEqual(90_000)
+    expect(stored.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(90_000)
   })
 
   it('fails closed when coordination storage fails', async () => {
