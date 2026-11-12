@@ -9041,7 +9041,7 @@
       "slug": "embeddings",
       "name": "Embeddings",
       "description": "Generate embeddings",
-      "longDescription": "Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus embedding models on a self-hosted Ollama.",
+      "longDescription": "Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, Mistral, and Voyage AI embedding models, plus embedding models on a self-hosted Ollama.",
       "bgColor": "#7B4DFF",
       "iconName": "EmbeddingsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/embeddings",
@@ -9067,18 +9067,22 @@
           "description": "Generate embeddings from text using Mistral's embedding models"
         },
         {
+          "name": "Voyage AI Embeddings",
+          "description": "Generate embeddings from text using Voyage AI's embedding models"
+        },
+        {
           "name": "Ollama Embeddings",
           "description": "Generate embeddings on a self-hosted Ollama server"
         }
       ],
-      "operationCount": 6,
+      "operationCount": 7,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
       "tags": ["llm", "vector-search"],
-      "updatedAt": "2026-10-02"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "enrich_v2",
@@ -30545,6 +30549,34 @@
       "integrationType": "devops",
       "tags": ["cloud", "ci-cd"],
       "updatedAt": "2026-11-10"
+    },
+    {
+      "type": "voyageai",
+      "slug": "voyage-ai",
+      "name": "Voyage AI",
+      "description": "Contextualized embeddings and reranking",
+      "longDescription": "Embed documents with Voyage AI contextualized models, so each chunk vector reflects the whole document around it, and rerank texts against a query with Voyage AI rerankers.",
+      "bgColor": "#7B4DFF",
+      "iconName": "EmbeddingsIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/voyageai",
+      "operations": [
+        {
+          "name": "Contextualized Embeddings",
+          "description": "Embed documents with a contextualized model: Voyage splits each document into chunks, and every chunk vector also reflects the whole document it came from"
+        },
+        {
+          "name": "Rerank",
+          "description": "Rank a list of texts by relevance to a query with a Voyage AI reranker, most relevant first"
+        }
+      ],
+      "operationCount": 2,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "ai",
+      "tags": ["llm", "vector-search"],
+      "updatedAt": "2026-11-13"
     },
     {
       "type": "wealthbox",

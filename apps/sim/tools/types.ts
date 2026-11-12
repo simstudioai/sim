@@ -11,6 +11,7 @@ export type BYOKProviderId =
   | 'anthropic'
   | 'google'
   | 'mistral'
+  | 'voyage'
   | 'zai'
   | 'kimi'
   | 'typesafe'

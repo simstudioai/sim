@@ -6683,6 +6683,56 @@ export const EMBEDDING_MODEL_PRICING: Record<string, ModelPricing> = {
     output: 0.0,
     updatedAt: '2026-08-05',
   },
+  'voyage-4-large': {
+    input: 0.12, // $0.12 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-11-12',
+  },
+  'voyage-4': {
+    input: 0.06, // $0.06 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-11-12',
+  },
+  'voyage-4-lite': {
+    input: 0.02, // $0.02 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-11-12',
+  },
+  'voyage-code-4': {
+    input: 0.12, // $0.12 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-11-12',
+  },
+  'voyage-finance-2': {
+    input: 0.12, // $0.12 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-11-12',
+  },
+  'voyage-law-2': {
+    input: 0.12, // $0.12 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-11-12',
+  },
+  'voyage-3-large': {
+    input: 0.18, // $0.18 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-11-12',
+  },
+  'voyage-3.5': {
+    input: 0.06, // $0.06 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-11-12',
+  },
+  'voyage-3.5-lite': {
+    input: 0.02, // $0.02 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-11-12',
+  },
+  'voyage-code-3': {
+    input: 0.18, // $0.18 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-11-12',
+  },
 }
 
 export function getEmbeddingModelPricing(modelId: string): ModelPricing | null {

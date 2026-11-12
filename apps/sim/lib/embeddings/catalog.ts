@@ -95,6 +95,22 @@ export interface EmbeddingModelInfo {
   kbEligible: boolean
 }
 
+/** Voyage's Matryoshka sizes; 1024 is the default for every model that offers them. */
+const VOYAGE_MATRYOSHKA_DIMENSIONS = [2048, 1024, 512, 256] as const
+
+const VOYAGE_TASK_TYPES = ['document', 'query'] as const satisfies readonly EmbeddingTaskType[]
+
+/**
+ * Fields every Voyage text model shares. Context length, the per-request token
+ * ceiling, and Matryoshka support differ per model and are set on each entry.
+ */
+const VOYAGE_BASE = {
+  provider: 'voyage',
+  tokenizerProvider: 'voyage',
+  nativeDimensions: 1024,
+  supportedTaskTypes: VOYAGE_TASK_TYPES,
+} as const satisfies Partial<EmbeddingModelInfo>
+
 export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
   'text-embedding-3-small': {
     provider: 'openai',
@@ -179,6 +195,102 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelInfo> = {
     maxInputTokens: 8192,
     kbEligible: false,
   },
+  /**
+   * Voyage models. Not offered for knowledge bases yet: that path also needs the
+   * deployment capability and setup flow to learn a Voyage family, which Cohere
+   * and Mistral skip the same way. Per-request token ceilings are the figures
+   * Voyage documents for `/v1/embeddings`.
+   */
+  'voyage-4-large': {
+    ...VOYAGE_BASE,
+    label: 'voyage-4-large',
+    pricingId: 'voyage-4-large',
+    supportedDimensions: VOYAGE_MATRYOSHKA_DIMENSIONS,
+    maxInputTokens: 32_000,
+    maxTokensPerRequest: 120_000,
+    kbEligible: false,
+  },
+  'voyage-4': {
+    ...VOYAGE_BASE,
+    label: 'voyage-4',
+    pricingId: 'voyage-4',
+    supportedDimensions: VOYAGE_MATRYOSHKA_DIMENSIONS,
+    maxInputTokens: 32_000,
+    maxTokensPerRequest: 320_000,
+    kbEligible: false,
+  },
+  'voyage-4-lite': {
+    ...VOYAGE_BASE,
+    label: 'voyage-4-lite',
+    pricingId: 'voyage-4-lite',
+    supportedDimensions: VOYAGE_MATRYOSHKA_DIMENSIONS,
+    maxInputTokens: 32_000,
+    maxTokensPerRequest: 1_000_000,
+    kbEligible: false,
+  },
+  /** Voyage documents no per-request token ceiling for this model, so the client default applies. */
+  'voyage-code-4': {
+    ...VOYAGE_BASE,
+    label: 'voyage-code-4',
+    pricingId: 'voyage-code-4',
+    supportedDimensions: VOYAGE_MATRYOSHKA_DIMENSIONS,
+    maxInputTokens: 32_000,
+    kbEligible: false,
+  },
+  /** Domain models have a single fixed width. */
+  'voyage-finance-2': {
+    ...VOYAGE_BASE,
+    label: 'voyage-finance-2',
+    pricingId: 'voyage-finance-2',
+    maxInputTokens: 32_000,
+    maxTokensPerRequest: 120_000,
+    kbEligible: false,
+  },
+  'voyage-law-2': {
+    ...VOYAGE_BASE,
+    label: 'voyage-law-2',
+    pricingId: 'voyage-law-2',
+    maxInputTokens: 16_000,
+    maxTokensPerRequest: 120_000,
+    kbEligible: false,
+  },
+  /** Superseded by the voyage-4 family but still served and billed, so placed blocks keep resolving. */
+  'voyage-3-large': {
+    ...VOYAGE_BASE,
+    label: 'voyage-3-large',
+    pricingId: 'voyage-3-large',
+    supportedDimensions: VOYAGE_MATRYOSHKA_DIMENSIONS,
+    maxInputTokens: 32_000,
+    maxTokensPerRequest: 120_000,
+    kbEligible: false,
+  },
+  'voyage-3.5': {
+    ...VOYAGE_BASE,
+    label: 'voyage-3.5',
+    pricingId: 'voyage-3.5',
+    supportedDimensions: VOYAGE_MATRYOSHKA_DIMENSIONS,
+    maxInputTokens: 32_000,
+    maxTokensPerRequest: 320_000,
+    kbEligible: false,
+  },
+  'voyage-3.5-lite': {
+    ...VOYAGE_BASE,
+    label: 'voyage-3.5-lite',
+    pricingId: 'voyage-3.5-lite',
+    supportedDimensions: VOYAGE_MATRYOSHKA_DIMENSIONS,
+    maxInputTokens: 32_000,
+    maxTokensPerRequest: 1_000_000,
+    kbEligible: false,
+  },
+  'voyage-code-3': {
+    ...VOYAGE_BASE,
+    label: 'voyage-code-3',
+    pricingId: 'voyage-code-3',
+    supportedDimensions: VOYAGE_MATRYOSHKA_DIMENSIONS,
+    maxInputTokens: 32_000,
+    maxTokensPerRequest: 120_000,
+    kbEligible: false,
+  },
 }
 
 /**
@@ -192,13 +304,16 @@ export const EMBEDDING_CATALOG_PROVIDERS: readonly KeyedEmbeddingProvider[] = [
   'gemini',
   'cohere',
   'mistral',
+  'voyage',
 ] as const
 
 /**
  * Model each provider falls back to when the caller names none. Single source
  * for the block's pre-selected value, the per-provider tools, and the route.
+ * Voyage has no entry on purpose: its models differ in cost, context and use
+ * (general, code, finance, law), so the caller always names one.
  */
-export const DEFAULT_MODEL_BY_PROVIDER: Record<KeyedEmbeddingProvider, string> = {
+export const DEFAULT_MODEL_BY_PROVIDER: Partial<Record<KeyedEmbeddingProvider, string>> = {
   openai: DEFAULT_EMBEDDING_MODEL,
   gemini: 'gemini-embedding-001',
   cohere: 'embed-v4.0',
@@ -214,6 +329,7 @@ export const BYOK_PROVIDER_IDS: Record<KeyedEmbeddingProvider, BYOKProviderId> =
   gemini: 'google',
   cohere: 'cohere',
   mistral: 'mistral',
+  voyage: 'voyage',
 }
 
 /**
@@ -326,8 +442,8 @@ export function getKbEmbeddingDimensions(info: EmbeddingModelInfo): KbEmbeddingD
  * True when a model's tokens cannot be counted exactly.
  *
  * Batching measures with tiktoken, which only has encodings for OpenAI models —
- * every other id falls back to `cl100k_base`, so Gemini, Cohere, and Mistral
- * ceilings are enforced in approximate units. The ceiling is still applied as
+ * every other id falls back to `cl100k_base`, so Gemini, Cohere, Mistral, and
+ * Voyage ceilings are enforced in approximate units. The ceiling is still applied as
  * declared rather than discounted to absorb the error: an undercount surfaces
  * as a visible provider rejection, whereas silently shortening an embedding's
  * input does not.

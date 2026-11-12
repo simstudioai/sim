@@ -630,6 +630,17 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'voyage-errors',
+    description:
+      'Voyage AI string `detail` envelope ({"detail": "<reason>"}), which names the rejected model, dimension or limit. Selected by ID because other providers answer with a structured `detail`',
+    examples: ['Voyage AI'],
+    explicitOnly: true,
+    extract: (errorInfo) => {
+      const detail = errorInfo?.data?.detail
+      return typeof detail === 'string' && detail.trim() ? detail.trim() : undefined
+    },
+  },
+  {
     id: 'plain-text-data',
     description: 'Plain text error response',
     examples: ['APIs returning plain text errors like Apollo'],
@@ -720,6 +731,7 @@ export const ErrorExtractorId = {
   TELEGRAM_DESCRIPTION: 'telegram-description',
   STANDARD_MESSAGE: 'standard-message',
   HARMONIC_ERRORS: 'harmonic-errors',
+  VOYAGE_ERRORS: 'voyage-errors',
   CODA_ERRORS: 'coda-errors',
   HELPSCOUT_ERRORS: 'helpscout-errors',
   SOAP_FAULT: 'soap-fault',
