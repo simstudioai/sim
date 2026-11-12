@@ -86,6 +86,30 @@ func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
     var value: CFTypeRef?
     return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
 }
+/// Reads several attributes in one Accessibility round trip instead of one per attribute; an attribute
+/// the element lacks or fails to return is omitted, as `attribute` would return nil for it.
+func attributes(_ element: AXUIElement, _ names: [String]) -> [String: CFTypeRef] {
+    var raw: CFArray?
+    guard AXUIElementCopyMultipleAttributeValues(element, names as CFArray, AXCopyMultipleAttributeOptions(rawValue: 0), &raw) == .success,
+          let values = raw as [AnyObject]?, values.count == names.count else {
+        return names.reduce(into: [:]) { result, name in result[name] = attribute(element, name) }
+    }
+    var result: [String: CFTypeRef] = [:]
+    for (name, value) in zip(names, values) {
+        if value is NSNull { continue }
+        if CFGetTypeID(value) == AXValueGetTypeID(), AXValueGetType(unsafeBitCast(value, to: AXValue.self)) == .axError { continue }
+        result[name] = value
+    }
+    return result
+}
+/// Elements bucketed by CFHash, so a walk's membership and parent lookups stay linear in its size.
+struct ElementIndex {
+    private var buckets: [CFHashCode: [(element: AXUIElement, id: String)]] = [:]
+    func id(of element: AXUIElement) -> String? { buckets[CFHash(element)]?.first { CFEqual($0.element, element) }?.id }
+    mutating func insert(_ element: AXUIElement, id: String) { buckets[CFHash(element), default: []].append((element, id)) }
+}
+let NODE_ATTRIBUTES = [kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute, kAXDescriptionAttribute, kAXPlaceholderValueAttribute,
+                       kAXHelpAttribute, kAXValueAttribute, kAXFocusedAttribute, kAXEnabledAttribute, kAXPositionAttribute, kAXSizeAttribute]
 func secure(_ element: AXUIElement) -> Bool {
     attribute(element, kAXSubroleAttribute) as? String == kAXSecureTextFieldSubrole
 }
@@ -135,8 +159,11 @@ func axActions(_ element: AXUIElement) -> [String] {
     return AXUIElementCopyActionNames(element, &names) == .success ? names as? [String] ?? [] : []
 }
 func elementRect(_ element: AXUIElement) -> CGRect? {
-    guard let rawPosition = attribute(element, kAXPositionAttribute), CFGetTypeID(rawPosition) == AXValueGetTypeID(),
-          let rawSize = attribute(element, kAXSizeAttribute), CFGetTypeID(rawSize) == AXValueGetTypeID() else { return nil }
+    axRect(position: attribute(element, kAXPositionAttribute), size: attribute(element, kAXSizeAttribute))
+}
+func axRect(position rawPosition: CFTypeRef?, size rawSize: CFTypeRef?) -> CGRect? {
+    guard let rawPosition, CFGetTypeID(rawPosition) == AXValueGetTypeID(),
+          let rawSize, CFGetTypeID(rawSize) == AXValueGetTypeID() else { return nil }
     var position = CGPoint.zero; var size = CGSize.zero
     guard AXValueGetValue(unsafeBitCast(rawPosition, to: AXValue.self), .cgPoint, &position),
           AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &size) else { return nil }
@@ -309,12 +336,14 @@ final class Snapshot {
             queue.append(AXTraversalEntry(element: unsafeBitCast(raw, to: AXUIElement.self), parent: root, depth: 1, menu: false, priority: true))
         }
         var menuCount = 0
+        var index = ElementIndex()
         while nodes.count < 2000 && Date().timeIntervalSince(created) < 8, let entry = queue.next() {
             try checkCancellation()
             let element = entry.element
             AXUIElementSetMessagingTimeout(element, 0.25)
-            if elements.values.contains(where: { CFEqual($0, element) }) { continue }
-            let role = attribute(element, kAXRoleAttribute) as? String ?? "AXUnknown"
+            if index.id(of: element) != nil { continue }
+            let values = attributes(element, NODE_ATTRIBUTES)
+            let role = values[kAXRoleAttribute] as? String ?? "AXUnknown"
             let isMenu = entry.menu || [kAXMenuBarRole, kAXMenuRole, kAXMenuItemRole, kAXMenuBarItemRole].contains(role)
             if role == kAXMenuItemRole && !entry.menu && !entry.priority {
                 queue.append(AXTraversalEntry(element: element, parent: entry.parent, depth: entry.depth, menu: true, priority: false)); continue
@@ -323,27 +352,28 @@ final class Snapshot {
                 guard menuCount < 80 else { truncated = true; continue }
                 menuCount += 1
             }
-            let id = "e\(nodes.count)"; elements[id] = element
+            let id = "e\(nodes.count)"; elements[id] = element; index.insert(element, id: id)
             var node: [String: Any] = ["elementId": id, "role": role, "actions": [String]()]
-            if let parent = entry.parent, let parentID = elements.first(where: { CFEqual($0.value, parent) })?.key { node["parentId"] = parentID }
-            let isSecure = secure(element)
-            var labels = [kAXTitleAttribute, kAXDescriptionAttribute].compactMap { attribute(element, $0) as? String }.filter { !$0.isEmpty }
-            if labels.isEmpty { labels = [kAXPlaceholderValueAttribute, kAXHelpAttribute].compactMap { attribute(element, $0) as? String }.filter { !$0.isEmpty } }
+            if let parent = entry.parent, let parentID = index.id(of: parent) { node["parentId"] = parentID }
+            let isSecure = values[kAXSubroleAttribute] as? String == kAXSecureTextFieldSubrole
+            var labels = [kAXTitleAttribute, kAXDescriptionAttribute].compactMap { values[$0] as? String }.filter { !$0.isEmpty }
+            if labels.isEmpty { labels = [kAXPlaceholderValueAttribute, kAXHelpAttribute].compactMap { values[$0] as? String }.filter { !$0.isEmpty } }
             if role == kAXMenuItemRole, let shortcut = menuShortcut(element) { labels.append(shortcut) }
             if !isSecure, !labels.isEmpty { node["label"] = String(labels.joined(separator: " ").prefix(1024)) }
-            if !isSecure, let raw = attribute(element, kAXValueAttribute) {
+            if !isSecure, let raw = values[kAXValueAttribute] {
                 if let value = raw as? String { node["value"] = String(value.prefix(2048)) }
                 else if let value = raw as? NSNumber { node["value"] = value.stringValue }
             }
             if !isSecure {
-                if let focused = attribute(element, kAXFocusedAttribute) as? Bool { node["focused"] = focused }
+                if let focused = values[kAXFocusedAttribute] as? Bool { node["focused"] = focused }
                 var writable: DarwinBoolean = false
-                let writableValue = AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &writable) == .success && writable.boolValue
-                node["editable"] = [kAXTextAreaRole, kAXTextFieldRole].contains(role) && writableValue
-                if let placeholder = attribute(element, kAXPlaceholderValueAttribute) as? String { node["placeholder"] = String(placeholder.prefix(1024)) }
+                let writableValue = [kAXTextAreaRole, kAXTextFieldRole].contains(role)
+                    && AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &writable) == .success && writable.boolValue
+                node["editable"] = writableValue
+                if let placeholder = values[kAXPlaceholderValueAttribute] as? String { node["placeholder"] = String(placeholder.prefix(1024)) }
             }
-            if let enabled = attribute(element, kAXEnabledAttribute) as? Bool { node["enabled"] = enabled }
-            if let rect = elementRect(element) { node.merge(rectJSON(rect)) { _, new in new } }
+            if let enabled = values[kAXEnabledAttribute] as? Bool { node["enabled"] = enabled }
+            if let rect = axRect(position: values[kAXPositionAttribute], size: values[kAXSizeAttribute]) { node.merge(rectJSON(rect)) { _, new in new } }
             var actions: CFArray?
             if AXUIElementCopyActionNames(element, &actions) == .success { node["actions"] = Array((actions as? [String] ?? []).prefix(128)).map { String($0.prefix(128)) } }
             nodes.append(node)
