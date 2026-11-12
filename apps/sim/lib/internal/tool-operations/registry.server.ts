@@ -1,7 +1,16 @@
+import {
+  DATABASE_CONNECTION_DESCRIPTORS,
+  type DatabaseConnectionProviderId,
+} from '@/lib/credentials/database-connections/descriptors'
 import type {
   InternalToolOperationHandler,
   InternalToolOperationResult,
 } from '@/lib/internal/tool-operations/types'
+import {
+  MSSQL_SERVICE_ACCOUNT_PROVIDER_ID,
+  MYSQL_SERVICE_ACCOUNT_PROVIDER_ID,
+  POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID,
+} from '@/lib/oauth/types'
 import { isMcpTool } from '@/executor/constants'
 
 type InternalToolOperationHandlerLoader = () => Promise<
@@ -1520,6 +1529,34 @@ function registerAwsFamily(
   for (const toolId of toolIds) AWS_CREDENTIAL_OPERATION_TOOL_IDS.add(toolId)
 }
 
+/**
+ * Tool id → saved-connection service for every SQL family registered through
+ * `registerSavedDatabaseFamily`, so the wiring can be checked.
+ */
+export const SAVED_DATABASE_CONNECTION_TOOL_SERVICES = new Map<string, string>()
+
+/**
+ * Registers a SQL family wrapped so it also runs on a saved database
+ * connection, and records its tool ids. The wrapper is a no-op for calls
+ * without an executor-authorized connection, so inline-connection calls reach
+ * the family handler unchanged.
+ */
+function registerSavedDatabaseFamily(
+  providerId: DatabaseConnectionProviderId,
+  toolIds: readonly string[],
+  load: () => Promise<InternalToolOperationHandler>
+): void {
+  registerFamily(handlerLoaders, toolIds, async () => {
+    const [{ withSavedDatabaseConnection }, handler] = await Promise.all([
+      import('@/lib/credentials/database-connections/server'),
+      load(),
+    ])
+    return withSavedDatabaseConnection(providerId, handler)
+  })
+  const { service } = DATABASE_CONNECTION_DESCRIPTORS[providerId]
+  for (const toolId of toolIds) SAVED_DATABASE_CONNECTION_TOOL_SERVICES.set(toolId, service)
+}
+
 registerFamily(handlerLoaders, ASHBY_TOOL_IDS, async () => {
   return (await import('@/lib/internal/ashby/execute-tool')).executeAshbyTool
 })
@@ -1582,9 +1619,11 @@ registerAwsFamily(
   CLOUDTRAIL_TOOL_IDS,
   async () => (await import('@/lib/internal/cloudtrail/execute-tool')).executeCloudtrailTool
 )
-registerFamily(handlerLoaders, POSTGRESQL_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/postgresql/execute-tool')).executePostgresqlTool
-})
+registerSavedDatabaseFamily(
+  POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID,
+  POSTGRESQL_TOOL_IDS,
+  async () => (await import('@/lib/internal/postgresql/execute-tool')).executePostgresqlTool
+)
 registerFamily(handlerLoaders, REDIS_TOOL_IDS, async () => {
   return (await import('@/lib/internal/redis/execute-tool')).executeRedisTool
 })
@@ -1600,9 +1639,11 @@ registerAwsFamily(
   CODEPIPELINE_TOOL_IDS,
   async () => (await import('@/lib/internal/codepipeline/execute-tool')).executeCodepipelineTool
 )
-registerFamily(handlerLoaders, MYSQL_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/mysql/execute-tool')).executeMysqlTool
-})
+registerSavedDatabaseFamily(
+  MYSQL_SERVICE_ACCOUNT_PROVIDER_ID,
+  MYSQL_TOOL_IDS,
+  async () => (await import('@/lib/internal/mysql/execute-tool')).executeMysqlTool
+)
 registerAwsFamily(
   ATHENA_TOOL_IDS,
   async () => (await import('@/lib/internal/athena/execute-tool')).executeAthenaTool
@@ -1623,9 +1664,11 @@ registerAwsFamily(
 registerFamily(handlerLoaders, JUPYTER_TOOL_IDS, async () => {
   return (await import('@/lib/internal/jupyter/execute-tool')).executeJupyterTool
 })
-registerFamily(handlerLoaders, MSSQL_TOOL_IDS, async () => {
-  return (await import('@/lib/internal/mssql/execute-tool')).executeMssqlTool
-})
+registerSavedDatabaseFamily(
+  MSSQL_SERVICE_ACCOUNT_PROVIDER_ID,
+  MSSQL_TOOL_IDS,
+  async () => (await import('@/lib/internal/mssql/execute-tool')).executeMssqlTool
+)
 registerFamily(handlerLoaders, ORACLE_FUSION_FINANCIALS_TOOL_IDS, async () => {
   return (await import('@/lib/internal/oracle-fusion-financials/execute-tool'))
     .executeOracleFusionFinancialsTool

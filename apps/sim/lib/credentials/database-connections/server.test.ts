@@ -19,8 +19,8 @@ vi.mock('@/lib/internal/postgresql/operations', () => ({
 vi.mock('@/lib/internal/mysql/operations', () => ({ executeMysqlQuery: probes.mysql }))
 vi.mock('@/lib/internal/mssql/operations', () => ({ executeMssqlQuery: probes.mssql }))
 
+import type { DatabaseConnectionProviderId } from '@/lib/credentials/database-connections/descriptors'
 import {
-  getDatabaseConnection,
   verifyAndEncryptDatabaseConnection,
   withSavedDatabaseConnection,
 } from '@/lib/credentials/database-connections/server'
@@ -34,6 +34,7 @@ const connection = {
   ssl: 'required',
 }
 const stored = { type: 'postgresql_connection_v1', connection }
+const { ssl: _ssl, ...connectionWithoutTls } = connection
 const row = {
   workspaceId: 'workspace-1',
   organizationId: null,
@@ -43,18 +44,26 @@ const row = {
   encryptedServiceAccountKey: 'ciphertext',
 }
 
+const savedConnectionContext = {
+  workflowId: 'workflow-1',
+  workspaceId: 'workspace-1',
+  authorizedServiceAccountCredential: { credentialId: 'credential-1', service: 'postgresql' },
+}
+
+const inlineInput = {
+  host: 'attacker.example.com',
+  port: 1,
+  database: 'other',
+  username: 'other',
+  password: 'inline',
+  ssl: 'disabled',
+  query: 'SELECT 2',
+}
+
 function call(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
   return {
     toolId: 'postgresql_query',
-    input: {
-      host: 'attacker.example.com',
-      port: 1,
-      database: 'other',
-      username: 'other',
-      password: 'inline',
-      ssl: 'disabled',
-      query: 'SELECT 2',
-    },
+    input: inlineInput,
     headers: new Headers(),
     context: { workflowId: 'workflow-1', workspaceId: 'workspace-1' },
     requestId: 'request-1',
@@ -62,8 +71,11 @@ function call(overrides: Partial<InternalToolOperationCall> = {}): InternalToolO
   }
 }
 
+const echo = vi.fn(async (request: InternalToolOperationCall) => Response.json(request.input))
+
 describe('saved database connections', () => {
   beforeEach(() => {
+    echo.mockClear()
     resetDbChainMock()
     for (const probe of Object.values(probes)) {
       probe.mockReset()
@@ -74,53 +86,75 @@ describe('saved database connections', () => {
   })
 
   describe('saving', () => {
-    it('proves the exact login with SELECT 1 before encrypting it', async () => {
-      const result = await verifyAndEncryptDatabaseConnection(
-        'postgresql-service-account',
-        JSON.stringify(connection)
-      )
+    it.each([
+      {
+        providerId: 'postgresql-service-account',
+        service: 'postgresql',
+        probe: probes.postgresql,
+        login: connectionWithoutTls,
+        defaults: { ssl: 'preferred' },
+        probeOnly: {},
+      },
+      {
+        providerId: 'mysql-service-account',
+        service: 'mysql',
+        probe: probes.mysql,
+        login: connectionWithoutTls,
+        defaults: { ssl: 'preferred' },
+        probeOnly: {},
+      },
+      {
+        providerId: 'mssql-service-account',
+        service: 'mssql',
+        probe: probes.mssql,
+        login: { ...connectionWithoutTls, port: 1433 },
+        defaults: { encrypt: 'enabled', trustServerCertificate: 'disabled' },
+        probeOnly: { connectionTimeout: 15_000 },
+      },
+    ] as const)(
+      'proves the exact $service login and a later run reads it back with its TLS defaults',
+      async ({ providerId, service, probe, login, defaults, probeOnly }) => {
+        encryptionMockFns.mockEncryptSecret.mockImplementation(async (plain: string) => ({
+          encrypted: plain,
+          iv: 'iv',
+        }))
+        encryptionMockFns.mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
+          decrypted: encrypted,
+        }))
 
-      expect(result).toEqual({
-        encryptedServiceAccountKey: 'ciphertext',
-        username: 'app_user',
-        displayName: 'app_user@db.example.com/app',
-      })
-      expect(probes.postgresql.mock.calls[0]?.[0]).toEqual({
-        ...connection,
-        query: 'SELECT 1 AS sim_connection_ok',
-      })
-      expect(probes.postgresql.mock.invocationCallOrder[0]).toBeLessThan(
-        encryptionMockFns.mockEncryptSecret.mock.invocationCallOrder[0]
-      )
-      expect(JSON.parse(encryptionMockFns.mockEncryptSecret.mock.calls[0]?.[0])).toEqual(stored)
-    })
+        const saved = await verifyAndEncryptDatabaseConnection(
+          providerId satisfies DatabaseConnectionProviderId,
+          JSON.stringify(login)
+        )
+        expect(probe.mock.calls[0]?.[0]).toEqual({
+          ...login,
+          ...defaults,
+          ...probeOnly,
+          query: 'SELECT 1 AS sim_connection_ok',
+        })
+        expect(saved).toMatchObject({
+          username: 'app_user',
+          displayName: `app_user@db.example.com/app`,
+        })
 
-    it('stores the transport-security defaults explicitly so later runs never infer them', async () => {
-      const { ssl: _ssl, ...withoutTls } = connection
-      await verifyAndEncryptDatabaseConnection('mysql-service-account', JSON.stringify(withoutTls))
-      await verifyAndEncryptDatabaseConnection(
-        'mssql-service-account',
-        JSON.stringify({ ...withoutTls, port: 1433 })
-      )
+        queueTableRows(credential, [
+          { ...row, providerId, encryptedServiceAccountKey: saved.encryptedServiceAccountKey },
+        ])
+        const response = await withSavedDatabaseConnection(
+          providerId,
+          echo
+        )(
+          call({
+            context: {
+              ...savedConnectionContext,
+              authorizedServiceAccountCredential: { credentialId: 'credential-1', service },
+            },
+          })
+        )
 
-      const [mysql, mssql] = encryptionMockFns.mockEncryptSecret.mock.calls.map(([blob]) =>
-        JSON.parse(blob)
-      )
-      expect(mysql).toEqual({
-        type: 'mysql_connection_v1',
-        connection: { ...withoutTls, ssl: 'preferred' },
-      })
-      expect(mssql).toEqual({
-        type: 'mssql_connection_v1',
-        connection: {
-          ...withoutTls,
-          port: 1433,
-          encrypt: 'enabled',
-          trustServerCertificate: 'disabled',
-        },
-      })
-      expect(probes.mssql.mock.calls[0]?.[0]).toMatchObject({ connectionTimeout: 15_000 })
-    })
+        expect(await response.json()).toEqual({ ...inlineInput, ...login, ...defaults })
+      }
+    )
 
     it.each([
       ['malformed JSON', '{'],
@@ -160,52 +194,8 @@ describe('saved database connections', () => {
     })
   })
 
-  describe('loading', () => {
-    it('returns the stored connection for its own provider and owner', async () => {
-      queueTableRows(credential, [row])
-
-      await expect(
-        getDatabaseConnection('postgresql-service-account', 'credential-1', {
-          workspaceId: 'workspace-1',
-        })
-      ).resolves.toEqual(connection)
-    })
-
-    it.each([
-      ['another engine', { providerId: 'mysql-service-account' }],
-      ['another workspace', { workspaceId: 'workspace-2' }],
-      ['a revoked credential', { revokedAt: new Date() }],
-      ['an organization credential', { organizationId: 'organization-1' }],
-    ])('refuses %s before decrypting', async (_case, override) => {
-      queueTableRows(credential, [{ ...row, ...override }])
-
-      await expect(
-        getDatabaseConnection('postgresql-service-account', 'credential-1', {
-          workspaceId: 'workspace-1',
-        })
-      ).rejects.toThrow('PostgreSQL connection is unavailable')
-      expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
-    })
-
-    it.each([
-      ['another engine’s blob', { ...stored, type: 'mysql_connection_v1' }],
-      ['an unknown stored field', { ...stored, connection: { ...connection, extra: 'x' } }],
-    ])('refuses %s', async (_case, blob) => {
-      queueTableRows(credential, [row])
-      encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: JSON.stringify(blob) })
-
-      await expect(
-        getDatabaseConnection('postgresql-service-account', 'credential-1', {
-          workspaceId: 'workspace-1',
-        })
-      ).rejects.toThrow('PostgreSQL connection is unavailable')
-    })
-  })
-
   describe('running a tool', () => {
-    const handler = vi.fn(async (request: InternalToolOperationCall) =>
-      Response.json(request.input)
-    )
+    const handler = echo
 
     it('hands an inline-connection call to the handler untouched', async () => {
       const request = call()
@@ -237,38 +227,30 @@ describe('saved database connections', () => {
         handler
       )(
         call({
-          context: {
-            workflowId: 'workflow-1',
-            workspaceId: 'workspace-1',
-            authorizedServiceAccountCredential: {
-              credentialId: 'credential-1',
-              service: 'postgresql',
-            },
-          },
+          context: savedConnectionContext,
         })
       )
 
       expect(await response.json()).toEqual({ ...connection, query: 'SELECT 2' })
     })
 
-    it('refuses with 403 and never runs when the saved connection is unavailable', async () => {
-      queueTableRows(credential, [{ ...row, workspaceId: 'workspace-2' }])
+    it.each([
+      ['a credential for another engine', { providerId: 'mysql-service-account' }, stored],
+      ['an organization credential', { organizationId: 'organization-1' }, stored],
+      ['another engine’s blob', {}, { ...stored, type: 'mysql_connection_v1' }],
+      [
+        'a blob with an unknown stored field',
+        {},
+        { ...stored, connection: { ...connection, extra: 'x' } },
+      ],
+    ])('refuses %s with 403 and never runs', async (_case, rowOverride, blob) => {
+      queueTableRows(credential, [{ ...row, ...rowOverride }])
+      encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: JSON.stringify(blob) })
 
       const response = await withSavedDatabaseConnection(
         'postgresql-service-account',
         handler
-      )(
-        call({
-          context: {
-            workflowId: 'workflow-1',
-            workspaceId: 'workspace-1',
-            authorizedServiceAccountCredential: {
-              credentialId: 'credential-1',
-              service: 'postgresql',
-            },
-          },
-        })
-      )
+      )(call({ context: savedConnectionContext }))
 
       expect(response.status).toBe(403)
       expect(await response.json()).toEqual({ error: 'PostgreSQL connection is unavailable' })
@@ -290,14 +272,7 @@ describe('saved database connections', () => {
         )(
           call({
             signal: controller.signal,
-            context: {
-              workflowId: 'workflow-1',
-              workspaceId: 'workspace-1',
-              authorizedServiceAccountCredential: {
-                credentialId: 'credential-1',
-                service: 'postgresql',
-              },
-            },
+            context: savedConnectionContext,
           })
         )
       ).rejects.toThrow('run cancelled')

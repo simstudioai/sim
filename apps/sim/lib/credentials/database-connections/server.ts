@@ -10,6 +10,12 @@ import {
   type CredentialOwnerScope,
   readOwnerScopedServiceAccountSecret,
 } from '@/lib/credentials/owner-scoped-secret.server'
+import {
+  MSSQL_DEFAULT_CONNECTION_TIMEOUT_MS,
+  mssqlConnectionInputSchema,
+} from '@/lib/internal/mssql/schema'
+import { mysqlConnectionInputSchema } from '@/lib/internal/mysql/schema'
+import { postgresqlConnectionInputSchema } from '@/lib/internal/postgresql/schema'
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
@@ -22,11 +28,14 @@ import {
 
 const MAX_SERIALIZED_CONNECTION_BYTES = 64 * 1024
 const VERIFY_TIMEOUT_MS = 30_000
-/** The SQL Server block's default connection timeout, used for the save-time check. */
-const MSSQL_VERIFY_CONNECTION_TIMEOUT_MS = 15_000
 const VERIFY_QUERY = 'SELECT 1 AS sim_connection_ok'
 
-const loginFields = {
+/**
+ * Tighter bounds a stored login keeps on top of the operation's own connection
+ * schema; the transport-security fields and their defaults come from the
+ * operation schema unchanged, so a save never accepts a value a run would refuse.
+ */
+const storedLoginBounds = {
   host: z.string().trim().min(1).max(253),
   port: z.coerce.number().int().min(1).max(65535),
   database: z.string().trim().min(1).max(255),
@@ -34,33 +43,35 @@ const loginFields = {
   password: z.string().min(1).max(4096),
 }
 
-const sslModeConnectionSchema = z
-  .object({
-    ...loginFields,
-    ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
-  })
+const postgresqlStoredConnectionSchema = postgresqlConnectionInputSchema
+  .extend(storedLoginBounds)
+  .strict()
+const mysqlStoredConnectionSchema = mysqlConnectionInputSchema.extend(storedLoginBounds).strict()
+/** The connection timeout stays a per-block setting; a saved connection does not pin it. */
+const mssqlStoredConnectionSchema = mssqlConnectionInputSchema
+  .omit({ connectionTimeout: true })
+  .extend(storedLoginBounds)
   .strict()
 
-const mssqlToggle = z.enum(['enabled', 'disabled'])
-const mssqlConnectionSchema = z
-  .object({
-    ...loginFields,
-    encrypt: mssqlToggle.default('enabled'),
-    trustServerCertificate: mssqlToggle.default('disabled'),
-  })
-  .strict()
-
-type SslModeConnection = z.output<typeof sslModeConnectionSchema>
-type MssqlConnection = z.output<typeof mssqlConnectionSchema>
-type DatabaseConnection = SslModeConnection | MssqlConnection
+type DatabaseConnection =
+  | z.output<typeof postgresqlStoredConnectionSchema>
+  | z.output<typeof mysqlStoredConnectionSchema>
+  | z.output<typeof mssqlStoredConnectionSchema>
 
 interface DatabaseConnectionSpec {
   descriptor: DatabaseConnectionDescriptor
   /** Discriminator stored inside the encrypted blob; never changes for a provider id. */
   secretType: string
   schema: z.ZodType<DatabaseConnection>
-  /** Runs `SELECT 1` through the block's own operation, so host pinning and TLS match runs. */
-  probe: (connection: unknown, signal: AbortSignal) => Promise<{ rows: unknown[] }>
+  /**
+   * Parses a submitted connection once and binds the probe to that parsed
+   * value. The probe runs `SELECT 1` through the block's own operation, so
+   * host pinning and TLS match runs.
+   */
+  parse: (raw: unknown) => {
+    connection: DatabaseConnection
+    probe: (signal: AbortSignal) => Promise<{ rows: unknown[] }>
+  }
 }
 
 /** Binds a provider's schema to its probe, so the probe only ever sees that schema's output. */
@@ -74,7 +85,10 @@ function defineSpec<Connection extends DatabaseConnection>(
     descriptor: DATABASE_CONNECTION_DESCRIPTORS[providerId],
     secretType,
     schema,
-    probe: (connection, signal) => probe(schema.parse(connection), signal),
+    parse: (raw) => {
+      const connection = schema.parse(raw)
+      return { connection, probe: (signal) => probe(connection, signal) }
+    },
   }
 }
 
@@ -82,7 +96,7 @@ const SPECS: Record<DatabaseConnectionProviderId, DatabaseConnectionSpec> = {
   [POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID]: defineSpec(
     POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID,
     'postgresql_connection_v1',
-    sslModeConnectionSchema,
+    postgresqlStoredConnectionSchema,
     async (connection, signal) => {
       const { executePostgresqlQuery } = await import('@/lib/internal/postgresql/operations')
       return executePostgresqlQuery({ ...connection, query: VERIFY_QUERY }, signal)
@@ -91,7 +105,7 @@ const SPECS: Record<DatabaseConnectionProviderId, DatabaseConnectionSpec> = {
   [MYSQL_SERVICE_ACCOUNT_PROVIDER_ID]: defineSpec(
     MYSQL_SERVICE_ACCOUNT_PROVIDER_ID,
     'mysql_connection_v1',
-    sslModeConnectionSchema,
+    mysqlStoredConnectionSchema,
     async (connection, signal) => {
       const { executeMysqlQuery } = await import('@/lib/internal/mysql/operations')
       return executeMysqlQuery({ ...connection, query: VERIFY_QUERY }, signal)
@@ -100,13 +114,13 @@ const SPECS: Record<DatabaseConnectionProviderId, DatabaseConnectionSpec> = {
   [MSSQL_SERVICE_ACCOUNT_PROVIDER_ID]: defineSpec(
     MSSQL_SERVICE_ACCOUNT_PROVIDER_ID,
     'mssql_connection_v1',
-    mssqlConnectionSchema,
+    mssqlStoredConnectionSchema,
     async (connection, signal) => {
       const { executeMssqlQuery } = await import('@/lib/internal/mssql/operations')
       return executeMssqlQuery(
         {
           ...connection,
-          connectionTimeout: MSSQL_VERIFY_CONNECTION_TIMEOUT_MS,
+          connectionTimeout: MSSQL_DEFAULT_CONNECTION_TIMEOUT_MS,
           query: VERIFY_QUERY,
         },
         signal
@@ -134,14 +148,15 @@ export async function verifyAndEncryptDatabaseConnection(
   if (Buffer.byteLength(serialized, 'utf8') > MAX_SERIALIZED_CONNECTION_BYTES) {
     throw new Error(`${label} connection must be at most 64 KiB`)
   }
-  let connection: DatabaseConnection
+  let parsed: ReturnType<DatabaseConnectionSpec['parse']>
   try {
-    connection = spec.schema.parse(JSON.parse(serialized))
+    parsed = spec.parse(JSON.parse(serialized))
   } catch {
     throw new Error(`Invalid ${label} connection configuration`)
   }
+  const { connection } = parsed
   try {
-    const result = await spec.probe(connection, AbortSignal.timeout(VERIFY_TIMEOUT_MS))
+    const result = await parsed.probe(AbortSignal.timeout(VERIFY_TIMEOUT_MS))
     const [first] = result.rows
     if (!isRecordLike(first) || String(first.sim_connection_ok) !== '1') {
       throw new Error('Invalid verification response')
@@ -162,7 +177,7 @@ export async function verifyAndEncryptDatabaseConnection(
  * this provider owned by exactly `scope`. Every failure reads the same, so a
  * caller cannot tell a foreign credential from a revoked or malformed one.
  */
-export async function getDatabaseConnection(
+async function getDatabaseConnection(
   providerId: DatabaseConnectionProviderId,
   credentialId: string,
   scope: CredentialOwnerScope

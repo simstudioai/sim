@@ -4426,7 +4426,6 @@
   "apps/sim/lib/internal/microsoft-word/schema.ts#microsoftWordAppendInputSchema=microsoftWordUpdateInputSchema",
   "apps/sim/lib/internal/mongodb/introspection.ts#MongodbCollectionInfo",
   "apps/sim/lib/internal/mssql/query.ts#sanitizeIdentifier",
-  "apps/sim/lib/internal/mssql/schema.ts#mssqlConnectionInputSchema",
   "apps/sim/lib/internal/mssql/schema.ts#mssqlExecuteInputSchema=mssqlQueryInputSchema",
   "apps/sim/lib/internal/mssql/schema.ts#mssqlToggleSchema",
   "apps/sim/lib/internal/onepassword/client.ts#ConnectionMode",

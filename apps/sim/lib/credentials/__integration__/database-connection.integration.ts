@@ -1,8 +1,8 @@
 /**
  * A saved PostgreSQL connection end to end against a real server: saving
  * proves the login with SELECT 1 through the PostgreSQL tools' own guarded
- * connection path, and a run reads the stored connection inside the tool
- * operation, bound to the run's workspace, whatever connection fields the
+ * connection path, and a run through the registered tool operation reads the
+ * stored connection, bound to the run's workspace, whatever connection fields the
  * call carries.
  */
 
@@ -19,7 +19,7 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { env } from '@/lib/core/config/env'
 import { createCredentialRecord } from '@/lib/credentials/orchestration/credential-create'
-import { executePostgresqlTool } from '@/lib/internal/postgresql/execute-tool'
+import { getInternalToolOperationHandler } from '@/lib/internal/tool-operations/registry.server'
 import { POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 const databaseUrl = new URL(readTestDatabaseUrl())
@@ -50,8 +50,10 @@ function save(displayName: string, serviceAccountJson: string) {
   )
 }
 
-function run(credentialId: string, runWorkspaceId: string) {
-  return executePostgresqlTool({
+async function run(credentialId: string, runWorkspaceId: string) {
+  const handler = await getInternalToolOperationHandler('postgresql_query')
+  if (!handler) throw new Error('postgresql_query has no registered operation')
+  const result = await handler({
     toolId: 'postgresql_query',
     input: {
       host: 'unreachable.invalid',
@@ -70,6 +72,8 @@ function run(credentialId: string, runWorkspaceId: string) {
     },
     requestId: generateId(),
   })
+  if (!(result instanceof Response)) throw new Error('postgresql_query returned a file')
+  return result
 }
 
 describe('saved PostgreSQL connection', () => {

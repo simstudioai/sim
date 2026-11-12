@@ -15,7 +15,8 @@ export interface CredentialOwnerScope {
  * organization credential when the organization matches. Returns `null` for
  * anything else (no scope, another owner, another provider, revoked, or no
  * stored secret) without decrypting, so callers fail closed with their own
- * provider-specific message.
+ * provider-specific message. `getAwsCredentialConfig` keeps its own copy of
+ * this read because it also needs the matched owner.
  */
 export async function readOwnerScopedServiceAccountSecret(
   credentialId: string,
