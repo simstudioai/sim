@@ -797,7 +797,7 @@ const rowColumnSelectionSchema = z
   )
   .optional()
   .describe(
-    'Stable column identifiers or column names to include. Omit or pass an empty array for all columns; a reference that matches no column is ignored.'
+    "Stable column identifiers or column names to include. Omit or pass an empty array for all columns; a reference that matches no column is ignored, and if none match, each row's data is empty."
   )
 
 /** Unrefined base so v1 contracts can `.extend()` — consumers use {@link tableRowsQuerySchema}. */
