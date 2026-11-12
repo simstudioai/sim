@@ -42,6 +42,8 @@ interface DatabaseConnectionAccountModalProps {
   submitPending?: boolean
 }
 
+const MAX_PORT = 65535
+
 interface LoginFields {
   host: string
   port: string
@@ -98,10 +100,12 @@ function DatabaseConnectionAccountForm({
     createCredential.isPending || updateCredential.isPending || submitPending === true
   const action = credentialId ? 'Reconnect' : 'Add'
   const title = `${action} ${descriptor.label} connection`
+  const port = login.port.trim()
+  const portIsValid = /^\d+$/.test(port) && Number(port) >= 1 && Number(port) <= MAX_PORT
   const disabled =
     isPending ||
     !login.host.trim() ||
-    !login.port.trim() ||
+    !portIsValid ||
     !login.database.trim() ||
     !login.username.trim() ||
     !login.password
@@ -114,7 +118,7 @@ function DatabaseConnectionAccountForm({
     setError(null)
     const serviceAccountJson = JSON.stringify({
       host: login.host.trim(),
-      port: Number(login.port),
+      port: Number(port),
       database: login.database.trim(),
       username: login.username.trim(),
       password: login.password,
@@ -182,6 +186,9 @@ function DatabaseConnectionAccountForm({
           placeholder={String(descriptor.defaultPort)}
           required
           autoComplete='off'
+          error={
+            port !== '' && !portIsValid ? `Enter a whole number from 1 to ${MAX_PORT}.` : undefined
+          }
         />
         <ChipModalField
           type='input'

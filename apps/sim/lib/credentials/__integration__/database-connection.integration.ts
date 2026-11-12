@@ -26,7 +26,7 @@ const databaseUrl = new URL(readTestDatabaseUrl())
 const connection = {
   host: '127.0.0.1',
   port: Number(databaseUrl.port || 5432),
-  database: databaseUrl.pathname.slice(1),
+  database: decodeURIComponent(databaseUrl.pathname.slice(1)),
   username: decodeURIComponent(databaseUrl.username),
   // The disposable server trusts loopback logins, so any non-empty password is accepted.
   password: decodeURIComponent(databaseUrl.password) || 'unused-under-trust-auth',

@@ -286,6 +286,7 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           `${field.id} (${field.options.map((option) => option.value).join(', ')}; default ${field.defaultValue})`
       )
       .join(' and ')
+    const tlsTradeoffs = database.tls.map((field) => `${field.id}: ${field.hint}`).join(' ')
     return {
       name: `${database.label} connection`,
       description: `Connect to ${database.label} with a saved host, database, login, and transport-security settings.`,
@@ -305,7 +306,7 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           required: true,
           secret: true,
           multiline: true,
-          hint: `JSON object with host, port, database, username, password, and optional ${tls}. Sim verifies it with SELECT 1 before saving.`,
+          hint: `JSON object with host, port, database, username, password, and optional ${tls}. Sim verifies it with SELECT 1 before saving. ${tlsTradeoffs}`,
         },
       ],
     }

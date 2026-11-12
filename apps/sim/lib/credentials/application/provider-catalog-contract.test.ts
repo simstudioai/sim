@@ -25,6 +25,7 @@ import { v2ListCredentialProvidersContract } from '@/lib/api/contracts/v2/creden
 import { env } from '@/lib/core/config/env'
 import { listCredentialProviders } from '@/lib/credentials/application/list-credential-providers'
 import { listCredentialProviderCatalog } from '@/lib/credentials/application/provider-catalog'
+import { DATABASE_CONNECTION_DESCRIPTORS } from '@/lib/credentials/database-connections/descriptors'
 import { getMissingServiceAccountFields } from '@/lib/credentials/service-account-fields'
 import {
   isWorkloadIdentityServiceAccountProviderId,
@@ -241,5 +242,19 @@ describe('v2 credential provider catalog contract', () => {
     expect(providers).toContainEqual(
       expect.objectContaining({ providerId: CLAUDE_PROVIDER_ID, available: false })
     )
+  })
+
+  it('tells API callers what each saved database connection transport-security mode trades away', async () => {
+    const providers = await listProviders()
+
+    for (const descriptor of Object.values(DATABASE_CONNECTION_DESCRIPTORS)) {
+      const provider = providers.find(
+        (entry) => entry.type === 'service_account' && entry.providerId === descriptor.providerId
+      )
+      const hint = provider?.fields.find((field) => field.id === 'serviceAccountJson')?.hint
+      for (const field of descriptor.tls) {
+        expect(hint).toContain(field.hint)
+      }
+    }
   })
 })
