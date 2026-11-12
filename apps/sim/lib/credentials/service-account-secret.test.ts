@@ -928,6 +928,23 @@ describe('a token provider whose region or host defaults to the one it always us
   })
 
   it.each([
+    [undefined, 'https://amplitude.com/api/2/events/list', 'us'],
+    ['eu', 'https://analytics.eu.amplitude.com/api/2/events/list', 'eu'],
+  ])(
+    'checks an Amplitude project with residency %s at %s and stores it as %s',
+    async (domain, url, stored) => {
+      const result = await verifyAndBuildServiceAccountSecret('amplitude-service-account', {
+        apiToken: 'secret-1',
+        providerWorkspaceId: 'api-key-1',
+        ...(domain === undefined ? {} : { domain }),
+      })
+
+      expect(requestedUrl()).toBe(url)
+      expect(JSON.parse(result.encryptedServiceAccountKey)).toMatchObject({ domain: stored })
+    }
+  )
+
+  it.each([
     ['launchdarkly-service-account', 'LaunchDarkly'],
     ['langsmith-service-account', 'LangSmith'],
     ['square-service-account', 'Square'],

@@ -2643,13 +2643,14 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Data residency',
         placeholder: 'us or eu',
         secret: false,
+        defaultValue: 'us',
         hintPattern: /^(us|eu|US|EU)$/,
         hintMessage: 'Enter us or eu, the region your Amplitude project stores data in.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/amplitude',
     helpText:
-      "In Amplitude, open Settings > Projects, choose the project, and copy the API key and secret key from its General tab. Enter eu only for a project hosted in Amplitude's EU data center.",
+      "In Amplitude, open Settings > Projects, choose the project, and copy the API key and secret key from its General tab. Change the data residency to eu only for a project hosted in Amplitude's EU data center.",
     invalidCredentialsHelp:
       'Amplitude rejected this API key and secret key. Check that both come from the same project, and that the data residency matches the region the project is hosted in.',
   },
