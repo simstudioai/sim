@@ -145,11 +145,10 @@ function isBrowserWaitElementState(value: string): value is BrowserWaitElementSt
 
 type PageExecutionTarget = WebContents | WebFrameMain
 
-/** Identifies a frame across the separate WebFrameMain wrappers Electron may hand out for it. */
-function pageTargetKey(target: PageExecutionTarget): string {
-  return 'routingId' in target
-    ? `frame:${target.processId}:${target.routingId}`
-    : `contents:${target.id}`
+/** Whether two targets are the same page or frame; Electron may hand out separate wrappers for one frame. */
+function samePageTarget(left: PageExecutionTarget | undefined, right: PageExecutionTarget): boolean {
+  if (left === right) return true
+  return left !== undefined && 'routingId' in left && 'routingId' in right && sameWebFrame(left, right)
 }
 
 type BrowserActionOutcome = { status: 'pending' } | { status: 'acknowledged'; result: unknown }
@@ -335,7 +334,7 @@ interface DriverScopeState {
   /** Monotonic ref floor shared by every frame in this browser scope. */
   nextElementRefId: number
   /** Every ref this scope issued and its frame: a later snapshot may reuse it there, and an action may still name it. */
-  issuedRefTargets: Map<number, { key: string; target: PageExecutionTarget }>
+  issuedRefTargets: Map<number, PageExecutionTarget>
   /** Invalidates captures that finish after a tab/navigation/timeout race. */
   snapshotCaptureEpoch: number
   /** Cancels a timed-out multi-step action before any later native dispatch. */
@@ -1789,10 +1788,9 @@ function elementTarget(elementId: number): PageExecutionTarget | undefined {
   const issued = state.issuedRefTargets.get(elementId)
   const contents = session.automationTab()?.view.webContents
   if (!issued || !contents || contents.isDestroyed()) return undefined
-  if (!('routingId' in issued.target)) return issued.target === contents ? contents : undefined
-  const frame = issued.target
+  if (!('routingId' in issued)) return issued === contents ? contents : undefined
   return contents.mainFrame.framesInSubtree.find(
-    (candidate) => !candidate.isDestroyed() && sameWebFrame(candidate, frame)
+    (candidate) => !candidate.isDestroyed() && sameWebFrame(candidate, issued)
   )
 }
 
@@ -1895,13 +1893,7 @@ function assertElementActionCurrent(
   assertActiveContents(contents)
   const state = driverScopeState()
   const active = session.automationTab()
-  const owner = elementTarget(elementId)
-  if (
-    state.snapshotTabId !== active?.id ||
-    !owner ||
-    (owner !== target &&
-      !('routingId' in owner && 'routingId' in target && sameWebFrame(owner, target)))
-  ) {
+  if (state.snapshotTabId !== active?.id || !samePageTarget(elementTarget(elementId), target)) {
     throw new ToolError(
       'The page changed before input could be dispatched. Take a fresh browser_snapshot and try again.'
     )
@@ -2491,7 +2483,7 @@ async function captureSnapshot(
   const mainRefs = validateSnapshotRefs(
     mainSnapshot,
     mainStartingElementId,
-    (ref) => state.issuedRefTargets.get(ref)?.key === pageTargetKey(contents)
+    (ref) => samePageTarget(state.issuedRefTargets.get(ref), contents)
   )
   if (!mainRefs) {
     throw new ToolError('The page returned invalid element ids. Try browser_snapshot again.')
@@ -2556,7 +2548,7 @@ async function captureSnapshot(
       const frameRefs = validateSnapshotRefs(
         frameSnapshot,
         frameStartingElementId,
-        (ref) => state.issuedRefTargets.get(ref)?.key === pageTargetKey(frame)
+        (ref) => samePageTarget(state.issuedRefTargets.get(ref), frame)
       )
       if (!frameRefs) {
         unreadableCrossOriginFrames++
@@ -2610,9 +2602,7 @@ async function captureSnapshot(
         (targetLineIndexes.get(elementId) ?? Number.POSITIVE_INFINITY) < visibleOutlineLines.length
     )
   )
-  for (const [ref, target] of targets) {
-    state.issuedRefTargets.set(ref, { key: pageTargetKey(target), target })
-  }
+  for (const [ref, target] of targets) state.issuedRefTargets.set(ref, target)
   state.snapshotTabId = capturedTabId
   return {
     ...omit(mainSnapshot, ['refIds', 'refLineIndexes', 'nextElementId']),
