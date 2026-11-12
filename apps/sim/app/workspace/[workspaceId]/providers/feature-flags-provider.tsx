@@ -8,7 +8,6 @@ export interface WorkspaceFeatureFlags {
   changelog: boolean
   'mothership-model-selector': boolean
   'mothership-plan-mode': boolean
-  'mothership-computer-use'?: boolean
   'mothership-memory-spaces'?: boolean
   projects?: boolean
   'knowledge-connector-saved-credentials'?: boolean

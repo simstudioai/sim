@@ -1063,6 +1063,7 @@ type CancelOrganizationAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -1436,6 +1437,7 @@ type CancelWorkspaceAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -2806,6 +2808,7 @@ export type CreateOrganizationAccessRequestBody = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -2885,6 +2888,7 @@ type CreateOrganizationAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -3020,6 +3024,7 @@ export type CreatePermissionGroupBody = {
     deniedPartialAccessProjectIssues?: Array<string>
     defaultAgentModel?: string | null
     deniedAccessRequests?: Array<string>
+    disableComputerUse?: boolean
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -3076,6 +3081,7 @@ type CreatePermissionGroupResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   }
   isDefault: boolean
   membershipMode: string
@@ -4109,6 +4115,7 @@ export type CreateWorkspaceAccessRequestBody = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -4188,6 +4195,7 @@ type CreateWorkspaceAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -5243,6 +5251,7 @@ type DiscoverOrganizationAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -5351,6 +5360,7 @@ type DiscoverWorkspaceAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -6921,6 +6931,7 @@ type GetPermissionGroupResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   }
   isDefault: boolean
   membershipMode: string
@@ -8393,6 +8404,7 @@ type GetWorkspacePermissionConfigResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   } | null
   entitled: boolean
   organizationId: string | null
@@ -9578,6 +9590,7 @@ type ListMyOrganizationAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -9686,6 +9699,7 @@ type ListMyWorkspaceAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -9795,6 +9809,7 @@ type ListOrganizationAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -10198,6 +10213,7 @@ type ListPermissionGroupsResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   }
   isDefault: boolean
   membershipMode: string
@@ -11456,6 +11472,7 @@ type PreviewOrganizationAccessRequestResponseRef0 = {
             | 'hideSandboxesTab'
             | 'disableOAuthAppAccess'
             | 'disableKnowledgeBaseExport'
+            | 'disableComputerUse'
         }
       | {
           kind: 'integration'
@@ -11547,6 +11564,7 @@ type PreviewOrganizationAccessRequestResponseRef0 = {
       | 'disableOAuthAppAccess'
       | 'disableKnowledgeBaseExport'
       | 'deniedPartialAccessProjectIssues'
+      | 'disableComputerUse'
     label: string
     before: boolean | Array<string> | null
     after: boolean | Array<string> | null
@@ -11613,6 +11631,7 @@ type PreviewOrganizationAccessRequestResponseRef1 = {
             | 'hideSandboxesTab'
             | 'disableOAuthAppAccess'
             | 'disableKnowledgeBaseExport'
+            | 'disableComputerUse'
         }
       | {
           kind: 'integration'
@@ -11704,6 +11723,7 @@ type PreviewOrganizationAccessRequestResponseRef1 = {
       | 'disableOAuthAppAccess'
       | 'disableKnowledgeBaseExport'
       | 'deniedPartialAccessProjectIssues'
+      | 'disableComputerUse'
     label: string
     before: boolean | Array<string> | null
     after: boolean | Array<string> | null
@@ -13390,6 +13410,7 @@ type ResolveOrganizationAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -15160,6 +15181,7 @@ export type UpdatePermissionGroupBody = {
     deniedPartialAccessProjectIssues?: Array<string>
     defaultAgentModel?: string | null
     deniedAccessRequests?: Array<string>
+    disableComputerUse?: boolean
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -15216,6 +15238,7 @@ type UpdatePermissionGroupResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   }
   isDefault: boolean
   membershipMode: string

@@ -7431,7 +7431,8 @@
                             "disableKnowledgeBaseExport": false,
                             "deniedPartialAccessProjectIssues": [],
                             "defaultAgentModel": null,
-                            "deniedAccessRequests": []
+                            "deniedAccessRequests": [],
+                            "disableComputerUse": false
                           },
                           "isDefault": false,
                           "membershipMode": "inherit",
@@ -7592,7 +7593,8 @@
                           "disableKnowledgeBaseExport": false,
                           "deniedPartialAccessProjectIssues": [],
                           "defaultAgentModel": null,
-                          "deniedAccessRequests": []
+                          "deniedAccessRequests": [],
+                          "disableComputerUse": false
                         },
                         "isDefault": false,
                         "membershipMode": "inherit",
@@ -7753,7 +7755,8 @@
                           "disableKnowledgeBaseExport": false,
                           "deniedPartialAccessProjectIssues": [],
                           "defaultAgentModel": null,
-                          "deniedAccessRequests": []
+                          "deniedAccessRequests": [],
+                          "disableComputerUse": false
                         },
                         "isDefault": false,
                         "membershipMode": "inherit",
@@ -7922,7 +7925,8 @@
                           "disableKnowledgeBaseExport": false,
                           "deniedPartialAccessProjectIssues": [],
                           "defaultAgentModel": null,
-                          "deniedAccessRequests": []
+                          "deniedAccessRequests": [],
+                          "disableComputerUse": false
                         },
                         "isDefault": false,
                         "membershipMode": "inherit",
@@ -22420,6 +22424,10 @@
                   "maxLength": 1024
                 },
                 "description": "Access requests are unavailable for the listed canonical target keys when access is restricted."
+              },
+              "disableComputerUse": {
+                "type": "boolean",
+                "description": "Revoke computer use. Chat cannot operate apps on a member's Mac, even when the device allows it."
               }
             },
             "required": [
@@ -22467,7 +22475,8 @@
               "disableKnowledgeBaseExport",
               "deniedPartialAccessProjectIssues",
               "defaultAgentModel",
-              "deniedAccessRequests"
+              "deniedAccessRequests",
+              "disableComputerUse"
             ],
             "additionalProperties": false,
             "description": "Resolved group settings. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none. defaultAgentModel selects the default for new Agent blocks without restricting model selection."
@@ -22600,7 +22609,8 @@
                   "disableKnowledgeBaseExport": false,
                   "deniedPartialAccessProjectIssues": [],
                   "defaultAgentModel": null,
-                  "deniedAccessRequests": []
+                  "deniedAccessRequests": [],
+                  "disableComputerUse": false
                 },
                 "isDefault": false,
                 "membershipMode": "inherit",
@@ -22678,7 +22688,8 @@
                 "disableKnowledgeBaseExport": false,
                 "deniedPartialAccessProjectIssues": [],
                 "defaultAgentModel": null,
-                "deniedAccessRequests": []
+                "deniedAccessRequests": [],
+                "disableComputerUse": false
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -22962,6 +22973,10 @@
                   "maxLength": 1024
                 },
                 "description": "Access requests are unavailable for the listed canonical target keys when access is restricted."
+              },
+              "disableComputerUse": {
+                "type": "boolean",
+                "description": "Revoke computer use. Chat cannot operate apps on a member's Mac, even when the device allows it."
               }
             },
             "additionalProperties": false,
@@ -23056,7 +23071,8 @@
                 "disableKnowledgeBaseExport": false,
                 "deniedPartialAccessProjectIssues": [],
                 "defaultAgentModel": null,
-                "deniedAccessRequests": []
+                "deniedAccessRequests": [],
+                "disableComputerUse": false
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -23132,7 +23148,8 @@
                 "disableKnowledgeBaseExport": false,
                 "deniedPartialAccessProjectIssues": [],
                 "defaultAgentModel": null,
-                "deniedAccessRequests": []
+                "deniedAccessRequests": [],
+                "disableComputerUse": false
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -23423,6 +23440,10 @@
                   "maxLength": 1024
                 },
                 "description": "Access requests are unavailable for the listed canonical target keys when access is restricted."
+              },
+              "disableComputerUse": {
+                "type": "boolean",
+                "description": "Revoke computer use. Chat cannot operate apps on a member's Mac, even when the device allows it."
               }
             },
             "additionalProperties": false,
@@ -25920,6 +25941,10 @@
                       "maxLength": 1024
                     },
                     "description": "Access requests are unavailable for the listed canonical target keys when access is restricted."
+                  },
+                  "disableComputerUse": {
+                    "type": "boolean",
+                    "description": "Revoke computer use. Chat cannot operate apps on a member's Mac, even when the device allows it."
                   }
                 },
                 "required": [
@@ -25967,7 +25992,8 @@
                   "disableKnowledgeBaseExport",
                   "deniedPartialAccessProjectIssues",
                   "defaultAgentModel",
-                  "deniedAccessRequests"
+                  "deniedAccessRequests",
+                  "disableComputerUse"
                 ],
                 "additionalProperties": false
               },
@@ -26727,7 +26753,8 @@
                       "disableToolAutoApproval",
                       "hideSandboxesTab",
                       "disableOAuthAppAccess",
-                      "disableKnowledgeBaseExport"
+                      "disableKnowledgeBaseExport",
+                      "disableComputerUse"
                     ],
                     "description": "Feature restriction key returned by access discovery."
                   }
@@ -27039,7 +27066,8 @@
                       "disableToolAutoApproval",
                       "hideSandboxesTab",
                       "disableOAuthAppAccess",
-                      "disableKnowledgeBaseExport"
+                      "disableKnowledgeBaseExport",
+                      "disableComputerUse"
                     ],
                     "description": "Feature restriction key returned by access discovery."
                   }
@@ -27439,7 +27467,8 @@
                       "disableToolAutoApproval",
                       "hideSandboxesTab",
                       "disableOAuthAppAccess",
-                      "disableKnowledgeBaseExport"
+                      "disableKnowledgeBaseExport",
+                      "disableComputerUse"
                     ],
                     "description": "Feature restriction key returned by access discovery."
                   }
@@ -27837,7 +27866,8 @@
                       "disableToolAutoApproval",
                       "hideSandboxesTab",
                       "disableOAuthAppAccess",
-                      "disableKnowledgeBaseExport"
+                      "disableKnowledgeBaseExport",
+                      "disableComputerUse"
                     ],
                     "description": "Feature restriction key returned by access discovery."
                   }
@@ -28193,7 +28223,8 @@
                           "disableToolAutoApproval",
                           "hideSandboxesTab",
                           "disableOAuthAppAccess",
-                          "disableKnowledgeBaseExport"
+                          "disableKnowledgeBaseExport",
+                          "disableComputerUse"
                         ],
                         "description": "Feature restriction key returned by access discovery."
                       }
@@ -28452,7 +28483,7 @@
             "description": "Access request being reviewed."
           },
           "changes": {
-            "maxItems": 43,
+            "maxItems": 44,
             "type": "array",
             "items": {
               "type": "object",
@@ -28502,7 +28533,8 @@
                     "hideSandboxesTab",
                     "disableOAuthAppAccess",
                     "disableKnowledgeBaseExport",
-                    "deniedPartialAccessProjectIssues"
+                    "deniedPartialAccessProjectIssues",
+                    "disableComputerUse"
                   ],
                   "description": "Permission restriction changed by approval."
                 },
@@ -28755,7 +28787,8 @@
                           "disableToolAutoApproval",
                           "hideSandboxesTab",
                           "disableOAuthAppAccess",
-                          "disableKnowledgeBaseExport"
+                          "disableKnowledgeBaseExport",
+                          "disableComputerUse"
                         ],
                         "description": "Feature restriction key returned by access discovery."
                       }
@@ -29014,7 +29047,7 @@
             "description": "Access request being reviewed."
           },
           "changes": {
-            "maxItems": 43,
+            "maxItems": 44,
             "type": "array",
             "items": {
               "type": "object",
@@ -29064,7 +29097,8 @@
                     "hideSandboxesTab",
                     "disableOAuthAppAccess",
                     "disableKnowledgeBaseExport",
-                    "deniedPartialAccessProjectIssues"
+                    "deniedPartialAccessProjectIssues",
+                    "disableComputerUse"
                   ],
                   "description": "Permission restriction changed by approval."
                 },
