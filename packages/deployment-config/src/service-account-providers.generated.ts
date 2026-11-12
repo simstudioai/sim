@@ -58,6 +58,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   gitlab: 'gitlab-service-account',
   gmail: 'google-service-account',
   gong: 'gong-service-account',
+  'google-ads': 'google-service-account',
   'google-bigquery': 'google-service-account',
   'google-calendar': 'google-service-account',
   'google-contacts': 'google-service-account',

@@ -10,6 +10,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
+  validateSnowflakeKeyPair,
   validateSnowflakeServiceAccount,
   validateSnowflakeWorkloadIdentity,
 } from '@/lib/credentials/token-service-accounts/validators/snowflake'
@@ -115,5 +116,28 @@ describe('validateSnowflakeWorkloadIdentity', () => {
       'provider_unavailable',
       502
     )
+  })
+})
+
+describe('validateSnowflakeKeyPair', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('sends the signed JWT only through the egress guard', async () => {
+    inputValidationMockFns.mockSecureFetchWithValidation.mockRejectedValueOnce(
+      new EgressRefusedError('private address')
+    )
+
+    await expectCode(
+      validateSnowflakeKeyPair({ domain: fields.domain, jwt: 'signed-jwt' }),
+      'host_not_allowed',
+      400
+    )
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 })

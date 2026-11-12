@@ -446,11 +446,20 @@ export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', {
   apiKey: 'accessToken',
   region: 'domain',
 })
-export const SERVICENOW_CREDENTIAL_OAUTH = tokenCredentialOAuth('servicenow', {
-  instanceUrl: 'domain',
-  username: 'providerWorkspaceId',
-  password: 'accessToken',
-})
+/**
+ * Credential policy for every ServiceNow tool. A saved login fills the instance, username, and
+ * password; a saved OAuth client resolves to a minted token (in `password` and `accessToken`)
+ * with `authStyle: 'bearer'` and no username, so the username is optional and cleared then.
+ */
+export const SERVICENOW_CREDENTIAL_OAUTH = {
+  ...tokenCredentialOAuth('servicenow', {
+    instanceUrl: 'domain',
+    username: 'providerWorkspaceId',
+    password: 'accessToken',
+  }),
+  optionalCredentialParams: ['username'],
+  authoritativeParams: ['authStyle'],
+} as const satisfies OAuthConfig
 export const SIMILARWEB_CREDENTIAL_OAUTH = tokenCredentialOAuth('similarweb', {
   apiKey: 'accessToken',
 })

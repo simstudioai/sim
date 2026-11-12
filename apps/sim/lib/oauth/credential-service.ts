@@ -609,11 +609,19 @@ export interface ServiceAccountTokenResult {
    * Set when the token must be sent in an `x-api-token` header instead of
    * `Authorization: Bearer` (e.g. Pipedrive personal API tokens), or is a
    * Sim-signed OIDC token a keyless Snowflake credential presents through
-   * workload identity federation, or `basic` for an HTTP Basic credential (a
-   * Zendesk API token sign-in). Absent means Bearer; OAuth credentials never
-   * carry it.
+   * workload identity federation, or a JWT a key-pair Snowflake credential
+   * signs with its private key, or `basic` for an HTTP Basic credential (a
+   * Zendesk API token sign-in), or `bearer` for a token minted for a provider
+   * whose pasted mode is not a bearer token (ServiceNow client credentials).
+   * Absent means Bearer, except to tools whose pasted mode says otherwise;
+   * OAuth credentials never carry it.
    */
-  authStyle?: 'x-api-token' | 'snowflake-workload-identity' | 'basic'
+  authStyle?:
+    | 'x-api-token'
+    | 'snowflake-workload-identity'
+    | 'snowflake-key-pair'
+    | 'basic'
+    | 'bearer'
 }
 
 interface CachedClientCredentialToken {
@@ -931,13 +939,15 @@ function resolveTokenClientCredentialToken(
     )
   }
   const { clientId, clientSecret, domain } = secret
+  const authStyle = getTokenServiceAccountDescriptor(secret.providerId)?.clientCredentials
+    ?.authStyle
   return resolveMintedServiceAccountToken(
     credentialId,
     async () => {
       // The mint is shared by every coalesced caller, so no one caller's signal may cancel it.
       const minted = await mint({ clientId, clientSecret, domain })
       return {
-        token: { accessToken: minted.accessToken, domain },
+        token: { accessToken: minted.accessToken, domain, ...(authStyle ? { authStyle } : {}) },
         expiresInSeconds: minted.expiresInSeconds,
       }
     },

@@ -24,7 +24,7 @@ export type WorkloadIdentityProvider = (typeof WORKLOAD_IDENTITY_PROVIDERS)[numb
 export const WORKLOAD_IDENTITY_PROVIDER_AUTH_TYPES = {
   aws: ['oidc_role', 'assume_role', 'access_keys'],
   databricks: ['oidc_federation', 'service_principal', 'personal_access_token'],
-  snowflake: ['workload_identity', 'programmatic_access_token'],
+  snowflake: ['workload_identity', 'key_pair', 'programmatic_access_token'],
   microsoft: ['federated', 'client_secret', 'certificate'],
   google: ['workload_identity', 'json_key'],
 } as const satisfies Record<WorkloadIdentityProvider, readonly string[]>

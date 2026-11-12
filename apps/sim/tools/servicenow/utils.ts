@@ -14,7 +14,7 @@ import type {
  * @param password ServiceNow password
  * @returns Base64 encoded Basic Auth header value
  */
-export function createBasicAuthHeader(username: string, password: string): string {
+function createBasicAuthHeader(username: string, password: string): string {
   const credentials = Buffer.from(`${username}:${password}`).toString('base64')
   return `Basic ${credentials}`
 }
@@ -31,19 +31,39 @@ export function normalizeInstanceUrl(instanceUrl: string | undefined): string {
   return baseUrl
 }
 
+/** `authStyle` a saved ServiceNow OAuth client credential resolves with. */
+export const SERVICENOW_BEARER_AUTH_STYLE = 'bearer' as const
+
 /**
- * Builds the Basic Auth + Accept headers every ServiceNow REST call needs.
+ * The Authorization header a ServiceNow request sends: the bearer token a saved OAuth client
+ * credential minted, or the Basic username and password of a saved login or the block's own
+ * fields, exactly as before.
+ */
+export function serviceNowAuthorization(
+  params: Pick<ServiceNowAuthParams, 'password' | 'accessToken' | 'authStyle'> & {
+    username?: string
+  }
+): string {
+  if (params.authStyle === SERVICENOW_BEARER_AUTH_STYLE) {
+    if (!params.accessToken) throw new Error('ServiceNow access token is required')
+    return `Bearer ${params.accessToken}`
+  }
+  if (!params.username || !params.password) {
+    throw new Error('ServiceNow username and password are required')
+  }
+  return createBasicAuthHeader(params.username, params.password)
+}
+
+/**
+ * Builds the Authorization + Accept headers every ServiceNow REST call needs.
  * Pass `json` to also declare a JSON request body.
  */
 export function buildServiceNowHeaders(
   params: ServiceNowAuthParams,
   options: { json?: boolean } = {}
 ): Record<string, string> {
-  if (!params.username || !params.password) {
-    throw new Error('ServiceNow username and password are required')
-  }
   const headers: Record<string, string> = {
-    Authorization: createBasicAuthHeader(params.username, params.password),
+    Authorization: serviceNowAuthorization(params),
     Accept: 'application/json',
   }
   if (options.json) {

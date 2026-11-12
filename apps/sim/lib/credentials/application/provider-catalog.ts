@@ -6,6 +6,7 @@ import {
   type ClientCredentialAccountField,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import {
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_DESCRIPTORS,
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
@@ -164,8 +165,8 @@ function keylessModeFor(providerId: string): KeylessCatalogMode | undefined {
 /**
  * Adds a provider's keyless mode to its key-based descriptor, the same way for
  * every keyless provider: one description suffix, and a hint on the
- * `serviceAccountJson` field — which a token provider such as Snowflake gains
- * as an optional alternative to its token fields.
+ * `serviceAccountJson` field, which is added as an optional alternative to the
+ * other fields when the descriptor has none.
  */
 function withKeylessMode(
   descriptor: ServiceAccountDescriptor,
@@ -436,6 +437,29 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           required: true,
           secret: false,
           multiline: false,
+        },
+      ],
+    }
+  }
+
+  if (providerId === SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID) {
+    const tokenDescriptor = TOKEN_SERVICE_ACCOUNT_DESCRIPTORS[SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]
+    return {
+      name: 'Snowflake connection',
+      description: 'Connect Snowflake with a programmatic access token or an RSA key pair.',
+      docsUrl: tokenDescriptor.docsUrl,
+      helpText: tokenDescriptor.helpText,
+      fields: [
+        ...tokenDescriptor.fields.map(providerField),
+        {
+          id: 'serviceAccountJson',
+          label: 'Connection configuration',
+          placeholder:
+            '{"authType":"key_pair","host":"myorg-myaccount.snowflakecomputing.com","user":"SIM_SERVICE","privateKey":"-----BEGIN PRIVATE KEY-----..."}',
+          required: false,
+          secret: true,
+          multiline: true,
+          hint: 'Send instead of the other fields. Key pair: JSON object with authType: "key_pair", host, user, and privateKey (an unencrypted RSA private key as PEM, 2048 to 4096 bits, whose public key is set on the user).',
         },
       ],
     }

@@ -47,6 +47,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'github-service-account': ['github'],
   'google-service-account': [
     'gmail',
+    'google-ads',
     'google-bigquery',
     'google-calendar',
     'google-contacts',

@@ -17,6 +17,7 @@ import type {
 import {
   buildSnowflakeAuthHeaders,
   normalizeSnowflakeHost,
+  SNOWFLAKE_KEY_PAIR_AUTH_STYLE,
   SNOWFLAKE_WORKLOAD_IDENTITY_AUTH_STYLE,
 } from '@/tools/snowflake/utils'
 
@@ -48,7 +49,7 @@ function cell(row: Array<string | null> | undefined, index: number): string | un
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-/** Sends the identity statement to the account; the PAT and keyless paths differ only here. */
+/** Sends the identity statement to the account; the PAT path and the Sim-signed paths differ only here. */
 type SendIdentityStatement = (
   url: string,
   init: { headers: Record<string, string>; body: string }
@@ -148,6 +149,43 @@ async function verifySnowflakeIdentity(
 }
 
 /**
+ * Sends a Sim-signed token (a key-pair JWT or a keyless subject token) through
+ * the guarded egress path, so it can neither be redirected nor reach a private
+ * address the account host happens to resolve to.
+ */
+const sendThroughEgressGuard: SendIdentityStatement = async (url, init) => {
+  try {
+    return await secureFetchWithValidation(url, {
+      profile: 'configuredEndpoint',
+      method: 'POST',
+      headers: init.headers,
+      body: init.body,
+      timeout: IDENTITY_FETCH_TIMEOUT_MS,
+      maxRedirects: 0,
+      maxResponseBytes: IDENTITY_MAX_RESPONSE_BYTES,
+      logUrlValidationDetails: false,
+    })
+  } catch (error) {
+    // A host the egress policy refuses (a private address) is the user's input, not an outage.
+    if (error instanceof EgressRefusedError) {
+      throw new TokenServiceAccountValidationError('host_not_allowed', 400, {
+        step: 'identity_statement',
+        reason: 'account host not allowed',
+      })
+    }
+    const notFound = isHostNotFound(error)
+    throw new TokenServiceAccountValidationError(
+      notFound ? 'site_not_found' : 'provider_unavailable',
+      notFound ? 400 : 502,
+      {
+        step: 'identity_statement',
+        reason: notFound ? 'account host does not resolve' : 'account host unreachable',
+      }
+    )
+  }
+}
+
+/**
  * Validates a Snowflake programmatic access token by running a context-only
  * statement against the account's SQL API — the same endpoint, headers, and
  * host normalization every Sim Snowflake tool uses, so a passing validation
@@ -173,10 +211,26 @@ export async function validateSnowflakeServiceAccount(
 }
 
 /**
+ * Verifies a key-pair Snowflake connection: the JWT Sim signed with the user's
+ * private key is sent with the `KEYPAIR_JWT` token type, exactly as the tools
+ * send it, through the guarded egress path, so Snowflake's answer proves the
+ * user, key, and account all match.
+ */
+export async function validateSnowflakeKeyPair(input: {
+  domain: string
+  jwt: string
+}): Promise<TokenServiceAccountValidationResult> {
+  return verifySnowflakeIdentity(
+    accountBaseUrl(input.domain),
+    buildSnowflakeAuthHeaders(input.jwt, SNOWFLAKE_KEY_PAIR_AUTH_STYLE),
+    sendThroughEgressGuard
+  )
+}
+
+/**
  * Verifies a keyless Snowflake connection: the token Sim signed for the
  * credential's subject is presented as workload identity federation at the
- * account host the credential pins, through the guarded egress path, so it can
- * neither be redirected nor reach a private address.
+ * account host the credential pins, through the guarded egress path.
  */
 export async function validateSnowflakeWorkloadIdentity(input: {
   domain: string
@@ -185,36 +239,6 @@ export async function validateSnowflakeWorkloadIdentity(input: {
   return verifySnowflakeIdentity(
     accountBaseUrl(input.domain),
     buildSnowflakeAuthHeaders(input.subjectToken, SNOWFLAKE_WORKLOAD_IDENTITY_AUTH_STYLE),
-    async (url, init) => {
-      try {
-        return await secureFetchWithValidation(url, {
-          profile: 'configuredEndpoint',
-          method: 'POST',
-          headers: init.headers,
-          body: init.body,
-          timeout: IDENTITY_FETCH_TIMEOUT_MS,
-          maxRedirects: 0,
-          maxResponseBytes: IDENTITY_MAX_RESPONSE_BYTES,
-          logUrlValidationDetails: false,
-        })
-      } catch (error) {
-        // A host the egress policy refuses (a private address) is the user's input, not an outage.
-        if (error instanceof EgressRefusedError) {
-          throw new TokenServiceAccountValidationError('host_not_allowed', 400, {
-            step: 'identity_statement',
-            reason: 'account host not allowed',
-          })
-        }
-        const notFound = isHostNotFound(error)
-        throw new TokenServiceAccountValidationError(
-          notFound ? 'site_not_found' : 'provider_unavailable',
-          notFound ? 400 : 502,
-          {
-            step: 'identity_statement',
-            reason: notFound ? 'account host does not resolve' : 'account host unreachable',
-          }
-        )
-      }
-    }
+    sendThroughEgressGuard
   )
 }

@@ -19,6 +19,7 @@ const hoisted = vi.hoisted(() => ({
   refreshOAuthToken: vi.fn(),
   decryptQuickBooksOAuthClientConfig: vi.fn(),
   withLeaderLock: vi.fn(),
+  mintServiceNowToken: vi.fn(),
 }))
 
 vi.mock('@/lib/concurrency/singleflight', () => ({
@@ -37,6 +38,9 @@ vi.mock('@/lib/credentials/coordinated-client-token', () => ({
     const exchanged = await input.exchange()
     return { accessToken: exchanged.accessToken, expiresInSeconds: 86_000 }
   },
+}))
+vi.mock('@/lib/credentials/token-service-accounts/grants/servicenow', () => ({
+  mintServiceNowClientCredentialsToken: hoisted.mintServiceNowToken,
 }))
 vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
   isWorkloadIdentityConfigured: async () => true,
@@ -1436,6 +1440,44 @@ describe('token provider credentials saved in client-credentials mode', () => {
     await expect(
       resolveServiceAccountToken('linear-cc', 'linear-service-account')
     ).resolves.toMatchObject({ accessToken: 'lin_oauth_2' })
+  })
+
+  it('marks a minted ServiceNow token as a bearer token, and a saved login as before', async () => {
+    hoisted.mintServiceNowToken.mockResolvedValue({
+      accessToken: 'sn-minted',
+      expiresInSeconds: 1799,
+    })
+    storeBlob('servicenow-cc', {
+      type: 'token_service_account',
+      providerId: 'servicenow-service-account',
+      authMethod: 'client_credentials',
+      clientId: 'sn-client',
+      clientSecret: 'sn-secret',
+      domain: 'https://acme.service-now.com',
+    })
+
+    await expect(
+      resolveServiceAccountToken('servicenow-cc', 'servicenow-service-account')
+    ).resolves.toEqual({
+      accessToken: 'sn-minted',
+      domain: 'https://acme.service-now.com',
+      authStyle: 'bearer',
+    })
+
+    storeBlob('servicenow-login', {
+      type: 'token_service_account',
+      providerId: 'servicenow-service-account',
+      apiToken: 'saved-password',
+      providerWorkspaceId: 'integration.user',
+      domain: 'https://acme.service-now.com',
+    })
+    await expect(
+      resolveServiceAccountToken('servicenow-login', 'servicenow-service-account')
+    ).resolves.toEqual({
+      accessToken: 'saved-password',
+      domain: 'https://acme.service-now.com',
+      providerWorkspaceId: 'integration.user',
+    })
   })
 
   it('still returns a pasted Shopify token as is', async () => {

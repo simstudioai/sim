@@ -1069,3 +1069,146 @@ describe('a Railway token', () => {
     })
   })
 })
+
+describe('an Infisical machine identity with Universal Auth', () => {
+  const login = inputValidationMockFns.mockSecureFetchWithValidation
+  const identityCheck = inputValidationMockFns.mockSecureFetchWithPinnedIP
+
+  beforeEach(() => {
+    storedCoordinatedTokens.clear()
+    mockEncryptSecret.mockImplementation(async (value: string) => ({ encrypted: value }))
+    inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.9',
+      originalHostname: 'secrets.example.com',
+    })
+    login
+      .mockReset()
+      .mockResolvedValue(
+        Response.json({ accessToken: 'machine-token', expiresIn: 7200, tokenType: 'Bearer' })
+      )
+    identityCheck
+      .mockReset()
+      .mockResolvedValue(
+        Response.json({ identityDetails: { organization: { id: 'org-1', name: 'Acme' } } })
+      )
+  })
+
+  it('stores the client ID and secret, never a token, after proving the minted token', async () => {
+    const result = await verifyAndBuildServiceAccountSecret('infisical-service-account', {
+      authMethod: 'client_credentials',
+      clientId: 'identity-client',
+      clientSecret: 'identity-secret',
+      domain: 'https://Secrets.Example.com/',
+    })
+
+    expect(login.mock.calls[0]?.[0]).toBe(
+      'https://secrets.example.com/api/v1/auth/universal-auth/login'
+    )
+    expect(identityCheck).toHaveBeenCalledWith(
+      'https://secrets.example.com/api/v1/identities/details',
+      '203.0.113.9',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer machine-token' }),
+      })
+    )
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob).toMatchObject({
+      type: 'token_service_account',
+      providerId: 'infisical-service-account',
+      authMethod: 'client_credentials',
+      clientId: 'identity-client',
+      clientSecret: 'identity-secret',
+      domain: 'https://secrets.example.com',
+    })
+    expect(blob.apiToken).toBeUndefined()
+    expect(result.encryptedServiceAccountKey).not.toContain('machine-token')
+  })
+
+  it('keeps a pasted access token on the token path when no auth method is sent', async () => {
+    const result = await verifyAndBuildServiceAccountSecret('infisical-service-account', {
+      apiToken: 'pasted-token',
+      domain: 'https://secrets.example.com',
+    })
+
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob.apiToken).toBe('pasted-token')
+    expect(blob.authMethod).toBeUndefined()
+    expect(login).not.toHaveBeenCalled()
+  })
+
+  it('requires the instance URL without logging in', async () => {
+    await expect(
+      verifyAndBuildServiceAccountSecret('infisical-service-account', {
+        authMethod: 'client_credentials',
+        clientId: 'identity-client',
+        clientSecret: 'identity-secret',
+      })
+    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
+    expect(login).not.toHaveBeenCalled()
+  })
+})
+
+describe('a ServiceNow OAuth client', () => {
+  const tokenRequest = inputValidationMockFns.mockSecureFetchWithValidation
+  const tableRead = inputValidationMockFns.mockSecureFetchWithPinnedIP
+
+  beforeEach(() => {
+    storedCoordinatedTokens.clear()
+    mockEncryptSecret.mockImplementation(async (value: string) => ({ encrypted: value }))
+    inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.7',
+      originalHostname: 'acme.service-now.com',
+    })
+    tokenRequest
+      .mockReset()
+      .mockResolvedValue(Response.json({ access_token: 'sn-minted', expires_in: 1799 }))
+    tableRead.mockReset().mockResolvedValue(Response.json({ result: [{ sys_id: 'abc' }] }))
+  })
+
+  it('proves the minted token with a bearer table read and stores no username', async () => {
+    const result = await verifyAndBuildServiceAccountSecret('servicenow-service-account', {
+      authMethod: 'client_credentials',
+      clientId: 'sn-client',
+      clientSecret: 'sn-secret',
+      domain: 'acme.service-now.com',
+    })
+
+    expect(tokenRequest.mock.calls[0]?.[0]).toBe('https://acme.service-now.com/oauth_token.do')
+    expect(tableRead).toHaveBeenCalledWith(
+      'https://acme.service-now.com/api/now/table/sys_user?sysparm_limit=1&sysparm_fields=sys_id',
+      '203.0.113.7',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer sn-minted' }),
+      })
+    )
+    const blob = JSON.parse(result.encryptedServiceAccountKey)
+    expect(blob).toMatchObject({
+      providerId: 'servicenow-service-account',
+      authMethod: 'client_credentials',
+      clientId: 'sn-client',
+      clientSecret: 'sn-secret',
+      domain: 'https://acme.service-now.com',
+    })
+    expect(blob.providerWorkspaceId).toBeUndefined()
+    expect(blob.apiToken).toBeUndefined()
+    expect(result.encryptedServiceAccountKey).not.toContain('sn-minted')
+  })
+
+  it('reports a rejected client as invalid credentials', async () => {
+    tokenRequest.mockResolvedValue(
+      Response.json({ error: 'access_denied', error_description: 'denied' }, { status: 401 })
+    )
+
+    await expect(
+      verifyAndBuildServiceAccountSecret('servicenow-service-account', {
+        authMethod: 'client_credentials',
+        clientId: 'sn-client',
+        clientSecret: 'sn-secret',
+        domain: 'acme.service-now.com',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(tableRead).not.toHaveBeenCalled()
+  })
+})

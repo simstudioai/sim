@@ -97,6 +97,7 @@ import { jamaDeleteRelationshipTool } from '@/tools/jama/delete_relationship'
 import { memoryAddTool } from '@/tools/memory/add'
 import { dataverseWhoAmITool } from '@/tools/microsoft_dataverse/whoami'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { getIncidentTool as getServiceNowIncidentTool } from '@/tools/servicenow/get_incident'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
 import { cortexAnalystAskTool as snowflakeCortexAnalystAskTool } from '@/tools/snowflake/cortex_analyst_ask'
 import { listDatabasesTool as snowflakeListDatabasesTool } from '@/tools/snowflake/list_databases'
@@ -3895,6 +3896,8 @@ describe('Internal Route Trust', () => {
     const toolId = 'test_internal_minted_token_refusal'
     beforeEach(() => {
       mockForgetRejectedClientCredentialToken.mockReset()
+      mockInvalidateCoordinatedClientToken.mockReset()
+      mockInvalidateCoordinatedClientToken.mockResolvedValue(undefined)
       ;(tools as Record<string, unknown>)[toolId] = {
         id: toolId,
         name: 'Internal Minted Token Refusal Test',
@@ -3938,6 +3941,9 @@ describe('Internal Route Trust', () => {
 
       expect(result.success).toBe(false)
       expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('minted-token')
+      expect(mockInvalidateCoordinatedClientToken).toHaveBeenCalledWith('minted-token', {
+        minimumAgeMs: 60_000,
+      })
     })
 
     it('drops the cached token after a 403 only once it is old enough to blame', async () => {
@@ -3947,6 +3953,9 @@ describe('Internal Route Trust', () => {
       expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('minted-token', {
         minimumAgeMs: 60_000,
       })
+      expect(mockInvalidateCoordinatedClientToken).toHaveBeenCalledWith('minted-token', {
+        minimumAgeMs: 60_000,
+      })
     })
 
     it('keeps the token after a call the provider accepts', async () => {
@@ -3954,12 +3963,14 @@ describe('Internal Route Trust', () => {
 
       expect(result.success).toBe(true)
       expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
     })
 
     it("never drops a signed-in account's token", async () => {
       await runWith('oauth', 401)
 
       expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
     })
 
     it('reports an expired saved token instead of the bare refusal', async () => {
@@ -4399,6 +4410,80 @@ describe('Internal Route Trust', () => {
         success: false,
         error: expect.stringMatching(/credentialId.*apiKey/),
       })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('saved ServiceNow credentials', () => {
+    const incidentQuery = { credential: 'saved-servicenow', number: 'INC0010001' }
+
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[getServiceNowIncidentTool.id] = getServiceNowIncidentTool
+      mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+      mockSecureFetchWithPinnedIP.mockReset()
+      mockSecureFetchWithPinnedIP.mockResolvedValue(
+        toSecureFetchResponse(Response.json({ result: [{ sys_id: 'inc-1' }] }))
+      )
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, getServiceNowIncidentTool.id)
+    })
+
+    function sentAuthorization(): unknown {
+      const [, , init] = mockSecureFetchWithPinnedIP.mock.lastCall ?? []
+      return (init as { headers?: Record<string, string> } | undefined)?.headers?.authorization
+    }
+
+    it('signs in with the saved username and password exactly as before', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-password',
+        credentialType: 'service_account',
+        domain: 'https://acme.service-now.com',
+        providerWorkspaceId: 'integration.user',
+      })
+
+      const result = await executeTool('servicenow_get_incident', incidentQuery)
+
+      expect(result.success, result.error).toBe(true)
+      expect(mockSecureFetchWithPinnedIP.mock.lastCall?.[0]).toContain(
+        'https://acme.service-now.com/api/now/table/incident'
+      )
+      expect(sentAuthorization()).toBe(
+        `Basic ${Buffer.from('integration.user:saved-password').toString('base64')}`
+      )
+    })
+
+    it('sends a token minted from saved client credentials as a bearer token', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'minted-token',
+        credentialType: 'service_account',
+        domain: 'https://acme.service-now.com',
+        authStyle: 'bearer',
+      })
+
+      const result = await executeTool('servicenow_get_incident', {
+        ...incidentQuery,
+        username: 'caller-user',
+        authStyle: 'basic',
+      })
+
+      expect(result.success, result.error).toBe(true)
+      expect(sentAuthorization()).toBe('Bearer minted-token')
+    })
+
+    it('never pairs the saved password with a username the caller supplied', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-password',
+        credentialType: 'service_account',
+        domain: 'https://acme.service-now.com',
+      })
+
+      const result = await executeTool('servicenow_get_incident', {
+        ...incidentQuery,
+        username: 'caller-user',
+      })
+
+      expect(result.success).toBe(false)
       expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     })
   })

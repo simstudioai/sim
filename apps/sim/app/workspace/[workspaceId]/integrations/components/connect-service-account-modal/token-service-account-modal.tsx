@@ -24,8 +24,10 @@ import {
   CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountErrorMessage,
   isTokenServiceAccountFieldRequired,
+  type TokenServiceAccountAuthMethod,
   type TokenServiceAccountDescriptor,
   type TokenServiceAccountField,
+  tokenFieldBelongsToAuthMethod,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import { ClientCredentialsFields } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credentials-fields'
 import { withBrandIcon } from '@/blocks/brand-icon'
@@ -42,8 +44,6 @@ function normalizeDomainInput(raw: string): string {
     .replace(/^https?:\/\//i, '')
     .replace(/[/?#].*$/, '')
 }
-
-type TokenAuthMethod = 'token' | typeof CLIENT_CREDENTIALS_AUTH_METHOD
 
 function openDocs(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer')
@@ -102,14 +102,15 @@ function TokenServiceAccountModalForm({
   submitPending,
 }: TokenServiceAccountModalProps) {
   const clientCredentials = descriptor.clientCredentials
-  const [selectedAuthMethod, setSelectedAuthMethod] = useState<TokenAuthMethod | null>(null)
+  const [selectedAuthMethod, setSelectedAuthMethod] =
+    useState<TokenServiceAccountAuthMethod | null>(null)
   /**
    * A reconnect cannot pre-select the mode: the stored one lives inside the encrypted secret and
    * is never returned to the client, so the admin restates it while retyping the secret. Until
    * then neither mode's fields show, so a reconnect never switches modes by default.
    */
   const mustRestateAuthMethod = Boolean(clientCredentials && credentialId && !selectedAuthMethod)
-  const authMethod: TokenAuthMethod | null =
+  const authMethod: TokenServiceAccountAuthMethod | null =
     selectedAuthMethod ??
     (mustRestateAuthMethod
       ? null
@@ -117,9 +118,18 @@ function TokenServiceAccountModalForm({
         ? CLIENT_CREDENTIALS_AUTH_METHOD
         : 'token')
   const usesClientCredentials = authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
+  /** A field that belongs to one sign-in mode (ServiceNow's username) shows once that mode is chosen. */
+  const shownField = (id: TokenServiceAccountField['id']) =>
+    descriptor.fields.find(
+      (field) =>
+        field.id === id &&
+        (authMethod
+          ? tokenFieldBelongsToAuthMethod(field, authMethod)
+          : !field.requiredForAuthMethods)
+    )
   const tokenField = descriptor.fields.find((field) => field.id === 'apiToken')
-  const domainField = descriptor.fields.find((field) => field.id === 'domain')
-  const workspaceField = descriptor.fields.find((field) => field.id === 'providerWorkspaceId')
+  const domainField = shownField('domain')
+  const workspaceField = shownField('providerWorkspaceId')
   /**
    * A new connection starts on the domain's default (the region or host it had before the field
    * existed). A reconnect starts blank, which keeps the stored value: the server carries it
@@ -280,7 +290,7 @@ function TokenServiceAccountModalForm({
             title='Authentication'
             value={authMethod ?? undefined}
             onChange={(value) => {
-              setSelectedAuthMethod(value as TokenAuthMethod)
+              setSelectedAuthMethod(value as TokenServiceAccountAuthMethod)
               if (error) setError(null)
             }}
             options={[
