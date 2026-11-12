@@ -53,8 +53,12 @@ const BUCKET_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{1,62}$/
 /** Accepted region shape — AWS region codes plus Cloudflare R2's `auto`. */
 const REGION_PATTERN = /^[A-Za-z0-9-]{1,64}$/
 
-/** An AWS region code (`us-east-1`, `us-iso-east-1`): the only regions a saved AWS credential signs for. */
-const AWS_REGION_PATTERN = /^[a-z]{2,}(-[a-z]+)+-\d+$/
+/**
+ * A commercial or GovCloud AWS region code (`us-east-1`, `us-gov-west-1`): the only regions a
+ * saved AWS credential signs for, because their S3 hosts are all `s3.<region>.amazonaws.com`.
+ * China (`cn-*`, under `amazonaws.com.cn`) and the isolated partitions use other domains.
+ */
+const AWS_REGION_PATTERN = /^(?!cn-)[a-z]{2}(-gov)?-[a-z]+-\d+$/
 
 /**
  * Default set of file extensions considered safely text-extractable. Objects
@@ -253,7 +257,9 @@ function resolveContext(
       )
     }
     if (!AWS_REGION_PATTERN.test(region)) {
-      throw new Error('A saved AWS credential needs an AWS region, e.g. us-east-1')
+      throw new Error(
+        'A saved AWS credential needs a commercial or GovCloud AWS region, e.g. us-east-1'
+      )
     }
     return { ...savedSession, region, bucket }
   }

@@ -97,6 +97,36 @@ describe('s3Connector signing', () => {
     expect(mockSecureFetchWithRetry).not.toHaveBeenCalled()
   })
 
+  it.each(['cn-north-1', 'us-iso-east-1', 'eu-isoe-west-1'])(
+    'refuses %s, whose S3 host is not under amazonaws.com, with a saved AWS credential',
+    async (region) => {
+      recordRequests()
+
+      const validation = await s3Connector.validateConfig(
+        'credential-handle',
+        { region, bucket: 'docs' },
+        { ...awsSessionSyncContext(SESSION) }
+      )
+
+      expect(validation.valid).toBe(false)
+      expect(validation.error).toMatch(/commercial or GovCloud/i)
+      expect(mockSecureFetchWithRetry).not.toHaveBeenCalled()
+    }
+  )
+
+  it('signs a saved AWS credential for a GovCloud bucket', async () => {
+    const requests = recordRequests()
+
+    await s3Connector.listDocuments(
+      '',
+      { region: 'us-gov-west-1', bucket: 'docs-bucket' },
+      undefined,
+      { ...awsSessionSyncContext(SESSION) }
+    )
+
+    expect(requests[0]?.url).toMatch(/^https:\/\/docs-bucket\.s3\.us-gov-west-1\.amazonaws\.com\//)
+  })
+
   it('keeps signing inline keys without a session token', async () => {
     const requests = recordRequests()
 

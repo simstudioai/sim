@@ -32,7 +32,7 @@ export const s3ConnectorMeta: ConnectorMeta = {
       placeholder: 'e.g. us-east-1 (use auto for Cloudflare R2)',
       required: true,
       description:
-        'AWS region for the bucket. For Cloudflare R2 use "auto"; for MinIO use the region the server is configured with (commonly us-east-1). A saved AWS credential needs an AWS region.',
+        'AWS region for the bucket. For Cloudflare R2 use "auto"; for MinIO use the region the server is configured with (commonly us-east-1). A saved AWS credential needs a commercial or GovCloud AWS region.',
     },
     {
       id: 'bucket',
