@@ -60,6 +60,7 @@ import {
   showBrowserToolbarMenu,
   supportsAtomicBrowserPanelOcclusion,
 } from '@/lib/browser-agent/transport'
+import { formatShortcut } from '@/lib/core/utils/platform'
 import { getDesktopBridge } from '@/lib/desktop'
 import {
   loadDesktopBrowserAppearanceTheme,
@@ -1312,7 +1313,7 @@ export function BrowserSession({
             >
               <DropdownMenuItem onSelect={afterToolbarClose(openFind)}>
                 Find in Page
-                <DropdownMenuShortcut>⌘F</DropdownMenuShortcut>
+                <DropdownMenuShortcut>{formatShortcut('F')}</DropdownMenuShortcut>
               </DropdownMenuItem>
               <BrowserContinueSignInMenuItems
                 controller={continueSignIn}
