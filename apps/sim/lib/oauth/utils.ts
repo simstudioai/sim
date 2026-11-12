@@ -918,9 +918,17 @@ export function getMissingRequiredScopes(
  * `drive.readonly`, and a read-only grant never satisfies a write scope.
  */
 export function isScopeSatisfiedBy(required: string, granted: ReadonlySet<string>): boolean {
+  const readWrite = readWriteScopeOf(required)
+  return readWrite !== undefined && granted.has(readWrite)
+}
+
+/**
+ * The read-write scope that subsumes a `.readonly` scope (`drive` for
+ * `drive.readonly`), or undefined for a scope that is not read-only.
+ */
+export function readWriteScopeOf(scope: string): string | undefined {
   const readonlySuffix = '.readonly'
-  if (!required.endsWith(readonlySuffix)) return false
-  return granted.has(required.slice(0, -readonlySuffix.length))
+  return scope.endsWith(readonlySuffix) ? scope.slice(0, -readonlySuffix.length) : undefined
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   GOOGLE_WORKLOAD_IDENTITY_SECRET_TYPE,
   type GoogleDelegationService,
   googleDelegationScopes,
+  googleDelegationScopesFor,
   googleDelegationServiceFor,
   googleStsAudience,
   googleWorkloadIdentityAudience,
@@ -36,6 +37,11 @@ import {
   type WorkloadIdentityCredentialOwner,
   WorkloadIdentityNotConfiguredError,
 } from '@/lib/credentials/workload-identity/subject'
+import {
+  exchangeGoogleServiceAccountJwt,
+  GOOGLE_TOKEN_DIAGNOSTIC_ERROR_CODES,
+} from '@/lib/oauth/google-service-account-transport'
+import { readWriteScopeOf } from '@/lib/oauth/utils'
 
 /**
  * Keyless Google Cloud credentials: Workload Identity Federation with service
@@ -69,7 +75,6 @@ const IAM_CREDENTIALS_ORIGIN = 'https://iamcredentials.googleapis.com'
 const OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const CLOUD_PLATFORM_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
 const TOKEN_EXCHANGE_GRANT = 'urn:ietf:params:oauth:grant-type:token-exchange'
-const JWT_BEARER_GRANT = 'urn:ietf:params:oauth:grant-type:jwt-bearer'
 /** A JWT-bearer assertion's `exp` may be at most one hour after its `iat`. */
 const ASSERTION_LIFETIME_SECONDS = 3600
 const ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_token'
@@ -84,20 +89,12 @@ const MAX_GOOGLE_SUBJECT_BYTES = 127
 const TOKEN_REUSE_MARGIN_MS = 5 * 60 * 1000
 const TOKEN_CACHE_MAX = 10_000
 
-/** OAuth token endpoint error codes safe to show; descriptions stay out of the message. */
-const DELEGATION_DIAGNOSTIC_ERRORS = new Set([
-  'access_denied',
-  'admin_policy_enforced',
-  'invalid_grant',
-  'invalid_scope',
-  'unauthorized_client',
-])
-
 /**
  * A cheap read per delegated service, made with the delegated token when the
  * credential is saved: it proves the API is enabled for the service account's
- * project and the user can use it. Docs and Sheets reach their files through
- * Drive and share its scopes; their own APIs have no call that needs no file.
+ * project and the user can use it. Docs and Sheets share Drive's scopes and are
+ * checked through the Drive API only: their own APIs have no call that needs no
+ * file, so those APIs being enabled shows up only in a run.
  */
 const DRIVE_READ = {
   api: 'Google Drive API',
@@ -162,15 +159,26 @@ const subjectSchema = z
 
 const delegationUserSchema = z.string().refine(isGoogleDelegationUser)
 
-/** The stored delegation: one Workspace user, and the services it may be used for. */
+/**
+ * The stored delegation: one Workspace user, and the services whose scopes it
+ * authorizes. Services are read as plain strings so a service a later release
+ * adds leaves the credential readable here, where it authorizes nothing; any
+ * other unknown field still fails the parse, since it could narrow what the
+ * credential may do.
+ */
 const storedDelegationSchema = z
   .object({
     user: delegationUserSchema,
-    services: z.array(z.enum(GOOGLE_DELEGATION_SERVICES)).min(1),
+    services: z.array(z.string().min(1)).min(1),
   })
   .strict()
 
-type GoogleDelegation = z.infer<typeof storedDelegationSchema>
+type StoredDelegation = z.infer<typeof storedDelegationSchema>
+
+/** The delegated services this release knows, in their canonical order. */
+function knownDelegatedServices(delegation: StoredDelegation): GoogleDelegationService[] {
+  return GOOGLE_DELEGATION_SERVICES.filter((service) => delegation.services.includes(service))
+}
 
 /** Absent on every credential saved without delegation, so their stored secret is unchanged. */
 const storedConfigSchema = z
@@ -198,6 +206,8 @@ const submittedDelegationSchema = z
       ),
   })
   .strict()
+
+type SubmittedDelegation = z.infer<typeof submittedDelegationSchema>
 
 const submittedConfigSchema = z
   .object({
@@ -261,24 +271,13 @@ async function postJson(
   return { status: response.status, payload: payload ?? {} }
 }
 
-async function postForm(
-  url: string,
-  body: Record<string, string>
-): Promise<{ status: number; payload: Record<string, unknown> }> {
-  let response: Response
+function parsePayload(body: string): Record<string, unknown> {
   try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-      body: new URLSearchParams(body).toString(),
-      redirect: 'error',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    })
+    const parsed: unknown = JSON.parse(body)
+    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {}
   } catch {
-    throw new GoogleWorkloadIdentityError('Could not reach Google. Try again.')
+    return {}
   }
-  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>
-  return { status: response.status, payload: payload ?? {} }
 }
 
 function isProviderOutage(status: number): boolean {
@@ -335,15 +334,29 @@ async function exchangeSubjectToken(
   return payload.access_token
 }
 
-function impersonationFailureMessage(status: number, config: GoogleWorkloadIdentityConfig) {
+/**
+ * Copy for an IAM Credentials refusal. Signing needs a role the impersonation
+ * role lacks, so a refused signature always names the token-creator role.
+ */
+function iamFailureMessage(
+  status: number,
+  config: GoogleWorkloadIdentityConfig,
+  action: 'impersonate' | 'sign'
+) {
   if (isProviderOutage(status)) return 'Google Cloud IAM is unavailable. Try again.'
   if (status === 403) {
-    return `The service account ${config.serviceAccountEmail} does not let this credential impersonate it. Grant ${googleWorkloadIdentityRole(Boolean(config.delegation))} on the service account to ${googleWorkloadIdentityPrincipal(config, config.subject)}, and enable the IAM Service Account Credentials API. A new binding can take a few minutes to apply.`
+    const refusal =
+      action === 'sign'
+        ? 'does not let this credential sign for it, which domain-wide delegation needs'
+        : 'does not let this credential impersonate it'
+    const role = googleWorkloadIdentityRole(action === 'sign' || Boolean(config.delegation))
+    return `The service account ${config.serviceAccountEmail} ${refusal}. Grant ${role} on the service account to ${googleWorkloadIdentityPrincipal(config, config.subject)}, and enable the IAM Service Account Credentials API. A new binding can take a few minutes to apply.`
   }
   if (status === 404) {
     return `Google Cloud could not find the service account ${config.serviceAccountEmail}. Check the email.`
   }
-  return `Google Cloud refused to impersonate ${config.serviceAccountEmail} (HTTP ${status}).`
+  const verb = action === 'sign' ? 'sign for' : 'impersonate'
+  return `Google Cloud refused to ${verb} ${config.serviceAccountEmail} (HTTP ${status}).`
 }
 
 interface ServiceAccountAccessToken {
@@ -365,7 +378,7 @@ async function impersonateServiceAccount(
     { Authorization: `Bearer ${federatedToken}` }
   )
   if (status !== 200) {
-    throw new GoogleWorkloadIdentityError(impersonationFailureMessage(status, config), status)
+    throw new GoogleWorkloadIdentityError(iamFailureMessage(status, config, 'impersonate'), status)
   }
   if (typeof payload.accessToken !== 'string' || !payload.accessToken) {
     throw new GoogleWorkloadIdentityError('Google Cloud IAM answered without a token.', 502)
@@ -385,17 +398,6 @@ async function mintServiceAccountToken(
 ): Promise<ServiceAccountAccessToken> {
   const federatedToken = await exchangeSubjectToken(config, owner)
   return impersonateServiceAccount(config, federatedToken, scopes)
-}
-
-function signFailureMessage(status: number, config: GoogleWorkloadIdentityConfig) {
-  if (isProviderOutage(status)) return 'Google Cloud IAM is unavailable. Try again.'
-  if (status === 403) {
-    return `The service account ${config.serviceAccountEmail} does not let this credential sign for it, which domain-wide delegation needs. Grant ${googleWorkloadIdentityRole(true)} on the service account to ${googleWorkloadIdentityPrincipal(config, config.subject)}, and enable the IAM Service Account Credentials API. A new binding can take a few minutes to apply.`
-  }
-  if (status === 404) {
-    return `Google Cloud could not find the service account ${config.serviceAccountEmail}. Check the email.`
-  }
-  return `Google Cloud refused to sign for ${config.serviceAccountEmail} (HTTP ${status}).`
 }
 
 /**
@@ -425,7 +427,7 @@ async function signDelegationAssertion(
     { Authorization: `Bearer ${federatedToken}` }
   )
   if (status !== 200) {
-    throw new GoogleWorkloadIdentityError(signFailureMessage(status, config), status)
+    throw new GoogleWorkloadIdentityError(iamFailureMessage(status, config, 'sign'), status)
   }
   if (typeof payload.signedJwt !== 'string' || !payload.signedJwt) {
     throw new GoogleWorkloadIdentityError('Google Cloud IAM answered without a signature.', 502)
@@ -441,27 +443,34 @@ function delegationFailureMessage(
 ): string {
   if (isProviderOutage(status)) return 'Google’s OAuth token endpoint is unavailable. Try again.'
   const code = typeof payload.error === 'string' ? payload.error : ''
-  const suffix = DELEGATION_DIAGNOSTIC_ERRORS.has(code) ? ` (${code})` : ''
+  const suffix = GOOGLE_TOKEN_DIAGNOSTIC_ERROR_CODES.has(code) ? ` (${code})` : ''
   if (code === 'invalid_grant') {
     return `Google refused to sign in as ${user}${suffix}. Check that the address belongs to an active user in your Google Workspace domain.`
   }
   return `Google Workspace has not authorized this service account’s domain-wide delegation for ${user}${suffix}. In the Admin console, under Security, Access and data control, API controls, Manage Domain Wide Delegation, authorize the service account’s client ID for these scopes: ${scopes.join(',')}. A new authorization can take a while to apply.`
 }
 
-/** Exchanges a signed assertion for an access token acting as the delegated user. */
+/**
+ * Exchanges a signed assertion for an access token acting as the delegated
+ * user, through the same transport a JSON key's assertion takes: retries on
+ * 429 and 5xx within a budget, and a bounded read of the answer.
+ */
 async function exchangeDelegationAssertion(
   assertion: string,
   user: string,
   scopes: string[]
 ): Promise<ServiceAccountAccessToken> {
-  const { status, payload } = await postForm(OAUTH_TOKEN_URL, {
-    grant_type: JWT_BEARER_GRANT,
-    assertion,
-  })
-  if (status !== 200) {
+  let response: Awaited<ReturnType<typeof exchangeGoogleServiceAccountJwt>>
+  try {
+    response = await exchangeGoogleServiceAccountJwt(OAUTH_TOKEN_URL, assertion)
+  } catch {
+    throw new GoogleWorkloadIdentityError('Could not reach Google. Try again.')
+  }
+  const payload = parsePayload(response.body)
+  if (!response.ok) {
     throw new GoogleWorkloadIdentityError(
-      delegationFailureMessage(status, payload, user, scopes),
-      status
+      delegationFailureMessage(response.status, payload, user, scopes),
+      response.status
     )
   }
   if (typeof payload.access_token !== 'string' || !payload.access_token) {
@@ -481,22 +490,30 @@ async function mintDelegatedToken(
   return exchangeDelegationAssertion(assertion, user, scopes)
 }
 
-/** Reads one cheap resource per service as the delegated user, with that service's token. */
+/**
+ * Reads one cheap resource per service as the delegated user, with that
+ * service's token. Services with the same scopes and read (Drive, Docs, and
+ * Sheets) are checked once.
+ */
 async function verifyDelegation(
   config: GoogleWorkloadIdentityConfig,
-  delegation: GoogleDelegation,
+  delegation: SubmittedDelegation,
   owner: WorkloadIdentityOwner
 ): Promise<void> {
-  const federatedToken = await exchangeSubjectToken(config, owner)
+  const checks = new Map<string, { scopes: string[]; read: { api: string; url: string } }>()
   for (const service of delegation.services) {
     const scopes = googleDelegationScopes(service)
+    const read = DELEGATION_READS[service]
+    checks.set(`${[...scopes].sort().join(' ')}|${read.url}`, { scopes, read })
+  }
+  const federatedToken = await exchangeSubjectToken(config, owner)
+  for (const { scopes, read } of checks.values()) {
     const { accessToken } = await mintDelegatedToken(
       config,
       federatedToken,
       delegation.user,
       scopes
     )
-    const read = DELEGATION_READS[service]
     let status: number
     try {
       const response = await fetch(read.url, {
@@ -575,7 +592,7 @@ async function assertSubjectPinned(
         stray,
         federatedToken,
         delegation.user,
-        googleDelegationScopes(delegation.services[0])
+        googleDelegationScopesFor(knownDelegatedServices(delegation))
       )
     )
   }
@@ -591,6 +608,32 @@ async function assertSubjectPinned(
 function readStoredSubject(storedSecret: Record<string, unknown> | null | undefined) {
   const parsed = storedSecretSchema.safeParse(storedSecret)
   return parsed.success ? parsed.data.config.subject : undefined
+}
+
+/** A keyless credential's domain-wide delegation, as a reconnect reopens on it. */
+export interface GoogleStoredDelegation {
+  user: string
+  services: GoogleDelegationService[]
+}
+
+/**
+ * The Workspace user and delegated services a stored keyless secret holds, so
+ * a reconnect keeps them instead of silently dropping them. Neither is secret.
+ * Undefined for a JSON key, a credential without delegation, or one whose
+ * services this release does not know.
+ */
+export function storedGoogleDelegation(decrypted: string): GoogleStoredDelegation | undefined {
+  let parsedJson: unknown
+  try {
+    parsedJson = JSON.parse(decrypted)
+  } catch {
+    return undefined
+  }
+  const parsed = storedSecretSchema.safeParse(parsedJson)
+  const delegation = parsed.success ? parsed.data.config.delegation : undefined
+  if (!delegation) return undefined
+  const services = knownDelegatedServices(delegation)
+  return services.length > 0 ? { user: delegation.user, services } : undefined
 }
 
 function bindSubject(
@@ -615,7 +658,7 @@ export interface GoogleWorkloadIdentitySaveResult {
   /** A subject this save binds that the credential did not already hold. */
   newSubject?: string
   /** The verified domain-wide delegation, when the credential was saved with one. */
-  delegation?: GoogleDelegation
+  delegation?: SubmittedDelegation
 }
 
 /**
@@ -655,7 +698,7 @@ export async function verifyAndEncryptGoogleWorkloadIdentityCredential(
   // A token from generateAccessToken proves the provider accepted Sim's token and the
   // service account lets this subject impersonate it; a delegated read proves the rest
   // of the delegation chain as well.
-  const { delegation } = config
+  const { delegation } = submitted
   const verify = () =>
     delegation
       ? verifyDelegation(config, delegation, owner)
@@ -717,22 +760,64 @@ function unsupportedUse(step: string, reason: string): TokenServiceAccountValida
   return new TokenServiceAccountValidationError('unsupported_use', 400, { step, reason })
 }
 
+/** Reads the stored secret, or fails in the shared service-account codes. */
+function readStoredConfig(decrypted: string): GoogleWorkloadIdentityConfig {
+  let parsedJson: unknown
+  try {
+    parsedJson = JSON.parse(decrypted)
+  } catch {
+    parsedJson = undefined
+  }
+  const parsed = storedSecretSchema.safeParse(parsedJson)
+  if (!parsed.success) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step: 'google_keyless_config',
+      reason: 'the stored keyless Google configuration could not be read; reconnect the credential',
+    })
+  }
+  return parsed.data.config
+}
+
+/**
+ * The scopes to sign a delegated assertion for, or undefined when the
+ * delegation does not authorize them. A delegation authorizes the scopes the
+ * connect dialog asked the Admin console to authorize for its services, and
+ * Google refuses an assertion naming any other scope. A requested read-only
+ * scope is minted as the authorized read-write scope that subsumes it (the
+ * Drive file picker asks for `drive.readonly`; `drive` is authorized), the
+ * same rule a connected account's granted scopes are checked by.
+ */
+function delegatedMintScopes(
+  delegation: StoredDelegation,
+  requested: readonly string[]
+): string[] | undefined {
+  const authorized = new Set(googleDelegationScopesFor(knownDelegatedServices(delegation)))
+  const minted = new Set<string>()
+  for (const scope of requested) {
+    const readWrite = readWriteScopeOf(scope)
+    const mint = authorized.has(scope)
+      ? scope
+      : readWrite && authorized.has(readWrite)
+        ? readWrite
+        : undefined
+    if (!mint) return undefined
+    minted.add(mint)
+  }
+  return [...minted]
+}
+
 /**
  * Resolves an authorized keyless Google credential to an access token. A
- * Google Cloud service gets a service account token. A Google Workspace service
- * gets a token acting as the delegated user, only when the credential was saved
- * with domain-wide delegation for that service. Anything else is refused before
- * Google is contacted.
+ * Google Cloud service gets a service account token. A delegable Google
+ * Workspace service gets a token acting as the delegated user, only when the
+ * credential was saved with domain-wide delegation whose scopes cover the
+ * request. Anything else is refused before Google is contacted.
  */
 export async function resolveGoogleWorkloadIdentityToken(
   input: ResolveGoogleWorkloadIdentityTokenInput
 ): Promise<string> {
-  const { config } = storedSecretSchema.parse(JSON.parse(input.decrypted))
-  const delegatedService = googleDelegationServiceFor(input.service)
-  const delegation =
-    delegatedService && config.delegation?.services.includes(delegatedService)
-      ? config.delegation
-      : undefined
+  const config = readStoredConfig(input.decrypted)
+  const delegation = googleDelegationServiceFor(input.service) ? config.delegation : undefined
 
   if (delegation) {
     if (input.impersonateEmail && input.impersonateEmail.toLowerCase() !== delegation.user) {
@@ -761,7 +846,14 @@ export async function resolveGoogleWorkloadIdentityToken(
       reason: 'scopes are required for service account credentials',
     })
   }
-  const scopeKey = [...new Set(input.scopes)].sort().join(' ')
+  const scopes = delegation ? delegatedMintScopes(delegation, input.scopes) : input.scopes
+  if (!scopes) {
+    throw unsupportedUse(
+      'google_keyless_delegation_scope',
+      'this keyless Google credential’s domain-wide delegation does not authorize the scopes this use needs'
+    )
+  }
+  const scopeKey = [...new Set(scopes)].sort().join(' ')
   const identityKey = delegation ? `delegated:${delegation.user}` : 'service-account'
   const cacheKey = `${input.credentialId}:${input.secretVersion}:${identityKey}:${scopeKey}`
   const cached = tokenCache.get(cacheKey)
@@ -769,7 +861,7 @@ export async function resolveGoogleWorkloadIdentityToken(
 
   // Concurrent block runs share one mint, so it is not tied to any one caller's signal.
   return coalesceLocally(`google-keyless:${cacheKey}`, async () => {
-    const scopes = scopeKey.split(' ')
+    const mintScopes = scopeKey.split(' ')
     let token: ServiceAccountAccessToken
     try {
       token = delegation
@@ -777,9 +869,9 @@ export async function resolveGoogleWorkloadIdentityToken(
             config,
             await exchangeSubjectToken(config, input.owner),
             delegation.user,
-            scopes
+            mintScopes
           )
-        : await mintServiceAccountToken(config, input.owner, scopes)
+        : await mintServiceAccountToken(config, input.owner, mintScopes)
     } catch (error) {
       if (!(error instanceof GoogleWorkloadIdentityError)) throw error
       // Report in the shared service-account codes: an outage is not a bad credential.

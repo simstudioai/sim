@@ -39,6 +39,12 @@ const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.labels',
 ]
 const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar'
+const DRIVE_SCOPES = [
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/drive',
+]
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
+const DRIVE_READONLY = 'https://www.googleapis.com/auth/drive.readonly'
 const GMAIL_PROFILE = 'https://gmail.googleapis.com/gmail/v1/users/me/profile'
 const CALENDAR_LIST = 'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1'
 const DRIVE_ABOUT = 'https://www.googleapis.com/drive/v3/about?fields=user'
@@ -82,6 +88,8 @@ function fakeGoogle(
     iamError?: Response
     /** Answers the OAuth token endpoint instead of issuing a delegated token. */
     tokenError?: Response
+    /** Answers the OAuth token endpoint's first request only. */
+    firstTokenError?: Response
     /** Answers a Workspace read instead of 200. */
     readError?: Response
   } = {}
@@ -121,6 +129,7 @@ function fakeGoogle(
       const request = record()
       token.push(request)
       if (options.tokenError) return options.tokenError.clone()
+      if (options.firstTokenError && token.length === 1) return options.firstTokenError.clone()
       const claims = JSON.parse(String(request.body.assertion).replace('signed|', ''))
       return jsonResponse({
         access_token: `ya29.dwd-${claims.sub}-${claims.scope}`,
@@ -457,6 +466,25 @@ describe('getting a keyless Google Cloud token for a run', () => {
   })
 })
 
+/**
+ * Settles a resolution whose token exchange waits between retries, advancing
+ * fake timers until it does.
+ */
+async function settleRetrying<T>(promise: Promise<T>): Promise<{ value?: T; error?: unknown }> {
+  let outcome: { value?: T; error?: unknown } | undefined
+  promise.then(
+    (value) => {
+      outcome = { value }
+    },
+    (error: unknown) => {
+      outcome = { error }
+    }
+  )
+  for (let step = 0; !outcome && step < 200; step++) await vi.advanceTimersByTimeAsync(250)
+  if (!outcome) throw new Error('The resolution never settled')
+  return outcome
+}
+
 function claimsOf(request: RecordedRequest | undefined): Record<string, unknown> {
   return JSON.parse(String(request?.body.payload))
 }
@@ -511,6 +539,21 @@ describe('saving a keyless credential with domain-wide delegation', () => {
         config: { ...storedConfig, delegation },
       })
     )
+  })
+
+  it('checks Drive, Docs, and Sheets, which share scopes and a read, once', async () => {
+    const google = fakeGoogle(fetch, { canImpersonate: (subject) => subject === SUBJECT })
+
+    await save({
+      delegation: {
+        user: WORKSPACE_USER,
+        services: ['google-drive', 'google-docs', 'google-sheets'],
+      },
+    })
+
+    const own = google.signJwt.filter((r) => r.headers.authorization === `Bearer fed:${SUBJECT}`)
+    expect(own.map((r) => claimsOf(r).scope)).toEqual([DRIVE_SCOPES.join(' ')])
+    expect(google.reads.map((r) => r.url)).toEqual([DRIVE_ABOUT])
   })
 
   it('names the token-creator role when the subject may impersonate but not sign', async () => {
@@ -675,15 +718,95 @@ describe('getting a delegated Google Workspace token for a run', () => {
 
   it('never answers a service account request with a delegated token of the same scopes', async () => {
     fakeGoogle(fetch)
-    const delegated = await resolve({ credentialId: 'dwd-identity', scopes: [CLOUD_PLATFORM] })
+    const delegated = await resolve({ credentialId: 'dwd-identity', scopes: [GMAIL_SCOPES[1]] })
     const own = await resolve({
       credentialId: 'dwd-identity',
       service: 'vertex-ai',
-      scopes: [CLOUD_PLATFORM],
+      scopes: [GMAIL_SCOPES[1]],
     })
 
-    expect(delegated).toBe(`ya29.dwd-${WORKSPACE_USER}-${CLOUD_PLATFORM}`)
-    expect(own).toBe(`ya29.sa-token-for-${CLOUD_PLATFORM}`)
+    expect(delegated).toBe(`ya29.dwd-${WORKSPACE_USER}-${GMAIL_SCOPES[1]}`)
+    expect(own).toBe(`ya29.sa-token-for-${GMAIL_SCOPES[1]}`)
+  })
+
+  it.each([
+    { label: 'a Gmail read-only connector', service: 'google-email', scope: 'gmail.readonly' },
+    {
+      label: 'an admin-mode connector',
+      service: 'google-email',
+      scope: 'admin.directory.user.readonly',
+    },
+    { label: 'a scope outside Google Workspace', service: 'gmail', scope: 'cloud-platform' },
+  ])(
+    'refuses $label whose scopes the delegation does not authorize, before contacting Google',
+    async ({ service, scope }) => {
+      fakeGoogle(fetch)
+
+      await expect(
+        resolve({
+          credentialId: `dwd-scope-${scope}`,
+          service,
+          scopes: [`https://www.googleapis.com/auth/${scope}`],
+        })
+      ).rejects.toMatchObject({ code: 'unsupported_use' })
+      expect(fetch).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses a read-only scope whose read-write scope the delegation does not authorize', async () => {
+    fakeGoogle(fetch)
+    const calendarOnly = JSON.stringify({
+      type: 'google_workload_identity_v1',
+      config: {
+        ...storedConfig,
+        delegation: { user: WORKSPACE_USER, services: ['google-calendar'] },
+      },
+    })
+
+    await expect(
+      resolve({
+        credentialId: 'dwd-calendar-events',
+        decrypted: calendarOnly,
+        service: 'google-calendar',
+        scopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
+      })
+    ).rejects.toMatchObject({ code: 'unsupported_use' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it.each(['google-docs', 'google-sheets'])(
+    'serves the Drive file picker for a credential delegated only for %s, minting the authorized Drive scope',
+    async (delegated) => {
+      const google = fakeGoogle(fetch)
+      const docsOnly = JSON.stringify({
+        type: 'google_workload_identity_v1',
+        config: { ...storedConfig, delegation: { user: WORKSPACE_USER, services: [delegated] } },
+      })
+
+      await expect(
+        resolve({
+          credentialId: `dwd-picker-${delegated}`,
+          decrypted: docsOnly,
+          service: 'google-drive',
+          scopes: [DRIVE_READONLY],
+        })
+      ).resolves.toBe(`ya29.dwd-${WORKSPACE_USER}-${DRIVE_SCOPE}`)
+      expect(claimsOf(google.signJwt[0])).toMatchObject({ sub: WORKSPACE_USER, scope: DRIVE_SCOPE })
+    }
+  )
+
+  it('retries a token endpoint outage the way a JSON key’s exchange does', async () => {
+    const google = fakeGoogle(fetch, {
+      firstTokenError: jsonResponse({ error: 'internal_failure' }, 503),
+    })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const { value } = await settleRetrying(resolve({ credentialId: 'dwd-retry' }))
+      expect(value).toContain(WORKSPACE_USER)
+      expect(google.token).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it.each([
@@ -704,7 +827,89 @@ describe('getting a delegated Google Workspace token for a run', () => {
     },
   ])('reports $label in the shared service-account codes', async ({ label, google, code }) => {
     fakeGoogle(fetch, google)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const { error } = await settleRetrying(resolve({ credentialId: `dwd-${label}` }))
+      expect(error).toMatchObject({ code })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
 
-    await expect(resolve({ credentialId: `dwd-${label}` })).rejects.toMatchObject({ code })
+describe('reading a stored keyless secret', () => {
+  const fetch = vi.fn()
+
+  beforeEach(() => {
+    fetch.mockReset()
+    vi.stubGlobal('fetch', fetch)
+  })
+
+  function resolveWith(decrypted: string, overrides: { service: string; scopes: string[] }) {
+    return resolveGoogleWorkloadIdentityToken({
+      credentialId: `stored-${overrides.service}-${decrypted.length}`,
+      decrypted,
+      secretVersion: 'v1',
+      owner: { workspaceId: 'ws-1' },
+      ...overrides,
+    })
+  }
+
+  const withLaterService = JSON.stringify({
+    type: 'google_workload_identity_v1',
+    config: {
+      ...storedConfig,
+      delegation: { user: WORKSPACE_USER, services: ['gmail', 'google-keep'] },
+    },
+  })
+
+  it('keeps Google Cloud tokens working when a later release delegated a service this one does not know', async () => {
+    const google = fakeGoogle(fetch)
+
+    await expect(
+      resolveWith(withLaterService, { service: 'google-bigquery', scopes: [BIGQUERY] })
+    ).resolves.toBe(`ya29.sa-token-for-${BIGQUERY}`)
+    expect(google.iam[0]?.url).toBe(IMPERSONATE_URL)
+  })
+
+  it('still acts as the delegated user for the services it knows', async () => {
+    fakeGoogle(fetch)
+
+    await expect(
+      resolveWith(withLaterService, { service: 'google-email', scopes: GMAIL_SCOPES })
+    ).resolves.toContain(WORKSPACE_USER)
+  })
+
+  it('authorizes nothing for the service it does not know', async () => {
+    fakeGoogle(fetch)
+
+    await expect(
+      resolveWith(withLaterService, {
+        service: 'google-keep',
+        scopes: ['https://www.googleapis.com/auth/keep'],
+      })
+    ).rejects.toMatchObject({ code: 'unsupported_use' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { label: 'invalid JSON', decrypted: '{' },
+    {
+      label: 'a delegation field it does not know',
+      decrypted: JSON.stringify({
+        type: 'google_workload_identity_v1',
+        config: {
+          ...storedConfig,
+          delegation: { user: WORKSPACE_USER, services: ['gmail'], onlyLabels: ['x'] },
+        },
+      }),
+    },
+  ])('refuses $label in the shared service-account codes', async ({ decrypted }) => {
+    fakeGoogle(fetch)
+
+    await expect(
+      resolveWith(decrypted, { service: 'google-bigquery', scopes: [BIGQUERY] })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetch).not.toHaveBeenCalled()
   })
 })
