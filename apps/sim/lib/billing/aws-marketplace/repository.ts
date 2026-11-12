@@ -10,8 +10,12 @@ import {
   type AwsMarketplaceNoticeTerms,
   type AwsMarketplaceTeamNotice,
 } from '@/lib/billing/aws-marketplace/notice-events'
+import type { AwsMarketplaceProduct } from '@/lib/billing/aws-marketplace/products'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbTransaction } from '@/lib/db/types'
+
+/** Configured products by product code, as `getAwsMarketplaceProducts` returns them. */
+type AwsMarketplaceProducts = ReadonlyMap<string, AwsMarketplaceProduct>
 
 export type AwsMarketplaceLicenseRecord = typeof awsMarketplaceLicense.$inferSelect
 type AwsMarketplaceLicenseStatus = AwsMarketplaceLicenseRecord['status']
@@ -323,18 +327,18 @@ export async function recordLicenseVerification(input: {
  * Returns whether any stored license was involved.
  */
 export async function applyAgreementRenewal(input: {
-  productCodes: readonly string[]
+  products: AwsMarketplaceProducts
   previousAgreementId: string
   agreementId: string
 }): Promise<boolean> {
-  const { productCodes, previousAgreementId, agreementId } = input
+  const { products, previousAgreementId, agreementId } = input
   return db.transaction(async (tx) => {
     const predecessors = await tx
       .select()
       .from(awsMarketplaceLicense)
       .where(
         and(
-          inArray(awsMarketplaceLicense.productCode, [...productCodes]),
+          ofProducts(products),
           or(
             eq(awsMarketplaceLicense.agreementId, previousAgreementId),
             eq(awsMarketplaceLicense.renewedAgreementId, previousAgreementId)
@@ -359,12 +363,7 @@ export async function applyAgreementRenewal(input: {
     const successors = await tx
       .select()
       .from(awsMarketplaceLicense)
-      .where(
-        and(
-          inArray(awsMarketplaceLicense.productCode, [...productCodes]),
-          eq(awsMarketplaceLicense.agreementId, agreementId)
-        )
-      )
+      .where(and(ofProducts(products), eq(awsMarketplaceLicense.agreementId, agreementId)))
       .for('update')
     for (const successor of successors) await inheritFromRenewedLicense(tx, successor)
 
@@ -389,7 +388,7 @@ export async function applyAgreementRenewal(input: {
 
 /** Tells the team of an AWS advisory on an agreement we hold; redelivery cannot send it twice. */
 export async function enqueueAgreementAdvisory(input: {
-  productCodes: readonly string[]
+  products: AwsMarketplaceProducts
   agreementId: string
   state: 'issued' | 'resolved'
   detail: string
@@ -399,7 +398,7 @@ export async function enqueueAgreementAdvisory(input: {
     const rows = await tx
       .select({ id: awsMarketplaceLicense.id })
       .from(awsMarketplaceLicense)
-      .where(belongsToAgreement(input.productCodes, input.agreementId))
+      .where(belongsToAgreement(input.products, input.agreementId))
       .limit(MAX_LICENSES_PER_AGREEMENT)
     if (rows.length === 0) return false
     const noticeId = `aws-marketplace-advisory-${input.messageId}`
@@ -425,9 +424,13 @@ export async function enqueueAgreementAdvisory(input: {
   })
 }
 
-function belongsToAgreement(productCodes: readonly string[], agreementId: string) {
+function ofProducts(products: AwsMarketplaceProducts) {
+  return inArray(awsMarketplaceLicense.productCode, [...products.keys()])
+}
+
+function belongsToAgreement(products: AwsMarketplaceProducts, agreementId: string) {
   return and(
-    inArray(awsMarketplaceLicense.productCode, [...productCodes]),
+    ofProducts(products),
     or(
       eq(awsMarketplaceLicense.agreementId, agreementId),
       eq(awsMarketplaceLicense.renewedAgreementId, agreementId)
@@ -442,44 +445,51 @@ function belongsToAgreement(productCodes: readonly string[], agreementId: string
 /** A license to re-read, with the product it was sold under. */
 export interface LicenseToVerify {
   licenseArn: string
-  productCode: string
+  product: AwsMarketplaceProduct
+}
+
+const LICENSE_TO_VERIFY_COLUMNS = {
+  licenseArn: awsMarketplaceLicense.licenseArn,
+  productCode: awsMarketplaceLicense.productCode,
+}
+
+/** Pairs each row with its product; the queries already keep to configured products. */
+function withProducts(
+  rows: Array<{ licenseArn: string; productCode: string }>,
+  products: AwsMarketplaceProducts
+): LicenseToVerify[] {
+  return rows.flatMap(({ licenseArn, productCode }) => {
+    const product = products.get(productCode)
+    return product ? [{ licenseArn, product }] : []
+  })
 }
 
 export async function listLicensesForAgreement(
-  productCodes: readonly string[],
+  products: AwsMarketplaceProducts,
   agreementId: string
 ): Promise<LicenseToVerify[]> {
-  return db
-    .select({
-      licenseArn: awsMarketplaceLicense.licenseArn,
-      productCode: awsMarketplaceLicense.productCode,
-    })
+  const rows = await db
+    .select(LICENSE_TO_VERIFY_COLUMNS)
     .from(awsMarketplaceLicense)
-    .where(belongsToAgreement(productCodes, agreementId))
+    .where(belongsToAgreement(products, agreementId))
     .orderBy(asc(awsMarketplaceLicense.lastVerificationAttemptAt))
     .limit(MAX_LICENSES_PER_AGREEMENT)
+  return withProducts(rows, products)
 }
 
 /** Licenses of these products longest since an attempt, up to `limit`, none after `cutoff`. */
 export async function listLicensesDueForReverify(
-  productCodes: readonly string[],
+  products: AwsMarketplaceProducts,
   cutoff: Date,
   limit: number
 ): Promise<LicenseToVerify[]> {
-  return db
-    .select({
-      licenseArn: awsMarketplaceLicense.licenseArn,
-      productCode: awsMarketplaceLicense.productCode,
-    })
+  const rows = await db
+    .select(LICENSE_TO_VERIFY_COLUMNS)
     .from(awsMarketplaceLicense)
-    .where(
-      and(
-        inArray(awsMarketplaceLicense.productCode, [...productCodes]),
-        lt(awsMarketplaceLicense.lastVerificationAttemptAt, cutoff)
-      )
-    )
+    .where(and(ofProducts(products), lt(awsMarketplaceLicense.lastVerificationAttemptAt, cutoff)))
     .orderBy(asc(awsMarketplaceLicense.lastVerificationAttemptAt))
     .limit(limit)
+  return withProducts(rows, products)
 }
 
 /** Stamps an attempt to verify a license, before its outcome is known. */

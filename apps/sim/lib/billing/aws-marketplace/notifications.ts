@@ -61,7 +61,7 @@ async function describeLicense(license: AwsMarketplaceLicenseRecord): Promise<st
     license.organizationId ? `${organizationName ?? 'Unknown'} (${license.organizationId})` : 'None'
   }
 License ID: ${license.id}
-Listing: ${license.productCode} (${findAwsMarketplaceProduct(license.productCode)?.planId ?? 'no longer sold'})
+Listing: ${license.productCode} (${findAwsMarketplaceProduct(license.productCode)?.plan.id ?? 'no longer sold'})
 License: ${license.licenseArn}
 AWS account: ${license.customerAwsAccountId}
 Agreement: ${license.agreementId ?? 'Not provided'}

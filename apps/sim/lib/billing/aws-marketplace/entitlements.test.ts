@@ -14,20 +14,22 @@ vi.mock('@aws-sdk/client-marketplace-entitlement-service', () => ({
 
 import { verifyLicense } from '@/lib/billing/aws-marketplace/entitlements'
 import {
-  AWS_MARKETPLACE_PLANS,
   type AwsMarketplaceProduct,
+  parseAwsMarketplaceProducts,
 } from '@/lib/billing/aws-marketplace/products'
 
-const CONTRACT: AwsMarketplaceProduct = {
-  productCode: 'product-placeholder',
-  planId: 'contract',
-  plan: AWS_MARKETPLACE_PLANS.contract,
+const PRODUCTS = parseAwsMarketplaceProducts(
+  'product-placeholder=contract,usage-product-placeholder=platform-with-usage'
+)
+
+function product(code: string): AwsMarketplaceProduct {
+  const found = PRODUCTS.get(code)
+  if (!found) throw new Error(`no test product ${code}`)
+  return found
 }
-const USAGE: AwsMarketplaceProduct = {
-  productCode: 'usage-product-placeholder',
-  planId: 'platform-with-usage',
-  plan: AWS_MARKETPLACE_PLANS['platform-with-usage'],
-}
+
+const CONTRACT = product('product-placeholder')
+const USAGE = product('usage-product-placeholder')
 const LICENSE = 'license-placeholder'
 const NOW = new Date('2026-06-01T00:00:00.000Z')
 

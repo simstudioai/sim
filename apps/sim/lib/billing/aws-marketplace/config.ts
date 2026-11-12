@@ -4,23 +4,18 @@ import {
 } from '@/lib/billing/aws-marketplace/products'
 import { env } from '@/lib/core/config/env'
 
-/** Parsed once per distinct setting; env validation already rejected a malformed one at boot. */
-let parsed: { raw: string | undefined; products: ReadonlyMap<string, AwsMarketplaceProduct> } = {
-  raw: undefined,
-  products: new Map(),
-}
+let products: ReadonlyMap<string, AwsMarketplaceProduct> | undefined
 
 /**
  * The products this deployment sells through AWS Marketplace, by product code. Empty on
- * self-hosted installs and every environment but production, which turns the registration, claim,
- * and reconcile surfaces off.
+ * self-hosted installs and every environment but production, which turns the Marketplace surfaces
+ * off. A malformed setting throws a message naming the bad entry.
  */
 export function getAwsMarketplaceProducts(): ReadonlyMap<string, AwsMarketplaceProduct> {
-  const raw = env.AWS_MARKETPLACE_PRODUCTS
-  if (parsed.raw !== raw) {
-    parsed = { raw, products: raw ? parseAwsMarketplaceProducts(raw) : new Map() }
-  }
-  return parsed.products
+  products ??= env.AWS_MARKETPLACE_PRODUCTS
+    ? parseAwsMarketplaceProducts(env.AWS_MARKETPLACE_PRODUCTS)
+    : new Map()
+  return products
 }
 
 export function isAwsMarketplaceEnabled(): boolean {
@@ -32,9 +27,4 @@ export function findAwsMarketplaceProduct(
   productCode: string | null | undefined
 ): AwsMarketplaceProduct | null {
   return productCode ? (getAwsMarketplaceProducts().get(productCode) ?? null) : null
-}
-
-/** Every configured product code, for queries that span all of them. */
-export function getAwsMarketplaceProductCodes(): string[] {
-  return [...getAwsMarketplaceProducts().keys()]
 }

@@ -49,9 +49,8 @@ async function readEntitlements(
  * Turns the registration token AWS posts to the fulfillment URL into a license row. Every listing
  * shares the one fulfillment URL, so the product comes from the code AWS resolves the token to,
  * and a code this deployment does not sell is refused. Every registration reads the license's
- * entitlements. A license AWS has not confirmed yet still gets a
- * claim, so the buyer can leave contact details; only a lapsed one does not. The token itself is
- * never logged.
+ * entitlements. A license AWS has not confirmed yet still gets a claim, so the buyer can leave
+ * contact details; only a lapsed one does not. The token itself is never logged.
  */
 export async function registerAwsMarketplaceBuyer(
   registrationToken: string

@@ -9,7 +9,6 @@ import {
 } from '@sim/utils/sandbox-references'
 import { createEnv } from '@t3-oss/env-nextjs'
 import { z } from 'zod'
-import { isValidAwsMarketplaceProducts } from '@/lib/billing/aws-marketplace/products'
 
 /**
  * Attribute on the `<html>` element carrying the same `NEXT_PUBLIC_*` snapshot
@@ -225,7 +224,7 @@ export const env = createEnv({
     STRIPE_PRICE_TEAM_100_MO:              z.string().min(1).optional(),           // Team Max: $100/seat/mo
     STRIPE_PRICE_TEAM_100_YR:              z.string().min(1).optional(),           // Team Max: $1,020/seat/yr
     OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(100),     // Dollar threshold for incremental overage billing (default: $100)
-    AWS_MARKETPLACE_PRODUCTS:              z.string().refine(isValidAwsMarketplaceProducts, { message: 'AWS_MARKETPLACE_PRODUCTS must be comma-separated <product code>=<plan> pairs naming known plans' }).optional(), // AWS Marketplace SaaS products this deployment sells, e.g. abc=contract,def=platform-with-usage; unset turns the Marketplace surfaces off
+    AWS_MARKETPLACE_PRODUCTS:              z.string().min(1).optional(),           // AWS Marketplace SaaS products this deployment sells, as <product code>=<plan> pairs (lib/billing/aws-marketplace/products.ts); unset turns the Marketplace surfaces off
     AWS_MARKETPLACE_EVENTS_QUEUE_URL:      z.string().url().optional(),            // SQS queue receiving the Marketplace agreement EventBridge events the reconcile cron drains
 
     // Email & Communication

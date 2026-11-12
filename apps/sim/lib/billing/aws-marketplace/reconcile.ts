@@ -10,10 +10,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { getEventsQueueClient } from '@/lib/billing/aws-marketplace/client'
-import {
-  findAwsMarketplaceProduct,
-  getAwsMarketplaceProductCodes,
-} from '@/lib/billing/aws-marketplace/config'
+import { getAwsMarketplaceProducts } from '@/lib/billing/aws-marketplace/config'
 import {
   isInvalidEntitlementRequest,
   verifyLicense,
@@ -84,8 +81,8 @@ interface AwsMarketplaceReconcileSummary {
 type BudgetCheck = (workMs: number) => boolean
 
 interface DrainContext {
-  /** Every configured product; an event for any other product is not ours to apply. */
-  productCodes: readonly string[]
+  /** This run's configured products, by code; an event for any other product is not ours. */
+  products: ReadonlyMap<string, AwsMarketplaceProduct>
   queueUrl: string
   summary: AwsMarketplaceReconcileSummary
   fits: BudgetCheck
@@ -225,15 +222,13 @@ async function applyAgreementEnded(
   message: Message
 ): Promise<MessageOutcome> {
   const messageId = message.MessageId
-  const licenses = await listLicensesForAgreement(context.productCodes, agreementId)
+  const licenses = await listLicensesForAgreement(context.products, agreementId)
   if (licenses.length === 0) {
     logger.info('Ignoring an AWS Marketplace agreement event for no stored license', { messageId })
     return 'discarded'
   }
   let incomplete = false
-  for (const [index, { licenseArn, productCode }] of licenses.entries()) {
-    const product = findAwsMarketplaceProduct(productCode)
-    if (!product) continue
+  for (const [index, { licenseArn, product }] of licenses.entries()) {
     if (!context.fits(LICENSE_READ_BUDGET_MS)) {
       context.summary.outOfBudget = true
       return 'retained'
@@ -264,10 +259,11 @@ async function applyAgreementEnded(
 }
 
 async function applyLicenseEvent(
+  context: DrainContext,
   event: Extract<MarketplaceEvent, { kind: 'license' }>,
   messageId: string | undefined
 ): Promise<MessageOutcome> {
-  const product = findAwsMarketplaceProduct(event.productCode)
+  const product = event.productCode ? context.products.get(event.productCode) : undefined
   if (!product) {
     logger.warn('Discarding an AWS Marketplace event for another product', { messageId })
     return 'discarded'
@@ -309,16 +305,16 @@ async function applyEvent(
   event: MarketplaceEvent,
   message: Message
 ): Promise<MessageOutcome> {
-  const { productCodes } = context
+  const { products } = context
   const messageId = message.MessageId
-  if (event.kind === 'license') return applyLicenseEvent(event, messageId)
+  if (event.kind === 'license') return applyLicenseEvent(context, event, messageId)
   if (event.kind === 'agreement-ended') {
     return applyAgreementEnded(context, event.agreementId, message)
   }
   const involved =
     event.kind === 'advisory'
       ? await enqueueAgreementAdvisory({
-          productCodes,
+          products,
           agreementId: event.agreementId,
           state: event.state,
           detail: event.detail,
@@ -326,7 +322,7 @@ async function applyEvent(
         })
       : event.previousAgreementId
         ? await applyAgreementRenewal({
-            productCodes,
+            products,
             previousAgreementId: event.previousAgreementId,
             agreementId: event.agreementId,
           })
@@ -418,15 +414,13 @@ async function drainEvents(context: DrainContext): Promise<void> {
 }
 
 async function reverifyStaleLicenses(
-  productCodes: readonly string[],
+  products: ReadonlyMap<string, AwsMarketplaceProduct>,
   summary: AwsMarketplaceReconcileSummary,
   fits: BudgetCheck
 ): Promise<void> {
   const cutoff = new Date(Date.now() - REVERIFY_AFTER_MS)
-  const licenses = await listLicensesDueForReverify(productCodes, cutoff, REVERIFY_BATCH_SIZE)
-  for (const { licenseArn, productCode } of licenses) {
-    const product = findAwsMarketplaceProduct(productCode)
-    if (!product) continue
+  const licenses = await listLicensesDueForReverify(products, cutoff, REVERIFY_BATCH_SIZE)
+  for (const { licenseArn, product } of licenses) {
     if (!fits(LICENSE_READ_BUDGET_MS)) {
       summary.outOfBudget = true
       return
@@ -450,8 +444,8 @@ async function reverifyStaleLicenses(
  * feature is off.
  */
 export async function reconcileAwsMarketplaceLicenses(): Promise<AwsMarketplaceReconcileSummary | null> {
-  const productCodes = getAwsMarketplaceProductCodes()
-  if (productCodes.length === 0) return null
+  const products = getAwsMarketplaceProducts()
+  if (products.size === 0) return null
   const summary: AwsMarketplaceReconcileSummary = {
     received: 0,
     applied: 0,
@@ -465,7 +459,7 @@ export async function reconcileAwsMarketplaceLicenses(): Promise<AwsMarketplaceR
   const startedAt = Date.now()
   const fits: BudgetCheck = (workMs) => Date.now() - startedAt + workMs <= RUN_BUDGET_MS
   const queueUrl = env.AWS_MARKETPLACE_EVENTS_QUEUE_URL
-  if (queueUrl) await drainEvents({ productCodes, queueUrl, summary, fits })
-  await reverifyStaleLicenses(productCodes, summary, fits)
+  if (queueUrl) await drainEvents({ products, queueUrl, summary, fits })
+  await reverifyStaleLicenses(products, summary, fits)
   return summary
 }
