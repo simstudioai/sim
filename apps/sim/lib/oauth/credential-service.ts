@@ -20,7 +20,10 @@ import {
   getClientCredentialAccountMinter,
   parseClientCredentialAccountSecretBlob,
 } from '@/lib/credentials/client-credential-accounts/server'
-import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
+import {
+  GOOGLE_SERVICE_ACCOUNT_EXCLUDED_SCOPES,
+  isGoogleWorkloadIdentitySecret,
+} from '@/lib/credentials/google-workload-identity'
 import { getTokenClientCredentialMinter } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
   type CLIENT_CREDENTIALS_AUTH_METHOD,
@@ -43,7 +46,10 @@ import {
   GITHUB_INSTALLATION_PROVIDER_ID,
   type GitHubInstallationRepositoryScope,
 } from '@/lib/oauth/github-installation-types'
-import { exchangeGoogleServiceAccountJwt } from '@/lib/oauth/google-service-account-transport'
+import {
+  exchangeGoogleServiceAccountJwt,
+  GOOGLE_TOKEN_DIAGNOSTIC_ERROR_CODES,
+} from '@/lib/oauth/google-service-account-transport'
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -221,29 +227,6 @@ export async function resolveOAuthAccountId(
 }
 
 /**
- * Userinfo scopes are excluded because service accounts don't represent a user
- * and cannot request user identity information. Google rejects token requests
- * that include these scopes for service account credentials.
- */
-const SA_EXCLUDED_SCOPES = new Set([
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile',
-])
-
-/** Google's documented JWT error codes are safe to retain without the provider description. */
-const SA_DIAGNOSTIC_ERROR_CODES = new Set([
-  'access_denied',
-  'admin_policy_enforced',
-  'deleted_client',
-  'disabled_client',
-  'invalid_client',
-  'invalid_grant',
-  'invalid_scope',
-  'org_internal',
-  'unauthorized_client',
-])
-
-/**
  * The decrypted key of a live Google service-account credential. Reads running at once (one per
  * delegated subject) share one query and decrypt; a later read queries again, so it sees a
  * revocation recorded since. Sharing also bounds a hung read by the coalescing settle timeout.
@@ -294,10 +277,11 @@ function readGoogleServiceAccountKey(credentialId: string): Promise<GoogleServic
  * Generates a short-lived access token for a Google service account credential
  * using the two-legged OAuth JWT flow (RFC 7523).
  *
- * @param impersonateEmail - Optional. Required for Google Workspace APIs (Gmail, Drive, Calendar, etc.)
- *   where the service account must impersonate a domain user via domain-wide delegation.
- *   Not needed for project-scoped APIs like BigQuery or Vertex AI where the service account
- *   authenticates directly with its own IAM permissions.
+ * @param impersonateEmail - Optional. For a JSON key, the Google Workspace user a Workspace API
+ *   call (Gmail, Drive, Calendar, etc.) acts as through domain-wide delegation. Not needed for
+ *   project-scoped APIs like BigQuery or Vertex AI, where the service account authenticates with
+ *   its own IAM permissions. A keyless credential with domain-wide delegation always acts as its
+ *   stored Workspace user and accepts only that user here.
  */
 export async function getServiceAccountToken(
   credentialId: string,
@@ -310,7 +294,7 @@ export async function getServiceAccountToken(
     readGoogleServiceAccountKey(credentialId),
     options?.signal
   )
-  const filteredScopes = scopes.filter((s) => !SA_EXCLUDED_SCOPES.has(s))
+  const filteredScopes = scopes.filter((s) => !GOOGLE_SERVICE_ACCOUNT_EXCLUDED_SCOPES.has(s))
 
   if (isGoogleWorkloadIdentitySecret(decrypted)) {
     const { resolveGoogleWorkloadIdentityToken } = await import(
@@ -421,7 +405,9 @@ export async function getServiceAccountToken(
         : {
             subject: impersonateEmail,
             scopes: filteredScopes,
-            ...(errorCode && SA_DIAGNOSTIC_ERROR_CODES.has(errorCode) ? { errorCode } : {}),
+            ...(errorCode && GOOGLE_TOKEN_DIAGNOSTIC_ERROR_CODES.has(errorCode)
+              ? { errorCode }
+              : {}),
           }),
     })
     throw new ServiceAccountTokenError(response.status, description, errorCode)

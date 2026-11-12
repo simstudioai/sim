@@ -380,7 +380,10 @@ async function buildGoogleServiceAccountSecret(
   }
 }
 
-/** A keyless Google Cloud credential: Workload Identity Federation, no stored key. */
+/**
+ * A keyless Google credential: Workload Identity Federation, no stored key,
+ * optionally with domain-wide delegation to one Workspace user.
+ */
 async function buildGoogleWorkloadIdentitySecret(
   serviceAccountJson: string,
   owner: ServiceAccountSecretFields['owner']
@@ -406,6 +409,12 @@ async function buildGoogleWorkloadIdentitySecret(
     auditMetadata: {
       googleClientEmail: result.serviceAccountEmail,
       googleWorkloadIdentityProvider: result.workloadIdentityProvider,
+      ...(result.delegation
+        ? {
+            googleDelegatedUser: result.delegation.user,
+            googleDelegatedServices: result.delegation.services.join(','),
+          }
+        : {}),
       ...serviceAccountPrincipalMetadata(principal),
     },
     principal,

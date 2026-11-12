@@ -240,6 +240,27 @@ describe('preparing a reconnect', () => {
     expect(await prepare('google')).not.toHaveProperty('audience')
   })
 
+  it('reports a keyless Google credential’s delegation so a reconnect keeps it', async () => {
+    reconnecting(
+      {
+        type: 'google_workload_identity_v1',
+        config: {
+          projectNumber: '123456789012',
+          poolId: 'sim-pool',
+          providerId: 'sim-oidc',
+          serviceAccountEmail: 'runner@analytics-prod.iam.gserviceaccount.com',
+          subject,
+          delegation: { user: 'alice@example.com', services: ['gmail', 'google-calendar'] },
+        },
+      },
+      { providerId: 'google-service-account' }
+    )
+    await expect(prepare('google')).resolves.toMatchObject({
+      reconnectAuthType: 'workload_identity',
+      reconnectDelegation: { user: 'alice@example.com', services: ['gmail', 'google-calendar'] },
+    })
+  })
+
   it('reveals nothing about a credential the caller does not administer', async () => {
     reconnecting(keylessSecret, { isAdmin: false })
     expect(await prepare()).not.toHaveProperty('reconnectAuthType')

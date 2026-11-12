@@ -73,6 +73,8 @@ export function useKeylessSetup<P extends WorkloadIdentityProvider>({
     available: workspaceScoped ? setup.data?.available : false,
     /** The stored mode of the credential being reconnected; a reconnect reopens on it. */
     reconnectAuthType,
+    /** A reconnected keyless Google credential's domain-wide delegation; a reconnect keeps it. */
+    reconnectDelegation: setup.data?.reconnectDelegation,
     isReconnect: Boolean(credentialId),
     subjectChoice,
     setSubjectChoice,

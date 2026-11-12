@@ -577,6 +577,13 @@ export const createWorkspaceCredentialContract = defineRouteContract({
 /** The reconnected credential's stored auth mode, so the dialog reopens on it. */
 const reconnectAuthTypeSchema = z.enum(WORKLOAD_IDENTITY_AUTH_TYPE_LIST).optional()
 
+/** A reconnected keyless Google credential's domain-wide delegation, so the dialog keeps it. */
+const reconnectDelegationSchema = z
+  .object({ user: z.string(), services: z.array(z.string()) })
+  .optional()
+
+export type ReconnectDelegation = NonNullable<z.output<typeof reconnectDelegationSchema>>
+
 export const workloadIdentitySubjectGrantShape = {
   issuer: z
     .string()
@@ -615,11 +622,16 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
     mode: 'json',
     schema: z.discriminatedUnion('available', [
       /** This deployment has no workload-identity signing key; offer key-based modes only. */
-      z.object({ available: z.literal(false), reconnectAuthType: reconnectAuthTypeSchema }),
+      z.object({
+        available: z.literal(false),
+        reconnectAuthType: reconnectAuthTypeSchema,
+        reconnectDelegation: reconnectDelegationSchema,
+      }),
       z.object({
         available: z.literal(true),
         ...workloadIdentitySubjectGrantShape,
         reconnectAuthType: reconnectAuthTypeSchema,
+        reconnectDelegation: reconnectDelegationSchema,
       }),
     ]),
   },
