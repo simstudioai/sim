@@ -90,7 +90,7 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Only return events modified at or after this time (RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z)',
+        'Only return events modified at or after this time (RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z). Events deleted since then are always included.',
     },
   },
 

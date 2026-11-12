@@ -111,7 +111,7 @@ List events from Google Calendar.
 | `pageToken` | string | No | Token for retrieving the next page of results |
 | `orderBy` | string | No | Order of events: startTime \(chronological, the default\) or updated \(last-modified\). startTime is always valid here because singleEvents is set. |
 | `timeZone` | string | No | IANA time zone used for times in the response \(e.g., America/New_York\). Defaults to the calendar's time zone. |
-| `updatedMin` | string | No | Only return events modified at or after this time \(RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z\) |
+| `updatedMin` | string | No | Only return events modified at or after this time \(RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z\). Events deleted since then are always included. |
 
 #### Output
 

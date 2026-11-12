@@ -529,7 +529,7 @@ Search for files in Google Drive using advanced query syntax (e.g., fullText con
 | `query` | string | Yes | Google Drive query string using advanced search syntax \(e.g., "fullText contains 'budget'", "mimeType = 'application/pdf'", "modifiedTime &gt; '2024-01-01'"\) |
 | `pageSize` | number | No | Maximum number of files to return \(default: 100\) |
 | `pageToken` | string | No | Token for fetching the next page of results |
-| `orderBy` | string | No | Comma-separated sort keys: createdTime, folder, modifiedByMeTime, modifiedTime, name, name_natural, quotaBytesUsed, recency, sharedWithMeTime, starred, viewedByMeTime. Append " desc" to reverse \(e.g., "modifiedTime desc"\) |
+| `orderBy` | string | No | Comma-separated sort keys: createdTime, folder, modifiedByMeTime, modifiedTime, name, name_natural, quotaBytesUsed, recency, sharedWithMeTime, starred, viewedByMeTime. Append " desc" to reverse \(e.g., "modifiedTime desc"\). Ignored for fullText queries, which Drive always orders by relevance |
 | `driveId` | string | No | ID of a shared drive to restrict results to \(default: search My Drive and all shared drives\) |
 
 #### Output

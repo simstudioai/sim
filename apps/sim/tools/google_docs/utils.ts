@@ -33,7 +33,7 @@ export function resolveTabId(tabId: unknown): string | undefined {
  * string (agent tool-calls). Returns `undefined` when absent or not finite.
  */
 export function parseOptionalNumber(value: unknown): number | undefined {
-  if (value === undefined || value === null) return undefined
+  if (value === undefined || value === null || typeof value === 'boolean') return undefined
   if (typeof value === 'string' && value.trim() === '') return undefined
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : undefined

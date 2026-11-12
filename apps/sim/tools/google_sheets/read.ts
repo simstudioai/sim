@@ -56,11 +56,11 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
       // Keep a generous column/row bound to avoid huge payloads
       if (!params.range) {
         const defaultRange = 'A1:Z1000'
-        return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(defaultRange)}`
+        return `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(spreadsheetId, 'spreadsheetId')}/values/${encodeURIComponent(defaultRange)}`
       }
 
       // Otherwise, get values from the specified range
-      return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(params.range)}`
+      return `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(spreadsheetId, 'spreadsheetId')}/values/${encodeURIComponent(params.range)}`
     },
     method: 'GET',
     headers: (params) => {
@@ -193,7 +193,12 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
         throw new Error('Sheet name is required')
       }
 
-      if (params.majorDimension === 'COLUMNS' && params.filterColumn?.trim()) {
+      if (
+        params.majorDimension === 'COLUMNS' &&
+        params.filterColumn?.trim() &&
+        params.filterValue !== undefined &&
+        params.filterValue !== ''
+      ) {
         throw new Error(
           'Filtering requires majorDimension ROWS; remove majorDimension or the filter'
         )

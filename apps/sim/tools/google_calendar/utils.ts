@@ -1,4 +1,5 @@
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import type {
   GoogleCalendarApiEventResponse,
   GoogleCalendarEventDetails,
@@ -104,13 +105,14 @@ const MAX_REMINDER_OVERRIDES = 5
 const MAX_REMINDER_MINUTES = 40320
 
 /**
- * Parse reminder overrides from a JSON string or array of `{ method, minutes }` objects.
- * Returns `undefined` when nothing usable was provided. An empty array (`[]`) means
- * "no reminders" and is returned as-is so callers can turn the calendar default off.
+ * Parse the reminders input into the Calendar `reminders` setting. Accepts a JSON string or
+ * value that is either an array of `{ method, minutes }` overrides (custom reminders; `[]`
+ * turns reminders off) or the API's own `{ useDefault, overrides }` object, so a previous
+ * event's reminders can be copied as-is. Returns `undefined` when nothing usable was provided.
  */
-function parseReminderOverrides(
-  reminders: string | GoogleCalendarReminderOverride[] | undefined
-): GoogleCalendarReminderOverride[] | undefined {
+function parseReminders(
+  reminders: unknown
+): { useDefault: boolean; overrides?: GoogleCalendarReminderOverride[] } | undefined {
   if (reminders === undefined || reminders === null) return undefined
 
   let parsed: unknown = reminders
@@ -124,6 +126,19 @@ function parseReminderOverrides(
     }
   }
 
+  if (isRecordLike(parsed) && !Array.isArray(parsed)) {
+    if (typeof parsed.useDefault !== 'boolean') {
+      throw new Error('Reminders object needs a boolean useDefault, like {"useDefault":true}')
+    }
+    if (parsed.useDefault) return { useDefault: true }
+    const overrides = parsed.overrides === undefined ? [] : parsed.overrides
+    return { useDefault: false, overrides: validateReminderOverrides(overrides) }
+  }
+
+  return { useDefault: false, overrides: validateReminderOverrides(parsed) }
+}
+
+function validateReminderOverrides(parsed: unknown): GoogleCalendarReminderOverride[] {
   if (!Array.isArray(parsed)) {
     throw new Error('Reminders must be an array of { method, minutes } objects')
   }
@@ -168,8 +183,8 @@ export function applyEventOptions(
   if (params.transparency) body.transparency = params.transparency
   const colorId = params.colorId?.toString().trim()
   if (colorId) body.colorId = colorId
-  const overrides = parseReminderOverrides(params.reminders)
-  if (overrides) body.reminders = { useDefault: false, overrides }
+  const reminders = parseReminders(params.reminders)
+  if (reminders) body.reminders = reminders
 }
 
 /** Fields shared by every event-shaped output beyond the core id/summary/time/people fields. */

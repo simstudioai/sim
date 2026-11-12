@@ -622,7 +622,17 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         { label: 'User Entered (Parse formulas)', id: 'USER_ENTERED' },
         { label: "Raw (Don't parse formulas)", id: 'RAW' },
       ],
-      condition: { field: 'operation', value: ['write', 'update', 'append', 'batch_update'] },
+      condition: { field: 'operation', value: ['write', 'update', 'batch_update'] },
+    },
+    {
+      id: 'appendValueInputOption',
+      title: 'Value Input Option',
+      type: 'dropdown',
+      options: [
+        { label: 'User Entered (Parse formulas)', id: 'USER_ENTERED' },
+        { label: "Raw (Don't parse formulas)", id: 'RAW' },
+      ],
+      condition: { field: 'operation', value: 'append' },
     },
     {
       id: 'includeValuesInResponse',
@@ -937,6 +947,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           filterValue,
           filterMatchType,
           majorDimension,
+          appendValueInputOption,
           ...rest
         } = params
 
@@ -1067,6 +1078,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             ? { filterValue: filterValue as string }
             : {}),
           ...(filterMatchType ? { filterMatchType: filterMatchType as string } : {}),
+          ...(operation === 'append'
+            ? { valueInputOption: appendValueInputOption || undefined }
+            : {}),
         }
       },
     },
@@ -1079,6 +1093,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     cellRange: { type: 'string', description: 'Cell range (e.g., A1:D10)' },
     values: { type: 'string', description: 'Cell values data' },
     valueInputOption: { type: 'string', description: 'Value input option' },
+    appendValueInputOption: { type: 'string', description: 'Value input option for Append' },
     insertDataOption: { type: 'string', description: 'Data insertion option' },
     includeValuesInResponse: {
       type: 'boolean',

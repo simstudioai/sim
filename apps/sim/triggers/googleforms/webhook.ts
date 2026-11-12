@@ -157,6 +157,7 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       type: 'string',
       description:
         'Respondent email address (only when the form collects emails and the forwarder script sends it)',
+      optional: true,
     },
     answers: { type: 'object', description: 'Normalized map of question -> answer' },
     raw: { type: 'object', description: 'Original payload (when enabled)' },
