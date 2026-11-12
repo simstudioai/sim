@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { jsonResponse } from '@sim/testing/helpers/http'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateGitHubServiceAccount } from '@/lib/credentials/token-service-accounts/validators/token-checks'
 
 const TOKEN = 'test-github-token'
@@ -59,6 +59,59 @@ describe('GitHub saved personal access token verification', () => {
 
     await expect(validateGitHubServiceAccount({ apiToken: TOKEN })).rejects.toMatchObject({
       code: 'provider_unavailable',
+    })
+  })
+
+  describe('token expiry', () => {
+    const NOW = new Date('2026-11-11T12:00:00.000Z')
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(NOW)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    function userReply(expiration?: string) {
+      return jsonResponse(
+        { login: 'octo-bot', id: 1 },
+        expiration ? { headers: { 'GitHub-Authentication-Token-Expiration': expiration } } : 200
+      )
+    }
+
+    it.each([
+      ['a UTC timestamp', '2026-12-01 10:30:00 UTC', '2026-12-01T10:30:00.000Z'],
+      [
+        'a timestamp with a numeric offset',
+        '2026-12-01 12:30:00 +0200',
+        '2026-12-01T10:30:00.000Z',
+      ],
+    ])('records the expiry GitHub reports as %s', async (_, header, expected) => {
+      fetch.mockResolvedValue(userReply(header))
+
+      const result = await validateGitHubServiceAccount({ apiToken: TOKEN })
+
+      expect(result.expiresAt?.toISOString()).toBe(expected)
+    })
+
+    it.each([
+      ['no expiry header (a token that never expires)', undefined],
+      ['an unreadable expiry', 'next Tuesday'],
+      ['an impossible date', '2026-13-45 10:00:00 UTC'],
+      ['an expiry in the past, contradicting the accepted request', '2026-11-10 12:00:00 UTC'],
+      [
+        'an expiry minutes away, which GitHub has wrongly reported for live tokens',
+        '2026-11-11 12:01:00 UTC',
+      ],
+    ])('records no expiry for %s and still accepts the token', async (_, header) => {
+      fetch.mockResolvedValue(userReply(header))
+
+      const result = await validateGitHubServiceAccount({ apiToken: TOKEN })
+
+      expect(result.displayName).toBe('octo-bot (GitHub)')
+      expect(result.expiresAt).toBeUndefined()
     })
   })
 })

@@ -291,6 +291,11 @@ export interface TokenServiceAccountValidationResult {
   normalizedDomain?: string
   /** Normalized account id to persist instead of the raw user input (when collected). */
   normalizedWorkspaceId?: string
+  /**
+   * When the vendor stops accepting the token, for a vendor that states it at verification.
+   * Absent when the token never expires or the vendor does not say.
+   */
+  expiresAt?: Date
 }
 
 export type TokenServiceAccountValidator = (
