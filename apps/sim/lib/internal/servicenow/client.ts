@@ -5,7 +5,7 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { ServiceNowOperationError } from '@/lib/internal/servicenow/errors'
 import type { ServiceNowAttachment } from '@/tools/servicenow/types'
-import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import { serviceNowAuthorization } from '@/tools/servicenow/utils'
 
 export async function uploadServiceNowAttachment(
   input: {
@@ -15,7 +15,9 @@ export async function uploadServiceNowAttachment(
     password: string
     recordSysId: string
     tableName: string
-    username: string
+    username?: string
+    accessToken?: string
+    authStyle?: string
   },
   buffer: Buffer,
   signal?: AbortSignal
@@ -33,7 +35,7 @@ export async function uploadServiceNowAttachment(
       profile: 'configuredEndpoint',
       method: 'POST',
       headers: {
-        Authorization: createBasicAuthHeader(input.username, input.password),
+        Authorization: serviceNowAuthorization({ ...input, username: input.username ?? '' }),
         'Content-Type': input.contentType,
         Accept: 'application/json',
       },

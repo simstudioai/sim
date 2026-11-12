@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { serviceNowCredentialParams } from '@/tools/servicenow/params'
 import type { ServiceNowUpdateParams, ServiceNowUpdateResponse } from '@/tools/servicenow/types'
 import {
   buildServiceNowHeaders,
@@ -37,6 +38,7 @@ export const updateRecordTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpda
       visibility: 'user-only',
       description: 'ServiceNow password',
     },
+    ...serviceNowCredentialParams(),
     tableName: {
       type: 'string',
       required: true,

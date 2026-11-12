@@ -43,9 +43,10 @@ interface TokenCheck {
   /**
    * For a credential whose account id is part of the connection (an org slug,
    * account SID): returns it trimmed, throwing for a value that could steer the
-   * request's path or host.
+   * request's path or host. Returns `undefined` for a sign-in mode that has no
+   * account id (a ServiceNow OAuth client has no username).
    */
-  workspaceId?: (fields: TokenServiceAccountFields) => string
+  workspaceId?: (fields: TokenServiceAccountFields) => string | undefined
   /**
    * The domain a credential takes when none is given (its descriptor field's `defaultValue`). A
    * credential on it keeps the bare service name credentials saved before the field existed have,
@@ -149,7 +150,7 @@ export function allowedDomain(allowed: { has(value: string): boolean }) {
 
 /** Runs `normalize` on a typed connection field, rejecting what it refuses as the user's input. */
 function normalizedField(
-  normalize: ((fields: TokenServiceAccountFields) => string) | undefined,
+  normalize: ((fields: TokenServiceAccountFields) => string | undefined) | undefined,
   fields: TokenServiceAccountFields,
   field: 'domain' | 'account id'
 ): string | undefined {

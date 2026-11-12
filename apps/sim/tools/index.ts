@@ -636,7 +636,8 @@ const CREDENTIAL_FIELD_LABELS: Record<CredentialParamSource, string> = {
  * Fills the params a saved credential supplies (`oauth.credentialParams`) from
  * the resolved credential. Runs only after authorization, overwrites any value
  * the caller or model supplied, and fails closed when the credential lacks a
- * mapped field rather than sending a request without it.
+ * mapped field rather than sending a request without it, unless the policy
+ * names that param optional, which is then cleared instead.
  */
 function applyCredentialParams(
   tool: ToolDefinition,
@@ -646,6 +647,10 @@ function applyCredentialParams(
   for (const [param, source] of Object.entries(tool.oauth?.credentialParams ?? {})) {
     const value = credential[source]
     if (typeof value !== 'string' || value.length === 0) {
+      if (tool.oauth?.optionalCredentialParams?.includes(param)) {
+        params[param] = undefined
+        continue
+      }
       throw new Error(
         `${tool.name} needs a saved credential with ${CREDENTIAL_FIELD_LABELS[source]}`
       )

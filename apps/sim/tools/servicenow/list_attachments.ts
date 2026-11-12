@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { serviceNowCredentialParams } from '@/tools/servicenow/params'
 import type {
   ServiceNowListAttachmentsParams,
   ServiceNowListAttachmentsResponse,
@@ -38,6 +39,7 @@ export const listAttachmentsTool: ToolConfig<
       visibility: 'user-only',
       description: 'ServiceNow password',
     },
+    ...serviceNowCredentialParams(),
     tableName: {
       type: 'string',
       required: true,

@@ -5,6 +5,7 @@ import {
   validateOktaDomain,
   validateSupabaseProjectId,
 } from '@/lib/core/security/input-validation'
+import { CLIENT_CREDENTIALS_AUTH_METHOD } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   fetchProvider,
   TokenServiceAccountValidationError,
@@ -55,7 +56,7 @@ import {
 import { RAILWAY_GRAPHQL_URL, railwayHeaders } from '@/tools/railway/utils'
 import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENTRY_REGIONS } from '@/tools/sentry/utils'
-import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import { SERVICENOW_BEARER_AUTH_STYLE, serviceNowAuthorization } from '@/tools/servicenow/utils'
 import type { CredentialRegions } from '@/tools/shared/credential-regions'
 import { buildSplunkHeaders, buildSplunkUrl } from '@/tools/splunk/utils'
 import { SQUARE_ENVIRONMENTS } from '@/tools/square/types'
@@ -1639,7 +1640,7 @@ export const validateSentryServiceAccount = tokenCheckValidator({
  * `configuredEndpoint` egress check refuses private and loopback addresses, and the saved password
  * only ever goes to the host stored with it.
  */
-function normalizeServiceNowInstanceUrl(raw: string | undefined): string {
+export function normalizeServiceNowInstanceUrl(raw: string | undefined): string {
   const typed = refuseUnsafeTypedUrl(raw)
   const url = new URL(/^https?:\/\//i.test(typed) ? typed : `https://${typed}`)
   if (url.protocol !== 'https:') throw new Error('https only')
@@ -1652,21 +1653,31 @@ function normalizeServiceNowInstanceUrl(raw: string | undefined): string {
  * credentials with 401 and a request its ACLs refuse with a JSON 403, which still proves the
  * login. The username is the Basic username, so one with a colon is refused unsent. Only a
  * Table API `result` list proves the login: a hibernating instance answers 200 with a page.
+ * A token an OAuth client minted is proven with the same read as a bearer token, the way the
+ * tools send it, and has no username.
  */
 export const validateServiceNowServiceAccount = tokenCheckValidator({
   serviceLabel: 'ServiceNow',
   domain: ({ domain }) => normalizeServiceNowInstanceUrl(domain),
-  workspaceId: ({ providerWorkspaceId }) => {
+  workspaceId: ({ providerWorkspaceId, authMethod }) => {
+    if (authMethod === CLIENT_CREDENTIALS_AUTH_METHOD) return undefined
     const username = (providerWorkspaceId ?? '').trim()
     if (!/^[^:\x00-\x1f\x7f]+$/.test(username)) throw new Error('invalid username')
     return username
   },
   egress: 'configuredEndpoint',
   forbiddenMeansScoped: true,
-  request: ({ apiToken, domain, providerWorkspaceId = '' }) => ({
+  request: ({ apiToken, domain, providerWorkspaceId = '', authMethod }) => ({
     url: `${domain}/api/now/table/sys_user?sysparm_limit=1&sysparm_fields=sys_id`,
     headers: {
-      Authorization: createBasicAuthHeader(providerWorkspaceId, apiToken),
+      Authorization: serviceNowAuthorization({
+        username: providerWorkspaceId,
+        password: apiToken,
+        accessToken: apiToken,
+        ...(authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
+          ? { authStyle: SERVICENOW_BEARER_AUTH_STYLE }
+          : {}),
+      }),
       Accept: 'application/json',
     },
   }),

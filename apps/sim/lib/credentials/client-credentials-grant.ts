@@ -38,6 +38,12 @@ export interface ClientCredentialsGrantRequest {
   label: string
   /** The longest a token is kept, whatever `expires_in` the provider reports. */
   maxLifetimeSeconds: number
+  /**
+   * `configuredEndpoint` when {@link url} is on a host the admin configured rather than a fixed
+   * provider host: the request then goes through {@link postToConfiguredTokenEndpoint}, and
+   * `fetchOptions` does not apply.
+   */
+  egress?: 'configuredEndpoint'
   fetchOptions?: FetchProviderOptions
   /**
    * Maps a refused exchange to a provider-specific error. Without it, a refusal is
@@ -70,26 +76,25 @@ export async function exchangeClientCredentialsGrant(
   const replaced = RESERVED_GRANT_FIELDS.find((field) => Object.hasOwn(extraFields, field))
   if (replaced) throw new Error(`An extra field cannot replace the grant's ${replaced}`)
   const startedAt = Date.now()
-  const response = await fetchProvider(
-    request.url,
-    {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: request.clientId,
-        client_secret: request.clientSecret,
-        ...extraFields,
-      }).toString(),
-      cache: 'no-store',
-      signal,
-    },
-    step,
-    request.fetchOptions
-  )
+  const headers = {
+    Accept: 'application/json',
+    'Content-Type': 'application/x-www-form-urlencoded',
+  }
+  const body = new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_id: request.clientId,
+    client_secret: request.clientSecret,
+    ...extraFields,
+  }).toString()
+  const response: ProviderResponse =
+    request.egress === 'configuredEndpoint'
+      ? await postToConfiguredTokenEndpoint({ url: request.url, headers, body, step, signal })
+      : await fetchProvider(
+          request.url,
+          { method: 'POST', headers, body, cache: 'no-store', signal },
+          step,
+          request.fetchOptions
+        )
   if (!response.ok) {
     const body = await readProviderErrorSnippet(response)
     signal?.throwIfAborted()

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
+import { serviceNowCredentialParams } from '@/tools/servicenow/params'
 import type {
   ServiceNowDownloadAttachmentParams,
   ServiceNowDownloadAttachmentResponse,
@@ -74,6 +75,7 @@ export const downloadAttachmentTool = {
       visibility: 'user-only',
       description: 'ServiceNow password',
     },
+    ...serviceNowCredentialParams(),
     attachmentSysId: {
       type: 'string',
       required: true,

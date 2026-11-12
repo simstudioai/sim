@@ -88,6 +88,27 @@ describe('required fields for a service-account create', () => {
     ).toEqual(['clientId', 'clientSecret'])
     expect(getMissingServiceAccountFields('linear-service-account', {})).toEqual(['apiToken'])
   })
+
+  it('asks a ServiceNow OAuth client create for the instance but not a username', () => {
+    expect(
+      getMissingServiceAccountFields('servicenow-service-account', {
+        authMethod: 'client_credentials',
+      })
+    ).toEqual(['clientId', 'clientSecret', 'domain'])
+    expect(getMissingServiceAccountFields('servicenow-service-account', {})).toEqual([
+      'apiToken',
+      'providerWorkspaceId',
+      'domain',
+    ])
+  })
+
+  it('asks an Infisical Universal Auth create for the client ID, secret, and instance', () => {
+    expect(
+      getMissingServiceAccountFields('infisical-service-account', {
+        authMethod: 'client_credentials',
+      })
+    ).toEqual(['clientId', 'clientSecret', 'domain'])
+  })
 })
 
 describe('an optional token-provider field', () => {

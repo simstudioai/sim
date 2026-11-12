@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { serviceNowCredentialParams } from '@/tools/servicenow/params'
 import type {
   ServiceNowAggregateParams,
   ServiceNowAggregateResponse,
@@ -42,6 +43,7 @@ export const aggregateTool: ToolConfig<ServiceNowAggregateParams, ServiceNowAggr
       visibility: 'user-only',
       description: 'ServiceNow password',
     },
+    ...serviceNowCredentialParams(),
     tableName: {
       type: 'string',
       required: true,

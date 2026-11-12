@@ -59,6 +59,11 @@ export interface TokenServiceAccountField {
    * provider's check would reject. Compared case-insensitively against the typed domain.
    */
   requiredForDomain?: string
+  /**
+   * Belongs to the pasted-token sign-in only (ServiceNow's username, which a minted token replaces):
+   * the client-credentials mode neither shows, requires, nor stores it.
+   */
+  pastedTokenOnly?: boolean
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
@@ -133,6 +138,12 @@ interface TokenServiceAccountClientCredentials {
    * retyping the secret.
    */
   preferred?: boolean
+  /**
+   * `bearer` for a provider whose pasted mode is not a bearer token (ServiceNow's is a Basic
+   * username and password): the minted token then resolves with this `authStyle`, which its
+   * tools read to send it as a bearer token. Absent leaves `authStyle` unset, as before.
+   */
+  authStyle?: 'bearer'
 }
 
 /** `authMethod` value selecting the client-credentials mode of a provider whose default is a pasted token (a token provider, or the Atlassian service account). */
@@ -2615,6 +2626,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Username',
         placeholder: 'Enter the ServiceNow username',
         secret: false,
+        pastedTokenOnly: true,
       },
       {
         id: 'domain',
@@ -2628,6 +2640,15 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       "Use a dedicated integration user with the roles your workflows need and without multi-factor authentication. Enter your instance's https URL, like acme.service-now.com or a custom instance URL. The instance must be reachable from the internet.",
     invalidCredentialsHelp:
       'ServiceNow rejected this username and password. Check the instance URL, and that the user is active, not locked out, and not required to use multi-factor authentication.',
+    clientCredentials: {
+      label: 'OAuth client credentials',
+      tokenLabel: 'Username and password',
+      authStyle: 'bearer',
+      helpText:
+        'Use the client ID and secret of an inbound OAuth client set to the client credentials grant. An admin must first set the glide.oauth.inbound.client.credential.grant_type.enabled system property to true and give the client an OAuth Application User with the roles your workflows need; requests act as that user.',
+      invalidCredentialsHelp:
+        'ServiceNow rejected these client credentials. Check the instance URL, the client ID and secret, that the glide.oauth.inbound.client.credential.grant_type.enabled system property is true, and that the client has an active OAuth Application User.',
+    },
   },
   [AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2813,8 +2834,8 @@ export function isTokenServiceAccountFieldRequired(field: TokenServiceAccountFie
 
 /**
  * Required contract fields per token provider in client-credentials mode: the client ID and
- * secret replace the token, and every other descriptor field without a default (a store domain)
- * stays required.
+ * secret replace the token, and every other descriptor field without a default (a store
+ * domain) stays required unless it belongs to the pasted-token sign-in only.
  */
 export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
   string,
@@ -2828,7 +2849,11 @@ export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
         'clientId',
         'clientSecret',
         ...descriptor.fields.flatMap((field) =>
-          field.id !== 'apiToken' && isTokenServiceAccountFieldRequired(field) ? [field.id] : []
+          field.id === 'apiToken' ||
+          field.pastedTokenOnly ||
+          !isTokenServiceAccountFieldRequired(field)
+            ? []
+            : [field.id]
         ),
       ],
     ])

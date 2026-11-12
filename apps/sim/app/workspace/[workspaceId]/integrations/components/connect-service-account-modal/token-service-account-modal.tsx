@@ -119,7 +119,11 @@ function TokenServiceAccountModalForm({
   const usesClientCredentials = authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
   const tokenField = descriptor.fields.find((field) => field.id === 'apiToken')
   const domainField = descriptor.fields.find((field) => field.id === 'domain')
-  const workspaceField = descriptor.fields.find((field) => field.id === 'providerWorkspaceId')
+  /** A field of the pasted-token sign-in only (ServiceNow's username) hides in client-credentials mode. */
+  const workspaceField = descriptor.fields.find(
+    (field) =>
+      field.id === 'providerWorkspaceId' && !(usesClientCredentials && field.pastedTokenOnly)
+  )
   /**
    * A new connection starts on the domain's default (the region or host it had before the field
    * existed). A reconnect starts blank, which keeps the stored value: the server carries it

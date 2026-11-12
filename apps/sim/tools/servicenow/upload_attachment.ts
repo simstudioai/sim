@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { serviceNowCredentialParams } from '@/tools/servicenow/params'
 import type {
   ServiceNowUploadAttachmentParams,
   ServiceNowUploadAttachmentResponse,
@@ -37,6 +38,7 @@ export const uploadAttachmentTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'ServiceNow password',
     },
+    ...serviceNowCredentialParams(),
     tableName: {
       type: 'string',
       required: true,
@@ -68,6 +70,8 @@ export const uploadAttachmentTool: InternalToolConfig<
       instanceUrl: params.instanceUrl,
       username: params.username,
       password: params.password,
+      accessToken: params.accessToken,
+      authStyle: params.authStyle,
       tableName: params.tableName,
       recordSysId: params.recordSysId,
       fileName: params.fileName,
