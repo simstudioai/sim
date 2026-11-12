@@ -24,6 +24,11 @@ function getExplicitPageSize(params: DataverseListRecordsParams): number | undef
   return pageSize
 }
 
+/** Dataverse serves the same environment on `org.crm…` and `org.api.crm…`; compare them as one host. */
+function environmentHost(url: URL): string {
+  return url.host.toLowerCase().replace(/^([^.]+)\.api\./, '$1.')
+}
+
 /**
  * A continuation link is followed verbatim, as Dataverse requires, but only when it stays on the
  * environment this request is bound to, so a supplied link can never carry the bearer token to
@@ -46,7 +51,7 @@ function assertNextLink(nextLink: string, baseUrl: string): string {
     url.protocol !== 'https:' ||
     url.username !== '' ||
     url.password !== '' ||
-    url.origin !== new URL(baseUrl).origin ||
+    environmentHost(url) !== environmentHost(new URL(baseUrl)) ||
     !url.pathname.startsWith('/api/data/')
   ) {
     throw new Error('nextLink must be a Web API URL on the selected Dataverse environment')

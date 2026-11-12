@@ -157,7 +157,12 @@ function identityField(value: unknown): AzureDevOpsIdentityRef | null {
 
 /** Output schema for the work item fields beyond the original summary set. */
 export const WORK_ITEM_DETAIL_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
-  rev: { type: 'number', description: 'Revision number of the work item', optional: true },
+  rev: {
+    type: 'number',
+    description: 'Revision number of the work item',
+    optional: true,
+    nullable: true,
+  },
   description: {
     type: 'string',
     description: 'Description (System.Description, HTML)',

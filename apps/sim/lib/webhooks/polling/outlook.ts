@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { htmlToText } from 'html-to-text'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { AttachmentDownloadBudget } from '@/lib/uploads/utils/attachment-download-budget'
 import {
   getProviderConfig,
   type PollingProviderHandler,
@@ -414,7 +415,21 @@ async function processOutlookEmails(
           let attachments: OutlookAttachment[] = []
           if (config.includeAttachments && email.hasAttachments) {
             try {
-              attachments = await downloadAttachments(email.id, accessToken)
+              attachments = await downloadAttachments(
+                email.id,
+                accessToken,
+                new AttachmentDownloadBudget(),
+                {
+                  fetchImpl: (url, init) => fetchWithRetry(url, init),
+                  keepPartialOnLimit: true,
+                  onFailure: (stage, status) =>
+                    logger.warn('Outlook attachment request failed', {
+                      emailId: email.id,
+                      stage,
+                      status,
+                    }),
+                }
+              )
             } catch (error) {
               logger.error(`Error downloading attachments for email ${email.id}:`, error)
             }

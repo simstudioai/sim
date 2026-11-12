@@ -1,3 +1,4 @@
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -23,23 +24,44 @@ interface OutlookDownloadAttachmentMetadata {
   size?: number
 }
 
+/** Caller hooks for {@link downloadAttachments}; omitted options keep the tool's default behavior. */
+export interface OutlookAttachmentDownloadOptions {
+  /** Fetch implementation, e.g. a retrying fetch for background polling. */
+  fetchImpl?: (url: string, init: RequestInit) => Promise<Response>
+  /** Return attachments already downloaded when the byte budget is exceeded instead of throwing. */
+  keepPartialOnLimit?: boolean
+  /** Called when Graph answers a metadata or content request with a non-OK status. */
+  onFailure?: (stage: 'metadata' | 'content', status: number) => void
+}
+
 /** Fetch metadata separately from raw file bytes, sharing the budget across messages. */
 export async function downloadAttachments(
   messageId: string,
   accessToken: string,
-  budget = new AttachmentDownloadBudget()
+  budget = new AttachmentDownloadBudget(),
+  options: OutlookAttachmentDownloadOptions = {}
 ): Promise<OutlookAttachment[]> {
+  const fetchImpl = options.fetchImpl ?? ((url: string, init: RequestInit) => fetch(url, init))
   const attachments: OutlookAttachment[] = []
   const path = `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}/attachments`
+  const handleError = (error: unknown) => {
+    if (options.keepPartialOnLimit && isPayloadSizeLimitError(error)) {
+      budget.signal?.throwIfAborted()
+      return true
+    }
+    rethrowAttachmentDownloadError(error, budget.signal)
+    return false
+  }
   try {
     budget.signal?.throwIfAborted()
-    const response = await fetch(`${path}?$select=id,name,contentType,size`, {
+    const response = await fetchImpl(`${path}?$select=id,name,contentType,size`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: budget.signal,
     })
     if (!response.ok) {
       await response.body?.cancel()
       budget.signal?.throwIfAborted()
+      options.onFailure?.('metadata', response.status)
       return attachments
     }
     const data = await readAttachmentJson<{ value?: OutlookDownloadAttachmentMetadata[] }>(
@@ -52,13 +74,14 @@ export async function downloadAttachments(
       try {
         if (attachment.size !== undefined) budget.assertSize(attachment.size, 'Outlook attachments')
         budget.signal?.throwIfAborted()
-        const content = await fetch(`${path}/${encodeURIComponent(attachment.id)}/$value`, {
+        const content = await fetchImpl(`${path}/${encodeURIComponent(attachment.id)}/$value`, {
           headers: { Authorization: `Bearer ${accessToken}` },
           signal: budget.signal,
         })
         if (!content.ok) {
           await content.body?.cancel()
           budget.signal?.throwIfAborted()
+          options.onFailure?.('content', content.status)
           continue
         }
         const buffer = await budget.read(content, 'Outlook attachments')
@@ -72,11 +95,11 @@ export async function downloadAttachments(
           size: buffer.byteLength,
         })
       } catch (error) {
-        rethrowAttachmentDownloadError(error, budget.signal)
+        if (handleError(error)) break
       }
     }
   } catch (error) {
-    rethrowAttachmentDownloadError(error, budget.signal)
+    handleError(error)
   }
   return attachments
 }

@@ -62,7 +62,10 @@ export const listUserMembershipsTool: ToolConfig<
     url: (params) => {
       const relationship = params.transitive ? 'transitiveMemberOf' : 'memberOf'
       if (params.nextLink)
-        return assertGraphNextPageUrlForCollection(params.nextLink, [relationship])
+        return assertGraphNextPageUrlForCollection(params.nextLink, [
+          'memberOf',
+          'transitiveMemberOf',
+        ])
       const userId = params.userId?.trim()
       if (!userId) throw new Error('User ID is required')
       const queryParts = [`$select=${MEMBERSHIP_SELECT}`]

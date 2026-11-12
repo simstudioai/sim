@@ -1200,7 +1200,11 @@ export const SharepointV2Block: BlockConfig = {
       title: 'Item Filter',
       type: 'short-input',
       placeholder: "OData filter, e.g. fields/Status eq 'Active'",
-      condition: { field: 'operation', value: 'sharepoint_get_list' },
+      condition: {
+        field: 'operation',
+        value: 'sharepoint_get_list',
+        and: { field: 'includeColumns', value: 'true', not: true },
+      },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -1222,7 +1226,11 @@ Return ONLY the filter expression - no explanations, no quotes around the whole 
       title: 'Items Per Page',
       type: 'short-input',
       placeholder: 'Maximum items per page (1-5000)',
-      condition: { field: 'operation', value: 'sharepoint_get_list' },
+      condition: {
+        field: 'operation',
+        value: 'sharepoint_get_list',
+        and: { field: 'includeColumns', value: 'true', not: true },
+      },
       mode: 'advanced',
     },
     {

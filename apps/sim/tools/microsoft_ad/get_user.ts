@@ -63,15 +63,13 @@ export const getUserTool: ToolConfig<MicrosoftAdGetUserParams, MicrosoftAdGetUse
       Authorization: `Bearer ${params.accessToken}`,
     }),
   },
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const user = await response.json()
     return {
       success: true,
       output: {
-        user: {
-          ...mapUser(user),
-          manager: mapManager(user.manager),
-        },
+        user: mapUser(user),
+        ...(params?.includeManager ? { manager: mapManager(user.manager) } : {}),
       },
     }
   },
@@ -79,16 +77,14 @@ export const getUserTool: ToolConfig<MicrosoftAdGetUserParams, MicrosoftAdGetUse
     user: {
       type: 'object',
       description: 'User details',
-      properties: {
-        ...USER_OUTPUT_PROPERTIES,
-        manager: {
-          type: 'object',
-          description:
-            "The user's manager (only when includeManager is true), or null when no manager is assigned",
-          optional: true,
-          properties: MANAGER_OUTPUT_PROPERTIES,
-        },
-      },
+      properties: USER_OUTPUT_PROPERTIES,
+    },
+    manager: {
+      type: 'object',
+      description:
+        "The user's manager, returned only when includeManager is true; null when no manager is assigned",
+      optional: true,
+      properties: MANAGER_OUTPUT_PROPERTIES,
     },
   },
 }

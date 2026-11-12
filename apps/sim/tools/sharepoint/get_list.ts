@@ -156,6 +156,17 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
         return finalItemsUrl
       }
 
+      if (
+        params.includeColumns &&
+        (optionalTrim(params.filter) ||
+          optionalTrim(params.selectFields) ||
+          (params.top !== undefined && params.top !== null && String(params.top).trim()))
+      ) {
+        throw new Error(
+          'filter, top, and selectFields apply only when includeColumns is false; read columns and filtered items in separate calls'
+        )
+      }
+
       const baseUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/lists/${listSegment}`
       const url = new URL(baseUrl)
       const expandParts: string[] = []
@@ -177,7 +188,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       Accept: 'application/json',
-      ...(optionalTrim(params.filter)
+      ...(optionalTrim(params.filter) || /(\$|%24)filter=/i.test(params.nextPageUrl ?? '')
         ? { Prefer: 'HonorNonIndexedQueriesWarningMayFailRandomly' }
         : {}),
     }),

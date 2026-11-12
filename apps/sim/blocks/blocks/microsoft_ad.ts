@@ -963,8 +963,12 @@ export const MicrosoftAdBlock: BlockConfig = {
     userCount: { type: 'number', description: 'Number of users returned on this page' },
     user: {
       type: 'json',
+      description: 'The single user this operation created or read',
+    },
+    manager: {
+      type: 'json',
       description:
-        'The single user this operation created or read. With Include Manager on, Get User also returns manager (id, displayName, mail, userPrincipalName, jobTitle), or null when none is assigned.',
+        "Get User with Include Manager on: the user's manager (id, displayName, mail, userPrincipalName, jobTitle), or null when none is assigned",
     },
     userId: { type: 'string', description: 'Object ID of the user the operation acted on' },
     userPrincipalName: { type: 'string', description: 'User principal name of that user' },

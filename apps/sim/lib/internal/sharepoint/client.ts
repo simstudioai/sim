@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   type SecureFetchOptions,
   type SecureFetchResponse,
@@ -79,9 +80,13 @@ function readJson<T>(
 }
 
 function driveItemUrl(driveId: string, itemId: string): string {
-  const drive = safeUrlPathSegment(driveId, 'driveId', { allowSeparators: true })
-  const item = safeUrlPathSegment(itemId, 'itemId', { allowSeparators: true })
-  return `https://graph.microsoft.com/v1.0/drives/${drive}/items/${item}`
+  try {
+    const drive = safeUrlPathSegment(driveId, 'driveId', { allowSeparators: true })
+    const item = safeUrlPathSegment(itemId, 'itemId', { allowSeparators: true })
+    return `https://graph.microsoft.com/v1.0/drives/${drive}/items/${item}`
+  } catch (error) {
+    throw new SharePointGraphError(getErrorMessage(error, 'Invalid drive item path'), 400)
+  }
 }
 
 function graphErrorMessage(

@@ -80,7 +80,7 @@ Run a Kusto Query Language (KQL) query against an Azure Data Explorer database a
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
-| `truncated` | boolean | Whether rows were dropped to stay within the row or size cap — narrow the query if true |
+| `truncated` | boolean | Whether rows of the primary result table were dropped to stay within the row or size cap \(each additionalResults entry has its own truncated flag\) — narrow the query if true |
 | `additionalResults` | array | Further result tables, present only when a query batch \(statements separated by ;\) or fork returns more than one; the row and size caps are shared across all tables |
 |   ↳ `tableName` | string | Result table name |
 |   ↳ `columns` | array | Column metadata \(name, type, dataType\) |

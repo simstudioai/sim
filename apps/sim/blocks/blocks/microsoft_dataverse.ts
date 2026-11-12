@@ -762,11 +762,7 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
   },
   outputs: {
     records: { type: 'json', description: 'Array of records (list/fetchxml/search)' },
-    record: {
-      type: 'json',
-      description:
-        'Single record data (update record returns it only when Return Updated Record is on)',
-    },
+    record: { type: 'json', description: 'Single record data' },
     recordId: { type: 'string', description: 'Record ID' },
     count: { type: 'number', description: 'Number of records returned in the current page' },
     totalCount: {

@@ -160,8 +160,9 @@ export function extractMessageDetails(message: unknown): TeamsMessageDetails {
 export function extractNextPageToken(nextLink: unknown): string | null {
   if (typeof nextLink !== 'string' || !nextLink) return null
   try {
-    const params = new URL(nextLink).searchParams
-    return params.get('$skiptoken') ?? params.get('$skipToken')
+    const url = new URL(nextLink)
+    if (url.origin !== 'https://graph.microsoft.com') return null
+    return url.searchParams.get('$skiptoken') ?? url.searchParams.get('$skipToken')
   } catch {
     return null
   }

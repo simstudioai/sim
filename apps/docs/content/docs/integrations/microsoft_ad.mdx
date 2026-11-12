@@ -116,6 +116,29 @@ Get a user by ID or user principal name from Azure AD
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `user` | object | User details |
+|   ↳ `id` | string | User ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `givenName` | string | First name |
+|   ↳ `surname` | string | Last name |
+|   ↳ `userPrincipalName` | string | User principal name \(email\) |
+|   ↳ `mail` | string | Email address |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `department` | string | Department |
+|   ↳ `officeLocation` | string | Office location |
+|   ↳ `mobilePhone` | string | Mobile phone number |
+|   ↳ `accountEnabled` | boolean | Whether the account is enabled |
+|   ↳ `businessPhones` | array | Business phone numbers |
+|   ↳ `preferredLanguage` | string | Preferred language |
+|   ↳ `employeeId` | string | Employee identifier |
+|   ↳ `employeeType` | string | Employee type \(e.g., Employee, Contractor\) |
+|   ↳ `companyName` | string | Company name |
+|   ↳ `userType` | string | User type: Member or Guest |
+|   ↳ `usageLocation` | string | Two-letter country code, required before a license can be assigned |
+|   ↳ `city` | string | City |
+|   ↳ `country` | string | Country or region |
+|   ↳ `createdDateTime` | string | When the user was created |
+|   ↳ `onPremisesSyncEnabled` | boolean | Whether the user is synced from on-premises Active Directory |
+| `manager` | object | The user's manager, returned only when includeManager is true; null when no manager is assigned |
 |   ↳ `id` | string | Manager object ID |
 |   ↳ `displayName` | string | Manager display name |
 |   ↳ `mail` | string | Manager email address |

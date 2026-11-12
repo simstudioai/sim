@@ -144,7 +144,7 @@ export const azureDataExplorerQueryTool: InternalToolConfig<
     truncated: {
       type: 'boolean',
       description:
-        'Whether rows were dropped to stay within the row or size cap — narrow the query if true',
+        'Whether rows of the primary result table were dropped to stay within the row or size cap (each additionalResults entry has its own truncated flag) — narrow the query if true',
     },
     additionalResults: {
       type: 'array',

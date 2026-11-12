@@ -786,6 +786,7 @@ export interface MicrosoftAdListUsersResponse extends ToolResponse {
 export interface MicrosoftAdGetUserResponse extends ToolResponse {
   output: {
     user: Record<string, unknown>
+    manager?: Record<string, unknown> | null
   }
 }
 

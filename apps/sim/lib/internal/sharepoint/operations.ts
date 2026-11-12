@@ -131,6 +131,13 @@ export async function executeSharePointUploadFile(
       if (denied) return denied
 
       const fileName = input.fileName || userFile.name
+      let uploadUrls: { url: string; replaceUrl: string }
+      try {
+        uploadUrls = buildUploadUrl(input, fileName)
+      } catch (error) {
+        return failureResponse(getErrorMessage(error, 'Invalid upload path'), 400)
+      }
+      const { url, replaceUrl } = uploadUrls
       const skipOversized = (size: number) => {
         skippedFiles.push({
           name: fileName,
@@ -160,13 +167,6 @@ export async function executeSharePointUploadFile(
         throw error
       }
 
-      let uploadUrls: { url: string; replaceUrl: string }
-      try {
-        uploadUrls = buildUploadUrl(input, fileName)
-      } catch (error) {
-        return failureResponse(getErrorMessage(error, 'Invalid upload path'), 400)
-      }
-      const { url, replaceUrl } = uploadUrls
       const contentType = downloadedContentType || userFile.type || 'application/octet-stream'
       const uploadResult = await client.upload(url, buffer, contentType)
       if (!uploadResult.ok) {
