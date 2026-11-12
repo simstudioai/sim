@@ -145,10 +145,12 @@ describe('v2 credential provider catalog contract', () => {
     const snowflake = keyless.find(
       (provider) => provider.providerId === 'snowflake-service-account'
     )
-    expect(snowflake?.fields.find((field) => field.id === 'serviceAccountJson')).toMatchObject({
-      required: false,
-      secret: true,
-    })
+    const snowflakeConfiguration = snowflake?.fields.find(
+      (field) => field.id === 'serviceAccountJson'
+    )
+    expect(snowflakeConfiguration).toMatchObject({ required: false, secret: true })
+    expect(snowflakeConfiguration?.hint).toContain('"key_pair"')
+    expect(snowflakeConfiguration?.hint).toContain('Keyless')
   })
 
   it('offers no keyless mode where this deployment cannot sign', async () => {
@@ -169,7 +171,32 @@ describe('v2 credential provider catalog contract', () => {
       (provider) =>
         provider.type === 'service_account' && provider.providerId === 'snowflake-service-account'
     )
-    expect(snowflake?.fields.map((field) => field.id)).toEqual(['domain', 'apiToken'])
+    expect(snowflake?.fields.map((field) => field.id)).toEqual([
+      'domain',
+      'apiToken',
+      'serviceAccountJson',
+    ])
+    const configuration = snowflake?.fields.find((field) => field.id === 'serviceAccountJson')
+    expect(configuration).toMatchObject({ required: false, secret: true, multiline: true })
+    expect(configuration?.hint).toContain('"key_pair"')
+    expect(configuration?.hint).not.toContain('Keyless')
+  })
+
+  it('offers the Snowflake key pair to organization credentials, which have no keyless mode', async () => {
+    Reflect.set(env, 'WORKLOAD_IDENTITY_SIGNING_KEY', SIGNING_KEY)
+    Reflect.set(env, 'WORKLOAD_IDENTITY_ISSUER', 'https://sim.example.com/oidc/workload')
+    const catalog = await listCredentialProviderCatalog(createSessionPrincipal(), {
+      organizationId: 'org-1',
+    })
+    const snowflake = catalog.find(
+      (provider) =>
+        provider.type === 'service_account' && provider.providerId === 'snowflake-service-account'
+    )
+
+    expect(snowflake?.type === 'service_account' && snowflake.keyless).toBeFalsy()
+    const configuration = snowflake?.fields.find((field) => field.id === 'serviceAccountJson')
+    expect(configuration?.hint).toContain('"key_pair"')
+    expect(configuration?.hint).not.toContain('Keyless')
   })
 
   it('lists the native Claude Platform provider when filtered', async () => {
