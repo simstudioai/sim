@@ -11,6 +11,7 @@ export interface WorkspaceFeatureFlags {
   'mothership-computer-use'?: boolean
   'mothership-memory-spaces'?: boolean
   projects?: boolean
+  'knowledge-connector-saved-credentials'?: boolean
 }
 
 const FeatureFlagsContext = createContext<WorkspaceFeatureFlags | null>(null)

@@ -106,6 +106,7 @@ import {
   kbDocumentSortParams,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
 import { canDeleteKnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/permissions'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
@@ -420,6 +421,7 @@ export function KnowledgeBase({
   const [showDocumentTagsModal, setShowDocumentTagsModal] = useState(false)
   const [documentForTagsId, setDocumentForTagsId] = useState<string | null>(null)
   const showAddConnectorModal = addConnectorType != null
+  const savedCredentialSetupEnabled = useFeatureFlag('knowledge-connector-saved-credentials')
   const updateAddConnectorParam = useCallback(
     (value: string | null) => {
       void setAddConnectorType(value, { history: 'replace', scroll: false })
@@ -1472,6 +1474,7 @@ export function KnowledgeBase({
           knowledgeBaseId={id}
           initialConnectorType={addConnectorType || undefined}
           isSearchIndex={knowledgeBase?.isSearchIndex}
+          savedCredentialSetupEnabled={savedCredentialSetupEnabled}
         />
       )}
 

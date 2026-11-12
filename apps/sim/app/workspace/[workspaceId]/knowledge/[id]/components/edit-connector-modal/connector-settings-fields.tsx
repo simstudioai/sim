@@ -44,7 +44,7 @@ import type {
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import { getConnectorCredentialService, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { GitHubInstallationConnectionField } from '@/connectors/github/installation-connection-field'
 import {
   GitLabPermissionTabs,
@@ -162,10 +162,14 @@ export function ConnectorSettingsFields({
   const connectorConfig = liveSearchSourceMeta(originalConfig, Boolean(liveSearch), {
     githubInstallation: usesGitHubInstallation && scope.kind === 'organization',
   })
-  const providerId =
-    connectorConfig?.auth.mode === 'oauth'
-      ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
-      : null
+  const credentialServiceId = connectorConfig
+    ? getConnectorCredentialService(connectorConfig.auth)
+    : undefined
+  const providerId = credentialServiceId
+    ? (getProviderIdFromServiceId(credentialServiceId) as OAuthProvider)
+    : null
+  const savedCredentialConfig =
+    connectorConfig?.auth.mode === 'apiKey' ? connectorConfig.auth.savedCredential : undefined
   const syncsPerMember = access.accessMode === 'members'
   const isGitHubInstallationSource =
     usesGitHubInstallation &&
@@ -182,7 +186,7 @@ export function ConnectorSettingsFields({
     : undefined
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId:
-      isSearchIndex || requiresServiceAccount
+      isSearchIndex || requiresServiceAccount || savedCredentialConfig
         ? asServiceAccountProviderId(serviceAccountProviderId)
         : undefined,
     serviceName: connectorConfig?.name,
