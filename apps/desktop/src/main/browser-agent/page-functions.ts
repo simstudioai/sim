@@ -43,6 +43,8 @@ declare global {
       observedRoots: WeakSet<ParentNode>
     }>
     __simAgentNextElementId?: number
+    /** Each element's ref and the identity it was issued for, so a later snapshot keeps the ref. */
+    __simAgentIssuedRefs?: WeakMap<Element, { id: number; identity: string; namespace: number }>
     /** Elements an earlier snapshot of this document listed; a later snapshot marks the rest `new`. */
     __simAgentShownElements?: WeakSet<Element>
     /** Installed by {@link installPageHelpers} before every page function; cached per call. */
@@ -210,7 +212,8 @@ export function installPageHelpers(): void {
 export function collectSnapshot(
   startingElementId = 0,
   elementId: number | null = null,
-  markNew = true
+  markNew = true,
+  refNamespace = 0
 ): unknown {
   const resolver = window.__simAgentResolveElement
   const scopedRoot =
@@ -588,10 +591,14 @@ export function collectSnapshot(
     return ''
   }
 
+  // A ref the model already holds stays valid while its element keeps the
+  // identity it was issued for; a changed or replaced element gets a new ref,
+  // so an id never comes to mean a different element. Refs are reused only
+  // within the browser scope (refNamespace) that issued them.
+  const issuedRefs = window.__simAgentIssuedRefs ?? new WeakMap()
+  window.__simAgentIssuedRefs = issuedRefs
   const registerElement = (el: Element, role: string, name: string): number => {
-    const id = nextElementId++
-    registry[id] = el
-    locators[id] = {
+    const locator = {
       url: pageUrlFor(el),
       tag: el.tagName.toUpperCase(),
       role,
@@ -600,6 +607,18 @@ export function collectSnapshot(
       ancestor: ancestorSignature(el),
       context: contextSignature(el),
     }
+    const identity = JSON.stringify([locator.tag, locator.role, locator.name, locator.attributes])
+    const issued = issuedRefs.get(el)
+    const id =
+      issued &&
+      issued.namespace === refNamespace &&
+      issued.identity === identity &&
+      registry[issued.id] === undefined
+        ? issued.id
+        : nextElementId++
+    issuedRefs.set(el, { id, identity, namespace: refNamespace })
+    registry[id] = el
+    locators[id] = locator
     refCount++
     window.__simAgentNextElementId = nextElementId
     return id

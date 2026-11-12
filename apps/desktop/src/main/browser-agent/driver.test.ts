@@ -3098,6 +3098,29 @@ describe('credential protection', () => {
     })
   })
 
+  it('accepts a later snapshot that keeps refs this scope issued for the same page', async () => {
+    const contents = await openPage()
+    const snapshot = (refIds: number[], nextElementId: number) => ({
+      url: 'https://example.com/',
+      title: 'Example',
+      outline: refIds.map((ref) => `- button "B${ref}" [ref=${ref}]`).join('\n'),
+      truncated: false,
+      refIds,
+      refLineIndexes: Object.fromEntries(refIds.map((ref, index) => [ref, index])),
+      nextElementId,
+    })
+    respondWith(contents, { collectSnapshot: snapshot([4, 5], 6) })
+    await driver.executeTool('chat-test', 'browser_snapshot', {})
+    respondWith(contents, { collectSnapshot: snapshot([4, 6], 7) })
+
+    const kept = await driver.executeTool('chat-test', 'browser_snapshot', {})
+    expect(kept).toMatchObject({ ok: true })
+    respondWith(contents, { collectSnapshot: snapshot([2], 7) })
+
+    const forged = await driver.executeTool('chat-test', 'browser_snapshot', {})
+    expect(forged).toMatchObject({ ok: false })
+  })
+
   it.each([
     ['browser_snapshot', 'true'],
     ['browser_find', 'false'],
@@ -3125,7 +3148,7 @@ describe('credential protection', () => {
           .mock.calls.some(
             ([expression]) =>
               isPageCall(expression, 'collectSnapshot') &&
-              expression.includes(`.apply(null, [1,0,${markNew}])`)
+              expression.includes(`.apply(null, [1,0,${markNew},`)
           )
       ).toBe(true)
       const stale = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })

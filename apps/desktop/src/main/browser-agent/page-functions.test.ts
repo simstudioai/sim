@@ -710,15 +710,40 @@ describe('collectSnapshot', () => {
     expect(clickElement(ref)).toMatchObject({ error: 'stale' })
   })
 
-  it('never recycles numeric refs across snapshots', () => {
+  it('keeps an unchanged element on the same ref across snapshots', () => {
+    document.body.innerHTML = '<button>Pins</button><button>Files</button>'
+    for (const button of Array.from(document.querySelectorAll('button'))) visible(button)
+    const first = outlineOf(collectSnapshot())
+    const second = outlineOf(collectSnapshot())
+
+    expect(refFor(second, 'Pins')).toBe(refFor(first, 'Pins'))
+    expect(refFor(second, 'Files')).toBe(refFor(first, 'Files'))
+    expect(clickElement(refFor(first, 'Pins'))).toMatchObject({ dispatched: true })
+  })
+
+  it('never gives a ref to a different element across snapshots', () => {
     document.body.innerHTML = '<button>Pins</button>'
-    visible(document.querySelector('button') as HTMLButtonElement)
+    const original = visible(document.querySelector('button') as HTMLButtonElement)
     const firstRef = refFor(outlineOf(collectSnapshot()), 'Pins')
-    const secondRef = refFor(outlineOf(collectSnapshot()), 'Pins')
+    original.replaceWith(visible(document.createElement('button')))
+    ;(document.querySelector('button') as HTMLButtonElement).textContent = 'Files'
+    const secondRef = refFor(outlineOf(collectSnapshot()), 'Files')
 
     expect(secondRef).toBeGreaterThan(firstRef)
     expect(clickElement(firstRef)).toMatchObject({ error: 'stale' })
     expect(clickElement(secondRef)).toMatchObject({ dispatched: true })
+  })
+
+  it('gives a recycled row a new ref when its identity changed in place', () => {
+    document.body.innerHTML = '<div role="listitem" data-key="channel-1">eng-bugs</div>'
+    const row = visible(document.querySelector('[role="listitem"]') as HTMLDivElement)
+    const firstRef = refFor(outlineOf(collectSnapshot()), 'eng-bugs')
+    row.textContent = 'random'
+    row.dataset.key = 'channel-2'
+    const secondRef = refFor(outlineOf(collectSnapshot()), 'random')
+
+    expect(secondRef).not.toBe(firstRef)
+    expect(clickElement(firstRef)).toMatchObject({ error: 'stale' })
   })
 })
 

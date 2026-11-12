@@ -144,6 +144,13 @@ function isBrowserWaitElementState(value: string): value is BrowserWaitElementSt
 
 type PageExecutionTarget = WebContents | WebFrameMain
 
+/** Identifies a frame across the separate WebFrameMain wrappers Electron may hand out for it. */
+function pageTargetKey(target: PageExecutionTarget): string {
+  return 'routingId' in target
+    ? `frame:${target.processId}:${target.routingId}`
+    : `contents:${target.id}`
+}
+
 type BrowserActionOutcome = { status: 'pending' } | { status: 'acknowledged'; result: unknown }
 
 type FormField =
@@ -326,6 +333,8 @@ interface DriverScopeState {
   snapshotTargets: Map<number, PageExecutionTarget>
   /** Monotonic ref floor shared by every frame in this browser scope. */
   nextElementRefId: number
+  /** Every ref this scope issued and the frame it belongs to, so a later snapshot may reuse it there. */
+  issuedRefTargets: Map<number, string>
   /** Invalidates captures that finish after a tab/navigation/timeout race. */
   snapshotCaptureEpoch: number
   /** Cancels a timed-out multi-step action before any later native dispatch. */
@@ -367,6 +376,7 @@ function createDriverScopeState(): DriverScopeState {
     snapshotTabId: null,
     snapshotTargets: new Map(),
     nextElementRefId: 0,
+    issuedRefTargets: new Map(),
     snapshotCaptureEpoch: 0,
     toolExecutionEpoch: 0,
   }
@@ -2338,7 +2348,8 @@ async function readWholePageText(
 
 function validateSnapshotRefs(
   snapshot: Record<string, unknown>,
-  startingElementId: number
+  startingElementId: number,
+  issuedHere: (ref: number) => boolean
 ): { refs: number[]; nextElementId: number; lineIndexes: Map<number, number> } | null {
   if (typeof snapshot.outline !== 'string' || snapshot.outline.length > 500_000) return null
   if (!Array.isArray(snapshot.refIds) || snapshot.refIds.length > 300) return null
@@ -2362,7 +2373,7 @@ function validateSnapshotRefs(
     if (
       typeof value !== 'number' ||
       !Number.isSafeInteger(value) ||
-      value < startingElementId ||
+      (value < startingElementId && !issuedHere(value)) ||
       value >= nextElementId ||
       unique.has(value)
     ) {
@@ -2436,7 +2447,7 @@ async function captureSnapshot(
     await execInPage(
       contents,
       collectSnapshot,
-      [mainStartingElementId, elementId ?? null, markNew],
+      [mainStartingElementId, elementId ?? null, markNew, state.generation],
       false,
       notAfter
     )
@@ -2451,7 +2462,11 @@ async function captureSnapshot(
   ) {
     throw new ToolError('The page returned an incomplete snapshot. Try browser_snapshot again.')
   }
-  const mainRefs = validateSnapshotRefs(mainSnapshot, mainStartingElementId)
+  const mainRefs = validateSnapshotRefs(
+    mainSnapshot,
+    mainStartingElementId,
+    (ref) => state.issuedRefTargets.get(ref) === pageTargetKey(contents)
+  )
   if (!mainRefs) {
     throw new ToolError('The page returned invalid element ids. Try browser_snapshot again.')
   }
@@ -2493,7 +2508,7 @@ async function captureSnapshot(
       const frameSnapshot = await execInPage(
         frame,
         collectSnapshot,
-        [frameStartingElementId, null, markNew],
+        [frameStartingElementId, null, markNew, state.generation],
         false,
         notAfter
       )
@@ -2512,7 +2527,11 @@ async function captureSnapshot(
         unreadableCrossOriginFrames++
         continue
       }
-      const frameRefs = validateSnapshotRefs(frameSnapshot, frameStartingElementId)
+      const frameRefs = validateSnapshotRefs(
+        frameSnapshot,
+        frameStartingElementId,
+        (ref) => state.issuedRefTargets.get(ref) === pageTargetKey(frame)
+      )
       if (!frameRefs) {
         unreadableCrossOriginFrames++
         continue
@@ -2565,6 +2584,7 @@ async function captureSnapshot(
         (targetLineIndexes.get(elementId) ?? Number.POSITIVE_INFINITY) < visibleOutlineLines.length
     )
   )
+  for (const [ref, target] of targets) state.issuedRefTargets.set(ref, pageTargetKey(target))
   state.snapshotTabId = capturedTabId
   return {
     ...omit(mainSnapshot, ['refIds', 'refLineIndexes', 'nextElementId']),
