@@ -1,4 +1,40 @@
 /**
+ * Offset of `timeZone` from UTC at `date`, in minutes east of UTC.
+ *
+ * `Date` has no timezone-aware offset accessor, so the wall clock is
+ * reconstructed as UTC and subtracted from the actual instant.
+ */
+function getOffsetMinutes(timeZone: string, date: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(date)
+
+  const value = (type: string): number => Number(parts.find((part) => part.type === type)?.value)
+
+  // Some engines report midnight as hour 24; the day/month fields already
+  // carry the date, so folding it to 0 keeps the instant identical.
+  const wallClock = Date.UTC(
+    value('year'),
+    value('month') - 1,
+    value('day'),
+    value('hour') % 24,
+    value('minute'),
+    value('second')
+  )
+
+  // The wall clock only has second precision, so compare against the instant
+  // truncated to the second.
+  return Math.round((wallClock - Math.floor(date.getTime() / 1000) * 1000) / 60000)
+}
+
+/**
  * Get a user-friendly timezone abbreviation
  * @param timezone - IANA timezone string
  * @param date - Date to check for DST
@@ -19,33 +55,22 @@ export function getTimezoneAbbreviation(timezone: string, date: Date = new Date(
     'Asia/Singapore': { standard: 'SGT', daylight: 'SGT' }, // Singapore doesn't use DST
   }
 
-  if (timezone in timezoneMap) {
-    const januaryDate = new Date(date.getFullYear(), 0, 1)
-    const julyDate = new Date(date.getFullYear(), 6, 1)
+  const zone = timezoneMap[timezone]
+  if (zone) {
+    // Compare the zone's UTC offsets across the year: `format()` always
+    // includes the calendar date, so comparing formatted strings reported
+    // "DST observed" for the whole year and then "daylight" for every date.
+    const januaryOffset = getOffsetMinutes(timezone, new Date(date.getFullYear(), 0, 1))
+    const julyOffset = getOffsetMinutes(timezone, new Date(date.getFullYear(), 6, 1))
 
-    const januaryFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      timeZoneName: 'short',
-    })
-
-    const julyFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      timeZoneName: 'short',
-    })
-
-    const isDSTObserved = januaryFormatter.format(januaryDate) !== julyFormatter.format(julyDate)
-
-    if (isDSTObserved) {
-      const currentFormatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: timezone,
-        timeZoneName: 'short',
-      })
-
-      const isDST = currentFormatter.format(date) !== januaryFormatter.format(januaryDate)
-      return isDST ? timezoneMap[timezone].daylight : timezoneMap[timezone].standard
+    if (januaryOffset === julyOffset) {
+      return zone.standard
     }
 
-    return timezoneMap[timezone].standard
+    // Daylight time always moves the clock forward, in either hemisphere, so
+    // the smaller of the two offsets is the standard one.
+    const standardOffset = Math.min(januaryOffset, julyOffset)
+    return getOffsetMinutes(timezone, date) > standardOffset ? zone.daylight : zone.standard
   }
 
   try {
