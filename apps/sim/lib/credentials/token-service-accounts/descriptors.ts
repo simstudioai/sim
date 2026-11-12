@@ -2742,6 +2742,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Authentication token or password',
         placeholder: 'Paste a Splunk authentication token, or the password',
         secret: true,
+        preserveWhitespace: true,
       },
       {
         id: 'providerWorkspaceId',

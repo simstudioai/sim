@@ -196,7 +196,7 @@ export const apolloPeopleSearchTool: ToolConfig<
       success: true,
       output: {
         people: data.people || [],
-        page: pagination.page ?? data.page ?? params?.page ?? 1,
+        page: pagination.page ?? data.page ?? (params?.page || 1),
         per_page: pagination.per_page ?? data.per_page ?? requestedPerPage(params),
         total_entries: pagination.total_entries ?? data.total_entries ?? 0,
       },

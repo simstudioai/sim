@@ -57,6 +57,15 @@ describe('apollo_people_search response mapping', () => {
     expect(result.output.per_page).toBe(100)
   })
 
+  it.concurrent('reports page 1, the page the request sent, when page is 0', async () => {
+    const result = await transform(
+      { total_entries: 5, people: [] },
+      { apiKey: 'token', credentialType: 'oauth', page: 0 }
+    )
+
+    expect(result.output.page).toBe(1)
+  })
+
   it.concurrent('reads the nested pagination the legacy endpoint returns', async () => {
     const result = await transform(
       { people: [{ id: 'p2' }], pagination: { page: 2, per_page: 10, total_entries: 40 } },
