@@ -239,7 +239,6 @@ async function executeValidation(
         bedrockAccessKeyId: input.bedrockAccessKeyId,
         bedrockSecretKey: input.bedrockSecretKey,
         bedrockRegion: input.bedrockRegion,
-        bedrockCredential: input.bedrockCredential,
       },
       workflowId: input.workflowId,
       workspaceId: hallucinationContext.workspaceId,

@@ -26,7 +26,6 @@ export interface GuardrailsValidateInput {
   bedrockAccessKeyId?: string
   bedrockSecretKey?: string
   bedrockRegion?: string
-  bedrockCredential?: string
   piiEntityTypes?: string[]
   piiMode?: string
   piiLanguage?: string
@@ -217,7 +216,6 @@ export const guardrailsValidateTool: InternalToolConfig<
       bedrockAccessKeyId: params.bedrockAccessKeyId,
       bedrockSecretKey: params.bedrockSecretKey,
       bedrockRegion: params.bedrockRegion,
-      bedrockCredential: params.bedrockCredential,
       piiEntityTypes: Array.isArray(params.piiEntityTypes) ? params.piiEntityTypes : undefined,
       piiMode: params.piiMode,
       piiLanguage: params.piiLanguage,

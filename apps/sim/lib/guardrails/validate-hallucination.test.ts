@@ -4,18 +4,9 @@ import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/pr
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 
-const {
-  mockSearchKnowledgeAsExecutor,
-  mockResolveVertexAccessToken,
-  mockResolveBedrockCredentialSession,
-} = vi.hoisted(() => ({
+const { mockSearchKnowledgeAsExecutor, mockResolveVertexAccessToken } = vi.hoisted(() => ({
   mockSearchKnowledgeAsExecutor: vi.fn(),
   mockResolveVertexAccessToken: vi.fn(),
-  mockResolveBedrockCredentialSession: vi.fn(),
-}))
-
-vi.mock('@/lib/internal/llm/bedrock-credential', () => ({
-  resolveBedrockCredentialSession: mockResolveBedrockCredentialSession,
 }))
 
 vi.mock('@/lib/internal/llm/credentials', () => ({
@@ -229,58 +220,6 @@ describe('validateHallucination', () => {
       await validateHallucination(vertexInput(new ResolvedSecretTraceRegistry()))
 
       expect(mockExecuteProviderRequest.mock.calls[0]?.[1]).toMatchObject({ apiKey: 'unused-key' })
-    })
-  })
-
-  describe('with a Bedrock model and a saved AWS credential', () => {
-    const bedrockInput = (registry: ResolvedSecretTraceRegistry) => ({
-      ...createInput(registry),
-      model: 'bedrock/claude',
-      providerCredentials: { bedrockCredential: 'aws-cred', bedrockRegion: 'eu-west-1' },
-    })
-
-    beforeEach(() => {
-      mockResolveBedrockCredentialSession.mockReset()
-    })
-
-    it("scores with the credential's session resolved for the acting user", async () => {
-      providersUtilsMockFns.mockGetProviderFromModel.mockReturnValue('bedrock')
-      const session = {
-        credentialId: 'aws-cred',
-        accessKeyId: 'ASIASESSIONKEY000001',
-        secretAccessKey: 'session-secret',
-        sessionToken: 'session-token',
-      }
-      mockResolveBedrockCredentialSession.mockResolvedValueOnce(session)
-
-      const result = await validateHallucination(bedrockInput(new ResolvedSecretTraceRegistry()))
-
-      expect(result.error).toBeUndefined()
-      expect(result).toMatchObject({ passed: true, score: 8 })
-      expect(mockResolveBedrockCredentialSession).toHaveBeenCalledWith(
-        expect.objectContaining({
-          credentialId: 'aws-cred',
-          actingUserId: 'user-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-        })
-      )
-      expect(mockExecuteProviderRequest.mock.calls[0]?.[1]).toMatchObject({
-        bedrockSession: session,
-        bedrockRegion: 'eu-west-1',
-      })
-    })
-
-    it('fails the check instead of calling the model when the credential cannot be used', async () => {
-      providersUtilsMockFns.mockGetProviderFromModel.mockReturnValue('bedrock')
-      mockResolveBedrockCredentialSession.mockRejectedValueOnce(
-        new Error('Not authorized to use this AWS credential')
-      )
-
-      const result = await validateHallucination(bedrockInput(new ResolvedSecretTraceRegistry()))
-
-      expect(result).toMatchObject({ passed: false })
-      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     })
   })
 
