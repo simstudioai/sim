@@ -117,13 +117,14 @@ function TokenServiceAccountModalForm({
         ? CLIENT_CREDENTIALS_AUTH_METHOD
         : 'token')
   const usesClientCredentials = authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
+  /** A field of the pasted-token sign-in only (ServiceNow's username) shows once that mode is chosen. */
+  const shownField = (id: TokenServiceAccountField['id']) =>
+    descriptor.fields.find(
+      (field) => field.id === id && !(field.pastedTokenOnly && authMethod !== 'token')
+    )
   const tokenField = descriptor.fields.find((field) => field.id === 'apiToken')
-  const domainField = descriptor.fields.find((field) => field.id === 'domain')
-  /** A field of the pasted-token sign-in only (ServiceNow's username) hides in client-credentials mode. */
-  const workspaceField = descriptor.fields.find(
-    (field) =>
-      field.id === 'providerWorkspaceId' && !(usesClientCredentials && field.pastedTokenOnly)
-  )
+  const domainField = shownField('domain')
+  const workspaceField = shownField('providerWorkspaceId')
   /**
    * A new connection starts on the domain's default (the region or host it had before the field
    * existed). A reconnect starts blank, which keeps the stored value: the server carries it

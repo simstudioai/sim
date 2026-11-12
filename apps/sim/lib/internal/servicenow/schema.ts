@@ -12,7 +12,7 @@ export const serviceNowUploadAttachmentInputSchema = z
     username: z.string().optional(),
     password: z.string().min(1, 'Password is required'),
     accessToken: z.string().optional(),
-    authStyle: z.string().optional(),
+    authStyle: z.literal(SERVICENOW_BEARER_AUTH_STYLE).optional(),
     tableName: z.string().min(1, 'Table name is required'),
     recordSysId: z.string().min(1, 'Record sys_id is required'),
     fileName: z.string().min(1, 'File name is required'),

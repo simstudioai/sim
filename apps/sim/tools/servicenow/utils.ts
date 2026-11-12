@@ -32,7 +32,7 @@ export function normalizeInstanceUrl(instanceUrl: string | undefined): string {
 }
 
 /** `authStyle` a saved ServiceNow OAuth client credential resolves with. */
-export const SERVICENOW_BEARER_AUTH_STYLE = 'bearer'
+export const SERVICENOW_BEARER_AUTH_STYLE = 'bearer' as const
 
 /**
  * The Authorization header a ServiceNow request sends: the bearer token a saved OAuth client
@@ -40,7 +40,9 @@ export const SERVICENOW_BEARER_AUTH_STYLE = 'bearer'
  * fields, exactly as before.
  */
 export function serviceNowAuthorization(
-  params: Pick<ServiceNowAuthParams, 'username' | 'password' | 'accessToken' | 'authStyle'>
+  params: Pick<ServiceNowAuthParams, 'password' | 'accessToken' | 'authStyle'> & {
+    username?: string
+  }
 ): string {
   if (params.authStyle === SERVICENOW_BEARER_AUTH_STYLE) {
     if (!params.accessToken) throw new Error('ServiceNow access token is required')

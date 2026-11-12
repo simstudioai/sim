@@ -656,7 +656,9 @@ async function buildTokenClientCredentialSecret(
   }
   const clientId = fields.clientId?.trim()
   const clientSecret = fields.clientSecret?.trim()
-  const domainField = descriptor.fields.find((field) => field.id === 'domain')
+  const domainField = descriptor.fields.find(
+    (field) => field.id === 'domain' && !field.pastedTokenOnly
+  )
   const domain = fields.domain?.trim() || domainField?.defaultValue
   const requiresDomain = Boolean(domainField)
   if (!clientId || !clientSecret || (requiresDomain && !domain)) {
