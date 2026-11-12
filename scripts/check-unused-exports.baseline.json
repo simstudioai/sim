@@ -4074,7 +4074,6 @@
   "apps/sim/lib/billing/types/index.ts#SubscriptionStatus",
   "apps/sim/lib/billing/types/index.ts#UsagePeriodStatus",
   "apps/sim/lib/billing/types/index.ts#enterpriseSubscriptionMetadataSchema",
-  "apps/sim/lib/billing/utils/decimal.ts#toFixedString",
   "apps/sim/lib/billing/validation/seat-management.ts#computeSeatUsage",
   "apps/sim/lib/blog/seo.ts#buildArticleJsonLd",
   "apps/sim/lib/blog/seo.ts#buildFaqJsonLd",

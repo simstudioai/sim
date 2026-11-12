@@ -68,7 +68,8 @@ function statusFromRead(
 
 /**
  * The columns a read writes. With no answer about access the last-known dimension, quantity, and
- * expiry stay as they were, and only the status can change. An inactive license has nothing to claim.
+ * expiry stay as they were, and only the status can change. An inactive license has nothing to claim,
+ * and the read that first finds it inactive records when it ended.
  */
 function verificationFields(
   prior: AwsMarketplaceLicenseStatus | null,
@@ -78,6 +79,9 @@ function verificationFields(
   const { summary, verifiedAt } = verification
   return {
     status,
+    ...(status === 'inactive'
+      ? prior !== 'inactive' && { endedAt: verifiedAt }
+      : { endedAt: null }),
     lastVerifiedAt: verifiedAt,
     lastVerificationAttemptAt: verifiedAt,
     updatedAt: new Date(),
@@ -186,7 +190,7 @@ async function inheritFromRenewedLicense(
   const [inherited] = await tx
     .update(awsMarketplaceLicense)
     .set({
-      organizationId: predecessor.organizationId,
+      ...organizationLink(predecessor.organizationId),
       linkedByUserId: predecessor.linkedByUserId,
       contactEmail: predecessor.contactEmail,
       companyName: predecessor.companyName,
@@ -453,6 +457,15 @@ const LICENSE_TO_VERIFY_COLUMNS = {
   productCode: awsMarketplaceLicense.productCode,
 }
 
+/**
+ * The columns that point a license at `organizationId`, stamping when, since usage counts from
+ * the link. Every caller links only when the organization changes, so the stamp is the start of
+ * this organization's tenure on the license.
+ */
+function organizationLink(organizationId: string | null) {
+  return { organizationId, organizationLinkedAt: organizationId ? new Date() : null }
+}
+
 /** Pairs each row with its product; the queries already keep to configured products. */
 function withProducts(
   rows: Array<{ licenseArn: string; productCode: string }>,
@@ -552,7 +565,7 @@ export async function consumeLicenseClaim(
     contactEmail: input.contact.email,
     companyName: input.contact.companyName,
     ...(input.link && {
-      organizationId: input.link.organizationId,
+      ...organizationLink(input.link.organizationId),
       linkedByUserId: input.link.userId,
     }),
     claimTokenHash: null,
@@ -686,7 +699,12 @@ export async function linkLicenseForTeam(
 ): Promise<AwsMarketplaceLicenseRecord> {
   const [license] = await tx
     .update(awsMarketplaceLicense)
-    .set({ organizationId, claimTokenHash: null, claimExpiresAt: null, updatedAt: new Date() })
+    .set({
+      ...organizationLink(organizationId),
+      claimTokenHash: null,
+      claimExpiresAt: null,
+      updatedAt: new Date(),
+    })
     .where(eq(awsMarketplaceLicense.id, licenseId))
     .returning()
   return license

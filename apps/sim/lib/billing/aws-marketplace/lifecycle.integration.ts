@@ -743,6 +743,28 @@ describe('linking a claimed license', () => {
     })
   })
 
+  it('starts the license usage at the first link and keeps it when the same organization links again', async () => {
+    const fresh = await createClaimedLicense()
+    entitlementsByLicense.set(fresh.licenseArn, [currentEntitlement()])
+    const before = Date.now()
+
+    await link(ownerId, { licenseId: fresh.id, claimToken: fresh.token })
+
+    const linkedAt = (await readLicense(fresh.licenseArn))?.organizationLinkedAt
+    expect(linkedAt?.getTime()).toBeGreaterThanOrEqual(before - 1000)
+
+    const firstLinkedAt = new Date(Date.now() - 5 * 60 * 60 * 1000)
+    const relinked = await createClaimedLicense({
+      organizationId,
+      organizationLinkedAt: firstLinkedAt,
+    })
+    entitlementsByLicense.set(relinked.licenseArn, [currentEntitlement()])
+
+    await link(ownerId, { licenseId: relinked.id, claimToken: relinked.token })
+
+    expect((await readLicense(relinked.licenseArn))?.organizationLinkedAt).toEqual(firstLinkedAt)
+  })
+
   it('refuses to move a license already linked to another organization', async () => {
     const otherOwnerId = await createUser()
     const otherOrganizationId = await createOrganization([{ userId: otherOwnerId, role: 'owner' }])
@@ -1457,10 +1479,20 @@ describe('license events across listings', () => {
 
     expect(await reconcileAwsMarketplaceLicenses()).toMatchObject({ applied: 1, discarded: 0 })
     expect(deleted).toEqual(['r-0'])
-    expect(await readLicense(licenseArn)).toMatchObject({
-      status: 'inactive',
-      dimension: 'platform',
-    })
+    const lapsed = await readLicense(licenseArn)
+    expect(lapsed).toMatchObject({ status: 'inactive', dimension: 'platform' })
+    expect(lapsed?.endedAt).toBeInstanceOf(Date)
+
+    deliverOnce([licenseUpdated(licenseArn, undefined, undefined, USAGE_PRODUCT)])
+    await reconcileAwsMarketplaceLicenses()
+    expect((await readLicense(licenseArn))?.endedAt).toEqual(lapsed?.endedAt)
+
+    entitlementsByLicense.set(licenseArn, [
+      currentEntitlement({ ProductCode: USAGE_PRODUCT, Dimension: 'platform' }),
+    ])
+    deliverOnce([licenseUpdated(licenseArn, undefined, undefined, USAGE_PRODUCT)])
+    await reconcileAwsMarketplaceLicenses()
+    expect(await readLicense(licenseArn)).toMatchObject({ status: 'active', endedAt: null })
   })
 })
 
