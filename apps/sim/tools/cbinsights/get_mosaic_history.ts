@@ -1,5 +1,6 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export interface CbInsightsMosaicHistoryParams extends CbInsightsOrgParams {
@@ -15,6 +16,7 @@ export const cbinsightsGetMosaicHistoryTool: InternalToolConfig<
   description:
     "Retrieve an organization's historical Mosaic Scores — overall plus the management, market, momentum, and money factors — so a trend can be read rather than a single snapshot.",
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

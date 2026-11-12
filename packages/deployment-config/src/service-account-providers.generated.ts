@@ -26,6 +26,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   buffer: 'buffer-service-account',
   calcom: 'calcom-service-account',
   calendly: 'calendly-service-account',
+  cbinsights: 'cbinsights-service-account',
   checkr: 'checkr-service-account',
   circleback: 'circleback-service-account',
   clerk: 'clerk-service-account',

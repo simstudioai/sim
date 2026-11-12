@@ -259,6 +259,7 @@ export const TAVILY_SERVICE_ACCOUNT_PROVIDER_ID = 'tavily-service-account' as co
 export const AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID = 'amplitude-service-account' as const
 export const KALSHI_SERVICE_ACCOUNT_PROVIDER_ID = 'kalshi-service-account' as const
 export const SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID = 'splunk-service-account' as const
+export const CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID = 'cbinsights-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -394,6 +395,7 @@ export type TokenServiceAccountProviderId =
   | typeof AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof KALSHI_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FLOW_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
@@ -2685,6 +2687,31 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Create a token in Splunk Web under Settings > Tokens, and enter the management URL with its port (8089 by default). The URL must be reachable from Sim over https with a certificate from a public certificate authority; Sim does not skip certificate checks.',
     invalidCredentialsHelp:
       'Splunk rejected this token. Check that token authentication is turned on, that the token is enabled and not expired, and that the management URL points at the same deployment.',
+  },
+  [CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'CB Insights',
+    tokenNoun: 'client secret',
+    connectNoun: 'API client',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Client secret',
+        placeholder: 'Paste the CB Insights client secret',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Client ID',
+        placeholder: 'Paste the CB Insights client ID',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/cbinsights',
+    helpText:
+      'CB Insights issues the API client ID and secret; contact your CB Insights representative for production credentials. Sim exchanges them for a short-lived access token on each run.',
+    invalidCredentialsHelp:
+      'CB Insights did not authorize this client ID and secret. Check that both were issued together and are still active.',
   },
 }
 

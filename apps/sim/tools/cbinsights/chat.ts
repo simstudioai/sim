@@ -1,5 +1,6 @@
 import type { CbInsightsAuthParams, CbInsightsChatResponse } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export interface CbInsightsChatParams extends CbInsightsAuthParams {
@@ -14,6 +15,7 @@ export const cbinsightsChatTool: InternalToolConfig<CbInsightsChatParams, CbInsi
     description:
       'Ask ChatCBI a question in natural language and get an answer grounded in CB Insights data, with its sources and suggested follow-ups. Uses generative AI and can be wrong — verify anything that matters.',
     version: '1.0.0',
+    oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
     params: {
       clientId: {

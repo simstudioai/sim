@@ -24,6 +24,7 @@ import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/lib/intern
 import { getDashboardHost } from '@/tools/amplitude/utils'
 import { ashbyAuthHeaders } from '@/tools/ashby/utils'
 import { BITBUCKET_API_BASE, bitbucketHeaders } from '@/tools/bitbucket/utils'
+import { CBINSIGHTS_API_BASE } from '@/tools/cbinsights/utils'
 import { checkrHeaders } from '@/tools/checkr/utils'
 import { convexApiUrl, convexAuthHeaders } from '@/tools/convex/utils'
 import { buildDynatraceUrl, dynatraceHeaders } from '@/tools/dynatrace/utils'
@@ -352,6 +353,41 @@ export const validateBufferServiceAccount = tokenCheckValidator({
   acceptsBody: (body) => {
     const account = toRecord(toRecord(toRecord(body).data).account)
     return typeof account.id === 'string' && account.id.length > 0
+  },
+})
+
+/** A CB Insights client ID: printable ASCII, sent only in the authorize request body. */
+const CBINSIGHTS_CLIENT_ID = /^[\x21-\x7e]{1,256}$/
+
+/**
+ * Exchanging the client ID and secret for an access token at `POST /v2/authorize`, the call the
+ * tools make before their first request, proves the pair; a success without a token is not
+ * proof. The token is discarded: the tools mint their own on each run.
+ * https://api-docs.cbinsights.com/portal/docs/CBI-API/Authentication
+ */
+export const validateCbInsightsServiceAccount = tokenCheckValidator({
+  serviceLabel: 'CB Insights',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const clientId = (providerWorkspaceId ?? '').trim()
+    if (!CBINSIGHTS_CLIENT_ID.test(clientId)) throw new Error('invalid client ID')
+    return clientId
+  },
+  errorBodyEchoesToken: true,
+  request: ({ apiToken, providerWorkspaceId = '' }) => ({
+    url: `${CBINSIGHTS_API_BASE}/v2/authorize`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ clientId: providerWorkspaceId, clientSecret: apiToken }),
+  }),
+  acceptsBody: (body) => {
+    const token = toRecord(body).token
+    if (typeof token !== 'string' || !token) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'CB Insights authorization returned no token',
+      })
+    }
+    return true
   },
 })
 

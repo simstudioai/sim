@@ -381,6 +381,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   calendly: CalendlyIcon,
   calendly_v2: CalendlyIcon,
   cbinsights: CbInsightsIcon,
+  cbinsights_v2: CbInsightsIcon,
   chat_trigger: Task,
   checkr: CheckrIcon,
   checkr_v2: CheckrIcon,

@@ -1,5 +1,6 @@
 import type { CbInsightsAuthParams, CbInsightsListResponse } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export interface CbInsightsFirmographicsParams extends CbInsightsAuthParams {
@@ -68,6 +69,7 @@ export const cbinsightsSearchFirmographicsTool: InternalToolConfig<
   description:
     'Search profiles of private companies, public companies, and investors by market, industry, geography, headcount, funding, and valuation. Each field is ANDed together; values within a field are ORed.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

@@ -4284,7 +4284,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "cbinsights",
+      "type": "cbinsights_v2",
       "slug": "cb-insights",
       "name": "CB Insights",
       "description": "Research private markets — firmographics, funding, and predictive scores",
@@ -4397,11 +4397,12 @@
       "operationCount": 25,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "cbinsights",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-12"
     },
     {
       "type": "checkr_v2",

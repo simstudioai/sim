@@ -29,6 +29,7 @@ import {
   BufferIcon,
   CalComIcon,
   CalendlyIcon,
+  CbInsightsIcon,
   CheckrIcon,
   CirclebackIcon,
   ClaudeIcon,
@@ -1945,6 +1946,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'splunk',
+  },
+  cbinsights: {
+    name: 'CB Insights',
+    icon: CbInsightsIcon,
+    services: {
+      cbinsights: {
+        name: 'CB Insights',
+        description:
+          'Look up companies, funding, investments, and market intelligence in CB Insights.',
+        providerId: 'cbinsights',
+        serviceAccountProviderId: 'cbinsights-service-account',
+        icon: CbInsightsIcon,
+        baseProviderIcon: CbInsightsIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'cbinsights',
   },
   tavily: {
     name: 'Tavily',

@@ -15,6 +15,7 @@ import {
   validateAshbyServiceAccount,
   validateAzureDevOpsServiceAccount,
   validateBrexServiceAccount,
+  validateCbInsightsServiceAccount,
   validateConvexServiceAccount,
   validateDevinServiceAccount,
   validateDynatraceServiceAccount,
@@ -874,6 +875,44 @@ describe('Splunk saved authentication token verification', () => {
 
     await expect(
       validateSplunkServiceAccount({ apiToken: 'any', domain: 'https://splunk.example.com:8089' })
+    ).rejects.toMatchObject({ code: 'provider_unavailable' })
+  })
+})
+
+describe('CB Insights saved API client verification', () => {
+  it('exchanges the client ID and secret for a token at the authorize endpoint the tools use', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ token: 'access-token' }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateCbInsightsServiceAccount({ apiToken: 'secret', providerWorkspaceId: ' client ' })
+    ).resolves.toMatchObject({ normalizedWorkspaceId: 'client' })
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.cbinsights.com/v2/authorize',
+      expect.objectContaining({
+        method: 'POST',
+        redirect: 'error',
+        body: JSON.stringify({ clientId: 'client', clientSecret: 'secret' }),
+      })
+    )
+  })
+
+  it('rejects a client CB Insights refuses to authorize', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ error: 'invalid credentials' }, 401))
+    )
+
+    await expect(
+      validateCbInsightsServiceAccount({ apiToken: 'bad', providerWorkspaceId: 'client' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('does not take a success without a token as proof', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({})))
+
+    await expect(
+      validateCbInsightsServiceAccount({ apiToken: 'secret', providerWorkspaceId: 'client' })
     ).rejects.toMatchObject({ code: 'provider_unavailable' })
   })
 })

@@ -28,6 +28,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   browser_use: 'browser_use_v2',
   buffer: 'buffer_v2',
   calendly: 'calendly_v2',
+  cbinsights: 'cbinsights_v2',
   chat_trigger: 'start_trigger',
   checkr: 'checkr_v2',
   circleback: 'circleback_v2',

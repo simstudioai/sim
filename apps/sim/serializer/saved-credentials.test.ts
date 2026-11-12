@@ -25,6 +25,7 @@ import { BrightDataBlock, BrightDataV2Block } from '@/blocks/blocks/brightdata'
 import { BrowserUseBlock, BrowserUseV2Block } from '@/blocks/blocks/browser_use'
 import { BufferBlock, BufferV2Block } from '@/blocks/blocks/buffer'
 import { CalendlyBlock, CalendlyV2Block } from '@/blocks/blocks/calendly'
+import { CbInsightsBlock, CbInsightsV2Block } from '@/blocks/blocks/cbinsights'
 import { CheckrBlock, CheckrV2Block } from '@/blocks/blocks/checkr'
 import { CirclebackBlock, CirclebackV2Block } from '@/blocks/blocks/circleback'
 import { ClerkBlock, ClerkV2Block } from '@/blocks/blocks/clerk'
@@ -417,6 +418,11 @@ const VERSIONS: Array<{
     secretIds: ['serviceTokenId', 'serviceToken'],
   },
   { legacy: GongBlock, successor: GongV2Block, secretIds: ['accessKey', 'accessKeySecret'] },
+  {
+    legacy: CbInsightsBlock,
+    successor: CbInsightsV2Block,
+    secretIds: ['clientId', 'clientSecret'],
+  },
   {
     legacy: SplunkBlock,
     successor: SplunkV2Block,

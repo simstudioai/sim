@@ -251,6 +251,14 @@ export const BROWSER_USE_CREDENTIAL_OAUTH = tokenCredentialOAuth('browser_use', 
 })
 export const BUFFER_CREDENTIAL_OAUTH = tokenCredentialOAuth('buffer', { apiKey: 'accessToken' })
 export const CALENDLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('calendly', { apiKey: 'accessToken' })
+/**
+ * Credential policy for every CB Insights tool. A saved CB Insights API client fills the client
+ * ID and secret the tools exchange for an access token on each run, as they do inline.
+ */
+export const CBINSIGHTS_CREDENTIAL_OAUTH = tokenCredentialOAuth('cbinsights', {
+  clientId: 'providerWorkspaceId',
+  clientSecret: 'accessToken',
+})
 export const CHECKR_CREDENTIAL_OAUTH = tokenCredentialOAuth('checkr', { apiKey: 'accessToken' })
 export const CIRCLEBACK_CREDENTIAL_OAUTH = tokenCredentialOAuth('circleback', {
   apiKey: 'accessToken',
@@ -530,6 +538,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   browser_use: BROWSER_USE_CREDENTIAL_OAUTH,
   buffer: BUFFER_CREDENTIAL_OAUTH,
   calendly: CALENDLY_CREDENTIAL_OAUTH,
+  cbinsights: CBINSIGHTS_CREDENTIAL_OAUTH,
   checkr: CHECKR_CREDENTIAL_OAUTH,
   circleback: CIRCLEBACK_CREDENTIAL_OAUTH,
   clerk: CLERK_CREDENTIAL_OAUTH,
