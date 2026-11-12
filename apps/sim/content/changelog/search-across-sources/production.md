@@ -52,3 +52,7 @@ Final asset: `/changelog/search-clear-path-v1.jpg`, 1672 × 941, optimized JPEG 
 **Email:** Find more relevant results across the sources you use in Sim. Keyword searches compare matches across apps, including short terms such as AI and VM. You can also sign out other devices from General settings and use expanded Excel editing with a Microsoft business account. Read the update: https://www.sim.ai/changelog/search-across-sources
 
 Do not distribute before the production article is verified. The article carries the full access and reconnection requirements.
+
+## November 11 historical correction
+
+Source #9595, explicitly released in v0.9.42, removed Sign out other devices from General settings. The article now states that current availability, with a substantive updated date. Its original publication date, slug, media and canonical RSS identity are preserved. The original v0.9.26 release claim remains historical rather than presenting a removed control as available.

@@ -1,0 +1,38 @@
+---
+slug: saved-credentials-and-access
+title: 'Connect once and control how credentials are used'
+description: 'Sim workflows can reuse saved credentials instead of repeated keys. Keyless cloud connections and read-only API keys give teams more control.'
+date: '2026-11-10T20:00:00Z'
+updated: '2026-11-12T05:00:30Z'
+authors: [waleed]
+tags: [Workflows, Security]
+ogImage: /changelog/credentials-gateway-v1.jpg
+ogAlt: 'Monochrome illustration of two stone gateways overlooking mountain ridges'
+technical: false
+draft: false
+release:
+  versions: [v0.9.53, v0.9.54]
+---
+
+<ChangelogImage
+  src="/changelog/credentials-gateway-v1.jpg"
+  alt="Monochrome illustration of two stone gateways overlooking mountain ridges"
+  width="1672"
+  height="941"
+/>
+
+Save a connection once and select it in your workflow blocks. Keys and connection details stay in one place instead of being copied into every block, and you choose who can use the saved credential.
+
+Introduced in v0.9.53 and expanded in v0.9.54, saved credentials cover more services that previously asked for keys directly. Existing blocks keep their original settings. To use a saved connection, replace a legacy block with its current version and select the credential.
+
+### Connect without a long-lived key
+
+In v0.9.53, supported cloud services can trust Sim to obtain temporary access. Your cloud administrator configures the trust and permissions; self-hosted deployments also need workload identity configured. See the [AWS](https://docs.sim.ai/integrations/aws-credentials) and [Databricks](https://docs.sim.ai/integrations/databricks-credentials) guides.
+
+### Give scripts only the access they need
+
+Create a **Read only** API key with an expiration date under **Sim API keys** in account or workspace settings. Introduced in v0.9.53 and generally available in v0.9.54, these keys can inspect information without changing workspace resources or starting, resuming, or cancelling workflows.
+
+Allowed reads can still consume credits or call connected services. Existing keys retain full access. [API key access and expiration](https://docs.sim.ai/api-reference/authentication#key-access).
+
+Technical releases: [v0.9.53](https://github.com/simstudioai/sim/releases/tag/v0.9.53), [v0.9.54](https://github.com/simstudioai/sim/releases/tag/v0.9.54).
