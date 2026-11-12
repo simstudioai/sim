@@ -21726,13 +21726,29 @@
                   "optional": {
                     "type": "boolean",
                     "description": "Whether the key may be left blank, for a source reachable without authentication."
+                  },
+                  "savedCredential": {
+                    "description": "When present, a saved credential of this service may be passed as `credentialId` instead of `apiKey`. Fields marked `apiKeyOnly` are then omitted.",
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "description": "OAuth service the saved credential must authenticate, e.g. `aws`."
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Label for the saved-credential option."
+                      }
+                    },
+                    "required": ["provider", "label"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["mode", "optional"],
                 "additionalProperties": false
               }
             ],
-            "description": "How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`."
+            "description": "How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey` (or, when they declare `savedCredential`, a saved `credentialId`)."
           },
           "configFields": {
             "type": "array",
@@ -21882,6 +21898,10 @@
           "multi": {
             "description": "When true the stored `sourceConfig` value is a `string[]`, not a `string`: a `selector` renders a multi-select picker and a `short-input` accepts a comma-separated list.",
             "type": "boolean"
+          },
+          "apiKeyOnly": {
+            "description": "When true the field describes the connector’s API key (such as its key ID or a custom host the key signs for). It is required as stated only with `apiKey`, and omitted when a saved `credentialId` is sent.",
+            "type": "boolean"
           }
         },
         "required": ["id", "title", "type"],
@@ -21910,7 +21930,7 @@
               "mode": {
                 "type": "string",
                 "enum": ["oauth", "apiKey"],
-                "description": "How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`."
+                "description": "How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey` (or, when they declare `savedCredential`, a saved `credentialId`)."
               }
             },
             "required": ["mode"],

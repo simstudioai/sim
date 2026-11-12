@@ -667,6 +667,7 @@ export const env = createEnv({
     AGENT_MEMORY_HISTORY:                 z.boolean().optional(),
     CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable Credential Groups on self-hosted (bypasses hosted requirements)
     KNOWLEDGE_MEMBER_ACCESS:              z.boolean().optional(),                 // Enable per-member knowledge connectors and hybrid-by-default retrieval globally
+    KNOWLEDGE_CONNECTOR_SAVED_CREDENTIALS: z.boolean().optional(),               // Fallback for the `knowledge-connector-saved-credentials` feature flag off AppConfig
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)

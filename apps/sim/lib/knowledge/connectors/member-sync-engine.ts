@@ -1657,6 +1657,7 @@ async function syncDedicatedMemberContent(input: {
       connector,
       userId,
       requestId: run.runId,
+      scope: resourceScopeFromOwner(run),
       sourceConfig,
     })
     if (!token) throw new Error('The content credential needs to be reconnected')

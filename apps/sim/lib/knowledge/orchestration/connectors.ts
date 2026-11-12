@@ -304,7 +304,10 @@ export async function performCreateKnowledgeConnector(
   if (apiKey && credentialId) {
     return fail('Choose either an OAuth account or an API key', 'validation')
   }
-  const usesApiKey = connectorConfig.auth.mode === 'apiKey' || Boolean(apiKeyConfig && apiKey)
+  const usesApiKey =
+    connectorConfig.auth.mode === 'apiKey'
+      ? !(connectorConfig.auth.savedCredential && credentialId)
+      : Boolean(apiKeyConfig && apiKey)
 
   if (membersBinding) {
     /**

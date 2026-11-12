@@ -389,6 +389,10 @@ export {
   integrationsAvailabilityMockFns,
 } from './integrations-availability.mock'
 export {
+  internalAwsCredentialsMock,
+  internalAwsCredentialsMockFns,
+} from './internal-aws-credentials.mock'
+export {
   invitationsCoreMock,
   invitationsCoreMockFns,
 } from './invitations-core.mock'

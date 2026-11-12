@@ -114,6 +114,15 @@ const FEATURE_FLAGS = {
       'Off-AppConfig falls back to PROJECTS.',
     fallback: 'PROJECTS',
   },
+  'knowledge-connector-saved-credentials': {
+    description:
+      'Let a key-based knowledge connector that declares a saved-credential alternative (Amazon S3 ' +
+      'with a saved AWS credential) be set up with that credential. Global on/off only; gates new ' +
+      'setup and credential changes, never syncing of connectors already using a credential. Turn ' +
+      'on only after the release that adds it is live on both the app and Trigger.dev workers. ' +
+      'Off-AppConfig falls back to KNOWLEDGE_CONNECTOR_SAVED_CREDENTIALS.',
+    fallback: 'KNOWLEDGE_CONNECTOR_SAVED_CREDENTIALS',
+  },
   'knowledge-member-access': {
     description:
       'Organization Search (live) and the permission-aware workspace connector modes: members ' +

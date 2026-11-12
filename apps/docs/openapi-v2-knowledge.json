@@ -7155,7 +7155,7 @@
             "description": "Registered connector type."
           },
           "credentialId": {
-            "description": "OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.",
+            "description": "OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.",
             "type": "string",
             "minLength": 1,
             "maxLength": 255

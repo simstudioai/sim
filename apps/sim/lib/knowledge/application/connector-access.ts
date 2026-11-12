@@ -41,6 +41,7 @@ import {
   sourceIdentityBinding,
 } from '@/lib/knowledge/connectors/member-provisioning'
 import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/connectors/mirrored-access'
+import { requireConnectorSavedCredentialSetup } from '@/lib/knowledge/connectors/saved-credential-rollout'
 import {
   type ConnectorAccessTarget,
   performUpdateKnowledgeConnectorAccess,
@@ -50,6 +51,7 @@ import { getKnowledgeConnector } from '@/lib/knowledge/orchestration/connectors'
 import type { KnowledgeOperationSource } from '@/lib/knowledge/orchestration/shared'
 import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import { getServiceConfigByProviderId, getServiceConfigByServiceId } from '@/lib/oauth'
+import { getConnectorCredentialService } from '@/connectors/auth'
 import { getConnectorMeta } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 
@@ -404,20 +406,24 @@ async function requireUsableCredential(input: {
   accessMode: ConnectorAccessMode
 }): Promise<string | null> {
   const { auth } = input.connectorMeta
-  if (auth.mode !== 'oauth') {
+  const credentialService = getConnectorCredentialService(auth)
+  if (!credentialService) {
     if (input.credentialId) {
       throw new OrchestrationError('validation', 'API-key connectors use their configured API key')
     }
     return null
   }
   if (!input.credentialId) {
+    if (auth.mode === 'apiKey') return null
     throw new OrchestrationError(
       'validation',
       'credentialId is required for a mode that syncs with one credential'
     )
   }
+  await requireConnectorSavedCredentialSetup(auth, input.credentialId)
   const service =
-    getServiceConfigByServiceId(auth.provider) ?? getServiceConfigByProviderId(auth.provider)
+    getServiceConfigByServiceId(credentialService) ??
+    getServiceConfigByProviderId(credentialService)
   if (!service) {
     throw new OrchestrationError(
       'validation',

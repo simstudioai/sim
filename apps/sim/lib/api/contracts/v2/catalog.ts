@@ -696,6 +696,12 @@ export const v2ConnectorConfigFieldSchema = z
       .describe(
         'When true the stored `sourceConfig` value is a `string[]`, not a `string`: a `selector` renders a multi-select picker and a `short-input` accepts a comma-separated list.'
       ),
+    apiKeyOnly: z
+      .boolean()
+      .optional()
+      .describe(
+        'When true the field describes the connector’s API key (such as its key ID or a custom host the key signs for). It is required as stated only with `apiKey`, and omitted when a saved `credentialId` is sent.'
+      ),
   })
   .meta({
     id: 'V2ConnectorConfigField',
@@ -740,10 +746,21 @@ export const v2ConnectorTypeSchema = z
             .describe(
               'Whether the key may be left blank, for a source reachable without authentication.'
             ),
+          savedCredential: z
+            .object({
+              provider: z
+                .string()
+                .describe('OAuth service the saved credential must authenticate, e.g. `aws`.'),
+              label: z.string().describe('Label for the saved-credential option.'),
+            })
+            .optional()
+            .describe(
+              'When present, a saved credential of this service may be passed as `credentialId` instead of `apiKey`. Fields marked `apiKeyOnly` are then omitted.'
+            ),
         }),
       ])
       .describe(
-        'How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`.'
+        'How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey` (or, when they declare `savedCredential`, a saved `credentialId`).'
       ),
     configFields: z
       .array(v2ConnectorConfigFieldSchema)
@@ -787,7 +804,7 @@ export const v2ConnectorTypeSummarySchema = z
         mode: z
           .enum(['oauth', 'apiKey'])
           .describe(
-            'How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`.'
+            'How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey` (or, when they declare `savedCredential`, a saved `credentialId`).'
           ),
       })
       .describe(
