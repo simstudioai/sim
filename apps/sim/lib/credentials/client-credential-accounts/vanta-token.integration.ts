@@ -2,10 +2,12 @@ import { createHash } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import { db } from '@sim/db'
 import { clientCredentialToken } from '@sim/db/schema'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { eq, like, or } from 'drizzle-orm'
+import { eq, like, or, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   invalidateVantaClientToken,
   resolveVantaClientToken,
@@ -32,6 +34,67 @@ function fields(suffix: string) {
     )
   }
   return { clientId, clientSecret: `secret-${clientId}`, scope: READ }
+}
+
+function sha256Json(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex')
+}
+
+/** Row ids and digests exactly as the build before the shared resolver derived them. */
+function previousBuildKeys(input: { clientId: string; clientSecret: string }, scope: string) {
+  const apiDomain = 'https://api.vanta.com'
+  const applicationKey = `vanta:${sha256Json([apiDomain, input.clientId])}`
+  const secretFingerprint = sha256Json([apiDomain, input.clientId, input.clientSecret])
+  return {
+    applicationKey,
+    secretFingerprint,
+    failureKey: `${applicationKey}:${sha256Json([secretFingerprint, scope])}`,
+    accessTokenDigest: (accessToken: string) => sha256Json([apiDomain, accessToken]),
+  }
+}
+
+/** Writes an application token row the way the previous build's mint did. */
+async function storePreviousBuildToken(
+  keys: ReturnType<typeof previousBuildKeys>,
+  accessToken: string,
+  scope: string,
+  expiresInMs: number,
+  client: Pick<typeof db, 'insert'> = db
+) {
+  const { encrypted } = await encryptSecret(
+    JSON.stringify({ accessToken, secretFingerprint: keys.secretFingerprint, scope })
+  )
+  await client.insert(clientCredentialToken).values({
+    id: keys.applicationKey,
+    encryptedValue: encrypted,
+    accessTokenDigest: keys.accessTokenDigest(accessToken),
+    expiresAt: new Date(Date.now() + expiresInMs),
+  })
+}
+
+async function readStoredRow(id: string) {
+  const [row] = await db
+    .select()
+    .from(clientCredentialToken)
+    .where(eq(clientCredentialToken.id, id))
+    .limit(1)
+  if (!row) throw new Error('Expected a stored row')
+  return { ...row, decrypted: (await decryptSecret(row.encryptedValue)).decrypted }
+}
+
+/** Resolves once a session is blocked on the advisory lock for `key`; fails if `pending` settles first. */
+async function lockWaiterAppears(key: string, pending: { settled: boolean }): Promise<void> {
+  for (;;) {
+    const waiting = await db.execute(sql`
+      WITH k AS (SELECT hashtextextended(${key}, 0) AS h)
+      SELECT 1 FROM pg_locks, k
+      WHERE locktype = 'advisory' AND NOT granted AND objsubid = 1
+        AND classid::bigint = ((k.h >> 32) & 4294967295)
+        AND objid::bigint = (k.h & 4294967295)`)
+    if (waiting.length > 0) return
+    if (pending.settled) throw new Error('Resolution finished without waiting on the lock')
+    await sleep(10)
+  }
 }
 
 async function isActive(token: string): Promise<boolean> {
@@ -114,10 +177,12 @@ afterAll(async () => {
 
 describe('Vanta application token lifecycle against shared storage', () => {
   it('shares one active token across simultaneous resolutions for an application', async () => {
+    const count = tokenRequests
     const results = await Promise.all(
       Array.from({ length: 12 }, () => resolveVantaClientToken(fields('concurrent')))
     )
     expect(new Set(results.map((result) => result.accessToken)).size).toBe(1)
+    expect(tokenRequests).toBe(count + 1)
     expect(await isActive(results[0].accessToken)).toBe(true)
     expect((await resolveVantaClientToken(fields('concurrent'))).accessToken).toBe(
       results[0].accessToken
@@ -262,6 +327,122 @@ describe('Vanta application token lifecycle against shared storage', () => {
     await expect(resolveVantaClientToken(fields('storage-failure'))).rejects.toMatchObject({
       code: 'provider_unavailable',
     })
+    expect(tokenRequests).toBe(count)
+  })
+})
+
+describe('Vanta token rows shared with the previous build during a rolling deploy', () => {
+  it('serves a fresh token the previous build stored down to the 30-second margin without calling Vanta', async () => {
+    const input = fields('legacy-fresh')
+    await storePreviousBuildToken(
+      previousBuildKeys(input, READ),
+      'legacy-fresh-token',
+      READ,
+      60_000
+    )
+    const count = tokenRequests
+
+    await expect(resolveVantaClientToken(input)).resolves.toMatchObject({
+      accessToken: 'legacy-fresh-token',
+      apiDomain: 'https://api.vanta.com',
+    })
+    expect(tokenRequests).toBe(count)
+  })
+
+  it('honors a refusal the previous build remembered without calling Vanta', async () => {
+    const input = fields('legacy-failure')
+    const { encrypted } = await encryptSecret(
+      JSON.stringify({ code: 'invalid_credentials', status: 401 })
+    )
+    await db.insert(clientCredentialToken).values({
+      id: previousBuildKeys(input, READ).failureKey,
+      encryptedValue: encrypted,
+      expiresAt: new Date(Date.now() + 20_000),
+    })
+    const count = tokenRequests
+
+    await expect(resolveVantaClientToken(input)).rejects.toMatchObject({
+      code: 'invalid_credentials',
+      status: 401,
+    })
+    expect(tokenRequests).toBe(count)
+  })
+
+  it('refuses other permissions for an expired application the previous build pinned', async () => {
+    const input = fields('legacy-expired-scope')
+    await storePreviousBuildToken(previousBuildKeys(input, READ), 'legacy-expired', READ, -1000)
+    const count = tokenRequests
+
+    await expect(resolveVantaClientToken({ ...input, scope: WRITE })).rejects.toMatchObject({
+      code: 'permission_conflict',
+    })
+    expect(tokenRequests).toBe(count)
+  })
+
+  it('stores a minted token where and how the previous build reads it', async () => {
+    const input = fields('legacy-readable-mint')
+    const keys = previousBuildKeys(input, READ)
+
+    const { accessToken } = await resolveVantaClientToken(input)
+
+    const row = await readStoredRow(keys.applicationKey)
+    expect(row.decrypted).toBe(
+      JSON.stringify({ accessToken, secretFingerprint: keys.secretFingerprint, scope: READ })
+    )
+    expect(row.accessTokenDigest).toBe(keys.accessTokenDigest(accessToken))
+  })
+
+  it('stores a refusal where and how the previous build reads it', async () => {
+    const input = fields('legacy-readable-failure')
+    const keys = previousBuildKeys({ ...input, clientSecret: 'revoked-secret' }, READ)
+
+    await expect(
+      resolveVantaClientToken({ ...input, clientSecret: 'revoked-secret' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+
+    const row = await readStoredRow(keys.failureKey)
+    expect(row.decrypted).toBe(JSON.stringify({ code: 'invalid_credentials', status: 401 }))
+    expect(row.accessTokenDigest).toBeNull()
+  })
+
+  it('expires a token the previous build stored when Vanta rejects it', async () => {
+    const input = fields('legacy-invalidated')
+    const keys = previousBuildKeys(input, READ)
+    await storePreviousBuildToken(keys, 'legacy-rejected-token', READ, 3_600_000)
+
+    await invalidateVantaClientToken('legacy-rejected-token', 'https://api.vanta.com')
+
+    expect((await readStoredRow(keys.applicationKey)).expiresAt.getTime()).toBe(0)
+  })
+
+  it('waits on the application lock the previous build holds and serves the token it minted', async () => {
+    const input = fields('legacy-lock')
+    const keys = previousBuildKeys(input, READ)
+    const locked = createDeferred<void>()
+    const commit = createDeferred<void>()
+    const previousBuild = db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${keys.applicationKey}, 0))`
+      )
+      locked.resolve()
+      await commit.promise
+      await storePreviousBuildToken(keys, 'legacy-locked-token', READ, 3_600_000, tx)
+    })
+    await locked.promise
+    const count = tokenRequests
+    const pending = { settled: false }
+    const resolution = resolveVantaClientToken(input).finally(() => {
+      pending.settled = true
+    })
+
+    try {
+      await lockWaiterAppears(keys.applicationKey, pending)
+    } finally {
+      commit.resolve()
+      await previousBuild
+    }
+
+    await expect(resolution).resolves.toMatchObject({ accessToken: 'legacy-locked-token' })
     expect(tokenRequests).toBe(count)
   })
 })
