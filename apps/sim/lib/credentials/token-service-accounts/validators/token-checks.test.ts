@@ -879,6 +879,43 @@ describe('Splunk saved authentication token verification', () => {
       validateSplunkServiceAccount({ apiToken: 'any', domain: 'https://splunk.example.com:8089' })
     ).rejects.toMatchObject({ code: 'provider_unavailable' })
   })
+
+  it('signs a username and password in with HTTP Basic on the same check, and stores the username', async () => {
+    reply(jsonResponse({ entry: [{ content: { username: 'svc-sim' } }] }))
+
+    await expect(
+      validateSplunkServiceAccount({
+        apiToken: 'p@ss word',
+        providerWorkspaceId: ' svc-sim ',
+        domain: 'https://splunk.example.com:8089',
+      })
+    ).resolves.toMatchObject({
+      normalizedDomain: 'https://splunk.example.com:8089',
+      normalizedWorkspaceId: 'svc-sim',
+    })
+    expect(secureFetch).toHaveBeenCalledWith(
+      'https://splunk.example.com:8089/services/authentication/current-context?output_mode=json',
+      '203.0.113.7',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: `Basic ${Buffer.from('svc-sim:p@ss word').toString('base64')}`,
+        }),
+      })
+    )
+  })
+
+  it('refuses a username HTTP Basic cannot carry without sending it', async () => {
+    reply(jsonResponse({ entry: [{ content: { username: 'svc-sim' } }] }))
+
+    await expect(
+      validateSplunkServiceAccount({
+        apiToken: 'password',
+        providerWorkspaceId: 'svc:sim',
+        domain: 'https://splunk.example.com:8089',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(secureFetch).not.toHaveBeenCalled()
+  })
 })
 
 describe('CB Insights saved API client verification', () => {

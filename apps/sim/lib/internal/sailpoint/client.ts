@@ -184,8 +184,10 @@ async function readBoundedBody(
  * Exchanges API client credentials for an access token at a tenant's token
  * endpoint (`client_credentials` grant, credentials in the form body), with
  * redirects refused and up to four backoff retries on 429 (`maxThrottleRetries`).
- * A refusal throws {@link SailPointAuthError} with the provider's status,
- * message, and `Retry-After`, even when its error body cannot be read.
+ * A 429 whose wait (its `Retry-After`, or the backoff when it names none)
+ * exceeds `maxThrottleWaitMs` is not retried. A refusal throws
+ * {@link SailPointAuthError} with the provider's status, message, and
+ * `Retry-After`, even when its error body cannot be read.
  *
  * @see https://developer.sailpoint.com/docs/api/authentication
  */
@@ -194,7 +196,10 @@ export async function requestSailPointToken(
   clientId: string,
   clientSecret: string,
   signal: AbortSignal,
-  { maxThrottleRetries = MAX_FETCH_RETRIES }: { maxThrottleRetries?: number } = {}
+  {
+    maxThrottleRetries = MAX_FETCH_RETRIES,
+    maxThrottleWaitMs = Number.POSITIVE_INFINITY,
+  }: { maxThrottleRetries?: number; maxThrottleWaitMs?: number } = {}
 ): Promise<{ token: string; expiresInSeconds: number }> {
   let attempt = 0
 
@@ -216,11 +221,14 @@ export async function requestSailPointToken(
       signal,
     })
 
-    if (response.status === 429 && attempt < maxThrottleRetries) {
-      const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
+    const throttleWaitMs =
+      response.status === 429 && attempt < maxThrottleRetries
+        ? backoffWithJitter(attempt + 1, parseRetryAfter(response.headers.get('retry-after')))
+        : undefined
+    if (throttleWaitMs !== undefined && throttleWaitMs <= maxThrottleWaitMs) {
       await consumeOrCancelBody(response, DEFAULT_MAX_ERROR_BODY_BYTES)
       attempt += 1
-      await interruptibleSleep(backoffWithJitter(attempt, retryAfterMs), signal)
+      await interruptibleSleep(throttleWaitMs, signal)
       signal?.throwIfAborted()
       continue
     }

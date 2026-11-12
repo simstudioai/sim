@@ -101,6 +101,7 @@ import { getIncidentTool as getServiceNowIncidentTool } from '@/tools/servicenow
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
 import { cortexAnalystAskTool as snowflakeCortexAnalystAskTool } from '@/tools/snowflake/cortex_analyst_ask'
 import { listDatabasesTool as snowflakeListDatabasesTool } from '@/tools/snowflake/list_databases'
+import { listIndexesTool as splunkListIndexesTool } from '@/tools/splunk/list_indexes'
 import { stripeListSubscriptionsTool } from '@/tools/stripe/list_subscriptions'
 import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptions'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
@@ -254,6 +255,7 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
   amplitude_user_profile: amplitudeUserProfileTool,
+  splunk_list_indexes: splunkListIndexesTool,
   stripe_list_subscriptions: stripeListSubscriptionsTool,
   stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
@@ -4330,6 +4332,61 @@ describe('Internal Route Trust', () => {
           headers: expect.objectContaining({
             authorization: `Basic ${Buffer.from('saved-api-key:saved-secret-key').toString('base64')}`,
           }),
+        })
+      )
+    })
+
+    it('signs a saved Splunk username and password in with Basic auth on the saved host', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-password',
+        credentialType: 'service_account',
+        domain: 'https://splunk.example.com:8089',
+        providerWorkspaceId: 'svc-sim',
+        authStyle: 'basic',
+      })
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(Response.json({ entry: [] }))
+      )
+
+      await executeTool('splunk_list_indexes', {
+        credential: 'saved-credential',
+        baseUrl: 'https://attacker.example.net:8089',
+        authStyle: 'bearer',
+      })
+
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^https:\/\/splunk\.example\.com:8089\//),
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            authorization: `Basic ${Buffer.from('svc-sim:saved-password').toString('base64')}`,
+          }),
+        })
+      )
+    })
+
+    it('sends a saved Splunk token as a bearer token, whatever sign-in the caller passes', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType: 'service_account',
+        domain: 'https://splunk.example.com:8089',
+      })
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(Response.json({ entry: [] }))
+      )
+
+      await executeTool('splunk_list_indexes', {
+        credential: 'saved-credential',
+        username: 'caller',
+        password: 'caller-password',
+        authStyle: 'basic',
+      })
+
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^https:\/\/splunk\.example\.com:8089\//),
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({ authorization: 'Bearer saved-token' }),
         })
       )
     })

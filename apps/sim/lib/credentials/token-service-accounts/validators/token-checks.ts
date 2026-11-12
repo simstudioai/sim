@@ -1270,18 +1270,30 @@ export const validateKalshiServiceAccount = tokenCheckValidator({
 
 /**
  * Splunk's `authentication/current-context` returns the user a request authenticates as and
- * needs no capability, so any valid authentication token reads it; a refused token answers 401.
- * The management URL is one the user chose, so the check runs through the guarded egress, and
- * an answer without a user context (a proxy or login page) is not taken as proof.
+ * needs no capability, so any valid authentication token, or username and password sent as HTTP
+ * Basic the way the tools send them, reads it; refused credentials answer 401. A username is the
+ * Basic username, so one with a colon is refused unsent. The management URL is one the user
+ * chose, so the check runs through the guarded egress, and an answer without a user context (a
+ * proxy or login page) is not taken as proof.
  * https://help.splunk.com/en/splunk-enterprise/leverage-rest-apis/rest-api-reference/10.6/access-endpoints/access-endpoint-descriptions
  */
 export const validateSplunkServiceAccount = tokenCheckValidator({
   serviceLabel: 'Splunk',
   domain: ({ domain }) => normalizeHttpBaseUrl(domain),
+  workspaceId: ({ providerWorkspaceId }) => {
+    const username = (providerWorkspaceId ?? '').trim()
+    if (!username) return undefined
+    if (!/^[^:\x00-\x1f\x7f]+$/.test(username)) throw new Error('invalid username')
+    return username
+  },
   egress: 'configuredEndpoint',
-  request: ({ apiToken, domain = '' }) => ({
+  request: ({ apiToken, domain = '', providerWorkspaceId }) => ({
     url: buildSplunkUrl({ baseUrl: domain }, '/authentication/current-context'),
-    headers: buildSplunkHeaders({ baseUrl: domain, authToken: apiToken }),
+    headers: buildSplunkHeaders(
+      providerWorkspaceId
+        ? { baseUrl: domain, username: providerWorkspaceId, password: apiToken }
+        : { baseUrl: domain, authToken: apiToken }
+    ),
   }),
   acceptsBody: (body) => {
     const [entry] = toArray(toRecord(body).entry)

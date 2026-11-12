@@ -346,6 +346,52 @@ describe('keyless credentials', () => {
     ).toEqual({ serviceAccountJson: JSON.stringify(configuration) })
   })
 
+  const snowflakeWithoutKeyless = { ...snowflake, keyless: undefined }
+  const keyPair = {
+    authType: 'key_pair',
+    host: 'myorg-myaccount.snowflakecomputing.com',
+    user: 'SIM_SERVICE',
+    privateKey: '-----BEGIN PRIVATE KEY-----...',
+  }
+
+  it('sends a Snowflake key pair as serviceAccountJson where the deployment has no keyless mode', async () => {
+    const fields = { serviceAccountJson: JSON.stringify(keyPair) }
+    expect(await createWith(snowflakeWithoutKeyless, 'snowflake-service-account', fields)).toEqual(
+      fields
+    )
+  })
+
+  it.each([
+    ['without', snowflakeWithoutKeyless],
+    ['with', snowflake],
+  ])(
+    'wraps a raw Snowflake key pair as serviceAccountJson %s a keyless mode',
+    async (_label, provider) => {
+      expect(await createWith(provider, 'snowflake-service-account', keyPair)).toEqual({
+        serviceAccountJson: JSON.stringify(keyPair),
+      })
+    }
+  )
+
+  it('still names the missing Snowflake token fields where the deployment has no keyless mode', async () => {
+    mockRequest.mockResolvedValueOnce({ data: [snowflakeWithoutKeyless], nextCursor: null })
+
+    await expect(
+      program().parseAsync([
+        'node',
+        'sim',
+        'credentials',
+        'create',
+        'snowflake-service-account',
+        '--name',
+        'Snowflake',
+        '--credentials',
+        '{"domain":"myorg-myaccount.snowflakecomputing.com"}',
+      ])
+    ).rejects.toThrow('missing required fields for snowflake-service-account: apiToken')
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+  })
+
   it('reads any other object as fields, so a raw key file is reported, not wrapped', async () => {
     mockRequest.mockResolvedValueOnce({
       data: [configOnly('google-service-account')],
