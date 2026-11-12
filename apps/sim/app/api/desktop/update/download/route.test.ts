@@ -6,6 +6,7 @@ import {
   DESKTOP_STABLE_RELEASE_REPOSITORY,
   MANIFEST_ASSET_NAME,
   releasesApiUrl,
+  WINDOWS_MANIFEST_ASSET_NAME,
 } from '@/lib/desktop/update-feed'
 import { GET } from '@/app/api/desktop/update/download/route'
 
@@ -37,8 +38,24 @@ function manifest(version: string) {
   return [`version: ${version}`, 'files:', `  - url: Sim-${version}-universal.zip`].join('\n')
 }
 
-async function getDownload(): Promise<Response> {
-  return GET(new NextRequest('https://www.sim.ai/api/desktop/update/download'), undefined)
+async function getDownload(query = ''): Promise<Response> {
+  return GET(new NextRequest(`https://www.sim.ai/api/desktop/update/download${query}`), undefined)
+}
+
+function withWindowsBuild(macRelease: ReturnType<typeof release>) {
+  const version = macRelease.tag_name.replace(/^v/, '')
+  const base = macRelease.assets[0].browser_download_url.replace(/\/[^/]+$/, '')
+  return {
+    ...macRelease,
+    assets: [
+      ...macRelease.assets,
+      {
+        name: WINDOWS_MANIFEST_ASSET_NAME,
+        browser_download_url: `${base}/${WINDOWS_MANIFEST_ASSET_NAME}`,
+      },
+      { name: `Sim-${version}-x64.exe`, browser_download_url: `${base}/Sim-${version}-x64.exe` },
+    ],
+  }
 }
 
 describe('desktop update download route', () => {
@@ -53,9 +70,13 @@ describe('desktop update download route', () => {
       const candidate = releases.find((release) =>
         release.assets.some((asset) => asset.browser_download_url === url)
       )
-      return candidate
-        ? new Response(manifest(candidate.tag_name.replace(/^v/, '')))
-        : new Response(null, { status: 404 })
+      if (!candidate) return new Response(null, { status: 404 })
+      const version = candidate.tag_name.replace(/^v/, '')
+      return new Response(
+        url.endsWith(`/${WINDOWS_MANIFEST_ASSET_NAME}`)
+          ? [`version: ${version}`, 'files:', `  - url: Sim-${version}-x64.exe`].join('\n')
+          : manifest(version)
+      )
     })
   }
 
@@ -124,5 +145,41 @@ describe('desktop update download route', () => {
 
     expect(response.status).toBe(502)
     expect(await response.json()).toMatchObject({ error: 'Release feed unavailable' })
+  })
+  it('redirects a Windows shell to the x64 installer of the newest Windows release', async () => {
+    mockReleases([
+      release('v1.4.0', DESKTOP_STABLE_RELEASE_REPOSITORY),
+      withWindowsBuild(release('v1.3.0', DESKTOP_STABLE_RELEASE_REPOSITORY)),
+    ])
+
+    const response = await getDownload('?platform=windows')
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe(
+      `https://github.com/${DESKTOP_STABLE_RELEASE_REPOSITORY}/releases/download/v1.3.0/Sim-1.3.0-x64.exe`
+    )
+  })
+
+  it('keeps macOS callers on the dmg when a release also ships Windows', async () => {
+    mockReleases([withWindowsBuild(release('v1.3.0', DESKTOP_STABLE_RELEASE_REPOSITORY))])
+
+    const response = await getDownload()
+
+    expect(response.headers.get('location')).toContain('Sim-1.3.0-universal.dmg')
+  })
+
+  it('reports no Windows release instead of redirecting to a macOS installer', async () => {
+    mockReleases([release('v1.3.0', DESKTOP_STABLE_RELEASE_REPOSITORY)])
+
+    const response = await getDownload('?platform=windows')
+
+    expect(response.status).toBe(404)
+  })
+
+  it('rejects an unknown platform', async () => {
+    const response = await getDownload('?platform=linux')
+
+    expect(response.status).toBe(400)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

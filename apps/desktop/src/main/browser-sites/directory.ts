@@ -17,10 +17,10 @@ import {
  * anyway. It is a name and an icon per host — never a visit log, never a URL
  * beyond the host itself.
  *
- * Encrypted with the same OS-backed key as the credential vault. The hostnames
- * in here include ones only a saved password knows about, and those live in an
- * encrypted vault today; writing them to a plaintext file beside it would
- * quietly undo that.
+ * Encrypted with the same OS-backed `safeStorage` key as the credential vault
+ * (Keychain on macOS, DPAPI on Windows). The hostnames in here include ones
+ * only a saved password knows about, and those live in an encrypted vault
+ * today; writing them to a plaintext file beside it would quietly undo that.
  */
 
 /**

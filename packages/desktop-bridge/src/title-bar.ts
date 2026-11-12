@@ -1,10 +1,16 @@
-import type { SimDesktopWindowStateApi } from '@sim/desktop-bridge'
+import type { DesktopPlatform, SimDesktopWindowStateApi } from '@sim/desktop-bridge'
 
 export type DesktopTitleBarMode = 'fullscreen' | 'inset' | null
 export const DESKTOP_TITLE_BAR_ATTRIBUTE = 'data-sim-desktop-title-bar'
 
-function supportsDesktopTitleBar(userAgent: string, hasDesktopBridge: boolean): boolean {
-  return hasDesktopBridge && /Mac/i.test(userAgent)
+interface TitleBarBridge {
+  platform?: DesktopPlatform
+  windowState?: SimDesktopWindowStateApi
+}
+
+/** Only macOS draws traffic lights over the page; Windows keeps its native frame. */
+function supportsDesktopTitleBar(bridge: TitleBarBridge | undefined): boolean {
+  return bridge !== undefined && (bridge.platform ?? 'darwin') === 'darwin'
 }
 
 export function applyDesktopTitleBarMode(
@@ -18,10 +24,9 @@ export function applyDesktopTitleBarMode(
 /** Shares native title-bar geometry and fullscreen transitions across hosted and offline pages. */
 export function observeDesktopTitleBar(
   root: HTMLElement,
-  userAgent: string,
-  bridge?: { windowState?: SimDesktopWindowStateApi }
+  bridge?: TitleBarBridge
 ): (() => void) | undefined {
-  if (!supportsDesktopTitleBar(userAgent, Boolean(bridge))) {
+  if (!supportsDesktopTitleBar(bridge)) {
     applyDesktopTitleBarMode(root, null)
     return
   }

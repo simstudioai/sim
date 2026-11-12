@@ -251,9 +251,18 @@ function editingCommandFor(combo: ParsedCombo): string | null {
 /**
  * Whether a combo would drive the system clipboard. Checked before dispatch
  * rather than by withholding the CDP `commands` array: off macOS these are
- * Blink-native, so a key event alone still performs them.
+ * Blink-native, so a key event alone still performs them. That includes
+ * Blink's legacy bindings there: Shift+Insert pastes, Ctrl+Insert copies,
+ * and Shift+Delete cuts.
  */
-export function comboTouchesClipboard(combo: ParsedCombo): boolean {
+export function comboTouchesClipboard(
+  combo: ParsedCombo,
+  platform: NodeJS.Platform = process.platform
+): boolean {
+  if (platform !== 'darwin') {
+    if (combo.key === 'Insert' && (combo.shift || combo.ctrl)) return true
+    if (combo.key === 'Delete' && combo.shift) return true
+  }
   if (!combo.ctrl && !combo.meta) return false
   const key = combo.key.toLowerCase()
   return key === 'v' || key === 'c' || key === 'x'
@@ -265,13 +274,13 @@ export function comboTouchesClipboard(combo: ParsedCombo): boolean {
  * explicitly (same technique as Puppeteer/Playwright). The model doesn't know
  * the host OS and often says "Control+A", so on macOS Ctrl is treated as Cmd
  * for these shortcuts: both must select all, not silently no-op. On other
- * platforms Ctrl+key is handled inside Blink and needs no help.
+ * platforms Ctrl+key is handled inside Blink and needs no help, so a Cmd+A
+ * the model meant for a Mac becomes Ctrl+A there instead of the Windows key.
  */
 function normalizeComboForPlatform(combo: ParsedCombo, platform: NodeJS.Platform): ParsedCombo {
-  if (platform !== 'darwin' || !combo.ctrl || combo.meta || editingCommandFor(combo) === null) {
-    return combo
-  }
-  return { ...combo, ctrl: false, meta: true }
+  if (editingCommandFor(combo) === null || combo.ctrl === combo.meta) return combo
+  if (platform === 'darwin') return combo.ctrl ? { ...combo, ctrl: false, meta: true } : combo
+  return combo.meta ? { ...combo, ctrl: true, meta: false } : combo
 }
 
 function macEditingCommands(combo: ParsedCombo, platform: NodeJS.Platform): string[] {

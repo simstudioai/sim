@@ -4,7 +4,8 @@ import { truncate } from '@sim/utils/string'
 import type { MenuItemConstructorOptions, NativeImage } from 'electron'
 import { app, Menu, nativeImage, session, Tray } from 'electron'
 import { newChatRoute } from '@/main/app-routes'
-import { APP_NAME_FOR_CHANNEL, channelForOrigin, type DesktopChannel } from '@/main/config'
+import { channelForOrigin } from '@/main/config'
+import { CHANNEL_IDENTITIES, type DesktopChannel } from '@/shared/channel-identity'
 
 const logger = createLogger('DesktopTray')
 
@@ -25,6 +26,9 @@ const TRAY_SUBSCRIPT_WIDTH = 5
 const TRAY_SUBSCRIPT_HEIGHT = 7
 const TRAY_SUBSCRIPT_STROKE_WIDTH = 1.1
 const TRAY_SUBSCRIPT_SUPERSAMPLE = 4
+/** Notification-area icon edge (DIP) and the display scales Windows commonly runs at. */
+const WINDOWS_TRAY_ICON_SIZE = 16
+const WINDOWS_TRAY_SCALE_FACTORS = [1.25, 1.5, 2] as const
 
 type TrayEnvironmentMarker = 'L' | 'D' | 'S'
 type GlyphPoint = { x: number; y: number }
@@ -332,6 +336,8 @@ export interface TrayDeps {
   appOrigin: () => string
   lastRoute: () => string | undefined
   openMainWindow: (route?: string) => void
+  /** Injectable for platform-specific tray tests. */
+  platform?: NodeJS.Platform
 }
 
 function chatMenuItem(chat: RecentChat, deps: TrayDeps): MenuItemConstructorOptions {
@@ -391,6 +397,44 @@ export interface TrayHandle {
   destroy(): void
 }
 
+/** Monochrome template glyph that macOS tints for the menu bar, with the environment subscript. */
+function macTrayIcon(channel: DesktopChannel): NativeImage | null {
+  const iconPath = join(app.getAppPath(), 'static', 'tray', 'simTemplate.png')
+  const sourceIcon = nativeImage.createFromPath(iconPath)
+  if (sourceIcon.isEmpty()) {
+    logger.error('Tray icon missing; skipping tray install', { iconPath })
+    return null
+  }
+  const marker = trayEnvironmentMarker(channel)
+  const icon = marker ? addTrayEnvironmentSubscript(sourceIcon, marker) : sourceIcon
+  icon.setTemplateImage(true)
+  return icon
+}
+
+/**
+ * Full-colour app icon for the Windows notification area, which never tints
+ * template images (a black glyph vanishes on a dark taskbar). The per-channel
+ * app icon already marks its environment, so no subscript is drawn. Each
+ * scale gets its own downsample so the icon stays crisp at 125-200% DPI.
+ */
+function windowsTrayIcon(channel: DesktopChannel): NativeImage | null {
+  const iconPath = join(app.getAppPath(), 'static', CHANNEL_IDENTITIES[channel].dockIcon)
+  const source = nativeImage.createFromPath(iconPath)
+  if (source.isEmpty()) {
+    logger.error('Tray icon missing; skipping tray install', { iconPath })
+    return null
+  }
+  const sized = (scale: number) => {
+    const edge = Math.round(WINDOWS_TRAY_ICON_SIZE * scale)
+    return source.resize({ width: edge, height: edge, quality: 'best' })
+  }
+  const icon = sized(1)
+  for (const scaleFactor of WINDOWS_TRAY_SCALE_FACTORS) {
+    icon.addRepresentation({ scaleFactor, buffer: sized(scaleFactor).toPNG() })
+  }
+  return icon
+}
+
 /**
  * The macOS status item owns an attached native menu, so macOS handles its
  * selected/open state and a second icon click closes it normally. Recent chats
@@ -398,20 +442,16 @@ export interface TrayHandle {
  * open without putting network or menu construction on the click path.
  */
 export function installTray(deps: TrayDeps): TrayHandle | null {
-  const iconPath = join(app.getAppPath(), 'static', 'tray', 'simTemplate.png')
-  const sourceIcon = nativeImage.createFromPath(iconPath)
-  if (sourceIcon.isEmpty()) {
-    logger.error('Tray icon missing; skipping tray install', { iconPath })
-    return null
-  }
   const channel = channelForOrigin(deps.appOrigin())
-  const marker = trayEnvironmentMarker(channel)
-  const icon = marker ? addTrayEnvironmentSubscript(sourceIcon, marker) : sourceIcon
-  icon.setTemplateImage(true)
+  const isWindows = (deps.platform ?? process.platform) === 'win32'
+  const icon = isWindows ? windowsTrayIcon(channel) : macTrayIcon(channel)
+  if (!icon) return null
 
   const tray = new Tray(icon)
   tray.setIgnoreDoubleClickEvents(true)
-  tray.setToolTip(APP_NAME_FOR_CHANNEL[channel])
+  tray.setToolTip(CHANNEL_IDENTITIES[channel].name)
+  // Windows opens the context menu only on right-click; a left-click is "show me Sim".
+  if (isWindows) tray.on('click', () => deps.openMainWindow())
 
   let refreshPromise: Promise<boolean> | null = null
   let cacheGeneration = 0

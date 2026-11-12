@@ -6,7 +6,7 @@ import type { MenuItemConstructorOptions } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import { buildMenuTemplate, type MenuDeps } from '@/main/menu'
 
-function makeDeps(origin = 'https://sim.ai'): MenuDeps {
+function makeDeps(platform: NodeJS.Platform = 'darwin', origin = 'https://sim.ai'): MenuDeps {
   return {
     config: {
       filePath: '/tmp/settings.json',
@@ -29,20 +29,53 @@ function makeDeps(origin = 'https://sim.ai'): MenuDeps {
     signOut: vi.fn(),
     checkForUpdates: vi.fn(),
     openDiagnostics: vi.fn(),
+    platform,
   }
 }
 
-function submenu(
-  template: MenuItemConstructorOptions[],
-  label: string
-): MenuItemConstructorOptions[] {
-  return (template.find((item) => item.label === label || item.role === label.toLowerCase())
-    ?.submenu ?? []) as MenuItemConstructorOptions[]
+/** Every item at any depth, so hidden resource items count too. */
+function flatten(items: MenuItemConstructorOptions[]): MenuItemConstructorOptions[] {
+  return items.flatMap((item) => [
+    item,
+    ...(Array.isArray(item.submenu) ? flatten(item.submenu as MenuItemConstructorOptions[]) : []),
+  ])
+}
+
+function accelerators(template: MenuItemConstructorOptions[]): Set<string> {
+  return new Set(
+    flatten(template).flatMap((item) =>
+      typeof item.accelerator === 'string' ? [item.accelerator] : []
+    )
+  )
 }
 
 describe('buildMenuTemplate', () => {
-  it('never exposes developer tools in the application menu', () => {
-    const view = submenu(buildMenuTemplate(makeDeps()), 'View')
-    expect(view.some((item) => item.role === 'toggleDevTools')).toBe(false)
+  it.each(['darwin', 'win32'] as const)('never exposes developer tools on %s', (platform) => {
+    const items = flatten(buildMenuTemplate(makeDeps(platform)))
+    expect(items.some((item) => item.role === 'toggleDevTools')).toBe(false)
+  })
+
+  it('keeps every macOS shortcut working on Windows', () => {
+    const windows = accelerators(buildMenuTemplate(makeDeps('win32')))
+    for (const accelerator of accelerators(buildMenuTemplate(makeDeps('darwin')))) {
+      expect(windows).toContain(accelerator)
+    }
+    expect(windows).toContain('Alt+Left')
+    expect(windows).toContain('Alt+Right')
+  })
+
+  it('leaves out windowMenu on Windows, whose Close item would steal Ctrl+W from Close Tab', () => {
+    const roles = flatten(buildMenuTemplate(makeDeps('win32'))).map((item) => item.role)
+    expect(roles).not.toContain('windowMenu')
+  })
+
+  it('binds each Windows accelerator to exactly one item', () => {
+    const counts = new Map<string, number>()
+    for (const item of flatten(buildMenuTemplate(makeDeps('win32')))) {
+      if (typeof item.accelerator === 'string') {
+        counts.set(item.accelerator, (counts.get(item.accelerator) ?? 0) + 1)
+      }
+    }
+    expect([...counts].filter(([, count]) => count > 1)).toEqual([])
   })
 })

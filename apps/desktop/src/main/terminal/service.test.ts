@@ -4,7 +4,6 @@ import { join } from 'node:path'
 import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
 import { TerminalService } from '@/main/terminal'
-import type { ForegroundProcessGroup } from '@/main/terminal/process-group'
 import { createRunLedger } from '@/main/terminal/run-ledger'
 
 /**
@@ -185,10 +184,14 @@ vi.mock('@/main/terminal/session', async () => {
           get agentCommandToolCallId() {
             return state.toolCallId
           },
+          get agentCommandStartedAt() {
+            return state.toolCallId === null ? null : 0
+          },
           kill: vi.fn((signal: string) => {
             if (signal === 'SIGINT' && state.interruptible) finishRun(130)
           }),
           waitForShellIntegration: async () => {},
+          waitForPromptDrawn: async () => {},
           /** Stands in for the user running `exit` or pressing Ctrl-D. */
           exit: () => {
             state.disposed = true
@@ -198,6 +201,7 @@ vi.mock('@/main/terminal/session', async () => {
           cols,
           rows,
           pid: nextPid++,
+          spawnedAt: 0,
           env: {},
           get alive() {
             return !state.disposed
@@ -206,6 +210,7 @@ vi.mock('@/main/terminal/session', async () => {
             return state.cwd
           },
           shell: 'zsh',
+          shellProgram: 'zsh',
           get foreground() {
             return state.busy ? 'sleep 1' : null
           },
@@ -341,7 +346,7 @@ describe('focus-gated shortcuts', () => {
       terminal.handleFocusedShortcut('close-tab', renderer.window, vi.fn(), confirmClose)
     ).toBe(true)
 
-    expect(confirmClose).toHaveBeenCalledWith('sleep 1')
+    expect(confirmClose).toHaveBeenCalledWith('sleep 1', 'zsh')
     expect(terminal.getTabs().activeTerminalId).toBe(activeId)
   })
 
@@ -488,10 +493,15 @@ describe('a shell that ends by itself', () => {
 })
 
 describe('running work before a restart', () => {
-  function serviceWithForeground(read: (shellPid: number) => Promise<ForegroundProcessGroup>) {
+  function serviceWithForeground(foreground: number[] | null) {
     const terminal = new TerminalService({
       loadCwd: () => '/tmp',
-      processGroups: { foreground: vi.fn(read), signal: vi.fn() },
+      processGroups: {
+        foreground: vi.fn(async () => foreground),
+        stillRunning: vi.fn(async () => []),
+        signal: vi.fn(),
+        escalations: [],
+      },
     })
     const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
     const session = stubSessions.get(activeTerminalId as string)
@@ -500,7 +510,7 @@ describe('running work before a restart', () => {
   }
 
   it('asks the OS about a shell that announces nothing, and trusts one that does', async () => {
-    const { terminal, session } = serviceWithForeground(async () => ({ kind: 'group', pgid: 4242 }))
+    const { terminal, session } = serviceWithForeground([4242])
     session.setShellIntegration(false)
     await expect(terminal.runningWork()).resolves.toEqual({ commands: [''], uncheckedCount: 0 })
 
@@ -509,13 +519,13 @@ describe('running work before a restart', () => {
   })
 
   it('counts a shell at its own prompt as idle', async () => {
-    const { terminal, session } = serviceWithForeground(async () => ({ kind: 'shell' }))
+    const { terminal, session } = serviceWithForeground([])
     session.setShellIntegration(false)
     await expect(terminal.runningWork()).resolves.toEqual({ commands: [], uncheckedCount: 0 })
   })
 
   it('reports a terminal whose foreground could not be read as unchecked, never idle', async () => {
-    const { terminal, session } = serviceWithForeground(async () => ({ kind: 'unknown' }))
+    const { terminal, session } = serviceWithForeground(null)
     session.setShellIntegration(false)
     await expect(terminal.runningWork()).resolves.toEqual({ commands: [], uncheckedCount: 1 })
   })
@@ -525,14 +535,17 @@ describe('stopping a tool call', () => {
   const COMMAND_GROUP = 4242
 
   function cancellableService() {
-    /** The tty's foreground group as the OS would report it at each read. */
-    let foreground: number | null = COMMAND_GROUP
+    /** What holds the terminal's foreground as the OS would report it at each read. */
+    let foreground: number[] | null = [COMMAND_GROUP]
     const processGroups = {
       foreground: vi.fn(
-        async (_shellPid: number): Promise<ForegroundProcessGroup> =>
-          foreground === null ? { kind: 'unknown' } : { kind: 'group', pgid: foreground }
+        async (_shellPid: number, _startedAt: number): Promise<number[] | null> => foreground
       ),
-      signal: vi.fn((_pgid: number, _signal: NodeJS.Signals) => {}),
+      stillRunning: vi.fn(async (_shellPid: number, ids: number[]) =>
+        ids.filter((id) => foreground?.includes(id))
+      ),
+      signal: vi.fn((_ids: number[], _signal: NodeJS.Signals) => {}),
+      escalations: ['SIGTERM', 'SIGKILL'] as NodeJS.Signals[],
     }
     const terminal = new TerminalService({ loadCwd: () => '/tmp', processGroups })
     const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
@@ -542,8 +555,8 @@ describe('stopping a tool call', () => {
       terminal,
       session,
       processGroups,
-      setForeground: (pgid: number | null) => {
-        foreground = pgid
+      setForeground: (ids: number[] | null) => {
+        foreground = ids
       },
     }
   }
@@ -567,6 +580,7 @@ describe('stopping a tool call', () => {
 
     expect(session.kill).toHaveBeenCalledWith('SIGINT')
     await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 130 } })
+    expect(processGroups.foreground).not.toHaveBeenCalled()
     expect(processGroups.signal).not.toHaveBeenCalled()
   })
 
@@ -578,7 +592,7 @@ describe('stopping a tool call', () => {
 
     await terminal.cancelTool('call-stubborn')
 
-    expect(processGroups.signal).toHaveBeenCalledWith(COMMAND_GROUP, 'SIGTERM')
+    expect(processGroups.signal).toHaveBeenCalledWith([COMMAND_GROUP], 'SIGTERM')
     await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 143 } })
   })
 
@@ -596,15 +610,62 @@ describe('stopping a tool call', () => {
     await running
   })
 
+  it('signals only the processes of the stopped command that are still running', async () => {
+    const { terminal, session, processGroups, setForeground } = cancellableService()
+    session.setInterruptible(false)
+    setForeground([101, 102])
+    // One of a Windows pipeline's processes exits after the first escalation.
+    processGroups.signal.mockImplementationOnce(() => setForeground([102, 103]))
+    processGroups.signal.mockImplementationOnce(() => session.finishRun(1))
+    const { running } = await startRun(terminal, session, 'call-pipeline')
+
+    await terminal.cancelTool('call-pipeline')
+
+    expect(processGroups.signal).toHaveBeenNthCalledWith(1, [101, 102], 'SIGTERM')
+    expect(processGroups.signal).toHaveBeenNthCalledWith(2, [102], 'SIGKILL')
+    expect(processGroups.foreground).toHaveBeenCalledTimes(1)
+    await running
+  })
+
   it('never signals a different command that took the foreground meanwhile', async () => {
     const { terminal, session, processGroups, setForeground } = cancellableService()
     session.setInterruptible(false)
+    processGroups.signal.mockImplementation(() => setForeground([9999]))
     const { running } = await startRun(terminal, session, 'call-replaced')
-    session.kill.mockImplementation(() => setForeground(9999))
 
     await terminal.cancelTool('call-replaced')
 
+    expect(processGroups.signal).toHaveBeenCalledTimes(1)
+    expect(processGroups.signal).toHaveBeenCalledWith([COMMAND_GROUP], 'SIGTERM')
+    session.finishRun(0)
+    await running
+  })
+
+  it('signals nothing when the command ends while its processes are read', async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    session.setInterruptible(false)
+    processGroups.foreground.mockImplementation(async () => {
+      session.finishRun(0)
+      return [COMMAND_GROUP]
+    })
+    const { running } = await startRun(terminal, session, 'call-ended')
+
+    await terminal.cancelTool('call-ended')
+
     expect(processGroups.signal).not.toHaveBeenCalled()
+    await running
+  })
+
+  it('stops escalating after the last signal the platform has', async () => {
+    const { terminal, session, processGroups } = cancellableService()
+    session.setInterruptible(false)
+    const { running } = await startRun(terminal, session, 'call-windows')
+    processGroups.escalations = ['SIGTERM']
+
+    await terminal.cancelTool('call-windows')
+
+    expect(processGroups.signal).toHaveBeenCalledTimes(1)
+    expect(processGroups.signal).toHaveBeenCalledWith([COMMAND_GROUP], 'SIGTERM')
     session.finishRun(0)
     await running
   })

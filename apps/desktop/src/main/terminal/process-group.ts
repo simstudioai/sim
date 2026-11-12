@@ -1,77 +1,128 @@
 /**
- * The process group a terminal's tty currently delivers keyboard signals to: the whole pipeline
- * the user would stop with Ctrl-C, including its children, and never the shell itself.
+ * The processes running a terminal's foreground command: the whole pipeline the user would stop
+ * with Ctrl-C, including its children, and never the shell itself.
+ *
+ * On macOS and Linux that is the tty's foreground process group. Windows has no process groups or
+ * job control, so there it is the processes the shell started since the command was typed, each
+ * ended with its whole tree. They are found among the shell's descendants rather than its
+ * children, since a launcher can stand between the pty and the real shell (Git for Windows'
+ * `bin\bash.exe` starts `usr\bin\bash.exe`). Processes from before then (a server the user started
+ * in the background earlier, the real shell behind a launcher) are someone else's and are left
+ * running. Creation times and the command's start come from the same system clock, and the shell
+ * only starts a program after it reads the command, so no tolerance is needed.
  */
 import { spawn } from 'node:child_process'
+import { win32 } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { windowsPowerShellPath, windowsSystem32 } from '@/main/terminal/shell-path'
 
 const logger = createLogger('DesktopTerminalProcessGroup')
 
 const LOOKUP_TIMEOUT_MS = 2_000
 
-/**
- * Who holds a terminal's foreground: the shell at its prompt (or a shell that has already
- * exited), another process group, or `unknown` when the OS could not be asked.
- */
-export type ForegroundProcessGroup =
-  | { kind: 'shell' }
-  | { kind: 'group'; pgid: number }
-  | { kind: 'unknown' }
+/** Windows PowerShell takes a second or more to start on a cold machine. */
+const WINDOWS_LOOKUP_TIMEOUT_MS = 5_000
 
-const SHELL: ForegroundProcessGroup = { kind: 'shell' }
-const UNKNOWN: ForegroundProcessGroup = { kind: 'unknown' }
-
-/**
- * The tty's foreground process group, read from `ps`. A pid `ps` no longer knows is a shell
- * that has exited, so nothing can be running in it. Windows has no `ps` or tty process groups,
- * so a Windows shell always reads as holding its own foreground.
- */
-export function readForegroundProcessGroup(shellPid: number): Promise<ForegroundProcessGroup> {
-  if (process.platform === 'win32') return Promise.resolve(SHELL)
-  if (!Number.isInteger(shellPid) || shellPid <= 0) return Promise.resolve(UNKNOWN)
-  return new Promise((resolve) => {
-    let child: ReturnType<typeof spawn>
-    try {
-      child = spawn('ps', ['-o', 'tpgid=', '-p', String(shellPid)], {
-        stdio: ['ignore', 'pipe', 'ignore'],
-      })
-    } catch {
-      resolve(UNKNOWN)
-      return
-    }
-    let stdout = ''
-    let settled = false
-    const finish = (value: ForegroundProcessGroup) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      resolve(value)
-    }
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL')
-      finish(UNKNOWN)
-    }, LOOKUP_TIMEOUT_MS)
-    child.stdout?.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString()
-    })
-    child.on('error', () => finish(UNKNOWN))
-    child.on('close', (code) => {
-      const output = stdout.trim()
-      if (code !== 0 || !output) {
-        finish(code === 1 && !output ? SHELL : UNKNOWN)
-        return
-      }
-      const pgid = Number.parseInt(output, 10)
-      if (!Number.isInteger(pgid)) finish(UNKNOWN)
-      else if (pgid <= 0 || pgid === shellPid) finish(SHELL)
-      else finish({ kind: 'group', pgid })
-    })
-  })
+/** Reads and signals what holds a terminal's foreground. */
+export interface TerminalProcessGroups {
+  /**
+   * Ids of what runs the foreground command, which was typed into the shell at `startedAt` (epoch
+   * ms): process group ids on macOS and Linux, process ids on Windows. Empty when the shell itself
+   * holds the foreground (it is sitting at its prompt, or has exited); null when the OS could not
+   * be asked, so anything may be running.
+   */
+  foreground(shellPid: number, startedAt: number): Promise<number[] | null>
+  /** Those of `ids`, from an earlier {@link foreground}, that still run the foreground command. */
+  stillRunning(shellPid: number, ids: number[]): Promise<number[]>
+  /** Sends `signal` to each id {@link foreground} returned. */
+  signal(ids: number[], signal: NodeJS.Signals): void
+  /** The signals a command that ignored Ctrl-C is sent, in order, until one ends it. */
+  escalations: readonly NodeJS.Signals[]
 }
 
-/** Sends `signal` to every process in one group. */
-export function signalProcessGroup(pgid: number, signal: NodeJS.Signals): void {
+const POSIX_PROCESS_GROUPS: TerminalProcessGroups = {
+  foreground: readForegroundProcessGroup,
+  stillRunning: async (shellPid, pgids) => {
+    const foreground = (await readForegroundProcessGroup(shellPid)) ?? []
+    return pgids.filter((pgid) => foreground.includes(pgid))
+  },
+  signal: (pgids, signal) => {
+    for (const pgid of pgids) signalProcessGroup(pgid, signal)
+  },
+  escalations: ['SIGTERM', 'SIGKILL'],
+}
+
+/** A Windows process, as the process table reports it. */
+export interface WindowsProcess {
+  pid: number
+  parentPid: number
+  /** Epoch milliseconds. */
+  createdAt: number
+}
+
+/**
+ * The outermost of the shell's descendants created at or after `startedAt`: the processes a
+ * command typed then started, each standing for its whole tree.
+ */
+function commandRoots(table: WindowsProcess[], shellPid: number, startedAt: number): number[] {
+  const children = new Map<number, WindowsProcess[]>()
+  for (const entry of table) {
+    if (entry.pid === entry.parentPid) continue
+    children.set(entry.parentPid, [...(children.get(entry.parentPid) ?? []), entry])
+  }
+  const roots: number[] = []
+  const visited = new Set<number>([shellPid])
+  const pending = [...(children.get(shellPid) ?? [])]
+  for (let entry = pending.pop(); entry; entry = pending.pop()) {
+    if (visited.has(entry.pid)) continue
+    visited.add(entry.pid)
+    if (entry.createdAt >= startedAt) roots.push(entry.pid)
+    else pending.push(...(children.get(entry.pid) ?? []))
+  }
+  return roots
+}
+
+/**
+ * Windows, given how to read the process table. The one escalation is a forced tree kill: a
+ * Windows console program cannot be asked to terminate, and Ctrl-C, the one request it can trap,
+ * has already been sent.
+ */
+export function windowsProcessGroups(
+  readProcesses: () => Promise<WindowsProcess[] | null>
+): TerminalProcessGroups {
+  return {
+    foreground: async (shellPid, startedAt) => {
+      const table = await readProcesses()
+      return table && commandRoots(table, shellPid, startedAt)
+    },
+    stillRunning: async (_shellPid, pids) => pids.filter(isRunning),
+    signal: (pids) => {
+      for (const pid of pids) killProcessTree(pid)
+    },
+    escalations: ['SIGTERM'],
+  }
+}
+
+/** This operating system's way of reading and stopping a terminal's foreground command. */
+export const osProcessGroups: TerminalProcessGroups =
+  process.platform === 'win32' ? windowsProcessGroups(readProcessTable) : POSIX_PROCESS_GROUPS
+
+/** The tty's foreground process group, read from `ps`, as {@link TerminalProcessGroups.foreground}. */
+async function readForegroundProcessGroup(shellPid: number): Promise<number[] | null> {
+  if (!isProcessId(shellPid)) return null
+  const result = await readOutput('ps', ['-o', 'tpgid=', '-p', String(shellPid)], LOOKUP_TIMEOUT_MS)
+  if (!result) return null
+  const output = result.stdout.trim()
+  // A pid `ps` no longer knows is a shell that has exited, so nothing can be running in it.
+  if (result.code === 1 && !output) return []
+  if (result.code !== 0 || !output) return null
+  const pgid = Number.parseInt(output, 10)
+  if (!Number.isInteger(pgid)) return null
+  return pgid <= 0 || pgid === shellPid ? [] : [pgid]
+}
+
+function signalProcessGroup(pgid: number, signal: NodeJS.Signals): void {
   try {
     process.kill(-pgid, signal)
   } catch (error) {
@@ -80,4 +131,89 @@ export function signalProcessGroup(pgid: number, signal: NodeJS.Signals): void {
       error: getErrorMessage(error),
     })
   }
+}
+
+async function readProcessTable(): Promise<WindowsProcess[] | null> {
+  const result = await readOutput(
+    windowsPowerShellPath(process.env),
+    [
+      '-NoLogo',
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      'Get-CimInstance -ClassName Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId) $(([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds())" }',
+    ],
+    WINDOWS_LOOKUP_TIMEOUT_MS
+  )
+  if (result?.code !== 0) return null
+  return result.stdout.split(/\r?\n/).flatMap((line) => {
+    const [pid, parentPid, createdAt] = line.trim().split(' ').map(Number)
+    return isProcessId(pid) && Number.isInteger(parentPid) && Number.isFinite(createdAt)
+      ? [{ pid, parentPid, createdAt }]
+      : []
+  })
+}
+
+function killProcessTree(pid: number): void {
+  const taskkill = win32.join(windowsSystem32(process.env), 'taskkill.exe')
+  const child = spawn(taskkill, ['/T', '/F', '/PID', String(pid)], {
+    stdio: 'ignore',
+    windowsHide: true,
+  })
+  child.on('error', (error) => {
+    logger.warn('Could not end a terminal process tree', { error: getErrorMessage(error) })
+  })
+}
+
+/** Whether `pid` still names a process; signal 0 tests for one without sending anything. */
+function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+function isProcessId(value: number): boolean {
+  return Number.isInteger(value) && value > 0
+}
+
+interface CommandOutput {
+  code: number | null
+  stdout: string
+}
+
+/** A short-lived command's exit code and stdout, or null when it could not run or outlived `timeoutMs`. */
+function readOutput(
+  command: string,
+  args: string[],
+  timeoutMs: number
+): Promise<CommandOutput | null> {
+  return new Promise((resolve) => {
+    let child: ReturnType<typeof spawn>
+    try {
+      child = spawn(command, args, { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
+    } catch {
+      resolve(null)
+      return
+    }
+    let stdout = ''
+    let settled = false
+    const finish = (value: CommandOutput | null) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(value)
+    }
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL')
+      finish(null)
+    }, timeoutMs)
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString()
+    })
+    child.on('error', () => finish(null))
+    child.on('close', (code) => finish({ code, stdout }))
+  })
 }

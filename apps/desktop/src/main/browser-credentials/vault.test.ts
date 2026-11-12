@@ -86,7 +86,7 @@ describe('CredentialVault', () => {
     expect(JSON.parse(onDisk)).toMatchObject({ version: 1, ciphertext: expect.any(String) })
   })
 
-  it('writes the vault file owner-only', async () => {
+  it.skipIf(process.platform === 'win32')('writes the vault file owner-only', async () => {
     const vault = new CredentialVault(vaultPath, encryption())
     await vault.importCredentials(CANDIDATES, 'keep-existing')
 

@@ -3,7 +3,7 @@ import { describeRunningCommand, type TerminalTabState } from '@sim/terminal-pro
 /** Full working directory, plus a concise name for whatever the shell is running. */
 export function terminalTooltip(tab: TerminalTabState): string {
   const where = tab.cwd ?? 'Terminal'
-  return tab.running ? `${where} — ${describeRunningCommand(tab.running)}` : where
+  return tab.running ? `${where} — ${describeRunningCommand(tab.running, tab.shell)}` : where
 }
 
 /**

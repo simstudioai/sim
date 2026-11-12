@@ -13,6 +13,12 @@ const args = process.argv.slice(2)
 if (args.some((argument) => argument !== '--computer-use') || args.length > 1) {
   throw new Error('Usage: bun run scripts/build-native.ts [--computer-use]')
 }
+if (process.platform === 'win32') {
+  // Windows opens local files through Node fs (win32-native-files.ts) and has
+  // no Help search, so neither module is needed.
+  logger.info('Skipping native desktop modules on Windows: local files use Node fs there')
+  process.exit(0)
+}
 if (process.platform !== 'darwin' && process.platform !== 'linux') {
   throw new Error('Native desktop modules require macOS or Linux.')
 }
