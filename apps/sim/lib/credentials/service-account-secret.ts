@@ -49,7 +49,7 @@ import {
 import type { AtlassianProduct } from '@/lib/credentials/service-account-fields'
 import {
   SnowflakeCredentialError,
-  verifyAndEncryptSnowflakeKeylessCredential,
+  verifyAndEncryptSnowflakeConnection,
 } from '@/lib/credentials/snowflake-service-account.server'
 import { getTokenClientCredentialMinter } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
@@ -695,9 +695,10 @@ async function buildTokenClientCredentialSecret(
 
 /**
  * Builds a Snowflake secret. A JSON configuration is the keyless mode (no
- * stored secret); otherwise the pasted programmatic access token goes through
- * the token-paste builder exactly as before. Snowflake's own refusals keep the
- * shared validation codes so callers report them like any token check.
+ * stored secret) or the key-pair mode, as its `authType` says; otherwise the
+ * pasted programmatic access token goes through the token-paste builder
+ * exactly as before. Snowflake's own refusals keep the shared validation codes
+ * so callers report them like any token check.
  */
 async function buildSnowflakeServiceAccountSecret(
   fields: ServiceAccountSecretFields
@@ -707,12 +708,12 @@ async function buildSnowflakeServiceAccountSecret(
   }
   if (fields.apiToken) {
     throw new ServiceAccountSecretError(
-      'Send either a programmatic access token or a keyless configuration, not both'
+      'Send either a programmatic access token or a connection configuration, not both'
     )
   }
   if (!fields.owner) throw new ServiceAccountSecretError('Snowflake credential owner is required')
   try {
-    const result = await verifyAndEncryptSnowflakeKeylessCredential(
+    const result = await verifyAndEncryptSnowflakeConnection(
       fields.serviceAccountJson,
       fields.owner
     )

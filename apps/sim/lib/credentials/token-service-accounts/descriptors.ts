@@ -839,7 +839,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'myorg-myaccount.snowflakecomputing.com',
         secret: false,
         hintPattern: SNOWFLAKE_HOST_HINT_REGEX,
-        hintMessage: 'Snowflake account hosts end in .snowflakecomputing.com.',
+        hintMessage:
+          'Snowflake account hosts end in .snowflakecomputing.com, or .snowflakecomputing.cn in China.',
       },
       {
         id: 'apiToken',

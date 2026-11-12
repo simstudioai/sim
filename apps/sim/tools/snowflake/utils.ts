@@ -142,8 +142,14 @@ export function normalizeSnowflakeHost(host: string): string {
 export const SNOWFLAKE_WORKLOAD_IDENTITY_AUTH_STYLE = 'snowflake-workload-identity' as const
 
 /**
+ * `authStyle` a key-pair Snowflake credential resolves with: its token is a JWT
+ * Sim signs with the user's private key for each run.
+ */
+export const SNOWFLAKE_KEY_PAIR_AUTH_STYLE = 'snowflake-key-pair' as const
+
+/**
  * Snowflake tools authenticate with a saved Snowflake credential (a
- * programmatic access token, or keyless workload identity). The token type and
+ * programmatic access token, a key pair, or keyless workload identity). The token type and
  * the account host come only from that credential: both are authoritative, so a
  * caller- or model-supplied value is discarded before the credential fills them.
  */
@@ -166,7 +172,7 @@ export const snowflakeAuthParamFields = {
     required: true,
     visibility: 'user-only',
     description:
-      'Snowflake credential (account host and programmatic access token or keyless sign-in)',
+      'Snowflake credential (account host and programmatic access token, key pair, or keyless sign-in)',
   },
   accessToken: {
     type: 'string',
@@ -188,6 +194,13 @@ export const snowflakeAuthParamFields = {
   },
 } satisfies ToolConfig['params']
 
+/** The SQL API token type each credential mode's token is sent as. */
+function snowflakeTokenType(authStyle: string | undefined): string {
+  if (authStyle === SNOWFLAKE_WORKLOAD_IDENTITY_AUTH_STYLE) return 'WORKLOAD_IDENTITY_FEDERATION'
+  if (authStyle === SNOWFLAKE_KEY_PAIR_AUTH_STYLE) return 'KEYPAIR_JWT'
+  return 'PROGRAMMATIC_ACCESS_TOKEN'
+}
+
 /**
  * Header set every Snowflake SQL API request carries. Shared with the
  * credential validator in
@@ -196,7 +209,8 @@ export const snowflakeAuthParamFields = {
  * tools use at run time.
  *
  * A keyless credential's OIDC token is sent as `WIF.OIDC.<token>` with the
- * `WORKLOAD_IDENTITY_FEDERATION` token type
+ * `WORKLOAD_IDENTITY_FEDERATION` token type, and a key-pair credential's JWT
+ * with the `KEYPAIR_JWT` token type
  * (https://docs.snowflake.com/en/developer-guide/sql-api/authenticating);
  * anything else is a programmatic access token.
  */
@@ -212,9 +226,7 @@ export function buildSnowflakeAuthHeaders(
     Accept: 'application/json',
     'Content-Type': 'application/json',
     'User-Agent': 'Sim/1.0 (+https://sim.ai)',
-    'X-Snowflake-Authorization-Token-Type': keyless
-      ? 'WORKLOAD_IDENTITY_FEDERATION'
-      : 'PROGRAMMATIC_ACCESS_TOKEN',
+    'X-Snowflake-Authorization-Token-Type': snowflakeTokenType(authStyle),
   }
 }
 

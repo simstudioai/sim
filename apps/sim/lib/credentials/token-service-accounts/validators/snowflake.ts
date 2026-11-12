@@ -17,6 +17,7 @@ import type {
 import {
   buildSnowflakeAuthHeaders,
   normalizeSnowflakeHost,
+  SNOWFLAKE_KEY_PAIR_AUTH_STYLE,
   SNOWFLAKE_WORKLOAD_IDENTITY_AUTH_STYLE,
 } from '@/tools/snowflake/utils'
 
@@ -147,6 +148,13 @@ async function verifySnowflakeIdentity(
   }
 }
 
+/** The token and key-pair paths reach only a host `normalizeSnowflakeHost` admitted. */
+const sendToAccountHost: SendIdentityStatement = (url, init) =>
+  fetchProvider(url, { method: 'POST', ...init }, 'identity_statement', {
+    dnsFailureCode: 'site_not_found',
+    dnsFailureReason: 'account host does not resolve',
+  })
+
 /**
  * Validates a Snowflake programmatic access token by running a context-only
  * statement against the account's SQL API — the same endpoint, headers, and
@@ -164,11 +172,23 @@ export async function validateSnowflakeServiceAccount(
   return verifySnowflakeIdentity(
     accountBaseUrl(fields.domain),
     buildSnowflakeAuthHeaders(fields.apiToken),
-    (url, init) =>
-      fetchProvider(url, { method: 'POST', ...init }, 'identity_statement', {
-        dnsFailureCode: 'site_not_found',
-        dnsFailureReason: 'account host does not resolve',
-      })
+    sendToAccountHost
+  )
+}
+
+/**
+ * Verifies a key-pair Snowflake connection: the JWT Sim signed with the user's
+ * private key is sent with the `KEYPAIR_JWT` token type, exactly as the tools
+ * send it, so Snowflake's answer proves the user, key, and account all match.
+ */
+export async function validateSnowflakeKeyPair(input: {
+  domain: string
+  jwt: string
+}): Promise<TokenServiceAccountValidationResult> {
+  return verifySnowflakeIdentity(
+    accountBaseUrl(input.domain),
+    buildSnowflakeAuthHeaders(input.jwt, SNOWFLAKE_KEY_PAIR_AUTH_STYLE),
+    sendToAccountHost
   )
 }
 
