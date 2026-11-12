@@ -3896,6 +3896,8 @@ describe('Internal Route Trust', () => {
     const toolId = 'test_internal_minted_token_refusal'
     beforeEach(() => {
       mockForgetRejectedClientCredentialToken.mockReset()
+      mockInvalidateCoordinatedClientToken.mockReset()
+      mockInvalidateCoordinatedClientToken.mockResolvedValue(undefined)
       ;(tools as Record<string, unknown>)[toolId] = {
         id: toolId,
         name: 'Internal Minted Token Refusal Test',
@@ -3939,6 +3941,9 @@ describe('Internal Route Trust', () => {
 
       expect(result.success).toBe(false)
       expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('minted-token')
+      expect(mockInvalidateCoordinatedClientToken).toHaveBeenCalledWith('minted-token', {
+        minimumAgeMs: 60_000,
+      })
     })
 
     it('drops the cached token after a 403 only once it is old enough to blame', async () => {
@@ -3948,6 +3953,9 @@ describe('Internal Route Trust', () => {
       expect(mockForgetRejectedClientCredentialToken).toHaveBeenCalledWith('minted-token', {
         minimumAgeMs: 60_000,
       })
+      expect(mockInvalidateCoordinatedClientToken).toHaveBeenCalledWith('minted-token', {
+        minimumAgeMs: 60_000,
+      })
     })
 
     it('keeps the token after a call the provider accepts', async () => {
@@ -3955,12 +3963,14 @@ describe('Internal Route Trust', () => {
 
       expect(result.success).toBe(true)
       expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
     })
 
     it("never drops a signed-in account's token", async () => {
       await runWith('oauth', 401)
 
       expect(mockForgetRejectedClientCredentialToken).not.toHaveBeenCalled()
+      expect(mockInvalidateCoordinatedClientToken).not.toHaveBeenCalled()
     })
 
     it('reports an expired saved token instead of the bare refusal', async () => {

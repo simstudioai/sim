@@ -2981,6 +2981,7 @@ async function executeDeclaredInternalOperation({
           requestId,
           result.status === 403 ? REJECTED_TOKEN_MINIMUM_AGE_MS : undefined
         )
+        await expireRefusedCoordinatedToken(params.accessToken, requestId)
       }
       if (result instanceof Response && result.status === 401 && refreshCredential) {
         await result.body?.cancel()
@@ -3098,6 +3099,18 @@ async function expireRejectedServiceAccountToken(
   if (!(error instanceof Error) || !('status' in error) || error.status !== 401) return
   if (typeof accessToken !== 'string' || !accessToken || reportsScopeRefusal(error)) return
   await forgetRefusedServiceAccountToken(accessToken, requestId)
+  await expireRefusedCoordinatedToken(accessToken, requestId)
+}
+
+/**
+ * Expires a refused token coordinated across workers (a client-credentials grant's shared token),
+ * so the next call on any worker mints a replacement. A token minted within
+ * {@link REJECTED_TOKEN_MINIMUM_AGE_MS} is kept, since the refusal may come from the endpoint.
+ */
+async function expireRefusedCoordinatedToken(
+  accessToken: string,
+  requestId: string
+): Promise<void> {
   try {
     const { invalidateCoordinatedClientToken } = await import(
       '@/lib/credentials/coordinated-client-token'
