@@ -1,15 +1,19 @@
+const EMAIL_TAGS_FORMAT_ERROR = 'Email tags must be a valid JSON array of {"name", "value"} objects'
+
 /**
  * Reads SES message tags passed as an array or, from agent tool calls, as a JSON
- * array string. Anything else is left unset; the request contract validates the
- * tag names and values.
+ * array string. Empty values are left unset; a string that is not a JSON array
+ * throws, matching the block. The request contract validates names and values.
  */
 export function parseEmailTagsParam(value: unknown): unknown[] | undefined {
   if (Array.isArray(value)) return value
   if (typeof value !== 'string' || !value.trim()) return undefined
+  let parsed: unknown
   try {
-    const parsed: unknown = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed : undefined
+    parsed = JSON.parse(value)
   } catch {
-    return undefined
+    throw new Error(EMAIL_TAGS_FORMAT_ERROR)
   }
+  if (!Array.isArray(parsed)) throw new Error(EMAIL_TAGS_FORMAT_ERROR)
+  return parsed
 }

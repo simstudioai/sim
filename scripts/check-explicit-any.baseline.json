@@ -648,7 +648,7 @@
     "apps/sim/tools/jira/get_worklogs.ts": 2,
     "apps/sim/tools/jira/list_issue_types.ts": 2,
     "apps/sim/tools/jira/list_projects.ts": 2,
-    "apps/sim/tools/jira/retrieve.ts": 10,
+    "apps/sim/tools/jira/retrieve.ts": 2,
     "apps/sim/tools/jira/search_issues.ts": 4,
     "apps/sim/tools/jira/search_users.ts": 2,
     "apps/sim/tools/jira/transition_issue.ts": 4,

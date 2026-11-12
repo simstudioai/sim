@@ -84,11 +84,6 @@ function toObjectTypeList(value: unknown): unknown[] {
   return Array.isArray(value) ? value : toArray(toRecord(value).values)
 }
 
-/**
- * Lists a schema's object types. An empty schema listing is retried against the
- * documented `/flat` listing, which returns every type in the schema, with
- * `excludeAbstract` applied client-side because `/flat` does not accept it.
- */
 function isAbort(error: unknown, signal?: AbortSignal): boolean {
   if (signal?.aborted) return true
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')
@@ -119,6 +114,11 @@ async function listFlatObjectTypes(
   }
 }
 
+/**
+ * Lists a schema's object types. An empty schema listing is retried against the
+ * documented `/flat` listing, which returns every type in the schema, with
+ * `excludeAbstract` applied client-side because `/flat` does not accept it.
+ */
 export async function executeJsmListObjectTypes(input: ListObjectTypesInput, signal?: AbortSignal) {
   const client = await createJsmAssetsClient(input, signal)
   const query = new URLSearchParams()

@@ -478,12 +478,11 @@ Return ONLY the JSON array - no explanations, no markdown code blocks.`,
             break
           case 'tag_resource':
             result.secretId = rest.secretId
-            result.tags = typeof rest.tags === 'string' ? JSON.parse(rest.tags) : rest.tags
+            result.tags = parseJsonField(rest.tags, 'Tags')
             break
           case 'untag_resource':
             result.secretId = rest.secretId
-            result.tagKeys =
-              typeof rest.tagKeys === 'string' ? JSON.parse(rest.tagKeys) : rest.tagKeys
+            result.tagKeys = parseJsonField(rest.tagKeys, 'Tag Keys')
             break
           case 'restore_secret':
             result.secretId = rest.secretId

@@ -13,11 +13,17 @@ function serializeTags(tags: unknown): string | undefined {
     const trimmed = tags.trim()
     if (!trimmed) return undefined
     if (!trimmed.startsWith('[')) return trimmed
+    let parsed: unknown
     try {
-      return serializeTags(JSON.parse(trimmed))
+      parsed = JSON.parse(trimmed)
     } catch {
       return trimmed
     }
+    const serialized = serializeTags(parsed)
+    if (serialized === undefined && Array.isArray(parsed) && parsed.length > 0) {
+      throw new Error('Tags must be a list of {"key", "value"} entries or a JSON object')
+    }
+    return serialized
   }
   if (isRecordLike(tags)) return Object.keys(tags).length > 0 ? JSON.stringify(tags) : undefined
   if (!Array.isArray(tags)) return undefined

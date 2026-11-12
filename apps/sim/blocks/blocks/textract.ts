@@ -256,7 +256,7 @@ function parseTextractQueries(value: unknown): TextractQueryParam[] {
   if (typeof value === 'string') {
     const trimmed = value.trim()
     if (!trimmed) return []
-    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    if (trimmed.startsWith('[')) {
       try {
         raw = JSON.parse(trimmed)
       } catch {
