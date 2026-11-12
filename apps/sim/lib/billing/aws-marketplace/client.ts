@@ -29,10 +29,10 @@ let queueClient: SQSClient | null = null
 /**
  * Credentials for the Marketplace and event-queue clients only. On ECS the app's env also carries
  * a static IAM user's keys, which the SDK's default chain prefers and which Sim's general AWS
- * clients (`getAwsCredentials()`) sign with. Infra grants ResolveCustomer, GetEntitlements, and the
- * queue permissions to the ECS task role alone, and AWS asks for temporary role credentials here,
- * so whenever the container credential endpoint is present these clients sign as the task role.
- * Elsewhere (local development, tests) they keep the default chain.
+ * clients (`getAwsCredentials()`) sign with. Infra grants ResolveCustomer, GetEntitlements,
+ * BatchMeterUsage, and the queue permissions to the ECS task role alone, and AWS asks for
+ * temporary role credentials here, so whenever the container credential endpoint is present these
+ * clients sign as the task role. Elsewhere (local development, tests) they keep the default chain.
  */
 function marketplaceClientConfig() {
   const relativeUri = env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI

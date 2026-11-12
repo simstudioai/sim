@@ -5,6 +5,7 @@ import {
 } from '@aws-sdk/client-license-manager'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { randomInt } from '@sim/utils/random'
 import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 
 /**
@@ -47,6 +48,19 @@ const ENTERPRISE_ENTITLEMENT = 'enterprise_license'
 /** AWS recommends re-checking every 15 minutes to pick up renewals, upgrades, and cancellations. */
 const RECHECK_INTERVAL_MS = 15 * 60 * 1000
 
+/**
+ * Replicas start together, so their re-checks line up; each waits a random part of this before
+ * restarting, so a renewal or lapse never takes every replica down at once.
+ */
+const RESTART_SPREAD_MS = 10 * 60 * 1000
+
+/**
+ * How the buyer's account holds the license. A delegate grant only shows licenses distributed to
+ * other accounts, and a grant still awaiting acceptance, or rejected, disabled, or deleted by the
+ * license administrator, entitles nothing. No status at all is a license the account bought itself.
+ */
+const USABLE_RECEIVED_STATUSES = new Set(['ACTIVE', 'WORKFLOW_COMPLETED'])
+
 const ENTERPRISE_FLAGS = ['ENTERPRISE_ENABLED', 'NEXT_PUBLIC_ENTERPRISE_ENABLED'] as const
 
 /** `unknown` is a failed check (network, permissions, throttling), never a verdict on the license. */
@@ -64,14 +78,21 @@ function createClient(): LicenseManagerClient {
   })
 }
 
+function isUsableGrant({ ReceivedMetadata: received }: GrantedLicense): boolean {
+  if (received?.GrantType === 'DelegateGrant') return false
+  return !received?.ReceivedStatus || USABLE_RECEIVED_STATUSES.has(received.ReceivedStatus)
+}
+
 /**
  * An AWS Marketplace license this product's buyer holds is current when License Manager reports it
- * `AVAILABLE`, its issuer is AWS Marketplace, and it carries the Enterprise entitlement. License
- * Manager moves an ended, cancelled, or suspended license out of `AVAILABLE` itself.
+ * `AVAILABLE`, its issuer is AWS Marketplace, it carries the Enterprise entitlement, and the account
+ * holds it through a grant it may use. License Manager moves an ended, cancelled, or suspended
+ * license out of `AVAILABLE` itself.
  */
 function isActiveEnterpriseLicense(license: GrantedLicense): boolean {
   return (
     license.Status === 'AVAILABLE' &&
+    isUsableGrant(license) &&
     license.Issuer?.KeyFingerprint === MARKETPLACE_KEY_FINGERPRINT &&
     (license.Entitlements ?? []).some((entitlement) => entitlement.Name === ENTERPRISE_ENTITLEMENT)
   )
@@ -133,9 +154,13 @@ export async function applyAwsMarketplaceContainerLicense(): Promise<void> {
     const state = await checkLicense(client, productSku)
     const entitledNow = state === 'entitled'
     if (state === 'unknown' || entitledNow === enterpriseAtBoot) return
-    logger.info('AWS Marketplace Enterprise license changed; restarting to apply it', { state })
     clearInterval(recheck)
-    process.kill(process.pid, 'SIGTERM')
+    const delayMs = randomInt(0, RESTART_SPREAD_MS)
+    logger.info('AWS Marketplace Enterprise license changed; restarting to apply it', {
+      state,
+      delayMs,
+    })
+    setTimeout(() => process.kill(process.pid, 'SIGTERM'), delayMs)
   }, RECHECK_INTERVAL_MS)
   recheck.unref()
 }

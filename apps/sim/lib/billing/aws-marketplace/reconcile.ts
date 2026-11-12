@@ -15,7 +15,10 @@ import {
   isInvalidEntitlementRequest,
   verifyLicense,
 } from '@/lib/billing/aws-marketplace/entitlements'
-import type { AwsMarketplaceProduct } from '@/lib/billing/aws-marketplace/products'
+import type {
+  AwsMarketplaceProduct,
+  AwsMarketplaceProducts,
+} from '@/lib/billing/aws-marketplace/products'
 import {
   applyAgreementRenewal,
   enqueueAgreementAdvisory,
@@ -82,7 +85,7 @@ type BudgetCheck = (workMs: number) => boolean
 
 interface DrainContext {
   /** This run's configured products, by code; an event for any other product is not ours. */
-  products: ReadonlyMap<string, AwsMarketplaceProduct>
+  products: AwsMarketplaceProducts
   queueUrl: string
   summary: AwsMarketplaceReconcileSummary
   fits: BudgetCheck
@@ -163,12 +166,10 @@ type MessageOutcome = 'applied' | 'discarded' | 'skipped' | 'retained'
 async function reverifyLicense(
   product: AwsMarketplaceProduct,
   licenseArn: string,
-  options: {
-    ended?: boolean
-    agreement?: { agreementId: string | null; seenAt: Date | null }
-    fallbackAccountId?: string | null
-    licenseEventReceivedAt?: Date
-  } = {}
+  options: Pick<
+    Parameters<typeof recordLicenseVerification>[0],
+    'agreement' | 'fallbackAccountId' | 'licenseEventReceivedAt'
+  > & { ended?: boolean } = {}
 ) {
   const verifiedAt = new Date()
   await markVerificationAttempted(licenseArn, verifiedAt)
@@ -300,6 +301,29 @@ async function applyLicenseEvent(
   return 'applied'
 }
 
+/** Whether a stored license was involved in an advisory or a renewal. */
+async function applyAgreementEvent(
+  products: AwsMarketplaceProducts,
+  event: Extract<MarketplaceEvent, { kind: 'advisory' | 'agreement-created' }>,
+  messageId: string | undefined
+): Promise<boolean> {
+  if (event.kind === 'advisory') {
+    return enqueueAgreementAdvisory({
+      products,
+      agreementId: event.agreementId,
+      state: event.state,
+      detail: event.detail,
+      messageId: messageId ?? event.agreementId,
+    })
+  }
+  if (!event.previousAgreementId) return false
+  return applyAgreementRenewal({
+    products,
+    previousAgreementId: event.previousAgreementId,
+    agreementId: event.agreementId,
+  })
+}
+
 async function applyEvent(
   context: DrainContext,
   event: MarketplaceEvent,
@@ -311,23 +335,7 @@ async function applyEvent(
   if (event.kind === 'agreement-ended') {
     return applyAgreementEnded(context, event.agreementId, message)
   }
-  const involved =
-    event.kind === 'advisory'
-      ? await enqueueAgreementAdvisory({
-          products,
-          agreementId: event.agreementId,
-          state: event.state,
-          detail: event.detail,
-          messageId: messageId ?? event.agreementId,
-        })
-      : event.previousAgreementId
-        ? await applyAgreementRenewal({
-            products,
-            previousAgreementId: event.previousAgreementId,
-            agreementId: event.agreementId,
-          })
-        : false
-  if (involved) return 'applied'
+  if (await applyAgreementEvent(products, event, messageId)) return 'applied'
   logger.info('Ignoring an AWS Marketplace agreement event for no stored license', { messageId })
   return 'discarded'
 }
@@ -414,7 +422,7 @@ async function drainEvents(context: DrainContext): Promise<void> {
 }
 
 async function reverifyStaleLicenses(
-  products: ReadonlyMap<string, AwsMarketplaceProduct>,
+  products: AwsMarketplaceProducts,
   summary: AwsMarketplaceReconcileSummary,
   fits: BudgetCheck
 ): Promise<void> {

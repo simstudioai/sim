@@ -317,7 +317,7 @@ async function chargeOrganization(licenses: MeteredLicense[], now: number): Prom
     )
     const units = await countNewUnits(tx, license.organizationId, usage, countFrom, now)
     if (units <= 0) return 0
-    await tx
+    const [written] = await tx
       .insert(awsMarketplaceUsageReport)
       .values({
         id: generateId(),
@@ -337,7 +337,12 @@ async function chargeOrganization(licenses: MeteredLicense[], now: number): Prom
           quantity: sql`${awsMarketplaceUsageReport.quantity} + ${units}`,
           updatedAt: new Date(),
         },
+        setWhere: isNull(awsMarketplaceUsageReport.sentAt),
       })
+      .returning({ id: awsMarketplaceUsageReport.id })
+    // A row frozen under another organization's lock (relinked after its organization was deleted)
+    // keeps its quantity; rolling back leaves these units for the next record.
+    if (!written) throw new Error('AWS Marketplace usage record was sent while it was charged')
     return units
   })
 }
@@ -536,7 +541,9 @@ async function sendPendingReports(now: number, summary: AwsMarketplaceMeteringSu
 
   const byLicense = new Map<string, PendingReport[]>()
   for (const row of pending) {
-    byLicense.set(row.licenseArn, [...(byLicense.get(row.licenseArn) ?? []), row])
+    const rows = byLicense.get(row.licenseArn)
+    if (rows) rows.push(row)
+    else byLicense.set(row.licenseArn, [row])
   }
   for (const rows of byLicense.values()) {
     for (const chunk of chunkArray(rows, RECORDS_PER_CALL)) {
@@ -569,7 +576,9 @@ export async function meterAwsMarketplaceUsage(
   const licensesByOrganization = new Map<string, MeteredLicense[]>()
   for (const license of await listMeteredLicenses(usageByProduct, now)) {
     const key = `${license.organizationId}:${license.usage.dimension}`
-    licensesByOrganization.set(key, [...(licensesByOrganization.get(key) ?? []), license])
+    const licenses = licensesByOrganization.get(key)
+    if (licenses) licenses.push(license)
+    else licensesByOrganization.set(key, [license])
   }
   for (const licenses of licensesByOrganization.values()) {
     summary.charged += await chargeOrganization(licenses, now)

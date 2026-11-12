@@ -1,17 +1,18 @@
 import {
   type AwsMarketplaceProduct,
+  type AwsMarketplaceProducts,
   parseAwsMarketplaceProducts,
 } from '@/lib/billing/aws-marketplace/products'
 import { env } from '@/lib/core/config/env'
 
-let products: ReadonlyMap<string, AwsMarketplaceProduct> | undefined
+let products: AwsMarketplaceProducts | undefined
 
 /**
  * The products this deployment sells through AWS Marketplace, by product code. Empty on
  * self-hosted installs and every environment but production, which turns the Marketplace surfaces
  * off. The container entrypoint refuses to start on a malformed setting.
  */
-export function getAwsMarketplaceProducts(): ReadonlyMap<string, AwsMarketplaceProduct> {
+export function getAwsMarketplaceProducts(): AwsMarketplaceProducts {
   products ??= env.AWS_MARKETPLACE_PRODUCTS
     ? parseAwsMarketplaceProducts(env.AWS_MARKETPLACE_PRODUCTS)
     : new Map()

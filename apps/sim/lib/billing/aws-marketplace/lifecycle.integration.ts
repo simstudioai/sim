@@ -6,6 +6,7 @@ import {
   member,
   organization,
   outboxEvent,
+  subscription,
   user,
 } from '@sim/db/schema'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
@@ -352,6 +353,7 @@ afterAll(async () => {
     .delete(awsMarketplaceLicense)
     .where(inArray(awsMarketplaceLicense.licenseArn, licenseArns))
   if (organizationIds.length) {
+    await db.delete(subscription).where(inArray(subscription.referenceId, organizationIds))
     await db.delete(organization).where(inArray(organization.id, organizationIds))
   }
   if (userIds.length) {
@@ -777,6 +779,59 @@ describe('linking a claimed license', () => {
 
     expect(error).toMatchObject({ code: 'conflict' })
     expect((await readLicense(license.licenseArn))?.organizationId).toBe(otherOrganizationId)
+  })
+
+  it('refuses an organization paying Stripe for a self-serve plan, but not one on Enterprise', async () => {
+    async function organizationOnPlan(plan: string) {
+      const planOwnerId = await createUser()
+      const id = await createOrganization([{ userId: planOwnerId, role: 'owner' }])
+      await db.insert(subscription).values({
+        id: generateId(),
+        plan,
+        referenceId: id,
+        status: 'active',
+        stripeSubscriptionId: `sub_${generateId()}`,
+        metadata: { plan, referenceId: id, seats: 10, monthlyPrice: 100 },
+      })
+      return { id, planOwnerId }
+    }
+    const onTeam = await organizationOnPlan('team_6000')
+    const onEnterprise = await organizationOnPlan('enterprise')
+    const refused = await createClaimedLicense()
+    const linked = await createClaimedLicense()
+    entitlementsByLicense.set(refused.licenseArn, [currentEntitlement()])
+    entitlementsByLicense.set(linked.licenseArn, [currentEntitlement()])
+
+    const error = await rejection(
+      linkAwsMarketplaceLicense.execute({
+        principal: createSessionPrincipal({ userId: onTeam.planOwnerId }),
+        input: {
+          ...CONTACT,
+          organizationId: onTeam.id,
+          licenseId: refused.id,
+          claimToken: refused.token,
+        },
+      })
+    )
+    await linkAwsMarketplaceLicense.execute({
+      principal: createSessionPrincipal({ userId: onEnterprise.planOwnerId }),
+      input: {
+        ...CONTACT,
+        organizationId: onEnterprise.id,
+        licenseId: linked.id,
+        claimToken: linked.token,
+      },
+    })
+
+    expect(error).toMatchObject({
+      code: 'conflict',
+      message: expect.stringMatching(/already pays/),
+    })
+    expect(await readLicense(refused.licenseArn)).toMatchObject({
+      organizationId: null,
+      claimTokenHash: hashClaimToken(refused.token),
+    })
+    expect((await readLicense(linked.licenseArn))?.organizationId).toBe(onEnterprise.id)
   })
 
   it('links under a newer active read without overwriting it with its own older one', async () => {
