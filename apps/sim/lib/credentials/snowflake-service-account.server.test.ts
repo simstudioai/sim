@@ -331,6 +331,20 @@ describe('a Snowflake key-pair connection', () => {
     ).resolves.toMatchObject({ displayName: 'SIM_WORKFLOWS (XY12345)' })
   })
 
+  it.each([
+    ['underscore', 'myorg-marketing_test_account.snowflakecomputing.com'],
+    ['hyphen', 'myorg-marketing-test-account.snowflakecomputing.com'],
+  ])(
+    'names an account whose name has underscores by that name from its %s host',
+    async (_form, host) => {
+      snowflakeAccountTrustingKey('MYORG-MARKETING_TEST_ACCOUNT')
+
+      await expect(
+        verifyAndEncryptSnowflakeConnection(keyPairConfig({ host }), owner)
+      ).resolves.toMatchObject({ displayName: 'SIM_WORKFLOWS (MYORG-MARKETING_TEST_ACCOUNT)' })
+    }
+  )
+
   it('reports a key the user does not hold as a rejected credential', async () => {
     snowflakeAccountTrustingKey('MYORG-MYACCOUNT')
     const other = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({

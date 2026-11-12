@@ -135,6 +135,28 @@ export function normalizeSnowflakeHost(host: string): string {
 }
 
 /**
+ * The account identifier a key-pair JWT names, uppercased, from an account host:
+ * its first label, without region, cloud, or subdomain, cut at the first hyphen
+ * for a `.global` (replication) host. An organization name holds only letters
+ * and numbers and an account name never holds a hyphen, so in `org-account`
+ * every hyphen after the first is an underscore Snowflake's alternate hostname
+ * replaced, and is restored so both hostnames name the same account.
+ *
+ * @see https://docs.snowflake.com/en/user-guide/admin-account-identifier
+ * @see https://docs.snowflake.com/en/developer-guide/sql-api/authenticating
+ */
+export function snowflakeAccountIdentifier(host: string): string {
+  const hostname = new URL(normalizeSnowflakeHost(host)).hostname
+  const suffix = SNOWFLAKE_HOST_SUFFIXES.find((candidate) => hostname.endsWith(candidate)) ?? ''
+  const accountPart = hostname.slice(0, hostname.length - suffix.length)
+  const firstLabel = accountPart.split('.')[0]
+  if (accountPart.includes('.global')) return firstLabel.split('-')[0].toUpperCase()
+  const [organization, ...accountWords] = firstLabel.split('-')
+  const account = accountWords.length > 0 ? `${organization}-${accountWords.join('_')}` : firstLabel
+  return account.toUpperCase()
+}
+
+/**
  * `authStyle` a keyless Snowflake credential resolves with: its token is a
  * Sim-signed OIDC token presented through workload identity federation rather
  * than a programmatic access token.

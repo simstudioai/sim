@@ -31,6 +31,7 @@ import {
   normalizeSnowflakeHost,
   SNOWFLAKE_KEY_PAIR_AUTH_STYLE,
   SNOWFLAKE_WORKLOAD_IDENTITY_AUTH_STYLE,
+  snowflakeAccountIdentifier,
 } from '@/tools/snowflake/utils'
 
 /**
@@ -190,21 +191,9 @@ function mintSnowflakeToken(subject: string, owner: WorkloadIdentityOwner): Prom
   })
 }
 
-/**
- * The account and user a key-pair JWT names, uppercased: the account identifier
- * is the host's account part without region, cloud, or subdomain, cut at the
- * first hyphen for a `.global` (replication) host, exactly as Snowflake's
- * drivers derive it.
- *
- * @see https://github.com/snowflakedb/snowflake-connector-python/blob/main/src/snowflake/connector/auth/keypair.py
- */
+/** The account and user a key-pair JWT names, both uppercased. */
 function snowflakeQualifiedUser(host: string, user: string): string {
-  const hostname = new URL(normalizeSnowflakeHost(host)).hostname
-  const accountPart = hostname.replace(/\.snowflakecomputing\.(com|cn)$/, '')
-  const account = accountPart.includes('.global')
-    ? accountPart.split('-')[0]
-    : accountPart.split('.')[0]
-  return `${account.toUpperCase()}.${user.toUpperCase()}`
+  return `${snowflakeAccountIdentifier(host)}.${user.toUpperCase()}`
 }
 
 /**
@@ -259,7 +248,7 @@ function signSnowflakeKeyPairJwt(
     .sign(key)
 }
 
-export interface SnowflakeKeylessSecret {
+export interface SnowflakeConnectionSecret {
   encryptedServiceAccountKey: string
   displayName: string
   auditMetadata: Record<string, string>
@@ -279,7 +268,7 @@ export interface SnowflakeKeylessSecret {
 export async function verifyAndEncryptSnowflakeKeylessCredential(
   serialized: string,
   owner: WorkloadIdentityCredentialOwner
-): Promise<SnowflakeKeylessSecret> {
+): Promise<SnowflakeConnectionSecret> {
   const parsed = parseServiceAccountConfig(
     serialized,
     submittedConfigSchema,
@@ -334,7 +323,7 @@ export async function verifyAndEncryptSnowflakeKeylessCredential(
 export async function verifyAndEncryptSnowflakeConnection(
   serialized: string,
   owner: WorkloadIdentityCredentialOwner
-): Promise<SnowflakeKeylessSecret> {
+): Promise<SnowflakeConnectionSecret> {
   const mode = parseServiceAccountConfig(serialized, submittedModeSchema, 'Snowflake connection')
   if (!mode.success) throw new SnowflakeCredentialError(mode.message)
   return mode.data.authType === 'key_pair'
@@ -350,7 +339,7 @@ export async function verifyAndEncryptSnowflakeConnection(
  */
 async function verifyAndEncryptSnowflakeKeyPairCredential(
   serialized: string
-): Promise<SnowflakeKeylessSecret> {
+): Promise<SnowflakeConnectionSecret> {
   const parsed = parseServiceAccountConfig(
     serialized,
     submittedKeyPairSchema,

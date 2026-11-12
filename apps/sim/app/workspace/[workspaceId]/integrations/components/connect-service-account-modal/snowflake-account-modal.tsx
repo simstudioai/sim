@@ -145,24 +145,6 @@ function SnowflakeAccountForm({
   keyless,
 }: SnowflakeAccountModalProps & { keyless: KeylessSetup<'snowflake'> }) {
   const close = () => onOpenChange(false)
-  const keylessSubmit = useSavedConnectionSubmit({
-    providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
-    workspaceId,
-    organizationId,
-    credentialId,
-    onCreated,
-    onClose: close,
-    messageForCode: keylessErrorMessage,
-  })
-  const keyPairSubmit = useSavedConnectionSubmit({
-    providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
-    workspaceId,
-    organizationId,
-    credentialId,
-    onCreated,
-    onClose: close,
-    messageForCode: keyPairErrorMessage,
-  })
   const createCredential = useCreateScopedCredential()
   const updateCredential = useUpdateScopedCredential()
   const [tokenError, setTokenError] = useState<string | null>(null)
@@ -182,28 +164,28 @@ function SnowflakeAccountForm({
       ? 'workload_identity'
       : 'programmatic_access_token'
   const authType: SnowflakeAuthType = selectedAuthType ?? defaultAuthType
+  const connectionSubmit = useSavedConnectionSubmit({
+    providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+    workspaceId,
+    organizationId,
+    credentialId,
+    onCreated,
+    onClose: close,
+    messageForCode: authType === 'key_pair' ? keyPairErrorMessage : keylessErrorMessage,
+  })
   const normalizedHost = normalizeHostInput(host)
   const isPending =
-    keylessSubmit.isPending ||
-    keyPairSubmit.isPending ||
-    createCredential.isPending ||
-    updateCredential.isPending
+    connectionSubmit.isPending || createCredential.isPending || updateCredential.isPending
   const disabled =
     isPending ||
     !normalizedHost ||
     (authType === 'programmatic_access_token' && !token.trim()) ||
     (authType === 'key_pair' && (!user.trim() || !privateKey.trim())) ||
     (authType === 'workload_identity' && !keyless.ready)
-  const error =
-    authType === 'workload_identity'
-      ? keylessSubmit.error
-      : authType === 'key_pair'
-        ? keyPairSubmit.error
-        : tokenError
+  const error = authType === 'programmatic_access_token' ? tokenError : connectionSubmit.error
 
   const clearErrors = () => {
-    keylessSubmit.clearError()
-    keyPairSubmit.clearError()
+    connectionSubmit.clearError()
     setTokenError(null)
   }
   const edit = (setter: (value: string) => void) => (value: string) => {
@@ -250,7 +232,7 @@ function SnowflakeAccountForm({
       return
     }
     if (authType === 'key_pair') {
-      void keyPairSubmit.submit({
+      void connectionSubmit.submit({
         config: {
           authType: 'key_pair',
           host: normalizedHost,
@@ -262,7 +244,7 @@ function SnowflakeAccountForm({
       })
       return
     }
-    void keylessSubmit.submit({
+    void connectionSubmit.submit({
       config: {
         authType: 'workload_identity',
         host: normalizedHost,
