@@ -82,7 +82,9 @@ export interface InFlightWork {
  */
 function describeTerminalCommands(commands: readonly string[]): string | null {
   if (commands.length === 0) return null
-  const named = commands.filter((command) => command.trim()).map((command) => describeRunningCommand(command))
+  const named = commands
+    .filter((command) => command.trim())
+    .map((command) => describeRunningCommand(command))
   const unnamed = commands.length - named.length
   if (unnamed > 1 || commands.length > MAX_NAMED_TERMINAL_COMMANDS) {
     return `${commands.length} terminal commands are still running.`
