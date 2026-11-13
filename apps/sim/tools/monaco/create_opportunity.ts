@@ -60,7 +60,7 @@ export const monacoCreateOpportunityTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Stage ID (from List Pipelines), instead of a stage key. It names the pipeline too, so a pipeline ID, if given, must be that stage's pipeline.",
+        "Stage ID (from List Pipelines), instead of a stage key; provide either stage or stageId, not both. It names the pipeline too, so a pipeline ID, if given, must be that stage's pipeline.",
     },
     ownerUserId: {
       type: 'string',
