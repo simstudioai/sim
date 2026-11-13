@@ -63,6 +63,12 @@ const FUNCTION_EXECUTION_ENV = [
   { name: 'DAYTONA_API_KEY', secret: true },
   { name: 'DAYTONA_FUNCTION_SNAPSHOT_ID', secret: false },
   { name: 'DAYTONA_DOC_SNAPSHOT_ID', secret: false },
+  { name: 'BOXD_API_KEY', secret: true },
+  { name: 'BOXD_ORG', secret: false },
+  { name: 'BOXD_REGION', secret: false },
+  { name: 'BOXD_FUNCTION_SNAPSHOT', secret: false },
+  { name: 'BOXD_DOC_SNAPSHOT', secret: false },
+  { name: 'BOXD_SANDBOX_NAME_PREFIX', secret: false },
   { name: 'S3_COPILOT_BUCKET_NAME', secret: false },
   { name: 'AZURE_STORAGE_COPILOT_CONTAINER_NAME', secret: false },
   { name: 'GCS_COPILOT_BUCKET_NAME', secret: false },
@@ -245,6 +251,8 @@ export default defineConfig({
       'e2b',
       '@e2b/code-interpreter',
       '@daytona/sdk',
+      // The boxd SDK is ESM-only and loads its gRPC transport at runtime.
+      '@boxd-sh/sdk',
       // pdf.js resolves its worker via a runtime-relative dynamic import that
       // breaks inside the worker bundle; it must load from node_modules.
       'pdfjs-dist',
@@ -282,6 +290,7 @@ export default defineConfig({
           '@earendil-works/pi-coding-agent',
           '@e2b/code-interpreter',
           '@daytona/sdk',
+          '@boxd-sh/sdk',
           'pdfjs-dist',
           '@napi-rs/canvas',
           'sharp',

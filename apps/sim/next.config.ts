@@ -82,6 +82,7 @@ const nextConfig: NextConfig = {
     '@e2b/code-interpreter',
     'e2b',
     '@daytona/sdk',
+    '@boxd-sh/sdk',
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
     /**

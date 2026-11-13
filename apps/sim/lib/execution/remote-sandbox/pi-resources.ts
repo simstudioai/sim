@@ -32,3 +32,7 @@ export const PI_SANDBOX_MEMORY_MB = PI_SANDBOX_MEMORY_GB * 1024
  * dimension where the two images legitimately differ.
  */
 export const PI_DAYTONA_DISK_GB = 10
+
+/** boxd pairs 4 vCPU with 16 GiB, the smallest size that keeps the Pi CPU count. */
+export const PI_BOXD_MEMORY_GB = 16
+export const PI_BOXD_DISK_GB = 10

@@ -1,8 +1,8 @@
 /**
  * Provider conformance: the same input must produce the same
- * `SandboxExecutionResult` on E2B and on Daytona. A divergence here is exactly
- * what would surface as a broken failover mid-incident, so every scenario runs
- * twice — once per provider — from a single table.
+ * `SandboxExecutionResult` on E2B, Daytona, and boxd. A divergence here is
+ * exactly what would surface as a broken failover mid-incident, so every
+ * scenario runs once per provider from a single table.
  */
 import { Readable } from 'node:stream'
 import { envMock, setEnv } from '@sim/testing/mocks/env.mock'
@@ -44,6 +44,16 @@ const {
   mockDeleteSession,
   mockRecordSandboxProviderLimit,
   mockRecordSandboxTeardownFailure,
+  mockBoxdClient,
+  mockBoxdCreate,
+  mockBoxdWaitUntilReady,
+  mockBoxdStreamExec,
+  mockBoxdDelete,
+  mockBoxdFsStat,
+  mockBoxdFsReadStream,
+  mockBoxdFsWrite,
+  mockBoxdFsRemove,
+  mockBoxdFsList,
 } = vi.hoisted(() => ({
   mockResolveSandbox: vi.fn(),
   mockProvisionRuntime: vi.fn(),
@@ -78,12 +88,42 @@ const {
   mockDeleteSession: vi.fn(),
   mockRecordSandboxProviderLimit: vi.fn(),
   mockRecordSandboxTeardownFailure: vi.fn(),
+  mockBoxdClient: vi.fn(),
+  mockBoxdCreate: vi.fn(),
+  mockBoxdWaitUntilReady: vi.fn(),
+  mockBoxdStreamExec: vi.fn(),
+  mockBoxdDelete: vi.fn(),
+  mockBoxdFsStat: vi.fn(),
+  mockBoxdFsReadStream: vi.fn(),
+  mockBoxdFsWrite: vi.fn(),
+  mockBoxdFsRemove: vi.fn(),
+  mockBoxdFsList: vi.fn(),
 }))
 
 vi.mock('@e2b/code-interpreter', () => ({ Sandbox: { create: mockE2BCreate } }))
 vi.mock('@daytona/sdk', () => ({
   Daytona: class {
     create = mockDaytonaCreate
+  },
+}))
+vi.mock('@boxd-sh/sdk', () => ({
+  Boxd: class {
+    constructor(options: unknown) {
+      mockBoxdClient(options)
+    }
+    machines = {
+      create: mockBoxdCreate,
+      waitUntilReady: mockBoxdWaitUntilReady,
+      streamExec: mockBoxdStreamExec,
+      delete: mockBoxdDelete,
+      fs: {
+        stat: mockBoxdFsStat,
+        readStream: mockBoxdFsReadStream,
+        write: mockBoxdFsWrite,
+        remove: mockBoxdFsRemove,
+        list: mockBoxdFsList,
+      },
+    }
   },
 }))
 vi.mock('@/lib/core/execution-limits/metrics', () => ({
@@ -104,6 +144,7 @@ import {
   SIM_RESULT_PREFIX,
   withPiSandbox,
 } from '@/lib/execution/remote-sandbox'
+import { boxdProvider, resolveBoxdSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/boxd'
 import {
   daytonaProvider,
   resolveDaytonaSandboxLifetimeMs,
@@ -126,19 +167,29 @@ import {
 } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 
-type Provider = 'e2b' | 'daytona'
-const PROVIDERS: Provider[] = ['e2b', 'daytona']
+type Provider = 'e2b' | 'daytona' | 'boxd'
+const PROVIDERS: Provider[] = ['e2b', 'daytona', 'boxd']
+
+/** Picks the value that belongs to one provider. */
+function pick<T>(provider: Provider, values: Record<Provider, T>): T {
+  return values[provider]
+}
 
 describe('provider-effective sandbox lifetimes', () => {
-  it('matches E2B second and Daytona minute rounding', () => {
+  it('matches E2B second, Daytona minute, and boxd second rounding', () => {
     expect(resolveE2BSandboxLifetimeMs(1001)).toBe(2000)
     expect(resolveDaytonaSandboxLifetimeMs(1001)).toBe(60_000)
+    expect(resolveBoxdSandboxLifetimeMs(1001)).toBe(2000)
   })
 
   it.each(PROVIDERS)('reports the %s SDK create dispatch time', async (provider) => {
     useProvider(provider)
     const onProviderRequestStarted = vi.fn()
-    const createMock = provider === 'e2b' ? mockE2BCreate : mockDaytonaCreate
+    const createMock = pick(provider, {
+      e2b: mockE2BCreate,
+      daytona: mockDaytonaCreate,
+      boxd: mockBoxdCreate,
+    })
 
     await resolveProvider().create('code', { lifetimeMs: 1000, onProviderRequestStarted })
 
@@ -165,6 +216,11 @@ setEnv({
   DAYTONA_SHELL_SNAPSHOT_ID: 'mothership-shell:v1',
   DAYTONA_DOC_SNAPSHOT_ID: 'mothership-docs:v1',
   DAYTONA_PI_SNAPSHOT_ID: 'sim-pi:v1',
+  BOXD_API_KEY: 'test-key',
+  BOXD_FUNCTION_SNAPSHOT: 'sim-function@3',
+  BOXD_SHELL_SNAPSHOT: 'mothership-shell',
+  BOXD_DOC_SNAPSHOT: 'mothership-docs',
+  BOXD_PI_SNAPSHOT: 'sim-pi',
 })
 const mockEnv = envMock.env
 
@@ -190,10 +246,95 @@ function emitDaytonaStreamReady(onStdout: (chunk: string) => void): void {
   }
 }
 
+interface FakeBoxdExec {
+  stdout?: string
+  stderr?: string
+  exitCode?: number
+  /** Rejects the exit wait, as a dropped exec stream does. */
+  error?: unknown
+  /** Runs once the exec starts, before any output arrives. */
+  onStart?: () => void | Promise<void>
+  /** Never ends on its own; only `close()` releases it. */
+  hang?: boolean
+}
+
+/** An exec stream in the shape `machines.streamExec` returns. */
+function fakeBoxdStream(spec: FakeBoxdExec = {}) {
+  let release!: () => void
+  const closed = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const started = Promise.resolve().then(() => spec.onStart?.())
+  async function* output(text: string | undefined): AsyncGenerator<Uint8Array> {
+    await started
+    if (spec.hang) {
+      await closed
+      return
+    }
+    if (text) yield Buffer.from(text)
+  }
+  return {
+    stdout: output(spec.stdout),
+    stderr: output(spec.stderr),
+    wait: async () => {
+      await started
+      if (spec.hang) {
+        await closed
+        throw new Error('exec stream closed')
+      }
+      if (spec.error) throw spec.error
+      return spec.exitCode ?? 0
+    },
+    close: vi.fn(() => release()),
+  }
+}
+
+function stubBoxdExec(spec: FakeBoxdExec, once = true) {
+  const implementation = () => fakeBoxdStream(spec)
+  if (once) mockBoxdStreamExec.mockImplementationOnce(implementation)
+  else mockBoxdStreamExec.mockImplementation(implementation)
+}
+
+const BOXD_ENV_PRELUDE = /^set -a; \. (\/tmp\/\.sim-env-[A-Za-z0-9_-]+); set \+a; rm -f \1; /
+
+/**
+ * The script and environment of one boxd exec call. The adapter delivers the
+ * environment as a file the script sources, so it is read back from that write.
+ */
+function boxdExecCall(index: number): { script: string; env: Record<string, string> } {
+  const request = mockBoxdStreamExec.mock.calls.at(index)?.[1] as { command: string[] } | undefined
+  const source = request?.command.at(-1) ?? ''
+  const envPath = BOXD_ENV_PRELUDE.exec(source)?.[1]
+  const envWrite = mockBoxdFsWrite.mock.calls.find((call) => call[1] === envPath)
+  const env: Record<string, string> = {}
+  if (envWrite) {
+    const envFile = Buffer.from(envWrite[2]).toString()
+    for (const [, name, value] of envFile.matchAll(
+      /^([A-Za-z_][A-Za-z0-9_]*)='((?:[^']|'\\'')*)'$/gm
+    )) {
+      env[name] = value.replaceAll("'\\''", "'")
+    }
+  }
+  return { script: source.replace(BOXD_ENV_PRELUDE, ''), env }
+}
+
+function boxdStat(size: number, type: 'file' | 'directory' | 'symlink' | 'fifo' = 'file') {
+  return {
+    size,
+    type,
+    targetType: type,
+    isFile: type === 'file',
+    isDir: type === 'directory',
+    isSymlink: type === 'symlink',
+  }
+}
+
 /** Stubs a code execution that prints `stdout` and emits `result` via the marker. */
 function stubCodeRun(provider: Provider, stdout: string) {
   if (provider === 'e2b') {
     mockE2BCommandsRun.mockResolvedValue({ stdout, stderr: '', exitCode: 0 })
+  } else if (provider === 'boxd') {
+    stubBoxdExec({ stdout }, false)
   } else {
     mockGetSessionCommandLogs.mockImplementation(
       async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
@@ -209,6 +350,8 @@ function stubOutputFileSizes(provider: Provider, ...sizes: number[]) {
   for (const size of sizes) {
     if (provider === 'e2b') {
       mockE2BFilesGetInfo.mockResolvedValueOnce({ size, type: 'file' })
+    } else if (provider === 'boxd') {
+      mockBoxdFsStat.mockResolvedValueOnce(boxdStat(size))
     } else {
       mockGetFileDetails.mockResolvedValueOnce({ size, isDir: false, mode: '-rw-r--r--' })
     }
@@ -226,6 +369,11 @@ function stubOutputFileRead(provider: Provider, content: string | Uint8Array, on
         },
       })
     })
+  } else if (provider === 'boxd') {
+    mockBoxdFsReadStream.mockImplementationOnce(async function* () {
+      onRead?.()
+      yield typeof content === 'string' ? Buffer.from(content) : content
+    })
   } else {
     mockDownloadFileStream.mockImplementationOnce(async () => {
       onRead?.()
@@ -237,6 +385,10 @@ function stubOutputFileRead(provider: Provider, content: string | Uint8Array, on
 function stubShellCommand(provider: Provider, stdout: string, stderr: string, exitCode: number) {
   if (provider === 'e2b') {
     mockE2BCommandsRun.mockResolvedValueOnce({ stdout, stderr, exitCode })
+    return
+  }
+  if (provider === 'boxd') {
+    stubBoxdExec({ stdout, stderr, exitCode })
     return
   }
   mockGetSessionCommandLogs.mockImplementationOnce(
@@ -270,6 +422,15 @@ function capturedSandboxWrites(provider: Provider): CapturedSandboxWrite[] {
       }))
       .filter((write) => !write.path.includes('.sim-function-'))
   }
+  if (provider === 'boxd') {
+    return mockBoxdFsWrite.mock.calls
+      .map((call, index) => ({
+        path: String(call[1]),
+        content: call[2],
+        order: mockBoxdFsWrite.mock.invocationCallOrder[index],
+      }))
+      .filter((write) => !write.path.includes('.sim-function-'))
+  }
   return mockUploadFile.mock.calls
     .map((call, index) => ({
       path: String(call[1]),
@@ -293,10 +454,15 @@ function expectPrivateInputsUseSandboxTeardown(provider: Provider): void {
     write.path.startsWith('/tmp/.sim-private-input-')
   )
   expect(writes.length).toBeGreaterThan(0)
-  const remove = provider === 'e2b' ? mockE2BFilesRemove : mockDeleteFile
-  const removed = remove.mock.calls.filter(([path]) =>
-    String(path).startsWith('/tmp/.sim-private-input-')
-  )
+  const removedPaths =
+    provider === 'boxd'
+      ? mockBoxdFsRemove.mock.calls.map(([, path]) => String(path))
+      : pick(provider, {
+          e2b: mockE2BFilesRemove,
+          daytona: mockDeleteFile,
+          boxd: mockBoxdFsRemove,
+        }).mock.calls.map(([path]) => String(path))
+  const removed = removedPaths.filter((path) => path.startsWith('/tmp/.sim-private-input-'))
   expect(removed).toEqual([])
 }
 
@@ -363,6 +529,17 @@ beforeEach(() => {
   mockExecuteSessionCommand.mockResolvedValue({ cmdId: 'cmd_1' })
   mockGetSessionCommand.mockResolvedValue({ exitCode: 0 })
   mockSendSessionCommandInput.mockResolvedValue(undefined)
+
+  mockBoxdCreate.mockImplementation(async (params: { fromSnapshot: string }) => ({
+    id: 'sb_1',
+    source: { kind: 'snapshot', name: params.fromSnapshot, id: 'snap_1', version: 3 },
+  }))
+  mockBoxdWaitUntilReady.mockResolvedValue(undefined)
+  mockBoxdStreamExec.mockImplementation(() => fakeBoxdStream())
+  mockBoxdDelete.mockResolvedValue(undefined)
+  mockBoxdFsWrite.mockResolvedValue(undefined)
+  mockBoxdFsRemove.mockResolvedValue(undefined)
+  mockBoxdFsList.mockResolvedValue([])
 })
 
 /** Headroom for the note `tailStreamedSandboxOutput` prepends when it truncates. */
@@ -485,6 +662,8 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       mockE2BCommandsRun.mockImplementationOnce(async (_code, options) => {
         options.onStdout(oversized)
       })
+    } else if (provider === 'boxd') {
+      stubBoxdExec({ stdout: oversized })
     } else {
       mockGetSessionCommandLogs.mockImplementationOnce(async (_sessionId, _commandId, onStdout) => {
         emitDaytonaStreamReady(onStdout)
@@ -505,7 +684,9 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       limitBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
     })
     expect(readTrustedSandboxOutputCost(error)).toBeUndefined()
-    expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+    expect(
+      pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('keeps only a diagnostic tail from a caller-consumed stream', async () => {
@@ -515,6 +696,8 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
         options.onStdout(`${streamedOutput}TAIL_MARKER`)
         return { stdout: `${streamedOutput}TAIL_MARKER`, stderr: '', exitCode: 0 }
       })
+    } else if (provider === 'boxd') {
+      stubBoxdExec({ stdout: `${streamedOutput}TAIL_MARKER` })
     } else {
       mockGetSessionCommandLogs.mockImplementationOnce(
         async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
@@ -556,6 +739,8 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
         options.onStdout?.(midBand)
         return { stdout: midBand, stderr: '', exitCode: 0 }
       })
+    } else if (provider === 'boxd') {
+      stubBoxdExec({ stdout: midBand })
     } else {
       mockGetSessionCommandLogs.mockImplementationOnce(
         async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
@@ -581,6 +766,8 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       mockE2BCommandsRun.mockImplementationOnce(async (_cmd, options) => {
         options.onStderr(oversized)
       })
+    } else if (provider === 'boxd') {
+      stubBoxdExec({ stderr: oversized })
     } else {
       mockGetSessionCommandLogs.mockImplementationOnce(
         async (
@@ -624,6 +811,9 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
   it('normalizes Python code budget expiry to a typed timeout abort', async () => {
     if (provider === 'e2b') {
       mockE2BCommandsRun.mockRejectedValueOnce(providerTimeoutError(provider))
+    } else if (provider === 'boxd') {
+      // boxd has no exec deadline of its own; the adapter's timer ends a hung stream.
+      stubBoxdExec({ hang: true })
     } else {
       mockGetSessionCommandLogs.mockRejectedValueOnce(providerTimeoutError(provider))
     }
@@ -636,6 +826,9 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
   it('normalizes JavaScript code budget expiry to a typed timeout abort', async () => {
     if (provider === 'e2b') {
       mockE2BCommandsRun.mockRejectedValueOnce(providerTimeoutError(provider))
+    } else if (provider === 'boxd') {
+      // boxd has no exec deadline of its own; the adapter's timer ends a hung stream.
+      stubBoxdExec({ hang: true })
     } else {
       mockGetSessionCommandLogs.mockRejectedValueOnce(providerTimeoutError(provider))
     }
@@ -657,6 +850,8 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     }
     if (provider === 'e2b') {
       mockE2BCommandsRun.mockImplementationOnce(rejectAfterCancellation)
+    } else if (provider === 'boxd') {
+      stubBoxdExec({ onStart: rejectAfterCancellation })
     } else {
       mockGetSessionCommandLogs.mockImplementationOnce(rejectAfterCancellation)
     }
@@ -683,14 +878,15 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       ],
     })
 
-    const [command, options] =
-      provider === 'e2b'
-        ? mockE2BCommandsRun.mock.calls[0]
-        : [mockExecuteSessionCommand.mock.calls[0][1].command, undefined]
+    const [command, options] = pick(provider, {
+      e2b: () => mockE2BCommandsRun.mock.calls[0],
+      daytona: () => [mockExecuteSessionCommand.mock.calls[0][1].command, undefined],
+      boxd: () => [boxdExecCall(0).script, { envs: boxdExecCall(0).env }],
+    })()
     expect(command).toContain('curl')
     // The presigned URL must travel as an env var, never interpolated into the shell.
     expect(command).not.toContain('presigned')
-    if (provider === 'e2b') {
+    if (provider !== 'daytona') {
       expect(options.envs).toMatchObject({
         URL: 'https://example/presigned?x=1',
         DST: '/mnt/data/in.csv',
@@ -705,6 +901,8 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
   it('throws rather than running user code against a missing mount', async () => {
     if (provider === 'e2b') {
       mockE2BCommandsRun.mockRejectedValue(new Error('curl: (22) 404'))
+    } else if (provider === 'boxd') {
+      stubBoxdExec({ stderr: 'curl: (22) 404', exitCode: 22 }, false)
     } else {
       stubShellCommand(provider, '', 'curl: (22) 404', 22)
     }
@@ -730,6 +928,14 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
           path: entry.path,
           size: entry.size,
           type: entry.kind === 'dir' ? 'dir' : 'file',
+        }))
+      )
+    } else if (provider === 'boxd') {
+      mockBoxdFsList.mockResolvedValueOnce(
+        entries.map((entry) => ({
+          name: entry.path.split('/').pop(),
+          path: entry.path,
+          ...boxdStat(entry.size, entry.kind === 'dir' ? 'directory' : 'file'),
         }))
       )
     } else {
@@ -790,10 +996,11 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     // runtime prologue instead, calling executeInSandbox directly left user
     // code writing into a directory that did not exist, and every write was
     // ENOENT. The sentinel must be written before the code file that runs.
-    const writeMock = provider === 'e2b' ? mockE2BFilesWrite : mockUploadFile
-    const writtenPaths = writeMock.mock.calls.map((call) =>
-      provider === 'e2b' ? call[0] : call[1]
-    )
+    const writtenPaths = pick(provider, {
+      e2b: () => mockE2BFilesWrite.mock.calls.map((call) => call[0]),
+      daytona: () => mockUploadFile.mock.calls.map((call) => call[1]),
+      boxd: () => mockBoxdFsWrite.mock.calls.map((call) => call[1]),
+    })()
     const sentinelIndex = writtenPaths.findIndex((path: string) =>
       path?.includes('/tmp/sim/outputs/.sim-keep')
     )
@@ -963,7 +1170,9 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     })
 
     expect(result.collectedFiles).toBeUndefined()
-    expect(provider === 'e2b' ? mockE2BFilesList : mockListFiles).not.toHaveBeenCalled()
+    expect(
+      pick(provider, { e2b: mockE2BFilesList, daytona: mockListFiles, boxd: mockBoxdFsList })
+    ).not.toHaveBeenCalled()
   })
 
   it('materializes private code inputs after dependencies and user files', async () => {
@@ -1021,6 +1230,11 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       expect(runOptions.envs).toMatchObject(expectedEnvironment)
       expect(JSON.stringify(runOptions.envs)).not.toContain(privateText)
       executionOrder = mockE2BCommandsRun.mock.invocationCallOrder[0]
+    } else if (provider === 'boxd') {
+      const { env } = boxdExecCall(0)
+      expect(env).toMatchObject(expectedEnvironment)
+      expect(JSON.stringify(env)).not.toContain(privateText)
+      executionOrder = mockBoxdStreamExec.mock.invocationCallOrder[0]
     } else {
       const environmentWrite = writes.find((write) => write.path.startsWith('/tmp/.sim-env-'))
       expect(environmentWrite).toBeDefined()
@@ -1035,7 +1249,9 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     expect(userWrite?.order).toBeLessThan(privateTextWrite?.order ?? 0)
     expect(privateBytesWrite?.order).toBeLessThan(executionOrder)
     expectPrivateInputsUseSandboxTeardown(provider)
-    expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+    expect(
+      pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('passes private shell input paths after selected and caller environment values', async () => {
@@ -1085,6 +1301,15 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       })
       expect(JSON.stringify(options.envs)).not.toContain(privateContent)
       expect(privateWrite?.order).toBeLessThan(mockE2BCommandsRun.mock.invocationCallOrder[0])
+    } else if (provider === 'boxd') {
+      const { env } = boxdExecCall(0)
+      expect(env).toMatchObject({
+        PRIVATE_HEREDOC_PATH: privateWrite?.path,
+        SELECTED_ONLY: 'selected-value',
+        CALLER_ONLY: 'caller-value',
+      })
+      expect(JSON.stringify(env)).not.toContain(privateContent)
+      expect(privateWrite?.order).toBeLessThan(mockBoxdStreamExec.mock.invocationCallOrder[0])
     } else {
       const environmentWrite = writes.find((write) => write.path.startsWith('/tmp/.sim-env-'))
       expect(environmentWrite).toBeDefined()
@@ -1099,7 +1324,9 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       )
     }
     expectPrivateInputsUseSandboxTeardown(provider)
-    expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+    expect(
+      pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('tears down without running code when private input materialization is aborted', async () => {
@@ -1109,6 +1336,8 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     }
     if (provider === 'e2b') {
       mockE2BFilesWrite.mockImplementationOnce(abortWrite)
+    } else if (provider === 'boxd') {
+      mockBoxdFsWrite.mockImplementationOnce(abortWrite)
     } else {
       mockUploadFile.mockImplementationOnce(abortWrite)
     }
@@ -1126,15 +1355,23 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     expectPrivateInputsUseSandboxTeardown(provider)
 
     expect(
-      provider === 'e2b' ? mockE2BCommandsRun : mockExecuteSessionCommand
+      pick(provider, {
+        e2b: mockE2BCommandsRun,
+        daytona: mockExecuteSessionCommand,
+        boxd: mockBoxdStreamExec,
+      })
     ).not.toHaveBeenCalled()
-    expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+    expect(
+      pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('tears down without running code when a private input write fails', async () => {
     const writeError = new Error('private input write failed')
     if (provider === 'e2b') {
       mockE2BFilesWrite.mockRejectedValueOnce(writeError)
+    } else if (provider === 'boxd') {
+      mockBoxdFsWrite.mockRejectedValueOnce(writeError)
     } else {
       mockUploadFile.mockRejectedValueOnce(writeError)
     }
@@ -1151,15 +1388,25 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     expectPrivateInputsUseSandboxTeardown(provider)
 
     expect(
-      provider === 'e2b' ? mockE2BCommandsRun : mockExecuteSessionCommand
+      pick(provider, {
+        e2b: mockE2BCommandsRun,
+        daytona: mockExecuteSessionCommand,
+        boxd: mockBoxdStreamExec,
+      })
     ).not.toHaveBeenCalled()
-    expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+    expect(
+      pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+    ).toHaveBeenCalledTimes(1)
   })
 
   it.each(['code', 'shell'])(
     'uses one-shot sandbox teardown for failed private uploads before %s can start',
     async (kind) => {
-      const upload = provider === 'e2b' ? mockE2BFilesWrite : mockUploadFile
+      const upload = pick(provider, {
+        e2b: mockE2BFilesWrite,
+        daytona: mockUploadFile,
+        boxd: mockBoxdFsWrite,
+      })
       upload
         .mockResolvedValueOnce(undefined)
         .mockRejectedValueOnce(new Error('Upload acknowledgement lost'))
@@ -1177,9 +1424,15 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
           : executeShellInSandbox({ ...request, envs: {} })
       ).rejects.toThrow('Upload acknowledgement lost')
       expectPrivateInputsUseSandboxTeardown(provider)
-      expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
       expect(
-        provider === 'e2b' ? mockE2BCommandsRun : mockExecuteSessionCommand
+        pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+      ).toHaveBeenCalledTimes(1)
+      expect(
+        pick(provider, {
+          e2b: mockE2BCommandsRun,
+          daytona: mockExecuteSessionCommand,
+          boxd: mockBoxdStreamExec,
+        })
       ).not.toHaveBeenCalled()
     }
   )
@@ -1196,6 +1449,10 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       else await executeShellInSandbox({ ...request, envs: { SIM_OUTPUT_DIR: 'caller-override' } })
       if (provider === 'e2b') {
         expect(mockE2BCommandsRun.mock.calls[0][1].envs?.SIM_OUTPUT_DIR).toBe(
+          kind === 'shell' ? 'caller-override' : undefined
+        )
+      } else if (provider === 'boxd') {
+        expect(boxdExecCall(0).env.SIM_OUTPUT_DIR).toBe(
           kind === 'shell' ? 'caller-override' : undefined
         )
       } else {
@@ -1279,6 +1536,8 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       mockE2BCommandsRun.mockImplementationOnce(async (_command, options) => {
         options.onStdout(oversized)
       })
+    } else if (provider === 'boxd') {
+      stubBoxdExec({ stdout: oversized })
     } else {
       mockGetSessionCommandLogs.mockImplementationOnce(async (_sessionId, _commandId, onStdout) => {
         emitDaytonaStreamReady(onStdout)
@@ -1293,12 +1552,17 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       outputKind: 'process',
       limitBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
     })
-    expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+    expect(
+      pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('normalizes shell command budget expiry to a typed timeout abort', async () => {
     if (provider === 'e2b') {
       mockE2BCommandsRun.mockRejectedValueOnce(providerTimeoutError(provider))
+    } else if (provider === 'boxd') {
+      // boxd has no exec deadline of its own; the adapter's timer ends a hung stream.
+      stubBoxdExec({ hang: true })
     } else {
       mockGetSessionCommandLogs.mockRejectedValueOnce(providerTimeoutError(provider))
     }
@@ -1339,6 +1603,11 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       mockE2BCommandsRun.mockImplementationOnce(async () => {
         controller.abort(new DOMException('user', 'AbortError'))
         throw providerTimeoutError(provider)
+      })
+    } else if (provider === 'boxd') {
+      stubBoxdExec({
+        onStart: () => controller.abort(new DOMException('user', 'AbortError')),
+        exitCode: 124,
       })
     } else {
       mockGetSessionCommandLogs.mockImplementationOnce(async () => {
@@ -1392,7 +1661,13 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       raw: expect.any(Number),
     })
 
-    expect(provider === 'e2b' ? mockE2BFilesRead : mockDownloadFileStream).not.toHaveBeenCalled()
+    expect(
+      pick(provider, {
+        e2b: mockE2BFilesRead,
+        daytona: mockDownloadFileStream,
+        boxd: mockBoxdFsReadStream,
+      })
+    ).not.toHaveBeenCalled()
   })
 
   it('rejects cumulative output size before reading any provider file bytes', async () => {
@@ -1413,7 +1688,13 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       limitBytes: MAX_SANDBOX_OUTPUT_BYTES,
     })
 
-    expect(provider === 'e2b' ? mockE2BFilesRead : mockDownloadFileStream).not.toHaveBeenCalled()
+    expect(
+      pick(provider, {
+        e2b: mockE2BFilesRead,
+        daytona: mockDownloadFileStream,
+        boxd: mockBoxdFsReadStream,
+      })
+    ).not.toHaveBeenCalled()
   })
 
   it('enforces the file limit while reading when a file grows after inspection', async () => {
@@ -1439,6 +1720,8 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
     if (provider === 'e2b') {
       mockE2BFilesGetInfo.mockResolvedValueOnce({ size: 1, type: 'symlink' })
+    } else if (provider === 'boxd') {
+      mockBoxdFsStat.mockResolvedValueOnce(boxdStat(1, 'fifo'))
     } else {
       mockGetFileDetails.mockResolvedValueOnce({ size: 1, isDir: false, mode: 'prw-r--r--' })
     }
@@ -1458,7 +1741,13 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       total: expect.any(Number),
       raw: expect.any(Number),
     })
-    expect(provider === 'e2b' ? mockE2BFilesRead : mockDownloadFileStream).not.toHaveBeenCalled()
+    expect(
+      pick(provider, {
+        e2b: mockE2BFilesRead,
+        daytona: mockDownloadFileStream,
+        boxd: mockBoxdFsReadStream,
+      })
+    ).not.toHaveBeenCalled()
   })
 
   it.each(['oversized', 'non-regular'] as const)(
@@ -1469,6 +1758,8 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
         stubOutputFileSizes(provider, MAX_SANDBOX_OUTPUT_BYTES + 1)
       } else if (provider === 'e2b') {
         mockE2BFilesGetInfo.mockResolvedValueOnce({ size: 1, type: 'symlink' })
+      } else if (provider === 'boxd') {
+        mockBoxdFsStat.mockResolvedValueOnce(boxdStat(1, 'fifo'))
       } else {
         mockGetFileDetails.mockResolvedValueOnce({ size: 1, isDir: false, mode: 'prw-r--r--' })
       }
@@ -1500,6 +1791,10 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     const failure = new Error('provider file read failed')
     if (provider === 'e2b') {
       mockE2BFilesRead.mockRejectedValueOnce(failure)
+    } else if (provider === 'boxd') {
+      mockBoxdFsReadStream.mockImplementationOnce(() => {
+        throw failure
+      })
     } else {
       mockDownloadFileStream.mockRejectedValueOnce(failure)
     }
@@ -1521,6 +1816,8 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     const failure = new Error('provider file metadata failed')
     if (provider === 'e2b') {
       mockE2BFilesGetInfo.mockRejectedValueOnce(failure)
+    } else if (provider === 'boxd') {
+      mockBoxdFsStat.mockRejectedValueOnce(failure)
     } else {
       mockGetFileDetails.mockRejectedValueOnce(failure)
     }
@@ -1579,53 +1876,63 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     const stalledCreate = new Promise<unknown>((resolve) => {
       resolveCreate = resolve
     })
-    if (provider === 'e2b') mockE2BCreate.mockReturnValueOnce(stalledCreate)
-    else mockDaytonaCreate.mockReturnValueOnce(stalledCreate)
+    pick(provider, {
+      e2b: mockE2BCreate,
+      daytona: mockDaytonaCreate,
+      boxd: mockBoxdCreate,
+    }).mockReturnValueOnce(stalledCreate)
 
     await expect(
       executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 25 })
     ).rejects.toMatchObject({ name: 'AbortError', message: 'timeout' })
 
     resolveCreate(
-      provider === 'e2b'
-        ? {
-            sandboxId: 'late-sandbox',
-            commands: { run: mockE2BCommandsRun },
-            files: {
-              getInfo: mockE2BFilesGetInfo,
-              read: mockE2BFilesRead,
-              remove: mockE2BFilesRemove,
-              write: mockE2BFilesWrite,
-            },
-            kill: mockE2BKill,
-          }
-        : {
-            id: 'late-sandbox',
-            process: {
-              createSession: mockCreateSession,
-              executeSessionCommand: mockExecuteSessionCommand,
-              getSessionCommandLogs: mockGetSessionCommandLogs,
-              getSessionCommand: mockGetSessionCommand,
-              deleteSession: mockDeleteSession,
-            },
-            fs: {
-              deleteFile: mockDeleteFile,
-              uploadFile: mockUploadFile,
-              downloadFileStream: mockDownloadFileStream,
-              getFileDetails: mockGetFileDetails,
-            },
-            delete: mockDelete,
-          }
+      provider === 'boxd'
+        ? { id: 'late-sandbox', source: { kind: 'snapshot', name: 'sim-function', version: 3 } }
+        : provider === 'e2b'
+          ? {
+              sandboxId: 'late-sandbox',
+              commands: { run: mockE2BCommandsRun },
+              files: {
+                getInfo: mockE2BFilesGetInfo,
+                read: mockE2BFilesRead,
+                remove: mockE2BFilesRemove,
+                write: mockE2BFilesWrite,
+              },
+              kill: mockE2BKill,
+            }
+          : {
+              id: 'late-sandbox',
+              process: {
+                createSession: mockCreateSession,
+                executeSessionCommand: mockExecuteSessionCommand,
+                getSessionCommandLogs: mockGetSessionCommandLogs,
+                getSessionCommand: mockGetSessionCommand,
+                deleteSession: mockDeleteSession,
+              },
+              fs: {
+                deleteFile: mockDeleteFile,
+                uploadFile: mockUploadFile,
+                downloadFileStream: mockDownloadFileStream,
+                getFileDetails: mockGetFileDetails,
+              },
+              delete: mockDelete,
+            }
     )
     await vi.waitFor(() => {
-      expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+      expect(
+        pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+      ).toHaveBeenCalledTimes(1)
     })
   })
 
   it('enforces the wall-clock budget while materializing mounted files', async () => {
     const stalledWrite = () => new Promise<void>(() => {})
-    if (provider === 'e2b') mockE2BFilesWrite.mockImplementationOnce(stalledWrite)
-    else mockUploadFile.mockImplementationOnce(stalledWrite)
+    pick(provider, {
+      e2b: mockE2BFilesWrite,
+      daytona: mockUploadFile,
+      boxd: mockBoxdFsWrite,
+    }).mockImplementationOnce(stalledWrite)
 
     await expect(
       executeInSandbox({
@@ -1635,18 +1942,25 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
         sandboxFiles: [{ path: '/mnt/input.txt', content: 'input' }],
       })
     ).rejects.toMatchObject({ name: 'AbortError', message: 'timeout' })
-    expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+    expect(
+      pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('enforces the wall-clock budget while writing provider runtime files', async () => {
     const stalledWrite = () => new Promise<void>(() => {})
-    if (provider === 'e2b') mockE2BFilesWrite.mockImplementationOnce(stalledWrite)
-    else mockUploadFile.mockImplementationOnce(stalledWrite)
+    pick(provider, {
+      e2b: mockE2BFilesWrite,
+      daytona: mockUploadFile,
+      boxd: mockBoxdFsWrite,
+    }).mockImplementationOnce(stalledWrite)
 
     await expect(
       executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 25 })
     ).rejects.toMatchObject({ name: 'AbortError', message: 'timeout' })
-    expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+    expect(
+      pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('enforces the wall-clock budget while provisioning dependencies', async () => {
@@ -1662,14 +1976,19 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     await expect(
       executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 25 })
     ).rejects.toMatchObject({ name: 'AbortError', message: 'timeout' })
-    expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+    expect(
+      pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('enforces the wall-clock budget while collecting output files', async () => {
     stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
     const stalledInspection = () => new Promise<unknown>(() => {})
-    if (provider === 'e2b') mockE2BFilesGetInfo.mockImplementationOnce(stalledInspection)
-    else mockGetFileDetails.mockImplementationOnce(stalledInspection)
+    pick(provider, {
+      e2b: mockE2BFilesGetInfo,
+      daytona: mockGetFileDetails,
+      boxd: mockBoxdFsStat,
+    }).mockImplementationOnce(stalledInspection)
 
     await expect(
       executeInSandbox({
@@ -1679,12 +1998,16 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
         outputSandboxPath: '/out/report.txt',
       })
     ).rejects.toMatchObject({ name: 'AbortError', message: 'timeout' })
-    expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+    expect(
+      pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('always kills the sandbox, even when execution throws', async () => {
     if (provider === 'e2b') {
       mockE2BCommandsRun.mockRejectedValue(new Error('kaboom'))
+    } else if (provider === 'boxd') {
+      stubBoxdExec({ error: new Error('kaboom') }, false)
     } else {
       mockGetSessionCommandLogs.mockRejectedValue(new Error('kaboom'))
     }
@@ -1693,13 +2016,17 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 1000 })
     ).rejects.toThrow('kaboom')
 
-    expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+    expect(
+      pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('records a bounded metric when best-effort teardown fails', async () => {
     stubCodeRun(provider, `${SIM_RESULT_PREFIX}null`)
     if (provider === 'e2b') {
       mockE2BKill.mockRejectedValueOnce(new Error('kill failed'))
+    } else if (provider === 'boxd') {
+      mockBoxdDelete.mockRejectedValueOnce(new Error('delete failed'))
     } else {
       mockDelete.mockRejectedValueOnce(new Error('delete failed'))
     }
@@ -1710,7 +2037,9 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       provider,
       reason: 'cleanup',
     })
-    expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(2)
+    expect(
+      pick(provider, { e2b: mockE2BKill, daytona: mockDelete, boxd: mockBoxdDelete })
+    ).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -2040,6 +2369,10 @@ describe('custom dependency sets', () => {
 
     if (provider === 'e2b') {
       expect(mockE2BCreate).toHaveBeenCalledWith('sim-sbx-abc', expect.anything())
+    } else if (provider === 'boxd') {
+      expect(mockBoxdCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ fromSnapshot: 'sim-sbx-abc', isolated: true })
+      )
     } else {
       expect(mockDaytonaCreate).toHaveBeenCalledWith(
         expect.objectContaining({ snapshot: 'sim-sbx-abc' })
@@ -2071,6 +2404,10 @@ describe('custom dependency sets', () => {
 
     if (provider === 'e2b') {
       expect(mockE2BCreate).toHaveBeenCalledWith('mothership-docs', expect.anything())
+    } else if (provider === 'boxd') {
+      expect(mockBoxdCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ fromSnapshot: 'mothership-docs', isolated: true })
+      )
     } else {
       expect(mockDaytonaCreate).toHaveBeenCalledWith(
         expect.objectContaining({ snapshot: 'mothership-docs:v1' })
@@ -2154,6 +2491,10 @@ describe('custom dependency sets', () => {
         'sim-function:f47ac10b-58cc-4372-a567-0e02b2c3d479',
         expect.anything()
       )
+    } else if (provider === 'boxd') {
+      expect(mockBoxdCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ fromSnapshot: 'sim-function', isolated: true })
+      )
     } else {
       expect(mockDaytonaCreate).toHaveBeenCalledWith(
         expect.objectContaining({ snapshot: '7d9d12d6-5f2a-44df-9cc2-a20203f3813b' })
@@ -2186,6 +2527,15 @@ describe('custom dependency sets', () => {
       if (provider === 'e2b') {
         expect(mockE2BCreate).toHaveBeenNthCalledWith(1, 'mothership-shell', expect.anything())
         expect(mockE2BCreate).toHaveBeenNthCalledWith(2, 'mothership-shell', expect.anything())
+      } else if (provider === 'boxd') {
+        expect(mockBoxdCreate).toHaveBeenNthCalledWith(
+          1,
+          expect.objectContaining({ fromSnapshot: 'mothership-shell' })
+        )
+        expect(mockBoxdCreate).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({ fromSnapshot: 'mothership-shell' })
+        )
       } else {
         expect(mockDaytonaCreate).toHaveBeenNthCalledWith(
           1,
@@ -2217,6 +2567,10 @@ describe('custom dependency sets', () => {
 
       if (provider === 'e2b') {
         expect(mockE2BCreate).toHaveBeenCalledWith('mothership-shell', expect.anything())
+      } else if (provider === 'boxd') {
+        expect(mockBoxdCreate).toHaveBeenCalledWith(
+          expect.objectContaining({ fromSnapshot: 'mothership-shell', isolated: true })
+        )
       } else {
         expect(mockDaytonaCreate).toHaveBeenCalledWith(
           expect.objectContaining({ snapshot: 'mothership-shell:v1' })
@@ -2395,6 +2749,10 @@ describe('custom dependency sets', () => {
         const commandTimeoutMs = mockE2BCommandsRun.mock.calls.at(-1)?.[1].timeoutMs
         expect(commandTimeoutMs).toBeGreaterThan(45_000)
         expect(commandTimeoutMs).toBeLessThanOrEqual(46_000)
+      } else if (provider === 'boxd') {
+        const { deleteAfter } = mockBoxdCreate.mock.calls[0][0]
+        expect(deleteAfter).toBeGreaterThan(45)
+        expect(deleteAfter).toBeLessThanOrEqual(46)
       } else {
         expect(mockDaytonaCreate.mock.calls[0][0]).toMatchObject({
           ephemeral: true,
@@ -2419,6 +2777,8 @@ describe('custom dependency sets', () => {
       const commandTimeoutMs = mockE2BCommandsRun.mock.calls.at(-1)?.[1].timeoutMs
       expect(commandTimeoutMs).toBeGreaterThan(0)
       expect(commandTimeoutMs).toBeLessThanOrEqual(1000)
+    } else if (provider === 'boxd') {
+      expect(mockBoxdCreate.mock.calls[0][0].deleteAfter).toBe(1)
     } else {
       expect(mockExecuteSessionCommand.mock.calls.at(-1)?.[2]).toBe(1)
     }
@@ -2438,6 +2798,10 @@ describe('provider selection', () => {
     useProvider('daytona')
     await executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 1000 })
     expect(mockDaytonaCreate).toHaveBeenCalledTimes(1)
+
+    useProvider('boxd')
+    await executeInSandbox({ code: 'x', language: CodeLanguage.Python, timeoutMs: 1000 })
+    expect(mockBoxdCreate).toHaveBeenCalledTimes(1)
   })
 
   it('restores E2B PATH after login startup without inlining environment values', async () => {
@@ -2516,10 +2880,12 @@ describe('provider selection', () => {
       runtimeBindings: [{ name: '__opaque_intrinsic', kind: 'javascript-runtime' }],
     })
 
-    const preloadContent =
-      provider === 'e2b'
-        ? mockE2BFilesWrite.mock.calls.find(([path]) => String(path).endsWith('.cjs'))?.[1]
-        : mockUploadFile.mock.calls.find(([, path]) => String(path).endsWith('.cjs'))?.[0]
+    const preloadContent = pick(provider, {
+      e2b: () => mockE2BFilesWrite.mock.calls.find(([path]) => String(path).endsWith('.cjs'))?.[1],
+      daytona: () =>
+        mockUploadFile.mock.calls.find(([, path]) => String(path).endsWith('.cjs'))?.[0],
+      boxd: () => mockBoxdFsWrite.mock.calls.find(([, path]) => String(path).endsWith('.cjs'))?.[2],
+    })()
     expect(sandboxWriteBuffer(preloadContent).toString('utf8')).toContain(
       'objectConstructor.defineProperty(globalThis, "__opaque_intrinsic"'
     )
@@ -2527,6 +2893,28 @@ describe('provider selection', () => {
     if (provider === 'e2b') {
       expect(mockE2BCommandsRun.mock.calls.at(-1)?.[1].envs.SIM_PRELOAD_PATH).toMatch(
         /^\.\/\.sim-function-[A-Za-z0-9_-]+\.cjs$/
+      )
+    } else if (provider === 'boxd') {
+      const writtenFunctionPaths = mockBoxdFsWrite.mock.calls
+        .map(([, path]) => String(path))
+        .filter((path) => path.includes('.sim-function-'))
+      expect(writtenFunctionPaths).toEqual([
+        expect.stringMatching(/^\.sim-function-[A-Za-z0-9_-]+\.mjs$/),
+        expect.stringMatching(/^\.sim-function-[A-Za-z0-9_-]+\.cjs$/),
+        expect.stringMatching(/^\.sim-function-[A-Za-z0-9_-]+\.sh$/),
+      ])
+      const { env } = boxdExecCall(-1)
+      expect(env.SIM_CODE_PATH).toMatch(/^\.sim-function-[A-Za-z0-9_-]+\.mjs$/)
+      expect(env.SIM_PRELOAD_PATH).toMatch(/^\.\/\.sim-function-[A-Za-z0-9_-]+\.cjs$/)
+      const launcher = mockBoxdFsWrite.mock.calls.find(([, path]) =>
+        String(path).endsWith('.sh')
+      )?.[2]
+      expect(sandboxWriteBuffer(launcher).toString('utf8')).toContain(
+        'ln -s "$SIM_NODE_MODULES_PATH" node_modules'
+      )
+      // The scratch files go once the run ends.
+      expect(mockBoxdFsRemove.mock.calls.map(([, path]) => String(path)).sort()).toEqual(
+        [...writtenFunctionPaths].sort()
       )
     } else {
       const uploadedFunctionPaths = mockUploadFile.mock.calls
@@ -2925,5 +3313,345 @@ describe('Pi sandbox lifetime', () => {
         ttlMinutes: Math.ceil(resolvePiSandboxLifetimeMs() / 60_000),
       })
     )
+  })
+})
+
+describe('boxd adapter', () => {
+  beforeEach(() => useProvider('boxd'))
+
+  it('creates an isolated machine from the pinned snapshot with a wall-clock lifetime', async () => {
+    await withPiSandbox({}, async () => undefined)
+
+    expect(mockBoxdCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromSnapshot: 'sim-pi',
+        isolated: true,
+        deleteAfter: Math.ceil(resolvePiSandboxLifetimeMs() / 1000),
+        config: { autoSuspendTimeout: 0 },
+        labels: { 'sim-sandbox-kind': 'pi' },
+      })
+    )
+    expect(mockBoxdCreate.mock.calls[0][0].name).toMatch(/^sim-sandbox-[a-z0-9]{10}$/)
+    expect(mockBoxdWaitUntilReady).toHaveBeenCalledWith('sb_1', expect.anything())
+    expect(mockBoxdDelete).toHaveBeenCalledWith('sb_1')
+  })
+
+  it('strips the version pin from the snapshot it restores', async () => {
+    const sandbox = await boxdProvider.create('code')
+
+    expect(mockBoxdCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ fromSnapshot: 'sim-function' })
+    )
+    await sandbox.kill()
+  })
+
+  it('fails closed and deletes the machine when the snapshot moved past the pinned version', async () => {
+    mockBoxdCreate.mockResolvedValueOnce({
+      id: 'sb_moved',
+      source: { kind: 'snapshot', name: 'sim-function', id: 'snap_1', version: 4 },
+    })
+
+    await expect(boxdProvider.create('code')).rejects.toThrow(
+      /sim-function is at version 4, but this deployment is pinned to version 3/
+    )
+    expect(mockBoxdWaitUntilReady).not.toHaveBeenCalled()
+    expect(mockBoxdDelete).toHaveBeenCalledWith('sb_moved')
+  })
+
+  it('deletes a machine that never becomes ready', async () => {
+    mockBoxdWaitUntilReady.mockRejectedValueOnce(new Error('not ready in time'))
+
+    await expect(boxdProvider.create('shell')).rejects.toThrow('not ready in time')
+    expect(mockBoxdDelete).toHaveBeenCalledWith('sb_1')
+  })
+
+  it('requires BOXD_API_KEY', async () => {
+    const original = mockEnv.BOXD_API_KEY
+    mockEnv.BOXD_API_KEY = undefined
+    try {
+      await expect(boxdProvider.create('code')).rejects.toThrow(/BOXD_API_KEY is required/)
+      expect(mockBoxdCreate).not.toHaveBeenCalled()
+    } finally {
+      mockEnv.BOXD_API_KEY = original
+    }
+  })
+
+  it('shares one client across sandboxes and replaces it when the key or region changes', async () => {
+    const original = { apiKey: mockEnv.BOXD_API_KEY, region: mockEnv.BOXD_REGION }
+    try {
+      mockEnv.BOXD_API_KEY = 'boxd-key-a'
+      mockEnv.BOXD_REGION = undefined
+      const first = await boxdProvider.create('code')
+      const second = await boxdProvider.create('shell')
+      expect(mockBoxdClient.mock.calls).toEqual([[{ apiKey: 'boxd-key-a' }]])
+
+      mockEnv.BOXD_REGION = 'nyc'
+      const third = await boxdProvider.create('code')
+      expect(mockBoxdClient).toHaveBeenLastCalledWith({ apiKey: 'boxd-key-a', region: 'nyc' })
+      expect(mockBoxdClient).toHaveBeenCalledTimes(2)
+      await Promise.all([first.kill(), second.kill(), third.kill()])
+    } finally {
+      mockEnv.BOXD_API_KEY = original.apiKey
+      mockEnv.BOXD_REGION = original.region
+    }
+  })
+
+  it('fails closed when the Mothership boxd snapshot is unset', async () => {
+    const original = mockEnv.BOXD_SHELL_SNAPSHOT
+    mockEnv.BOXD_SHELL_SNAPSHOT = undefined
+    try {
+      await expect(boxdProvider.create('mothership')).rejects.toThrow(
+        /BOXD_SHELL_SNAPSHOT is unset/
+      )
+      expect(mockBoxdCreate).not.toHaveBeenCalled()
+    } finally {
+      mockEnv.BOXD_SHELL_SNAPSHOT = original
+    }
+  })
+
+  it('does not fall back from the Function boxd snapshot to the Mothership snapshot', async () => {
+    const original = mockEnv.BOXD_FUNCTION_SNAPSHOT
+    mockEnv.BOXD_FUNCTION_SNAPSHOT = undefined
+    try {
+      await expect(boxdProvider.create('shell')).rejects.toThrow(/BOXD_FUNCTION_SNAPSHOT is unset/)
+      expect(mockBoxdCreate).not.toHaveBeenCalled()
+    } finally {
+      mockEnv.BOXD_FUNCTION_SNAPSHOT = original
+    }
+  })
+
+  it('selects boxd for doc and Pi sandboxes without a Function snapshot', async () => {
+    const original = mockEnv.BOXD_FUNCTION_SNAPSHOT
+    mockEnv.BOXD_FUNCTION_SNAPSHOT = undefined
+    try {
+      const provider = resolveProvider()
+      const doc = await provider.create('doc')
+      const pi = await provider.create('pi')
+
+      expect(provider.id).toBe('boxd')
+      expect(mockBoxdCreate).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ fromSnapshot: 'mothership-docs' })
+      )
+      expect(mockBoxdCreate).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ fromSnapshot: 'sim-pi' })
+      )
+      await expect(provider.create('code')).rejects.toThrow(/BOXD_FUNCTION_SNAPSHOT is unset/)
+      await doc.kill()
+      await pi.kill()
+    } finally {
+      mockEnv.BOXD_FUNCTION_SNAPSHOT = original
+    }
+  })
+
+  it('rejects an unpinned Function boxd snapshot at runtime', async () => {
+    const original = mockEnv.BOXD_FUNCTION_SNAPSHOT
+    mockEnv.BOXD_FUNCTION_SNAPSHOT = 'sim-function'
+    try {
+      await expect(boxdProvider.create('shell')).rejects.toThrow(/must pin a boxd snapshot version/)
+      expect(mockBoxdCreate).not.toHaveBeenCalled()
+    } finally {
+      mockEnv.BOXD_FUNCTION_SNAPSHOT = original
+    }
+  })
+
+  it('delivers environment values in an owner-only file, never in the command line', async () => {
+    const sandbox = await boxdProvider.create('shell')
+
+    await sandbox.runCommand('echo "$SECRET_VALUE"', {
+      timeoutMs: 1000,
+      envs: { SECRET_VALUE: "it's-out-of-the-command-line" },
+    })
+
+    const [, request] = mockBoxdStreamExec.mock.calls[0]
+    expect(request).toEqual({
+      command: ['bash', '-c', expect.stringMatching(BOXD_ENV_PRELUDE)],
+      closeStdin: true,
+    })
+    expect(JSON.stringify(request)).not.toContain('out-of-the-command-line')
+    const envPath = BOXD_ENV_PRELUDE.exec(request.command[2])?.[1]
+    expect(mockBoxdFsWrite).toHaveBeenCalledWith(
+      'sb_1',
+      envPath,
+      Buffer.from("SECRET_VALUE='it'\\''s-out-of-the-command-line'"),
+      { mode: 0o600 }
+    )
+    expect(mockBoxdFsWrite.mock.invocationCallOrder[0]).toBeLessThan(
+      mockBoxdStreamExec.mock.invocationCallOrder[0]
+    )
+    expect(boxdExecCall(0)).toEqual({
+      script: 'echo "$SECRET_VALUE"',
+      env: { SECRET_VALUE: "it's-out-of-the-command-line" },
+    })
+    await sandbox.kill()
+  })
+
+  it('removes the environment file when the command never starts', async () => {
+    const sandbox = await boxdProvider.create('shell')
+    mockBoxdStreamExec.mockImplementationOnce(() => {
+      throw new Error('exec unavailable')
+    })
+
+    const result = await sandbox.runCommand('true', { timeoutMs: 1000, envs: { TOKEN: 'secret' } })
+
+    expect(result).toMatchObject({ exitCode: 1, stderr: 'exec unavailable' })
+    const envPath = mockBoxdFsWrite.mock.calls[0][1]
+    expect(envPath).toMatch(/^\/tmp\/\.sim-env-/)
+    expect(mockBoxdFsRemove).toHaveBeenCalledWith('sb_1', envPath)
+    await sandbox.kill()
+  })
+
+  it('runs root commands through sudo and sources the caller environment as root', async () => {
+    const sandbox = await boxdProvider.create('shell')
+
+    await sandbox.runCommand('apt-get install -y jq', {
+      timeoutMs: 1000,
+      rootUser: true,
+      envs: { DEBIAN_FRONTEND: 'noninteractive' },
+    })
+
+    expect(boxdExecCall(0)).toEqual({
+      script: 'apt-get install -y jq',
+      env: { DEBIAN_FRONTEND: 'noninteractive' },
+    })
+    expect(mockBoxdStreamExec.mock.calls[0][1].command.slice(0, 4)).toEqual([
+      'sudo',
+      '-n',
+      'bash',
+      '-c',
+    ])
+    await sandbox.kill()
+  })
+
+  it('writes an at-most-once command to a file instead of the exec request', async () => {
+    const sandbox = await boxdProvider.create('shell')
+
+    await sandbox.runCommand('echo once', { timeoutMs: 1000, atMostOnce: true })
+
+    const commandPath = boxdExecCall(0).env.SIM_COMMAND_PATH
+    expect(commandPath).toMatch(/^\/tmp\/\.sim-command-[A-Za-z0-9_-]+\.sh$/)
+    expect(boxdExecCall(0).script).toBe('bash "$SIM_COMMAND_PATH"')
+    expect(mockBoxdFsWrite).toHaveBeenCalledWith('sb_1', commandPath, Buffer.from('echo once'))
+    expect(mockBoxdFsRemove).toHaveBeenCalledWith('sb_1', commandPath)
+    await sandbox.kill()
+  })
+
+  it('keeps stdout and stderr apart', async () => {
+    stubBoxdExec({ stdout: 'out\n', stderr: 'err\n', exitCode: 3 })
+    const sandbox = await boxdProvider.create('shell')
+
+    const result = await sandbox.runCommand('run', { timeoutMs: 1000 })
+
+    expect(result).toEqual({ stdout: 'out\n', stderr: 'err\n', exitCode: 3 })
+    await sandbox.kill()
+  })
+
+  it('closes a hung exec stream when the command times out', async () => {
+    const stream = fakeBoxdStream({ hang: true })
+    mockBoxdStreamExec.mockReturnValueOnce(stream)
+    const sandbox = await boxdProvider.create('shell')
+
+    const result = await sandbox.runCommand('sleep infinity', { timeoutMs: 20 })
+
+    expect(result).toMatchObject({ exitCode: 124, timedOut: true })
+    expect(result.stderr).toContain('timed out after 20ms')
+    expect(stream.close).toHaveBeenCalled()
+    await sandbox.kill()
+  })
+
+  it('closes the stream and deletes the machine when the caller aborts', async () => {
+    const stream = fakeBoxdStream({ hang: true })
+    mockBoxdStreamExec.mockReturnValueOnce(stream)
+    const controller = new AbortController()
+    const sandbox = await boxdProvider.create('shell')
+
+    const run = sandbox.runCommand('sleep infinity', {
+      timeoutMs: 10_000,
+      signal: controller.signal,
+    })
+    controller.abort(new DOMException('user', 'AbortError'))
+
+    await expect(run).rejects.toMatchObject({ name: 'AbortError', message: 'user' })
+    expect(stream.close).toHaveBeenCalled()
+    await vi.waitFor(() => expect(mockBoxdDelete).toHaveBeenCalledWith('sb_1'))
+  })
+
+  it('applies the default process-output cap to command output', async () => {
+    stubBoxdExec({ stdout: 'x'.repeat(MAX_SANDBOX_PROCESS_OUTPUT_BYTES + 1) })
+    const sandbox = await boxdProvider.create('shell')
+
+    await expect(sandbox.runCommand('emit-output', { timeoutMs: 1000 })).rejects.toMatchObject({
+      code: 'sandbox_output_limit_exceeded',
+      outputKind: 'process',
+      limitBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+    })
+    expect(mockBoxdDelete).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects unsafe environment names before starting a process', async () => {
+    const sandbox = await boxdProvider.create('shell')
+
+    await expect(
+      sandbox.runCommand('true', {
+        envs: { 'SAFE\n$(touch /tmp/injected)': 'value' },
+        timeoutMs: 1000,
+      })
+    ).rejects.toThrow(/environment variable names/)
+    expect(mockBoxdStreamExec).not.toHaveBeenCalled()
+    await sandbox.kill()
+  })
+
+  it('treats a machine that is already gone as killed, once', async () => {
+    const gone = new Error('machine not found')
+    gone.name = 'NotFoundError'
+    mockBoxdDelete.mockRejectedValueOnce(gone)
+    const sandbox = await boxdProvider.create('shell')
+
+    await sandbox.kill()
+    await sandbox.kill()
+
+    expect(mockBoxdDelete).toHaveBeenCalledTimes(1)
+  })
+
+  it('sizes an output through a link to a regular file and refuses a link to anything else', async () => {
+    const link = (targetType: 'file' | 'directory') => ({ ...boxdStat(7, 'symlink'), targetType })
+    mockBoxdFsStat.mockResolvedValueOnce(link('file')).mockResolvedValueOnce(link('directory'))
+    const sandbox = await boxdProvider.create('shell')
+
+    await expect(sandbox.getFileSize('/out/linked.txt')).resolves.toBe(7)
+    await expect(sandbox.getFileSize('/out/linked-dir')).rejects.toMatchObject({
+      code: 'sandbox_output_file_invalid',
+    })
+    await sandbox.kill()
+  })
+
+  it('walks nested directories and follows symlinks to what they point at', async () => {
+    const entry = (path: string, type: 'file' | 'directory' | 'symlink', targetType = type) => ({
+      name: path.split('/').pop(),
+      path,
+      ...boxdStat(4, type),
+      targetType,
+    })
+    mockBoxdFsList
+      .mockResolvedValueOnce([
+        entry('/out/a.txt', 'file'),
+        entry('/out/sub', 'directory'),
+        entry('/out/link.txt', 'symlink', 'file'),
+        entry('/out/dangling', 'symlink', 'symlink'),
+      ])
+      .mockResolvedValueOnce([entry('/out/sub/b.txt', 'file')])
+    const sandbox = await boxdProvider.create('shell')
+
+    const files = await sandbox.listFiles('/out', { depth: 2 })
+
+    expect(files.map((file) => [file.relativePath, file.kind])).toEqual([
+      ['a.txt', 'file'],
+      ['sub', 'directory'],
+      ['link.txt', 'file'],
+      ['sub/b.txt', 'file'],
+    ])
+    expect(mockBoxdFsList).toHaveBeenNthCalledWith(2, 'sb_1', '/out/sub')
+    await sandbox.kill()
   })
 })

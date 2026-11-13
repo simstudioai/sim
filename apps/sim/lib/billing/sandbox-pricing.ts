@@ -1,10 +1,14 @@
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
 import {
+  FUNCTION_BOXD_DISK_GB,
+  FUNCTION_BOXD_MEMORY_GB,
   FUNCTION_DAYTONA_DISK_GB,
   FUNCTION_SANDBOX_CPU_COUNT,
   FUNCTION_SANDBOX_MEMORY_GB,
 } from '@/lib/execution/remote-sandbox/function-resources'
 import {
+  PI_BOXD_DISK_GB,
+  PI_BOXD_MEMORY_GB,
   PI_DAYTONA_DISK_GB,
   PI_SANDBOX_CPU_COUNT,
   PI_SANDBOX_MEMORY_GB,
@@ -20,6 +24,10 @@ const DAYTONA_MEMORY_USD_PER_GIB_SECOND = 0.0162 / 3600
  * credits, and discounts are intentionally not subtracted.
  */
 const DAYTONA_DISK_USD_PER_GIB_SECOND = 0.000108 / 3600
+/** boxd list rates; Sim prices the full machine size rather than the active vCPU boxd bills. */
+const BOXD_CPU_USD_PER_VCPU_SECOND = 0.047 / 3600
+const BOXD_MEMORY_USD_PER_GIB_SECOND = 0.014 / 3600
+const BOXD_DISK_USD_PER_GIB_SECOND = 0.000096 / 3600
 
 export interface SandboxPricing {
   provider: SandboxProviderId
@@ -83,6 +91,21 @@ const PRICING_BY_PROVIDER: Record<SandboxProviderId, ProviderPricing> = {
       cpuUsdPerVcpuSecond: DAYTONA_CPU_USD_PER_VCPU_SECOND,
       memoryUsdPerGiBSecond: DAYTONA_MEMORY_USD_PER_GIB_SECOND,
       diskUsdPerGiBSecond: DAYTONA_DISK_USD_PER_GIB_SECOND,
+    },
+  },
+  boxd: {
+    resources: {
+      vcpu: FUNCTION_SANDBOX_CPU_COUNT,
+      memoryGiB: FUNCTION_BOXD_MEMORY_GB,
+      diskGiB: FUNCTION_BOXD_DISK_GB,
+    },
+    resourcesByKind: {
+      pi: { vcpu: PI_SANDBOX_CPU_COUNT, memoryGiB: PI_BOXD_MEMORY_GB, diskGiB: PI_BOXD_DISK_GB },
+    },
+    rates: {
+      cpuUsdPerVcpuSecond: BOXD_CPU_USD_PER_VCPU_SECOND,
+      memoryUsdPerGiBSecond: BOXD_MEMORY_USD_PER_GIB_SECOND,
+      diskUsdPerGiBSecond: BOXD_DISK_USD_PER_GIB_SECOND,
     },
   },
 }

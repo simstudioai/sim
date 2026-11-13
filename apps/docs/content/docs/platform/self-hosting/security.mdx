@@ -178,6 +178,7 @@ Workflows can execute user-authored JavaScript and Python. Know which sandbox yo
 | **isolated-vm** (default) | none | V8 isolate in a Node child worker inside the app container. The worker shares the container's network namespace and OS/filesystem context. JavaScript only. |
 | **E2B** | `E2B_ENABLED=true`, `E2B_API_KEY`, `E2B_FUNCTION_TEMPLATE_ID`, `E2B_FUNCTION_TEMPLATE_GENERATION` | Remote sandbox per execution; requires outbound access to E2B. Review the provider's isolation and network configuration. |
 | **Daytona** | `SANDBOX_PROVIDER=daytona`, `DAYTONA_API_KEY`, `DAYTONA_FUNCTION_SNAPSHOT_ID` | Remote sandbox per execution. |
+| **boxd** | `SANDBOX_PROVIDER=boxd`, `BOXD_API_KEY`, `BOXD_FUNCTION_SNAPSHOT` | Remote microVM per execution, created isolated: no access to the org's other machines and no metadata endpoint. |
 
 Python, Shell, JavaScript with external imports, and tooling-dependent blocks
 require a remote sandbox provider and, on a billing-disabled self-host, the sandbox
@@ -191,6 +192,7 @@ no remote provider is configured.
   - `E2B_FUNCTION_TEMPLATE_ID` must be `<template>:<build-id>`, where the build id is a UUID. A human-readable tag is rejected because E2B lets tags be reassigned.
   - `E2B_FUNCTION_TEMPLATE_GENERATION` must be a positive integer release generation.
   - `DAYTONA_FUNCTION_SNAPSHOT_ID` must be the snapshot **ID** (a UUID), not the snapshot name — Daytona accepts a name anywhere it accepts an ID, and only the ID is immutable.
+  - `BOXD_FUNCTION_SNAPSHOT` must pin a version, `<snapshot>@<version>`. boxd keeps only the latest version of a snapshot name, so Sim checks the version the machine was restored from and refuses any other.
 
   Without valid provider credentials and the required Function image, code that needs a remote sandbox fails with a configuration error. Verify readiness before enabling its browser controls.
 </Callout>

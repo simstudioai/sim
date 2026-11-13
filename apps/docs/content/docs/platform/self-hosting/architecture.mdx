@@ -25,7 +25,7 @@ Sim runs an app, a realtime server, PostgreSQL, Redis, and a scheduler. This pag
 
 The Next.js app serves the workflow builder, API routes, and workflow orchestration. Local JavaScript runs in Node child workers using isolated-vm inside the app container. The app and those workers share the container's memory budget. The Helm chart requests 4 GiB and limits the app to 8 GiB; `docker-compose.prod.yml` sets an 8 GB memory limit without a reservation.
 
-E2B or Daytona moves supported code execution to a remote sandbox. `TRIGGER_DEV_ENABLED` routes asynchronous jobs to Trigger.dev; the default deployment uses database-backed jobs. See [Sandboxes](/platform/self-hosting/sandboxes) for the provider and image requirements.
+E2B, Daytona, or boxd moves supported code execution to a remote sandbox. `TRIGGER_DEV_ENABLED` routes asynchronous jobs to Trigger.dev; the default deployment uses database-backed jobs. See [Sandboxes](/platform/self-hosting/sandboxes) for the provider and image requirements.
 
 Any replica can serve files once shared object storage is configured. Before adding replicas, configure storage, Redis, and database connection capacity as described in [Scaling and high availability](/platform/self-hosting/scaling).
 

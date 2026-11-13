@@ -1,7 +1,9 @@
 import { REGISTRATION_MODES } from '@sim/deployment-config/registration'
 import {
+  IMMUTABLE_BOXD_SNAPSHOT_REF_ERROR,
   IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR,
   IMMUTABLE_E2B_TEMPLATE_REF_ERROR,
+  isImmutableBoxdSnapshotRef,
   isImmutableDaytonaSnapshotRef,
   isImmutableE2BTemplateRef,
   isValidSandboxReleaseGeneration,
@@ -648,7 +650,7 @@ export const env = createEnv({
     E2B_DOMAIN:                            z.string().optional(),                  // E2B control-plane domain (defaults to e2b.app, matching the SDK); only the template-delete endpoint the SDK omits reads this
 
     // Remote Code Execution provider selection
-    SANDBOX_PROVIDER:                      z.enum(SANDBOX_PROVIDER_IDS).optional(), // Which sandbox provider serves remote executions: 'e2b' (default) or 'daytona'
+    SANDBOX_PROVIDER:                      z.enum(SANDBOX_PROVIDER_IDS).optional(), // Which sandbox provider serves remote executions: 'e2b' (default), 'daytona', or 'boxd'
 
     // Daytona Remote Code Execution (used when SANDBOX_PROVIDER=daytona)
     DAYTONA_API_KEY:                       z.string().optional(),                  // Daytona API key; needs write:snapshots to build images, write:sandboxes to run them
@@ -656,6 +658,16 @@ export const env = createEnv({
     DAYTONA_SHELL_SNAPSHOT_ID:             z.string().optional(),                  // Mothership code-tool snapshot; never a Function-base fallback
     DAYTONA_DOC_SNAPSHOT_ID:               z.string().optional(),                  // Daytona snapshot mirroring mothership-docs
     DAYTONA_PI_SNAPSHOT_ID:                z.string().optional(),                  // Daytona snapshot mirroring the Pi template (Create PR, its Babysit continuation, and Review Code)
+
+    // boxd Remote Code Execution (used when SANDBOX_PROVIDER=boxd)
+    BOXD_API_KEY:                          z.string().optional(),                  // boxd API key; every sandbox is created in the key's org
+    BOXD_ORG:                              z.string().optional(),                  // boxd org name; defaults to the key's org
+    BOXD_REGION:                           z.string().optional(),                  // boxd region ('fra' or 'nyc'); must match the region of the snapshots
+    BOXD_FUNCTION_SNAPSHOT:                z.string().refine(isImmutableBoxdSnapshotRef, { message: `BOXD_FUNCTION_SNAPSHOT ${IMMUTABLE_BOXD_SNAPSHOT_REF_ERROR}` }).optional(), // Version-pinned dedicated boxd Function snapshot (<snapshot>@<version>); no Mothership fallback
+    BOXD_SHELL_SNAPSHOT:                   z.string().optional(),                  // Mothership code-tool snapshot; never a Function-base fallback
+    BOXD_DOC_SNAPSHOT:                     z.string().optional(),                  // boxd snapshot mirroring mothership-docs
+    BOXD_PI_SNAPSHOT:                      z.string().optional(),                  // boxd snapshot mirroring the Pi template (Create PR, its Babysit continuation, and Review Code)
+    BOXD_SANDBOX_NAME_PREFIX:              z.string().optional(),                  // Prefix for sandbox machine names (default sim-sandbox-)
 
     // Access Control (Permission Groups) - for self-hosted deployments
     ACCESS_CONTROL_ENABLED:                z.boolean().optional(),                 // Enable access control on self-hosted (bypasses plan requirements)

@@ -1,4 +1,5 @@
 import { getSelectedSandboxProviderId } from '@/lib/core/config/env-capabilities.server'
+import { boxdProvider } from '@/lib/execution/remote-sandbox/boxd'
 import { daytonaProvider } from '@/lib/execution/remote-sandbox/daytona'
 import { e2bProvider } from '@/lib/execution/remote-sandbox/e2b'
 import type { SandboxProvider, SandboxProviderId } from '@/lib/execution/remote-sandbox/types'
@@ -11,6 +12,7 @@ import type { SandboxProvider, SandboxProviderId } from '@/lib/execution/remote-
 const PROVIDERS: Record<SandboxProviderId, SandboxProvider> = {
   e2b: e2bProvider,
   daytona: daytonaProvider,
+  boxd: boxdProvider,
 }
 
 /**

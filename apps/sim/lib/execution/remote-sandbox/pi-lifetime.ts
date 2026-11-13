@@ -22,7 +22,7 @@ export const PI_SANDBOX_MAX_LIFETIME_MS = getMaxExecutionTimeout()
 
 function providerLifetimeCeilingMs(): number {
   const providerId = inspectCapability(SANDBOX_CAPABILITY, env).providerId
-  return providerId === 'daytona'
+  return providerId === 'daytona' || providerId === 'boxd'
     ? PI_SANDBOX_MAX_LIFETIME_MS
     : Math.min(PI_SANDBOX_MAX_LIFETIME_MS, E2B_PI_SANDBOX_PROVIDER_LIMIT_MS)
 }

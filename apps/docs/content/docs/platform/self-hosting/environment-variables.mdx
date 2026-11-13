@@ -180,13 +180,16 @@ Who may sign up and sign in — the allowlists, blocklists, `REGISTRATION_MODE`,
 
 | Variable | Description |
 |----------|-------------|
-| `SANDBOX_PROVIDER` | Remote sandbox provider: `e2b` (default) or `daytona` |
+| `SANDBOX_PROVIDER` | Remote sandbox provider: `e2b` (default), `daytona`, or `boxd` |
 | `E2B_ENABLED` / `E2B_API_KEY` | Enable E2B remote execution |
 | `DAYTONA_API_KEY` | Daytona API key (used when `SANDBOX_PROVIDER=daytona`) |
 | `E2B_FUNCTION_TEMPLATE_ID` | Immutable `<template>:<build-id>` ref for the Function base image. Required for E2B; a mutable tag is refused |
 | `E2B_FUNCTION_TEMPLATE_GENERATION` | Monotonic release generation printed by the same build. Required for E2B |
 | `DAYTONA_FUNCTION_SNAPSHOT_ID` | Immutable snapshot **ID** (not a name) for the Function base image. Required for Daytona |
-| `E2B_PI_TEMPLATE_ID` / `DAYTONA_PI_SNAPSHOT_ID` | The image Pi runs on. Separate from the Function base — configuring the provider and Function image alone leaves Pi failing closed |
+| `BOXD_API_KEY` | boxd API key (used when `SANDBOX_PROVIDER=boxd`) |
+| `BOXD_REGION` / `BOXD_ORG` | Region and org for boxd sandboxes. The region must hold the snapshots; the org defaults to the key's |
+| `BOXD_FUNCTION_SNAPSHOT` | Version-pinned `<snapshot>@<version>` ref for the Function base image. Required for boxd; an unpinned name is refused |
+| `E2B_PI_TEMPLATE_ID` / `DAYTONA_PI_SNAPSHOT_ID` / `BOXD_PI_SNAPSHOT` | The image Pi runs on. Separate from the Function base — configuring the provider and Function image alone leaves Pi failing closed |
 | `SANDBOXES_ENABLED` | Enable custom sandbox entitlement through deployment configuration where supported; see the [enterprise guide](/platform/enterprise/self-hosted) for billing-mode requirements. Not sufficient on its own — a provider key **and** an immutable Function base must also be configured. The Function block's Sandbox selector appears once the server confirms both |
 | `IVM_MAX_EXECUTIONS_PER_WORKER` | Executions before an isolated-vm worker is recycled |
 | `IVM_MAX_BROKERS_PER_EXECUTION` | Host-call brokers per execution |
