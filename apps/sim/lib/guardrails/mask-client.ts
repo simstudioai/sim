@@ -36,6 +36,15 @@ const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 64
  */
 const MAX_CHUNK_ATTEMPTS = 8
 
+/**
+ * Attempts for a chunk the route answers with a 500. The route keeps 503 for a
+ * Presidio outage and 422 for input Presidio refused, so a 500 is an unclassified
+ * failure that may be deterministic for this input: two retries cover a one-off
+ * crash without spending the full outage budget resending input that fails the
+ * same way every time.
+ */
+const MAX_ATTEMPTS_AFTER_SERVER_ERROR = 3
+
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 
 class MaskChunkHttpError extends Error {
@@ -196,7 +205,11 @@ async function postChunk(
     try {
       return await postChunkOnce(url, texts, entityTypes, language, customPatterns)
     } catch (error) {
-      if (attempt >= MAX_CHUNK_ATTEMPTS || !isRetryableChunkError(error)) {
+      const maxAttempts =
+        error instanceof MaskChunkHttpError && error.status === 500
+          ? MAX_ATTEMPTS_AFTER_SERVER_ERROR
+          : MAX_CHUNK_ATTEMPTS
+      if (attempt >= maxAttempts || !isRetryableChunkError(error)) {
         throw error
       }
       const retryAfterMs = error instanceof MaskChunkHttpError ? error.retryAfterMs : null

@@ -44,6 +44,12 @@ export interface RedactLargeValueRefsOptions {
    */
   onFailure?: PiiRedactionFailureMode
   /**
+   * @internal Set by {@link redactLargeValueRefs}, the execution log's entry point,
+   * so encoded file bodies inside its large values are replaced like inline ones
+   * (see `PiiRedactionOptions.replaceEncodedBinary`). Callers never set it.
+   */
+  replaceEncodedBinary?: boolean
+  /**
    * @internal Shared across every nested invocation spawned from one entry-point
    * call, so oversized hydrations serialize globally — not just within their own
    * {@link resolveReplacements} pass. Created by the entry points; callers never
@@ -100,7 +106,7 @@ export async function redactLargeValueRefs(
   payload: RedactablePayload,
   options: RedactLargeValueRefsOptions
 ): Promise<RedactablePayload> {
-  const gatedOptions = withOversizedGate(options)
+  const gatedOptions = withOversizedGate({ ...options, replaceEncodedBinary: true })
   // Collect refs across the WHOLE payload first (shared `seen`), so every ref is
   // hydrated+masked+re-stored in one bounded-concurrency pass instead of one
   // sequential pass per key. A ref shared across keys is walked/masked once.
@@ -269,6 +275,7 @@ async function maskMaterializedValue(
     language: options.language,
     customPatterns: options.customPatterns,
     onFailure: options.onFailure ?? 'scrub',
+    replaceEncodedBinary: options.replaceEncodedBinary,
   })
   return redactValueRefs(masked, options)
 }
