@@ -3260,7 +3260,10 @@ describe('credential protection', () => {
         const probesBeforeSnapshot = calls.indexOf('snapshot')
         expect(probesBeforeSnapshot).toBeGreaterThan(0)
         if (expectedProbes !== undefined) expect(probesBeforeSnapshot).toBe(expectedProbes)
-        else expect(snapshotAt - firstProbeAt).toBeLessThanOrEqual(2_000)
+        else {
+          expect(snapshotAt - firstProbeAt).toBeGreaterThanOrEqual(1_900)
+          expect(snapshotAt - firstProbeAt).toBeLessThanOrEqual(2_000)
+        }
       } finally {
         vi.useRealTimers()
       }

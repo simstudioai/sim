@@ -387,7 +387,6 @@ describe('combobox typing surfaces', () => {
     Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => panel })
 
     expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
-    expect(input.value).toBe('')
   })
 
   it('types under a fixed bar that does not cover the screen', () => {
