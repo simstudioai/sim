@@ -14,6 +14,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { generateId } from '@sim/utils/id'
@@ -52,6 +53,7 @@ vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) =>
   }
 })
 
+import { prepareWorkloadIdentity } from '@/lib/credentials/application/prepare-workload-identity'
 import { updateCredentialRecord } from '@/lib/credentials/orchestration'
 import { createCredentialRecord } from '@/lib/credentials/orchestration/credential-create'
 import {
@@ -174,14 +176,29 @@ describe('holding an unsaved keyless subject', () => {
     const held = await resolvePendingWorkloadIdentitySubject(issuer, { kind: 'new' }, tenDaysAgo)
     pinnedSubjects.add(held.subject)
 
-    const renewed = await resolvePendingWorkloadIdentitySubject(issuer, {
-      kind: 'renew',
-      subject: held.subject,
+    const renewed = await prepareWorkloadIdentity.execute({
+      principal: createSessionPrincipal({ userId }),
+      input: {
+        workspaceId,
+        provider: 'databricks',
+        subjectRequest: { kind: 'renew', subject: held.subject },
+      },
     })
-    const saved = await create('Renewed lakehouse', keyless(renewed.subject))
+    if (!renewed.available) throw new Error('Keyless signing should be available in this suite')
+    const saved = await create(
+      'Renewed lakehouse',
+      JSON.stringify({
+        authType: 'oidc_federation',
+        host: HOST,
+        clientId: CLIENT_ID,
+        subject: renewed.subject,
+        subjectProof: renewed.subjectProof,
+      })
+    )
 
-    expect(renewed.issuedAt.getTime()).toBe(tenDaysAgo.getTime())
-    expect(renewed.heldUntil.getTime()).toBeGreaterThan(
+    expect(renewed.subject).toBe(held.subject)
+    expect(renewed.subjectIssuedAt).toBe(tenDaysAgo.toISOString())
+    expect(Date.parse(renewed.subjectHeldUntil)).toBeGreaterThan(
       Date.now() + PENDING_SUBJECT_HOLD_MS - DAY_MS
     )
     expect(saved.success).toBe(true)
