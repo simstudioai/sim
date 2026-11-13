@@ -65,12 +65,15 @@ function searchableChannels(data: Record<string, unknown>, input: NativeSearchIn
 const channelLabel = ({ id, name, archived }: SlackChannel) =>
   `#${name} (in:<#${id}>${archived ? ', archived' : ''})`
 
-/** The channel name an `in:#name` filter in the query or modifiers names, if any. */
+/**
+ * The channel name an `in:#name` filter in the query or modifiers names, without a trailing period.
+ * A query that also carries an `in:<#ID>` scope gets no lookup: a source limited to selected
+ * channels adds one to each search it runs per channel and drops the notes of the empty ones.
+ */
 function filteredChannelName(input: NativeSearchInput): string | undefined {
-  return [nativeText(input), input.native?.modifiers]
-    .join(' ')
-    .match(/(?:^|\s)in:#([\w.-]+)/i)?.[1]
-    ?.toLowerCase()
+  const text = [nativeText(input), input.native?.modifiers].join(' ')
+  if (text.includes('in:<#')) return undefined
+  return text.match(/(?:^|\s)in:#([\p{L}\p{M}\p{N}_.-]*[\p{L}\p{M}\p{N}_-])/iu)?.[1]?.toLowerCase()
 }
 
 /**
@@ -108,7 +111,7 @@ async function channelFilterNote(
   const complete = !string(object(data.response_metadata).next_cursor)
   const similar = channels.slice(0, MAX_LISTED_CHANNELS).map(channelLabel).join(', ')
   return joinMessages([
-    complete ? `No channel named #${name} is visible to this account.` : '',
+    complete ? `No channel named #${name} can be searched here.` : '',
     similar ? `Channels with similar names: ${similar}.` : '',
   ])
 }
