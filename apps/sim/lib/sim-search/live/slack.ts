@@ -91,7 +91,7 @@ async function channelFilterNote(
         channel_types: channelTypes,
         include_archived_channels: input.policy?.includeArchived ?? true,
         content_types: ['channels'],
-        limit: MAX_LISTED_CHANNELS,
+        limit: SLACK_PAGE_SIZE,
       },
     })
     .then(slackResult)
@@ -104,9 +104,12 @@ async function channelFilterNote(
   const named = channels.find((channel) => channel.name.toLowerCase() === name)
   if (named)
     return `${channelLabel(named)} exists; none of its messages matched this query and date window.`
+  /** A lookup with another page has not ruled the name out, so it only names what it found. */
+  const complete = !string(object(data.response_metadata).next_cursor)
+  const similar = channels.slice(0, MAX_LISTED_CHANNELS).map(channelLabel).join(', ')
   return joinMessages([
-    `No channel named #${name} is visible to this account.`,
-    channels.length ? `Channels with similar names: ${channels.map(channelLabel).join(', ')}.` : '',
+    complete ? `No channel named #${name} is visible to this account.` : '',
+    similar ? `Channels with similar names: ${similar}.` : '',
   ])
 }
 
@@ -295,10 +298,13 @@ async function searchSlackPage(
     })
   }
   const listed = listChannels ? searchableChannels(data, input).slice(0, MAX_LISTED_CHANNELS) : []
-  const filtered = !documents.length && !cursor ? filteredChannelName(input) : undefined
+  const nextCursor = string(object(data.response_metadata).next_cursor) || undefined
+  /** Only a search with no result on any page can say what its channel filter matched. */
+  const filtered =
+    !documents.length && !cursor && !nextCursor ? filteredChannelName(input) : undefined
   return {
     documents,
-    nextCursor: string(object(data.response_metadata).next_cursor) || undefined,
+    nextCursor,
     message: joinMessages([
       `Slack RTS searches ${channels.join(', ')} with your user token. Semantic matching depends on your Slack plan; date ordering uses keyword retrieval. Message timestamps are posting dates; edits may not be reflected in date filtering.`,
       listed.length ? `Channels matching the query: ${listed.map(channelLabel).join(', ')}.` : '',

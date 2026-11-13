@@ -454,6 +454,37 @@ describe('Slack channels', () => {
     )
   })
 
+  it('does not call a channel missing while the lookup has more channels to return', async () => {
+    const api = client()
+    api.json.mockResolvedValueOnce(rts([])).mockResolvedValueOnce({
+      ...rts([channel('C7', 'company-announcements')]),
+      response_metadata: { next_cursor: 'more' },
+    })
+    const result = await searchSlack(api, {
+      ...input,
+      query: '',
+      scopes,
+      filters: { startDate: '2026-10-30T00:00:00Z' },
+      native: { provider: 'slack', query: '', modifiers: 'in:#announcements' },
+    })
+    expect(api.json.mock.calls[1]?.[1]?.body).toMatchObject({ limit: 20 })
+    expect(result.message).not.toContain('No channel named')
+    expect(result.message).toContain('Channels with similar names: #company-announcements')
+  })
+
+  it('says nothing about the filtered channel while Slack has another page of results', async () => {
+    const api = client()
+    api.json.mockResolvedValueOnce({ ...rts([]), response_metadata: { next_cursor: 'page-2' } })
+    const result = await searchSlack(api, {
+      ...input,
+      query: '',
+      scopes,
+      filters: { startDate: '2026-10-30T00:00:00Z' },
+      native: { provider: 'slack', query: '', modifiers: 'in:#announcements' },
+    })
+    expect(result.message).not.toContain('#announcements')
+  })
+
   it('keeps the empty search when the channel lookup fails', async () => {
     const api = client()
     api.json
