@@ -49,7 +49,6 @@ const CLICK_ID_PARAMETERS = [
   'ttclid',
   'twclid',
   'rdt_cid',
-  'bfcid',
 ] as const
 
 /**

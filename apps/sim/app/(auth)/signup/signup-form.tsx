@@ -5,7 +5,6 @@ import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { trackFreebuffConversion } from '@/lib/analytics/freebuff'
 import { trackGoogleEvent } from '@/lib/analytics/google'
 import { client, useSession } from '@/lib/auth/client'
 import { DISPOSABLE_EMAIL_ERROR_CODE, DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth/constants'
@@ -112,7 +111,7 @@ function SignupFormContent({
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
   const posthog = usePostHog()
-  const { measurement, marketing } = useTrackingConsent()
+  const { measurement } = useTrackingConsent()
   useCaptureWhenReady('signup_page_viewed', {})
   const [isLoading, setIsLoading] = useState(false)
 
@@ -352,7 +351,6 @@ function SignupFormContent({
       }
 
       if (measurement) trackGoogleEvent('sign_up', { method: 'email' })
-      if (marketing) trackFreebuffConversion('signup_completed', response.data.user.id)
 
       try {
         await refetchSession()
