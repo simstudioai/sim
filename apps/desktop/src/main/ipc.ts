@@ -767,6 +767,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'computer-use:set-ask-for-apps': {
       kind: 'invoke',
       gate: 'app-origin',
+      platformFeature: 'computerUse',
       requiresAccountData: true,
       needsUserActivation: true,
       denied: null,
