@@ -776,7 +776,8 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
     nextLink: { type: 'string', description: 'URL for next page of results' },
     pageSize: {
       type: 'number',
-      description: 'Page size sent for list records; pass it with nextLink for the next page',
+      description:
+        'Page size sent for list records (null when Max Results applied instead); pass it with nextLink for the next page',
     },
     created: { type: 'boolean', description: 'Whether a new record was created (upsert)' },
     userId: { type: 'string', description: 'Authenticated user ID (WhoAmI)' },
