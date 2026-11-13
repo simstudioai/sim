@@ -57,9 +57,7 @@ export function getTimezoneAbbreviation(timezone: string, date: Date = new Date(
 
   const zone = timezoneMap[timezone]
   if (zone) {
-    // Compare the zone's UTC offsets across the year: `format()` always
-    // includes the calendar date, so comparing formatted strings reported
-    // "DST observed" for the whole year and then "daylight" for every date.
+    // Compare UTC offsets because `format()` also includes the calendar date.
     const januaryOffset = getOffsetMinutes(timezone, new Date(date.getFullYear(), 0, 1))
     const julyOffset = getOffsetMinutes(timezone, new Date(date.getFullYear(), 6, 1))
 
