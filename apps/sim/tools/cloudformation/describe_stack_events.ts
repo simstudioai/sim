@@ -76,7 +76,8 @@ export const describeStackEventsTool: InternalToolConfig<
   outputs: {
     events: {
       type: 'array',
-      description: 'List of stack events with resource status and timestamps',
+      description:
+        'List of stack events (stackId, eventId, stackName, operationId, logicalResourceId, physicalResourceId, resourceType, resourceStatus, resourceStatusReason, detailedStatus, resourceProperties, clientRequestToken, hookType, hookStatus, hookStatusReason, hookInvocationPoint, hookFailureMode, timestamp)',
     },
   },
 }

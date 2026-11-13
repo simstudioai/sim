@@ -15,6 +15,17 @@ export interface AthenaStartQueryParams extends AthenaConnectionConfig {
   executionParameters?: string[] | string
   resultReuseEnabled?: boolean
   resultReuseMaxAgeInMinutes?: number
+  encryptionOption?: string
+  kmsKey?: string
+  expectedBucketOwner?: string
+  clientRequestToken?: string
+}
+
+interface AthenaQueryError {
+  errorCategory: number | null
+  errorType: number | null
+  retryable: boolean | null
+  errorMessage: string | null
 }
 
 export interface AthenaStartQueryResponse extends ToolResponse {
@@ -45,6 +56,14 @@ export interface AthenaGetQueryExecutionResponse extends ToolResponse {
     queryQueueTimeInMillis: number | null
     totalExecutionTimeInMillis: number | null
     outputLocation: string | null
+    servicePreProcessingTimeInMillis?: number | null
+    serviceProcessingTimeInMillis?: number | null
+    dataManifestLocation?: string | null
+    reusedPreviousResult?: boolean | null
+    athenaError?: AthenaQueryError | null
+    executionParameters?: string[] | null
+    substatementType?: string | null
+    engineVersion?: AthenaEngineVersion | null
   }
 }
 
@@ -56,7 +75,15 @@ export interface AthenaGetQueryResultsParams extends AthenaConnectionConfig {
 
 export interface AthenaGetQueryResultsResponse extends ToolResponse {
   output: {
-    columns: { name: string; type: string }[]
+    columns: {
+      name: string
+      type: string
+      label?: string | null
+      precision?: number | null
+      scale?: number | null
+      nullable?: string | null
+      caseSensitive?: boolean | null
+    }[]
     rows: Record<string, string>[]
     nextToken: string | null
     updateCount: number | null
@@ -159,6 +186,14 @@ interface AthenaQueryExecutionSummary {
   queryQueueTimeInMillis: number | null
   totalExecutionTimeInMillis: number | null
   outputLocation: string | null
+  servicePreProcessingTimeInMillis?: number | null
+  serviceProcessingTimeInMillis?: number | null
+  dataManifestLocation?: string | null
+  reusedPreviousResult?: boolean | null
+  athenaError?: AthenaQueryError | null
+  executionParameters?: string[] | null
+  substatementType?: string | null
+  engineVersion?: AthenaEngineVersion | null
 }
 
 interface AthenaUnprocessedQueryExecutionId {

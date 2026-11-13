@@ -1,5 +1,6 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export interface CbInsightsExitProbabilityHistoryParams extends CbInsightsOrgParams {
@@ -16,6 +17,7 @@ export const cbinsightsGetExitProbabilityHistoryTool: InternalToolConfig<
   description:
     "Retrieve an organization's historical two-year IPO and M&A exit probabilities, each alongside the mean for comparable companies.",
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

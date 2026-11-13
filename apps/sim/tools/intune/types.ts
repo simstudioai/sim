@@ -21,6 +21,36 @@ export interface IntuneManagedDevice {
   model: string | null
   totalStorageSpaceInBytes: number | null
   freeStorageSpaceInBytes: number | null
+  managedDeviceName: string | null
+  managementAgent: string | null
+  deviceEnrollmentType: string | null
+  enrollmentProfileName: string | null
+  deviceRegistrationState: string | null
+  deviceCategoryDisplayName: string | null
+  jailBroken: string | null
+  isSupervised: boolean | null
+  azureADRegistered: boolean | null
+  complianceGracePeriodExpirationDateTime: string | null
+  managementCertificateExpirationDate: string | null
+  partnerReportedThreatState: string | null
+  exchangeAccessState: string | null
+  exchangeAccessStateReason: string | null
+  exchangeLastSuccessfulSyncDateTime: string | null
+  easActivated: boolean | null
+  androidSecurityPatchLevel: string | null
+  imei: string | null
+  meid: string | null
+  phoneNumber: string | null
+  subscriberCarrier: string | null
+  wiFiMacAddress: string | null
+  deviceActionResults: IntuneDeviceActionResult[]
+}
+
+export interface IntuneDeviceActionResult {
+  actionName: string | null
+  actionState: string | null
+  startDateTime: string | null
+  lastUpdatedDateTime: string | null
 }
 
 export interface IntuneDetectedApp {
@@ -40,6 +70,7 @@ export interface IntunePolicy {
   createdDateTime: string | null
   lastModifiedDateTime: string | null
   version: number | null
+  odataType: string | null
 }
 
 export interface IntuneDeviceStatus {
@@ -220,7 +251,8 @@ export const INTUNE_MANAGED_DEVICE_PROPERTIES = {
   },
   managementState: {
     type: 'string',
-    description: 'Current device management state',
+    description:
+      'Device management state; not part of the Graph v1.0 managedDevice resource, so usually null',
     nullable: true,
   },
   enrolledDateTime: { type: 'string', description: 'Enrollment time', nullable: true },
@@ -251,6 +283,113 @@ export const INTUNE_MANAGED_DEVICE_PROPERTIES = {
     description: 'Available storage in bytes',
     nullable: true,
   },
+  managedDeviceName: {
+    type: 'string',
+    description: 'Intune-generated or administrator-assigned device name',
+    nullable: true,
+  },
+  managementAgent: {
+    type: 'string',
+    description: 'Management channel, such as mdm, eas, easMdm, or configurationManagerClient',
+    nullable: true,
+  },
+  deviceEnrollmentType: {
+    type: 'string',
+    description: 'Enrollment type, such as userEnrollment or windowsAzureADJoin',
+    nullable: true,
+  },
+  enrollmentProfileName: {
+    type: 'string',
+    description: 'Assigned enrollment profile name; empty when none was assigned',
+    nullable: true,
+  },
+  deviceRegistrationState: {
+    type: 'string',
+    description: 'Registration state, such as registered, notRegistered, or revoked',
+    nullable: true,
+  },
+  deviceCategoryDisplayName: {
+    type: 'string',
+    description: 'Device category display name',
+    nullable: true,
+  },
+  jailBroken: {
+    type: 'string',
+    description: 'Whether the device is jailbroken or rooted, as reported by Intune',
+    nullable: true,
+  },
+  isSupervised: { type: 'boolean', description: 'Device supervised status', nullable: true },
+  azureADRegistered: {
+    type: 'boolean',
+    description: 'Whether the device is Microsoft Entra registered',
+    nullable: true,
+  },
+  complianceGracePeriodExpirationDateTime: {
+    type: 'string',
+    description: 'When the device compliance grace period expires',
+    nullable: true,
+  },
+  managementCertificateExpirationDate: {
+    type: 'string',
+    description: 'Device management certificate expiration date',
+    nullable: true,
+  },
+  partnerReportedThreatState: {
+    type: 'string',
+    description: 'Mobile Threat Defense partner threat state, such as secured or highSeverity',
+    nullable: true,
+  },
+  exchangeAccessState: {
+    type: 'string',
+    description: 'Exchange access state: none, unknown, allowed, blocked, or quarantined',
+    nullable: true,
+  },
+  exchangeAccessStateReason: {
+    type: 'string',
+    description: 'Reason for the Exchange access state',
+    nullable: true,
+  },
+  exchangeLastSuccessfulSyncDateTime: {
+    type: 'string',
+    description: 'Last time the device contacted Exchange',
+    nullable: true,
+  },
+  easActivated: {
+    type: 'boolean',
+    description: 'Whether Exchange ActiveSync is activated',
+    nullable: true,
+  },
+  androidSecurityPatchLevel: {
+    type: 'string',
+    description: 'Android security patch level',
+    nullable: true,
+  },
+  imei: { type: 'string', description: 'Device IMEI', nullable: true },
+  meid: { type: 'string', description: 'Device MEID', nullable: true },
+  phoneNumber: { type: 'string', description: 'Device phone number', nullable: true },
+  subscriberCarrier: { type: 'string', description: 'Subscriber carrier', nullable: true },
+  wiFiMacAddress: { type: 'string', description: 'Wi-Fi MAC address', nullable: true },
+  deviceActionResults: {
+    type: 'array',
+    description: 'Status of remote actions requested on the device, such as rebootNow or retire',
+    items: {
+      type: 'object',
+      properties: {
+        actionName: { type: 'string', description: 'Action name', nullable: true },
+        actionState: {
+          type: 'string',
+          description: 'Action state, such as pending, done, failed, or notSupported',
+          nullable: true,
+        },
+        startDateTime: { type: 'string', description: 'Action start time', nullable: true },
+        lastUpdatedDateTime: {
+          type: 'string',
+          description: 'Last action state update time',
+          nullable: true,
+        },
+      },
+    },
+  },
 } as const satisfies Record<string, ToolOutputProperty>
 
 export const INTUNE_DETECTED_APP_PROPERTIES = {
@@ -278,6 +417,12 @@ export const INTUNE_POLICY_PROPERTIES = {
   createdDateTime: { type: 'string', description: 'Creation time', nullable: true },
   lastModifiedDateTime: { type: 'string', description: 'Last modification time', nullable: true },
   version: { type: 'number', description: 'Policy or configuration version', nullable: true },
+  odataType: {
+    type: 'string',
+    description:
+      'Graph @odata.type naming the platform-specific policy type, such as #microsoft.graph.windows10CompliancePolicy',
+    nullable: true,
+  },
 } as const satisfies Record<string, ToolOutputProperty>
 
 export const INTUNE_DEVICE_STATUS_PROPERTIES = {

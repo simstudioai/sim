@@ -1,7 +1,12 @@
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { decryptApiKey } from '@/lib/api-key/crypto'
-import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import { awsCredentialFailureMessage, isTransientAwsFailure } from '@/lib/internal/aws/failure'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   getServiceAccountToken,
@@ -9,7 +14,12 @@ import {
   resolveOAuthAccountId,
 } from '@/lib/oauth/credential-service'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
-import { getConnectorApiKeyConfig } from '@/connectors/auth'
+import {
+  connectorUsesCredential,
+  getConnectorApiKeyConfig,
+  getConnectorCredentialService,
+} from '@/connectors/auth'
+import { awsSessionSyncContext, type ConnectorAwsSession } from '@/connectors/aws-session'
 import type { ConnectorAuthConfig } from '@/connectors/types'
 
 /**
@@ -36,6 +46,83 @@ export interface ConnectorAccessToken {
   instanceUrl?: string
   /** Server-only capability bound to this credential and the connector's declared scopes. */
   getDelegatedAccessToken?: (subject: string, signal?: AbortSignal) => Promise<string>
+  /**
+   * AWS only — the keys a saved AWS credential resolved to for the knowledge
+   * base's scope. A saved AWS credential has no bearer token, so `accessToken`
+   * is empty and the connector signs with these instead.
+   */
+  awsSession?: ConnectorAwsSession
+  /** When the credential stops working, if it says; a holder may reuse it until shortly before. */
+  expiresAt?: Date
+}
+
+/**
+ * Every secret a resolved token carries, for redacting provider text that may
+ * echo one back. A saved AWS credential's secrets sit in `awsSession`, not in
+ * the empty bearer, so callers redact this list rather than `accessToken` alone.
+ */
+export function connectorTokenSecrets(token: ConnectorAccessToken): string[] {
+  return [
+    token.accessToken,
+    ...(token.awsSession
+      ? [token.awsSession.secretAccessKey, token.awsSession.sessionToken ?? '']
+      : []),
+  ]
+}
+
+/** The connector-facing service that a saved AWS credential authenticates. */
+const AWS_CREDENTIAL_SERVICE = 'aws'
+
+/**
+ * A saved AWS credential that could not be used: unavailable in this scope,
+ * refused by AWS STS, or not resolvable while AWS was briefly unavailable
+ * (`transient`). The message is the AWS reason, never a secret.
+ */
+export class ConnectorAwsCredentialError extends Error {
+  readonly transient: boolean
+
+  constructor(message: string, options: { cause: unknown; transient: boolean }) {
+    super(message, { cause: options.cause })
+    this.name = 'ConnectorAwsCredentialError'
+    this.transient = options.transient
+  }
+}
+
+/**
+ * Resolves a saved AWS credential to signing keys for the knowledge base's own
+ * scope. The owner check and the STS exchange are the same ones AWS tools use,
+ * so a credential from another workspace or organization never resolves here.
+ */
+async function resolveConnectorAwsToken(
+  credentialId: string,
+  scope: ResourceScope,
+  requestId: string,
+  signal: AbortSignal | undefined
+): Promise<ConnectorAccessToken> {
+  const { resolveAuthorizedAwsCredential } = await import('@/lib/internal/aws/credentials')
+  let session: Awaited<ReturnType<typeof resolveAuthorizedAwsCredential>>
+  try {
+    session = await resolveAuthorizedAwsCredential(
+      credentialId,
+      { ...resourceScopeFields(scope), executionId: requestId },
+      signal
+    )
+  } catch (error) {
+    signal?.throwIfAborted()
+    throw new ConnectorAwsCredentialError(awsCredentialFailureMessage(error), {
+      cause: error,
+      transient: isTransientAwsFailure(error),
+    })
+  }
+  return {
+    accessToken: '',
+    awsSession: {
+      accessKeyId: session.accessKeyId,
+      secretAccessKey: session.secretAccessKey,
+      ...(session.sessionToken ? { sessionToken: session.sessionToken } : {}),
+    },
+    ...(session.expiration ? { expiresAt: session.expiration } : {}),
+  }
 }
 
 /**
@@ -96,6 +183,11 @@ export async function resolveConnectorAccessToken(params: {
   userId: string
   requestId: string
   /**
+   * The knowledge base's owner. A credential that resolves per scope (a saved
+   * AWS credential) is loaded only from this workspace or organization.
+   */
+  scope: ResourceScope
+  /**
    * Where a service-account credential's impersonation subject lives. Always
    * passed on a path that has it. Without a subject, a Drive service account
    * sees files shared with the service account itself, rather than the configured
@@ -108,10 +200,7 @@ export async function resolveConnectorAccessToken(params: {
   params.signal?.throwIfAborted()
 
   const apiKeyConfig = getConnectorApiKeyConfig(auth)
-  if (
-    auth.mode === 'apiKey' ||
-    (apiKeyConfig && !connector.credentialId && connector.encryptedApiKey)
-  ) {
+  if (!connectorUsesCredential(auth, connector)) {
     if (!connector.encryptedApiKey) {
       if (apiKeyConfig?.optional) return { accessToken: '' }
       throw new Error('API key connector is missing encrypted API key')
@@ -122,6 +211,13 @@ export async function resolveConnectorAccessToken(params: {
 
   if (!connector.credentialId) {
     throw new Error('OAuth connector is missing credential ID')
+  }
+
+  if (getConnectorCredentialService(auth) === AWS_CREDENTIAL_SERVICE) {
+    return resolveConnectorAwsToken(connector.credentialId, params.scope, requestId, params.signal)
+  }
+  if (auth.mode !== 'oauth') {
+    throw new Error('This connector cannot authenticate with a saved credential')
   }
 
   const subject = connectorServiceAccountSubject(auth, params.sourceConfig)
@@ -239,5 +335,43 @@ export function syncContextForToken(token: ConnectorAccessToken): Record<string,
     ...(token.getDelegatedAccessToken
       ? { getDelegatedAccessToken: token.getDelegatedAccessToken }
       : {}),
+    ...(token.awsSession ? awsSessionSyncContext(token.awsSession) : {}),
+  }
+}
+
+/** A token that states its expiry is reused until this close to it; STS sessions last 15 minutes at least. */
+const TOKEN_REUSE_MARGIN_MS = 5 * 60 * 1000
+
+/** A run's connector token, kept usable for the length of the run. */
+export interface ConnectorRunToken {
+  current(): ConnectorAccessToken
+  /** Re-resolves the token before a later call, unless it is long-lived or states an expiry still well ahead. */
+  refresh(): Promise<void>
+}
+
+/**
+ * Holds the token one connector run syncs with. Each refresh re-resolves it, so a long run
+ * outlives a short-lived token, and re-seeds what the token binds into the run's
+ * `syncContext`, so a connector reading its credential's site or AWS session from there signs
+ * with the current one. A token that states its expiry (an AWS STS session) is kept until
+ * shortly before it rather than exchanged again on every page. Long-lived saved AWS keys (an
+ * AWS session with no session token) are kept for the whole run, like a stored key, for which
+ * `resolve` is absent.
+ */
+export function createConnectorRunToken(input: {
+  token: ConnectorAccessToken
+  syncContext: Record<string, unknown>
+  resolve: (() => Promise<ConnectorAccessToken>) | undefined
+}): ConnectorRunToken {
+  let token = input.token
+  return {
+    current: () => token,
+    async refresh() {
+      if (!input.resolve) return
+      if (token.awsSession && !token.awsSession.sessionToken) return
+      if (token.expiresAt && token.expiresAt.getTime() - Date.now() > TOKEN_REUSE_MARGIN_MS) return
+      token = await input.resolve()
+      Object.assign(input.syncContext, syncContextForToken(token))
+    },
   }
 }

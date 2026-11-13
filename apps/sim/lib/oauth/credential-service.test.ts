@@ -19,6 +19,7 @@ const hoisted = vi.hoisted(() => ({
   refreshOAuthToken: vi.fn(),
   decryptQuickBooksOAuthClientConfig: vi.fn(),
   withLeaderLock: vi.fn(),
+  mintServiceNowToken: vi.fn(),
 }))
 
 vi.mock('@/lib/concurrency/singleflight', () => ({
@@ -37,6 +38,9 @@ vi.mock('@/lib/credentials/coordinated-client-token', () => ({
     const exchanged = await input.exchange()
     return { accessToken: exchanged.accessToken, expiresInSeconds: 86_000 }
   },
+}))
+vi.mock('@/lib/credentials/token-service-accounts/grants/servicenow', () => ({
+  mintServiceNowClientCredentialsToken: hoisted.mintServiceNowToken,
 }))
 vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
   isWorkloadIdentityConfigured: async () => true,
@@ -1438,6 +1442,76 @@ describe('token provider credentials saved in client-credentials mode', () => {
     ).resolves.toMatchObject({ accessToken: 'lin_oauth_2' })
   })
 
+  it('marks a minted ServiceNow token as a bearer token, and a saved login as before', async () => {
+    hoisted.mintServiceNowToken.mockResolvedValue({
+      accessToken: 'sn-minted',
+      expiresInSeconds: 1799,
+    })
+    storeBlob('servicenow-cc', {
+      type: 'token_service_account',
+      providerId: 'servicenow-service-account',
+      authMethod: 'client_credentials',
+      clientId: 'sn-client',
+      clientSecret: 'sn-secret',
+      domain: 'https://acme.service-now.com',
+    })
+
+    await expect(
+      resolveServiceAccountToken('servicenow-cc', 'servicenow-service-account')
+    ).resolves.toEqual({
+      accessToken: 'sn-minted',
+      domain: 'https://acme.service-now.com',
+      authStyle: 'bearer',
+    })
+
+    storeBlob('servicenow-login', {
+      type: 'token_service_account',
+      providerId: 'servicenow-service-account',
+      apiToken: 'saved-password',
+      providerWorkspaceId: 'integration.user',
+      domain: 'https://acme.service-now.com',
+    })
+    await expect(
+      resolveServiceAccountToken('servicenow-login', 'servicenow-service-account')
+    ).resolves.toEqual({
+      accessToken: 'saved-password',
+      domain: 'https://acme.service-now.com',
+      providerWorkspaceId: 'integration.user',
+    })
+  })
+
+  it('marks a saved Splunk username and password as basic, and a saved token as before', async () => {
+    storeBlob('splunk-login', {
+      type: 'token_service_account',
+      providerId: 'splunk-service-account',
+      apiToken: 'saved-password',
+      providerWorkspaceId: 'svc-sim',
+      domain: 'https://splunk.example.com:8089',
+    })
+    await expect(
+      resolveServiceAccountToken('splunk-login', 'splunk-service-account')
+    ).resolves.toEqual({
+      accessToken: 'saved-password',
+      domain: 'https://splunk.example.com:8089',
+      providerWorkspaceId: 'svc-sim',
+      authStyle: 'basic',
+    })
+
+    storeBlob('splunk-token', {
+      type: 'token_service_account',
+      providerId: 'splunk-service-account',
+      apiToken: 'splunk-token',
+      domain: 'https://splunk.example.com:8089',
+    })
+    await expect(
+      resolveServiceAccountToken('splunk-token', 'splunk-service-account')
+    ).resolves.toEqual({
+      accessToken: 'splunk-token',
+      domain: 'https://splunk.example.com:8089',
+      providerWorkspaceId: undefined,
+    })
+  })
+
   it('still returns a pasted Shopify token as is', async () => {
     storeBlob(
       'shopify-pasted',
@@ -1467,6 +1541,49 @@ describe('token provider credentials saved in client-credentials mode', () => {
       resolveServiceAccountToken('shopify-wrong', 'shopify-service-account')
     ).rejects.toThrow('malformed')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('token credentials saved before their provider had a region or host to choose', () => {
+  function storeBlob(blob: Record<string, unknown>) {
+    queueTableRows(credential, [{ encryptedServiceAccountKey: 'enc-legacy' }])
+    mocks.decryptSecret.mockResolvedValue({ decrypted: JSON.stringify(blob) })
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it.each([
+    ['launchdarkly-service-account', 'us'],
+    ['langsmith-service-account', 'us'],
+    ['square-service-account', 'production'],
+    ['sendgrid-service-account', 'global'],
+    ['hex-service-account', 'app.hex.tech'],
+    ['sentry-service-account', 'us'],
+  ])(
+    'resolves a %s token stored without one to the host it always used (%s)',
+    async (providerId, domain) => {
+      storeBlob({ type: 'token_service_account', providerId, apiToken: 'legacy-token' })
+
+      await expect(resolveServiceAccountToken('legacy-1', providerId)).resolves.toMatchObject({
+        accessToken: 'legacy-token',
+        domain,
+      })
+    }
+  )
+
+  it('keeps the region a newer credential was saved with', async () => {
+    storeBlob({
+      type: 'token_service_account',
+      providerId: 'launchdarkly-service-account',
+      apiToken: 'eu-token',
+      domain: 'eu',
+    })
+
+    await expect(
+      resolveServiceAccountToken('eu-1', 'launchdarkly-service-account')
+    ).resolves.toMatchObject({ accessToken: 'eu-token', domain: 'eu' })
   })
 })
 

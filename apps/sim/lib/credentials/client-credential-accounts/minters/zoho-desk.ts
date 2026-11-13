@@ -20,6 +20,7 @@ import {
   readProviderErrorSnippet,
   requireClientSecret,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { tryDeriveZohoDeskBaseFromApiDomain } from '@/tools/zoho_desk/host-allowlist'
@@ -199,12 +200,17 @@ export async function mintZohoDeskServiceAccountToken(
     if (res.status >= 400 && res.status < 500 && !isTransientProviderStatus(res.status)) {
       throw invalidCredentials(res.status, soid, dataCenter.id, body, zohoBodyError(body))
     }
-    throw new TokenServiceAccountValidationError('provider_unavailable', res.status, {
-      step: STEP,
-      soid,
-      dataCenter: dataCenter.id,
-      body,
-    })
+    throw new TokenServiceAccountValidationError(
+      'provider_unavailable',
+      res.status,
+      {
+        step: STEP,
+        soid,
+        dataCenter: dataCenter.id,
+        body,
+      },
+      { retryAfterMs: throttledRetryAfterMs(res) }
+    )
   }
 
   const payload = await parseProviderJson<ZohoTokenResponse>(res, STEP)

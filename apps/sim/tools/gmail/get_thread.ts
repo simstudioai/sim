@@ -1,5 +1,12 @@
-import { GMAIL_API_BASE } from '@/tools/gmail/utils'
+import type { GmailMessage } from '@/tools/gmail/types'
+import {
+  extractExtendedHeaders,
+  extractMessageBody,
+  GMAIL_API_BASE,
+  getHeaderValue,
+} from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GmailGetThreadParams {
   accessToken: string
@@ -12,6 +19,7 @@ interface GmailGetThreadResponse {
   output: {
     id: string
     historyId?: string
+    snippet?: string | null
     messages: Array<{
       id: string
       threadId: string
@@ -19,8 +27,15 @@ interface GmailGetThreadResponse {
       snippet?: string
       from?: string
       to?: string
+      cc?: string | null
+      bcc?: string | null
+      replyTo?: string | null
       subject?: string
       date?: string
+      rfcMessageId?: string | null
+      inReplyTo?: string | null
+      references?: string | null
+      internalDate?: string | null
       body?: string
     }>
   }
@@ -62,7 +77,7 @@ export const gmailGetThreadV2Tool: ToolConfig<GmailGetThreadParams, GmailGetThre
   request: {
     url: (params: GmailGetThreadParams) => {
       const format = params.format || 'full'
-      return `${GMAIL_API_BASE}/threads/${params.threadId}?format=${format}`
+      return `${GMAIL_API_BASE}/threads/${safeUrlPathSegment(params.threadId, 'threadId')}?format=${encodeURIComponent(format)}`
     },
     method: 'GET',
     headers: (params: GmailGetThreadParams) => ({
@@ -82,35 +97,24 @@ export const gmailGetThreadV2Tool: ToolConfig<GmailGetThreadParams, GmailGetThre
       }
     }
 
-    const messages = (data.messages || []).map((message: Record<string, unknown>) => {
-      const payload = message.payload as Record<string, unknown> | undefined
-      const headers = (payload?.headers as Array<Record<string, string>>) || []
-      const getHeader = (name: string): string | undefined =>
-        headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value
+    const messages = (data.messages || []).map((message: Partial<GmailMessage>) => {
+      const payload = message.payload
+      const headers = payload?.headers || []
 
-      let body = ''
-      const payloadBody = payload?.body as Record<string, unknown> | undefined
-      if (payloadBody?.data) {
-        body = Buffer.from(payloadBody.data as string, 'base64').toString()
-      } else if (payload?.parts) {
-        const parts = payload.parts as Array<Record<string, unknown>>
-        const textPart = parts.find((part) => part.mimeType === 'text/plain')
-        const textBody = textPart?.body as Record<string, unknown> | undefined
-        if (textBody?.data) {
-          body = Buffer.from(textBody.data as string, 'base64').toString()
-        }
-      }
+      const body = payload ? extractMessageBody(payload) : ''
 
       return {
         id: message.id,
         threadId: message.threadId,
         labelIds: message.labelIds ?? null,
         snippet: message.snippet ?? null,
-        from: getHeader('From') ?? null,
-        to: getHeader('To') ?? null,
-        subject: getHeader('Subject') ?? null,
-        date: getHeader('Date') ?? null,
+        from: getHeaderValue(headers, 'From') ?? null,
+        to: getHeaderValue(headers, 'To') ?? null,
+        subject: getHeaderValue(headers, 'Subject') ?? null,
+        date: getHeaderValue(headers, 'Date') ?? null,
         body: body || null,
+        ...extractExtendedHeaders(headers),
+        internalDate: message.internalDate ?? null,
       }
     })
 
@@ -119,6 +123,7 @@ export const gmailGetThreadV2Tool: ToolConfig<GmailGetThreadParams, GmailGetThre
       output: {
         id: data.id,
         historyId: data.historyId ?? null,
+        snippet: data.snippet ?? null,
         messages,
       },
     }
@@ -127,10 +132,11 @@ export const gmailGetThreadV2Tool: ToolConfig<GmailGetThreadParams, GmailGetThre
   outputs: {
     id: { type: 'string', description: 'Thread ID' },
     historyId: { type: 'string', description: 'History ID', optional: true },
+    snippet: { type: 'string', description: 'Short excerpt of the thread', optional: true },
     messages: {
       type: 'json',
       description:
-        'Array of messages in the thread with id, from, to, subject, date, body, and labels',
+        'Array of messages in the thread with id, threadId, labelIds, snippet, from, to, cc, bcc, replyTo, subject, date, rfcMessageId, inReplyTo, references, internalDate, and body',
     },
   },
 }

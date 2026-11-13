@@ -17,6 +17,7 @@ import {
   processMessageForSummary,
 } from '@/tools/gmail/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('GmailReadTool')
 
@@ -75,7 +76,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
     url: (params) => {
       // If a specific message ID is provided, fetch that message directly with full format
       if (params.messageId) {
-        return `${GMAIL_API_BASE}/messages/${params.messageId}?format=full`
+        return `${GMAIL_API_BASE}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}?format=full`
       }
 
       // Otherwise, list messages from the specified folder or INBOX by default
@@ -132,6 +133,11 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
     // If we're fetching a single message directly (by ID)
     if (params?.messageId) {
       return await processMessage(data, params, budget)
+    }
+
+    // messages.list omits `messages` entirely when nothing matches
+    if (data && typeof data === 'object' && data.messages === undefined && !data.error) {
+      data.messages = []
     }
 
     // If we're listing messages, we need to fetch each message's details
@@ -257,6 +263,14 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
                   from: msg.from,
                   to: msg.to,
                   date: msg.date,
+                  cc: msg.cc ?? null,
+                  bcc: msg.bcc ?? null,
+                  replyTo: msg.replyTo ?? null,
+                  rfcMessageId: msg.rfcMessageId ?? null,
+                  inReplyTo: msg.inReplyTo ?? null,
+                  references: msg.references ?? null,
+                  snippet: msg.snippet,
+                  internalDate: msg.internalDate ?? null,
                 })),
               },
               attachments: allAttachments,
@@ -295,7 +309,11 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
 
   outputs: {
     content: { type: 'string', description: 'Text content of the email' },
-    metadata: { type: 'json', description: 'Metadata of the email' },
+    metadata: {
+      type: 'json',
+      description:
+        'Metadata of the email (id, threadId, labelIds, from, to, cc, bcc, replyTo, subject, date, rfcMessageId, inReplyTo, references, snippet, internalDate, hasAttachments, attachmentCount), or results[] when reading multiple messages',
+    },
     attachments: { type: 'file[]', description: 'Attachments of the email' },
   },
 }
@@ -308,8 +326,16 @@ interface GmailReadV2Response {
     labelIds?: string[]
     from?: string
     to?: string
+    cc?: string | null
+    bcc?: string | null
+    replyTo?: string | null
     subject?: string
     date?: string
+    rfcMessageId?: string | null
+    inReplyTo?: string | null
+    references?: string | null
+    snippet?: string | null
+    internalDate?: string | null
     body?: string
     hasAttachments?: boolean
     attachmentCount?: number
@@ -350,8 +376,16 @@ export const gmailReadV2Tool: ToolConfig<GmailReadParams, GmailReadV2Response> =
         labelIds: metadata.labelIds,
         from: metadata.from,
         to: metadata.to,
+        cc: metadata.cc,
+        bcc: metadata.bcc,
+        replyTo: metadata.replyTo,
         subject: metadata.subject,
         date: metadata.date,
+        rfcMessageId: metadata.rfcMessageId,
+        inReplyTo: metadata.inReplyTo,
+        references: metadata.references,
+        snippet: metadata.snippet,
+        internalDate: metadata.internalDate,
         body: legacy.output.content,
         hasAttachments: metadata.hasAttachments,
         attachmentCount: metadata.attachmentCount,
@@ -371,8 +405,28 @@ export const gmailReadV2Tool: ToolConfig<GmailReadParams, GmailReadV2Response> =
     },
     from: { type: 'string', description: 'Sender email address', optional: true },
     to: { type: 'string', description: 'Recipient email address', optional: true },
+    cc: { type: 'string', description: 'Cc recipients (raw Cc header)', optional: true },
+    bcc: {
+      type: 'string',
+      description: 'Bcc recipients (only present on messages you sent or drafted)',
+      optional: true,
+    },
+    replyTo: { type: 'string', description: 'Reply-To header', optional: true },
     subject: { type: 'string', description: 'Email subject', optional: true },
     date: { type: 'string', description: 'Email date', optional: true },
+    rfcMessageId: {
+      type: 'string',
+      description: 'RFC Message-ID header (not the Gmail message id)',
+      optional: true,
+    },
+    inReplyTo: { type: 'string', description: 'In-Reply-To header', optional: true },
+    references: { type: 'string', description: 'References header', optional: true },
+    snippet: { type: 'string', description: 'Short excerpt of the message text', optional: true },
+    internalDate: {
+      type: 'string',
+      description: 'Gmail internal creation timestamp in epoch milliseconds',
+      optional: true,
+    },
     body: {
       type: 'string',
       description: 'Email body text (best-effort plain text)',
@@ -391,7 +445,8 @@ export const gmailReadV2Tool: ToolConfig<GmailReadParams, GmailReadV2Response> =
     },
     results: {
       type: 'json',
-      description: 'Summary results when reading multiple messages',
+      description:
+        'Summary results when reading multiple messages (id, threadId, subject, from, to, cc, bcc, replyTo, date, rfcMessageId, inReplyTo, references, snippet, internalDate)',
       optional: true,
     },
   },

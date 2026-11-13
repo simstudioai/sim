@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerGetTaskDetailsResponse,
   MicrosoftPlannerToolParams,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MicrosoftPlannerGetTaskDetails')
 
@@ -15,6 +17,7 @@ export const getTaskDetailsTool: ToolConfig<
   name: 'Get Microsoft Planner Task Details',
   description: 'Get detailed information about a task including checklist and references',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -42,7 +45,7 @@ export const getTaskDetailsTool: ToolConfig<
       if (!taskId) {
         throw new Error('Task ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/tasks/${taskId}/details`
+      return `https://graph.microsoft.com/v1.0/planner/tasks/${safeUrlPathSegment(taskId, 'taskId')}/details`
     },
     method: 'GET',
     headers: (params) => {

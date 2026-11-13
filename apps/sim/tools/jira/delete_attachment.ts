@@ -2,6 +2,7 @@ import type { JiraDeleteAttachmentParams, JiraDeleteAttachmentResponse } from '@
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const jiraDeleteAttachmentTool: ToolConfig<
   JiraDeleteAttachmentParams,
@@ -48,7 +49,7 @@ export const jiraDeleteAttachmentTool: ToolConfig<
   request: {
     url: (params: JiraDeleteAttachmentParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/attachment/${params.attachmentId?.trim() ?? ''}`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/attachment/${safeUrlPathSegment(params.attachmentId ?? '', 'attachmentId')}`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -65,7 +66,7 @@ export const jiraDeleteAttachmentTool: ToolConfig<
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
       // Make the actual request with the resolved cloudId
-      const attachmentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/attachment/${params?.attachmentId?.trim() ?? ''}`
+      const attachmentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/attachment/${safeUrlPathSegment(params?.attachmentId ?? '', 'attachmentId')}`
       const attachmentResponse = await fetch(attachmentUrl, {
         method: 'DELETE',
         headers: {

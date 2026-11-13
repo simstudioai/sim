@@ -1,7 +1,41 @@
+import { isRecordLike } from '@sim/utils/object'
 import { IAMIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { withSavedCredential } from '@/blocks/utils'
+
+/**
+ * Converts the Tags table, a `[{ key, value }]` list (or its JSON string), a plain
+ * object, or a JSON object string into the JSON object string the tools accept.
+ */
+function serializeTags(tags: unknown): string | undefined {
+  if (typeof tags === 'string') {
+    const trimmed = tags.trim()
+    if (!trimmed) return undefined
+    if (!trimmed.startsWith('[')) return trimmed
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      return trimmed
+    }
+    const serialized = serializeTags(parsed)
+    if (serialized === undefined && Array.isArray(parsed) && parsed.length > 0) {
+      throw new Error('Tags must be a list of {"key", "value"} entries or a JSON object')
+    }
+    return serialized
+  }
+  if (isRecordLike(tags)) return Object.keys(tags).length > 0 ? JSON.stringify(tags) : undefined
+  if (!Array.isArray(tags)) return undefined
+  const obj: Record<string, string> = {}
+  for (const row of tags) {
+    const entry = isRecordLike(row) && isRecordLike(row.cells) ? row.cells : row
+    const key = isRecordLike(entry) ? entry.key : undefined
+    const value = isRecordLike(entry) ? entry.value : undefined
+    if (typeof key === 'string' && key && value !== undefined) obj[key] = String(value ?? '')
+  }
+  return Object.keys(obj).length > 0 ? JSON.stringify(obj) : undefined
+}
 
 /**
  * Raised when `contextEntries` is not a JSON array of context entries.
@@ -348,6 +382,24 @@ export const IAMBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'permissionsBoundary',
+      title: 'Permissions Boundary ARN',
+      type: 'short-input',
+      placeholder: 'arn:aws:iam::123456789012:policy/MyBoundary',
+      condition: { field: 'operation', value: ['create_user', 'create_role'] },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'tags',
+      title: 'Tags',
+      type: 'table',
+      columns: ['key', 'value'],
+      condition: { field: 'operation', value: ['create_user', 'create_role'] },
+      required: false,
+      mode: 'advanced',
+    },
+    {
       id: 'scope',
       title: 'Policy Scope',
       type: 'dropdown',
@@ -370,6 +422,20 @@ export const IAMBlock: BlockConfig = {
         { label: 'Yes', id: 'true' },
       ],
       value: () => 'false',
+      condition: { field: 'operation', value: 'list_policies' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'policyUsageFilter',
+      title: 'Policy Usage',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: 'all' },
+        { label: 'Permissions Policies', id: 'PermissionsPolicy' },
+        { label: 'Permissions Boundaries', id: 'PermissionsBoundary' },
+      ],
+      value: () => 'all',
       condition: { field: 'operation', value: 'list_policies' },
       required: false,
       mode: 'advanced',
@@ -602,15 +668,18 @@ export const IAMBlock: BlockConfig = {
           case 'delete_user':
             result.userName = rest.userName
             break
-          case 'create_user':
+          case 'create_user': {
             result.userName = rest.userName
             if (rest.path) result.path = rest.path
+            result.permissionsBoundary = rest.permissionsBoundary || undefined
+            result.tags = serializeTags(rest.tags)
             break
+          }
           case 'get_role':
           case 'delete_role':
             result.roleName = rest.roleName
             break
-          case 'create_role':
+          case 'create_role': {
             result.roleName = rest.roleName
             result.assumeRolePolicyDocument = rest.assumeRolePolicyDocument
             if (rest.description) result.description = rest.description
@@ -619,7 +688,10 @@ export const IAMBlock: BlockConfig = {
               const parsed = Number.parseInt(String(maxSessionDuration), 10)
               if (!Number.isNaN(parsed)) result.maxSessionDuration = parsed
             }
+            result.permissionsBoundary = rest.permissionsBoundary || undefined
+            result.tags = serializeTags(rest.tags)
             break
+          }
           case 'attach_user_policy':
           case 'detach_user_policy':
             result.userName = rest.userName
@@ -633,6 +705,11 @@ export const IAMBlock: BlockConfig = {
           case 'list_policies':
             if (rest.scope) result.scope = rest.scope
             if (onlyAttached === 'true' || onlyAttached === true) result.onlyAttached = true
+            result.policyUsageFilter =
+              rest.policyUsageFilter === 'PermissionsPolicy' ||
+              rest.policyUsageFilter === 'PermissionsBoundary'
+                ? rest.policyUsageFilter
+                : undefined
             if (rest.pathPrefix) result.pathPrefix = rest.pathPrefix
             if (maxItems) {
               const parsed = Number.parseInt(String(maxItems), 10)
@@ -734,6 +811,15 @@ export const IAMBlock: BlockConfig = {
     maxSessionDuration: { type: 'number', description: 'Max session duration in seconds' },
     scope: { type: 'string', description: 'Policy scope filter (All, AWS, Local)' },
     onlyAttached: { type: 'string', description: 'Only return attached policies' },
+    policyUsageFilter: {
+      type: 'string',
+      description: 'Policy usage filter (PermissionsPolicy, PermissionsBoundary)',
+    },
+    permissionsBoundary: {
+      type: 'string',
+      description: 'Managed policy ARN to set as the permissions boundary on a new user or role',
+    },
+    tags: { type: 'json', description: 'Tag key/value pairs for a new user or role' },
     pathPrefix: { type: 'string', description: 'Path prefix filter' },
     maxItems: { type: 'number', description: 'Maximum number of items to return' },
     marker: { type: 'string', description: 'Pagination marker' },
@@ -766,7 +852,7 @@ export const IAMBlock: BlockConfig = {
     policies: {
       type: 'json',
       description:
-        'List of IAM policies (policyName, policyId, arn, path, attachmentCount, isAttachable, createDate, updateDate)',
+        'List of IAM policies (policyName, policyId, arn, path, attachmentCount, isAttachable, createDate, updateDate, defaultVersionId, permissionsBoundaryUsageCount)',
     },
     groups: {
       type: 'json',

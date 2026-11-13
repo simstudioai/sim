@@ -130,6 +130,17 @@ describe('Snowflake SQL API transport', () => {
       'Content-Type': 'application/json',
       'User-Agent': 'Sim/1.0 (+https://sim.ai)',
     })
+    expect(
+      getSnowflakeHeaders({
+        oauthCredential: 'cred-1',
+        domain: 'acme.snowflakecomputing.com',
+        accessToken: 'signed.jwt.value',
+        authStyle: 'snowflake-key-pair',
+      })
+    ).toMatchObject({
+      Authorization: 'Bearer signed.jwt.value',
+      'X-Snowflake-Authorization-Token-Type': 'KEYPAIR_JWT',
+    })
   })
 
   it('keeps statement timeout in the Snowflake body, not the HTTP transport', () => {

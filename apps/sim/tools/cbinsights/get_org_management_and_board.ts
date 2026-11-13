@@ -1,5 +1,6 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export interface CbInsightsOrgManagementParams extends CbInsightsOrgParams {
@@ -15,6 +16,7 @@ export const cbinsightsGetOrgManagementAndBoardTool: InternalToolConfig<
   description:
     "Retrieve an organization's leadership team and board members with their education, work history, and board seats, plus the Management factor of its Mosaic Score.",
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

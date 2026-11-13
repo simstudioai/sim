@@ -1,7 +1,27 @@
 import { db } from '@sim/db'
-import { awsMarketplaceLicense, member, organization, outboxEvent, user } from '@sim/db/schema'
+import {
+  awsMarketplaceLicense,
+  member,
+  organization,
+  outboxEvent,
+  subscription,
+  user,
+} from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, ne, or } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  notInArray,
+  or,
+} from 'drizzle-orm'
 import type { EntitlementSummary } from '@/lib/billing/aws-marketplace/entitlements'
 import {
   AWS_MARKETPLACE_BUYER_NOTICE_EVENT,
@@ -10,6 +30,11 @@ import {
   type AwsMarketplaceNoticeTerms,
   type AwsMarketplaceTeamNotice,
 } from '@/lib/billing/aws-marketplace/notice-events'
+import type {
+  AwsMarketplaceProduct,
+  AwsMarketplaceProducts,
+} from '@/lib/billing/aws-marketplace/products'
+import { TERMINAL_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbTransaction } from '@/lib/db/types'
 
@@ -40,6 +65,20 @@ function enqueueTeamNotice(tx: DbTransaction, notice: AwsMarketplaceTeamNotice, 
   return enqueueOutboxEvent(tx, AWS_MARKETPLACE_TEAM_NOTICE_EVENT, notice, { id })
 }
 
+/** Enqueues a team notice under a fixed id unless one with that id was already sent. */
+async function enqueueTeamNoticeOnce(
+  tx: DbTransaction,
+  notice: AwsMarketplaceTeamNotice,
+  id: string
+): Promise<void> {
+  const [sent] = await tx
+    .select({ id: outboxEvent.id })
+    .from(outboxEvent)
+    .where(eq(outboxEvent.id, id))
+    .limit(1)
+  if (!sent) await enqueueTeamNotice(tx, notice, id)
+}
+
 function enqueueBuyerNotice(tx: DbTransaction, notice: AwsMarketplaceBuyerNotice) {
   return enqueueOutboxEvent(tx, AWS_MARKETPLACE_BUYER_NOTICE_EVENT, notice)
 }
@@ -50,21 +89,22 @@ export function isNewerRead(license: AwsMarketplaceLicenseRecord, verifiedAt: Da
 }
 
 /**
- * No entitlements after AWS has said the license ended, or on a license that was already confirmed
- * once, is a lapse. Otherwise AWS may simply not have finished, so the license stays pending.
+ * No answer about access after AWS has said the license ended, or on a license that was already
+ * confirmed once, is a lapse. Otherwise AWS may simply not have finished, so the license stays pending.
  */
 function statusFromRead(
   prior: AwsMarketplaceLicenseStatus | null,
   { summary, ended }: LicenseVerification
 ): AwsMarketplaceLicenseStatus {
   if (summary.active) return 'active'
-  if (summary.entitlementCount > 0 || ended) return 'inactive'
+  if (summary.accessReported || ended) return 'inactive'
   return prior === null || prior === 'pending' ? 'pending' : 'inactive'
 }
 
 /**
- * The columns a read writes. With no entitlements the last-known dimension, quantity, and expiry
- * stay as they were, and only the status can change. An inactive license has nothing to claim.
+ * The columns a read writes. With no answer about access the last-known dimension, quantity, and
+ * expiry stay as they were, and only the status can change. The read that first finds a license
+ * inactive records when it ended.
  */
 function verificationFields(
   prior: AwsMarketplaceLicenseStatus | null,
@@ -74,17 +114,22 @@ function verificationFields(
   const { summary, verifiedAt } = verification
   return {
     status,
+    ...(status === 'inactive'
+      ? prior !== 'inactive' && { endedAt: verifiedAt }
+      : { endedAt: null }),
     lastVerifiedAt: verifiedAt,
     lastVerificationAttemptAt: verifiedAt,
     updatedAt: new Date(),
-    ...(summary.entitlementCount > 0 && {
+    ...(summary.accessReported && {
       dimension: summary.dimension,
       quantity: summary.quantity,
       expiresAt: summary.expiresAt,
     }),
-    ...(status === 'inactive' && { claimTokenHash: null, claimExpiresAt: null }),
   }
 }
+
+/** An inactive license has nothing to claim, whatever else the writer sets. */
+const NO_CLAIM = { claimTokenHash: null, claimExpiresAt: null }
 
 function termsOf(license: AwsMarketplaceLicenseRecord): AwsMarketplaceNoticeTerms {
   return {
@@ -107,7 +152,8 @@ function termsDiffer(before: AwsMarketplaceNoticeTerms, after: AwsMarketplaceNot
 /**
  * The one place a read reaches a stored license, for every writer: under the caller's row lock it
  * applies the read unless a newer one is stored, and when that moves the terms, enqueues the team's
- * notice in the same transaction. `alongside` is written either way.
+ * notice in the same transaction. `alongside` is written either way, except a claim on a license
+ * that ends up inactive.
  */
 async function applyVerification(
   tx: DbTransaction,
@@ -116,11 +162,13 @@ async function applyVerification(
   alongside: Partial<typeof awsMarketplaceLicense.$inferInsert> = {}
 ): Promise<AwsMarketplaceLicenseRecord> {
   const fresh = isNewerRead(locked, verification.verifiedAt)
+  const status = fresh ? statusFromRead(locked.status, verification) : locked.status
   const [license] = await tx
     .update(awsMarketplaceLicense)
     .set({
       ...(fresh ? verificationFields(locked.status, verification) : { updatedAt: new Date() }),
       ...alongside,
+      ...(status === 'inactive' && NO_CLAIM),
     })
     .where(eq(awsMarketplaceLicense.id, locked.id))
     .returning()
@@ -182,7 +230,7 @@ async function inheritFromRenewedLicense(
   const [inherited] = await tx
     .update(awsMarketplaceLicense)
     .set({
-      organizationId: predecessor.organizationId,
+      ...organizationLink(predecessor.organizationId),
       linkedByUserId: predecessor.linkedByUserId,
       contactEmail: predecessor.contactEmail,
       companyName: predecessor.companyName,
@@ -191,6 +239,43 @@ async function inheritFromRenewedLicense(
     .where(eq(awsMarketplaceLicense.id, license.id))
     .returning()
   return inherited
+}
+
+/**
+ * Creates the row for a license nobody stored yet, carrying on a renewed license's owner, and tells
+ * the team. Null when the ARN already has a row, which the caller then updates under its lock.
+ */
+async function insertNewLicense(
+  tx: DbTransaction,
+  input: {
+    licenseArn: string
+    productCode: string
+    customerAwsAccountId: string
+    seen: AgreementObservation
+    verification: LicenseVerification
+    alongside: Partial<typeof awsMarketplaceLicense.$inferInsert>
+  },
+  source: 'registration' | 'event'
+): Promise<AwsMarketplaceLicenseRecord | null> {
+  const status = statusFromRead(null, input.verification)
+  const [created] = await tx
+    .insert(awsMarketplaceLicense)
+    .values({
+      id: generateId(),
+      licenseArn: input.licenseArn,
+      productCode: input.productCode,
+      customerAwsAccountId: input.customerAwsAccountId,
+      ...agreementFields(null, input.seen),
+      ...input.alongside,
+      ...verificationFields(null, input.verification),
+      ...(status === 'inactive' && NO_CLAIM),
+    })
+    .onConflictDoNothing({ target: awsMarketplaceLicense.licenseArn })
+    .returning()
+  if (!created) return null
+  const license = await inheritFromRenewedLicense(tx, created)
+  await enqueueTeamNotice(tx, { kind: 'new-license', licenseId: license.id, source })
+  return license
 }
 
 /**
@@ -209,45 +294,25 @@ export async function saveRegisteredLicense(input: {
   const claimFields = { claimTokenHash: claim.hash, claimExpiresAt: claim.expiresAt }
   const seen = { agreementId: input.agreementId, seenAt: verification.verifiedAt }
   return db.transaction(async (tx) => {
-    const status = statusFromRead(null, verification)
-    const [created] = await tx
-      .insert(awsMarketplaceLicense)
-      .values({
-        id: generateId(),
-        licenseArn: input.licenseArn,
-        productCode: input.productCode,
-        customerAwsAccountId: input.customerAwsAccountId,
-        ...agreementFields(null, seen),
-        ...(status === 'inactive' ? {} : claimFields),
-        ...verificationFields(null, verification),
-      })
-      .onConflictDoNothing({ target: awsMarketplaceLicense.licenseArn })
-      .returning()
-    if (created) {
-      const license = await inheritFromRenewedLicense(tx, created)
-      await enqueueTeamNotice(tx, {
-        kind: 'new-license',
-        licenseId: license.id,
-        source: 'registration',
-      })
-      return { id: license.id, status: license.status }
-    }
+    const created = await insertNewLicense(
+      tx,
+      { ...input, seen, alongside: claimFields },
+      'registration'
+    )
+    if (created) return { id: created.id, status: created.status }
 
     const locked = await lockByArn(tx, input.licenseArn)
     if (!locked) throw new Error('AWS Marketplace license vanished during registration')
-    const effective = isNewerRead(locked, verification.verifiedAt)
-      ? statusFromRead(locked.status, verification)
-      : locked.status
     const written = await applyVerification(tx, locked, verification, {
       ...agreementFields(locked, seen),
-      ...(effective === 'inactive' ? {} : claimFields),
+      ...claimFields,
     })
     const license = await inheritFromRenewedLicense(tx, written)
     return { id: license.id, status: license.status }
   })
 }
 
-export type LicenseVerificationOutcome =
+type LicenseVerificationOutcome =
   | { kind: 'created' | 'updated'; license: AwsMarketplaceLicenseRecord }
   /** No row, and AWS described nothing to create one from. */
   | { kind: 'skipped' }
@@ -273,25 +338,20 @@ export async function recordLicenseVerification(input: {
   const stamp = licenseEventReceivedAt ? { licenseEventReceivedAt } : {}
   return db.transaction(async (tx) => {
     const accountId = verification.summary.customerAwsAccountId ?? input.fallbackAccountId
-    if (accountId && verification.summary.entitlementCount > 0) {
-      const [created] = await tx
-        .insert(awsMarketplaceLicense)
-        .values({
-          id: generateId(),
+    if (accountId && verification.summary.licenseSeen) {
+      const created = await insertNewLicense(
+        tx,
+        {
           licenseArn: input.licenseArn,
           productCode: input.productCode,
           customerAwsAccountId: accountId,
-          ...agreementFields(null, seen),
-          ...stamp,
-          ...verificationFields(null, verification),
-        })
-        .onConflictDoNothing({ target: awsMarketplaceLicense.licenseArn })
-        .returning()
-      if (created) {
-        const license = await inheritFromRenewedLicense(tx, created)
-        await enqueueTeamNotice(tx, { kind: 'new-license', licenseId: license.id, source: 'event' })
-        return { kind: 'created', license }
-      }
+          seen,
+          verification,
+          alongside: stamp,
+        },
+        'event'
+      )
+      if (created) return { kind: 'created', license: created }
     }
     const locked = await lockByArn(tx, input.licenseArn)
     if (!locked) return { kind: 'skipped' }
@@ -323,24 +383,16 @@ export async function recordLicenseVerification(input: {
  * Returns whether any stored license was involved.
  */
 export async function applyAgreementRenewal(input: {
-  productCode: string
+  products: AwsMarketplaceProducts
   previousAgreementId: string
   agreementId: string
 }): Promise<boolean> {
-  const { productCode, previousAgreementId, agreementId } = input
+  const { products, previousAgreementId, agreementId } = input
   return db.transaction(async (tx) => {
     const predecessors = await tx
       .select()
       .from(awsMarketplaceLicense)
-      .where(
-        and(
-          eq(awsMarketplaceLicense.productCode, productCode),
-          or(
-            eq(awsMarketplaceLicense.agreementId, previousAgreementId),
-            eq(awsMarketplaceLicense.renewedAgreementId, previousAgreementId)
-          )
-        )
-      )
+      .where(belongsToAgreement(products, previousAgreementId))
       .for('update')
     const accepted = predecessors.filter(
       (row) => row.renewedAgreementId === null || row.renewedAgreementId === previousAgreementId
@@ -359,37 +411,24 @@ export async function applyAgreementRenewal(input: {
     const successors = await tx
       .select()
       .from(awsMarketplaceLicense)
-      .where(
-        and(
-          eq(awsMarketplaceLicense.productCode, productCode),
-          eq(awsMarketplaceLicense.agreementId, agreementId)
-        )
-      )
+      .where(and(ofProducts(products), eq(awsMarketplaceLicense.agreementId, agreementId)))
       .for('update')
     for (const successor of successors) await inheritFromRenewedLicense(tx, successor)
 
     const licenseIds = [...accepted, ...successors].map((row) => row.id)
     if (licenseIds.length === 0) return false
-    const noticeId = `aws-marketplace-renewal-${agreementId}`
-    const [sent] = await tx
-      .select({ id: outboxEvent.id })
-      .from(outboxEvent)
-      .where(eq(outboxEvent.id, noticeId))
-      .limit(1)
-    if (!sent) {
-      await enqueueTeamNotice(
-        tx,
-        { kind: 'renewed', licenseIds, previousAgreementId, agreementId },
-        noticeId
-      )
-    }
+    await enqueueTeamNoticeOnce(
+      tx,
+      { kind: 'renewed', licenseIds, previousAgreementId, agreementId },
+      `aws-marketplace-renewal-${agreementId}`
+    )
     return true
   })
 }
 
 /** Tells the team of an AWS advisory on an agreement we hold; redelivery cannot send it twice. */
 export async function enqueueAgreementAdvisory(input: {
-  productCode: string
+  products: AwsMarketplaceProducts
   agreementId: string
   state: 'issued' | 'resolved'
   detail: string
@@ -399,35 +438,31 @@ export async function enqueueAgreementAdvisory(input: {
     const rows = await tx
       .select({ id: awsMarketplaceLicense.id })
       .from(awsMarketplaceLicense)
-      .where(belongsToAgreement(input.productCode, input.agreementId))
+      .where(belongsToAgreement(input.products, input.agreementId))
       .limit(MAX_LICENSES_PER_AGREEMENT)
     if (rows.length === 0) return false
-    const noticeId = `aws-marketplace-advisory-${input.messageId}`
-    const [sent] = await tx
-      .select({ id: outboxEvent.id })
-      .from(outboxEvent)
-      .where(eq(outboxEvent.id, noticeId))
-      .limit(1)
-    if (!sent) {
-      await enqueueTeamNotice(
-        tx,
-        {
-          kind: 'advisory',
-          licenseIds: rows.map((row) => row.id),
-          agreementId: input.agreementId,
-          state: input.state,
-          detail: input.detail,
-        },
-        noticeId
-      )
-    }
+    await enqueueTeamNoticeOnce(
+      tx,
+      {
+        kind: 'advisory',
+        licenseIds: rows.map((row) => row.id),
+        agreementId: input.agreementId,
+        state: input.state,
+        detail: input.detail,
+      },
+      `aws-marketplace-advisory-${input.messageId}`
+    )
     return true
   })
 }
 
-function belongsToAgreement(productCode: string, agreementId: string) {
+function ofProducts(products: AwsMarketplaceProducts) {
+  return inArray(awsMarketplaceLicense.productCode, [...products.keys()])
+}
+
+function belongsToAgreement(products: AwsMarketplaceProducts, agreementId: string) {
   return and(
-    eq(awsMarketplaceLicense.productCode, productCode),
+    ofProducts(products),
     or(
       eq(awsMarketplaceLicense.agreementId, agreementId),
       eq(awsMarketplaceLicense.renewedAgreementId, agreementId)
@@ -435,41 +470,67 @@ function belongsToAgreement(productCode: string, agreementId: string) {
   )
 }
 
+/** A license to re-read, with the product it was sold under. */
+interface LicenseToVerify {
+  licenseArn: string
+  product: AwsMarketplaceProduct
+}
+
+const LICENSE_TO_VERIFY_COLUMNS = {
+  licenseArn: awsMarketplaceLicense.licenseArn,
+  productCode: awsMarketplaceLicense.productCode,
+}
+
+/**
+ * The columns that point a license at `organizationId`, stamping when, since usage counts from
+ * the link. Every caller links only when the organization changes, so the stamp is the start of
+ * this organization's tenure on the license.
+ */
+function organizationLink(organizationId: string | null) {
+  return { organizationId, organizationLinkedAt: organizationId ? new Date() : null }
+}
+
+/** Pairs each row with its product; the queries already keep to configured products. */
+function withProducts(
+  rows: Array<{ licenseArn: string; productCode: string }>,
+  products: AwsMarketplaceProducts
+): LicenseToVerify[] {
+  return rows.flatMap(({ licenseArn, productCode }) => {
+    const product = products.get(productCode)
+    return product ? [{ licenseArn, product }] : []
+  })
+}
+
 /**
  * The licenses an agreement covers, least recently attempted first, so a redelivered message moves
  * on to the ones an earlier delivery did not reach.
  */
 export async function listLicensesForAgreement(
-  productCode: string,
+  products: AwsMarketplaceProducts,
   agreementId: string
-): Promise<string[]> {
+): Promise<LicenseToVerify[]> {
   const rows = await db
-    .select({ licenseArn: awsMarketplaceLicense.licenseArn })
+    .select(LICENSE_TO_VERIFY_COLUMNS)
     .from(awsMarketplaceLicense)
-    .where(belongsToAgreement(productCode, agreementId))
+    .where(belongsToAgreement(products, agreementId))
     .orderBy(asc(awsMarketplaceLicense.lastVerificationAttemptAt))
     .limit(MAX_LICENSES_PER_AGREEMENT)
-  return rows.map((row) => row.licenseArn)
+  return withProducts(rows, products)
 }
 
-/** This product's licenses longest since an attempt, up to `limit`, none attempted after `cutoff`. */
+/** Licenses of these products longest since an attempt, up to `limit`, none after `cutoff`. */
 export async function listLicensesDueForReverify(
-  productCode: string,
+  products: AwsMarketplaceProducts,
   cutoff: Date,
   limit: number
-): Promise<string[]> {
+): Promise<LicenseToVerify[]> {
   const rows = await db
-    .select({ licenseArn: awsMarketplaceLicense.licenseArn })
+    .select(LICENSE_TO_VERIFY_COLUMNS)
     .from(awsMarketplaceLicense)
-    .where(
-      and(
-        eq(awsMarketplaceLicense.productCode, productCode),
-        lt(awsMarketplaceLicense.lastVerificationAttemptAt, cutoff)
-      )
-    )
+    .where(and(ofProducts(products), lt(awsMarketplaceLicense.lastVerificationAttemptAt, cutoff)))
     .orderBy(asc(awsMarketplaceLicense.lastVerificationAttemptAt))
     .limit(limit)
-  return rows.map((row) => row.licenseArn)
+  return withProducts(rows, products)
 }
 
 /** Stamps an attempt to verify a license, before its outcome is known. */
@@ -504,13 +565,14 @@ export async function lockLicense(
   return row ?? null
 }
 
-interface BuyerContact {
-  email: string
+/** Whom to contact about provisioning; AWS asks the registration page to collect it. */
+export interface BuyerContact {
+  contactEmail: string
   companyName: string | null
 }
 
 function contactChanged(locked: AwsMarketplaceLicenseRecord, contact: BuyerContact): boolean {
-  return locked.contactEmail !== contact.email || locked.companyName !== contact.companyName
+  return locked.contactEmail !== contact.contactEmail || locked.companyName !== contact.companyName
 }
 
 /**
@@ -529,10 +591,10 @@ export async function consumeLicenseClaim(
   }
 ): Promise<AwsMarketplaceLicenseRecord> {
   const license = await applyVerification(tx, locked, input.verification, {
-    contactEmail: input.contact.email,
+    contactEmail: input.contact.contactEmail,
     companyName: input.contact.companyName,
     ...(input.link && {
-      organizationId: input.link.organizationId,
+      ...organizationLink(input.link.organizationId),
       linkedByUserId: input.link.userId,
     }),
     claimTokenHash: null,
@@ -561,7 +623,7 @@ export async function saveLicenseContact(
 ): Promise<AwsMarketplaceLicenseRecord> {
   const changed = contactChanged(locked, input.contact)
   const license = await applyVerification(tx, locked, input.verification, {
-    contactEmail: input.contact.email,
+    contactEmail: input.contact.contactEmail,
     companyName: input.contact.companyName,
   })
   if (changed) await enqueueTeamNotice(tx, { kind: 'contact', licenseId: license.id })
@@ -613,15 +675,20 @@ export async function listAccountLicenses(userId: string) {
 }
 
 /**
- * Whether AWS Marketplace bills this billing reference: a license that is not inactive, linked to
- * the organization, or registered to the user's account with no organization yet.
+ * Whether AWS Marketplace bills this billing reference: a license of a listing this deployment
+ * sells that is not inactive, linked to the organization, or registered to the user's account with
+ * no organization yet.
  */
-export async function holdsMarketplaceLicense(referenceId: string): Promise<boolean> {
+export async function holdsMarketplaceLicense(
+  products: AwsMarketplaceProducts,
+  referenceId: string
+): Promise<boolean> {
   const [row] = await db
     .select({ id: awsMarketplaceLicense.id })
     .from(awsMarketplaceLicense)
     .where(
       and(
+        ofProducts(products),
         ne(awsMarketplaceLicense.status, 'inactive'),
         or(
           eq(awsMarketplaceLicense.organizationId, referenceId),
@@ -666,10 +733,39 @@ export async function linkLicenseForTeam(
 ): Promise<AwsMarketplaceLicenseRecord> {
   const [license] = await tx
     .update(awsMarketplaceLicense)
-    .set({ organizationId, claimTokenHash: null, claimExpiresAt: null, updatedAt: new Date() })
+    .set({
+      ...organizationLink(organizationId),
+      claimTokenHash: null,
+      claimExpiresAt: null,
+      updatedAt: new Date(),
+    })
     .where(eq(awsMarketplaceLicense.id, licenseId))
     .returning()
   return license
+}
+
+/**
+ * Whether the organization has a live Stripe subscription to a self-serve plan: any it is bound to
+ * that has not finished, since a trial or a payment still pending turns into a charge. Enterprise
+ * is provisioned by the team, who pause its collection for a Marketplace customer.
+ */
+export async function paysForSelfServePlan(
+  tx: DbTransaction,
+  organizationId: string
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: subscription.id })
+    .from(subscription)
+    .where(
+      and(
+        eq(subscription.referenceId, organizationId),
+        isNotNull(subscription.stripeSubscriptionId),
+        notInArray(subscription.status, [...TERMINAL_SUBSCRIPTION_STATUSES]),
+        ne(subscription.plan, 'enterprise')
+      )
+    )
+    .limit(1)
+  return Boolean(row)
 }
 
 export async function organizationExists(tx: DbTransaction, organizationId: string) {
@@ -717,10 +813,12 @@ export async function getLicensesByIds(licenseIds: readonly string[]) {
     .where(inArray(awsMarketplaceLicense.id, [...licenseIds]))
 }
 
-/** Organizations already linked to another license of this AWS account, for the team to match. */
+/**
+ * Organizations already linked to another license of this AWS account, on any listing, for the
+ * team to match: a buyer moving to a new listing usually wants the organization they already have.
+ */
 export async function listOrganizationsLinkedToAccount(input: {
   customerAwsAccountId: string
-  productCode: string
   excludingLicenseArn: string
 }): Promise<Array<{ id: string; name: string }>> {
   return db
@@ -730,7 +828,6 @@ export async function listOrganizationsLinkedToAccount(input: {
     .where(
       and(
         eq(awsMarketplaceLicense.customerAwsAccountId, input.customerAwsAccountId),
-        eq(awsMarketplaceLicense.productCode, input.productCode),
         ne(awsMarketplaceLicense.licenseArn, input.excludingLicenseArn)
       )
     )

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
+import { type BackoffOptions, backoffWithJitter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { env } from '@/lib/core/config/env'
 import { isMothershipBenchmarkEnabled } from '@/lib/core/config/env-flags'
@@ -21,6 +22,25 @@ import { executeSimControl } from '@/lib/mothership/transport/control'
 
 const logger = createLogger('MothershipTransportReceiver')
 const receivers = new Map<string, AbortController>()
+
+/**
+ * A lost connection or a worker deploy: retry within a second, slowing to 4 s, so with jitter a
+ * healthy deployment is back inside the worker's 5 s run-control deadline.
+ */
+const TRANSIENT_BACKOFF: BackoffOptions = { baseMs: 1000, maxMs: 4000 }
+/**
+ * The worker rejected this deployment's key, which only an operator can fix: start at 30 s and
+ * slow to 10 minutes, so a misconfigured deployment polls a few hundred times a day, not every
+ * second, and still reconnects on its own once the key is accepted.
+ */
+const REFUSED_BACKOFF: BackoffOptions = { baseMs: 30_000, maxMs: 600_000 }
+
+/** The worker refused this deployment's key (401/403), as opposed to failing to answer. */
+class TransportKeyRefused extends Error {
+  constructor(readonly status: number) {
+    super(`Transport key refused (HTTP ${status})`)
+  }
+}
 
 interface ReceivedControl {
   id: string
@@ -61,6 +81,8 @@ export async function receiveSimControls(
   channelId: string,
   signal: AbortSignal
 ): Promise<void> {
+  let failures = 0
+  let outage: 'disconnected' | 'key_refused' | undefined
   while (!signal.aborted) {
     let phase: 'poll' | 'parse' | 'reply' = 'poll'
     try {
@@ -75,6 +97,9 @@ export async function receiveSimControls(
       })
       if (!response.ok) {
         await response.body?.cancel()
+        if (response.status === 401 || response.status === 403) {
+          throw new TransportKeyRefused(response.status)
+        }
         throw new Error(`Transport poll refused (HTTP ${response.status})`)
       }
       phase = 'parse'
@@ -101,13 +126,35 @@ export async function receiveSimControls(
       )
       const failed = replies.find((reply) => reply.status === 'rejected')
       if (failed?.status === 'rejected') throw failed.reason
+      // Only a whole iteration (poll, batch, replies) ends an outage.
+      if (outage) {
+        logger.info('Sim transport reconnected')
+        outage = undefined
+      }
     } catch (error) {
       if (signal.aborted) return
-      logger.warn('Sim transport disconnected; reconnecting', {
-        phase,
-        error: getErrorMessage(error),
-      })
-      await sleep(1000)
+      const keyRefused = error instanceof TransportKeyRefused
+      const kind = keyRefused ? 'key_refused' : 'disconnected'
+      // One line per outage, and again only when it changes kind, not one per retry.
+      if (outage !== kind) {
+        outage = kind
+        failures = 0
+        if (keyRefused) {
+          logger.warn('Sim transport key refused by the worker; check COPILOT_API_KEY', {
+            status: error.status,
+          })
+        } else {
+          logger.warn('Sim transport disconnected; reconnecting', {
+            phase,
+            error: getErrorMessage(error),
+          })
+        }
+      }
+      failures++
+      await interruptibleSleep(
+        backoffWithJitter(failures, null, keyRefused ? REFUSED_BACKOFF : TRANSIENT_BACKOFF),
+        signal
+      )
     }
   }
 }

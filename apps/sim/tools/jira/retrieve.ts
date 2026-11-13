@@ -6,188 +6,11 @@ import {
 } from '@/lib/uploads/utils/attachment-download-budget'
 import type { JiraRetrieveParams, JiraRetrieveResponse } from '@/tools/jira/types'
 import { ISSUE_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
-import {
-  downloadJiraAttachments,
-  extractAdfText,
-  getJiraCloudId,
-  transformUser,
-} from '@/tools/jira/utils'
+import { downloadJiraAttachments, getJiraCloudId, transformIssueData } from '@/tools/jira/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('JiraRetrieveTool')
-
-/**
- * Transforms a raw Jira API issue response into a fully typed output.
- */
-function transformIssueData(data: any) {
-  const fields = data?.fields ?? {}
-  return {
-    id: data?.id ?? '',
-    issueKey: data?.key ?? '',
-    key: data?.key ?? '',
-    self: data?.self ?? '',
-    summary: fields.summary ?? '',
-    description: extractAdfText(fields.description),
-    status: {
-      id: fields.status?.id ?? '',
-      name: fields.status?.name ?? '',
-      description: fields.status?.description ?? null,
-      statusCategory: fields.status?.statusCategory
-        ? {
-            id: fields.status.statusCategory.id,
-            key: fields.status.statusCategory.key ?? '',
-            name: fields.status.statusCategory.name ?? '',
-            colorName: fields.status.statusCategory.colorName ?? '',
-          }
-        : undefined,
-    },
-    issuetype: {
-      id: fields.issuetype?.id ?? '',
-      name: fields.issuetype?.name ?? '',
-      description: fields.issuetype?.description ?? null,
-      subtask: fields.issuetype?.subtask ?? false,
-      iconUrl: fields.issuetype?.iconUrl ?? null,
-    },
-    project: {
-      id: fields.project?.id ?? '',
-      key: fields.project?.key ?? '',
-      name: fields.project?.name ?? '',
-      projectTypeKey: fields.project?.projectTypeKey ?? null,
-    },
-    priority: fields.priority
-      ? {
-          id: fields.priority.id ?? '',
-          name: fields.priority.name ?? '',
-          iconUrl: fields.priority.iconUrl ?? null,
-        }
-      : null,
-    statusName: fields.status?.name ?? '',
-    assignee: transformUser(fields.assignee),
-    assigneeName: fields.assignee?.displayName ?? fields.assignee?.accountId ?? null,
-    reporter: transformUser(fields.reporter),
-    creator: transformUser(fields.creator),
-    labels: fields.labels ?? [],
-    components: (fields.components ?? []).map((c: any) => ({
-      id: c.id ?? '',
-      name: c.name ?? '',
-      description: c.description ?? null,
-    })),
-    fixVersions: (fields.fixVersions ?? []).map((v: any) => ({
-      id: v.id ?? '',
-      name: v.name ?? '',
-      released: v.released ?? null,
-      releaseDate: v.releaseDate ?? null,
-    })),
-    resolution: fields.resolution
-      ? {
-          id: fields.resolution.id ?? '',
-          name: fields.resolution.name ?? '',
-          description: fields.resolution.description ?? null,
-        }
-      : null,
-    duedate: fields.duedate ?? null,
-    created: fields.created ?? '',
-    updated: fields.updated ?? '',
-    resolutiondate: fields.resolutiondate ?? null,
-    timetracking: fields.timetracking
-      ? {
-          originalEstimate: fields.timetracking.originalEstimate ?? null,
-          remainingEstimate: fields.timetracking.remainingEstimate ?? null,
-          timeSpent: fields.timetracking.timeSpent ?? null,
-          originalEstimateSeconds: fields.timetracking.originalEstimateSeconds ?? null,
-          remainingEstimateSeconds: fields.timetracking.remainingEstimateSeconds ?? null,
-          timeSpentSeconds: fields.timetracking.timeSpentSeconds ?? null,
-        }
-      : null,
-    parent: fields.parent
-      ? {
-          id: fields.parent.id ?? '',
-          key: fields.parent.key ?? '',
-          summary: fields.parent.fields?.summary ?? null,
-        }
-      : null,
-    issuelinks: (fields.issuelinks ?? []).map((link: any) => ({
-      id: link.id ?? '',
-      type: {
-        id: link.type?.id ?? '',
-        name: link.type?.name ?? '',
-        inward: link.type?.inward ?? '',
-        outward: link.type?.outward ?? '',
-      },
-      inwardIssue: link.inwardIssue
-        ? {
-            id: link.inwardIssue.id ?? '',
-            key: link.inwardIssue.key ?? '',
-            statusName: link.inwardIssue.fields?.status?.name ?? null,
-            summary: link.inwardIssue.fields?.summary ?? null,
-          }
-        : null,
-      outwardIssue: link.outwardIssue
-        ? {
-            id: link.outwardIssue.id ?? '',
-            key: link.outwardIssue.key ?? '',
-            statusName: link.outwardIssue.fields?.status?.name ?? null,
-            summary: link.outwardIssue.fields?.summary ?? null,
-          }
-        : null,
-    })),
-    subtasks: (fields.subtasks ?? []).map((sub: any) => ({
-      id: sub.id ?? '',
-      key: sub.key ?? '',
-      summary: sub.fields?.summary ?? '',
-      statusName: sub.fields?.status?.name ?? '',
-      issueTypeName: sub.fields?.issuetype?.name ?? null,
-    })),
-    votes: fields.votes
-      ? {
-          votes: fields.votes.votes ?? 0,
-          hasVoted: fields.votes.hasVoted ?? false,
-        }
-      : null,
-    watches:
-      (fields.watches ?? fields.watcher)
-        ? {
-            watchCount: (fields.watches ?? fields.watcher)?.watchCount ?? 0,
-            isWatching: (fields.watches ?? fields.watcher)?.isWatching ?? false,
-          }
-        : null,
-    comments: ((fields.comment?.comments ?? fields.comment) || []).map((c: any) => ({
-      id: c.id ?? '',
-      body: extractAdfText(c.body) ?? '',
-      author: transformUser(c.author),
-      authorName: c.author?.displayName ?? c.author?.accountId ?? 'Unknown',
-      updateAuthor: transformUser(c.updateAuthor),
-      created: c.created ?? '',
-      updated: c.updated ?? '',
-      visibility: c.visibility
-        ? { type: c.visibility.type ?? '', value: c.visibility.value ?? '' }
-        : null,
-    })),
-    worklogs: ((fields.worklog?.worklogs ?? fields.worklog) || []).map((w: any) => ({
-      id: w.id ?? '',
-      author: transformUser(w.author),
-      authorName: w.author?.displayName ?? w.author?.accountId ?? 'Unknown',
-      updateAuthor: transformUser(w.updateAuthor),
-      comment: w.comment ? (extractAdfText(w.comment) ?? null) : null,
-      started: w.started ?? '',
-      timeSpent: w.timeSpent ?? '',
-      timeSpentSeconds: w.timeSpentSeconds ?? 0,
-      created: w.created ?? '',
-      updated: w.updated ?? '',
-    })),
-    attachments: (fields.attachment ?? []).map((att: any) => ({
-      id: att.id ?? '',
-      filename: att.filename ?? '',
-      mimeType: att.mimeType ?? '',
-      size: att.size ?? 0,
-      content: att.content ?? '',
-      thumbnail: att.thumbnail ?? null,
-      author: transformUser(att.author),
-      authorName: att.author?.displayName ?? att.author?.accountId ?? 'Unknown',
-      created: att.created ?? '',
-    })),
-  }
-}
 
 export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveResponse> = {
   id: 'jira_retrieve',
@@ -237,7 +60,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
   request: {
     url: (params: JiraRetrieveParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -262,7 +85,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     }
 
     const fetchIssue = async (cloudId: string) => {
-      const issueUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
+      const issueUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
       const issueResponse = await fetch(issueUrl, {
         method: 'GET',
         signal: context?.signal,
@@ -295,7 +118,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     }
 
     const fetchSupplementary = async (cloudId: string, data: any) => {
-      const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}`
+      const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}`
       const [commentsResp, worklogResp, watchersResp] = await Promise.all([
         fetch(`${base}/comment?maxResults=100&orderBy=-created`, {
           headers: { Accept: 'application/json', Authorization: `Bearer ${params.accessToken}` },
@@ -368,14 +191,22 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
       if (!response.ok) {
         let message = `Failed to fetch Jira issue (${response.status})`
         try {
-          const err = await response.json()
+          const err = await readAttachmentJson<{ message?: string; errorMessages?: string[] }>(
+            response,
+            'Jira error response',
+            context?.signal
+          )
           message = err?.message || err?.errorMessages?.[0] || message
         } catch (_e) {
           rethrowAttachmentDownloadError(_e, context?.signal)
         }
         throw new Error(message)
       }
-      data = await response.json()
+      data = await readAttachmentJson<Record<string, unknown>>(
+        response,
+        'Jira issue',
+        context?.signal
+      )
       await fetchSupplementary(params.cloudId, data)
     }
 

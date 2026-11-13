@@ -3,6 +3,7 @@ import {
   QDRANT_RESPONSE_OUTPUT_PROPERTIES,
   UPSERT_RESULT_OUTPUT_PROPERTIES,
 } from '@/tools/qdrant/types'
+import { QDRANT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = {
@@ -10,6 +11,7 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
   name: 'Qdrant Upsert Points',
   description: 'Insert or update points in a Qdrant collection',
   version: '1.0',
+  oauth: QDRANT_CREDENTIAL_OAUTH,
 
   params: {
     url: {

@@ -25,6 +25,7 @@ export interface CloudWatchGetLogEventsParams extends CloudWatchConnectionConfig
   startTime?: number
   endTime?: number
   limit?: number
+  nextToken?: string
 }
 
 export interface CloudWatchQueryLogsResponse extends ToolResponse {
@@ -36,6 +37,7 @@ export interface CloudWatchQueryLogsResponse extends ToolResponse {
       recordsScanned: number
     }
     status: string
+    queryId?: string | null
   }
 }
 
@@ -58,6 +60,8 @@ export interface CloudWatchGetLogEventsResponse extends ToolResponse {
       message: string | undefined
       ingestionTime: number | undefined
     }[]
+    nextForwardToken?: string | null
+    nextBackwardToken?: string | null
   }
 }
 
@@ -102,8 +106,10 @@ export interface CloudWatchGetMetricStatisticsParams extends CloudWatchConnectio
   startTime: number
   endTime: number
   period: number
-  statistics: string[]
+  statistics?: string[]
   dimensions?: string
+  extendedStatistics?: string[]
+  unit?: string
 }
 
 export interface CloudWatchGetMetricStatisticsResponse extends ToolResponse {
@@ -117,6 +123,7 @@ export interface CloudWatchGetMetricStatisticsResponse extends ToolResponse {
       maximum?: number
       sampleCount?: number
       unit?: string
+      extendedStatistics?: Record<string, number>
     }[]
   }
 }
@@ -126,6 +133,7 @@ export interface CloudWatchDescribeAlarmsParams extends CloudWatchConnectionConf
   stateValue?: string
   alarmType?: string
   limit?: number
+  nextToken?: string
 }
 
 export interface CloudWatchDescribeAlarmsResponse extends ToolResponse {
@@ -141,7 +149,27 @@ export interface CloudWatchDescribeAlarmsResponse extends ToolResponse {
       threshold: number | undefined
       evaluationPeriods: number | undefined
       stateUpdatedTimestamp: number | undefined
+      alarmType?: string
+      alarmDescription?: string
+      actionsEnabled?: boolean
+      alarmActions?: string[]
+      okActions?: string[]
+      insufficientDataActions?: string[]
+      stateReasonData?: string
+      stateTransitionedTimestamp?: number
+      alarmConfigurationUpdatedTimestamp?: number
+      statistic?: string
+      extendedStatistic?: string
+      dimensions?: { name: string; value: string }[]
+      period?: number
+      unit?: string
+      datapointsToAlarm?: number
+      treatMissingData?: string
+      thresholdMetricId?: string
+      metrics?: Record<string, unknown>[]
+      alarmRule?: string
     }[]
+    nextToken?: string | null
   }
 }
 
@@ -222,6 +250,8 @@ export interface CloudWatchDescribeAlarmHistoryResponse extends ToolResponse {
       timestamp: number | undefined
       historyItemType: string | undefined
       historySummary: string | undefined
+      historyData?: string
+      alarmContributorId?: string
     }[]
   }
 }
@@ -234,6 +264,7 @@ export interface CloudWatchFilterLogEventsParams extends CloudWatchConnectionCon
   endTime?: number
   startFromHead?: boolean
   limit?: number
+  nextToken?: string
 }
 
 export interface CloudWatchFilterLogEventsResponse extends ToolResponse {
@@ -243,7 +274,9 @@ export interface CloudWatchFilterLogEventsResponse extends ToolResponse {
       timestamp: number | undefined
       message: string | undefined
       ingestionTime: number | undefined
+      eventId?: string
     }[]
+    nextToken?: string | null
   }
 }
 

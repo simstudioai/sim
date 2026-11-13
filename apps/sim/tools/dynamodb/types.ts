@@ -10,6 +10,8 @@ export interface DynamoDBGetParams extends DynamoDBConnectionConfig {
   tableName: string
   key: Record<string, unknown>
   consistentRead?: boolean
+  projectionExpression?: string
+  expressionAttributeNames?: Record<string, string>
 }
 
 export interface DynamoDBPutParams extends DynamoDBConnectionConfig {
@@ -18,6 +20,7 @@ export interface DynamoDBPutParams extends DynamoDBConnectionConfig {
   conditionExpression?: string
   expressionAttributeNames?: Record<string, string>
   expressionAttributeValues?: Record<string, unknown>
+  returnValues?: 'NONE' | 'ALL_OLD'
 }
 
 export interface DynamoDBQueryParams extends DynamoDBConnectionConfig {
@@ -30,6 +33,8 @@ export interface DynamoDBQueryParams extends DynamoDBConnectionConfig {
   limit?: number
   exclusiveStartKey?: Record<string, unknown>
   scanIndexForward?: boolean
+  projectionExpression?: string
+  consistentRead?: boolean
 }
 
 export interface DynamoDBScanParams extends DynamoDBConnectionConfig {
@@ -40,6 +45,10 @@ export interface DynamoDBScanParams extends DynamoDBConnectionConfig {
   expressionAttributeValues?: Record<string, unknown>
   limit?: number
   exclusiveStartKey?: Record<string, unknown>
+  indexName?: string
+  consistentRead?: boolean
+  segment?: number
+  totalSegments?: number
 }
 
 export interface DynamoDBUpdateParams extends DynamoDBConnectionConfig {
@@ -49,6 +58,7 @@ export interface DynamoDBUpdateParams extends DynamoDBConnectionConfig {
   expressionAttributeNames?: Record<string, string>
   expressionAttributeValues?: Record<string, unknown>
   conditionExpression?: string
+  returnValues?: 'NONE' | 'ALL_OLD' | 'UPDATED_OLD' | 'ALL_NEW' | 'UPDATED_NEW'
 }
 
 export interface DynamoDBDeleteParams extends DynamoDBConnectionConfig {
@@ -57,6 +67,7 @@ export interface DynamoDBDeleteParams extends DynamoDBConnectionConfig {
   conditionExpression?: string
   expressionAttributeNames?: Record<string, string>
   expressionAttributeValues?: Record<string, unknown>
+  returnValues?: 'NONE' | 'ALL_OLD'
 }
 
 interface DynamoDBBaseResponse extends ToolResponse {
@@ -65,7 +76,9 @@ interface DynamoDBBaseResponse extends ToolResponse {
     item?: Record<string, unknown>
     items?: Record<string, unknown>[]
     count?: number
+    scannedCount?: number | null
     lastEvaluatedKey?: Record<string, unknown>
+    attributes?: Record<string, unknown> | null
   }
 }
 
@@ -106,6 +119,12 @@ export interface DynamoDBTableSchema {
   itemCount: number
   tableSizeBytes: number
   billingMode: string
+  tableArn?: string | null
+  creationDateTime?: string | null
+  deletionProtectionEnabled?: boolean | null
+  streamEnabled?: boolean | null
+  streamViewType?: string | null
+  latestStreamArn?: string | null
 }
 
 export interface DynamoDBIntrospectResponse extends ToolResponse {

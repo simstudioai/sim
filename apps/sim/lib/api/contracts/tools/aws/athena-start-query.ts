@@ -25,6 +25,10 @@ const StartQuerySchema = athenaConnectionSchema.extend({
     (v) => (v === '' || v === undefined || v === null ? undefined : v),
     z.coerce.number().int().min(0).max(10080).optional()
   ),
+  encryptionOption: z.enum(['SSE_S3', 'SSE_KMS', 'CSE_KMS']).optional(),
+  kmsKey: z.string().optional(),
+  expectedBucketOwner: z.string().optional(),
+  clientRequestToken: z.string().min(32).max(128).optional(),
 })
 
 const StartQueryResponseSchema = z.object({

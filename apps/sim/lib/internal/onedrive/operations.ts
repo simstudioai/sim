@@ -26,8 +26,12 @@ import { getExtensionFromMimeType, processSingleFileToUserFile } from '@/lib/upl
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
-import type { OneDriveToolParams } from '@/tools/onedrive/types'
-import { normalizeExcelValues } from '@/tools/onedrive/utils'
+import type {
+  MicrosoftGraphDriveItem,
+  MicrosoftGraphIdentitySet,
+  OneDriveToolParams,
+} from '@/tools/onedrive/types'
+import { driveItemDetails, normalizeExcelValues } from '@/tools/onedrive/utils'
 
 const MAX_GRAPH_JSON_BYTES = 2 * 1024 * 1024
 const MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
@@ -67,6 +71,11 @@ interface OneDriveFileData extends Record<string, unknown> {
   file?: { mimeType?: string }
   parentReference?: { id: string; path: string }
   '@microsoft.graph.downloadUrl'?: string
+  folder?: MicrosoftGraphDriveItem['folder']
+  description?: string
+  eTag?: string
+  createdBy?: MicrosoftGraphIdentitySet
+  lastModifiedBy?: MicrosoftGraphIdentitySet
 }
 
 interface ExcelWriteResult {
@@ -128,6 +137,7 @@ function uploadedFileOutput(fileData: OneDriveFileData, mimeType: string) {
     createdTime: fileData.createdDateTime,
     modifiedTime: fileData.lastModifiedDateTime,
     parentReference: fileData.parentReference,
+    ...driveItemDetails(fileData),
   }
 }
 
@@ -379,7 +389,7 @@ export async function uploadOneDriveFile(
   let uploadUrl = folderId
     ? `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(folderId)}:/${encodedName}:/content`
     : `https://graph.microsoft.com/v1.0/me/drive/root:/${encodedName}:/content`
-  if (isStoredFileMode && input.conflictBehavior) {
+  if (input.conflictBehavior) {
     uploadUrl += `?@microsoft.graph.conflictBehavior=${input.conflictBehavior}`
   }
   const uploadResponse = await graphRequest(

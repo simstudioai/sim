@@ -1600,5 +1600,6 @@ export const ApolloV2Block: BlockConfig = {
     type: 'oauth-input',
     serviceId: 'apollo',
     title: 'Apollo Credential',
+    credentialKind: 'any',
   }),
 }

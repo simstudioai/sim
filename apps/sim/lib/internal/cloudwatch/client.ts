@@ -220,6 +220,7 @@ interface FilteredLogEventResult {
   timestamp: number | undefined
   message: string | undefined
   ingestionTime: number | undefined
+  eventId: string | undefined
 }
 
 /**
@@ -229,6 +230,8 @@ interface FilteredLogEventResult {
  *
  * When `limit` is provided it is treated as a total result cap: draining stops
  * once enough events have been collected. When omitted, every page is drained.
+ * Each page requests at most the remaining cap, so the returned `nextToken`
+ * resumes exactly after the last returned event.
  */
 export async function filterLogEvents(
   client: CloudWatchLogsClient,
@@ -240,12 +243,13 @@ export async function filterLogEvents(
     endTime?: number
     startFromHead?: boolean
     limit?: number
+    nextToken?: string
   },
   signal?: AbortSignal
-): Promise<{ events: FilteredLogEventResult[] }> {
+): Promise<{ events: FilteredLogEventResult[]; nextToken: string | undefined }> {
   const totalLimit = options?.limit
   const events: FilteredLogEventResult[] = []
-  let nextToken: string | undefined
+  let nextToken: string | undefined = options?.nextToken
 
   for (let page = 0; page < MAX_FILTER_LOG_EVENTS_PAGES; page++) {
     const pageLimit =
@@ -272,6 +276,7 @@ export async function filterLogEvents(
         timestamp: e.timestamp,
         message: e.message,
         ingestionTime: e.ingestionTime,
+        eventId: e.eventId,
       })
     }
 
@@ -289,6 +294,7 @@ export async function filterLogEvents(
 
   return {
     events: totalLimit !== undefined ? events.slice(0, totalLimit) : events,
+    nextToken,
   }
 }
 
@@ -296,7 +302,7 @@ export async function getLogEvents(
   client: CloudWatchLogsClient,
   logGroupName: string,
   logStreamName: string,
-  options?: { startTime?: number; endTime?: number; limit?: number },
+  options?: { startTime?: number; endTime?: number; limit?: number; nextToken?: string },
   signal?: AbortSignal
 ): Promise<{
   events: {
@@ -304,6 +310,8 @@ export async function getLogEvents(
     message: string | undefined
     ingestionTime: number | undefined
   }[]
+  nextForwardToken: string | undefined
+  nextBackwardToken: string | undefined
 }> {
   const command = new GetLogEventsCommand({
     logGroupName,
@@ -311,6 +319,7 @@ export async function getLogEvents(
     ...(options?.startTime !== undefined && { startTime: options.startTime * 1000 }),
     ...(options?.endTime !== undefined && { endTime: options.endTime * 1000 }),
     ...(options?.limit !== undefined && { limit: options.limit }),
+    ...(options?.nextToken && { nextToken: options.nextToken }),
     startFromHead: true,
   })
 
@@ -321,5 +330,7 @@ export async function getLogEvents(
       message: e.message,
       ingestionTime: e.ingestionTime,
     })),
+    nextForwardToken: response.nextForwardToken,
+    nextBackwardToken: response.nextBackwardToken,
   }
 }

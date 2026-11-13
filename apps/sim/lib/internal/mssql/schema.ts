@@ -2,6 +2,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 
 export const mssqlToggleSchema = z.enum(['enabled', 'disabled'])
+/** An on/off SQL Server connection setting, used for `encrypt` and `trustServerCertificate`. */
+export type MssqlToggle = z.output<typeof mssqlToggleSchema>
+
+export const MSSQL_DEFAULT_CONNECTION_TIMEOUT_MS = 15_000
 
 const nonEmptyRecordSchema = (message: string) =>
   z.record(z.string(), z.unknown()).refine((value) => Object.keys(value).length > 0, { message })
@@ -52,7 +56,7 @@ export const mssqlConnectionInputSchema = z.object({
     .int()
     .min(1000, 'connectionTimeout must be at least 1000 ms')
     .max(120000, 'connectionTimeout must be at most 120000 ms')
-    .default(15000),
+    .default(MSSQL_DEFAULT_CONNECTION_TIMEOUT_MS),
 })
 
 export const mssqlQueryInputSchema = mssqlConnectionInputSchema.extend({

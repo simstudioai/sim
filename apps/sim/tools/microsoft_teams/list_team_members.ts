@@ -3,6 +3,7 @@ import type {
   MicrosoftTeamsToolParams,
 } from '@/tools/microsoft_teams/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listTeamMembersTool: ToolConfig<
   MicrosoftTeamsToolParams,
@@ -45,7 +46,7 @@ export const listTeamMembersTool: ToolConfig<
       if (!teamId) {
         throw new Error('Team ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/members`
+      return `https://graph.microsoft.com/v1.0/teams/${safeUrlPathSegment(teamId, 'Team ID')}/members`
     },
     method: 'GET',
     headers: (params) => {

@@ -2,6 +2,7 @@ import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import { throttledRetryAfterMs } from '@/lib/credentials/token-service-accounts/errors'
 import type { CrowdStrikeCloud, CrowdStrikeInlineCredentials } from '@/tools/crowdstrike/types'
 
 export type JsonRecord = Record<string, unknown>
@@ -160,7 +161,12 @@ export function getFalconErrorMessage(data: unknown, fallback: string): string {
 export class CrowdStrikeAuthError extends Error {
   readonly status: number
 
-  constructor(message: string, status: number) {
+  constructor(
+    message: string,
+    status: number,
+    /** The token endpoint's `Retry-After` on a 429 or 503, in milliseconds. */
+    readonly retryAfterMs?: number
+  ) {
     super(message)
     this.name = 'CrowdStrikeAuthError'
     this.status = status >= 400 && status <= 599 ? status : 502
@@ -220,7 +226,8 @@ export class CrowdStrikeTokenRedirectError extends Error {
  * With `followRedirects: false` a redirect is never followed and throws
  * {@link CrowdStrikeTokenRedirectError}, so the secret reaches no other host;
  * the legacy block's inline path keeps following one as it always has. A
- * refusal throws {@link CrowdStrikeAuthError} with Falcon's status.
+ * refusal throws {@link CrowdStrikeAuthError} with Falcon's status and
+ * `Retry-After`, even when its error body cannot be read.
  *
  * @see https://developer.crowdstrike.com/api-reference/collections/oauth2.md
  */
@@ -258,12 +265,15 @@ export async function requestCrowdStrikeToken(
     )
   }
 
-  const data = await readFalconJson(response, signal)
+  const data = response.ok
+    ? await readFalconJson(response, signal)
+    : await readFalconJson(response, signal).catch(() => null)
   signal?.throwIfAborted()
   if (!response.ok) {
     throw new CrowdStrikeAuthError(
       getFalconErrorMessage(data, 'Failed to authenticate with CrowdStrike'),
-      response.status
+      response.status,
+      throttledRetryAfterMs(response)
     )
   }
   if (!isRecordLike(data) || typeof data.access_token !== 'string' || !data.access_token.trim()) {

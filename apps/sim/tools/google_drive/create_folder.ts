@@ -1,7 +1,13 @@
 import { createLogger } from '@sim/logger'
-import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from '@/tools/google_drive/types'
-import { ALL_FILE_FIELDS } from '@/tools/google_drive/utils'
-import type { ToolConfig } from '@/tools/types'
+import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import type {
+  GoogleDriveFile,
+  GoogleDriveToolParams,
+  GoogleDriveUploadResponse,
+} from '@/tools/google_drive/types'
+import { ALL_FILE_FIELDS, MAX_METADATA_RESPONSE_BYTES } from '@/tools/google_drive/utils'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('GoogleDriveCreateFolderTool')
 
@@ -70,7 +76,11 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
     },
   },
 
-  transformResponse: async (response: Response, params?: GoogleDriveToolParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: GoogleDriveToolParams,
+    context?: ToolResponseContext
+  ) => {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       logger.error('Failed to create folder in Google Drive', {
@@ -87,15 +97,17 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
 
     // Fetch complete folder metadata with all fields
     const metadataResponse = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${folderId}?supportsAllDrives=true&fields=${ALL_FILE_FIELDS}`,
+      `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(folderId, 'folderId')}?supportsAllDrives=true&fields=${ALL_FILE_FIELDS}`,
       {
         headers: {
           Authorization: authHeader,
         },
+        signal: context?.signal,
       }
     )
 
     if (!metadataResponse.ok) {
+      await consumeOrCancelBody(metadataResponse)
       logger.warn('Failed to fetch complete metadata, returning basic response', {
         status: metadataResponse.status,
         statusText: metadataResponse.statusText,
@@ -109,7 +121,11 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
       }
     }
 
-    const fullMetadata = await metadataResponse.json()
+    const fullMetadata = await readResponseJsonWithLimit<GoogleDriveFile>(metadataResponse, {
+      maxBytes: MAX_METADATA_RESPONSE_BYTES,
+      label: 'Google Drive folder metadata',
+      signal: context?.signal,
+    })
 
     logger.info('Folder created successfully', {
       folderId: fullMetadata.id,

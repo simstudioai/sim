@@ -7,7 +7,7 @@ import { AgiloftBlock, AgiloftBlockMeta } from '@/blocks/blocks/agiloft'
 import { AhrefsBlock, AhrefsBlockMeta, AhrefsV2Block } from '@/blocks/blocks/ahrefs'
 import { AirtableBlock, AirtableBlockMeta } from '@/blocks/blocks/airtable'
 import { AlgoliaBlock, AlgoliaBlockMeta, AlgoliaV2Block } from '@/blocks/blocks/algolia'
-import { AmplitudeBlock, AmplitudeBlockMeta } from '@/blocks/blocks/amplitude'
+import { AmplitudeBlock, AmplitudeBlockMeta, AmplitudeV2Block } from '@/blocks/blocks/amplitude'
 import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
 import { ApifyBlock, ApifyBlockMeta, ApifyV2Block } from '@/blocks/blocks/apify'
@@ -21,6 +21,7 @@ import { AttioBlock, AttioBlockMeta } from '@/blocks/blocks/attio'
 import {
   AzureDataExplorerBlock,
   AzureDataExplorerBlockMeta,
+  AzureDataExplorerV2Block,
 } from '@/blocks/blocks/azure_data_explorer'
 import {
   AzureDevOpsBlock,
@@ -40,7 +41,7 @@ import {
 import { BufferBlock, BufferBlockMeta, BufferV2Block } from '@/blocks/blocks/buffer'
 import { CalComBlock, CalComBlockMeta } from '@/blocks/blocks/calcom'
 import { CalendlyBlock, CalendlyBlockMeta, CalendlyV2Block } from '@/blocks/blocks/calendly'
-import { CbInsightsBlock, CbInsightsBlockMeta } from '@/blocks/blocks/cbinsights'
+import { CbInsightsBlock, CbInsightsBlockMeta, CbInsightsV2Block } from '@/blocks/blocks/cbinsights'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CheckrBlock, CheckrBlockMeta, CheckrV2Block } from '@/blocks/blocks/checkr'
 import { CirclebackBlock, CirclebackBlockMeta, CirclebackV2Block } from '@/blocks/blocks/circleback'
@@ -235,6 +236,7 @@ import {
   KalshiBlockMeta,
   KalshiV2Block,
   KalshiV2BlockMeta,
+  KalshiV3Block,
 } from '@/blocks/blocks/kalshi'
 import { KetchBlock, KetchBlockMeta } from '@/blocks/blocks/ketch'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
@@ -296,8 +298,8 @@ import { ModalBlock, ModalBlockMeta } from '@/blocks/blocks/modal'
 import { MondayBlock, MondayBlockMeta } from '@/blocks/blocks/monday'
 import { MongoDBBlock, MongoDBBlockMeta } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
-import { MSSQLBlock, MSSQLBlockMeta } from '@/blocks/blocks/mssql'
-import { MySQLBlock, MySQLBlockMeta } from '@/blocks/blocks/mysql'
+import { MSSQLBlock, MSSQLBlockMeta, MSSQLV2Block } from '@/blocks/blocks/mssql'
+import { MySQLBlock, MySQLBlockMeta, MySQLV2Block } from '@/blocks/blocks/mysql'
 import { Neo4jBlock, Neo4jBlockMeta } from '@/blocks/blocks/neo4j'
 import { NetSuiteBlock, NetSuiteBlockMeta } from '@/blocks/blocks/netsuite'
 import { NeverBounceBlock, NeverBounceBlockMeta } from '@/blocks/blocks/neverbounce'
@@ -337,18 +339,18 @@ import {
   PlanetScaleV2Block,
 } from '@/blocks/blocks/planetscale'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
-import { PostgreSQLBlock, PostgreSQLBlockMeta } from '@/blocks/blocks/postgresql'
+import { PostgreSQLBlock, PostgreSQLBlockMeta, PostgreSQLV2Block } from '@/blocks/blocks/postgresql'
 import { PostHogBlock, PostHogBlockMeta } from '@/blocks/blocks/posthog'
 import { PowerBIBlock, PowerBIBlockMeta } from '@/blocks/blocks/powerbi'
 import { ProfoundBlock, ProfoundBlockMeta, ProfoundV2Block } from '@/blocks/blocks/profound'
 import { ProspeoBlock, ProspeoBlockMeta } from '@/blocks/blocks/prospeo'
 import { PulseBlock, PulseBlockMeta, PulseV2Block, PulseV3Block } from '@/blocks/blocks/pulse'
-import { QdrantBlock, QdrantBlockMeta } from '@/blocks/blocks/qdrant'
+import { QdrantBlock, QdrantBlockMeta, QdrantV2Block } from '@/blocks/blocks/qdrant'
 import { QuartrBlock, QuartrBlockMeta, QuartrV2Block } from '@/blocks/blocks/quartr'
 import { QuickBooksBlock, QuickBooksBlockMeta } from '@/blocks/blocks/quickbooks'
 import { QuiverBlock, QuiverBlockMeta, QuiverV2Block, QuiverV3Block } from '@/blocks/blocks/quiver'
 import { RabbitmqBlock, RabbitmqBlockMeta } from '@/blocks/blocks/rabbitmq'
-import { RailwayBlock, RailwayBlockMeta } from '@/blocks/blocks/railway'
+import { RailwayBlock, RailwayBlockMeta, RailwayV2Block } from '@/blocks/blocks/railway'
 import { RampBlock, RampBlockMeta } from '@/blocks/blocks/ramp'
 import { RB2BBlock, RB2BBlockMeta, RB2BV2Block } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSBlockMeta, RDSV2Block } from '@/blocks/blocks/rds'
@@ -402,7 +404,7 @@ import { SlackBlock, SlackBlockMeta, SlackV2Block, SlackV2BlockMeta } from '@/bl
 import { SmartleadBlock, SmartleadBlockMeta, SmartleadV2Block } from '@/blocks/blocks/smartlead'
 import { SmtpBlock, SmtpBlockMeta } from '@/blocks/blocks/smtp'
 import { SnowflakeBlock, SnowflakeBlockMeta } from '@/blocks/blocks/snowflake'
-import { SplunkBlock, SplunkBlockMeta } from '@/blocks/blocks/splunk'
+import { SplunkBlock, SplunkBlockMeta, SplunkV2Block } from '@/blocks/blocks/splunk'
 import { SportmonksBlock, SportmonksBlockMeta, SportmonksV2Block } from '@/blocks/blocks/sportmonks'
 import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
 import { SQSBlock, SQSBlockMeta, SQSV2Block } from '@/blocks/blocks/sqs'
@@ -503,6 +505,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   algolia: AlgoliaBlock,
   algolia_v2: AlgoliaV2Block,
   amplitude: AmplitudeBlock,
+  amplitude_v2: AmplitudeV2Block,
   api: ApiBlock,
   api_trigger: ApiTriggerBlock,
   apify: ApifyBlock,
@@ -519,6 +522,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   athena_v2: AthenaV2Block,
   attio: AttioBlock,
   azure_data_explorer: AzureDataExplorerBlock,
+  azure_data_explorer_v2: AzureDataExplorerV2Block,
   azure_devops: AzureDevOpsBlock,
   azure_devops_v2: AzureDevOpsV2Block,
   bitbucket: BitbucketBlock,
@@ -537,6 +541,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   calendly: CalendlyBlock,
   calendly_v2: CalendlyV2Block,
   cbinsights: CbInsightsBlock,
+  cbinsights_v2: CbInsightsV2Block,
   chat_trigger: ChatTriggerBlock,
   checkr: CheckrBlock,
   checkr_v2: CheckrV2Block,
@@ -725,6 +730,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   jupyter_v3: JupyterV3Block,
   kalshi: KalshiBlock,
   kalshi_v2: KalshiV2Block,
+  kalshi_v3: KalshiV3Block,
   ketch: KetchBlock,
   knowledge: KnowledgeBlock,
   lambda: LambdaBlock,
@@ -781,7 +787,9 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   mongodb: MongoDBBlock,
   mothership: MothershipBlock,
   mssql: MSSQLBlock,
+  mssql_v2: MSSQLV2Block,
   mysql: MySQLBlock,
+  mysql_v2: MySQLV2Block,
   neo4j: Neo4jBlock,
   netsuite: NetSuiteBlock,
   new_relic: NewRelicBlock,
@@ -817,6 +825,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   planetscale_v2: PlanetScaleV2Block,
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
+  postgresql_v2: PostgreSQLV2Block,
   posthog: PostHogBlock,
   powerbi: PowerBIBlock,
   profound: ProfoundBlock,
@@ -826,6 +835,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   pulse_v2: PulseV2Block,
   pulse_v3: PulseV3Block,
   qdrant: QdrantBlock,
+  qdrant_v2: QdrantV2Block,
   quartr: QuartrBlock,
   quartr_v2: QuartrV2Block,
   quickbooks: QuickBooksBlock,
@@ -834,6 +844,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   quiver_v3: QuiverV3Block,
   rabbitmq: RabbitmqBlock,
   railway: RailwayBlock,
+  railway_v2: RailwayV2Block,
   ramp: RampBlock,
   rb2b: RB2BBlock,
   rb2b_v2: RB2BV2Block,
@@ -897,6 +908,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   smtp: SmtpBlock,
   snowflake: SnowflakeBlock,
   splunk: SplunkBlock,
+  splunk_v2: SplunkV2Block,
   sportmonks: SportmonksBlock,
   sportmonks_v2: SportmonksV2Block,
   spotify: SpotifyBlock,

@@ -5,6 +5,7 @@ import {
   type GoogleMeetListParticipantsResponse,
   MEET_API_BASE,
 } from '@/tools/google_meet/types'
+import { buildMeetResourceName } from '@/tools/google_meet/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listParticipantsTool: ToolConfig<
@@ -56,10 +57,11 @@ export const listParticipantsTool: ToolConfig<
 
   request: {
     url: (params: GoogleMeetListParticipantsParams) => {
-      const trimmed = params.conferenceName.trim()
-      const name = trimmed.startsWith('conferenceRecords/')
-        ? trimmed
-        : `conferenceRecords/${trimmed}`
+      const name = buildMeetResourceName(
+        params.conferenceName,
+        'conferenceRecords',
+        'conferenceName'
+      )
 
       const queryParams = new URLSearchParams()
       if (params.filter) queryParams.append('filter', params.filter)
@@ -108,6 +110,7 @@ export const listParticipantsTool: ToolConfig<
           latestEndTime: p.latestEndTime ?? null,
           displayName: getDisplayName(p),
           userType: getUserType(p),
+          user: p.signedinUser?.user ?? null,
         })),
         nextPageToken: data.nextPageToken ?? null,
         totalSize: data.totalSize ?? null,
@@ -118,7 +121,8 @@ export const listParticipantsTool: ToolConfig<
   outputs: {
     participants: {
       type: 'json',
-      description: 'List of participants with name, times, display name, and user type',
+      description:
+        'List of participants [{ name, earliestStartTime, latestEndTime, displayName, userType (signed_in, anonymous, phone), user (users/{userId} for signed-in participants, otherwise null) }]',
     },
     nextPageToken: {
       type: 'string',

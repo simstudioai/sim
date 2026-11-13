@@ -264,6 +264,32 @@ export const GoogleVaultBlock: BlockConfig = {
       placeholder: 'Enter Matter ID (optional to fetch a specific matter)',
       condition: { field: 'operation', value: 'list_matters' },
     },
+    {
+      id: 'matterView',
+      title: 'Detail Level',
+      type: 'dropdown',
+      options: [
+        { label: 'Basic', id: 'BASIC' },
+        { label: 'Full (include collaborators)', id: 'FULL' },
+      ],
+      value: () => 'BASIC',
+      condition: { field: 'operation', value: 'list_matters' },
+      mode: 'advanced',
+    },
+    {
+      id: 'matterState',
+      title: 'Matter State',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Open', id: 'OPEN' },
+        { label: 'Closed', id: 'CLOSED' },
+        { label: 'Deleted', id: 'DELETED' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'list_matters' },
+      mode: 'advanced',
+    },
     // Download Export File inputs
     {
       id: 'bucketName',
@@ -561,6 +587,46 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
         placeholder: 'Describe what content to search for...',
       },
     },
+    {
+      id: 'exportIncludeSharedDrives',
+      title: 'Include Shared Drives',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['create_matters_export', 'create_saved_query'],
+        and: { field: 'corpus', value: 'DRIVE' },
+      },
+    },
+    {
+      id: 'exportFormat',
+      title: 'Export Format',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'MBOX', id: 'MBOX' },
+        { label: 'PST', id: 'PST' },
+      ],
+      value: () => '',
+      condition: {
+        field: 'operation',
+        value: 'create_matters_export',
+        and: { field: 'corpus', value: 'DRIVE', not: true },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'dataScope',
+      title: 'Data Scope',
+      type: 'dropdown',
+      options: [
+        { label: 'All data', id: 'ALL_DATA' },
+        { label: 'Held data only', id: 'HELD_DATA' },
+        { label: 'Unprocessed data (Mail and Groups)', id: 'UNPROCESSED_DATA' },
+      ],
+      value: () => 'ALL_DATA',
+      condition: { field: 'operation', value: ['create_matters_export', 'create_saved_query'] },
+      mode: 'advanced',
+    },
     // Drive-specific option for holds
     {
       id: 'includeSharedDrives',
@@ -625,6 +691,7 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['list_matters_export', 'list_matters_holds', 'list_matters', 'list_saved_queries'],
       },
+      mode: 'advanced',
     },
     {
       id: 'pageToken',
@@ -635,6 +702,7 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['list_matters_export', 'list_matters_holds', 'list_matters', 'list_saved_queries'],
       },
+      mode: 'advanced',
     },
 
     {
@@ -854,8 +922,15 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           listExportId,
           listHoldId,
           listSavedQueryId,
+          matterView,
+          matterState,
+          exportIncludeSharedDrives,
+          exportFormat,
+          dataScope,
           ...rest
         } = params
+        const isQueryOperation =
+          params.operation === 'create_matters_export' || params.operation === 'create_saved_query'
         return {
           ...rest,
           oauthCredential,
@@ -879,6 +954,14 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           ...(listExportId && { exportId: listExportId }),
           ...(listHoldId && { holdId: listHoldId }),
           ...(listSavedQueryId && { savedQueryId: listSavedQueryId }),
+          ...(params.operation === 'list_matters' && matterView && { view: matterView }),
+          ...(params.operation === 'list_matters' && matterState && { state: matterState }),
+          ...(isQueryOperation && {
+            includeSharedDrives:
+              exportIncludeSharedDrives === true || exportIncludeSharedDrives === 'true',
+            ...(dataScope && { dataScope }),
+          }),
+          ...(params.operation === 'create_matters_export' && exportFormat && { exportFormat }),
         }
       },
     },
@@ -978,19 +1061,43 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
       type: 'string',
       description: 'Specific saved query ID to fetch (list_saved_queries)',
     },
+    matterView: {
+      type: 'string',
+      description: 'Matter detail level: BASIC or FULL (list_matters)',
+    },
+    matterState: {
+      type: 'string',
+      description: 'Only list matters in this state: OPEN, CLOSED, or DELETED (list_matters)',
+    },
+    exportIncludeSharedDrives: {
+      type: 'boolean',
+      description: 'Include shared drive files (DRIVE create_matters_export, create_saved_query)',
+    },
+    exportFormat: {
+      type: 'string',
+      description: 'Export file format: MBOX or PST (create_matters_export, non-DRIVE corpus)',
+    },
+    dataScope: {
+      type: 'string',
+      description:
+        'Data to search: ALL_DATA, HELD_DATA, or UNPROCESSED_DATA (create_matters_export, create_saved_query)',
+    },
   },
   outputs: {
     matters: {
       type: 'json',
-      description: 'Array of matter objects (for list_matters without matterId)',
+      description:
+        'Array of matter objects (matterId, name, description, state; matterPermissions with Full detail) (for list_matters without matterId)',
     },
     exports: {
       type: 'json',
-      description: 'Array of export objects (for list_matters_export without exportId)',
+      description:
+        'Array of export objects (id, name, status, createTime, stats, cloudStorageSink.files with bucketName/objectName/size) (for list_matters_export without exportId)',
     },
     holds: {
       type: 'json',
-      description: 'Array of hold objects (for list_matters_holds without holdId)',
+      description:
+        'Array of hold objects (holdId, name, corpus, updateTime, query, accounts or orgUnit) (for list_matters_holds without holdId)',
     },
     matter: {
       type: 'json',

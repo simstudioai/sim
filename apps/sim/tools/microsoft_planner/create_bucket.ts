@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerCreateBucketResponse,
   MicrosoftPlannerToolParams,
@@ -15,6 +16,7 @@ export const createBucketTool: ToolConfig<
   name: 'Create Microsoft Planner Bucket',
   description: 'Create a new bucket in a Microsoft Planner plan',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,

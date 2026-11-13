@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import {
   inputValidationMock,
@@ -10,9 +11,11 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 import {
   validateAgentMailServiceAccount,
   validateAlgoliaServiceAccount,
+  validateAmplitudeServiceAccount,
   validateAshbyServiceAccount,
   validateAzureDevOpsServiceAccount,
   validateBrexServiceAccount,
+  validateCbInsightsServiceAccount,
   validateConvexServiceAccount,
   validateDevinServiceAccount,
   validateDynatraceServiceAccount,
@@ -25,14 +28,18 @@ import {
   validateInstantlyServiceAccount,
   validateJotformServiceAccount,
   validateJupyterServiceAccount,
+  validateKalshiServiceAccount,
   validateLogfireServiceAccount,
   validateMailgunServiceAccount,
   validateNewRelicServiceAccount,
   validateOktaServiceAccount,
   validatePlaneServiceAccount,
   validatePlanetScaleServiceAccount,
+  validateQdrantServiceAccount,
+  validateRailwayServiceAccount,
   validateResendServiceAccount,
   validateServiceNowServiceAccount,
+  validateSplunkServiceAccount,
   validateSupabaseServiceAccount,
   validateThriveServiceAccount,
   validateTinybirdServiceAccount,
@@ -267,6 +274,22 @@ describe('New Relic saved User key verification', () => {
       validateNewRelicServiceAccount({ apiToken: 'NRAK-unknown', domain: 'us' })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
   })
+
+  it.each([
+    ['us', 'https://api.newrelic.com/graphql'],
+    ['EU', 'https://api.eu.newrelic.com/graphql'],
+    ['jp', 'https://api.jp.newrelic.com/graphql'],
+  ])('checks a %s key at its data center (%s) and stores the region', async (domain, url) => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ data: { actor: { user: { id: 1 } } } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await validateNewRelicServiceAccount({ apiToken: 'NRAK-valid', domain })
+
+    expect(new Request(fetchMock.mock.calls[0][0], fetchMock.mock.calls[0][1]).url).toBe(url)
+    expect(result.normalizedDomain).toBe(domain.toLowerCase())
+  })
 })
 
 describe('Ashby saved API key verification', () => {
@@ -441,6 +464,12 @@ describe('saved credentials whose connection names a host, region, or account', 
     ['Twilio', validateTwilioServiceAccount, { providerWorkspaceId: 'AC123/../Messages' }],
     ['PlanetScale', validatePlanetScaleServiceAccount, { providerWorkspaceId: 'id:extra' }],
     ['Gong', validateGongServiceAccount, { providerWorkspaceId: 'key:extra' }],
+    ['Amplitude', validateAmplitudeServiceAccount, { providerWorkspaceId: 'key', domain: 'mars' }],
+    [
+      'Amplitude',
+      validateAmplitudeServiceAccount,
+      { providerWorkspaceId: 'key:extra', domain: 'us' },
+    ],
     [
       'ServiceNow',
       validateServiceNowServiceAccount,
@@ -509,6 +538,7 @@ describe('saved credentials for a host the user chose', () => {
     ['Jupyter', validateJupyterServiceAccount],
     ['Logfire', validateLogfireServiceAccount],
     ['Plane', validatePlaneServiceAccount],
+    ['Splunk', validateSplunkServiceAccount],
     ['Tinybird', validateTinybirdServiceAccount],
     ['Upstash', validateUpstashServiceAccount],
   ] as const
@@ -693,6 +723,239 @@ describe('Gong saved access key verification', () => {
   })
 })
 
+describe('Amplitude saved project key verification', () => {
+  it('lists events on the EU host with the Basic API key and secret key the tools send', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ data: [] }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateAmplitudeServiceAccount({
+        apiToken: 'secret-key',
+        providerWorkspaceId: ' api-key ',
+        domain: 'EU',
+      })
+    ).resolves.toMatchObject({ normalizedDomain: 'eu', normalizedWorkspaceId: 'api-key' })
+    expect(fetch).toHaveBeenCalledWith(
+      'https://analytics.eu.amplitude.com/api/2/events/list',
+      expect.objectContaining({
+        method: 'GET',
+        redirect: 'error',
+        headers: expect.objectContaining({ Authorization: `Basic ${btoa('api-key:secret-key')}` }),
+      })
+    )
+  })
+
+  it('rejects a key pair Amplitude answers with its invalid-key 403', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('Invalid API key', { status: 403 }))
+    )
+
+    await expect(
+      validateAmplitudeServiceAccount({
+        apiToken: 'bad',
+        providerWorkspaceId: 'api-key',
+        domain: 'us',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('refuses a secret key the tools could not encode, before any request', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateAmplitudeServiceAccount({
+        apiToken: 'sécret',
+        providerWorkspaceId: 'api-key',
+        domain: 'us',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('Kalshi saved API key verification', () => {
+  const ed25519 = () => {
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519')
+    return { pem: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(), publicKey }
+  }
+
+  it('reads the balance with a request signed by the pasted Ed25519 key, as the tools sign', async () => {
+    const { pem, publicKey } = ed25519()
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ balance: 0, portfolio_value: 0 }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateKalshiServiceAccount({ apiToken: pem, providerWorkspaceId: ' key-id ' })
+    ).resolves.toMatchObject({ normalizedWorkspaceId: 'key-id' })
+    const [url, init] = fetch.mock.calls[0]
+    expect(url).toBe('https://api.elections.kalshi.com/trade-api/v2/portfolio/balance')
+    expect(init).toMatchObject({ method: 'GET', redirect: 'error' })
+    const headers = init.headers as Record<string, string>
+    expect(headers['KALSHI-ACCESS-KEY']).toBe('key-id')
+    const signed = `${headers['KALSHI-ACCESS-TIMESTAMP']}GET/trade-api/v2/portfolio/balance`
+    expect(
+      crypto.verify(
+        null,
+        Buffer.from(signed),
+        publicKey,
+        Buffer.from(headers['KALSHI-ACCESS-SIGNATURE'], 'base64')
+      )
+    ).toBe(true)
+  })
+
+  it('rejects a key Kalshi refuses to authenticate', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ error: { code: 'authentication_error' } }, 401))
+    )
+
+    await expect(
+      validateKalshiServiceAccount({ apiToken: ed25519().pem, providerWorkspaceId: 'key-id' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it.each([
+    ['a value that is not a private key', 'not a key', 'key-id'],
+    ['a key ID that would break the header', ed25519().pem, 'key id'],
+  ])('refuses %s before any request', async (_, apiToken, providerWorkspaceId) => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateKalshiServiceAccount({ apiToken, providerWorkspaceId })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('Splunk saved authentication token verification', () => {
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
+
+  function reply(response: Response) {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.7',
+      originalHostname: 'splunk.example.com',
+    })
+    secureFetch.mockReset().mockResolvedValue(response)
+  }
+
+  it('reads the token owner on the management URL the tools use, through the guarded egress', async () => {
+    reply(jsonResponse({ entry: [{ content: { username: 'svc-sim' } }] }))
+
+    await expect(
+      validateSplunkServiceAccount({
+        apiToken: 'splunk-token',
+        domain: 'splunk.example.com:8089/',
+      })
+    ).resolves.toMatchObject({ normalizedDomain: 'https://splunk.example.com:8089' })
+    expect(secureFetch).toHaveBeenCalledWith(
+      'https://splunk.example.com:8089/services/authentication/current-context?output_mode=json',
+      '203.0.113.7',
+      expect.objectContaining({
+        method: 'GET',
+        maxRedirects: 0,
+        headers: expect.objectContaining({ Authorization: 'Bearer splunk-token' }),
+      })
+    )
+  })
+
+  it('rejects a token Splunk refuses', async () => {
+    reply(
+      jsonResponse({ messages: [{ type: 'WARN', text: 'call not properly authenticated' }] }, 401)
+    )
+
+    await expect(
+      validateSplunkServiceAccount({ apiToken: 'bad', domain: 'https://splunk.example.com:8089' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('does not take a 200 without a user context, such as a proxy page, as proof', async () => {
+    reply(jsonResponse({ ok: true }))
+
+    await expect(
+      validateSplunkServiceAccount({ apiToken: 'any', domain: 'https://splunk.example.com:8089' })
+    ).rejects.toMatchObject({ code: 'provider_unavailable' })
+  })
+
+  it('signs a username and password in with HTTP Basic on the same check, and stores the username', async () => {
+    reply(jsonResponse({ entry: [{ content: { username: 'svc-sim' } }] }))
+
+    await expect(
+      validateSplunkServiceAccount({
+        apiToken: 'p@ss word',
+        providerWorkspaceId: ' svc-sim ',
+        domain: 'https://splunk.example.com:8089',
+      })
+    ).resolves.toMatchObject({
+      normalizedDomain: 'https://splunk.example.com:8089',
+      normalizedWorkspaceId: 'svc-sim',
+    })
+    expect(secureFetch).toHaveBeenCalledWith(
+      'https://splunk.example.com:8089/services/authentication/current-context?output_mode=json',
+      '203.0.113.7',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: `Basic ${Buffer.from('svc-sim:p@ss word').toString('base64')}`,
+        }),
+      })
+    )
+  })
+
+  it('refuses a username HTTP Basic cannot carry without sending it', async () => {
+    reply(jsonResponse({ entry: [{ content: { username: 'svc-sim' } }] }))
+
+    await expect(
+      validateSplunkServiceAccount({
+        apiToken: 'password',
+        providerWorkspaceId: 'svc:sim',
+        domain: 'https://splunk.example.com:8089',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(secureFetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('CB Insights saved API client verification', () => {
+  it('exchanges the client ID and secret for a token at the authorize endpoint the tools use', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ token: 'access-token' }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateCbInsightsServiceAccount({ apiToken: 'secret', providerWorkspaceId: ' client ' })
+    ).resolves.toMatchObject({ normalizedWorkspaceId: 'client' })
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.cbinsights.com/v2/authorize',
+      expect.objectContaining({
+        method: 'POST',
+        redirect: 'error',
+        body: JSON.stringify({ clientId: 'client', clientSecret: 'secret' }),
+      })
+    )
+  })
+
+  it('rejects a client CB Insights refuses to authorize', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ error: 'invalid credentials' }, 401))
+    )
+
+    await expect(
+      validateCbInsightsServiceAccount({ apiToken: 'bad', providerWorkspaceId: 'client' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('does not take a success without a token as proof', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({})))
+
+    await expect(
+      validateCbInsightsServiceAccount({ apiToken: 'secret', providerWorkspaceId: 'client' })
+    ).rejects.toMatchObject({ code: 'provider_unavailable' })
+  })
+})
+
 describe('ServiceNow saved username and password verification', () => {
   const secureFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
 
@@ -850,4 +1113,157 @@ describe('Twilio saved credential verification', () => {
       expect(fetch).not.toHaveBeenCalled()
     }
   )
+})
+
+describe('Railway saved token verification', () => {
+  const RAILWAY_GRAPHQL = 'https://backboard.railway.com/graphql/v2'
+
+  function sentQuery(fetch: ReturnType<typeof vi.fn>) {
+    const [, init] = fetch.mock.calls[0]
+    return JSON.parse(init.body) as { query: string; variables?: Record<string, string> }
+  }
+
+  it('reads the account behind an account token with the Bearer header', async () => {
+    const fetch = vi.fn().mockResolvedValue(jsonResponse({ data: { me: { id: 'u1' } } }))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateRailwayServiceAccount({ apiToken: 'acct', domain: ' Account ' })
+    ).resolves.toMatchObject({ normalizedDomain: 'account' })
+    expect(fetch).toHaveBeenCalledWith(
+      RAILWAY_GRAPHQL,
+      expect.objectContaining({
+        method: 'POST',
+        redirect: 'error',
+        headers: expect.objectContaining({ Authorization: 'Bearer acct' }),
+      })
+    )
+    expect(sentQuery(fetch).query).toContain('me')
+  })
+
+  it('reads the project behind a project token with the Project-Access-Token header', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ data: { projectToken: { projectId: 'p1', environmentId: 'e1' } } })
+      )
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateRailwayServiceAccount({ apiToken: 'proj', domain: 'project' })
+    ).resolves.toMatchObject({ normalizedDomain: 'project' })
+    const [, init] = fetch.mock.calls[0]
+    expect(init.headers).toMatchObject({ 'Project-Access-Token': 'proj' })
+    expect(init.headers).not.toHaveProperty('Authorization')
+    expect(sentQuery(fetch).query).toContain('projectToken')
+  })
+
+  it('reads the named workspace for a workspace token, passing its ID as a variable', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ data: { workspace: { id: 'ws-1', name: 'Acme' } } }))
+    vi.stubGlobal('fetch', fetch)
+
+    await validateRailwayServiceAccount({
+      apiToken: 'team',
+      domain: 'workspace',
+      providerWorkspaceId: 'ws-1',
+    })
+    const sent = sentQuery(fetch)
+    expect(sent.query).toContain('workspace(workspaceId: $workspaceId)')
+    expect(sent.variables).toEqual({ workspaceId: 'ws-1' })
+  })
+
+  it.each([
+    ['a workspace token without its workspace ID', { domain: 'workspace' }],
+    ['a workspace ID that is not an ID', { domain: 'workspace', providerWorkspaceId: 'a b"c' }],
+    ['an unknown token type', { domain: 'personal' }],
+  ])('refuses %s before calling Railway', async (_case, fields) => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      validateRailwayServiceAccount({ apiToken: 'token', ...fields })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects a token Railway answers with a GraphQL authorization error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ data: { me: null }, errors: [{ message: 'Not Authorized' }] })
+        )
+    )
+
+    await expect(
+      validateRailwayServiceAccount({ apiToken: 'bad', domain: 'account' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+})
+
+describe('Qdrant saved API key verification', () => {
+  const secureFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
+
+  function reply(response: Response) {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockReset().mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.9',
+      originalHostname: 'qdrant.example.com',
+    })
+    secureFetch.mockReset().mockResolvedValue(response)
+  }
+
+  it('lists collections on the URL the tools use, with the api-key header, through the guarded egress', async () => {
+    reply(jsonResponse({ result: { collections: [{ name: 'docs' }] }, status: 'ok' }))
+
+    await expect(
+      validateQdrantServiceAccount({ apiToken: 'qdrant-key', domain: 'qdrant.example.com:6333/' })
+    ).resolves.toMatchObject({ normalizedDomain: 'https://qdrant.example.com:6333' })
+    expect(inputValidationMockFns.mockValidateUrlWithDNS).toHaveBeenCalledWith(
+      'https://qdrant.example.com:6333/collections',
+      'url',
+      'configuredEndpoint',
+      expect.anything()
+    )
+    expect(secureFetch).toHaveBeenCalledWith(
+      'https://qdrant.example.com:6333/collections',
+      '203.0.113.9',
+      expect.objectContaining({
+        method: 'GET',
+        maxRedirects: 0,
+        headers: expect.objectContaining({ 'api-key': 'qdrant-key' }),
+      })
+    )
+  })
+
+  it('rejects a key Qdrant refuses', async () => {
+    reply(new Response('Must provide an API key or an Authorization bearer token', { status: 401 }))
+
+    await expect(
+      validateQdrantServiceAccount({ apiToken: 'bad', domain: 'https://qdrant.example.com' })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('does not take a 200 without a collection list, such as a proxy page, as proof', async () => {
+    reply(jsonResponse({ ok: true }))
+
+    await expect(
+      validateQdrantServiceAccount({ apiToken: 'any', domain: 'https://qdrant.example.com' })
+    ).rejects.toMatchObject({ code: 'provider_unavailable' })
+  })
+
+  it('refuses a URL carrying credentials or a query before any request', async () => {
+    reply(jsonResponse({ result: { collections: [] } }))
+
+    await expect(
+      validateQdrantServiceAccount({
+        apiToken: 'key',
+        domain: 'https://user:pw@qdrant.example.com',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    expect(secureFetch).not.toHaveBeenCalled()
+  })
 })

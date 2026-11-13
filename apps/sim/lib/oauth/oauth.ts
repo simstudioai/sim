@@ -12,12 +12,14 @@ import {
   AhrefsIcon,
   AirtableIcon,
   AlgoliaIcon,
+  AmplitudeIcon,
   ApifyIcon,
   ApolloIcon,
   AsanaIcon,
   AshbyIcon,
   AtlassianIcon,
   AttioIcon,
+  AzureDataExplorerIcon,
   AzureIcon,
   BitbucketIcon,
   BoxCompanyIcon,
@@ -27,6 +29,7 @@ import {
   BufferIcon,
   CalComIcon,
   CalendlyIcon,
+  CbInsightsIcon,
   CheckrIcon,
   CirclebackIcon,
   ClaudeIcon,
@@ -98,6 +101,7 @@ import {
   JiraIcon,
   JotformIcon,
   JupyterIcon,
+  KalshiIcon,
   LangsmithIcon,
   LaunchDarklyIcon,
   LemlistIcon,
@@ -117,9 +121,11 @@ import {
   MicrosoftOneDriveIcon,
   MicrosoftPlannerIcon,
   MicrosoftSharepointIcon,
+  MicrosoftSqlIcon,
   MicrosoftTeamsIcon,
   MicrosoftWordIcon,
   MondayIcon,
+  MySQLIcon,
   NetSuiteIcon,
   NewRelicIcon,
   NotionIcon,
@@ -132,12 +138,15 @@ import {
   PipedriveIcon,
   PlaneIcon,
   PlanetScaleIcon,
+  PostgresIcon,
   PowerBIIcon,
   ProfoundIcon,
   PulseIcon,
+  QdrantIcon,
   QuartrIcon,
   QuickBooksIcon,
   QuiverIcon,
+  RailwayIcon,
   RampIcon,
   RB2BIcon,
   RedditIcon,
@@ -157,6 +166,7 @@ import {
   SlackIcon,
   SmartleadIcon,
   SnowflakeIcon,
+  SplunkIcon,
   SportmonksIcon,
   SpotifyIcon,
   SquareIcon,
@@ -197,6 +207,7 @@ import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { APOLLO_TOKEN_URL } from '@/lib/oauth/apollo'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
@@ -493,6 +504,13 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/adwords',
         ],
+        /**
+         * A JSON-key service account the Google Ads account added as a user signs in as itself
+         * (https://developers.google.com/google-ads/api/docs/oauth/service-accounts). Keyless
+         * Google credentials stay refused here: Ads is not in `GOOGLE_KEYLESS_SERVICES`, since
+         * Google documents no Workload Identity Federation path for it.
+         */
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-bigquery': {
         name: 'Google BigQuery',
@@ -644,6 +662,17 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'offline_access',
         ],
       },
+      'azure-data-explorer': {
+        name: 'Azure Data Explorer',
+        description:
+          'Query and manage Azure Data Explorer clusters as a Microsoft Entra app registration.',
+        providerId: 'azure-data-explorer',
+        icon: AzureDataExplorerIcon,
+        baseProviderIcon: MicrosoftIcon,
+        serviceAccountProviderId: 'microsoft-app-service-account',
+        authType: 'service_account',
+        scopes: [],
+      },
       'microsoft-dataverse': {
         name: 'Microsoft Dataverse',
         description: 'Connect to Microsoft Dataverse and manage records.',
@@ -714,6 +743,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-powerbi',
         icon: PowerBIIcon,
         baseProviderIcon: MicrosoftIcon,
+        serviceAccountProviderId: 'microsoft-app-service-account',
         scopes: [
           'https://analysis.windows.net/powerbi/api/Workspace.Read.All',
           'https://analysis.windows.net/powerbi/api/Report.Read.All',
@@ -1345,6 +1375,57 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'oracledb',
   },
+  postgresql: {
+    name: 'PostgreSQL',
+    icon: PostgresIcon,
+    services: {
+      postgresql: {
+        name: 'PostgreSQL',
+        description: 'Query and manage PostgreSQL with a saved connection.',
+        providerId: 'postgresql',
+        serviceAccountProviderId: 'postgresql-service-account',
+        authType: 'service_account',
+        icon: PostgresIcon,
+        baseProviderIcon: PostgresIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'postgresql',
+  },
+  mysql: {
+    name: 'MySQL',
+    icon: MySQLIcon,
+    services: {
+      mysql: {
+        name: 'MySQL',
+        description: 'Query and manage MySQL with a saved connection.',
+        providerId: 'mysql',
+        serviceAccountProviderId: 'mysql-service-account',
+        authType: 'service_account',
+        icon: MySQLIcon,
+        baseProviderIcon: MySQLIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'mysql',
+  },
+  mssql: {
+    name: 'Microsoft SQL Server',
+    icon: MicrosoftSqlIcon,
+    services: {
+      mssql: {
+        name: 'Microsoft SQL Server',
+        description: 'Query and manage Microsoft SQL Server with a saved connection.',
+        providerId: 'mssql',
+        serviceAccountProviderId: 'mssql-service-account',
+        authType: 'service_account',
+        icon: MicrosoftSqlIcon,
+        baseProviderIcon: MicrosoftSqlIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'mssql',
+  },
   oci: {
     name: 'Oracle Cloud Infrastructure',
     icon: OracleIcon,
@@ -1878,6 +1959,109 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'gauge',
   },
+  amplitude: {
+    name: 'Amplitude',
+    icon: AmplitudeIcon,
+    services: {
+      amplitude: {
+        name: 'Amplitude',
+        description: 'Track events, identify users, and query analytics in Amplitude.',
+        providerId: 'amplitude',
+        serviceAccountProviderId: 'amplitude-service-account',
+        icon: AmplitudeIcon,
+        baseProviderIcon: AmplitudeIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'amplitude',
+  },
+  kalshi: {
+    name: 'Kalshi',
+    icon: KalshiIcon,
+    services: {
+      kalshi: {
+        name: 'Kalshi',
+        description: 'Read markets and trade on Kalshi with an account API key.',
+        providerId: 'kalshi',
+        serviceAccountProviderId: 'kalshi-service-account',
+        icon: KalshiIcon,
+        baseProviderIcon: KalshiIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'kalshi',
+  },
+  splunk: {
+    name: 'Splunk',
+    icon: SplunkIcon,
+    services: {
+      splunk: {
+        name: 'Splunk',
+        description: 'Run searches and read saved searches, alerts, indexes, and apps in Splunk.',
+        providerId: 'splunk',
+        serviceAccountProviderId: 'splunk-service-account',
+        icon: SplunkIcon,
+        baseProviderIcon: SplunkIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'splunk',
+  },
+  qdrant: {
+    name: 'Qdrant',
+    icon: QdrantIcon,
+    services: {
+      qdrant: {
+        name: 'Qdrant',
+        description: 'Upsert, search, and fetch points in a Qdrant vector database.',
+        providerId: 'qdrant',
+        serviceAccountProviderId: 'qdrant-service-account',
+        icon: QdrantIcon,
+        baseProviderIcon: QdrantIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'qdrant',
+  },
+  railway: {
+    name: 'Railway',
+    icon: RailwayIcon,
+    services: {
+      railway: {
+        name: 'Railway',
+        description: 'Manage Railway projects, services, environments, deployments, and variables.',
+        providerId: 'railway',
+        serviceAccountProviderId: 'railway-service-account',
+        icon: RailwayIcon,
+        baseProviderIcon: RailwayIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'railway',
+  },
+  cbinsights: {
+    name: 'CB Insights',
+    icon: CbInsightsIcon,
+    services: {
+      cbinsights: {
+        name: 'CB Insights',
+        description:
+          'Look up companies, funding, investments, and market intelligence in CB Insights.',
+        providerId: 'cbinsights',
+        serviceAccountProviderId: 'cbinsights-service-account',
+        icon: CbInsightsIcon,
+        baseProviderIcon: CbInsightsIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'cbinsights',
+  },
   tavily: {
     name: 'Tavily',
     icon: TavilyIcon,
@@ -1993,8 +2177,34 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         serviceAccountProviderId: 'apollo-service-account',
         icon: ApolloIcon,
         baseProviderIcon: ApolloIcon,
-        scopes: [],
-        authType: 'service_account',
+        scopes: [
+          'read_user_profile',
+          'mixed_people_api_search',
+          'people_match',
+          'people_bulk_match',
+          'mixed_companies_search',
+          'organizations_enrich',
+          'organizations_bulk_enrich',
+          'contact_write',
+          'contact_update',
+          'contacts_search',
+          'contacts_bulk_create',
+          'contacts_bulk_update',
+          'account_write',
+          'account_update',
+          'accounts_search',
+          'account_bulk_create',
+          'account_stages_update',
+          'opportunity_write',
+          'opportunities_list',
+          'opportunity_read',
+          'opportunity_update',
+          'emailer_campaigns_search',
+          'emailer_campaigns_add_contact_ids',
+          'tasks_create',
+          'tasks_list',
+          'email_accounts_list',
+        ],
       },
     },
     defaultService: 'apollo',
@@ -4243,6 +4453,20 @@ function getProviderAuthConfig(
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'apollo': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'apollo',
+        'APOLLO_CLIENT_ID',
+        'APOLLO_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: APOLLO_TOKEN_URL,
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
         supportsRefreshTokenRotation: true,
       }
     }

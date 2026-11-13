@@ -1,10 +1,16 @@
 import type {
   AzureDevOpsWorkItem,
+  AzureDevOpsWorkItemLink,
   QueryWorkItemsParams,
   QueryWorkItemsResponse,
 } from '@/tools/azure_devops/types'
-import type { AzureDevOpsRawWorkItem } from '@/tools/azure_devops/utils'
-import { azureDevOpsProjectUrl, formatWorkItem, mapWorkItem } from '@/tools/azure_devops/utils'
+import {
+  azureDevOpsProjectUrl,
+  fetchWorkItemsChunk,
+  formatWorkItem,
+  WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
+  WORK_ITEMS_BATCH_SIZE,
+} from '@/tools/azure_devops/utils'
 import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -12,7 +18,7 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
   id: 'azure_devops_query_work_items',
   name: 'Azure DevOps Query Work Items',
   description:
-    'Execute a WIQL query to search for work items in Azure DevOps and return full field details. Use TOP N in your query to limit results (Azure enforces a 200-item maximum per batch fetch).',
+    'Execute a WIQL query to search for work items in Azure DevOps and return full field details. Supports flat queries and link queries (FROM WorkItemLinks). Use the top parameter to limit results.',
   version: '1.0.0',
   oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
@@ -34,7 +40,14 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
       required: true,
       visibility: 'user-or-llm',
       description:
-        'WIQL query string (e.g. "SELECT [System.Id] FROM workitems WHERE [System.State] = \'Doing\' ORDER BY [System.Id] ASC"). Use TOP N to limit results.',
+        'WIQL query string (e.g. "SELECT [System.Id] FROM workitems WHERE [System.State] = \'Doing\' ORDER BY [System.Id] ASC"). Link queries (FROM WorkItemLinks) are supported.',
+    },
+    top: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Maximum number of work items the query returns (WIQL $top). Each matched item is fetched with full details, so set this for broad queries.',
     },
     accessToken: {
       type: 'string',
@@ -45,7 +58,12 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
   },
 
   request: {
-    url: (params) => `${azureDevOpsProjectUrl(params)}/_apis/wit/wiql?api-version=7.2-preview.2`,
+    url: (params) => {
+      const url = new URL(`${azureDevOpsProjectUrl(params)}/_apis/wit/wiql`)
+      if (params.top) url.searchParams.set('$top', Number(params.top).toString())
+      url.searchParams.set('api-version', '7.2-preview.2')
+      return url.toString()
+    },
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -54,55 +72,46 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
     body: (params) => ({ query: params.wiqlQuery }),
   },
 
-  transformResponse: async (response, params) => {
-    const wiqlData = await response.json()
-    const workItemRefs: Array<{ id: number; url: string }> = wiqlData.workItems ?? []
+  transformResponse: async (response, params, context) => {
+    const wiqlData: AzureDevOpsRawWiqlResult = await response.json()
+    const links: AzureDevOpsWorkItemLink[] = (wiqlData.workItemRelations ?? []).map((link) => ({
+      rel: link.rel ?? null,
+      sourceId: link.source?.id ?? null,
+      targetId: link.target?.id ?? null,
+    }))
+    const linkIds = links.flatMap((link) =>
+      [link.sourceId, link.targetId].filter((id): id is number => typeof id === 'number')
+    )
+    const allIds = Array.from(
+      new Set([...(wiqlData.workItems ?? []).map((wi) => wi.id), ...linkIds])
+    )
+    const linkMetadata = wiqlData.workItemRelations ? { workItemRelations: links } : {}
 
-    if (workItemRefs.length === 0) {
+    if (allIds.length === 0) {
       return {
         success: true,
         output: {
           content: 'No work items matched the query.',
-          metadata: { count: 0, workItems: [] },
+          metadata: { count: 0, workItems: [], ...linkMetadata },
         },
       }
     }
 
-    const allIds = workItemRefs.map((wi) => wi.id)
-    const BATCH_SIZE = 200
-    const organization = params!.organization.trim()
-    const project = params!.project.trim()
-    const authHeader = `Basic ${btoa(`:${params!.accessToken}`)}`
+    if (!params) {
+      throw new Error('Query Work Items requires organization, project, and access token.')
+    }
 
     const workItems: AzureDevOpsWorkItem[] = []
-    for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
-      const chunk = allIds.slice(i, i + BATCH_SIZE)
-      const detailsUrl = new URL(
-        `${azureDevOpsProjectUrl({ organization, project })}/_apis/wit/workitems`
+    for (let i = 0; i < allIds.length; i += WORK_ITEMS_BATCH_SIZE) {
+      const chunk = allIds.slice(i, i + WORK_ITEMS_BATCH_SIZE)
+      workItems.push(
+        ...(await fetchWorkItemsChunk(
+          params,
+          chunk,
+          'Failed to hydrate work item details',
+          context?.signal
+        ))
       )
-      detailsUrl.searchParams.set('ids', chunk.join(','))
-      detailsUrl.searchParams.set('$expand', 'all')
-      detailsUrl.searchParams.set('api-version', '7.2-preview.3')
-
-      const detailsResponse = await fetch(detailsUrl.toString(), {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: authHeader,
-        },
-      })
-
-      if (!detailsResponse.ok) {
-        const errorBody = await detailsResponse.text().catch(() => '')
-        throw new Error(
-          `Failed to hydrate work item details (${detailsResponse.status}): ${errorBody || detailsResponse.statusText}`
-        )
-      }
-
-      const detailsData = await detailsResponse.json()
-      for (const raw of detailsData.value ?? []) {
-        workItems.push(mapWorkItem(raw as AzureDevOpsRawWorkItem))
-      }
     }
 
     const content =
@@ -114,7 +123,12 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
       success: true,
       output: {
         content,
-        metadata: { count: workItems.length, totalMatched: allIds.length, workItems },
+        metadata: {
+          count: workItems.length,
+          totalMatched: allIds.length,
+          workItems,
+          ...linkMetadata,
+        },
       },
     }
   },
@@ -133,6 +147,24 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
           type: 'number',
           description: 'Total number of work items matched by the WIQL query before hydration',
           optional: true,
+        },
+        workItemRelations: {
+          type: 'array',
+          description:
+            'Links returned by a link query (FROM WorkItemLinks); source and target items are included in workItems',
+          optional: true,
+          items: {
+            type: 'object',
+            properties: {
+              rel: {
+                type: 'string',
+                description: 'Link type, or null for a root item',
+                nullable: true,
+              },
+              sourceId: { type: 'number', description: 'Source work item ID', nullable: true },
+              targetId: { type: 'number', description: 'Target work item ID', nullable: true },
+            },
+          },
         },
         workItems: {
           type: 'array',
@@ -156,10 +188,20 @@ export const queryWorkItemsTool: ToolConfig<QueryWorkItemsParams, QueryWorkItems
               },
               areaPath: { type: 'string', description: 'Area path of the work item' },
               url: { type: 'string', description: 'API URL for the work item' },
+              ...WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
             },
           },
         },
       },
     },
   },
+}
+
+interface AzureDevOpsRawWiqlResult {
+  workItems?: Array<{ id: number; url: string }>
+  workItemRelations?: Array<{
+    rel?: string | null
+    source?: { id: number } | null
+    target?: { id: number } | null
+  }>
 }

@@ -149,6 +149,10 @@ jobs:
         working-directory: packages/db
         run: |
           bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); for (const extension of ["vector", "btree_gin", "pg_trgm"]) await sql`CREATE EXTENSION IF NOT EXISTS ${sql(extension)}`; await sql.end()'
+          # A test that hangs on a lock leaves only its timeout behind; these name the waiter, the
+          # lock, and the blocking statement in the Postgres log. Service containers take no -c flags,
+          # and ALTER SYSTEM runs outside a transaction, so each setting is its own statement.
+          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); for (const setting of ["log_lock_waits = on", "deadlock_timeout = 1000", "log_min_duration_statement = 20000"]) await sql.unsafe(`ALTER SYSTEM SET ${setting}`); await sql`SELECT pg_reload_conf()`; await sql.end()'
           bun run db:${{ matrix.provision }}
 
       - name: Verify migration replay is a no-op

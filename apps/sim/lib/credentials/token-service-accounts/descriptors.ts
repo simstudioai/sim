@@ -12,6 +12,15 @@
  * `@/lib/credentials/token-service-accounts/server`.
  */
 
+import type { ClientCredentialAccountOption } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { DEFAULT_HEX_HOST, HEX_HOST_PATTERN } from '@/tools/hex/utils'
+import { LANGSMITH_REGIONS } from '@/tools/langsmith/utils'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
+import { NEW_RELIC_REGIONS } from '@/tools/new_relic/utils'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SQUARE_ENVIRONMENTS } from '@/tools/square/types'
+
 /** Discriminator stored inside every encrypted token service-account secret blob. */
 export const TOKEN_SERVICE_ACCOUNT_SECRET_TYPE = 'token_service_account' as const
 
@@ -27,14 +36,49 @@ export interface TokenServiceAccountField {
   /** Preserve exact password bytes instead of normalizing surrounding whitespace. */
   preserveWhitespace?: boolean
   /**
+   * The token spans several lines (a PEM private key), so the connect form renders a multi-line
+   * control that keeps its line breaks instead of a single-line input.
+   */
+  multiline?: boolean
+  /**
    * The value is a URL whose scheme and path matter (a self-hosted instance or
    * deployment URL), so the connect form sends it as typed and the provider's
    * check normalizes it. Other domains are reduced to a bare host first.
    */
   url?: boolean
+  /**
+   * The connection can be saved without this field (a workspace ID only one token type needs),
+   * so the connect form, the create body, and the stored secret do not require it; the provider's
+   * check decides when it must be set. Applies to a domain or workspace field in pasted-token
+   * mode; the token itself is always required.
+   */
+  optional?: boolean
+  /**
+   * Only on an `optional` field: the `domain` value that makes it required after all (Railway's
+   * workspace ID once the token type is `workspace`), so the connect form blocks a submit the
+   * provider's check would reject. Compared case-insensitively against the typed domain.
+   */
+  requiredForDomain?: string
+  /**
+   * Auth methods this field belongs to, for a provider that also offers client credentials:
+   * `token` is the pasted-token sign-in and `client_credentials` the grant. A mode not listed
+   * neither shows, requires, nor stores it (ServiceNow's username, which a minted token replaces).
+   * Absent means the field belongs to every mode.
+   */
+  requiredForAuthMethods?: readonly TokenServiceAccountAuthMethod[]
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
+  /** Fixed value set (a region or instance), rendered by the connect modal as a dropdown. */
+  options?: ReadonlyArray<ClientCredentialAccountOption>
+  /**
+   * Only on the `domain` field (a region, instance, or host): the value the connection takes when
+   * none is given. It is also what a credential saved before the field existed resolves to, and
+   * what a reconnect that leaves the field blank keeps when nothing is stored, so adding the field
+   * leaves existing credentials, and API callers that omit it, on the host they used before. A
+   * field with a default is not required.
+   */
+  defaultValue?: string
 }
 
 export interface TokenServiceAccountDescriptor {
@@ -70,6 +114,13 @@ export interface TokenServiceAccountDescriptor {
    */
   authStyle?: 'bearer' | 'x-api-token'
   /**
+   * The pasted secret is a password whenever the connection also stores a username in
+   * `providerWorkspaceId` (Splunk, whose token sign-in is off by default): such a credential
+   * resolves with `authStyle: 'basic'` so its tools send HTTP Basic. One saved without a username
+   * resolves exactly as a pasted token.
+   */
+  passwordWithUsername?: true
+  /**
    * A client-credentials grant the provider offers beside the pasted token. A credential saved
    * with `authMethod: 'client_credentials'` stores the client ID and secret (and `domain`, when
    * the descriptor has one) and mints a short-lived token at execution time; a credential saved
@@ -96,10 +147,27 @@ interface TokenServiceAccountClientCredentials {
    * retyping the secret.
    */
   preferred?: boolean
+  /**
+   * `bearer` for a provider whose pasted mode is not a bearer token (ServiceNow's is a Basic
+   * username and password): the minted token then resolves with this `authStyle`, which its
+   * tools read to send it as a bearer token. Absent leaves `authStyle` unset, as before.
+   */
+  authStyle?: 'bearer'
 }
 
 /** `authMethod` value selecting the client-credentials mode of a provider whose default is a pasted token (a token provider, or the Atlassian service account). */
 export const CLIENT_CREDENTIALS_AUTH_METHOD = 'client_credentials' as const
+
+/** A token provider's sign-in modes: the pasted token (the default) or its client-credentials grant. */
+export type TokenServiceAccountAuthMethod = 'token' | typeof CLIENT_CREDENTIALS_AUTH_METHOD
+
+/** Whether a descriptor field belongs to the given sign-in mode. */
+export function tokenFieldBelongsToAuthMethod(
+  field: Pick<TokenServiceAccountField, 'requiredForAuthMethods'>,
+  authMethod: TokenServiceAccountAuthMethod
+): boolean {
+  return !field.requiredForAuthMethods || field.requiredForAuthMethods.includes(authMethod)
+}
 
 export const HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID = 'hubspot-service-account' as const
 export const AIRTABLE_SERVICE_ACCOUNT_PROVIDER_ID = 'airtable-service-account' as const
@@ -232,6 +300,12 @@ export const AGENTPHONE_SERVICE_ACCOUNT_PROVIDER_ID = 'agentphone-service-accoun
 export const AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID = 'agentmail-service-account' as const
 export const AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID = 'affinity-service-account' as const
 export const TAVILY_SERVICE_ACCOUNT_PROVIDER_ID = 'tavily-service-account' as const
+export const AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID = 'amplitude-service-account' as const
+export const KALSHI_SERVICE_ACCOUNT_PROVIDER_ID = 'kalshi-service-account' as const
+export const SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID = 'splunk-service-account' as const
+export const CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID = 'cbinsights-service-account' as const
+export const RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID = 'railway-service-account' as const
+export const QDRANT_SERVICE_ACCOUNT_PROVIDER_ID = 'qdrant-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -364,6 +438,12 @@ export type TokenServiceAccountProviderId =
   | typeof AGENTMAIL_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof AFFINITY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof TAVILY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof KALSHI_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof QDRANT_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FLOW_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
@@ -779,7 +859,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'myorg-myaccount.snowflakecomputing.com',
         secret: false,
         hintPattern: SNOWFLAKE_HOST_HINT_REGEX,
-        hintMessage: 'Snowflake account hosts end in .snowflakecomputing.com.',
+        hintMessage:
+          'Snowflake account hosts end in .snowflakecomputing.com, or .snowflakecomputing.cn in China.',
       },
       {
         id: 'apiToken',
@@ -1074,9 +1155,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     connectNoun: 'API token',
     fields: [
       { id: 'apiToken', label: 'API token', placeholder: 'Paste your Hex API token', secret: true },
+      {
+        id: 'domain',
+        label: 'Workspace host',
+        placeholder: DEFAULT_HEX_HOST,
+        secret: false,
+        defaultValue: DEFAULT_HEX_HOST,
+        hintPattern: HEX_HOST_PATTERN,
+        hintMessage:
+          'The hex.tech host your workspace signs in at: app.hex.tech (default), eu.hex.tech, or your single-tenant host.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/hex',
-    helpText: 'Sim checks the token by listing projects, so it needs Read projects access.',
+    helpText:
+      'Sim checks the token by listing projects, so it needs Read projects access. Leave the host as app.hex.tech unless your workspace signs in at another hex.tech address, such as eu.hex.tech.',
+    invalidCredentialsHelp:
+      'Hex rejected this token. Check that it is active, has Read projects access, and belongs to the workspace host you entered.',
   },
   [HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1137,8 +1231,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Paste your LangSmith API key',
         secret: true,
       },
+      {
+        id: 'domain',
+        label: 'Region',
+        placeholder: 'Select a region',
+        secret: false,
+        options: LANGSMITH_REGIONS.options,
+        defaultValue: LANGSMITH_REGIONS.defaultRegion,
+        hintMessage:
+          'us (default), eu, apac, aws-us, or azure-us: the LangSmith region your organization is in.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/langsmith',
+    helpText:
+      'Choose the region shown in the address you sign in at (for example eu.smith.langchain.com); a key only works in its own region.',
+    invalidCredentialsHelp:
+      'LangSmith rejected this API key. Check that it is active and that the region matches the one your organization is in.',
   },
   [LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: LAUNCHDARKLY_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1152,8 +1260,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Paste your LaunchDarkly access token',
         secret: true,
       },
+      {
+        id: 'domain',
+        label: 'Instance',
+        placeholder: 'Select an instance',
+        secret: false,
+        options: LAUNCHDARKLY_INSTANCES.options,
+        defaultValue: LAUNCHDARKLY_INSTANCES.defaultRegion,
+        hintMessage:
+          'us (default), eu, or federal: the LaunchDarkly instance the token was created in.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/launchdarkly',
+    helpText:
+      'Choose EU or Federal if your account signs in at app.eu.launchdarkly.com or app.launchdarkly.us; a token only works on the instance that issued it.',
+    invalidCredentialsHelp:
+      'LaunchDarkly rejected this token. Check that it is active and that the instance matches the one your account signs in to.',
   },
   [LINQ_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: LINQ_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1308,10 +1430,20 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Paste your SendGrid API key',
         secret: true,
       },
+      {
+        id: 'domain',
+        label: 'Region',
+        placeholder: 'Select a region',
+        secret: false,
+        options: SENDGRID_REGIONS.options,
+        defaultValue: SENDGRID_REGIONS.defaultRegion,
+        hintMessage:
+          'global (default), or eu for a key of an EU regional subuser, which SendGrid serves from api.eu.sendgrid.com.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/sendgrid',
     helpText:
-      'Create a key in SendGrid under Settings > API Keys. A restricted key only works for the actions it is scoped to.',
+      'Create a key in SendGrid under Settings > API Keys. A restricted key only works for the actions it is scoped to. Choose EU subuser for a key of an EU regional subuser; Marketing Campaigns actions (contacts and lists) are not available to EU subusers.',
   },
   [SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1382,13 +1514,25 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'Access token',
-        placeholder: 'Paste your Square production access token',
+        placeholder: 'Paste your Square access token',
         secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Environment',
+        placeholder: 'Select an environment',
+        secret: false,
+        options: SQUARE_ENVIRONMENTS.options,
+        defaultValue: SQUARE_ENVIRONMENTS.defaultRegion,
+        hintMessage:
+          'production (default) or sandbox: the Square environment the access token was issued for.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/square',
     helpText:
-      'Use a production access token from your app in the Square Developer Console; sandbox tokens are not supported.',
+      'Use an access token from your app in the Square Developer Console, and choose Sandbox for a sandbox token; a token only works in the environment that issued it.',
+    invalidCredentialsHelp:
+      'Square rejected this access token. Check that it is active and that the environment matches the one the token was issued for.',
   },
   [TAILSCALE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: TAILSCALE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1794,12 +1938,22 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         placeholder: 'Paste your Sentry auth token',
         secret: true,
       },
+      {
+        id: 'domain',
+        label: 'Data storage region',
+        placeholder: 'Select a region',
+        secret: false,
+        options: SENTRY_REGIONS.options,
+        defaultValue: SENTRY_REGIONS.defaultRegion,
+        hintMessage:
+          'us (default) or de: the data storage location shown in your organization settings.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/sentry',
     helpText:
-      'Use a user auth token or an internal integration token with the scopes your operations need, such as org:read, project:read, project:write, and event:read. The organization slug stays a field on the block.',
+      'Use a user auth token or an internal integration token with the scopes your operations need, such as org:read, project:read, project:write, and event:read. Choose EU if your organization stores its data in the EU (de.sentry.io). The organization slug stays a field on the block.',
     invalidCredentialsHelp:
-      'Sentry rejected this token. Check that it was copied in full, has not been revoked, and belongs to sentry.io rather than a self-hosted Sentry.',
+      'Sentry rejected this token. Check that it was copied in full, has not been revoked, belongs to sentry.io rather than a self-hosted Sentry, and that the region matches where your organization stores its data.',
   },
   [STRIPE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: STRIPE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2074,11 +2228,18 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     connectNoun: 'API key',
     fields: [
       { id: 'apiToken', label: 'User API key', placeholder: 'NRAK-...', secret: true },
-      { id: 'domain', label: 'Region', placeholder: 'us or eu', secret: false },
+      {
+        id: 'domain',
+        label: 'Region',
+        placeholder: 'Select a data center',
+        secret: false,
+        options: NEW_RELIC_REGIONS.options,
+        hintMessage: 'us, eu, or jp: the data center your New Relic account is in.',
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/new_relic',
     helpText:
-      'Create a User API key (NRAK-...) in New Relic under API keys. Enter us, or eu if your account is in the EU data center.',
+      'Create a User API key (NRAK-...) in New Relic under API keys, and choose the data center your account is in (US, EU, or JP).',
     invalidCredentialsHelp:
       "New Relic rejected this key. Check that it is a User API key (NRAK-...), not a license or browser key, and that the region matches your account's data center.",
   },
@@ -2372,6 +2533,15 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Use https://us.infisical.com for US Cloud, https://eu.infisical.com for EU Cloud, or your self-hosted URL. Sim does not renew the token, so it stops working when its Access Token TTL runs out: set a long Access Token TTL and Max TTL on the identity, and leave Access Token Period unset, since a periodic token expires unless it is renewed.',
     invalidCredentialsHelp:
       'Paste a machine identity access token, not a client secret or service token, and make sure the instance URL matches the region the identity lives in.',
+    clientCredentials: {
+      preferred: true,
+      label: 'Universal Auth (client ID and secret)',
+      tokenLabel: 'Access token',
+      helpText:
+        'Use the Client ID and a Client Secret from the machine identity’s Universal Auth settings. For the instance URL use https://us.infisical.com for US Cloud, https://eu.infisical.com for EU Cloud, or your self-hosted URL. Sim logs in again whenever its token expires, so leave the Client Secret’s usage limit at 0 (unlimited) and Access Token Max Number of Uses at 0, and allow Sim’s outbound addresses if the identity restricts trusted IPs.',
+      invalidCredentialsHelp:
+        'Infisical rejected this client ID and secret. Check that Universal Auth is configured on the machine identity, that the Client Secret has not expired, been revoked, or reached its usage limit, and that the instance URL matches the region the identity lives in.',
+    },
   },
   [SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SUPABASE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2477,6 +2647,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Username',
         placeholder: 'Enter the ServiceNow username',
         secret: false,
+        requiredForAuthMethods: ['token'],
       },
       {
         id: 'domain',
@@ -2490,12 +2661,211 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       "Use a dedicated integration user with the roles your workflows need and without multi-factor authentication. Enter your instance's https URL, like acme.service-now.com or a custom instance URL. The instance must be reachable from the internet.",
     invalidCredentialsHelp:
       'ServiceNow rejected this username and password. Check the instance URL, and that the user is active, not locked out, and not required to use multi-factor authentication.',
+    clientCredentials: {
+      label: 'OAuth client credentials',
+      tokenLabel: 'Username and password',
+      authStyle: 'bearer',
+      helpText:
+        'Use the client ID and secret of an inbound OAuth client set to the client credentials grant. An admin must first set the glide.oauth.inbound.client.credential.grant_type.enabled system property to true and give the client an OAuth Application User with the roles your workflows need; requests act as that user.',
+      invalidCredentialsHelp:
+        'ServiceNow rejected these client credentials. Check the instance URL, the client ID and secret, that the glide.oauth.inbound.client.credential.grant_type.enabled system property is true, and that the client has an active OAuth Application User.',
+    },
+  },
+  [AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: AMPLITUDE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Amplitude',
+    tokenNoun: 'secret key',
+    connectNoun: 'project keys',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Secret key',
+        placeholder: 'Paste the project secret key',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'API key',
+        placeholder: 'Paste the project API key',
+        secret: false,
+      },
+      {
+        id: 'domain',
+        label: 'Data residency',
+        placeholder: 'us or eu',
+        secret: false,
+        defaultValue: 'us',
+        hintPattern: /^(us|eu|US|EU)$/,
+        hintMessage: 'Enter us or eu, the region your Amplitude project stores data in.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/amplitude',
+    helpText:
+      "In Amplitude, open Settings > Projects, choose the project, and copy the API key and secret key from its General tab. Change the data residency to eu only for a project hosted in Amplitude's EU data center.",
+    invalidCredentialsHelp:
+      'Amplitude rejected this API key and secret key. Check that both come from the same project, and that the data residency matches the region the project is hosted in.',
+  },
+  [KALSHI_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: KALSHI_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Kalshi',
+    tokenNoun: 'private key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Private key',
+        placeholder: '-----BEGIN PRIVATE KEY-----',
+        secret: true,
+        multiline: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'API key ID',
+        placeholder: 'Paste the API key ID',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/kalshi',
+    helpText:
+      'In Kalshi, open Account Settings > Profile Settings > API Keys and create a key, then paste its key ID and the private key Kalshi shows only once. Ed25519 and RSA keys both work. The key can trade for your account, so share this credential only with people who may place orders.',
+    invalidCredentialsHelp:
+      'Kalshi rejected this key. Check that the key ID and private key belong to the same API key, that the key has not been deleted, and that you pasted the whole private key file.',
+  },
+  [SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SPLUNK_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Splunk',
+    tokenNoun: 'authentication token',
+    connectNoun: 'authentication token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Authentication token or password',
+        placeholder: 'Paste a Splunk authentication token, or the password',
+        secret: true,
+        preserveWhitespace: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Username',
+        placeholder: 'Only to sign in with a password',
+        secret: false,
+        optional: true,
+      },
+      {
+        id: 'domain',
+        label: 'Management URL',
+        placeholder: 'https://splunk.example.com:8089',
+        secret: false,
+        url: true,
+      },
+    ],
+    passwordWithUsername: true,
+    docsUrl: 'https://docs.sim.ai/integrations/splunk',
+    helpText:
+      'Create a token in Splunk Web under Settings > Tokens and leave the username blank, or enter a username and its password when token authentication is turned off. Enter the management URL with its port (8089 by default). The URL must be reachable from Sim over https with a certificate from a public certificate authority; Sim does not skip certificate checks.',
+    invalidCredentialsHelp:
+      'Splunk rejected these credentials. For a token, check that token authentication is turned on and that the token is enabled and not expired; for a password, check the username and password. Also check that the management URL points at the same deployment.',
+  },
+  [CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CBINSIGHTS_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'CB Insights',
+    tokenNoun: 'client secret',
+    connectNoun: 'API client',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Client secret',
+        placeholder: 'Paste the CB Insights client secret',
+        secret: true,
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Client ID',
+        placeholder: 'Paste the CB Insights client ID',
+        secret: false,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/cbinsights',
+    helpText:
+      'CB Insights issues the API client ID and secret; contact your CB Insights representative for production credentials. Sim exchanges them for a short-lived access token on each run.',
+    invalidCredentialsHelp:
+      'CB Insights did not authorize this client ID and secret. Check that both were issued together and are still active.',
+  },
+  [RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: RAILWAY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Railway',
+    tokenNoun: 'token',
+    connectNoun: 'token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Token',
+        placeholder: 'Paste a Railway account, workspace, or project token',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Token type',
+        placeholder: 'account, workspace, or project',
+        secret: false,
+        hintPattern: /^(account|workspace|project)$/i,
+        hintMessage: 'Enter account, workspace, or project: the scope you chose for this token.',
+      },
+      {
+        id: 'providerWorkspaceId',
+        label: 'Workspace ID',
+        placeholder: 'Required for a workspace token',
+        secret: false,
+        optional: true,
+        requiredForDomain: 'workspace',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/railway',
+    helpText:
+      "Create an account or workspace token in your Railway account settings, or a project token in a project's settings. A workspace token is scoped to one workspace, so enter that workspace's ID as well.",
+    invalidCredentialsHelp:
+      'Railway rejected this token. Check that the token type matches the scope you created it with, and for a workspace token that the workspace ID is the one it was created in.',
+  },
+  [QDRANT_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: QDRANT_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Qdrant',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste a Qdrant database API key',
+        secret: true,
+      },
+      {
+        id: 'domain',
+        label: 'Instance URL',
+        placeholder: 'https://xyz-example.eu-central.aws.cloud.qdrant.io:6333',
+        secret: false,
+        url: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/qdrant',
+    helpText:
+      'For Qdrant Cloud, create a database API key on the cluster and enter the cluster URL with its port (6333). For a self-hosted instance, enter the key set as its service API key and a URL Sim can reach.',
+    invalidCredentialsHelp:
+      'Qdrant rejected this API key. Check that the key belongs to this cluster or instance and has not expired.',
   },
 }
 
 /**
+ * Whether a create must give the field: every field is required unless it is optional or has a
+ * default.
+ */
+export function isTokenServiceAccountFieldRequired(field: TokenServiceAccountField): boolean {
+  return !field.optional && field.defaultValue === undefined
+}
+
+/**
  * Required contract fields per token provider in client-credentials mode: the client ID and
- * secret replace the token, and every other descriptor field (a store domain) stays required.
+ * secret replace the token, and every other descriptor field without a default (a store
+ * domain) stays required unless it belongs only to the pasted-token sign-in.
  */
 export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
   string,
@@ -2508,7 +2878,13 @@ export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
       [
         'clientId',
         'clientSecret',
-        ...descriptor.fields.flatMap((field) => (field.id === 'apiToken' ? [] : [field.id])),
+        ...descriptor.fields.flatMap((field) =>
+          field.id === 'apiToken' ||
+          !tokenFieldBelongsToAuthMethod(field, CLIENT_CREDENTIALS_AUTH_METHOD) ||
+          !isTokenServiceAccountFieldRequired(field)
+            ? []
+            : [field.id]
+        ),
       ],
     ])
 )
@@ -2516,15 +2892,27 @@ export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
 /**
  * Required contract fields per token service-account provider, consumed by the
  * `createCredentialBodySchema` superRefine so validation errors name the exact
- * missing field. Derived from each descriptor's field list.
+ * missing field. Derived from each descriptor's field list; a field marked `optional` or
+ * carrying a `defaultValue` is not required.
  */
 export const TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, TokenServiceAccountFieldId[]> =
   Object.fromEntries(
     Object.values(TOKEN_SERVICE_ACCOUNT_DESCRIPTORS).map((descriptor) => [
       descriptor.providerId,
-      descriptor.fields.map((field) => field.id),
+      descriptor.fields.filter(isTokenServiceAccountFieldRequired).map((field) => field.id),
     ])
   )
+
+/**
+ * The region or host a token credential's `domain` takes when none was given or stored: the
+ * descriptor's `defaultValue`, or `undefined` when it has none.
+ */
+export function getTokenServiceAccountDomainDefault(
+  providerId: string | null | undefined
+): string | undefined {
+  return getTokenServiceAccountDescriptor(providerId)?.fields.find((field) => field.id === 'domain')
+    ?.defaultValue
+}
 
 export function isTokenServiceAccountProviderId(
   value: string | null | undefined

@@ -4,10 +4,12 @@ import {
   resolveSquareIdempotencyKey,
   type SquareDeliveryContextParams,
 } from '@/tools/square/idempotency'
-import type { CatalogObjectResponse, CreateCatalogImageParams } from '@/tools/square/types'
 import {
   CATALOG_OBJECT_METADATA_OUTPUT_PROPERTIES,
   CATALOG_OBJECT_OUTPUT,
+  type CatalogObjectResponse,
+  type CreateCatalogImageParams,
+  SQUARE_ENVIRONMENTS,
 } from '@/tools/square/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -27,6 +29,7 @@ export const squareCreateCatalogImageTool: InternalToolConfig<
   oauth: SQUARE_CREDENTIAL_OAUTH,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -74,6 +77,7 @@ export const squareCreateCatalogImageTool: InternalToolConfig<
      */
     input: (params) => ({
       accessToken: params.apiKey,
+      environment: params.environment,
       file: params.file,
       fileName: params.fileName,
       objectId: params.objectId,

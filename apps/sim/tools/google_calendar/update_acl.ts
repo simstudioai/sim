@@ -4,6 +4,7 @@ import {
   type GoogleCalendarApiAclRule,
 } from '@/tools/google_calendar/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface GoogleCalendarUpdateAclParams {
   accessToken: string
@@ -32,7 +33,7 @@ const buildUpdateAclUrl = (params: GoogleCalendarUpdateAclParams) => {
     queryParams.append('sendNotifications', String(params.sendNotifications))
   }
   const queryString = queryParams.toString()
-  return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/acl/${encodeURIComponent(params.ruleId.trim())}${queryString ? `?${queryString}` : ''}`
+  return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/acl/${safeUrlPathSegment(params.ruleId, 'ruleId')}${queryString ? `?${queryString}` : ''}`
 }
 
 export const updateAclTool: ToolConfig<

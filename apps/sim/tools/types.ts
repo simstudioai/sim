@@ -160,10 +160,16 @@ export interface OAuthConfig {
    */
   credentialParams?: Readonly<Record<string, CredentialParamSource>>
   /**
-   * Inline secrets a saved client-credential account replaces with the token
-   * it mints (`credentialParams.accessToken`): the tool authenticates with the
-   * token and never reads them. Listed in `credentialSuppliedParams` too.
-   * Built by `clientCredentialOAuth`.
+   * Mapped params a credential of this provider may lack because one of its sign-in modes has no
+   * such field (a ServiceNow client-credentials connection has no username). The executor clears
+   * such a param instead of failing, so it is never left to the caller either.
+   */
+  optionalCredentialParams?: readonly string[]
+  /**
+   * Inline secrets the saved credential's token replaces (the client id and
+   * secret a client-credential account mints with, or a username and password
+   * a tool reads only without a token): the tool authenticates with the token
+   * and never reads them. Listed in `credentialSuppliedParams` too.
    */
   tokenReplacesParams?: readonly string[]
   /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */

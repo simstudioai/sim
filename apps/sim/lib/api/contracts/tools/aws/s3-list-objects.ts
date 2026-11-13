@@ -14,6 +14,8 @@ const S3ListObjectsSchema = z.object({
   prefix: z.string().optional().nullable(),
   maxKeys: z.number().optional().nullable(),
   continuationToken: z.string().optional().nullable(),
+  delimiter: z.string().optional().nullable(),
+  startAfter: z.string().optional().nullable(),
 })
 
 const S3ListObjectsResponseSchema = z.object({
@@ -25,8 +27,10 @@ const S3ListObjectsResponseSchema = z.object({
         size: z.number(),
         lastModified: z.string(),
         etag: z.string(),
+        storageClass: z.string().nullable(),
       })
     ),
+    commonPrefixes: z.array(z.string()),
     isTruncated: z.boolean().optional(),
     nextContinuationToken: z.string().optional(),
     keyCount: z.number().optional(),

@@ -5,7 +5,9 @@ import {
   CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS,
   type ClientCredentialAccountField,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { getDatabaseConnectionDescriptor } from '@/lib/credentials/database-connections/descriptors'
 import {
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_DESCRIPTORS,
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
@@ -54,6 +56,8 @@ export interface CredentialProviderField {
   multiline: boolean
   requiredForAuthMethods?: string[]
   options?: CredentialProviderFieldOption[]
+  /** The value an optional field takes when it is omitted (a region's default). */
+  defaultValue?: string
   hint?: string
 }
 
@@ -119,13 +123,18 @@ function providerField(
     id: field.id,
     label: field.label,
     placeholder: field.placeholder,
-    required: !('optional' in field && field.optional),
+    required:
+      !('optional' in field && field.optional) &&
+      !('defaultValue' in field && field.defaultValue !== undefined),
     secret: field.secret,
     multiline: 'multiline' in field && field.multiline === true,
     ...('requiredForAuthMethods' in field && field.requiredForAuthMethods
       ? { requiredForAuthMethods: [...field.requiredForAuthMethods] }
       : {}),
     ...('options' in field && field.options ? { options: [...field.options] } : {}),
+    ...('defaultValue' in field && field.defaultValue !== undefined
+      ? { defaultValue: field.defaultValue }
+      : {}),
     ...('hint' in field && field.hint
       ? { hint: field.hint }
       : 'hintMessage' in field && field.hintMessage
@@ -157,8 +166,8 @@ function keylessModeFor(providerId: string): KeylessCatalogMode | undefined {
 /**
  * Adds a provider's keyless mode to its key-based descriptor, the same way for
  * every keyless provider: one description suffix, and a hint on the
- * `serviceAccountJson` field — which a token provider such as Snowflake gains
- * as an optional alternative to its token fields.
+ * `serviceAccountJson` field, which is added as an optional alternative to the
+ * other fields when the descriptor has none.
  */
 function withKeylessMode(
   descriptor: ServiceAccountDescriptor,
@@ -167,7 +176,7 @@ function withKeylessMode(
   if (!mode) return descriptor
   const { keyless, scope } = mode
   const scopeNote = scope ? ` ${scope}` : ''
-  const hint = `Keyless: send the keylessConfig from Create workload identity subject with ${keyless.requiredConfigFields.join(', ')} added.${scopeNote}`
+  const hint = `Keyless: send the keylessConfig from Create workload identity subject with ${keyless.requiredConfigFields.join(', ')} added. Optionally add audience to have Sim sign for your own value instead of the default audience (for Google Cloud, the workload identity provider's resource name), and trust that value.${scopeNote}`
   const configurationField = descriptor.fields.find((field) => field.id === 'serviceAccountJson')
   const fields = configurationField
     ? descriptor.fields.map((field) =>
@@ -265,6 +274,39 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           secret: true,
           multiline: true,
           hint: `JSON object with authType: "access_keys" (accessKeyId, secretAccessKey, optional stsRegion) or "assume_role" (accessKeyId, secretAccessKey, roleArn, optional externalId and stsRegion).`,
+        },
+      ],
+    }
+  }
+  const database = getDatabaseConnectionDescriptor(providerId)
+  if (database) {
+    const tls = database.tls
+      .map(
+        (field) =>
+          `${field.id} (${field.options.map((option) => option.value).join(', ')}; default ${field.defaultValue})`
+      )
+      .join(' and ')
+    const tlsTradeoffs = database.tls.map((field) => `${field.id}: ${field.hint}`).join(' ')
+    return {
+      name: `${database.label} connection`,
+      description: `Connect to ${database.label} with a saved host, database, login, and transport-security settings.`,
+      docsUrl: database.docsUrl,
+      fields: [
+        {
+          id: 'serviceAccountJson',
+          label: 'Connection configuration',
+          placeholder: JSON.stringify({
+            host: 'db.example.com',
+            port: database.defaultPort,
+            database: 'app',
+            username: database.usernamePlaceholder,
+            password: '...',
+            ...Object.fromEntries(database.tls.map((field) => [field.id, field.defaultValue])),
+          }),
+          required: true,
+          secret: true,
+          multiline: true,
+          hint: `JSON object with host, port, database, username, password, and optional ${tls}. Sim verifies it with SELECT 1 before saving. ${tlsTradeoffs}`,
         },
       ],
     }
@@ -429,6 +471,29 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           required: true,
           secret: false,
           multiline: false,
+        },
+      ],
+    }
+  }
+
+  if (providerId === SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID) {
+    const tokenDescriptor = TOKEN_SERVICE_ACCOUNT_DESCRIPTORS[SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]
+    return {
+      name: 'Snowflake connection',
+      description: 'Connect Snowflake with a programmatic access token or an RSA key pair.',
+      docsUrl: tokenDescriptor.docsUrl,
+      helpText: tokenDescriptor.helpText,
+      fields: [
+        ...tokenDescriptor.fields.map(providerField),
+        {
+          id: 'serviceAccountJson',
+          label: 'Connection configuration',
+          placeholder:
+            '{"authType":"key_pair","host":"myorg-myaccount.snowflakecomputing.com","user":"SIM_SERVICE","privateKey":"-----BEGIN PRIVATE KEY-----..."}',
+          required: false,
+          secret: true,
+          multiline: true,
+          hint: 'Send instead of the other fields. Key pair: JSON object with authType: "key_pair", host, user, and privateKey (an unencrypted RSA private key as PEM, 2048 to 4096 bits, whose public key is set on the user).',
         },
       ],
     }

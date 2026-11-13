@@ -224,7 +224,7 @@ export const env = createEnv({
     STRIPE_PRICE_TEAM_100_MO:              z.string().min(1).optional(),           // Team Max: $100/seat/mo
     STRIPE_PRICE_TEAM_100_YR:              z.string().min(1).optional(),           // Team Max: $1,020/seat/yr
     OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(100),     // Dollar threshold for incremental overage billing (default: $100)
-    AWS_MARKETPLACE_PRODUCT_CODE:          z.string().min(1).optional(),           // AWS Marketplace SaaS product code; unset turns the Marketplace registration, claim, and reconcile surfaces off
+    AWS_MARKETPLACE_PRODUCTS:              z.string().min(1).optional(),           // AWS Marketplace SaaS products this deployment sells, as <product code>=<plan> pairs (lib/billing/aws-marketplace/products.ts); unset turns the Marketplace surfaces off
     AWS_MARKETPLACE_EVENTS_QUEUE_URL:      z.string().url().optional(),            // SQS queue receiving the Marketplace agreement EventBridge events the reconcile cron drains
 
     // Email & Communication
@@ -564,6 +564,8 @@ export const env = createEnv({
     ZOHO_CLIENT_SECRET:                    z.string().optional(),                  // Zoho OAuth client secret (Zoho Desk)
     WEALTHBOX_CLIENT_ID:                   z.string().optional(),                  // WealthBox OAuth client ID
     WEALTHBOX_CLIENT_SECRET:               z.string().optional(),                  // WealthBox OAuth client secret
+    APOLLO_CLIENT_ID:                      z.string().optional(),
+    APOLLO_CLIENT_SECRET:                  z.string().optional(),
     PIPEDRIVE_CLIENT_ID:                   z.string().optional(),                  // Pipedrive OAuth client ID
     PIPEDRIVE_CLIENT_SECRET:               z.string().optional(),                  // Pipedrive OAuth client secret
     LINEAR_CLIENT_ID:                      z.string().optional(),                  // Linear OAuth client ID
@@ -616,7 +618,6 @@ export const env = createEnv({
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
     DASHBOARDS: z.boolean().optional(),
     PROJECTS:                              z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
-    MSHIP_COMPUTER_USE: z.boolean().optional(),
     WORKFLOW_TESTS:                        z.boolean().optional(),                 // Fallback for the `workflow-tests` feature flag off AppConfig
     CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
     SIM_LINKS:                             z.boolean().optional(),                 // Fallback for the `sim-links` feature flag off AppConfig
@@ -665,6 +666,7 @@ export const env = createEnv({
     AGENT_MEMORY_HISTORY:                 z.boolean().optional(),
     CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable Credential Groups on self-hosted (bypasses hosted requirements)
     KNOWLEDGE_MEMBER_ACCESS:              z.boolean().optional(),                 // Enable per-member knowledge connectors and hybrid-by-default retrieval globally
+    KNOWLEDGE_CONNECTOR_SAVED_CREDENTIALS: z.boolean().optional(),               // Fallback for the `knowledge-connector-saved-credentials` feature flag off AppConfig
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)

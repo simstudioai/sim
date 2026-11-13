@@ -1063,6 +1063,7 @@ type CancelOrganizationAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -1436,6 +1437,7 @@ type CancelWorkspaceAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -2038,6 +2040,7 @@ export type CreateCredentialConnectionBody =
         | 'ramp'
         | 'helpscout'
         | 'hubspot'
+        | 'apollo'
         | 'linkedin'
         | 'instagram'
         | 'salesforce'
@@ -2805,6 +2808,7 @@ export type CreateOrganizationAccessRequestBody = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -2884,6 +2888,7 @@ type CreateOrganizationAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -3019,6 +3024,7 @@ export type CreatePermissionGroupBody = {
     deniedPartialAccessProjectIssues?: Array<string>
     defaultAgentModel?: string | null
     deniedAccessRequests?: Array<string>
+    disableComputerUse?: boolean
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -3075,6 +3081,7 @@ type CreatePermissionGroupResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   }
   isDefault: boolean
   membershipMode: string
@@ -4108,6 +4115,7 @@ export type CreateWorkspaceAccessRequestBody = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -4187,6 +4195,7 @@ type CreateWorkspaceAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -5242,6 +5251,7 @@ type DiscoverOrganizationAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -5350,6 +5360,7 @@ type DiscoverWorkspaceAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -6920,6 +6931,7 @@ type GetPermissionGroupResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   }
   isDefault: boolean
   membershipMode: string
@@ -8392,6 +8404,7 @@ type GetWorkspacePermissionConfigResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   } | null
   entitled: boolean
   organizationId: string | null
@@ -8735,6 +8748,10 @@ type ListConnectorTypesResponseRef0 = {
         label?: string
         placeholder?: string
         optional: boolean
+        savedCredential?: {
+          provider: string
+          label: string
+        }
       }
   configFields: Array<ListConnectorTypesResponseRef1>
   supportsIncrementalSync: boolean
@@ -8767,6 +8784,7 @@ type ListConnectorTypesResponseRef1 = {
   mode?: 'basic' | 'advanced'
   canonicalParamId?: string
   multi?: boolean
+  apiKeyOnly?: boolean
 }
 
 type ListConnectorTypesResponseRef2 = {
@@ -8842,6 +8860,7 @@ type ListCredentialProvidersResponseRef0 =
           value: string
           label: string
         }>
+        defaultValue?: string
         hint?: string
       }>
     }
@@ -8868,6 +8887,7 @@ type ListCredentialProvidersResponseRef0 =
           value: string
           label: string
         }>
+        defaultValue?: string
         hint?: string
       }>
       keyless?: {
@@ -9570,6 +9590,7 @@ type ListMyOrganizationAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -9678,6 +9699,7 @@ type ListMyWorkspaceAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -9787,6 +9809,7 @@ type ListOrganizationAccessRequestsResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -10190,6 +10213,7 @@ type ListPermissionGroupsResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   }
   isDefault: boolean
   membershipMode: string
@@ -11448,6 +11472,7 @@ type PreviewOrganizationAccessRequestResponseRef0 = {
             | 'hideSandboxesTab'
             | 'disableOAuthAppAccess'
             | 'disableKnowledgeBaseExport'
+            | 'disableComputerUse'
         }
       | {
           kind: 'integration'
@@ -11539,6 +11564,7 @@ type PreviewOrganizationAccessRequestResponseRef0 = {
       | 'disableOAuthAppAccess'
       | 'disableKnowledgeBaseExport'
       | 'deniedPartialAccessProjectIssues'
+      | 'disableComputerUse'
     label: string
     before: boolean | Array<string> | null
     after: boolean | Array<string> | null
@@ -11605,6 +11631,7 @@ type PreviewOrganizationAccessRequestResponseRef1 = {
             | 'hideSandboxesTab'
             | 'disableOAuthAppAccess'
             | 'disableKnowledgeBaseExport'
+            | 'disableComputerUse'
         }
       | {
           kind: 'integration'
@@ -11696,6 +11723,7 @@ type PreviewOrganizationAccessRequestResponseRef1 = {
       | 'disableOAuthAppAccess'
       | 'disableKnowledgeBaseExport'
       | 'deniedPartialAccessProjectIssues'
+      | 'disableComputerUse'
     label: string
     before: boolean | Array<string> | null
     after: boolean | Array<string> | null
@@ -13382,6 +13410,7 @@ type ResolveOrganizationAccessRequestResponseRef0 = {
           | 'hideSandboxesTab'
           | 'disableOAuthAppAccess'
           | 'disableKnowledgeBaseExport'
+          | 'disableComputerUse'
       }
     | {
         kind: 'integration'
@@ -15152,6 +15181,7 @@ export type UpdatePermissionGroupBody = {
     deniedPartialAccessProjectIssues?: Array<string>
     defaultAgentModel?: string | null
     deniedAccessRequests?: Array<string>
+    disableComputerUse?: boolean
   }
   isDefault?: boolean
   workspaceIds?: Array<string>
@@ -15208,6 +15238,7 @@ type UpdatePermissionGroupResponseRef0 = {
     deniedPartialAccessProjectIssues: Array<string>
     defaultAgentModel: string | null
     deniedAccessRequests: Array<string>
+    disableComputerUse: boolean
   }
   isDefault: boolean
   membershipMode: string
@@ -17344,7 +17375,7 @@ export const V2_OPERATIONS = {
       credentialId: {
         kind: 'string',
         describe:
-          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.',
+          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or, when this deployment enables it, a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.',
       },
       apiKey: {
         kind: 'string',

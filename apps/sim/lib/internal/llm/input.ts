@@ -72,6 +72,7 @@ export const llmProviderOperationInputSchema = z
     bedrockAccessKeyId: z.string().optional(),
     bedrockSecretKey: z.string().optional(),
     bedrockRegion: z.string().optional(),
+    bedrockCredential: z.string().optional(),
     responseFormat: providerResponseFormatSchema.optional(),
     workflowId: z.string().optional(),
     workspaceId: z.string().optional(),

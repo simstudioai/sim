@@ -234,11 +234,10 @@ Cadence: Electron ships a major every ~8 weeks and supports the latest 3 — bud
 
 ## Native Mac computer use
 
-Mothership's `computer` tool is available on macOS 14+ when the global runtime flag
-`mothership-computer-use` is enabled and the user opts in under **Settings → Desktop → Computer Use**.
-The flag defaults off; local/self-hosted deployments use `MSHIP_COMPUTER_USE=true`, while hosted
-rollout uses the existing AppConfig feature-flags document. Older desktop builds omit this optional
-bridge and continue to work.
+Mothership's `computer` tool is available on macOS 14+ once the user opts in under
+**Settings → Desktop → Computer Use**. Enterprise organizations can withhold it from a permission
+group with the **Computer Use** restriction. Older desktop builds omit this optional bridge and
+continue to work.
 
 The user grants Accessibility and Screen Recording through macOS, then approves each app for the
 current task or persistently. Persistent app approvals are listed in Settings and can be revoked.

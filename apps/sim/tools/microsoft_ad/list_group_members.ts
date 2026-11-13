@@ -3,8 +3,10 @@ import type {
   MicrosoftAdListGroupMembersResponse,
 } from '@/tools/microsoft_ad/types'
 import { MEMBER_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
+import { mapDirectoryObjectMember } from '@/tools/microsoft_ad/utils'
 import { assertGraphNextPageUrlForCollection, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listGroupMembersTool: ToolConfig<
   MicrosoftAdListGroupMembersParams,
@@ -51,9 +53,9 @@ export const listGroupMembersTool: ToolConfig<
       if (params.nextLink) return assertGraphNextPageUrlForCollection(params.nextLink, ['members'])
       const groupId = params.groupId?.trim()
       if (!groupId) throw new Error('Group ID is required')
-      const queryParts = ['$select=id,displayName,mail']
+      const queryParts = ['$select=id,displayName,mail,userPrincipalName']
       if (params.top) queryParts.push(`$top=${params.top}`)
-      return `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(groupId)}/members?${queryParts.join('&')}`
+      return `https://graph.microsoft.com/v1.0/groups/${safeUrlPathSegment(groupId, 'groupId')}/members?${queryParts.join('&')}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -62,12 +64,7 @@ export const listGroupMembersTool: ToolConfig<
   },
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    const members = (data.value ?? []).map((member: Record<string, unknown>) => ({
-      id: member.id ?? null,
-      displayName: member.displayName ?? null,
-      mail: member.mail ?? null,
-      odataType: (member['@odata.type'] as string) ?? null,
-    }))
+    const members = (data.value ?? []).map(mapDirectoryObjectMember)
     return {
       success: true,
       output: {

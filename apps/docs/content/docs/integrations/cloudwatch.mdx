@@ -48,6 +48,7 @@ Run a CloudWatch Log Insights query against one or more log groups
 |   ↳ `recordsMatched` | number | Number of log records that matched the query |
 |   ↳ `recordsScanned` | number | Total log records scanned |
 | `status` | string | Query completion status \(Complete, Failed, Cancelled, or Timeout\) |
+| `queryId` | string | ID of the Logs Insights query |
 
 </ReferenceDetails>
 
@@ -69,6 +70,7 @@ Search log events across all streams in a log group by filter pattern and time r
 | `endTime` | number | No | End time as Unix epoch seconds |
 | `startFromHead` | boolean | No | Return the earliest matching events first instead of the latest |
 | `limit` | number | No | Maximum number of events to return |
+| `nextToken` | string | No | Pagination token from a previous call to continue where it stopped |
 
 #### Output
 
@@ -79,6 +81,8 @@ Search log events across all streams in a log group by filter pattern and time r
 |   ↳ `timestamp` | number | Event timestamp in epoch milliseconds |
 |   ↳ `message` | string | Log event message |
 |   ↳ `ingestionTime` | number | Ingestion time in epoch milliseconds |
+|   ↳ `eventId` | string | Unique ID of the log event |
+| `nextToken` | string | Token to fetch the next page of matching events, if more remain |
 
 </ReferenceDetails>
 
@@ -125,6 +129,7 @@ Retrieve log events from a specific CloudWatch log stream
 | `startTime` | number | No | Start time as Unix epoch seconds |
 | `endTime` | number | No | End time as Unix epoch seconds |
 | `limit` | number | No | Maximum number of events to return |
+| `nextToken` | string | No | Token from a previous call \(nextForwardToken or nextBackwardToken\) to page through the stream |
 
 #### Output
 
@@ -134,6 +139,8 @@ Retrieve log events from a specific CloudWatch log stream
 |   ↳ `timestamp` | number | Event timestamp in epoch milliseconds |
 |   ↳ `message` | string | Log event message |
 |   ↳ `ingestionTime` | number | Ingestion time in epoch milliseconds |
+| `nextForwardToken` | string | Token for the next, newer page of events \(returns the same token when the end of the stream is reached\) |
+| `nextBackwardToken` | string | Token for the previous, older page of events |
 
 </ReferenceDetails>
 
@@ -232,8 +239,10 @@ Get statistics for a CloudWatch metric over a time range
 | `startTime` | number | Yes | Start time as Unix epoch seconds |
 | `endTime` | number | Yes | End time as Unix epoch seconds |
 | `period` | number | Yes | Granularity in seconds \(e.g., 60, 300, 3600\) |
-| `statistics` | array | Yes | Statistics to retrieve \(Average, Sum, Minimum, Maximum, SampleCount\) |
+| `statistics` | array | No | Statistics to retrieve \(Average, Sum, Minimum, Maximum, SampleCount\). Required unless extendedStatistics is set, which takes precedence |
 | `dimensions` | string | No | Dimensions as JSON \(e.g., \{"InstanceId": "i-1234"\}\) |
+| `extendedStatistics` | array | No | Percentile statistics to retrieve \(e.g., \["p99", "p95"\]\). AWS accepts either Statistics or ExtendedStatistics, so when set these are requested instead of statistics |
+| `unit` | string | No | Only return data reported with this unit \(e.g., Percent, Milliseconds\). Omit to return all units |
 
 #### Output
 
@@ -248,6 +257,7 @@ Get statistics for a CloudWatch metric over a time range
 |   ↳ `maximum` | number | Maximum statistic value |
 |   ↳ `sampleCount` | number | Sample count statistic value |
 |   ↳ `unit` | string | Unit of the metric |
+|   ↳ `extendedStatistics` | json | Percentile values keyed by statistic \(e.g., \{"p99": 120.5\}\) |
 
 </ReferenceDetails>
 
@@ -296,6 +306,7 @@ List and filter CloudWatch alarms
 | `stateValue` | string | No | Filter by alarm state \(OK, ALARM, INSUFFICIENT_DATA\) |
 | `alarmType` | string | No | Filter by alarm type \(MetricAlarm, CompositeAlarm\) |
 | `limit` | number | No | Maximum number of alarms to return |
+| `nextToken` | string | No | Pagination token from a previous call |
 
 #### Output
 
@@ -309,7 +320,29 @@ List and filter CloudWatch alarms
 |   ↳ `metricName` | string | Metric name \(MetricAlarm only\) |
 |   ↳ `namespace` | string | Metric namespace \(MetricAlarm only\) |
 |   ↳ `threshold` | number | Threshold value \(MetricAlarm only\) |
+|   ↳ `comparisonOperator` | string | Comparison operator \(MetricAlarm only\) |
+|   ↳ `evaluationPeriods` | number | Number of periods evaluated \(MetricAlarm only\) |
 |   ↳ `stateUpdatedTimestamp` | number | Epoch ms when state last changed |
+|   ↳ `alarmType` | string | MetricAlarm or CompositeAlarm |
+|   ↳ `alarmDescription` | string | Alarm description |
+|   ↳ `actionsEnabled` | boolean | Whether actions run on state changes |
+|   ↳ `alarmActions` | array | ARNs of actions run on ALARM |
+|   ↳ `okActions` | array | ARNs of actions run on OK |
+|   ↳ `insufficientDataActions` | array | ARNs of actions run on INSUFFICIENT_DATA |
+|   ↳ `stateReasonData` | string | Machine-readable JSON explaining the state |
+|   ↳ `stateTransitionedTimestamp` | number | Epoch ms when the state value last changed |
+|   ↳ `alarmConfigurationUpdatedTimestamp` | number | Epoch ms when the alarm configuration last changed |
+|   ↳ `statistic` | string | Statistic evaluated \(MetricAlarm only\) |
+|   ↳ `extendedStatistic` | string | Percentile statistic evaluated \(MetricAlarm only\) |
+|   ↳ `dimensions` | array | Metric dimensions as \{name, value\} \(MetricAlarm only\) |
+|   ↳ `period` | number | Evaluation period in seconds \(MetricAlarm only\) |
+|   ↳ `unit` | string | Metric unit \(MetricAlarm only\) |
+|   ↳ `datapointsToAlarm` | number | Breaching datapoints needed to alarm \(MetricAlarm only\) |
+|   ↳ `treatMissingData` | string | How missing data is treated \(MetricAlarm only\) |
+|   ↳ `thresholdMetricId` | string | ID of the metric-math threshold query \(anomaly detection alarms\) |
+|   ↳ `metrics` | array | Metric-math queries \[\{id, expression, label, returnData, period, accountId, metricStat\}\] \(MetricAlarm only\) |
+|   ↳ `alarmRule` | string | Rule expression \(CompositeAlarm only\) |
+| `nextToken` | string | Pagination token for the next page of alarms |
 
 </ReferenceDetails>
 
@@ -341,6 +374,8 @@ Retrieve state-change and configuration history for CloudWatch alarms
 |   ↳ `timestamp` | number | Epoch ms when the history item occurred |
 |   ↳ `historyItemType` | string | ConfigurationUpdate, StateUpdate, Action, or contributor variants |
 |   ↳ `historySummary` | string | Human-readable summary of the event |
+|   ↳ `historyData` | string | JSON string with event details \(e.g., old and new state with reason data for StateUpdate\) |
+|   ↳ `alarmContributorId` | string | ID of the alarm contributor, for contributor history items |
 
 </ReferenceDetails>
 

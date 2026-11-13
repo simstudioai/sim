@@ -4,6 +4,7 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { withSavedCredential } from '@/blocks/utils'
 import type { NewRelicCustomAttributes } from '@/tools/new_relic/types'
+import { NEW_RELIC_REGIONS } from '@/tools/new_relic/utils'
 
 function parseCustomAttributes(value: unknown): NewRelicCustomAttributes | undefined {
   if (!value) return undefined
@@ -77,10 +78,7 @@ export const NewRelicBlock: BlockConfig = {
       id: 'region',
       title: 'Region',
       type: 'dropdown',
-      options: [
-        { label: 'US', id: 'us' },
-        { label: 'EU', id: 'eu' },
-      ],
+      options: NEW_RELIC_REGIONS.options.map(({ value, label }) => ({ id: value, label })),
       value: () => 'us',
     },
     {

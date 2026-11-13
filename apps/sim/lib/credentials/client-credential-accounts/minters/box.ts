@@ -14,6 +14,7 @@ import {
   readProviderErrorSnippet,
   requireClientSecret,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 
 const logger = createLogger('BoxServiceAccountMinter')
@@ -176,10 +177,12 @@ export async function mintBoxServiceAccountToken(
         ...(hint ? { hint } : {}),
       })
     }
-    throw new TokenServiceAccountValidationError('provider_unavailable', res.status, {
-      step: 'box_token_mint',
-      body,
-    })
+    throw new TokenServiceAccountValidationError(
+      'provider_unavailable',
+      res.status,
+      { step: 'box_token_mint', body },
+      { retryAfterMs: throttledRetryAfterMs(res) }
+    )
   }
 
   const payload = await parseProviderJson<BoxTokenResponse>(res, 'box_token_mint')

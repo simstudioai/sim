@@ -85,7 +85,8 @@ export const getTemplateSummaryTool: InternalToolConfig<
     description: { type: 'string', description: 'Template description' },
     parameters: {
       type: 'array',
-      description: 'Template parameters with types, defaults, and descriptions',
+      description:
+        'Template parameters (parameterKey, defaultValue, parameterType, noEcho, description, allowedValues)',
     },
     capabilities: { type: 'array', description: 'Required capabilities (e.g., CAPABILITY_IAM)' },
     capabilitiesReason: { type: 'string', description: 'Reason capabilities are required' },

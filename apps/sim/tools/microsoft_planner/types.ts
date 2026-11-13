@@ -74,6 +74,37 @@ export interface PlannerTask {
   }
 }
 
+export interface PlannerTaskSummary {
+  id?: string
+  title?: string
+  planId?: string
+  bucketId: string | null
+  percentComplete?: number
+  priority?: number
+  dueDateTime: string | null
+  createdDateTime?: string
+  completedDateTime: string | null
+  hasDescription?: boolean
+  assignments: string[]
+  etag: string | null
+  startDateTime: string | null
+  orderHint: string | null
+  assigneePriority: string | null
+  appliedCategories: string[]
+  previewType: string | null
+  checklistItemCount: number | null
+  activeChecklistItemCount: number | null
+  referenceCount: number | null
+  conversationThreadId: string | null
+  createdBy: string | null
+  completedBy: string | null
+  assignees: Array<{
+    userId: string
+    assignedDateTime: string | null
+    assignedBy: string | null
+  }>
+}
+
 export interface PlannerBucket {
   id: string
   name: string
@@ -108,7 +139,7 @@ export interface PlannerTaskDetails {
 }
 
 interface MicrosoftPlannerMetadata {
-  planId?: string
+  planId?: string | null
   taskId?: string
   userId?: string | null
   planUrl?: string | null
@@ -120,7 +151,7 @@ interface MicrosoftPlannerMetadata {
 
 export interface MicrosoftPlannerReadResponse extends ToolResponse {
   output: {
-    tasks?: PlannerTask[]
+    tasks?: PlannerTaskSummary[]
     task?: PlannerTask
     plan?: PlannerPlan
     metadata: MicrosoftPlannerMetadata

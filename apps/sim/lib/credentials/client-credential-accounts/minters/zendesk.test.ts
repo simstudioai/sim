@@ -153,6 +153,17 @@ describe('Zendesk credential minting', () => {
     await expect(mintZendeskServiceAccountToken(CLIENT)).rejects.toMatchObject({ code })
   })
 
+  it("carries the token endpoint's Retry-After on a throttled answer", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ error: 'busy' }, { status: 429, headers: { 'Retry-After': '7' } })
+    )
+
+    await expect(mintZendeskServiceAccountToken(CLIENT)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      retryAfterMs: 7_000,
+    })
+  })
+
   it('refuses a token response without an access token', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse({ token_type: 'bearer' }))
 

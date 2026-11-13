@@ -21,6 +21,7 @@ import {
   providerFailureReason,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 
 /**
@@ -463,11 +464,12 @@ export async function mintSalesforceServiceAccountToken(
         ...(hint ? { hint } : {}),
       })
     }
-    throw new TokenServiceAccountValidationError('provider_unavailable', res.status, {
-      step: TOKEN_MINT_STEP,
-      host,
-      body,
-    })
+    throw new TokenServiceAccountValidationError(
+      'provider_unavailable',
+      res.status,
+      { step: TOKEN_MINT_STEP, host, body },
+      { retryAfterMs: throttledRetryAfterMs(res) }
+    )
   }
 
   const payload = await parseProviderJson<SalesforceTokenResponse>(res, TOKEN_MINT_STEP)

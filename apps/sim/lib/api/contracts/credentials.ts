@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { MICROSOFT_CLOUD_IDS } from '@/lib/credentials/microsoft-clouds'
 import {
   ATLASSIAN_PRODUCTS,
   getMissingServiceAccountFields,
@@ -61,6 +62,8 @@ export const workspaceCredentialSchema = z.object({
   envKey: z.string().nullable(),
   envOwnerUserId: z.string().nullable(),
   instanceUrl: z.string().url().optional(),
+  /** ISO time the saved token stops working, when its vendor stated one; absent when it never expires or is unknown. */
+  expiresAt: z.string().optional(),
   createdBy: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -574,6 +577,18 @@ export const createWorkspaceCredentialContract = defineRouteContract({
  */
 /** The reconnected credential's stored auth mode, so the dialog reopens on it. */
 const reconnectAuthTypeSchema = z.enum(WORKLOAD_IDENTITY_AUTH_TYPE_LIST).optional()
+/** A reconnected Microsoft app credential's national cloud, absent for the global cloud. */
+const reconnectCloudSchema = z.enum(MICROSOFT_CLOUD_IDS).optional()
+
+/** A reconnected keyless credential's custom audience; absent when it uses the default. */
+const reconnectAudienceSchema = z.string().optional()
+
+/** A reconnected keyless Google credential's domain-wide delegation, so the dialog keeps it. */
+const reconnectDelegationSchema = z
+  .object({ user: z.string(), services: z.array(z.string()) })
+  .optional()
+
+export type ReconnectDelegation = NonNullable<z.output<typeof reconnectDelegationSchema>>
 
 export const workloadIdentitySubjectGrantShape = {
   issuer: z
@@ -583,7 +598,7 @@ export const workloadIdentitySubjectGrantShape = {
     .string()
     .optional()
     .describe(
-      "The `aud` claim the cloud must accept. Absent for Google Cloud, whose audience is each credential's own workload identity pool provider."
+      "The default `aud` claim the cloud must accept; a keyless config's optional `audience` replaces it. Absent for Google Cloud, whose default audience is each credential's own workload identity pool provider."
     ),
   subject: z
     .string()
@@ -613,11 +628,20 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
     mode: 'json',
     schema: z.discriminatedUnion('available', [
       /** This deployment has no workload-identity signing key; offer key-based modes only. */
-      z.object({ available: z.literal(false), reconnectAuthType: reconnectAuthTypeSchema }),
+      z.object({
+        available: z.literal(false),
+        reconnectAuthType: reconnectAuthTypeSchema,
+        reconnectDelegation: reconnectDelegationSchema,
+        reconnectCloud: reconnectCloudSchema,
+        reconnectAudience: reconnectAudienceSchema,
+      }),
       z.object({
         available: z.literal(true),
         ...workloadIdentitySubjectGrantShape,
         reconnectAuthType: reconnectAuthTypeSchema,
+        reconnectDelegation: reconnectDelegationSchema,
+        reconnectCloud: reconnectCloudSchema,
+        reconnectAudience: reconnectAudienceSchema,
       }),
     ]),
   },

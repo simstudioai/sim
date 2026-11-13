@@ -1,6 +1,7 @@
 import type { GoogleVaultAddHeldAccountsParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const addHeldAccountsTool: ToolConfig<GoogleVaultAddHeldAccountsParams> = {
   id: 'google_vault_add_held_accounts',
@@ -43,7 +44,7 @@ export const addHeldAccountsTool: ToolConfig<GoogleVaultAddHeldAccountsParams> =
 
   request: {
     url: (params) =>
-      `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}/holds/${params.holdId.trim()}:addHeldAccounts`,
+      `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/holds/${safeUrlPathSegment(params.holdId, 'holdId')}:addHeldAccounts`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

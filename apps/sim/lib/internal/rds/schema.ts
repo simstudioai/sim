@@ -12,8 +12,22 @@ const rdsConnectionInputSchema = z.object({
   database: z.string().optional(),
 })
 
+const rdsStatementParametersSchema = z
+  .union([
+    z.record(z.string(), z.unknown()),
+    z.array(
+      z.object({
+        name: z.string().min(1, 'Parameter name is required'),
+        value: z.unknown().optional(),
+        typeHint: z.enum(['DATE', 'DECIMAL', 'JSON', 'TIME', 'TIMESTAMP', 'UUID']).optional(),
+      })
+    ),
+  ])
+  .optional()
+
 export const rdsQueryInputSchema = rdsConnectionInputSchema.extend({
   query: z.string().min(1, 'Query is required'),
+  parameters: rdsStatementParametersSchema,
 })
 export const rdsExecuteInputSchema = rdsQueryInputSchema
 export const rdsInsertInputSchema = rdsConnectionInputSchema.extend({

@@ -3,6 +3,7 @@ import {
   buildBatchUpdateMetadata,
   parseOptionalBoolean,
   resolveDocumentId,
+  resolveTabId,
 } from '@/tools/google_docs/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -47,6 +48,20 @@ export const replaceTextTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReplace
       visibility: 'user-or-llm',
       description: 'Whether the search should be case sensitive. Defaults to false.',
     },
+    searchByRegex: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'When true, the search text is treated as a regular expression. Defaults to false.',
+    },
+    tabId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ID of a tab to limit the replacement to (from Read with includeTabsContent). When omitted, matches are replaced in all tabs.',
+    },
   },
   request: {
     url: (params) => {
@@ -67,6 +82,8 @@ export const replaceTextTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReplace
       if (!params.searchText) {
         throw new Error('Search text is required')
       }
+      const searchByRegex = parseOptionalBoolean(params.searchByRegex)
+      const tabId = resolveTabId(params.tabId)
       return {
         requests: [
           {
@@ -74,8 +91,10 @@ export const replaceTextTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReplace
               containsText: {
                 text: params.searchText,
                 matchCase: parseOptionalBoolean(params.matchCase) ?? false,
+                ...(searchByRegex ? { searchByRegex } : {}),
               },
               replaceText: params.replaceText ?? '',
+              ...(tabId ? { tabsCriteria: { tabIds: [tabId] } } : {}),
             },
           },
         ],

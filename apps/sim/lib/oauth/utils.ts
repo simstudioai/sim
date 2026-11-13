@@ -12,6 +12,32 @@ import type {
  * Used by the OAuth Required Modal and available for any UI that needs to display scope info.
  */
 export const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  read_user_profile: 'View your Apollo profile',
+  mixed_people_api_search: 'Search Apollo people',
+  people_match: 'Enrich a person in Apollo',
+  people_bulk_match: 'Enrich people in bulk in Apollo',
+  mixed_companies_search: 'Search Apollo companies',
+  organizations_enrich: 'Enrich an Apollo organization',
+  organizations_bulk_enrich: 'Enrich organizations in bulk in Apollo',
+  contact_write: 'Create Apollo contacts',
+  contact_update: 'Update Apollo contacts',
+  contacts_search: 'Search Apollo contacts',
+  contacts_bulk_create: 'Create Apollo contacts in bulk',
+  contacts_bulk_update: 'Update Apollo contacts in bulk',
+  account_write: 'Create Apollo accounts',
+  account_update: 'Update Apollo accounts',
+  accounts_search: 'Search Apollo accounts',
+  account_bulk_create: 'Create Apollo accounts in bulk',
+  account_stages_update: 'Update Apollo account stages',
+  opportunity_write: 'Create Apollo deals',
+  opportunities_list: 'List Apollo deals',
+  opportunity_read: 'View Apollo deals',
+  opportunity_update: 'Update Apollo deals',
+  emailer_campaigns_search: 'Search Apollo sequences',
+  emailer_campaigns_add_contact_ids: 'Add contacts to Apollo sequences',
+  tasks_create: 'Create Apollo tasks',
+  tasks_list: 'Search Apollo tasks',
+  email_accounts_list: 'View Apollo email accounts',
   'harvest:application_stages:list': 'View Greenhouse application stages',
   'harvest:applications:convert_to_candidate':
     'Convert prospects to candidates for Greenhouse applications',
@@ -918,9 +944,17 @@ export function getMissingRequiredScopes(
  * `drive.readonly`, and a read-only grant never satisfies a write scope.
  */
 export function isScopeSatisfiedBy(required: string, granted: ReadonlySet<string>): boolean {
+  const readWrite = readWriteScopeOf(required)
+  return readWrite !== undefined && granted.has(readWrite)
+}
+
+/**
+ * The read-write scope that subsumes a `.readonly` scope (`drive` for
+ * `drive.readonly`), or undefined for a scope that is not read-only.
+ */
+export function readWriteScopeOf(scope: string): string | undefined {
   const readonlySuffix = '.readonly'
-  if (!required.endsWith(readonlySuffix)) return false
-  return granted.has(required.slice(0, -readonlySuffix.length))
+  return scope.endsWith(readonlySuffix) ? scope.slice(0, -readonlySuffix.length) : undefined
 }
 
 /**

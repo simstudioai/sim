@@ -11,7 +11,12 @@ import {
   providerFailureCode,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
-import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
+import {
+  storedAudienceField,
+  storedWorkloadIdentityAudienceSchema,
+  WORKLOAD_IDENTITY_AUDIENCES,
+  workloadIdentityAudienceSchema,
+} from '@/lib/credentials/workload-identity/audiences'
 import {
   isWorkloadIdentityConfigured,
   MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS,
@@ -35,14 +40,16 @@ import { DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
  *   client ID and secret mint a workspace token per run.
  * - `oidc_federation`: no stored secret — Sim signs a short-lived OIDC token
  *   for this credential's subject and exchanges it (RFC 8693) for a token of
- *   the service principal whose federation policy trusts it.
+ *   the service principal whose federation policy trusts it. The token's `aud`
+ *   is the credential's own `audience` when set (one the customer's federation
+ *   policy lists, such as their account ID), else the Sim default.
  *
  * Every mode resolves server-side to a bearer token plus the workspace host
  * (`accessToken`, `domain`), which fill the tools' `apiKey` and `host`.
  */
 
 const DATABRICKS_CREDENTIAL_SECRET_TYPE = 'databricks_credential_v1' as const
-const DATABRICKS_WORKLOAD_IDENTITY_AUDIENCE = WORKLOAD_IDENTITY_AUDIENCES.databricks
+const DEFAULT_DATABRICKS_AUDIENCE = WORKLOAD_IDENTITY_AUDIENCES.databricks
 
 const REQUEST_TIMEOUT_MS = 15_000
 /** Token and identity responses are small; the cap keeps a misbehaving host from exhausting memory. */
@@ -79,6 +86,8 @@ const oidcShape = {
   host: hostSchema,
   clientId: clientIdSchema,
   subject: z.string().min(1).max(512),
+  /** Absent for the default audience, so those credentials keep the shape earlier releases read. */
+  audience: storedWorkloadIdentityAudienceSchema,
 }
 
 const patSchema = z
@@ -114,6 +123,7 @@ const submittedConfigSchema = z.discriminatedUnion('authType', [
       ...oidcShape,
       subject: oidcShape.subject.optional(),
       subjectProof: z.string().min(1).max(512).optional(),
+      audience: workloadIdentityAudienceSchema('databricks').optional(),
     })
     .strict(),
 ])
@@ -137,7 +147,14 @@ async function requestWorkspaceToken(
   host: string,
   body: URLSearchParams,
   signal: AbortSignal | undefined,
-  headers: Record<string, string> = {}
+  {
+    headers = {},
+    refusalDetail = '',
+  }: {
+    headers?: Record<string, string>
+    /** Appended to a refusal, naming what the federation policy must match. */
+    refusalDetail?: string
+  } = {}
 ): Promise<string> {
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   const url = `${workspaceOrigin(host)}/oidc/v1/token`
@@ -184,7 +201,7 @@ async function requestWorkspaceToken(
           ? payload.error
           : `HTTP ${response.status}`
     throw new DatabricksCredentialError(
-      `Databricks rejected the token request: ${reason}`,
+      `Databricks rejected the token request: ${reason}${refusalDetail}`,
       response.status
     )
   }
@@ -204,12 +221,13 @@ async function resolveDatabricksAccessToken(
       config.host,
       new URLSearchParams({ grant_type: 'client_credentials', scope: 'all-apis' }),
       signal,
-      { Authorization: `Basic ${basic}` }
+      { headers: { Authorization: `Basic ${basic}` } }
     )
   }
+  const audience = config.audience ?? DEFAULT_DATABRICKS_AUDIENCE
   const subjectToken = await mintWorkloadIdentityToken({
     subject: config.subject,
-    audience: DATABRICKS_WORKLOAD_IDENTITY_AUDIENCE,
+    audience,
     owner,
     // Databricks' token expires with this one, and Genie polls for up to five minutes.
     ttlSeconds: MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS,
@@ -223,19 +241,25 @@ async function resolveDatabricksAccessToken(
       grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
       scope: 'all-apis',
     }),
-    signal
+    signal,
+    { refusalDetail: ` (the federation policy's audiences must include ${audience})` }
   )
 }
 
-/** The auth mode a decrypted Databricks secret holds, or undefined when it is not one. */
-export function storedDatabricksAuthType(
-  decrypted: string
-): DatabricksCredentialConfig['authType'] | undefined {
+/** The non-secret fields a reconnect keeps from a decrypted Databricks secret: its mode and custom audience. */
+export function storedDatabricksReconnectFields(decrypted: string): {
+  authType?: DatabricksCredentialConfig['authType']
+  audience?: string
+} {
   try {
     const parsed = storedSecretSchema.safeParse(JSON.parse(decrypted))
-    return parsed.success ? parsed.data.config.authType : undefined
+    if (!parsed.success) return {}
+    const { config } = parsed.data
+    return config.authType === 'oidc_federation' && config.audience
+      ? { authType: config.authType, audience: config.audience }
+      : { authType: config.authType }
   } catch {
-    return undefined
+    return {}
   }
 }
 
@@ -301,9 +325,10 @@ async function verifyWorkspaceIdentity(
 
 /**
  * Sim signs tokens for any service principal a member names, and every Sim
- * tenant shares the issuer and audience, so a federation policy that matches on
- * a claim other than `sub` (a `subject_claim` of `sim_workspace_id`, say) would
- * let other Sim credentials act as the principal. Exchanging a subject no
+ * tenant shares the issuer and can claim any audience (by default the same one),
+ * so a federation policy that matches on a claim other than `sub` (a
+ * `subject_claim` of `sim_workspace_id`, say) would let other Sim credentials act
+ * as the principal. Exchanging a subject no
  * credential holds must be refused before the credential is saved.
  */
 async function assertPolicyPinsSubject(
@@ -356,8 +381,12 @@ export async function verifyAndEncryptDatabricksCredential(
         'Use a personal access token or a service principal OAuth secret.'
       )
     }
-    const { subject, subjectProof, ...rest } = submitted
-    config = { ...rest, subject: bindSubject(subject, subjectProof, owner) }
+    const { subject, subjectProof, audience, ...rest } = submitted
+    config = {
+      ...rest,
+      subject: bindSubject(subject, subjectProof, owner),
+      ...storedAudienceField(audience, DEFAULT_DATABRICKS_AUDIENCE),
+    }
   } else {
     config = submitted
   }

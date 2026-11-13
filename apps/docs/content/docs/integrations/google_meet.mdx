@@ -52,6 +52,9 @@ Create a new Google Meet meeting space
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `moderation` | string | Host moderation: ON or OFF |
+| `attendanceReportGenerationType` | string | Attendance report: GENERATE_REPORT or DO_NOT_GENERATE |
+| `artifactConfig` | json | Auto-generated artifacts: recordingConfig.autoRecordingGeneration, transcriptionConfig.autoTranscriptionGeneration, smartNotesConfig.autoSmartNotesGeneration \(ON or OFF\) |
 | `name` | string | Resource name of the space \(e.g., spaces/abc123\) |
 | `meetingUri` | string | Meeting URL \(e.g., https://meet.google.com/abc-defg-hij) |
 | `meetingCode` | string | Meeting code \(e.g., abc-defg-hij\) |
@@ -76,6 +79,9 @@ Get details of a Google Meet meeting space by name or meeting code
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `moderation` | string | Host moderation: ON or OFF |
+| `attendanceReportGenerationType` | string | Attendance report: GENERATE_REPORT or DO_NOT_GENERATE |
+| `artifactConfig` | json | Auto-generated artifacts: recordingConfig.autoRecordingGeneration, transcriptionConfig.autoTranscriptionGeneration, smartNotesConfig.autoSmartNotesGeneration \(ON or OFF\) |
 | `name` | string | Resource name of the space |
 | `meetingUri` | string | Meeting URL |
 | `meetingCode` | string | Meeting code |
@@ -171,7 +177,7 @@ List participants of a conference record
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `participants` | json | List of participants with name, times, display name, and user type |
+| `participants` | json | List of participants \[\{ name, earliestStartTime, latestEndTime, displayName, userType \(signed_in, anonymous, phone\), user \(users/\{userId\} for signed-in participants, otherwise null\) \}\] |
 | `nextPageToken` | string | Token for next page of results |
 | `totalSize` | number | Total number of participants |
 

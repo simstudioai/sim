@@ -6,6 +6,7 @@ import {
   azureDataExplorerAuthInput,
   transformColumnListResponse,
 } from '@/tools/azure_data_explorer/utils'
+import { AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const azureDataExplorerListTablesTool: InternalToolConfig<
@@ -17,6 +18,7 @@ export const azureDataExplorerListTablesTool: InternalToolConfig<
   description:
     'List the tables in an Azure Data Explorer database, with their folder and docstring.',
   version: '1.0.0',
+  oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {
       type: 'string',

@@ -4382,7 +4382,7 @@
       "post": {
         "operationId": "createCredentialWorkloadIdentitySubject",
         "summary": "Create workload identity subject",
-        "description": "Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus `keylessConfig`: a prefilled `serviceAccountJson` whose `subjectProof` is valid for 24 hours and only for the requesting user. Add the `requiredConfigFields`, then call Create service-account credential with the same `providerId`; Sim verifies the trust while saving. Google Cloud has no fixed audience: it is the credential's own pool provider. Without keyless support the deployment returns `400` with `details.code` `WORKLOAD_IDENTITY_NOT_CONFIGURED`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus `keylessConfig`: a prefilled `serviceAccountJson` whose `subjectProof` is valid for 24 hours and only for the requesting user. Add the `requiredConfigFields`, then call Create service-account credential with the same `providerId`; Sim verifies the trust while saving. The returned `audience` is the default; set `audience` in `keylessConfig` to have Sim sign tokens for your own value instead, and trust that value in the cloud. Google Cloud has no fixed default: it is the credential's own pool provider. Without keyless support the deployment returns `400` with `details.code` `WORKLOAD_IDENTITY_NOT_CONFIGURED`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "credentials.workload_identity.prepare",
         "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
@@ -4449,7 +4449,7 @@
                           "subjectProof": "<subjectProof from Create workload identity subject>"
                         },
                         "requiredConfigFields": ["roleArn"],
-                        "optionalConfigFields": ["stsRegion", "sessionDurationSeconds"]
+                        "optionalConfigFields": ["stsRegion", "sessionDurationSeconds", "audience"]
                       }
                     }
                   }
@@ -7431,7 +7431,8 @@
                             "disableKnowledgeBaseExport": false,
                             "deniedPartialAccessProjectIssues": [],
                             "defaultAgentModel": null,
-                            "deniedAccessRequests": []
+                            "deniedAccessRequests": [],
+                            "disableComputerUse": false
                           },
                           "isDefault": false,
                           "membershipMode": "inherit",
@@ -7592,7 +7593,8 @@
                           "disableKnowledgeBaseExport": false,
                           "deniedPartialAccessProjectIssues": [],
                           "defaultAgentModel": null,
-                          "deniedAccessRequests": []
+                          "deniedAccessRequests": [],
+                          "disableComputerUse": false
                         },
                         "isDefault": false,
                         "membershipMode": "inherit",
@@ -7753,7 +7755,8 @@
                           "disableKnowledgeBaseExport": false,
                           "deniedPartialAccessProjectIssues": [],
                           "defaultAgentModel": null,
-                          "deniedAccessRequests": []
+                          "deniedAccessRequests": [],
+                          "disableComputerUse": false
                         },
                         "isDefault": false,
                         "membershipMode": "inherit",
@@ -7922,7 +7925,8 @@
                           "disableKnowledgeBaseExport": false,
                           "deniedPartialAccessProjectIssues": [],
                           "defaultAgentModel": null,
-                          "deniedAccessRequests": []
+                          "deniedAccessRequests": [],
+                          "disableComputerUse": false
                         },
                         "isDefault": false,
                         "membershipMode": "inherit",
@@ -17950,6 +17954,12 @@
                         "additionalProperties": false
                       }
                     },
+                    "defaultValue": {
+                      "description": "Value an optional field takes when it is omitted.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
                     "hint": {
                       "description": "Provider-specific setup guidance.",
                       "type": "string",
@@ -18106,6 +18116,12 @@
                         "additionalProperties": false
                       }
                     },
+                    "defaultValue": {
+                      "description": "Value an optional field takes when it is omitted.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255
+                    },
                     "hint": {
                       "description": "Provider-specific setup guidance.",
                       "type": "string",
@@ -18138,7 +18154,7 @@
                     "items": {
                       "type": "string"
                     },
-                    "description": "Fields `keylessConfig` may also carry."
+                    "description": "Fields `keylessConfig` may also carry. `audience` is a custom `aud` claim Sim signs in place of the default; your trust configuration must then accept it."
                   }
                 },
                 "required": ["authType", "requiredConfigFields", "optionalConfigFields"],
@@ -18513,6 +18529,7 @@
                       "ramp",
                       "helpscout",
                       "hubspot",
+                      "apollo",
                       "linkedin",
                       "instagram",
                       "salesforce",
@@ -18616,7 +18633,7 @@
             "description": "OpenID Connect issuer URL to register as the identity provider the cloud trusts."
           },
           "audience": {
-            "description": "The `aud` claim the cloud must accept. Absent for Google Cloud, whose audience is each credential's own workload identity pool provider.",
+            "description": "The default `aud` claim the cloud must accept; a keyless config's optional `audience` replaces it. Absent for Google Cloud, whose default audience is each credential's own workload identity pool provider.",
             "type": "string"
           },
           "subject": {
@@ -18651,7 +18668,7 @@
             },
             "required": ["authType", "subject", "subjectProof"],
             "additionalProperties": false,
-            "description": "Prefilled keyless `serviceAccountJson`: add `requiredConfigFields`, then send it to Create service-account credential."
+            "description": "Prefilled keyless `serviceAccountJson`: add `requiredConfigFields` (and any `optionalConfigFields`, such as a custom `audience`), then send it to Create service-account credential."
           },
           "requiredConfigFields": {
             "type": "array",
@@ -18665,7 +18682,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields `keylessConfig` may also carry."
+            "description": "Fields `keylessConfig` may also carry. `audience` replaces the default `audience` above with your own value, such as one specific to your account; trust that value instead of the default."
           }
         },
         "required": [
@@ -18679,7 +18696,7 @@
         ],
         "additionalProperties": false,
         "title": "Credential workload identity subject",
-        "description": "The issuer, audience, and subject a cloud trust configuration pins, and the proof that attaches the subject to a new keyless credential."
+        "description": "The issuer, default audience, and subject a cloud trust configuration pins, and the proof that attaches the subject to a new keyless credential. A `keylessConfig.audience` overrides the default audience."
       },
       "CreateCredentialWorkloadIdentitySubjectResponse": {
         "type": "object",
@@ -18707,7 +18724,7 @@
                 "subjectProof": "<subjectProof from Create workload identity subject>"
               },
               "requiredConfigFields": ["roleArn"],
-              "optionalConfigFields": ["stsRegion", "sessionDurationSeconds"]
+              "optionalConfigFields": ["stsRegion", "sessionDurationSeconds", "audience"]
             }
           }
         ]
@@ -21700,7 +21717,7 @@
                   "mode": {
                     "type": "string",
                     "const": "apiKey",
-                    "description": "Authenticates with a stored API key; pass `apiKey`, and no `credentialId`, when creating the connector."
+                    "description": "Authenticates with a stored API key; pass `apiKey` when creating the connector, or a saved `credentialId` instead when `savedCredential` is present."
                   },
                   "label": {
                     "description": "Label shown above the key field.",
@@ -21713,13 +21730,29 @@
                   "optional": {
                     "type": "boolean",
                     "description": "Whether the key may be left blank, for a source reachable without authentication."
+                  },
+                  "savedCredential": {
+                    "description": "When present, a saved credential of this service may be passed as `credentialId` instead of `apiKey`, once saved-credential setup is enabled on this deployment (until then it is refused with a validation error). Fields marked `apiKeyOnly` are then omitted.",
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "description": "Service the saved credential must authenticate with, e.g. `aws`."
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Label for the saved-credential option."
+                      }
+                    },
+                    "required": ["provider", "label"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["mode", "optional"],
                 "additionalProperties": false
               }
             ],
-            "description": "How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`."
+            "description": "How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey` (or, when they declare `savedCredential`, a saved `credentialId`)."
           },
           "configFields": {
             "type": "array",
@@ -21869,6 +21902,10 @@
           "multi": {
             "description": "When true the stored `sourceConfig` value is a `string[]`, not a `string`: a `selector` renders a multi-select picker and a `short-input` accepts a comma-separated list.",
             "type": "boolean"
+          },
+          "apiKeyOnly": {
+            "description": "When true the field describes the connector’s API key (such as its key ID or a custom host the key signs for). It is required as stated only with `apiKey`, and omitted when a saved `credentialId` is sent.",
+            "type": "boolean"
           }
         },
         "required": ["id", "title", "type"],
@@ -21897,7 +21934,7 @@
               "mode": {
                 "type": "string",
                 "enum": ["oauth", "apiKey"],
-                "description": "How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`."
+                "description": "How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey` (or, when they declare `savedCredential`, a saved `credentialId`)."
               }
             },
             "required": ["mode"],
@@ -22387,6 +22424,10 @@
                   "maxLength": 1024
                 },
                 "description": "Access requests are unavailable for the listed canonical target keys when access is restricted."
+              },
+              "disableComputerUse": {
+                "type": "boolean",
+                "description": "Revoke computer use. Chat cannot operate apps on a member's Mac, even when the device allows it."
               }
             },
             "required": [
@@ -22434,7 +22475,8 @@
               "disableKnowledgeBaseExport",
               "deniedPartialAccessProjectIssues",
               "defaultAgentModel",
-              "deniedAccessRequests"
+              "deniedAccessRequests",
+              "disableComputerUse"
             ],
             "additionalProperties": false,
             "description": "Resolved group settings. True disables a boolean capability; null allowlists permit every value and empty allowlists permit none. defaultAgentModel selects the default for new Agent blocks without restricting model selection."
@@ -22567,7 +22609,8 @@
                   "disableKnowledgeBaseExport": false,
                   "deniedPartialAccessProjectIssues": [],
                   "defaultAgentModel": null,
-                  "deniedAccessRequests": []
+                  "deniedAccessRequests": [],
+                  "disableComputerUse": false
                 },
                 "isDefault": false,
                 "membershipMode": "inherit",
@@ -22645,7 +22688,8 @@
                 "disableKnowledgeBaseExport": false,
                 "deniedPartialAccessProjectIssues": [],
                 "defaultAgentModel": null,
-                "deniedAccessRequests": []
+                "deniedAccessRequests": [],
+                "disableComputerUse": false
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -22929,6 +22973,10 @@
                   "maxLength": 1024
                 },
                 "description": "Access requests are unavailable for the listed canonical target keys when access is restricted."
+              },
+              "disableComputerUse": {
+                "type": "boolean",
+                "description": "Revoke computer use. Chat cannot operate apps on a member's Mac, even when the device allows it."
               }
             },
             "additionalProperties": false,
@@ -23023,7 +23071,8 @@
                 "disableKnowledgeBaseExport": false,
                 "deniedPartialAccessProjectIssues": [],
                 "defaultAgentModel": null,
-                "deniedAccessRequests": []
+                "deniedAccessRequests": [],
+                "disableComputerUse": false
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -23099,7 +23148,8 @@
                 "disableKnowledgeBaseExport": false,
                 "deniedPartialAccessProjectIssues": [],
                 "defaultAgentModel": null,
-                "deniedAccessRequests": []
+                "deniedAccessRequests": [],
+                "disableComputerUse": false
               },
               "isDefault": false,
               "membershipMode": "inherit",
@@ -23390,6 +23440,10 @@
                   "maxLength": 1024
                 },
                 "description": "Access requests are unavailable for the listed canonical target keys when access is restricted."
+              },
+              "disableComputerUse": {
+                "type": "boolean",
+                "description": "Revoke computer use. Chat cannot operate apps on a member's Mac, even when the device allows it."
               }
             },
             "additionalProperties": false,
@@ -25887,6 +25941,10 @@
                       "maxLength": 1024
                     },
                     "description": "Access requests are unavailable for the listed canonical target keys when access is restricted."
+                  },
+                  "disableComputerUse": {
+                    "type": "boolean",
+                    "description": "Revoke computer use. Chat cannot operate apps on a member's Mac, even when the device allows it."
                   }
                 },
                 "required": [
@@ -25934,7 +25992,8 @@
                   "disableKnowledgeBaseExport",
                   "deniedPartialAccessProjectIssues",
                   "defaultAgentModel",
-                  "deniedAccessRequests"
+                  "deniedAccessRequests",
+                  "disableComputerUse"
                 ],
                 "additionalProperties": false
               },
@@ -26694,7 +26753,8 @@
                       "disableToolAutoApproval",
                       "hideSandboxesTab",
                       "disableOAuthAppAccess",
-                      "disableKnowledgeBaseExport"
+                      "disableKnowledgeBaseExport",
+                      "disableComputerUse"
                     ],
                     "description": "Feature restriction key returned by access discovery."
                   }
@@ -27006,7 +27066,8 @@
                       "disableToolAutoApproval",
                       "hideSandboxesTab",
                       "disableOAuthAppAccess",
-                      "disableKnowledgeBaseExport"
+                      "disableKnowledgeBaseExport",
+                      "disableComputerUse"
                     ],
                     "description": "Feature restriction key returned by access discovery."
                   }
@@ -27406,7 +27467,8 @@
                       "disableToolAutoApproval",
                       "hideSandboxesTab",
                       "disableOAuthAppAccess",
-                      "disableKnowledgeBaseExport"
+                      "disableKnowledgeBaseExport",
+                      "disableComputerUse"
                     ],
                     "description": "Feature restriction key returned by access discovery."
                   }
@@ -27804,7 +27866,8 @@
                       "disableToolAutoApproval",
                       "hideSandboxesTab",
                       "disableOAuthAppAccess",
-                      "disableKnowledgeBaseExport"
+                      "disableKnowledgeBaseExport",
+                      "disableComputerUse"
                     ],
                     "description": "Feature restriction key returned by access discovery."
                   }
@@ -28160,7 +28223,8 @@
                           "disableToolAutoApproval",
                           "hideSandboxesTab",
                           "disableOAuthAppAccess",
-                          "disableKnowledgeBaseExport"
+                          "disableKnowledgeBaseExport",
+                          "disableComputerUse"
                         ],
                         "description": "Feature restriction key returned by access discovery."
                       }
@@ -28419,7 +28483,7 @@
             "description": "Access request being reviewed."
           },
           "changes": {
-            "maxItems": 43,
+            "maxItems": 44,
             "type": "array",
             "items": {
               "type": "object",
@@ -28469,7 +28533,8 @@
                     "hideSandboxesTab",
                     "disableOAuthAppAccess",
                     "disableKnowledgeBaseExport",
-                    "deniedPartialAccessProjectIssues"
+                    "deniedPartialAccessProjectIssues",
+                    "disableComputerUse"
                   ],
                   "description": "Permission restriction changed by approval."
                 },
@@ -28722,7 +28787,8 @@
                           "disableToolAutoApproval",
                           "hideSandboxesTab",
                           "disableOAuthAppAccess",
-                          "disableKnowledgeBaseExport"
+                          "disableKnowledgeBaseExport",
+                          "disableComputerUse"
                         ],
                         "description": "Feature restriction key returned by access discovery."
                       }
@@ -28981,7 +29047,7 @@
             "description": "Access request being reviewed."
           },
           "changes": {
-            "maxItems": 43,
+            "maxItems": 44,
             "type": "array",
             "items": {
               "type": "object",
@@ -29031,7 +29097,8 @@
                     "hideSandboxesTab",
                     "disableOAuthAppAccess",
                     "disableKnowledgeBaseExport",
-                    "deniedPartialAccessProjectIssues"
+                    "deniedPartialAccessProjectIssues",
+                    "disableComputerUse"
                   ],
                   "description": "Permission restriction changed by approval."
                 },

@@ -25,7 +25,9 @@ vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
 
 import { credential } from '@sim/db/schema'
 import {
+  MicrosoftAppCredentialError,
   resolveMicrosoftAppCredentialToken,
+  resolveMicrosoftAppResourceToken,
   verifyAndEncryptMicrosoftAppCredential,
 } from '@/lib/credentials/microsoft-app-service-account.server'
 import { issueWorkloadIdentitySubject } from '@/lib/credentials/workload-identity/subject'
@@ -133,7 +135,7 @@ function fakeMicrosoft(
   const tokenRequests: TokenRequest[] = []
   const pendingErrors = [...(options.tokenErrorsFirst ?? [])]
   fetch.mockImplementation(async (url: string, init: RequestInit = {}) => {
-    if (url.startsWith('https://login.microsoftonline.com/')) {
+    if (url.endsWith('/oauth2/v2.0/token')) {
       const form = Object.fromEntries(new URLSearchParams(String(init.body)))
       tokenRequests.push({ url, form, redirect: init.redirect })
       await options.tokenDelay?.()
@@ -152,7 +154,7 @@ function fakeMicrosoft(
         access_token: `at:${form.scope}`,
       })
     }
-    if (url.startsWith('https://graph.microsoft.com/')) {
+    if (url.includes('/v1.0/servicePrincipals(')) {
       return jsonResponse({ id: 'sp-object-id', appId: CLIENT_ID, displayName: 'Sim workflows' })
     }
     if (url.endsWith('/api/data/v9.2/WhoAmI')) return jsonResponse({ UserId: 'app-user' })
@@ -321,6 +323,61 @@ describe('saving a Microsoft app credential', () => {
         /No federated credential on this app matches/
       )
     })
+
+    const CUSTOM_AUDIENCE = 'api://contoso-sim-exchange'
+    const storedConfig = () =>
+      JSON.parse(String(encryptionMockFns.mockEncryptSecret.mock.calls[0]?.[0])).config
+
+    it('verifies and probes the subject pin with a custom audience, and stores it', async () => {
+      const tokens = fakeMicrosoft(fetch, {
+        acceptAssertion: (assertion) => assertion === `sim-oidc|${CUSTOM_AUDIENCE}|${SUBJECT}`,
+      })
+
+      await save({ authType: 'federated', audience: ` ${CUSTOM_AUDIENCE} ` }, reconnectOwner)
+
+      const assertions = tokens.map((request) => request.form.client_assertion)
+      expect(assertions).toHaveLength(2)
+      for (const assertion of assertions) {
+        expect(assertion.startsWith(`sim-oidc|${CUSTOM_AUDIENCE}|`)).toBe(true)
+      }
+      expect(storedConfig()).toMatchObject({ audience: CUSTOM_AUDIENCE, subject: SUBJECT })
+    })
+
+    it('stores no audience when the default is submitted, so earlier releases still read it', async () => {
+      const tokens = fakeMicrosoft(fetch, {
+        acceptAssertion: (assertion) => assertion.endsWith(`|${SUBJECT}`),
+      })
+
+      await save({ authType: 'federated', audience: 'api://AzureADTokenExchange' }, reconnectOwner)
+
+      expect(tokens.map((request) => request.form.client_assertion)).toContain(
+        `sim-oidc|api://AzureADTokenExchange|${SUBJECT}`
+      )
+      expect(storedConfig()).toEqual({
+        authType: 'federated',
+        tenantId: TENANT,
+        clientId: CLIENT_ID,
+        subject: SUBJECT,
+      })
+    })
+
+    it('refuses another cloud’s default audience without contacting Entra', async () => {
+      fakeMicrosoft(fetch)
+
+      await expect(
+        save({ authType: 'federated', audience: 'sts.amazonaws.com' }, reconnectOwner)
+      ).rejects.toThrow(/belongs to another cloud/)
+      expect(fetch).not.toHaveBeenCalled()
+      expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+    })
+
+    it('names the audience it presented when no federated credential matches', async () => {
+      fakeMicrosoft(fetch, { acceptAssertion: () => false })
+
+      await expect(
+        save({ authType: 'federated', audience: CUSTOM_AUDIENCE }, reconnectOwner)
+      ).rejects.toThrow(CUSTOM_AUDIENCE)
+    })
   })
 
   it('verifies the Dataverse environment with its own token and WhoAmI', async () => {
@@ -376,6 +433,80 @@ describe('saving a Microsoft app credential', () => {
       expect(fetch).not.toHaveBeenCalled()
     }
   )
+
+  describe('in a national cloud', () => {
+    it('signs in at the cloud’s own Entra endpoint and reads the service principal from its Graph', async () => {
+      const tokens = fakeMicrosoft(fetch)
+
+      await save({ authType: 'client_secret', clientSecret: SECRET, cloud: 'usgov_dod' })
+
+      expect(tokens.map(({ url, form }) => [url, form.scope])).toEqual([
+        [
+          `https://login.microsoftonline.us/${TENANT}/oauth2/v2.0/token`,
+          'https://dod-graph.microsoft.us/.default',
+        ],
+      ])
+      expect(fetch).toHaveBeenCalledWith(
+        `https://dod-graph.microsoft.us/v1.0/servicePrincipals(appId='${CLIENT_ID}')?$select=id,appId,displayName`,
+        expect.objectContaining({ redirect: 'error' })
+      )
+      expect(fetch.mock.calls.map(([url]) => String(url))).not.toContainEqual(
+        expect.stringContaining('microsoftonline.com')
+      )
+      const stored = JSON.parse(encryptionMockFns.mockEncryptSecret.mock.calls[0]?.[0] ?? '{}')
+      expect(stored.config.cloud).toBe('usgov_dod')
+    })
+
+    it('addresses the certificate assertion to the cloud’s token endpoint', async () => {
+      const tokens = fakeMicrosoft(fetch)
+
+      await save({
+        authType: 'certificate',
+        certificate: TEST_CERTIFICATE,
+        privateKey: TEST_PRIVATE_KEY,
+        cloud: 'china',
+      })
+
+      const chinaTokenUrl = `https://login.partner.microsoftonline.cn/${TENANT}/oauth2/v2.0/token`
+      expect(tokens[0]?.url).toBe(chinaTokenUrl)
+      await expect(
+        jwtVerify(tokens[0]?.form.client_assertion ?? '', createPublicKey(TEST_CERTIFICATE), {
+          algorithms: ['PS256'],
+          audience: chinaTokenUrl,
+        })
+      ).resolves.toBeDefined()
+    })
+
+    it('stores a global credential exactly as before, with no cloud field', async () => {
+      fakeMicrosoft(fetch)
+
+      await save({ authType: 'client_secret', clientSecret: SECRET, cloud: 'global' })
+
+      const stored = JSON.parse(encryptionMockFns.mockEncryptSecret.mock.calls[0]?.[0] ?? '{}')
+      expect(stored.config).not.toHaveProperty('cloud')
+    })
+
+    it('refuses a Dataverse environment outside the global cloud before contacting Entra', async () => {
+      fakeMicrosoft(fetch)
+
+      await expect(
+        save({
+          authType: 'client_secret',
+          clientSecret: SECRET,
+          cloud: 'usgov',
+          environmentUrl: ENVIRONMENT,
+        })
+      ).rejects.toThrow(/global cloud/)
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('refuses a cloud Sim does not know', async () => {
+      await expect(
+        save({ authType: 'client_secret', clientSecret: SECRET, cloud: 'germany' })
+      ).rejects.toThrow(MicrosoftAppCredentialError)
+      expect(fetch).not.toHaveBeenCalled()
+    })
+  })
 
   it('never repeats the secret, key, or assertion in a refusal', async () => {
     fakeMicrosoft(fetch, {
@@ -469,6 +600,165 @@ describe('getting a Microsoft app token for a run', () => {
     ])
   })
 
+  it('mints a Power BI token beside the Graph one, each cached under its own audience', async () => {
+    const tokens = fakeMicrosoft(fetch)
+    for (const service of ['microsoft-ad', 'microsoft-powerbi', 'microsoft-powerbi']) {
+      storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-powerbi')
+      await resolveMicrosoftAppCredentialToken('cred-powerbi', service)
+    }
+
+    storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-powerbi')
+    await expect(
+      resolveMicrosoftAppCredentialToken('cred-powerbi', 'microsoft-powerbi')
+    ).resolves.toEqual({ accessToken: 'at:https://analysis.windows.net/powerbi/api/.default' })
+    expect(tokens.map((request) => request.form.scope)).toEqual([
+      'https://graph.microsoft.com/.default',
+      'https://analysis.windows.net/powerbi/api/.default',
+    ])
+  })
+
+  it('refuses a national-cloud credential for Power BI, whose tools call the global service', async () => {
+    fakeMicrosoft(fetch)
+    storeCredential(
+      { authType: 'client_secret', clientSecret: SECRET, cloud: 'china' },
+      'ciphertext-powerbi-china'
+    )
+
+    await expect(
+      resolveMicrosoftAppCredentialToken('cred-powerbi-china', 'microsoft-powerbi')
+    ).rejects.toMatchObject({ code: 'cloud_mismatch', status: 400 })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  describe('for a resource the tool operation chooses per call', () => {
+    const CLUSTER = 'https://help.westus.kusto.windows.net'
+    const adx = (resource: string, clouds: ('global' | 'usgov' | 'usgov_dod' | 'china')[]) => ({
+      resource,
+      clouds,
+      serviceLabel: 'Azure Data Explorer',
+    })
+    const RUN_SCOPE = { workspaceId: 'ws-1' }
+
+    it('hands the executor the credential ID, not a token, when it authorizes the service', async () => {
+      fakeMicrosoft(fetch)
+      storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx-auth')
+
+      await expect(
+        resolveMicrosoftAppCredentialToken('cred-adx', 'azure-data-explorer')
+      ).resolves.toEqual({ accessToken: 'cred-adx' })
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('authorizes the service without decrypting the stored secret', async () => {
+      storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx-nokey')
+      encryptionMockFns.mockDecryptSecret
+        .mockReset()
+        .mockRejectedValue(new Error('key unavailable'))
+
+      await expect(
+        resolveMicrosoftAppCredentialToken('cred-adx-nokey', 'azure-data-explorer')
+      ).resolves.toEqual({ accessToken: 'cred-adx-nokey' })
+    })
+
+    it.each([
+      ['another workspace', { workspaceId: 'ws-2' }],
+      ['no owner scope', {}],
+    ])(
+      'refuses a credential for a run in %s, without decrypting or minting',
+      async (_label, scope) => {
+        fakeMicrosoft(fetch)
+        storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx-scope')
+
+        await expect(
+          resolveMicrosoftAppResourceToken('cred-adx-scope', scope, adx(CLUSTER, ['global']))
+        ).rejects.toThrow(/unavailable/)
+        expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+        expect(fetch).not.toHaveBeenCalled()
+      }
+    )
+
+    it('refuses to authorize an unavailable credential for it', async () => {
+      resetDbChainMock()
+      queueTableRows(credential, [])
+
+      await expect(
+        resolveMicrosoftAppCredentialToken('cred-missing', 'azure-data-explorer')
+      ).rejects.toThrow(/unavailable/)
+    })
+
+    it('mints a token for each cluster audience, cached per cluster', async () => {
+      const tokens = fakeMicrosoft(fetch)
+      const other = 'https://other.eastus.kusto.windows.net'
+      for (const resource of [CLUSTER, other, CLUSTER]) {
+        storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx')
+        await expect(
+          resolveMicrosoftAppResourceToken('cred-adx-mint', RUN_SCOPE, adx(resource, ['global']))
+        ).resolves.toBe(`at:${resource}/.default`)
+      }
+      expect(tokens.map(({ url, form }) => [url, form.scope])).toEqual([
+        [TOKEN_URL, `${CLUSTER}/.default`],
+        [TOKEN_URL, `${other}/.default`],
+      ])
+    })
+
+    it('signs in at the national cloud the credential names', async () => {
+      const tokens = fakeMicrosoft(fetch)
+      storeCredential(
+        { authType: 'client_secret', clientSecret: SECRET, cloud: 'china' },
+        'ciphertext-adx-china'
+      )
+      const cluster = 'https://mycluster.chinaeast2.kusto.chinacloudapi.cn'
+
+      await resolveMicrosoftAppResourceToken('cred-adx-china', RUN_SCOPE, adx(cluster, ['china']))
+      expect(tokens.map(({ url, form }) => [url, form.scope])).toEqual([
+        [
+          `https://login.partner.microsoftonline.cn/${TENANT}/oauth2/v2.0/token`,
+          `${cluster}/.default`,
+        ],
+      ])
+    })
+
+    it('does not serve a cached cluster token to a call whose cluster is in no cloud of the credential', async () => {
+      const tokens = fakeMicrosoft(fetch)
+      storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx-mixed')
+      await resolveMicrosoftAppResourceToken('cred-adx-mixed', RUN_SCOPE, adx(CLUSTER, ['global']))
+      storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx-mixed')
+
+      await expect(
+        resolveMicrosoftAppResourceToken('cred-adx-mixed', RUN_SCOPE, adx(CLUSTER, []))
+      ).rejects.toMatchObject({ code: 'cloud_mismatch' })
+      expect(tokens).toHaveLength(1)
+    })
+
+    it('refuses a resource outside the credential’s cloud without minting', async () => {
+      fakeMicrosoft(fetch)
+      storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-adx-gov')
+
+      await expect(
+        resolveMicrosoftAppResourceToken(
+          'cred-adx-gov',
+          RUN_SCOPE,
+          adx('https://mycluster.usgovvirginia.kusto.usgovcloudapi.net', ['usgov', 'usgov_dod'])
+        )
+      ).rejects.toMatchObject({ code: 'cloud_mismatch', status: 400 })
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      `${CLUSTER}/v1/rest/query`,
+      `${CLUSTER}:8443`,
+      'http://help.westus.kusto.windows.net',
+      `${CLUSTER}/`,
+      'help.westus.kusto.windows.net',
+    ])('refuses the audience %s before reading the credential', async (resource) => {
+      await expect(
+        resolveMicrosoftAppResourceToken('cred-adx-bad', RUN_SCOPE, adx(resource, ['global']))
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+      expect(fetch).not.toHaveBeenCalled()
+    })
+  })
+
   it('refuses Dataverse for a credential saved without an environment', async () => {
     fakeMicrosoft(fetch)
     storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-graph-only')
@@ -477,6 +767,19 @@ describe('getting a Microsoft app token for a run', () => {
       resolveMicrosoftAppCredentialToken('cred-graph-only', 'microsoft-dataverse')
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('serves a cached token without decrypting the stored secret again', async () => {
+    const tokens = fakeMicrosoft(fetch)
+    storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-hit')
+    await resolveMicrosoftAppCredentialToken('cred-hit', 'microsoft-ad')
+    storeCredential({ authType: 'client_secret', clientSecret: SECRET }, 'ciphertext-hit')
+    encryptionMockFns.mockDecryptSecret.mockReset().mockRejectedValue(new Error('key unavailable'))
+
+    await expect(resolveMicrosoftAppCredentialToken('cred-hit', 'sharepoint')).resolves.toEqual({
+      accessToken: 'at:https://graph.microsoft.com/.default',
+    })
+    expect(tokens).toHaveLength(1)
   })
 
   it('reuses a minted Graph token until the stored secret changes', async () => {
@@ -493,6 +796,22 @@ describe('getting a Microsoft app token for a run', () => {
     expect(tokens).toHaveLength(2)
     expect(tokens[1]?.form.client_secret).toBe('rotated')
   })
+
+  it.each(['microsoft-ad', 'sharepoint', 'microsoft-intune', 'microsoft-dataverse'])(
+    'refuses a national-cloud credential for %s, whose tools call the global cloud, without minting',
+    async (service) => {
+      fakeMicrosoft(fetch)
+      storeCredential(
+        { authType: 'client_secret', clientSecret: SECRET, cloud: 'usgov' },
+        `ciphertext-usgov-${service}`
+      )
+
+      await expect(
+        resolveMicrosoftAppCredentialToken(`cred-usgov-${service}`, service)
+      ).rejects.toMatchObject({ code: 'cloud_mismatch', status: 400 })
+      expect(fetch).not.toHaveBeenCalled()
+    }
+  )
 
   it('asks for a reconnect once the stored certificate has expired, without contacting Entra', async () => {
     fakeMicrosoft(fetch)
@@ -515,6 +834,26 @@ describe('getting a Microsoft app token for a run', () => {
     await expect(
       resolveMicrosoftAppCredentialToken('cred-unreachable', 'microsoft-ad')
     ).rejects.toMatchObject({ code: 'provider_unavailable', status: 502 })
+  })
+
+  describe('a keyless credential at run time', () => {
+    const SUBJECT = 'sim:workspace:ws-1:credential:abcdef0123456789'
+
+    it('presents the default audience, then the stored custom one, never a token cached for the old one', async () => {
+      const tokens = fakeMicrosoft(fetch)
+      storeCredential({ authType: 'federated', subject: SUBJECT }, 'ciphertext-aud-before')
+      await resolveMicrosoftAppCredentialToken('cred-aud-change', 'microsoft-ad')
+      storeCredential(
+        { authType: 'federated', subject: SUBJECT, audience: 'api://contoso-sim' },
+        'ciphertext-aud-after'
+      )
+      await resolveMicrosoftAppCredentialToken('cred-aud-change', 'microsoft-ad')
+
+      expect(tokens.map((request) => request.form.client_assertion)).toEqual([
+        `sim-oidc|api://AzureADTokenExchange|${SUBJECT}`,
+        `sim-oidc|api://contoso-sim|${SUBJECT}`,
+      ])
+    })
   })
 
   describe('while a new federated credential propagates', () => {

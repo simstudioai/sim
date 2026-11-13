@@ -18,7 +18,6 @@ import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
-import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import type { ProviderRequest } from '@/providers/types'
@@ -50,6 +49,8 @@ export class EvaluatorBlockHandler implements BlockHandler {
       bedrockAccessKeyId: inputs.bedrockAccessKeyId,
       bedrockSecretKey: inputs.bedrockSecretKey,
       bedrockRegion: inputs.bedrockRegion,
+      bedrockCredential: inputs.bedrockCredential,
+      bedrockAuthMode: inputs.bedrockAuthMode,
     }
 
     let systemPromptObj: { systemPrompt: string; responseFormat: any } = {
@@ -178,18 +179,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
     await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx)
     const providerId = getProviderFromModel(model)
 
-    let finalApiKey: string | undefined = evaluatorConfig.apiKey
-    if (providerId === 'vertex' && evaluatorConfig.vertexCredential) {
-      finalApiKey = await resolveVertexCredential({
-        credentialId: evaluatorConfig.vertexCredential,
-        actingUserId: ctx.userId,
-        workspaceId: ctx.workspaceId,
-        workflowId: ctx.workflowId,
-        executionId: ctx.executionId,
-        callerLabel: 'vertex-evaluator',
-      })
-    }
-
     try {
       const providerRequest: ProviderRequest = {
         model,
@@ -204,7 +193,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         ]),
 
         temperature: EVALUATOR.DEFAULT_TEMPERATURE,
-        apiKey: finalApiKey,
+        apiKey: evaluatorConfig.apiKey,
         azureEndpoint: inputs.azureEndpoint,
         azureApiVersion: inputs.azureApiVersion,
         vertexProject: evaluatorConfig.vertexProject,
@@ -226,6 +215,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         providerId,
         request: providerRequest,
         resolvedSecretTraceRegistry: modelInputProjection.registry,
+        credentials: { inputs: evaluatorConfig, callerLabel: 'vertex-evaluator' },
       })
 
       const parsedContent = this.extractJSONFromResponse(

@@ -46,6 +46,8 @@ Read content from a Google Docs document
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `documentId` | string | Yes | Google Docs document ID |
+| `includeTabsContent` | boolean | No | When true, reads every tab of the document: content holds the text of all tabs in order and tabs lists each tab with its own text. Default: false \(only the first tab is read\). |
+| `suggestionsViewMode` | string | No | How suggested edits appear in the returned text. One of: DEFAULT_FOR_CURRENT_ACCESS \(default\), SUGGESTIONS_INLINE, PREVIEW_SUGGESTIONS_ACCEPTED, PREVIEW_WITHOUT_SUGGESTIONS. |
 
 #### Output
 
@@ -57,6 +59,14 @@ Read content from a Google Docs document
 |   ↳ `title` | string | Document title |
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
+|   ↳ `revisionId` | string | Revision ID of the document as read |
+| `tabs` | array | Every tab in the document, depth-first \(populated only when includeTabsContent is true\) |
+|   ↳ `tabId` | string | Tab ID |
+|   ↳ `title` | string | Tab title |
+|   ↳ `parentTabId` | string | Parent tab ID |
+|   ↳ `index` | number | Zero-based index within the parent |
+|   ↳ `nestingLevel` | number | Depth of the tab |
+|   ↳ `content` | string | Extracted text content of the tab |
 
 </ReferenceDetails>
 
@@ -72,6 +82,7 @@ Append content to a Google Docs document. Content is inserted literally; Markdow
 | --------- | ---- | -------- | ----------- |
 | `documentId` | string | Yes | The ID of the document to write to |
 | `content` | string | Yes | The content to write to the document |
+| `tabId` | string | No | ID of the tab to append the content to \(from Read with includeTabsContent\). When omitted, the first tab is used. |
 
 #### Output
 
@@ -127,6 +138,7 @@ Insert text at a specific index in a Google Docs document. When no index is prov
 | `documentId` | string | Yes | The ID of the document to insert text into |
 | `text` | string | Yes | The text to insert |
 | `index` | number | No | The character index \(the document body starts at index 1\) at which to insert the text. When omitted, text is appended to the end of the document. |
+| `tabId` | string | No | ID of the tab to insert the text into \(from Read with includeTabsContent\). When omitted, the first tab is used. |
 
 #### Output
 
@@ -155,6 +167,8 @@ Replace all occurrences of a search string with new text across a Google Docs do
 | `searchText` | string | Yes | The text to find |
 | `replaceText` | string | No | The text to replace matches with. Use an empty string to delete matches. |
 | `matchCase` | boolean | No | Whether the search should be case sensitive. Defaults to false. |
+| `searchByRegex` | boolean | No | When true, the search text is treated as a regular expression. Defaults to false. |
+| `tabId` | string | No | ID of a tab to limit the replacement to \(from Read with includeTabsContent\). When omitted, matches are replaced in all tabs. |
 
 #### Output
 
@@ -183,6 +197,7 @@ Insert an empty table with the given number of rows and columns into a Google Do
 | `rows` | number | Yes | The number of rows in the table |
 | `columns` | number | Yes | The number of columns in the table |
 | `index` | number | No | The character index \(the document body starts at index 1\) at which to insert the table. When omitted, the table is appended to the end of the document. |
+| `tabId` | string | No | ID of the tab to insert the table into \(from Read with includeTabsContent\). When omitted, the first tab is used. |
 
 #### Output
 
@@ -212,6 +227,7 @@ Insert an inline image from a public URL into a Google Docs document. The image 
 | `index` | number | No | The character index \(the document body starts at index 1\) at which to insert the image. When omitted, the image is appended to the end of the document. |
 | `width` | number | No | Optional image width in points \(PT\) |
 | `height` | number | No | Optional image height in points \(PT\) |
+| `tabId` | string | No | ID of the tab to insert the image into \(from Read with includeTabsContent\). When omitted, the first tab is used. |
 
 #### Output
 
@@ -238,6 +254,7 @@ Insert a page break into a Google Docs document. When no index is provided, the 
 | --------- | ---- | -------- | ----------- |
 | `documentId` | string | Yes | The ID of the document to insert the page break into |
 | `index` | number | No | The character index \(the document body starts at index 1\) at which to insert the page break. When omitted, the page break is appended to the end of the document. |
+| `tabId` | string | No | ID of the tab to insert the page break into \(from Read with includeTabsContent\). When omitted, the first tab is used. |
 
 #### Output
 

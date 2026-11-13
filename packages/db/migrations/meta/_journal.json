@@ -3186,6 +3186,13 @@
       "when": 1794342674732,
       "tag": "0455_api_key_access",
       "breakpoints": true
+    },
+    {
+      "idx": 456,
+      "version": "7",
+      "when": 1794503347845,
+      "tag": "0456_aws_marketplace_usage_metering",
+      "breakpoints": true
     }
   ]
 }

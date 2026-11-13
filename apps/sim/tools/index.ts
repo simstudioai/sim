@@ -23,6 +23,7 @@ import {
 } from '@/lib/core/errors/database-query-error'
 import {
   classifyFailure,
+  inheritFailureMarks,
   logFailureOnce,
   markFailureKind,
   markFailureLogged,
@@ -635,7 +636,8 @@ const CREDENTIAL_FIELD_LABELS: Record<CredentialParamSource, string> = {
  * Fills the params a saved credential supplies (`oauth.credentialParams`) from
  * the resolved credential. Runs only after authorization, overwrites any value
  * the caller or model supplied, and fails closed when the credential lacks a
- * mapped field rather than sending a request without it.
+ * mapped field rather than sending a request without it, unless the policy
+ * names that param optional, which is then cleared instead.
  */
 function applyCredentialParams(
   tool: ToolDefinition,
@@ -645,6 +647,10 @@ function applyCredentialParams(
   for (const [param, source] of Object.entries(tool.oauth?.credentialParams ?? {})) {
     const value = credential[source]
     if (typeof value !== 'string' || value.length === 0) {
+      if (tool.oauth?.optionalCredentialParams?.includes(param)) {
+        params[param] = undefined
+        continue
+      }
       throw new Error(
         `${tool.name} needs a saved credential with ${CREDENTIAL_FIELD_LABELS[source]}`
       )
@@ -2326,6 +2332,14 @@ async function executeToolImplementation(
         internalSandboxProfile,
         refreshCredential,
         authorizedServiceAccountCredential,
+      }).catch(async (error: unknown) => {
+        throw authorizedServiceAccountCredential
+          ? await explainExpiredServiceAccountToken(
+              error,
+              authorizedServiceAccountCredential.credentialId,
+              requestId
+            )
+          : error
       })
 
       let finalResult = result
@@ -2424,6 +2438,11 @@ async function executeToolImplementation(
         ).catch(async (error: unknown) => {
           if (authorizedServiceAccountCredential) {
             await expireRejectedServiceAccountToken(error, contextParams.accessToken, requestId)
+            throw await explainExpiredServiceAccountToken(
+              error,
+              authorizedServiceAccountCredential.credentialId,
+              requestId
+            )
           }
           throw error
         })
@@ -2962,6 +2981,7 @@ async function executeDeclaredInternalOperation({
           requestId,
           result.status === 403 ? REJECTED_TOKEN_MINIMUM_AGE_MS : undefined
         )
+        await expireRefusedCoordinatedToken(params.accessToken, requestId)
       }
       if (result instanceof Response && result.status === 401 && refreshCredential) {
         await result.body?.cancel()
@@ -3079,6 +3099,18 @@ async function expireRejectedServiceAccountToken(
   if (!(error instanceof Error) || !('status' in error) || error.status !== 401) return
   if (typeof accessToken !== 'string' || !accessToken || reportsScopeRefusal(error)) return
   await forgetRefusedServiceAccountToken(accessToken, requestId)
+  await expireRefusedCoordinatedToken(accessToken, requestId)
+}
+
+/**
+ * Expires a refused token coordinated across workers (a client-credentials grant's shared token),
+ * so the next call on any worker mints a replacement. A token minted within
+ * {@link REJECTED_TOKEN_MINIMUM_AGE_MS} is kept, since the refusal may come from the endpoint.
+ */
+async function expireRefusedCoordinatedToken(
+  accessToken: string,
+  requestId: string
+): Promise<void> {
   try {
     const { invalidateCoordinatedClientToken } = await import(
       '@/lib/credentials/coordinated-client-token'
@@ -3091,6 +3123,37 @@ async function expireRejectedServiceAccountToken(
       requestId,
       error: toError(invalidationError).message,
     })
+  }
+}
+
+/**
+ * A 401 for a saved service-account token past the expiry its vendor stated when it was saved
+ * becomes an error that says so and asks for a new token, keeping the provider's status and body
+ * and the refusal's log attribution and logged response body. Any other failure, or one whose
+ * expiry cannot be read, is returned unchanged.
+ */
+async function explainExpiredServiceAccountToken(
+  error: unknown,
+  credentialId: string,
+  requestId: string
+): Promise<unknown> {
+  if (!(error instanceof Error) || !('status' in error) || error.status !== 401) return error
+  try {
+    const { explainExpiredSavedToken } = await import('@/lib/credentials/saved-token-expiry')
+    const explained = await explainExpiredSavedToken(credentialId, {
+      status: error.status,
+      statusText: 'statusText' in error ? error.statusText : undefined,
+      data: 'data' in error ? error.data : undefined,
+    })
+    if (!explained) return error
+    if (externalHttpFailures.has(error)) externalHttpFailures.add(explained)
+    return inheritFailureMarks(explained, error)
+  } catch (lookupError) {
+    logger.warn('Could not check whether a refused saved token had expired', {
+      requestId,
+      error: toError(lookupError).message,
+    })
+    return error
   }
 }
 

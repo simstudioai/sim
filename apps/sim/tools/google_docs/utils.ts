@@ -1,3 +1,6 @@
+import { isRecordLike, toRecord } from '@sim/utils/object'
+import { safeUrlPathSegment } from '@/tools/url-path'
+
 /**
  * Resolve the document ID for a Docs API request, preferring the selected
  * document ID and falling back to a manually entered one. Throws when neither
@@ -11,7 +14,29 @@ export function resolveDocumentId(params: {
   if (!documentId) {
     throw new Error('Document ID is required')
   }
-  return documentId
+  return safeUrlPathSegment(documentId, 'documentId')
+}
+
+/**
+ * Normalize an optional tab ID. Returns `undefined` when absent or blank so the
+ * request targets the document's first tab, matching the API default.
+ */
+export function resolveTabId(tabId: unknown): string | undefined {
+  if (tabId === undefined || tabId === null) return undefined
+  if (typeof tabId !== 'string') throw new Error('Tab ID must be a string')
+  const trimmed = tabId.trim()
+  return trimmed || undefined
+}
+
+/**
+ * Parse an optional numeric param that may arrive as a number or a numeric
+ * string (agent tool-calls). Returns `undefined` when absent or not finite.
+ */
+export function parseOptionalNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || typeof value === 'boolean') return undefined
+  if (typeof value === 'string' && value.trim() === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 /**
@@ -37,12 +62,15 @@ export function parseOptionalBoolean(value: unknown): boolean | undefined {
  * use an explicit location.
  */
 export function buildInsertLocation(
-  index?: number
-): { location: { index: number } } | { endOfSegmentLocation: Record<string, never> } {
-  if (typeof index === 'number' && Number.isFinite(index) && index >= 1) {
-    return { location: { index } }
+  rawIndex?: unknown,
+  tabId?: string
+): { location: { index: number; tabId?: string } } | { endOfSegmentLocation: { tabId?: string } } {
+  const tab = tabId ? { tabId } : {}
+  const index = parseOptionalNumber(rawIndex)
+  if (index !== undefined && index >= 1) {
+    return { location: { index, ...tab } }
   }
-  return { endOfSegmentLocation: {} }
+  return { endOfSegmentLocation: { ...tab } }
 }
 
 /**
@@ -94,41 +122,95 @@ export function buildBatchUpdateMetadata(
   }
 }
 
-// Helper function to extract text content from Google Docs document structure
-export function extractTextFromDocument(document: any): string {
-  let text = ''
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined
+}
 
-  if (!document.body || !document.body.content) {
-    return text
+/**
+ * Visible text of one paragraph element. Smart chips (person, rich link, date)
+ * render as text in the document, so they are included alongside text runs.
+ */
+function extractParagraphElementText(element: unknown): string {
+  if (!isRecordLike(element)) return ''
+  const { textRun, person, richLink, dateElement } = element
+  if (isRecordLike(textRun)) return readString(textRun.content) ?? ''
+  if (isRecordLike(person) && isRecordLike(person.personProperties)) {
+    const props = person.personProperties
+    return readString(props.name) ?? readString(props.email) ?? ''
   }
+  if (isRecordLike(richLink) && isRecordLike(richLink.richLinkProperties)) {
+    const props = richLink.richLinkProperties
+    return readString(props.title) ?? readString(props.uri) ?? ''
+  }
+  if (isRecordLike(dateElement) && isRecordLike(dateElement.dateElementProperties)) {
+    return readString(dateElement.dateElementProperties.displayText) ?? ''
+  }
+  return ''
+}
 
-  // Process each structural element in the document
-  for (const element of document.body.content) {
-    if (element.paragraph) {
-      for (const paragraphElement of element.paragraph.elements) {
-        if (paragraphElement.textRun?.content) {
-          text += paragraphElement.textRun.content
-        }
+function extractStructuralElementsText(content: unknown): string {
+  if (!Array.isArray(content)) return ''
+  let text = ''
+  for (const element of content) {
+    if (!isRecordLike(element)) continue
+    const { paragraph, table } = element
+    if (isRecordLike(paragraph) && Array.isArray(paragraph.elements)) {
+      for (const paragraphElement of paragraph.elements) {
+        text += extractParagraphElementText(paragraphElement)
       }
-    } else if (element.table) {
-      // Process tables if needed
-      for (const tableRow of element.table.tableRows) {
+    } else if (isRecordLike(table) && Array.isArray(table.tableRows)) {
+      for (const tableRow of table.tableRows) {
+        if (!isRecordLike(tableRow) || !Array.isArray(tableRow.tableCells)) continue
         for (const tableCell of tableRow.tableCells) {
-          if (tableCell.content) {
-            for (const cellContent of tableCell.content) {
-              if (cellContent.paragraph) {
-                for (const paragraphElement of cellContent.paragraph.elements) {
-                  if (paragraphElement.textRun?.content) {
-                    text += paragraphElement.textRun.content
-                  }
-                }
-              }
-            }
-          }
+          if (isRecordLike(tableCell)) text += extractStructuralElementsText(tableCell.content)
         }
       }
     }
   }
-
   return text
+}
+
+/**
+ * Extract the visible body text of a document (or a `DocumentTab`, which has
+ * the same `body` shape): paragraphs, smart chips, and table cells
+ * (including nested tables).
+ */
+export function extractTextFromDocument(document: unknown): string {
+  if (!isRecordLike(document) || !isRecordLike(document.body)) return ''
+  return extractStructuralElementsText(document.body.content)
+}
+
+export interface GoogleDocsTabContent {
+  tabId: string | null
+  title: string | null
+  parentTabId: string | null
+  index: number | null
+  nestingLevel: number | null
+  content: string
+}
+
+/**
+ * Flatten a document's `tabs` tree (populated when `includeTabsContent=true`)
+ * depth-first into one entry per tab with its extracted text.
+ */
+export function flattenDocumentTabs(tabs: unknown): GoogleDocsTabContent[] {
+  if (!Array.isArray(tabs)) return []
+  const out: GoogleDocsTabContent[] = []
+  const visit = (list: unknown[]) => {
+    for (const tab of list) {
+      if (!isRecordLike(tab)) continue
+      const props = toRecord(tab.tabProperties)
+      out.push({
+        tabId: readString(props.tabId) ?? null,
+        title: readString(props.title) ?? null,
+        parentTabId: readString(props.parentTabId) ?? null,
+        index: typeof props.index === 'number' ? props.index : null,
+        nestingLevel: typeof props.nestingLevel === 'number' ? props.nestingLevel : null,
+        content: extractTextFromDocument(tab.documentTab),
+      })
+      if (Array.isArray(tab.childTabs)) visit(tab.childTabs)
+    }
+  }
+  visit(tabs)
+  return out
 }

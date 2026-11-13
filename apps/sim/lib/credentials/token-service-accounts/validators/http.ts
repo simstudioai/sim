@@ -20,6 +20,7 @@ import type {
   TokenServiceAccountValidationResult,
   TokenServiceAccountValidator,
 } from '@/lib/credentials/token-service-accounts/server'
+import { credibleTokenExpiry } from '@/lib/credentials/vendor-token-expiry'
 
 interface TokenCheckRequest {
   url: string
@@ -42,9 +43,21 @@ interface TokenCheck {
   /**
    * For a credential whose account id is part of the connection (an org slug,
    * account SID): returns it trimmed, throwing for a value that could steer the
-   * request's path or host.
+   * request's path or host. Returns `undefined` for a sign-in mode that has no
+   * account id (a ServiceNow OAuth client has no username).
    */
-  workspaceId?: (fields: TokenServiceAccountFields) => string
+  workspaceId?: (fields: TokenServiceAccountFields) => string | undefined
+  /**
+   * The domain a credential takes when none is given (its descriptor field's `defaultValue`). A
+   * credential on it keeps the bare service name credentials saved before the field existed have,
+   * and its host failing to resolve is the vendor being unavailable rather than the user's typo.
+   */
+  defaultDomain?: string
+  /**
+   * The domain picks one of the vendor's own region hosts from a fixed list, never a host the user
+   * typed, so one failing to resolve is the vendor being unavailable rather than the user's typo.
+   */
+  domainIsVendorRegion?: boolean
   /**
    * The request goes to a host the user chose (self-hosted or white-label), so
    * it runs through the same SSRF-guarded egress profile as the tools instead
@@ -86,6 +99,32 @@ interface TokenCheck {
    * {@link rejectsKey}.
    */
   provesKey?: (errorBody: unknown) => boolean
+  /**
+   * For a vendor that states when the verified token stops working: reads that moment from the
+   * accepted response, whose `body` is the parsed JSON when {@link acceptsBody} read it. Returns
+   * `undefined` when the vendor states no expiry or one that cannot be read; the token is still
+   * accepted either way.
+   */
+  expiresAt?: (accepted: {
+    headers: ProviderResponse['headers']
+    body: unknown
+  }) => Date | undefined
+}
+
+/** The expiry a check states for an accepted token, when it is credible. */
+function credibleExpiry(
+  check: TokenCheck,
+  accepted: { headers: ProviderResponse['headers']; body: unknown }
+): Date | undefined {
+  return credibleTokenExpiry(check.expiresAt?.(accepted))
+}
+
+/** `accepted` with the expiry the check states, when there is a credible one. */
+function withExpiry(
+  accepted: TokenServiceAccountValidationResult,
+  expiresAt: Date | undefined
+): TokenServiceAccountValidationResult {
+  return expiresAt ? { ...accepted, expiresAt } : accepted
 }
 
 const MAX_CHECK_RESPONSE_BYTES = 64 * 1024
@@ -101,7 +140,7 @@ export function readJsonBody(response: ProviderResponse, serviceLabel: string): 
 }
 
 /** A domain that must be one of a fixed set (a region or regional host), compared case-insensitively. */
-export function allowedDomain(allowed: ReadonlySet<string>) {
+export function allowedDomain(allowed: { has(value: string): boolean }) {
   return ({ domain }: TokenServiceAccountFields): string => {
     const value = (domain ?? '').trim().toLowerCase()
     if (!allowed.has(value)) throw new Error('unknown region')
@@ -111,7 +150,7 @@ export function allowedDomain(allowed: ReadonlySet<string>) {
 
 /** Runs `normalize` on a typed connection field, rejecting what it refuses as the user's input. */
 function normalizedField(
-  normalize: ((fields: TokenServiceAccountFields) => string) | undefined,
+  normalize: ((fields: TokenServiceAccountFields) => string | undefined) | undefined,
   fields: TokenServiceAccountFields,
   field: 'domain' | 'account id'
 ): string | undefined {
@@ -190,7 +229,8 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       ...(domain === undefined ? {} : { domain }),
       ...(workspaceId === undefined ? {} : { providerWorkspaceId: workspaceId }),
     }
-    const where = domain ?? workspaceId
+    const typedDomain = domain === check.defaultDomain ? undefined : domain
+    const where = typedDomain ?? workspaceId
     const accepted: TokenServiceAccountValidationResult = {
       displayName: where ? `${check.serviceLabel} (${where})` : check.serviceLabel,
       principal: null,
@@ -214,7 +254,7 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
           },
           'verify',
           // A host built from the typed domain or account id that doesn't exist is the user's typo.
-          domain === undefined && workspaceId === undefined
+          (typedDomain === undefined || check.domainIsVendorRegion) && workspaceId === undefined
             ? undefined
             : { dnsFailureCode: 'site_not_found' }
         )
@@ -275,13 +315,22 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       if (!verdict) {
         throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
       }
+      const expiresAt = credibleExpiry(check, { headers: response.headers, body })
       if (typeof verdict === 'object') {
         const name = verdict.displayName
-        return { ...accepted, displayName: where ? `${name} (${where})` : name }
+        return withExpiry(
+          { ...accepted, displayName: where ? `${name} (${where})` : name },
+          expiresAt
+        )
       }
-      return accepted
+      return withExpiry(accepted, expiresAt)
     }
     await response.body?.cancel().catch(() => undefined)
-    return accepted
+    return withExpiry(
+      accepted,
+      response.ok
+        ? credibleExpiry(check, { headers: response.headers, body: undefined })
+        : undefined
+    )
   }
 }

@@ -93,7 +93,7 @@ export const confluenceListPagesInSpaceTool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Format for page body content: storage, atlas_doc_format, or view. If not specified, body is not included.',
+        'Format for page body content: storage or atlas_doc_format. If not specified, body is not included.',
     },
     cursor: {
       type: 'string',

@@ -524,6 +524,7 @@ Read data from a specific sheet in a Microsoft Excel spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `valuesOnly` | boolean | No | For used-range reads \(no cell range given\): true \(default\) counts only cells with values; false also counts cells that only have formatting. |
 | `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
 | `spreadsheetId` | string | Yes | The ID of the spreadsheet/workbook to read from \(e.g., "01ABC123DEF456"\) |
 | `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account. |

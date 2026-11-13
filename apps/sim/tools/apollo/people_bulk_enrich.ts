@@ -2,6 +2,7 @@ import type {
   ApolloPeopleBulkEnrichParams,
   ApolloPeopleBulkEnrichResponse,
 } from '@/tools/apollo/types'
+import { getApolloAuthHeaders } from '@/tools/apollo/utils'
 import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -16,6 +17,12 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
+    credentialType: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Stored credential type supplied by credential resolution',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -68,7 +75,7 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
     headers: (params: ApolloPeopleBulkEnrichParams) => ({
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
-      'X-Api-Key': params.apiKey,
+      ...getApolloAuthHeaders(params),
     }),
     body: (params: ApolloPeopleBulkEnrichParams) => ({
       details: params.people.slice(0, 10),

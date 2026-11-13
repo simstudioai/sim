@@ -30,6 +30,7 @@ export const gmailMailBodySchema = z.object({
   replyToMessageId: z.string().optional().nullable(),
   cc: z.string().optional().nullable(),
   bcc: z.string().optional().nullable(),
+  replyTo: z.string().optional().nullable(),
   attachments: RawFileInputArraySchema.optional().nullable(),
 })
 

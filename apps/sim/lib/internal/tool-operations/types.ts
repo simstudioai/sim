@@ -29,7 +29,8 @@ export interface InternalToolOperationContext {
   /**
    * The saved service-account credential the executor authorized for this call,
    * set only from its own credential resolution, never from tool input.
-   * Operations that resolve a credential server-side (AWS session keys) read it.
+   * Operations that resolve a credential server-side (AWS session keys, saved SQL
+   * connections) read it.
    */
   authorizedServiceAccountCredential?: AuthorizedServiceAccountCredential
   /** Trusted source block for saved MCP operation restrictions. */

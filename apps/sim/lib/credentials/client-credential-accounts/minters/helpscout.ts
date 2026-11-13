@@ -11,6 +11,7 @@ import {
   isTransientProviderStatus,
   requireClientSecret,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 
 const MAX_HELPSCOUT_AUTH_RESPONSE_BYTES = 64 * 1024
@@ -28,7 +29,8 @@ async function readHelpScoutAuthResponse(
         ? 'invalid_credentials'
         : 'provider_unavailable',
       response.status,
-      { step }
+      { step },
+      { retryAfterMs: throttledRetryAfterMs(response) }
     )
   }
 

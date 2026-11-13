@@ -64,5 +64,26 @@ describe('executeSquareCreateCatalogImage', () => {
       idempotency_key: 'stable-key',
       object_id: 'item-1',
     })
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe('https://connect.squareup.com/v2/catalog/images')
+  })
+
+  it('uploads with a sandbox credential to the Square sandbox', async () => {
+    const response = await executeSquareCreateCatalogImage(
+      {
+        accessToken: 'sandbox-token',
+        environment: 'sandbox',
+        file: FILE,
+        fileName: null,
+        objectId: null,
+        caption: null,
+        idempotencyKey: 'stable-key',
+      },
+      { userId: 'user-1', requestId: 'request-1' }
+    )
+
+    expect(response.status).toBe(200)
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe(
+      'https://connect.squareupsandbox.com/v2/catalog/images'
+    )
   })
 })

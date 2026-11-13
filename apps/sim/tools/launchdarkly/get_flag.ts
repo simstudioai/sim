@@ -3,6 +3,7 @@ import type {
   LaunchDarklyGetFlagResponse,
 } from '@/tools/launchdarkly/types'
 import { FLAG_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
 import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -17,6 +18,7 @@ export const launchDarklyGetFlagTool: ToolConfig<
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
+    instance: LAUNCHDARKLY_INSTANCES.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -48,7 +50,7 @@ export const launchDarklyGetFlagTool: ToolConfig<
       const queryParams = new URLSearchParams()
       if (params.environmentKey) queryParams.set('env', params.environmentKey)
       const qs = queryParams.toString()
-      return `https://app.launchdarkly.com/api/v2/flags/${encodeURIComponent(params.projectKey.trim())}/${encodeURIComponent(params.flagKey.trim())}${qs ? `?${qs}` : ''}`
+      return `${LAUNCHDARKLY_INSTANCES.apiBase(params.instance)}/flags/${encodeURIComponent(params.projectKey.trim())}/${encodeURIComponent(params.flagKey.trim())}${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

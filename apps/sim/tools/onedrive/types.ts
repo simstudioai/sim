@@ -16,21 +16,43 @@ export interface MicrosoftGraphDriveItem {
   size?: number
   '@microsoft.graph.downloadUrl'?: string
   parentReference?: {
-    id: string
-    driveId: string
-    path: string
+    id?: string
+    driveId?: string
+    driveType?: string
+    name?: string
+    path?: string
+    siteId?: string
   }
   thumbnails?: Array<{
     small?: { url: string }
     medium?: { url: string }
     large?: { url: string }
   }>
-  createdBy?: {
-    user?: {
-      displayName?: string
-      email?: string
-    }
-  }
+  createdBy?: MicrosoftGraphIdentitySet
+  lastModifiedBy?: MicrosoftGraphIdentitySet
+  description?: string
+  eTag?: string
+}
+
+/** Graph `identitySet`; each `identity` documents only `id` and `displayName`. */
+export interface MicrosoftGraphIdentitySet {
+  user?: { id?: string; displayName?: string }
+  application?: { id?: string; displayName?: string }
+  device?: { id?: string; displayName?: string }
+}
+
+export interface OneDriveIdentity {
+  id: string | null
+  displayName: string | null
+}
+
+export interface OneDriveParentReference {
+  id: string | null
+  driveId: string | null
+  driveType: string | null
+  name: string | null
+  path: string | null
+  siteId: string | null
 }
 
 interface OneDriveFile {
@@ -42,7 +64,14 @@ interface OneDriveFile {
   size?: string
   createdTime?: string
   modifiedTime?: string
-  parents?: string[]
+  parents?: Array<string | undefined>
+  isFolder?: boolean
+  childCount?: number | null
+  description?: string | null
+  eTag?: string | null
+  parentReference?: OneDriveParentReference | null
+  createdBy?: OneDriveIdentity | null
+  lastModifiedBy?: OneDriveIdentity | null
 }
 
 export interface OneDriveListResponse extends ToolResponse {
@@ -113,6 +142,10 @@ export interface OneDriveShareLinkResponse extends ToolResponse {
       scope?: string
       webUrl: string
       webHtml?: string
+      permissionId?: string | null
+      roles?: string[]
+      hasPassword?: boolean | null
+      expirationDateTime?: string | null
     }
   }
 }
@@ -149,6 +182,7 @@ export interface OneDriveToolParams {
   content?: string
   mimeType?: string
   query?: string
+  orderBy?: string
   pageSize?: number
   pageToken?: string
   exportMimeType?: string
@@ -164,4 +198,6 @@ export interface OneDriveToolParams {
   // Sharing link parameters
   linkType?: 'view' | 'edit' | 'embed'
   linkScope?: 'anonymous' | 'organization' | 'users'
+  expirationDateTime?: string
+  conflictBehavior?: 'fail' | 'replace' | 'rename'
 }

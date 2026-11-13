@@ -5,6 +5,7 @@ import {
   validateOktaDomain,
   validateSupabaseProjectId,
 } from '@/lib/core/security/input-validation'
+import { CLIENT_CREDENTIALS_AUTH_METHOD } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   fetchProvider,
   TokenServiceAccountValidationError,
@@ -19,9 +20,12 @@ import {
   readJsonBody,
   tokenCheckValidator,
 } from '@/lib/credentials/token-service-accounts/validators/http'
+import { githubTokenExpiration, gitlabTokenExpiration } from '@/lib/credentials/vendor-token-expiry'
 import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/lib/internal/jupyter/protocol'
+import { getDashboardHost } from '@/tools/amplitude/utils'
 import { ashbyAuthHeaders } from '@/tools/ashby/utils'
 import { BITBUCKET_API_BASE, bitbucketHeaders } from '@/tools/bitbucket/utils'
+import { CBINSIGHTS_API_BASE } from '@/tools/cbinsights/utils'
 import { checkrHeaders } from '@/tools/checkr/utils'
 import { convexApiUrl, convexAuthHeaders } from '@/tools/convex/utils'
 import { buildDynatraceUrl, dynatraceHeaders } from '@/tools/dynatrace/utils'
@@ -29,7 +33,11 @@ import { normalizeEmailBisonBaseUrl } from '@/tools/emailbison/utils'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 import { gongAuthorization } from '@/tools/gong/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
+import { DEFAULT_HEX_HOST, hexApiBase, normalizeHexHost } from '@/tools/hex/utils'
 import { buildJotformHeaders, buildJotformUrl, JOTFORM_REGION_HOSTS } from '@/tools/jotform/utils'
+import { buildKalshiAuthHeaders, buildKalshiUrl } from '@/tools/kalshi/types'
+import { LANGSMITH_REGIONS } from '@/tools/langsmith/utils'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
 import {
   getLogfireBaseUrl,
   LOGFIRE_READ_TOKEN_INFO_PATH,
@@ -37,7 +45,7 @@ import {
 } from '@/tools/logfire/utils'
 import type { MailgunRegion } from '@/tools/mailgun/types'
 import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
-import { getNerdGraphEndpoint, newRelicHeaders } from '@/tools/new_relic/utils'
+import { getNerdGraphEndpoint, NEW_RELIC_REGIONS, newRelicHeaders } from '@/tools/new_relic/utils'
 import { oktaHeaders } from '@/tools/okta/utils'
 import { planeApiUrl, planeHeaders } from '@/tools/plane/utils'
 import {
@@ -45,7 +53,13 @@ import {
   PLANETSCALE_API_ORIGIN,
   planetScaleHeaders,
 } from '@/tools/planetscale/utils'
-import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import { RAILWAY_GRAPHQL_URL, railwayHeaders } from '@/tools/railway/utils'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SERVICENOW_BEARER_AUTH_STYLE, serviceNowAuthorization } from '@/tools/servicenow/utils'
+import type { CredentialRegions } from '@/tools/shared/credential-regions'
+import { buildSplunkHeaders, buildSplunkUrl } from '@/tools/splunk/utils'
+import { SQUARE_ENVIRONMENTS } from '@/tools/square/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
 import { isTwilioApiKeyPair, twilioAuthorization } from '@/tools/twilio/utils'
@@ -61,6 +75,18 @@ import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
 
 /** Regions for vendors with one US and one EU API host. */
 const US_OR_EU: ReadonlySet<string> = new Set(['us', 'eu'])
+
+/**
+ * The connection fields of a credential whose domain is one of the vendor's fixed regions: only a
+ * listed region is accepted, and the default one is the host the vendor always used.
+ */
+function vendorRegion(regions: CredentialRegions<string>) {
+  return {
+    domain: allowedDomain(regions),
+    defaultDomain: regions.defaultRegion,
+    domainIsVendorRegion: true,
+  }
+}
 
 /** Affinity's whoami endpoint answers 200 for a valid key and 401 otherwise. */
 export const validateAffinityServiceAccount = tokenCheckValidator({
@@ -146,6 +172,43 @@ export const validateAlgoliaServiceAccount = tokenCheckValidator({
       })
     }
     return true
+  },
+})
+
+/** Printable ASCII without a colon: what an Amplitude API key can be as a Basic username. */
+const AMPLITUDE_API_KEY = /^[\x21-\x39\x3b-\x7e]{1,256}$/
+/** Printable ASCII, so the Basic credential encodes exactly as the tools' `btoa` does. */
+const AMPLITUDE_SECRET_KEY = /^[\x21-\x7e]{1,256}$/
+
+/**
+ * Amplitude's Dashboard REST API lists a project's visible events for the API key and secret key
+ * sent as HTTP Basic credentials, on the region's host the tools build with `getDashboardHost`.
+ * Amplitude answers 403 when either key is invalid (401 is a malformed header), so the check
+ * proves the pair and its region together; it is a read with no billing cost.
+ * https://amplitude.com/docs/apis/analytics/dashboard-rest
+ */
+export const validateAmplitudeServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Amplitude',
+  domain: allowedDomain(US_OR_EU),
+  workspaceId: ({ providerWorkspaceId }) => {
+    const apiKey = (providerWorkspaceId ?? '').trim()
+    if (!AMPLITUDE_API_KEY.test(apiKey)) throw new Error('invalid API key')
+    return apiKey
+  },
+  request: ({ apiToken, providerWorkspaceId = '', domain }) => {
+    if (!AMPLITUDE_SECRET_KEY.test(apiToken)) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'invalid Amplitude secret key',
+      })
+    }
+    return {
+      url: `${getDashboardHost(domain)}/api/2/events/list`,
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${providerWorkspaceId}:${apiToken}`).toString('base64')}`,
+        Accept: 'application/json',
+      },
+    }
   },
 })
 
@@ -292,6 +355,41 @@ export const validateBufferServiceAccount = tokenCheckValidator({
   acceptsBody: (body) => {
     const account = toRecord(toRecord(toRecord(body).data).account)
     return typeof account.id === 'string' && account.id.length > 0
+  },
+})
+
+/** A CB Insights client ID: printable ASCII, sent only in the authorize request body. */
+const CBINSIGHTS_CLIENT_ID = /^[\x21-\x7e]{1,256}$/
+
+/**
+ * Exchanging the client ID and secret for an access token at `POST /v2/authorize`, the call the
+ * tools make before their first request, proves the pair; a success without a token is not
+ * proof. The token is discarded: the tools mint their own on each run.
+ * https://api-docs.cbinsights.com/portal/docs/CBI-API/Authentication
+ */
+export const validateCbInsightsServiceAccount = tokenCheckValidator({
+  serviceLabel: 'CB Insights',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const clientId = (providerWorkspaceId ?? '').trim()
+    if (!CBINSIGHTS_CLIENT_ID.test(clientId)) throw new Error('invalid client ID')
+    return clientId
+  },
+  errorBodyEchoesToken: true,
+  request: ({ apiToken, providerWorkspaceId = '' }) => ({
+    url: `${CBINSIGHTS_API_BASE}/v2/authorize`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ clientId: providerWorkspaceId, clientSecret: apiToken }),
+  }),
+  acceptsBody: (body) => {
+    const token = toRecord(body).token
+    if (typeof token !== 'string' || !token) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'CB Insights authorization returned no token',
+      })
+    }
+    return true
   },
 })
 
@@ -635,6 +733,8 @@ export const validateGitHubServiceAccount = tokenCheckValidator({
     }
     return { displayName: `${login.trim()} (GitHub)` }
   },
+  expiresAt: ({ headers }) =>
+    githubTokenExpiration(headers.get('github-authentication-token-expiration')),
 })
 
 /**
@@ -708,6 +808,7 @@ export const validateGitLabServiceAccount = tokenCheckValidator({
     const name = typeof token.name === 'string' ? token.name.trim() : ''
     return usable && name ? { displayName: name } : usable
   },
+  expiresAt: ({ body }) => gitlabTokenExpiration(toRecord(body).expires_at),
 })
 
 /**
@@ -797,11 +898,16 @@ export const validateGranolaServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Hex's list-projects endpoint (the one the Hex tools call) answers 200 for a valid token and 401 otherwise. */
+/**
+ * Hex's list-projects endpoint (the one the Hex tools call) answers 200 for a valid token and 401
+ * otherwise, on the hex.tech host of the token's workspace.
+ */
 export const validateHexServiceAccount = tokenCheckValidator({
   serviceLabel: 'Hex',
-  request: ({ apiToken }) => ({
-    url: 'https://app.hex.tech/api/v1/projects?limit=1',
+  domain: ({ domain }) => normalizeHexHost(domain),
+  defaultDomain: DEFAULT_HEX_HOST,
+  request: ({ apiToken, domain }) => ({
+    url: `${hexApiBase(domain)}/projects?limit=1`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })
@@ -914,20 +1020,104 @@ export const validateJupyterServiceAccount = tokenCheckValidator({
   },
 })
 
-/** LangSmith's workspace list answers 200 for a valid API key and 401/403 otherwise. */
+/**
+ * Listing collections (`GET /collections`) is a read every Qdrant key may run (a collection-scoped
+ * key sees a filtered list), sent with the `api-key` header the tools send. The instance URL is
+ * one the user chose, so the check runs through the guarded egress, and an answer without a
+ * collection list (a proxy or login page) is not taken as proof. A self-hosted instance with no
+ * API key configured accepts any key; the credential still binds the instance URL.
+ * https://api.qdrant.tech/api-reference/collections/get-collections
+ */
+export const validateQdrantServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Qdrant',
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain = '' }) => ({
+    url: `${domain}/collections`,
+    headers: { 'api-key': apiToken, Accept: 'application/json' },
+  }),
+  acceptsBody: (body) => {
+    if (!Array.isArray(toRecord(toRecord(body).result).collections)) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Qdrant returned no collection list',
+      })
+    }
+    return true
+  },
+})
+
+/** The token types a Railway credential names, each read by the query its scope allows. */
+const RAILWAY_TOKEN_TYPES = new Set(['account', 'workspace', 'project'])
+/** A Railway workspace ID, sent only as a GraphQL variable. */
+const RAILWAY_WORKSPACE_ID = /^[A-Za-z0-9-]{1,64}$/
+
+/**
+ * Each Railway token type has its own documented read, because `me` answers only an account
+ * token: an account token reads `me`, a workspace token reads its workspace by ID (the only
+ * workspace it can see), and a project token reads `projectToken` with the Project-Access-Token
+ * header the tools send for it. Railway reports a refused token as a GraphQL error, so only a
+ * body carrying the queried object proves it.
+ * https://docs.railway.com/integrations/api
+ */
+export const validateRailwayServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Railway',
+  domain: allowedDomain(RAILWAY_TOKEN_TYPES),
+  request: ({ apiToken, domain, providerWorkspaceId = '' }) => {
+    if (domain === 'workspace' && !RAILWAY_WORKSPACE_ID.test(providerWorkspaceId)) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'a workspace token needs its workspace ID',
+      })
+    }
+    const query =
+      domain === 'project'
+        ? { query: 'query { projectToken { projectId environmentId } }' }
+        : domain === 'workspace'
+          ? {
+              query:
+                'query Workspace($workspaceId: String!) { workspace(workspaceId: $workspaceId) { id } }',
+              variables: { workspaceId: providerWorkspaceId },
+            }
+          : { query: 'query { me { id } }' }
+    return {
+      url: RAILWAY_GRAPHQL_URL,
+      method: 'POST',
+      headers: railwayHeaders(apiToken, domain === 'project' ? 'project' : 'account'),
+      body: JSON.stringify(query),
+    }
+  },
+  acceptsBody: (body) => {
+    const record = toRecord(body)
+    if (toArray(record.errors).length > 0) return false
+    const [queried] = Object.values(toRecord(record.data))
+    return Object.keys(toRecord(queried)).length > 0
+  },
+})
+
+/**
+ * LangSmith's workspace list answers 200 for a valid API key and 401/403 otherwise, in the region
+ * the key's organization lives in; a key from another region is not recognized.
+ */
 export const validateLangsmithServiceAccount = tokenCheckValidator({
   serviceLabel: 'LangSmith',
-  request: ({ apiToken }) => ({
-    url: 'https://api.smith.langchain.com/api/v1/workspaces',
+  ...vendorRegion(LANGSMITH_REGIONS),
+  request: ({ apiToken, domain }) => ({
+    url: `${LANGSMITH_REGIONS.apiBase(domain)}/workspaces`,
     headers: { 'X-Api-Key': apiToken, Accept: 'application/json' },
   }),
 })
 
-/** LaunchDarkly's caller-identity endpoint describes the calling token, so it answers 200 for any valid token and 401 otherwise. */
+/**
+ * LaunchDarkly's caller-identity endpoint describes the calling token, so it answers 200 for any
+ * valid token and 401 otherwise, on the instance (commercial, EU, or federal) the token was
+ * created in.
+ */
 export const validateLaunchdarklyServiceAccount = tokenCheckValidator({
   serviceLabel: 'LaunchDarkly',
-  request: ({ apiToken }) => ({
-    url: 'https://app.launchdarkly.com/api/v2/caller-identity',
+  ...vendorRegion(LAUNCHDARKLY_INSTANCES),
+  request: ({ apiToken, domain }) => ({
+    url: `${LAUNCHDARKLY_INSTANCES.apiBase(domain)}/caller-identity`,
     headers: { Authorization: apiToken, Accept: 'application/json' },
   }),
 })
@@ -1038,6 +1228,86 @@ export const validateMailchimpServiceAccount = tokenCheckValidator({
   },
 })
 
+/** A Kalshi API key ID travels as a header value, so only printable ASCII without spaces. */
+const KALSHI_KEY_ID = /^[\x21-\x7e]{1,128}$/
+const KALSHI_BALANCE_PATH = '/portfolio/balance'
+
+/**
+ * Reading the account balance is a free, read-only request signed the way the tools sign every
+ * authenticated call (`buildKalshiAuthHeaders`), so it succeeds only when the signature verifies
+ * against the key ID's registered public key; any refusal rejects the key. A private key that cannot sign
+ * (not PEM, or neither RSA nor Ed25519) is refused before any request.
+ * https://docs.kalshi.com/getting_started/api_keys
+ */
+export const validateKalshiServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Kalshi',
+  workspaceId: ({ providerWorkspaceId }) => {
+    const keyId = (providerWorkspaceId ?? '').trim()
+    if (!KALSHI_KEY_ID.test(keyId)) throw new Error('invalid API key ID')
+    return keyId
+  },
+  request: ({ apiToken, providerWorkspaceId = '' }) => {
+    let headers: Record<string, string>
+    try {
+      headers = buildKalshiAuthHeaders(
+        providerWorkspaceId,
+        apiToken,
+        'GET',
+        new URL(buildKalshiUrl(KALSHI_BALANCE_PATH)).pathname
+      )
+    } catch {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'verify',
+        reason: 'Kalshi private key cannot sign',
+      })
+    }
+    return {
+      url: buildKalshiUrl(KALSHI_BALANCE_PATH),
+      headers: { ...headers, Accept: 'application/json' },
+    }
+  },
+})
+
+/**
+ * Splunk's `authentication/current-context` returns the user a request authenticates as and
+ * needs no capability, so any valid authentication token, or username and password sent as HTTP
+ * Basic the way the tools send them, reads it; refused credentials answer 401. A username is the
+ * Basic username, so one with a colon is refused unsent. The management URL is one the user
+ * chose, so the check runs through the guarded egress, and an answer without a user context (a
+ * proxy or login page) is not taken as proof.
+ * https://help.splunk.com/en/splunk-enterprise/leverage-rest-apis/rest-api-reference/10.6/access-endpoints/access-endpoint-descriptions
+ */
+export const validateSplunkServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Splunk',
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
+  workspaceId: ({ providerWorkspaceId }) => {
+    const username = (providerWorkspaceId ?? '').trim()
+    if (!username) return undefined
+    if (!/^[^:\x00-\x1f\x7f]+$/.test(username)) throw new Error('invalid username')
+    return username
+  },
+  egress: 'configuredEndpoint',
+  request: ({ apiToken, domain = '', providerWorkspaceId }) => ({
+    url: buildSplunkUrl({ baseUrl: domain }, '/authentication/current-context'),
+    headers: buildSplunkHeaders(
+      providerWorkspaceId
+        ? { baseUrl: domain, username: providerWorkspaceId, password: apiToken }
+        : { baseUrl: domain, authToken: apiToken }
+    ),
+  }),
+  acceptsBody: (body) => {
+    const [entry] = toArray(toRecord(body).entry)
+    const username = toRecord(toRecord(entry).content).username
+    if (typeof username !== 'string' || !username.trim()) {
+      throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+        step: 'verify',
+        reason: 'Splunk returned no user context',
+      })
+    }
+    return true
+  },
+})
+
 /**
  * Listing one domain on the region's host answers 200 for a valid account API key and 401
  * ("Invalid private key") otherwise; a key from the other region is refused the same way, so the
@@ -1079,16 +1349,16 @@ const NERDGRAPH_RETRYABLE_ERROR_CLASSES: ReadonlySet<unknown> = new Set([
 
 /**
  * A New Relic User API key is bound to its data center, so it is checked against the
- * NerdGraph host of the region typed with it (`us` or `eu`, stored lower-cased because
- * the tools send anything but `eu` to the US host). An unknown key, or one from the other
+ * NerdGraph host of the region typed with it (`us`, `eu`, or `jp`, stored lower-cased because
+ * the tools send anything else to the US host). An unknown key, or one from the other
  * region, gets 401, or a 200 whose `errors` carry `BAD_API_KEY`, so only a resolved user
  * proves the key. Only an error in a server class means NerdGraph failed to answer.
  */
 export const validateNewRelicServiceAccount = tokenCheckValidator({
   serviceLabel: 'New Relic',
-  domain: allowedDomain(US_OR_EU),
+  domain: allowedDomain(NEW_RELIC_REGIONS),
   request: ({ apiToken, domain }) => ({
-    url: getNerdGraphEndpoint(domain as 'us' | 'eu'),
+    url: getNerdGraphEndpoint(domain),
     method: 'POST',
     headers: { ...newRelicHeaders(apiToken), Accept: 'application/json' },
     body: JSON.stringify({ query: '{ actor { user { id } } }' }),
@@ -1344,11 +1614,16 @@ export const validateRootlyServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** SendGrid's scopes endpoint lists the scopes of the key that calls it, so any valid key gets 200 and a bad one 401. */
+/**
+ * SendGrid's scopes endpoint lists the scopes of the key that calls it, so any valid key gets 200
+ * and a bad one 401. SendGrid serves it on both the global host and the EU host of regional
+ * subusers: https://www.twilio.com/docs/sendgrid/api-reference/api-key-permissions/retrieve-a-list-of-scopes-for-which-this-user-has-access
+ */
 export const validateSendGridServiceAccount = tokenCheckValidator({
   serviceLabel: 'SendGrid',
-  request: ({ apiToken }) => ({
-    url: 'https://api.sendgrid.com/v3/scopes',
+  ...vendorRegion(SENDGRID_REGIONS),
+  request: ({ apiToken, domain }) => ({
+    url: `${SENDGRID_REGIONS.apiBase(domain)}/scopes`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })
@@ -1356,13 +1631,15 @@ export const validateSendGridServiceAccount = tokenCheckValidator({
 /**
  * Listing the token's Sentry organizations answers 200 for a valid token and 401 for a bad one;
  * a token without `org:read` (an organization token, or a narrowly scoped one) gets Sentry's JSON
- * 403.
+ * 403. The list is per region, so it is read on the host of the region the token's organization
+ * stores its data in: https://docs.sentry.io/api/users/list-your-organizations/
  */
 export const validateSentryServiceAccount = tokenCheckValidator({
   serviceLabel: 'Sentry',
   forbiddenMeansScoped: true,
-  request: ({ apiToken }) => ({
-    url: 'https://sentry.io/api/0/organizations/',
+  ...vendorRegion(SENTRY_REGIONS),
+  request: ({ apiToken, domain }) => ({
+    url: `${SENTRY_REGIONS.apiBase(domain)}/organizations/`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })
@@ -1375,7 +1652,7 @@ export const validateSentryServiceAccount = tokenCheckValidator({
  * `configuredEndpoint` egress check refuses private and loopback addresses, and the saved password
  * only ever goes to the host stored with it.
  */
-function normalizeServiceNowInstanceUrl(raw: string | undefined): string {
+export function normalizeServiceNowInstanceUrl(raw: string | undefined): string {
   const typed = refuseUnsafeTypedUrl(raw)
   const url = new URL(/^https?:\/\//i.test(typed) ? typed : `https://${typed}`)
   if (url.protocol !== 'https:') throw new Error('https only')
@@ -1388,21 +1665,31 @@ function normalizeServiceNowInstanceUrl(raw: string | undefined): string {
  * credentials with 401 and a request its ACLs refuse with a JSON 403, which still proves the
  * login. The username is the Basic username, so one with a colon is refused unsent. Only a
  * Table API `result` list proves the login: a hibernating instance answers 200 with a page.
+ * A token an OAuth client minted is proven with the same read as a bearer token, the way the
+ * tools send it, and has no username.
  */
 export const validateServiceNowServiceAccount = tokenCheckValidator({
   serviceLabel: 'ServiceNow',
   domain: ({ domain }) => normalizeServiceNowInstanceUrl(domain),
-  workspaceId: ({ providerWorkspaceId }) => {
+  workspaceId: ({ providerWorkspaceId, authMethod }) => {
+    if (authMethod === CLIENT_CREDENTIALS_AUTH_METHOD) return undefined
     const username = (providerWorkspaceId ?? '').trim()
     if (!/^[^:\x00-\x1f\x7f]+$/.test(username)) throw new Error('invalid username')
     return username
   },
   egress: 'configuredEndpoint',
   forbiddenMeansScoped: true,
-  request: ({ apiToken, domain, providerWorkspaceId = '' }) => ({
+  request: ({ apiToken, domain, providerWorkspaceId = '', authMethod }) => ({
     url: `${domain}/api/now/table/sys_user?sysparm_limit=1&sysparm_fields=sys_id`,
     headers: {
-      Authorization: createBasicAuthHeader(providerWorkspaceId, apiToken),
+      Authorization: serviceNowAuthorization({
+        username: providerWorkspaceId,
+        password: apiToken,
+        accessToken: apiToken,
+        ...(authMethod === CLIENT_CREDENTIALS_AUTH_METHOD
+          ? { authStyle: SERVICENOW_BEARER_AUTH_STYLE }
+          : {}),
+      }),
       Accept: 'application/json',
     },
   }),
@@ -1454,13 +1741,15 @@ export const validateSportmonksServiceAccount = tokenCheckValidator({
 })
 
 /**
- * Square's list-locations read answers 200 for a valid production access token and 401 for a bad
- * one; a token without the merchant-profile scope gets 403.
+ * Square's list-locations read answers 200 for a valid access token and 401 for a bad one, in the
+ * environment (production or sandbox) that issued it; a token without the merchant-profile scope
+ * gets 403.
  */
 export const validateSquareServiceAccount = tokenCheckValidator({
   serviceLabel: 'Square',
-  request: ({ apiToken }) => ({
-    url: 'https://connect.squareup.com/v2/locations',
+  ...vendorRegion(SQUARE_ENVIRONMENTS),
+  request: ({ apiToken, domain }) => ({
+    url: `${SQUARE_ENVIRONMENTS.apiBase(domain)}/v2/locations`,
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
   forbiddenMeansScoped: true,

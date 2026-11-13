@@ -1,3 +1,5 @@
+import { safeUrlPathSegment } from '@/tools/url-path'
+
 /**
  * Splits a comma or newline separated list of identifiers into a trimmed, de-duplicated array.
  * Used for Microsoft Graph parameters that take GUID collections (SKU IDs, service plan IDs).
@@ -164,7 +166,7 @@ export async function resolveGraphUserObjectId(
   if (isGraphObjectId(identifier)) return identifier
 
   const response = await fetch(
-    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(identifier)}?$select=id`,
+    `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(identifier, 'userId')}?$select=id`,
     { headers: { Authorization: `Bearer ${accessToken}` }, signal }
   )
   const body = await response.json().catch(() => ({}))
@@ -224,4 +226,52 @@ export function mapDevice(device: Record<string, unknown>): Record<string, unkno
     approximateLastSignInDateTime: device.approximateLastSignInDateTime ?? null,
     registrationDateTime: device.registrationDateTime ?? null,
   }
+}
+
+/** The `user` properties the Microsoft Entra ID read tools project into their outputs. */
+export const USER_SELECT =
+  'id,displayName,givenName,surname,userPrincipalName,mail,jobTitle,department,officeLocation,mobilePhone,accountEnabled,businessPhones,preferredLanguage,employeeId,employeeType,companyName,userType,usageLocation,city,country,createdDateTime,onPremisesSyncEnabled'
+
+/** Maps a Microsoft Graph `user` resource to the fields in {@link USER_SELECT}. */
+export function mapUser(user: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: user.id ?? null,
+    displayName: user.displayName ?? null,
+    givenName: user.givenName ?? null,
+    surname: user.surname ?? null,
+    userPrincipalName: user.userPrincipalName ?? null,
+    mail: user.mail ?? null,
+    jobTitle: user.jobTitle ?? null,
+    department: user.department ?? null,
+    officeLocation: user.officeLocation ?? null,
+    mobilePhone: user.mobilePhone ?? null,
+    accountEnabled: user.accountEnabled ?? null,
+    businessPhones: Array.isArray(user.businessPhones) ? user.businessPhones : [],
+    preferredLanguage: user.preferredLanguage ?? null,
+    employeeId: user.employeeId ?? null,
+    employeeType: user.employeeType ?? null,
+    companyName: user.companyName ?? null,
+    userType: user.userType ?? null,
+    usageLocation: user.usageLocation ?? null,
+    city: user.city ?? null,
+    country: user.country ?? null,
+    createdDateTime: user.createdDateTime ?? null,
+    onPremisesSyncEnabled: user.onPremisesSyncEnabled ?? null,
+  }
+}
+
+/** Maps a `directoryObject` member (user, group, device, service principal, or contact). */
+export function mapDirectoryObjectMember(member: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: member.id ?? null,
+    displayName: member.displayName ?? null,
+    mail: member.mail ?? null,
+    odataType: member['@odata.type'] ?? null,
+    userPrincipalName: member.userPrincipalName ?? null,
+  }
+}
+
+/** True only for a real `true` or the string `"true"`, so `"false"` from an agent or stored value stays off. */
+export function isTrueFlag(value: unknown): boolean {
+  return value === true || value === 'true'
 }

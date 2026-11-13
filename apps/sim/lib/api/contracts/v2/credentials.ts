@@ -107,6 +107,12 @@ export const v2CredentialProviderFieldSchema = z
       .max(20)
       .optional()
       .describe('Fixed values accepted by a selector field.'),
+    defaultValue: z
+      .string()
+      .min(1)
+      .max(255)
+      .optional()
+      .describe('Value an optional field takes when it is omitted.'),
     hint: z.string().min(1).max(2000).optional().describe('Provider-specific setup guidance.'),
   })
   .strict()
@@ -167,7 +173,9 @@ export const v2ServiceAccountCredentialProviderSchema = z
         requiredConfigFields: z.array(z.string()).describe('Fields you add to `keylessConfig`.'),
         optionalConfigFields: z
           .array(z.string())
-          .describe('Fields `keylessConfig` may also carry.'),
+          .describe(
+            'Fields `keylessConfig` may also carry. `audience` is a custom `aud` claim Sim signs in place of the default; your trust configuration must then accept it.'
+          ),
       })
       .strict()
       .optional()
@@ -305,6 +313,7 @@ export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
   'ramp',
   'helpscout',
   'hubspot',
+  'apollo',
   'linkedin',
   'instagram',
   'salesforce',
@@ -449,20 +458,24 @@ const v2CredentialWorkloadIdentitySubjectSchema = z
       })
       .strict()
       .describe(
-        'Prefilled keyless `serviceAccountJson`: add `requiredConfigFields`, then send it to Create service-account credential.'
+        'Prefilled keyless `serviceAccountJson`: add `requiredConfigFields` (and any `optionalConfigFields`, such as a custom `audience`), then send it to Create service-account credential.'
       ),
     requiredConfigFields: z
       .array(z.string())
       .describe(
         'Fields from your cloud setup that `keylessConfig` still needs, such as roleArn or host.'
       ),
-    optionalConfigFields: z.array(z.string()).describe('Fields `keylessConfig` may also carry.'),
+    optionalConfigFields: z
+      .array(z.string())
+      .describe(
+        'Fields `keylessConfig` may also carry. `audience` replaces the default `audience` above with your own value, such as one specific to your account; trust that value instead of the default.'
+      ),
   })
   .meta({
     id: 'V2CredentialWorkloadIdentitySubject',
     title: 'Credential workload identity subject',
     description:
-      'The issuer, audience, and subject a cloud trust configuration pins, and the proof that attaches the subject to a new keyless credential.',
+      'The issuer, default audience, and subject a cloud trust configuration pins, and the proof that attaches the subject to a new keyless credential. A `keylessConfig.audience` overrides the default audience.',
   })
 
 export const v2CreateCredentialWorkloadIdentitySubjectContract = defineRouteContract({

@@ -40,6 +40,13 @@ export const addCommentTool: ToolConfig<AddCommentParams, AddCommentResponse> = 
       visibility: 'user-or-llm',
       description: 'Comment text (HTML supported, e.g. "<p>My comment</p>")',
     },
+    format: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comment format: "markdown" or "html". Omit to send the text without a format (API version 7.0 behavior).',
+    },
     accessToken: {
       type: 'string',
       required: true,
@@ -53,7 +60,13 @@ export const addCommentTool: ToolConfig<AddCommentParams, AddCommentResponse> = 
       const url = new URL(
         `${azureDevOpsProjectUrl(params)}/_apis/wit/workitems/${Number(params.workItemId)}/comments`
       )
-      url.searchParams.set('api-version', '7.0-preview.3')
+      const format = params.format?.trim().toLowerCase()
+      if (format) {
+        url.searchParams.set('format', format)
+        url.searchParams.set('api-version', '7.2-preview.4')
+      } else {
+        url.searchParams.set('api-version', '7.0-preview.3')
+      }
       return url.toString()
     },
     method: 'POST',

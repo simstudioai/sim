@@ -1,3 +1,4 @@
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -11,7 +12,9 @@ import type {
   OutlookReadResponse,
 } from '@/tools/outlook/types'
 import { OUTLOOK_MESSAGE_OUTPUT_PROPERTIES } from '@/tools/outlook/types'
+import { cleanOutlookMessage } from '@/tools/outlook/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface OutlookDownloadAttachmentMetadata {
   '@odata.type'?: string
@@ -21,23 +24,48 @@ interface OutlookDownloadAttachmentMetadata {
   size?: number
 }
 
+/** Caller hooks for {@link downloadAttachments}; omitted options keep the tool's default behavior. */
+export interface OutlookAttachmentDownloadOptions {
+  /** Fetch implementation, e.g. a retrying fetch for background polling. */
+  fetchImpl?: (url: string, init: RequestInit) => Promise<Response>
+  /** Skip attachments that exceed the byte budget and keep the rest, instead of throwing. */
+  keepPartialOnLimit?: boolean
+  /** Report Graph's declared attachment size, falling back to the downloaded byte length. */
+  preferMetadataSize?: boolean
+  /** Called when Graph answers a metadata or content request with a non-OK status. */
+  onFailure?: (stage: 'metadata' | 'content', status: number) => void
+  /** Called for each attachment skipped because it exceeds the byte budget (with keepPartialOnLimit). */
+  onSkip?: (attachmentName: string, declaredSize: number | undefined) => void
+}
+
 /** Fetch metadata separately from raw file bytes, sharing the budget across messages. */
 export async function downloadAttachments(
   messageId: string,
   accessToken: string,
-  budget = new AttachmentDownloadBudget()
+  budget = new AttachmentDownloadBudget(),
+  options: OutlookAttachmentDownloadOptions = {}
 ): Promise<OutlookAttachment[]> {
+  const fetchImpl = options.fetchImpl ?? ((url: string, init: RequestInit) => fetch(url, init))
   const attachments: OutlookAttachment[] = []
   const path = `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}/attachments`
+  const handleError = (error: unknown, attachment?: OutlookDownloadAttachmentMetadata) => {
+    if (options.keepPartialOnLimit && isPayloadSizeLimitError(error)) {
+      budget.signal?.throwIfAborted()
+      options.onSkip?.(attachment?.name || 'attachment', attachment?.size)
+      return
+    }
+    rethrowAttachmentDownloadError(error, budget.signal)
+  }
   try {
     budget.signal?.throwIfAborted()
-    const response = await fetch(`${path}?$select=id,name,contentType,size`, {
+    const response = await fetchImpl(`${path}?$select=id,name,contentType,size`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: budget.signal,
     })
     if (!response.ok) {
       await response.body?.cancel()
       budget.signal?.throwIfAborted()
+      options.onFailure?.('metadata', response.status)
       return attachments
     }
     const data = await readAttachmentJson<{ value?: OutlookDownloadAttachmentMetadata[] }>(
@@ -50,13 +78,14 @@ export async function downloadAttachments(
       try {
         if (attachment.size !== undefined) budget.assertSize(attachment.size, 'Outlook attachments')
         budget.signal?.throwIfAborted()
-        const content = await fetch(`${path}/${encodeURIComponent(attachment.id)}/$value`, {
+        const content = await fetchImpl(`${path}/${encodeURIComponent(attachment.id)}/$value`, {
           headers: { Authorization: `Bearer ${accessToken}` },
           signal: budget.signal,
         })
         if (!content.ok) {
           await content.body?.cancel()
           budget.signal?.throwIfAborted()
+          options.onFailure?.('content', content.status)
           continue
         }
         const buffer = await budget.read(content, 'Outlook attachments')
@@ -67,14 +96,16 @@ export async function downloadAttachments(
             attachment.contentType ||
             content.headers.get('content-type') ||
             'application/octet-stream',
-          size: buffer.byteLength,
+          size: options.preferMetadataSize
+            ? (attachment.size ?? buffer.byteLength)
+            : buffer.byteLength,
         })
       } catch (error) {
-        rethrowAttachmentDownloadError(error, budget.signal)
+        handleError(error, attachment)
       }
     }
   } catch (error) {
-    rethrowAttachmentDownloadError(error, budget.signal)
+    handleError(error)
   }
   return attachments
 }
@@ -127,7 +158,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
 
       // If folder is provided, read from that specific folder
       if (params.folder) {
-        return `https://graph.microsoft.com/v1.0/me/mailFolders/${params.folder}/messages?$top=${maxResults}&$orderby=createdDateTime desc`
+        return `https://graph.microsoft.com/v1.0/me/mailFolders/${safeUrlPathSegment(params.folder, 'folder', { allowSeparators: true })}/messages?$top=${maxResults}&$orderby=createdDateTime desc`
       }
 
       // Otherwise fetch from all messages (default behavior)
@@ -183,39 +214,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
         }
       }
 
-      cleanedMessages.push({
-        id: message.id,
-        subject: message.subject,
-        bodyPreview: message.bodyPreview,
-        body: {
-          contentType: message.body?.contentType,
-          content: message.body?.content,
-        },
-        sender: {
-          name: message.sender?.emailAddress?.name,
-          address: message.sender?.emailAddress?.address,
-        },
-        from: {
-          name: message.from?.emailAddress?.name,
-          address: message.from?.emailAddress?.address,
-        },
-        toRecipients:
-          message.toRecipients?.map((recipient) => ({
-            name: recipient.emailAddress?.name,
-            address: recipient.emailAddress?.address,
-          })) || [],
-        ccRecipients:
-          message.ccRecipients?.map((recipient) => ({
-            name: recipient.emailAddress?.name,
-            address: recipient.emailAddress?.address,
-          })) || [],
-        receivedDateTime: message.receivedDateTime,
-        sentDateTime: message.sentDateTime,
-        hasAttachments: message.hasAttachments,
-        attachments: attachments || [],
-        isRead: message.isRead,
-        importance: message.importance,
-      })
+      cleanedMessages.push({ ...cleanOutlookMessage(message), attachments: attachments || [] })
     }
 
     // Flatten all attachments from all emails to top level for FileToolProcessor

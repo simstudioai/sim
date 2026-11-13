@@ -6,6 +6,19 @@ import {
   retryWithExponentialBackoff,
 } from '@/lib/knowledge/documents/utils'
 
+/** Google's documented JWT-bearer error codes, safe to show or log without the provider description. */
+export const GOOGLE_TOKEN_DIAGNOSTIC_ERROR_CODES: ReadonlySet<string> = new Set([
+  'access_denied',
+  'admin_policy_enforced',
+  'deleted_client',
+  'disabled_client',
+  'invalid_client',
+  'invalid_grant',
+  'invalid_scope',
+  'org_internal',
+  'unauthorized_client',
+])
+
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504])
 const TOKEN_EXCHANGE_BUDGET_MS = 30_000
 const logger = createLogger('GoogleServiceAccountTransport')

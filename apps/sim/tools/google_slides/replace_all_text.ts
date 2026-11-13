@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { batchUpdateUrl } from '@/tools/google_slides/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleSlidesReplaceAllTextTool')
@@ -82,7 +83,7 @@ export const replaceAllTextTool: ToolConfig<ReplaceAllTextParams, ReplaceAllText
       if (!presentationId) {
         throw new Error('Presentation ID is required')
       }
-      return `https://slides.googleapis.com/v1/presentations/${presentationId}:batchUpdate`
+      return batchUpdateUrl(presentationId)
     },
     method: 'POST',
     headers: (params) => {

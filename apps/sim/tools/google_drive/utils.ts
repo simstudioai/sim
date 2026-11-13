@@ -132,6 +132,9 @@ export const ALL_COMMENT_FIELDS = [
  */
 export const MAX_EXPORT_BYTES = 10 * 1024 * 1024
 
+/** Maximum bytes read from a JSON metadata side-request made inside a transform. */
+export const MAX_METADATA_RESPONSE_BYTES = 10 * 1024 * 1024
+
 export const GOOGLE_WORKSPACE_MIME_TYPES = [
   'application/vnd.google-apps.document', // Google Docs
   'application/vnd.google-apps.spreadsheet', // Google Sheets

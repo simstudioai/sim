@@ -8,6 +8,7 @@ import {
   RAILWAY_GRAPHQL_URL,
   railwayHeaders,
 } from '@/tools/railway/utils'
+import { RAILWAY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface RailwayListProjectMembersData {
@@ -22,6 +23,7 @@ export const railwayListProjectMembersTool: ToolConfig<
   name: 'Railway List Project Members',
   description: 'List members for a Railway project',
   version: '1.0.0',
+  oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

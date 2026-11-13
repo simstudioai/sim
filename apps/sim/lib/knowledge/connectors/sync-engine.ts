@@ -20,7 +20,11 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/attribution'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
-import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
 import { EMPTY_ACL } from '@/lib/knowledge/access/tokens'
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import {
@@ -32,6 +36,7 @@ import {
 } from '@/lib/knowledge/connectors/access-modes'
 import {
   type ConnectorAccessToken,
+  createConnectorRunToken,
   resolveConnectorAccessToken,
   resolveConnectorTokenUserId,
   syncContextForToken,
@@ -99,7 +104,7 @@ import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { getCredentialTerminalRefreshError } from '@/lib/oauth/credential-service'
 import { isCredentialRevocationError } from '@/lib/oauth/refresh-error-codes'
-import { connectorHasAuthSource } from '@/connectors/auth'
+import { connectorHasAuthSource, connectorUsesCredential } from '@/connectors/auth'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorAuthConfig,
@@ -799,7 +804,8 @@ async function resolveAccessToken(
   connectorConfig: { auth: ConnectorAuthConfig },
   userId: string,
   sourceConfig: Record<string, unknown>,
-  accessMode: ContentEngineAccessMode
+  accessMode: ContentEngineAccessMode,
+  scope: ResourceScope
 ): Promise<ConnectorAccessToken> {
   const requestId = `sync-${connector.credentialId}`
   const resolved = await resolveConnectorAccessToken({
@@ -808,6 +814,7 @@ async function resolveAccessToken(
     connector,
     userId,
     requestId,
+    scope,
     sourceConfig,
   })
 
@@ -1108,25 +1115,15 @@ export async function executeSync(
         )
       }
 
-      let credentialToken = await resolveAccessToken(
+      const kbScope = resourceScopeFromOwner(kbOwner)
+      const initialToken = await resolveAccessToken(
         connector,
         connectorConfig,
         credentialUserId,
         sourceConfig,
-        accessMode
+        accessMode,
+        kbScope
       )
-      /** Re-resolves the token for every OAuth call after the first, so a long run outlives a short-lived token. */
-      const refreshOAuthToken = async (): Promise<void> => {
-        if (connectorConfig.auth.mode === 'oauth') {
-          credentialToken = await resolveAccessToken(
-            connector,
-            connectorConfig,
-            credentialUserId,
-            sourceConfig,
-            accessMode
-          )
-        }
-      }
 
       /**
        * A credential that already knows its cloud id seeds the same `syncContext`
@@ -1137,12 +1134,30 @@ export async function executeSync(
        */
       const syncContext: Record<string, unknown> = {
         syncRunId: generateId(),
-        ...syncContextForToken(credentialToken),
+        ...syncContextForToken(initialToken),
         /** Tells a connector to carry permissions with its listing; without it, none are read. */
         ...(mirrored ? { mirrorsSourceAcls: true } : {}),
       }
       if (mirrored)
         await connectorConfig.permissionConfig?.populateSyncContext(connectorId, syncContext)
+
+      /** Re-resolved before every call after the first, so a long run outlives a short-lived token. */
+      const runToken = createConnectorRunToken({
+        token: initialToken,
+        syncContext,
+        resolve: connectorUsesCredential(connectorConfig.auth, connector)
+          ? () =>
+              resolveAccessToken(
+                connector,
+                connectorConfig,
+                credentialUserId,
+                sourceConfig,
+                accessMode,
+                kbScope
+              )
+          : undefined,
+      })
+      const refreshRunToken = () => runToken.refresh()
 
       // Shared cutoff for both the tombstone-retry bound below and the stuck-document
       // retry near the end of this sync — same RETRY_WINDOW_DAYS window, one computation.
@@ -1276,7 +1291,7 @@ export async function executeSync(
           connectorConfig,
           sourceConfig,
           syncContext,
-          accessToken: credentialToken.accessToken,
+          accessToken: runToken.current().accessToken,
           force:
             Boolean(options.fullSync) ||
             connector.consecutiveFailures > 0 ||
@@ -1296,15 +1311,15 @@ export async function executeSync(
         result,
         forceRehydrate,
         getAccessToken: async (pageNum) => {
-          if (pageNum > 0) await refreshOAuthToken()
-          return credentialToken.accessToken
+          if (pageNum > 0) await refreshRunToken()
+          return runToken.current().accessToken
         },
         hydration: {
           concurrency: connectorConfig.contentConcurrency,
-          beforeHydration: refreshOAuthToken,
+          beforeHydration: refreshRunToken,
           getDocument: (externalId) =>
             connectorConfig.getDocument(
-              credentialToken.accessToken,
+              runToken.current().accessToken,
               sourceConfig,
               externalId,
               syncContext
@@ -1332,7 +1347,7 @@ export async function executeSync(
                 connectorConfig,
                 sourceConfig,
                 syncContext,
-                accessToken: credentialToken.accessToken,
+                accessToken: runToken.current().accessToken,
                 externalDocs,
                 generationStartedAt,
                 ownedExternalIds: [],

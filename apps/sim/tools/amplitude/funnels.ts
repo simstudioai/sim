@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { AmplitudeFunnelsParams, AmplitudeFunnelsResponse } from '@/tools/amplitude/types'
 import { getDashboardHost } from '@/tools/amplitude/utils'
+import { AMPLITUDE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const funnelsTool: ToolConfig<AmplitudeFunnelsParams, AmplitudeFunnelsResponse> = {
@@ -8,6 +9,7 @@ export const funnelsTool: ToolConfig<AmplitudeFunnelsParams, AmplitudeFunnelsRes
   name: 'Amplitude Funnels',
   description: 'Analyze conversion rates and drop-off between a sequence of events.',
   version: '1.0.0',
+  oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

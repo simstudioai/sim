@@ -5,6 +5,11 @@ import { validateModelProvider } from '@/ee/access-control/utils/permission-chec
 import { isRetryableBlockError } from '@/executor/execution/block-retry'
 import type { BlockRetryAttempt, ExecutionContext } from '@/executor/types'
 import {
+  type BlockModelCredentialInputs,
+  type BlockModelCredentials,
+  resolveBlockModelCredentials,
+} from '@/executor/utils/model-credentials'
+import {
   assertFallbackFamilyCredentials,
   getModelFallbacks,
   PROVIDER_FAMILY_CREDENTIAL_FIELDS,
@@ -32,11 +37,16 @@ interface ModelFallbackRequestInput {
   fallbackSystemPrompt: string
   retry?: BlockRetryAttempt
   resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
+  /** The block's saved Vertex or Bedrock credential selection, resolved per attempt. */
+  credentials?: { inputs: BlockModelCredentialInputs; callerLabel: string }
 }
 
 /**
  * Shared non-streaming model execution for Router and Evaluator. Block retries
  * exhaust the primary first; the final try walks the ordered fallback models.
+ * Saved credentials resolve inside the attempt, so one that cannot be resolved fails
+ * that attempt and the fallbacks still run. Only candidates on the primary's provider
+ * resolve them, once per call, and they never reach another provider.
  * Parsing a successful response remains the handler's job, so a routing decision
  * such as NO_MATCH is never silently replaced by another model's decision.
  */
@@ -50,6 +60,7 @@ export async function executeModelRequestWithFallbacks({
   fallbackSystemPrompt,
   retry,
   resolvedSecretTraceRegistry,
+  credentials,
 }: ModelFallbackRequestInput): Promise<{ result: ProviderResponse; usedFallback: boolean }> {
   const fallbacks = getModelFallbacks(ctx, block, fallbackModels, logger)
   const candidates = [
@@ -62,6 +73,7 @@ export async function executeModelRequestWithFallbacks({
   ]
   const failedModels: string[] = []
   let lastError: unknown
+  let savedCredentials: Promise<BlockModelCredentials> | undefined
 
   for (const [index, candidate] of candidates.entries()) {
     const isPrimary = index === 0
@@ -93,7 +105,9 @@ export async function executeModelRequestWithFallbacks({
         request
       )
       candidateRequest = {
-        ...(sameProvider ? request : omit(request, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS])),
+        ...(sameProvider
+          ? request
+          : omit(request, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS, 'bedrockSession'])),
         ...tuning,
         temperature: tuning.temperature === undefined ? undefined : Number(tuning.temperature),
         maxTokens: tuning.maxTokens === undefined ? undefined : Number(tuning.maxTokens),
@@ -111,6 +125,15 @@ export async function executeModelRequestWithFallbacks({
     }
 
     try {
+      if (credentials && candidateProviderId === providerId) {
+        savedCredentials ??= resolveBlockModelCredentials(
+          ctx,
+          providerId,
+          credentials.inputs,
+          credentials.callerLabel
+        )
+        candidateRequest = { ...candidateRequest, ...(await savedCredentials) }
+      }
       const result = await executeBlockProviderRequest({
         ctx,
         providerId: candidateProviderId,

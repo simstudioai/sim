@@ -15,7 +15,7 @@ import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-sc
 import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   KeylessTrustFields,
-  keylessSubjectFields,
+  keylessConfigFields,
   useKeylessSetup,
   useSavedConnectionSubmit,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/keyless-connection'
@@ -137,7 +137,7 @@ function AwsAccountForm({
 
   const buildConfig = (): Record<string, unknown> => {
     if (authType === 'oidc_role') {
-      return { authType, roleArn: roleArn.trim(), ...keylessSubjectFields(keyless) }
+      return { authType, roleArn: roleArn.trim(), ...keylessConfigFields(keyless) }
     }
     const keys = { accessKeyId: accessKeyId.trim(), secretAccessKey }
     if (authType === 'assume_role') {
@@ -152,13 +152,8 @@ function AwsAccountForm({
   }
 
   const trustPolicy =
-    authType === 'oidc_role' && keyless.trust?.audience
-      ? buildTrustPolicy(
-          keyless.trust.issuer,
-          keyless.trust.audience,
-          keyless.trust.subject,
-          roleArn
-        )
+    authType === 'oidc_role' && keyless.trust && keyless.audience
+      ? buildTrustPolicy(keyless.trust.issuer, keyless.audience, keyless.trust.subject, roleArn)
       : null
   const action = credentialId ? 'Reconnect' : 'Add'
   const authOptions = [
@@ -189,7 +184,12 @@ function AwsAccountForm({
           hint={AUTH_TYPE_HINTS[authType]}
         />
 
-        {authType === 'oidc_role' && <KeylessTrustFields setup={keyless} />}
+        {authType === 'oidc_role' && (
+          <KeylessTrustFields
+            setup={keyless}
+            audienceHint='The IAM identity provider must list it as an audience.'
+          />
+        )}
 
         {needsKeys && (
           <>
@@ -256,7 +256,7 @@ function AwsAccountForm({
           <ChipModalField
             type='custom'
             title='Role trust policy'
-            hint='Enter the Role ARN first; the policy fills in its account ID. Add the issuer and audience above as an IAM identity provider (once per AWS account), set this as the role’s trust policy, then grant the role the permissions your workflows need.'
+            hint='Enter the Role ARN first; the policy fills in its account ID. Add the issuer above and the policy’s aud value as an IAM identity provider audience (once per AWS account; if the provider exists, add the audience to it), set this as the role’s trust policy, then grant the role the permissions your workflows need.'
           >
             {(aria) => (
               <ChipTextarea

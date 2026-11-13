@@ -60,6 +60,16 @@ export type ConnectorAuthConfig =
        * connector receives an empty access token.
        */
       optional?: boolean
+      /**
+       * A saved credential that may authenticate a workspace crawl instead of
+       * the key, such as a saved AWS credential for Amazon S3. Additive: a
+       * connector row with a stored key keeps using it, and one that names a
+       * credential resolves it for the knowledge base's own scope. Fields
+       * marked {@link ConnectorConfigField.apiKeyOnly} describe the key and
+       * do not apply to a credential. Only AWS resolves to signing keys today;
+       * another provider needs its own resolution in the connector access token.
+       */
+      savedCredential?: { provider: 'aws'; label: string }
     }
 
 /** A group in an external directory, named as the connector's ACLs name it. */
@@ -335,6 +345,12 @@ export interface ConnectorConfigField {
   hideInAdminMode?: true
   /** Only applies to a central crawl that mirrors source permissions. */
   showInAdminModeOnly?: true
+  /**
+   * Describes the connector's own API key (an access key ID, a custom host the
+   * key signs for), so it is hidden, not required, and not sent when the
+   * connector authenticates with its `savedCredential` instead.
+   */
+  apiKeyOnly?: true
   options?: { label: string; id: string }[]
 
   /** Selector key from the selector registry (used when type is 'selector') */

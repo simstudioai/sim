@@ -1,5 +1,6 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { UserFailure } from '@/lib/core/errors/user-failure'
+import type { AwsSessionCredentials } from '@/lib/credentials/aws-service-account.server'
 import type { CustomBlockInputFieldType } from '@/blocks/custom/build-config'
 import type { ProviderTimingSegment, StreamingExecution, UserFile } from '@/executor/types'
 
@@ -193,6 +194,17 @@ export interface EvaluationInput {
   questions: unknown
 }
 
+/**
+ * Signing credentials resolved from a saved AWS credential for one Bedrock
+ * request. `sessionToken` is present for STS sessions (assumed and keyless
+ * roles) and absent for long-lived keys; `credentialId` names the saved
+ * credential the session came from.
+ */
+export type BedrockCredentialSession = Pick<
+  AwsSessionCredentials,
+  'accessKeyId' | 'secretAccessKey' | 'sessionToken'
+> & { credentialId: string }
+
 export interface ProviderRequest {
   evaluation?: EvaluationInput
   /** Server-installed stable identity resolver; never accepted from an API payload. */
@@ -239,6 +251,12 @@ export interface ProviderRequest {
   bedrockAccessKeyId?: string
   bedrockSecretKey?: string
   bedrockRegion?: string
+  /**
+   * A saved AWS credential the caller authorized and resolved server-side; never
+   * taken from block or tool input. When set, Bedrock signs with it alone: never
+   * with inline keys or the deployment's own AWS credentials.
+   */
+  bedrockSession?: BedrockCredentialSession
   reasoningEffort?: string
   verbosity?: string
   thinkingLevel?: string

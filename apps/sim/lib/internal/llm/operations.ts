@@ -12,6 +12,10 @@ import {
   inspectModelInputProjectionState,
   inspectModelInputProvenanceRequest,
 } from '@/lib/execution/model-input-provenance'
+import {
+  BedrockCredentialError,
+  resolveBedrockCredentialSession,
+} from '@/lib/internal/llm/bedrock-credential'
 import { resolveVertexAccessToken } from '@/lib/internal/llm/credentials'
 import { LlmOperationError } from '@/lib/internal/llm/errors'
 import type { LlmProviderOperationInput } from '@/lib/internal/llm/input'
@@ -36,6 +40,8 @@ export interface LlmProviderOperationContext {
   actorUserId: string
   headers: Headers
   requestId: string
+  /** The trusted workflow run this call belongs to, when it comes from one. */
+  executionId?: string
   signal?: AbortSignal
 }
 
@@ -124,19 +130,41 @@ async function prepareProviderRequest(
   runtimeContext: Awaited<ReturnType<typeof prepareCopilotEnvironmentContext>>
 }> {
   let apiKey = input.apiKey
+  let bedrockSession: ProviderRequest['bedrockSession']
   try {
     await authorizeVertexCredential(input, context)
     if (input.provider === 'vertex' && input.vertexCredential) {
       apiKey = await resolveVertexAccessToken(context.requestId, input.vertexCredential)
     }
+    if (input.provider === 'bedrock' && input.bedrockCredential) {
+      bedrockSession = await resolveBedrockCredentialSession({
+        credentialId: input.bedrockCredential,
+        actingUserId: context.actorUserId,
+        workflowId: input.workflowId || undefined,
+        workspaceId: input.workspaceId,
+        executionId: context.executionId,
+        signal: context.signal,
+      })
+    }
   } catch (error) {
     if (error instanceof LlmOperationError) throw error
-    logger.error('Failed to resolve Vertex credential', {
+    if (error instanceof BedrockCredentialError && error.reason === 'unauthorized') {
+      logger.warn('Bedrock credential access denied', {
+        requestId: context.requestId,
+        credentialId: input.bedrockCredential,
+      })
+      fail(401, error.message)
+    }
+    if (error instanceof BedrockCredentialError && error.reason === 'unavailable') {
+      fail(503, error.message)
+    }
+    logger.error('Failed to resolve provider credential', {
       requestId: context.requestId,
       provider: input.provider,
       model: input.model,
       error: toError(error).message,
       hasVertexCredential: Boolean(input.vertexCredential),
+      hasBedrockCredential: Boolean(input.bedrockCredential),
     })
     fail(400, getErrorMessage(error, 'Credential error'))
   }
@@ -157,6 +185,7 @@ async function prepareProviderRequest(
     bedrockAccessKeyId: input.bedrockAccessKeyId,
     bedrockSecretKey: input.bedrockSecretKey,
     bedrockRegion: input.bedrockRegion,
+    bedrockSession,
     responseFormat: input.responseFormat,
     workflowId: input.workflowId,
     workspaceId: input.workspaceId,

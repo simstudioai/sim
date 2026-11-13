@@ -1,4 +1,5 @@
 import type { SentryGetEventParams, SentryGetEventResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -11,6 +12,7 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
   oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENTRY_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -39,7 +41,7 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
 
   request: {
     url: (params) =>
-      `https://sentry.io/api/0/projects/${params.organizationSlug}/${params.projectSlug}/events/${params.eventId}/`,
+      `${SENTRY_REGIONS.apiBase(params.region)}/projects/${params.organizationSlug}/${params.projectSlug}/events/${params.eventId}/`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

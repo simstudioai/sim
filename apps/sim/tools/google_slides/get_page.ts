@@ -1,4 +1,9 @@
 import { createLogger } from '@sim/logger'
+import {
+  extractPageText,
+  extractSpeakerNotes,
+  slidesPresentationUrl,
+} from '@/tools/google_slides/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleSlidesGetPageTool')
@@ -19,7 +24,15 @@ interface GetPageResponse {
       layoutObjectId: string | null
       masterObjectId: string | null
       notesPage: any | null
+      isSkipped: boolean
     } | null
+    revisionId?: string | null
+    pageProperties?: Record<string, unknown> | null
+    layoutProperties?: Record<string, unknown> | null
+    notesProperties?: Record<string, unknown> | null
+    masterProperties?: Record<string, unknown> | null
+    pageText?: string
+    speakerNotes?: string
     metadata: {
       presentationId: string
       url: string
@@ -62,17 +75,7 @@ export const getPageTool: ToolConfig<GetPageParams, GetPageResponse> = {
 
   request: {
     url: (params) => {
-      const presentationId = params.presentationId?.trim()
-      const pageObjectId = params.pageObjectId?.trim()
-
-      if (!presentationId) {
-        throw new Error('Presentation ID is required')
-      }
-      if (!pageObjectId) {
-        throw new Error('Page Object ID is required')
-      }
-
-      return `https://slides.googleapis.com/v1/presentations/${presentationId}/pages/${pageObjectId}`
+      return slidesPresentationUrl(params.presentationId, params.pageObjectId ?? '')
     },
     method: 'GET',
     headers: (params) => {
@@ -106,8 +109,16 @@ export const getPageTool: ToolConfig<GetPageParams, GetPageResponse> = {
               layoutObjectId: data.slideProperties.layoutObjectId ?? null,
               masterObjectId: data.slideProperties.masterObjectId ?? null,
               notesPage: data.slideProperties.notesPage ?? null,
+              isSkipped: data.slideProperties.isSkipped ?? false,
             }
           : null,
+        revisionId: data.revisionId ?? null,
+        pageProperties: data.pageProperties ?? null,
+        layoutProperties: data.layoutProperties ?? null,
+        notesProperties: data.notesProperties ?? null,
+        masterProperties: data.masterProperties ?? null,
+        pageText: extractPageText(data),
+        speakerNotes: extractSpeakerNotes(data),
         metadata: {
           presentationId,
           url: `https://docs.google.com/presentation/d/${presentationId}/edit`,
@@ -150,7 +161,54 @@ export const getPageTool: ToolConfig<GetPageParams, GetPageResponse> = {
           description: 'The notes page associated with the slide',
           optional: true,
         },
+        isSkipped: {
+          type: 'boolean',
+          description: 'Whether the slide is skipped in presentation mode',
+          optional: true,
+        },
       },
+    },
+    revisionId: {
+      type: 'string',
+      description:
+        'Revision ID of the presentation; pass as requiredRevisionId in a batch update writeControl',
+      optional: true,
+      nullable: true,
+    },
+    pageProperties: {
+      type: 'json',
+      description: 'Page properties (background fill, color scheme)',
+      optional: true,
+      nullable: true,
+    },
+    layoutProperties: {
+      type: 'json',
+      description:
+        'Layout properties (masterObjectId, name, displayName); set only for LAYOUT pages',
+      optional: true,
+      nullable: true,
+    },
+    notesProperties: {
+      type: 'json',
+      description: 'Notes properties (speakerNotesObjectId); set only for NOTES pages',
+      optional: true,
+      nullable: true,
+    },
+    masterProperties: {
+      type: 'json',
+      description: 'Master properties (displayName); set only for MASTER pages',
+      optional: true,
+      nullable: true,
+    },
+    pageText: {
+      type: 'string',
+      description: 'Text from the page shapes, tables, and groups, one block per line',
+      optional: true,
+    },
+    speakerNotes: {
+      type: 'string',
+      description: 'Speaker notes text of the slide (empty if none)',
+      optional: true,
     },
     metadata: {
       type: 'object',

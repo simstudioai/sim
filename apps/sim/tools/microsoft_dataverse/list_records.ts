@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { escapeRegExp } from '@sim/utils/string'
 import type {
   DataverseListRecordsParams,
   DataverseListRecordsResponse,
@@ -7,10 +8,74 @@ import { DATAVERSE_RECORDS_ARRAY_OUTPUT } from '@/tools/microsoft_dataverse/type
 import {
   DATAVERSE_OAUTH_CONFIG,
   getDataverseRequestBaseUrl,
+  isSet,
 } from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseListRecords')
+const DATAVERSE_DEFAULT_PAGE_SIZE = 100
+const DATAVERSE_MAX_PAGE_SIZE = 5000
+const DATAVERSE_MAX_NEXT_LINK_LENGTH = 32_768
+
+function getExplicitPageSize(params: DataverseListRecordsParams): number | undefined {
+  if (!isSet(params.pageSize)) return undefined
+  const pageSize = Number(params.pageSize)
+  if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > DATAVERSE_MAX_PAGE_SIZE) {
+    throw new Error(`pageSize must be an integer from 1 to ${DATAVERSE_MAX_PAGE_SIZE}`)
+  }
+  return pageSize
+}
+
+/**
+ * Page size sent as `Prefer: odata.maxpagesize`. Dataverse ignores `$top` when a page size is
+ * sent, so the default applies only when no `$top` was requested, except on `nextLink` pages,
+ * which must keep paging.
+ */
+function resolvePageSize(params: DataverseListRecordsParams): number | undefined {
+  return (
+    getExplicitPageSize(params) ??
+    (params.nextLink || !isSet(params.top) ? DATAVERSE_DEFAULT_PAGE_SIZE : undefined)
+  )
+}
+
+/** Dataverse serves the same environment on `org.crm…` and `org.api.crm…`; compare them as one host. */
+function environmentHost(url: URL): string {
+  return url.host.toLowerCase().replace(/^([^.]+)\.api\./, '$1.')
+}
+
+/**
+ * A continuation link is followed verbatim, as Dataverse requires, but only when it stays on the
+ * environment this request is bound to, so a supplied link can never carry the bearer token to
+ * another host.
+ */
+function assertNextLink(nextLink: string, baseUrl: string, entitySetName: string): string {
+  const value = nextLink.trim()
+  if (!value || value.length > DATAVERSE_MAX_NEXT_LINK_LENGTH) {
+    throw new Error(
+      `nextLink must be a non-empty URL of at most ${DATAVERSE_MAX_NEXT_LINK_LENGTH} characters`
+    )
+  }
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    throw new Error('nextLink must be a valid URL')
+  }
+  if (
+    url.protocol !== 'https:' ||
+    url.username !== '' ||
+    url.password !== '' ||
+    environmentHost(url) !== environmentHost(new URL(baseUrl)) ||
+    !new RegExp(`^/api/data/v[0-9.]+/${escapeRegExp(entitySetName.trim())}$`, 'i').test(
+      url.pathname
+    )
+  ) {
+    throw new Error(
+      'nextLink must be a Web API URL for the selected table on the selected Dataverse environment'
+    )
+  }
+  return value
+}
 
 export const dataverseListRecordsTool: ToolConfig<
   DataverseListRecordsParams,
@@ -80,16 +145,31 @@ export const dataverseListRecordsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Set to "true" to include total record count in response (OData $count)',
     },
+    pageSize: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Records per page (Prefer: odata.maxpagesize, 1-5000). Defaults to 100 when Max Results is not set. Dataverse ignores $top when a page size is sent. When following nextLink, pass the same pageSize used for the first page, as Dataverse requires.',
+    },
+    nextLink: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'nextLink returned by a previous page. When set, the other query options are ignored and the same page size must be used. It is empty on the last page; stop when empty.',
+    },
   },
 
   request: {
     url: (params) => {
       const baseUrl = getDataverseRequestBaseUrl(params)
+      if (params.nextLink) return assertNextLink(params.nextLink, baseUrl, params.entitySetName)
       const queryParts: string[] = []
       if (params.select) queryParts.push(`$select=${encodeURIComponent(params.select)}`)
       if (params.filter) queryParts.push(`$filter=${encodeURIComponent(params.filter)}`)
       if (params.orderBy) queryParts.push(`$orderby=${encodeURIComponent(params.orderBy)}`)
-      if (params.top) queryParts.push(`$top=${params.top}`)
+      if (isSet(params.top)) queryParts.push(`$top=${params.top}`)
       if (params.expand) queryParts.push(`$expand=${encodeURIComponent(params.expand)}`)
       if (params.count) queryParts.push(`$count=${params.count}`)
       const query = queryParts.length > 0 ? `?${queryParts.join('&')}` : ''
@@ -103,11 +183,10 @@ export const dataverseListRecordsTool: ToolConfig<
      */
     stripAuthOnRedirect: true,
     headers: (params) => {
-      // Dataverse ignores $top entirely when Prefer: odata.maxpagesize is also sent, so the
-      // page-size preference is only applied when the caller hasn't requested an explicit $top.
       const preferParts = ['odata.include-annotations="*"']
-      if (!params.top) {
-        preferParts.push('odata.maxpagesize=100')
+      const pageSize = resolvePageSize(params)
+      if (pageSize !== undefined) {
+        preferParts.push(`odata.maxpagesize=${pageSize}`)
       }
       return {
         Authorization: `Bearer ${params.accessToken}`,
@@ -119,7 +198,7 @@ export const dataverseListRecordsTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: DataverseListRecordsParams) => {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       const errorMessage =
@@ -141,6 +220,7 @@ export const dataverseListRecordsTool: ToolConfig<
         count: records.length,
         totalCount,
         nextLink,
+        pageSize: params ? (resolvePageSize(params) ?? null) : null,
         success: true,
       },
     }
@@ -158,6 +238,13 @@ export const dataverseListRecordsTool: ToolConfig<
       type: 'string',
       description: 'URL for the next page of results',
       optional: true,
+    },
+    pageSize: {
+      type: 'number',
+      description:
+        'Page size sent as odata.maxpagesize (null when Max Results applied instead); pass it with nextLink, since Dataverse requires the same value on every page',
+      optional: true,
+      nullable: true,
     },
     success: { type: 'boolean', description: 'Operation success status' },
   },

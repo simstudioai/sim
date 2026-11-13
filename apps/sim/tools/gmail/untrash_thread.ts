@@ -1,5 +1,6 @@
 import { GMAIL_API_BASE } from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GmailUntrashThreadParams {
   accessToken: string
@@ -45,7 +46,7 @@ export const gmailUntrashThreadV2Tool: ToolConfig<
 
   request: {
     url: (params: GmailUntrashThreadParams) =>
-      `${GMAIL_API_BASE}/threads/${params.threadId}/untrash`,
+      `${GMAIL_API_BASE}/threads/${safeUrlPathSegment(params.threadId, 'threadId')}/untrash`,
     method: 'POST',
     headers: (params: GmailUntrashThreadParams) => ({
       Authorization: `Bearer ${params.accessToken}`,

@@ -101,6 +101,9 @@ Read a specific page from a SharePoint site
 |   ↳ `description` | string | The description of the page |
 |   ↳ `createdDateTime` | string | When the page was created |
 |   ↳ `lastModifiedDateTime` | string | When the page was last modified |
+|   ↳ `publishingState` | object | Publishing state \(level such as draft, checkout, or published; versionId\) |
+|   ↳ `createdBy` | object | Identity set of the creator \(e.g. user.displayName, user.email\) |
+|   ↳ `lastModifiedBy` | object | Identity set of the last modifier \(e.g. user.displayName, user.email\) |
 | `pages` | array | List of SharePoint pages |
 |   ↳ `page` | object |  |
 |     ↳ `id` | string | The unique ID of the page |
@@ -111,6 +114,9 @@ Read a specific page from a SharePoint site
 |     ↳ `description` | string | The description of the page |
 |     ↳ `createdDateTime` | string | When the page was created |
 |     ↳ `lastModifiedDateTime` | string | When the page was last modified |
+|     ↳ `publishingState` | object | Publishing state \(level such as draft, checkout, or published; versionId\) |
+|     ↳ `createdBy` | object | Identity set of the creator \(e.g. user.displayName, user.email\) |
+|     ↳ `lastModifiedBy` | object | Identity set of the last modifier \(e.g. user.displayName, user.email\) |
 |   ↳ `content` | object |  |
 |     ↳ `content` | string | Extracted text content from the page |
 |     ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
@@ -212,6 +218,7 @@ List details of all SharePoint sites
 | `siteSelector` | string | No | Select the SharePoint site |
 | `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `groupId` | string | No | The group ID for accessing a group team site. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
+| `searchQuery` | string | No | Keywords to search sites by when listing all sites \(defaults to * for every site\). Example: marketing |
 | `nextPageUrl` | string | No | Full @odata.nextLink URL from a previous Microsoft Graph page response |
 
 #### Output
@@ -289,6 +296,9 @@ Get metadata (and optionally columns/items) for a SharePoint list
 | `listId` | string | No | The ID of the list to retrieve. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
 | `includeColumns` | boolean | No | Whether to include column definitions when retrieving a specific list |
 | `includeItems` | boolean | No | Whether to include list items when retrieving a specific list |
+| `filter` | string | No | OData $filter applied when reading list items. Reference columns as fields/&lt;InternalName&gt;. Example: fields/Status eq 'Active' |
+| `top` | number | No | Maximum number of list items to return per page \(1-5000\) |
+| `selectFields` | string | No | Comma-separated column internal names to return in each item's fields. Example: Title,Status,DueDate |
 | `nextPageUrl` | string | No | Full @odata.nextLink URL from a previous Microsoft Graph page response |
 
 #### Output
@@ -296,21 +306,8 @@ Get metadata (and optionally columns/items) for a SharePoint list
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `list` | object | Information about the SharePoint list |
-|   ↳ `id` | string | The unique ID of the list |
-|   ↳ `displayName` | string | The display name of the list |
-|   ↳ `name` | string | The internal name of the list |
-|   ↳ `webUrl` | string | The web URL of the list |
-|   ↳ `createdDateTime` | string | When the list was created |
-|   ↳ `lastModifiedDateTime` | string | When the list was last modified |
-|   ↳ `list` | object | List properties \(e.g., template\) |
-|   ↳ `columns` | array | List column definitions |
-|   ↳ `items` | array | List items \(with fields when expanded\) |
-|     ↳ `id` | string | Item ID |
-|     ↳ `fields` | object | Field values for the item |
 | `lists` | array | All lists in the site when no listId/title provided |
 | `items` | array | List items with expanded fields when reading list items |
-|   ↳ `id` | string | Item ID |
-|   ↳ `fields` | object | Field values for the item |
 | `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
 
 </ReferenceDetails>
@@ -380,14 +377,13 @@ Get a single item (with field values) from a SharePoint list
 | `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `listId` | string | Yes | The ID of the list containing the item. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
 | `itemId` | string | Yes | The ID of the list item to retrieve. Example: 1, 42, or 123 |
+| `selectFields` | string | No | Comma-separated column internal names to return in the item's fields. Example: Title,Status,DueDate |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `item` | object | SharePoint list item with field values |
-|   ↳ `id` | string | Item ID |
-|   ↳ `fields` | object | Field values for the item |
 
 </ReferenceDetails>
 
@@ -505,6 +501,8 @@ Get metadata for a file or folder in a SharePoint document library
 |   ↳ `file` | object | Present if the item is a file \(contains mimeType\) |
 |   ↳ `folder` | object | Present if the item is a folder \(contains childCount\) |
 |   ↳ `parentReference` | object | Reference to the parent folder/drive |
+|   ↳ `createdBy` | object | Identity set of the creator \(e.g. user.displayName, user.email\) |
+|   ↳ `lastModifiedBy` | object | Identity set of the last modifier \(e.g. user.displayName, user.email\) |
 
 </ReferenceDetails>
 

@@ -1,6 +1,14 @@
 import type { ApolloPeopleSearchParams, ApolloPeopleSearchResponse } from '@/tools/apollo/types'
+import { getApolloAuthHeaders, isApolloOAuthCredential } from '@/tools/apollo/utils'
 import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+
+const DEFAULT_PER_PAGE = 25
+const MAX_PER_PAGE = 100
+
+function requestedPerPage(params: ApolloPeopleSearchParams | undefined): number {
+  return Math.min(params?.per_page || DEFAULT_PER_PAGE, MAX_PER_PAGE)
+}
 
 export const apolloPeopleSearchTool: ToolConfig<
   ApolloPeopleSearchParams,
@@ -13,6 +21,12 @@ export const apolloPeopleSearchTool: ToolConfig<
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
+    credentialType: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Stored credential type supplied by credential resolution',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -105,17 +119,25 @@ export const apolloPeopleSearchTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/mixed_people/search',
+    /**
+     * Apollo grants OAuth apps only the `mixed_people_api_search` scope, which covers
+     * `/mixed_people/api_search`; API keys stay on the legacy endpoint, whose results
+     * still carry contact details that api_search omits.
+     */
+    url: (params: ApolloPeopleSearchParams) =>
+      isApolloOAuthCredential(params.credentialType)
+        ? 'https://api.apollo.io/api/v1/mixed_people/api_search'
+        : 'https://api.apollo.io/api/v1/mixed_people/search',
     method: 'POST',
     headers: (params: ApolloPeopleSearchParams) => ({
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
-      'X-Api-Key': params.apiKey,
+      ...getApolloAuthHeaders(params),
     }),
     body: (params: ApolloPeopleSearchParams) => {
       const body: Record<string, unknown> = {
         page: params.page || 1,
-        per_page: Math.min(params.per_page || 25, 100),
+        per_page: requestedPerPage(params),
       }
 
       if (params.person_titles && params.person_titles.length > 0) {
@@ -159,7 +181,7 @@ export const apolloPeopleSearchTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: ApolloPeopleSearchParams) => {
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(`Apollo API error: ${response.status} - ${errorText}`)
@@ -167,16 +189,15 @@ export const apolloPeopleSearchTool: ToolConfig<
 
     const data = await response.json()
 
-    // The legacy /mixed_people/search endpoint nests pagination under `pagination`,
-    // while api_search returns these top-level. Read both shapes defensively.
+    // The legacy endpoint nests pagination; api_search returns only top-level total_entries.
     const pagination = data.pagination ?? {}
 
     return {
       success: true,
       output: {
         people: data.people || [],
-        page: pagination.page ?? data.page ?? 1,
-        per_page: pagination.per_page ?? data.per_page ?? 25,
+        page: pagination.page ?? data.page ?? (params?.page || 1),
+        per_page: pagination.per_page ?? data.per_page ?? requestedPerPage(params),
         total_entries: pagination.total_entries ?? data.total_entries ?? 0,
       },
     }

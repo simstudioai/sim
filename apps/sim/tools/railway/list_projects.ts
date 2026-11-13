@@ -11,6 +11,7 @@ import {
   RAILWAY_GRAPHQL_URL,
   railwayHeaders,
 } from '@/tools/railway/utils'
+import { RAILWAY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface RailwayListProjectsData {
@@ -30,6 +31,7 @@ export const railwayListProjectsTool: ToolConfig<
   name: 'Railway List Projects',
   description: 'List Railway projects visible to the provided token',
   version: '1.0.0',
+  oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -40,7 +40,12 @@ export async function executeSecretsManagerListSecrets(
 ) {
   const client = createSecretsManagerClient(input)
   try {
-    return await listSecrets(client, input.maxResults, input.nextToken, signal)
+    return await listSecrets(client, input.maxResults, input.nextToken, signal, {
+      filters: input.filters,
+      sortOrder: input.sortOrder,
+      sortBy: input.sortBy,
+      includePlannedDeletion: input.includePlannedDeletion,
+    })
   } finally {
     client.destroy()
   }
@@ -57,7 +62,11 @@ export async function executeSecretsManagerCreateSecret(
       input.name,
       input.secretValue,
       input.description,
-      signal
+      signal,
+      {
+        kmsKeyId: input.kmsKeyId,
+        tags: input.tags?.map((tag) => ({ Key: tag.key, Value: tag.value })),
+      }
     )
     return { message: `Secret "${result.name}" created successfully`, ...result }
   } finally {
@@ -76,7 +85,8 @@ export async function executeSecretsManagerUpdateSecret(
       input.secretId,
       input.secretValue,
       input.description,
-      signal
+      signal,
+      input.kmsKeyId
     )
     return { message: `Secret "${result.name}" updated successfully`, ...result }
   } finally {

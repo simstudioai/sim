@@ -338,6 +338,58 @@ Return ONLY the RRULE string - no explanations, no extra text.`,
       condition: { field: 'operation', value: ['create', 'update'] },
       mode: 'advanced',
     },
+    {
+      id: 'optionalAttendees',
+      title: 'Optional Attendees (comma-separated emails)',
+      type: 'short-input',
+      placeholder: 'alex@example.com, sam@example.com',
+      condition: { field: 'operation', value: 'create' },
+      mode: 'advanced',
+    },
+    {
+      id: 'visibility',
+      title: 'Visibility',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['create', 'update'] },
+      mode: 'advanced',
+      options: [
+        { label: 'Calendar default (unchanged on update)', id: '' },
+        { label: 'Default', id: 'default' },
+        { label: 'Public', id: 'public' },
+        { label: 'Private', id: 'private' },
+        { label: 'Confidential', id: 'confidential' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'transparency',
+      title: 'Show As',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['create', 'update'] },
+      mode: 'advanced',
+      options: [
+        { label: 'Calendar default (unchanged on update)', id: '' },
+        { label: 'Busy', id: 'opaque' },
+        { label: 'Free', id: 'transparent' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'colorId',
+      title: 'Color ID',
+      type: 'short-input',
+      placeholder: '1-11',
+      condition: { field: 'operation', value: ['create', 'update'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'reminders',
+      title: 'Reminders',
+      type: 'long-input',
+      placeholder: '[{"method":"popup","minutes":10},{"method":"email","minutes":60}]',
+      condition: { field: 'operation', value: ['create', 'update'] },
+      mode: 'advanced',
+    },
 
     {
       id: 'timeMin',
@@ -399,6 +451,22 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         { label: 'Last updated', id: 'updated' },
       ],
       value: () => 'startTime',
+    },
+    {
+      id: 'updatedMin',
+      title: 'Modified Since',
+      type: 'short-input',
+      placeholder: '2025-06-03T00:00:00Z',
+      condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listTimeZone',
+      title: 'Response Time Zone',
+      type: 'short-input',
+      placeholder: 'America/Los_Angeles (default: calendar time zone)',
+      condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
     },
     {
       id: 'pageToken',
@@ -991,8 +1059,23 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           processedParams.maxResults = Number.parseInt(processedParams.maxResults, 10)
         }
 
+        for (const key of ['visibility', 'transparency', 'colorId', 'reminders', 'updatedMin']) {
+          if (processedParams[key] === '') {
+            processedParams[key] = undefined
+          }
+        }
+
         if (processedParams.minAccessRole === '') {
           processedParams.minAccessRole = undefined
+        }
+
+        const listTimeZone = processedParams.listTimeZone
+        processedParams.listTimeZone = undefined
+        if (operation === 'list') {
+          processedParams.timeZone =
+            typeof listTimeZone === 'string' && listTimeZone.trim()
+              ? listTimeZone.trim()
+              : undefined
         }
 
         return {
@@ -1016,6 +1099,16 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     recurrence: { type: 'string', description: 'Recurrence rule (RRULE)' },
     addGoogleMeet: { type: 'boolean', description: 'Attach a Google Meet link' },
     timeZone: { type: 'string', description: 'Time zone (IANA name)' },
+    optionalAttendees: { type: 'string', description: 'Optional attendee email list' },
+    visibility: {
+      type: 'string',
+      description: 'Event visibility (default, public, private, confidential)',
+    },
+    transparency: { type: 'string', description: 'Show as busy (opaque) or free (transparent)' },
+    colorId: { type: 'string', description: 'Event color ID' },
+    reminders: { type: 'json', description: 'Reminder overrides [{ method, minutes }]' },
+    updatedMin: { type: 'string', description: 'Only events modified since this time' },
+    listTimeZone: { type: 'string', description: 'Time zone used for List Events response times' },
 
     timeMin: { type: 'string', description: 'Start time filter' },
     timeMax: { type: 'string', description: 'End time filter' },
@@ -1107,6 +1200,41 @@ export const GoogleCalendarV2Block: BlockConfig = {
     id: { type: 'string', description: 'Event or calendar ID' },
     htmlLink: { type: 'string', description: 'Event link' },
     hangoutLink: { type: 'string', description: 'Google Meet link' },
+    conferenceData: {
+      type: 'json',
+      description:
+        'Conference details: conferenceId, conferenceSolution { name }, entryPoints [{ entryPointType (video, phone, sip, more), uri, label, pin, meetingCode, passcode }]',
+    },
+    recurringEventId: {
+      type: 'string',
+      description: 'Recurring series ID (for an instance of a recurring event)',
+    },
+    originalStartTime: {
+      type: 'json',
+      description: 'Original start time of a recurring event instance',
+    },
+    reminders: {
+      type: 'json',
+      description: 'Reminders: useDefault and overrides [{ method, minutes }]',
+    },
+    visibility: {
+      type: 'string',
+      description: 'Visibility: default, public, private, or confidential',
+    },
+    transparency: { type: 'string', description: 'Show as: opaque (busy) or transparent (free)' },
+    colorId: { type: 'string', description: 'Event color ID' },
+    eventType: {
+      type: 'string',
+      description:
+        'Event type: default, outOfOffice, focusTime, workingLocation, fromGmail, birthday',
+    },
+    iCalUID: { type: 'string', description: 'iCalendar UID' },
+    created: { type: 'string', description: 'Event creation time' },
+    updated: { type: 'string', description: 'Event last modified time' },
+    attachments: {
+      type: 'json',
+      description: 'File attachments [{ fileUrl, title, mimeType, iconLink, fileId }]',
+    },
     status: { type: 'string', description: 'Event status' },
     summary: { type: 'string', description: 'Event or calendar title' },
     description: { type: 'string', description: 'Event or calendar description' },
@@ -1114,12 +1242,24 @@ export const GoogleCalendarV2Block: BlockConfig = {
     recurrence: { type: 'json', description: 'Recurrence rules (RRULE)' },
     start: { type: 'json', description: 'Event start' },
     end: { type: 'json', description: 'Event end' },
-    attendees: { type: 'json', description: 'Event attendees' },
-    creator: { type: 'json', description: 'Event creator' },
-    organizer: { type: 'json', description: 'Event organizer' },
+    attendees: {
+      type: 'json',
+      description:
+        'Event attendees [{ email, displayName, responseStatus (needsAction, declined, tentative, accepted), optional, organizer, self, resource, comment, additionalGuests }]',
+    },
+    creator: { type: 'json', description: 'Event creator { email, displayName, self }' },
+    organizer: { type: 'json', description: 'Event organizer { email, displayName, self }' },
     responseStatus: { type: 'string', description: 'Your RSVP response (respond operation)' },
     comment: { type: 'string', description: 'Your RSVP note (respond operation)' },
-    events: { type: 'json', description: 'List of events (list operation)' },
+    events: {
+      type: 'json',
+      description:
+        'List of events (list operation); each has the same fields as a single event (id, summary, start, end, attendees, organizer, hangoutLink, conferenceData, recurrence, reminders, visibility, status, htmlLink, and more)',
+    },
+    nextSyncToken: {
+      type: 'string',
+      description: 'Sync token for incremental sync (list operation, last page)',
+    },
     eventId: { type: 'string', description: 'Deleted event ID' },
     deleted: { type: 'boolean', description: 'Whether deletion/removal was successful' },
     instances: { type: 'json', description: 'List of recurring event instances' },

@@ -1,4 +1,5 @@
 import type { HexListGroupsParams, HexListGroupsResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const listGroupsTool: ToolConfig<HexListGroupsParams, HexListGroupsRespon
   oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -57,7 +59,7 @@ export const listGroupsTool: ToolConfig<HexListGroupsParams, HexListGroupsRespon
       if (params.after) searchParams.set('after', params.after)
       if (params.before) searchParams.set('before', params.before)
       const qs = searchParams.toString()
-      return `https://app.hex.tech/api/v1/groups${qs ? `?${qs}` : ''}`
+      return `${hexApiBase(params.host)}/groups${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

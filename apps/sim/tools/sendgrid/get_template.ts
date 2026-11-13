@@ -1,4 +1,5 @@
 import type { GetTemplateParams, SendGridTemplate, TemplateResult } from '@/tools/sendgrid/types'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const sendGridGetTemplateTool: ToolConfig<GetTemplateParams, TemplateResu
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENDGRID_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -25,7 +27,7 @@ export const sendGridGetTemplateTool: ToolConfig<GetTemplateParams, TemplateResu
   },
 
   request: {
-    url: (params) => `https://api.sendgrid.com/v3/templates/${params.templateId}`,
+    url: (params) => `${SENDGRID_REGIONS.apiBase(params.region)}/templates/${params.templateId}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

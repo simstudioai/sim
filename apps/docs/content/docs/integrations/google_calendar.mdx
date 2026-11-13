@@ -52,22 +52,39 @@ Create a new event in Google Calendar.
 | `endDateTime` | string | Yes | End time. Use a datetime with timezone offset \(2025-06-03T11:00:00-08:00\) or a date \(2025-06-04\) for an all-day event |
 | `timeZone` | string | No | IANA time zone \(e.g., America/Los_Angeles\). Used as-is when provided. For recurring events a time zone is required to expand the recurrence correctly; for one-off events it is only needed when the datetime omits a UTC offset \(a naive datetime defaults to America/Los_Angeles\). |
 | `attendees` | array | No | Array of attendee email addresses |
+| `optionalAttendees` | array | No | Array of attendee email addresses to invite as optional guests \(comma-separated string also accepted\) |
 | `recurrence` | string | No | Recurrence rule\(s\) in RFC 5545 format \(e.g., RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR\). Separate multiple rules with newlines. |
 | `addGoogleMeet` | boolean | No | Attach a Google Meet video conference link to the event |
 | `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+| `visibility` | string | No | Event visibility: default, public, private, or confidential |
+| `transparency` | string | No | Show as: opaque \(busy, the default\) or transparent \(free\) |
+| `colorId` | string | No | Event color ID \("1" to "11", from the Calendar colors endpoint\) |
+| `reminders` | json | No | Custom reminders replacing the calendar default, as a JSON array of up to 5 \{ method: "email" \| "popup", minutes \} objects \(e.g., \[\{"method":"popup","minutes":10\}\]\). Pass \[\] for no reminders. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `hangoutLink` | string | Google Meet link |
+| `conferenceData` | json | Conference details: conferenceId, conferenceSolution \{ name, key.type \}, entryPoints \[\{ entryPointType \(video, phone, sip, more\), uri, label, pin, meetingCode, passcode \}\], notes |
+| `recurrence` | json | Recurrence rules |
+| `recurringEventId` | string | For an instance of a recurring event, the ID of the recurring series |
+| `originalStartTime` | json | For an instance of a recurring event, its original start time in the series |
+| `reminders` | json | Reminders: useDefault and overrides \[\{ method \(email or popup\), minutes \}\] |
+| `visibility` | string | Visibility: default, public, private, or confidential |
+| `transparency` | string | Show as: opaque \(busy\) or transparent \(free\) |
+| `colorId` | string | Event color ID |
+| `eventType` | string | Event type: default, outOfOffice, focusTime, workingLocation, fromGmail, or birthday |
+| `iCalUID` | string | iCalendar UID \(RFC 5545\), shared across calendars |
+| `created` | string | Creation time \(RFC3339\) |
+| `updated` | string | Last modification time \(RFC3339\) |
+| `attachments` | json | File attachments \[\{ fileUrl, title, mimeType, iconLink, fileId \}\] |
 | `id` | string | Event ID |
 | `htmlLink` | string | Event link |
-| `hangoutLink` | string | Google Meet link |
 | `status` | string | Event status |
 | `summary` | string | Event title |
 | `description` | string | Event description |
 | `location` | string | Event location |
-| `recurrence` | json | Recurrence rules |
 | `start` | json | Event start |
 | `end` | json | Event end |
 | `attendees` | json | Event attendees |
@@ -93,14 +110,42 @@ List events from Google Calendar.
 | `maxResults` | number | No | Maximum number of events to return \(max 2500\) |
 | `pageToken` | string | No | Token for retrieving the next page of results |
 | `orderBy` | string | No | Order of events: startTime \(chronological, the default\) or updated \(last-modified\). startTime is always valid here because singleEvents is set. |
+| `timeZone` | string | No | IANA time zone used for times in the response \(e.g., America/New_York\). Defaults to the calendar's time zone. |
+| `updatedMin` | string | No | Only return events modified at or after this time \(RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z\). Events deleted since then are always included. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `nextPageToken` | string | Next page token |
+| `nextSyncToken` | string | Sync token for incremental sync, returned on the last page |
 | `timeZone` | string | Calendar time zone |
-| `events` | json | List of events |
+| `events` | array | List of events |
+|   ↳ `hangoutLink` | string | Google Meet link |
+|   ↳ `conferenceData` | json | Conference details: conferenceId, conferenceSolution \{ name, key.type \}, entryPoints \[\{ entryPointType \(video, phone, sip, more\), uri, label, pin, meetingCode, passcode \}\], notes |
+|   ↳ `recurrence` | json | Recurrence rules \(RRULE/EXRULE/RDATE/EXDATE\) |
+|   ↳ `recurringEventId` | string | For an instance of a recurring event, the ID of the recurring series |
+|   ↳ `originalStartTime` | json | For an instance of a recurring event, its original start time in the series |
+|   ↳ `reminders` | json | Reminders: useDefault and overrides \[\{ method \(email or popup\), minutes \}\] |
+|   ↳ `visibility` | string | Visibility: default, public, private, or confidential |
+|   ↳ `transparency` | string | Show as: opaque \(busy\) or transparent \(free\) |
+|   ↳ `colorId` | string | Event color ID |
+|   ↳ `eventType` | string | Event type: default, outOfOffice, focusTime, workingLocation, fromGmail, or birthday |
+|   ↳ `iCalUID` | string | iCalendar UID \(RFC 5545\), shared across calendars |
+|   ↳ `created` | string | Creation time \(RFC3339\) |
+|   ↳ `updated` | string | Last modification time \(RFC3339\) |
+|   ↳ `attachments` | json | File attachments \[\{ fileUrl, title, mimeType, iconLink, fileId \}\] |
+|   ↳ `id` | string | Event ID |
+|   ↳ `htmlLink` | string | Event link |
+|   ↳ `status` | string | Event status \(confirmed, tentative, cancelled\) |
+|   ↳ `summary` | string | Event title |
+|   ↳ `description` | string | Event description |
+|   ↳ `location` | string | Event location |
+|   ↳ `start` | json | Event start \{ dateTime \| date, timeZone \} |
+|   ↳ `end` | json | Event end \{ dateTime \| date, timeZone \} |
+|   ↳ `attendees` | json | Attendees \[\{ email, displayName, responseStatus \(needsAction, declined, tentative, accepted\), optional, organizer, self, resource, comment \}\] |
+|   ↳ `creator` | json | Event creator \{ email, displayName, self \} |
+|   ↳ `organizer` | json | Event organizer \{ email, displayName, self \} |
 
 </ReferenceDetails>
 
@@ -121,6 +166,20 @@ Get a specific event from Google Calendar.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `hangoutLink` | string | Google Meet link |
+| `conferenceData` | json | Conference details: conferenceId, conferenceSolution \{ name, key.type \}, entryPoints \[\{ entryPointType \(video, phone, sip, more\), uri, label, pin, meetingCode, passcode \}\], notes |
+| `recurrence` | json | Recurrence rules \(RRULE/EXRULE/RDATE/EXDATE\) |
+| `recurringEventId` | string | For an instance of a recurring event, the ID of the recurring series |
+| `originalStartTime` | json | For an instance of a recurring event, its original start time in the series |
+| `reminders` | json | Reminders: useDefault and overrides \[\{ method \(email or popup\), minutes \}\] |
+| `visibility` | string | Visibility: default, public, private, or confidential |
+| `transparency` | string | Show as: opaque \(busy\) or transparent \(free\) |
+| `colorId` | string | Event color ID |
+| `eventType` | string | Event type: default, outOfOffice, focusTime, workingLocation, fromGmail, or birthday |
+| `iCalUID` | string | iCalendar UID \(RFC 5545\), shared across calendars |
+| `created` | string | Creation time \(RFC3339\) |
+| `updated` | string | Last modification time \(RFC3339\) |
+| `attachments` | json | File attachments \[\{ fileUrl, title, mimeType, iconLink, fileId \}\] |
 | `id` | string | Event ID |
 | `htmlLink` | string | Event link |
 | `status` | string | Event status |
@@ -157,19 +216,35 @@ Update an existing event in Google Calendar.
 | `recurrence` | string | No | Recurrence rule\(s\) in RFC 5545 format \(e.g., RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR\). Separate multiple rules with newlines. When provided, replaces the event's recurrence; leaving it empty keeps the existing recurrence unchanged. Requires a timeZone for timed events. |
 | `addGoogleMeet` | boolean | No | Attach a Google Meet video conference link to the event |
 | `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+| `visibility` | string | No | Event visibility: default, public, private, or confidential |
+| `transparency` | string | No | Show as: opaque \(busy, the default\) or transparent \(free\) |
+| `colorId` | string | No | Event color ID \("1" to "11", from the Calendar colors endpoint\) |
+| `reminders` | json | No | Custom reminders replacing the calendar default, as a JSON array of up to 5 \{ method: "email" \| "popup", minutes \} objects \(e.g., \[\{"method":"popup","minutes":10\}\]\). Pass \[\] for no reminders. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `hangoutLink` | string | Google Meet link |
+| `conferenceData` | json | Conference details: conferenceId, conferenceSolution \{ name, key.type \}, entryPoints \[\{ entryPointType \(video, phone, sip, more\), uri, label, pin, meetingCode, passcode \}\], notes |
+| `recurrence` | json | Recurrence rules |
+| `recurringEventId` | string | For an instance of a recurring event, the ID of the recurring series |
+| `originalStartTime` | json | For an instance of a recurring event, its original start time in the series |
+| `reminders` | json | Reminders: useDefault and overrides \[\{ method \(email or popup\), minutes \}\] |
+| `visibility` | string | Visibility: default, public, private, or confidential |
+| `transparency` | string | Show as: opaque \(busy\) or transparent \(free\) |
+| `colorId` | string | Event color ID |
+| `eventType` | string | Event type: default, outOfOffice, focusTime, workingLocation, fromGmail, or birthday |
+| `iCalUID` | string | iCalendar UID \(RFC 5545\), shared across calendars |
+| `created` | string | Creation time \(RFC3339\) |
+| `updated` | string | Last modification time \(RFC3339\) |
+| `attachments` | json | File attachments \[\{ fileUrl, title, mimeType, iconLink, fileId \}\] |
 | `id` | string | Event ID |
 | `htmlLink` | string | Event link |
-| `hangoutLink` | string | Google Meet link |
 | `status` | string | Event status |
 | `summary` | string | Event title |
 | `description` | string | Event description |
 | `location` | string | Event location |
-| `recurrence` | json | Recurrence rules |
 | `start` | json | Event start |
 | `end` | json | Event end |
 | `attendees` | json | Event attendees |
@@ -220,6 +295,20 @@ Move an event to a different calendar.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `hangoutLink` | string | Google Meet link |
+| `conferenceData` | json | Conference details: conferenceId, conferenceSolution \{ name, key.type \}, entryPoints \[\{ entryPointType \(video, phone, sip, more\), uri, label, pin, meetingCode, passcode \}\], notes |
+| `recurrence` | json | Recurrence rules \(RRULE/EXRULE/RDATE/EXDATE\) |
+| `recurringEventId` | string | For an instance of a recurring event, the ID of the recurring series |
+| `originalStartTime` | json | For an instance of a recurring event, its original start time in the series |
+| `reminders` | json | Reminders: useDefault and overrides \[\{ method \(email or popup\), minutes \}\] |
+| `visibility` | string | Visibility: default, public, private, or confidential |
+| `transparency` | string | Show as: opaque \(busy\) or transparent \(free\) |
+| `colorId` | string | Event color ID |
+| `eventType` | string | Event type: default, outOfOffice, focusTime, workingLocation, fromGmail, or birthday |
+| `iCalUID` | string | iCalendar UID \(RFC 5545\), shared across calendars |
+| `created` | string | Creation time \(RFC3339\) |
+| `updated` | string | Last modification time \(RFC3339\) |
+| `attachments` | json | File attachments \[\{ fileUrl, title, mimeType, iconLink, fileId \}\] |
 | `id` | string | Event ID |
 | `htmlLink` | string | Event link |
 | `status` | string | Event status |
@@ -314,6 +403,20 @@ Create events from natural language text.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `hangoutLink` | string | Google Meet link |
+| `conferenceData` | json | Conference details: conferenceId, conferenceSolution \{ name, key.type \}, entryPoints \[\{ entryPointType \(video, phone, sip, more\), uri, label, pin, meetingCode, passcode \}\], notes |
+| `recurrence` | json | Recurrence rules \(RRULE/EXRULE/RDATE/EXDATE\) |
+| `recurringEventId` | string | For an instance of a recurring event, the ID of the recurring series |
+| `originalStartTime` | json | For an instance of a recurring event, its original start time in the series |
+| `reminders` | json | Reminders: useDefault and overrides \[\{ method \(email or popup\), minutes \}\] |
+| `visibility` | string | Visibility: default, public, private, or confidential |
+| `transparency` | string | Show as: opaque \(busy\) or transparent \(free\) |
+| `colorId` | string | Event color ID |
+| `eventType` | string | Event type: default, outOfOffice, focusTime, workingLocation, fromGmail, or birthday |
+| `iCalUID` | string | iCalendar UID \(RFC 5545\), shared across calendars |
+| `created` | string | Creation time \(RFC3339\) |
+| `updated` | string | Last modification time \(RFC3339\) |
+| `attachments` | json | File attachments \[\{ fileUrl, title, mimeType, iconLink, fileId \}\] |
 | `id` | string | Event ID |
 | `htmlLink` | string | Event link |
 | `status` | string | Event status |
@@ -348,6 +451,20 @@ Invite attendees to an existing Google Calendar event.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `hangoutLink` | string | Google Meet link |
+| `conferenceData` | json | Conference details: conferenceId, conferenceSolution \{ name, key.type \}, entryPoints \[\{ entryPointType \(video, phone, sip, more\), uri, label, pin, meetingCode, passcode \}\], notes |
+| `recurrence` | json | Recurrence rules \(RRULE/EXRULE/RDATE/EXDATE\) |
+| `recurringEventId` | string | For an instance of a recurring event, the ID of the recurring series |
+| `originalStartTime` | json | For an instance of a recurring event, its original start time in the series |
+| `reminders` | json | Reminders: useDefault and overrides \[\{ method \(email or popup\), minutes \}\] |
+| `visibility` | string | Visibility: default, public, private, or confidential |
+| `transparency` | string | Show as: opaque \(busy\) or transparent \(free\) |
+| `colorId` | string | Event color ID |
+| `eventType` | string | Event type: default, outOfOffice, focusTime, workingLocation, fromGmail, or birthday |
+| `iCalUID` | string | iCalendar UID \(RFC 5545\), shared across calendars |
+| `created` | string | Creation time \(RFC3339\) |
+| `updated` | string | Last modification time \(RFC3339\) |
+| `attachments` | json | File attachments \[\{ fileUrl, title, mimeType, iconLink, fileId \}\] |
 | `id` | string | Event ID |
 | `htmlLink` | string | Event link |
 | `status` | string | Event status |
@@ -382,16 +499,33 @@ RSVP to a Google Calendar event (accept, decline, or tentative) as the connected
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `hangoutLink` | string | Google Meet link |
+| `conferenceData` | json | Conference details: conferenceId, conferenceSolution \{ name, key.type \}, entryPoints \[\{ entryPointType \(video, phone, sip, more\), uri, label, pin, meetingCode, passcode \}\], notes |
+| `recurrence` | json | Recurrence rules \(RRULE/EXRULE/RDATE/EXDATE\) |
+| `recurringEventId` | string | For an instance of a recurring event, the ID of the recurring series |
+| `originalStartTime` | json | For an instance of a recurring event, its original start time in the series |
+| `reminders` | json | Reminders: useDefault and overrides \[\{ method \(email or popup\), minutes \}\] |
+| `visibility` | string | Visibility: default, public, private, or confidential |
+| `transparency` | string | Show as: opaque \(busy\) or transparent \(free\) |
+| `colorId` | string | Event color ID |
+| `eventType` | string | Event type: default, outOfOffice, focusTime, workingLocation, fromGmail, or birthday |
+| `iCalUID` | string | iCalendar UID \(RFC 5545\), shared across calendars |
+| `created` | string | Creation time \(RFC3339\) |
+| `updated` | string | Last modification time \(RFC3339\) |
+| `attachments` | json | File attachments \[\{ fileUrl, title, mimeType, iconLink, fileId \}\] |
 | `id` | string | Event ID |
 | `htmlLink` | string | Event link |
 | `status` | string | Event status |
 | `summary` | string | Event title |
+| `description` | string | Event description |
+| `location` | string | Event location |
 | `start` | json | Event start |
 | `end` | json | Event end |
 | `responseStatus` | string | Your confirmed response \(accepted, declined, or tentative\) |
 | `comment` | string | Your response comment |
 | `attendees` | json | Event attendees |
 | `organizer` | json | Event organizer |
+| `creator` | json | Event creator |
 
 </ReferenceDetails>
 
@@ -636,9 +770,16 @@ Triggers when events are created, updated, or cancelled in Google Calendar
 |   ↳ `end` | json | Event end time |
 |   ↳ `created` | string | Event creation time |
 |   ↳ `updated` | string | Event last updated time |
-|   ↳ `attendees` | json | Event attendees |
-|   ↳ `creator` | json | Event creator |
-|   ↳ `organizer` | json | Event organizer |
+|   ↳ `attendees` | json | Event attendees \[\{ email, displayName, responseStatus \(needsAction, declined, tentative, accepted\), optional, organizer, self \}\] |
+|   ↳ `creator` | json | Event creator \{ email, displayName, self \} |
+|   ↳ `organizer` | json | Event organizer \{ email, displayName, self \} |
+|   ↳ `hangoutLink` | string | Google Meet link |
+|   ↳ `conferenceData` | json | Conference details: conferenceId, conferenceSolution \{ name \}, entryPoints \[\{ entryPointType, uri, label, pin, meetingCode, passcode \}\] |
+|   ↳ `recurringEventId` | string | Recurring series ID when the event is an instance of a recurring event |
+|   ↳ `originalStartTime` | json | Original start time of a recurring event instance |
+|   ↳ `visibility` | string | Visibility: default, public, private, or confidential |
+|   ↳ `transparency` | string | Show as: opaque \(busy\) or transparent \(free\) |
+|   ↳ `iCalUID` | string | iCalendar UID |
 | `calendarId` | string | Calendar ID |
 | `timestamp` | string | Event processing timestamp in ISO format |
 

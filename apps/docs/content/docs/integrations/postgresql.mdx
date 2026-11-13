@@ -2,7 +2,7 @@
 title: PostgreSQL
 description: Connect to PostgreSQL database
 integration:
-  type: "postgresql"
+  type: "postgresql_v2"
   color: "#336791"
 ---
 
@@ -11,6 +11,16 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [PostgreSQL](https://www.postgresql.org/) to query and modify rows, execute SQL, and inspect tables, columns, keys, and indexes. Schema inspection lets a workflow discover the database structure before generating a query.
+
+### Connection setup
+
+In **Integrations**, add a connection with the host, port, database, username, password, and transport-security settings. Sim proves the connection with `SELECT 1` before saving it encrypted, then reads it on the server for each run; the block, the workflow, and agents never see the password. Reconnect the connection from Integrations when its credentials change. The runtime must be able to reach the database host.
+
+- **Preferred** encrypts when the server offers TLS and otherwise connects without it. An attacker on the network can force that fallback, so choose **Required** when the server supports TLS.
+- **Required** always encrypts but does not verify the server certificate, like libpq's `sslmode=require`.
+- **Disabled** never encrypts. Use it only on a network whose confidentiality you control.
+
+Workflows built before saved connections keep their inline connection fields and run unchanged.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -29,12 +39,6 @@ Execute a SELECT query on PostgreSQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | PostgreSQL server hostname or IP address |
-| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `query` | string | Yes | SQL SELECT query to execute |
 
 #### Output
@@ -57,12 +61,6 @@ Insert data into PostgreSQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | PostgreSQL server hostname or IP address |
-| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to insert data into |
 | `data` | object | Yes | Data object to insert \(key-value pairs\) |
 
@@ -86,12 +84,6 @@ Update data in PostgreSQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | PostgreSQL server hostname or IP address |
-| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to update data in |
 | `data` | object | Yes | Data object with fields to update \(key-value pairs\) |
 | `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
@@ -116,12 +108,6 @@ Delete data from PostgreSQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | PostgreSQL server hostname or IP address |
-| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `table` | string | Yes | Table name to delete data from |
 | `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
 
@@ -145,12 +131,6 @@ Execute raw SQL query on PostgreSQL database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | PostgreSQL server hostname or IP address |
-| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `query` | string | Yes | Raw SQL query to execute |
 
 #### Output
@@ -173,12 +153,6 @@ Introspect PostgreSQL database schema to retrieve table structures, columns, and
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | PostgreSQL server hostname or IP address |
-| `port` | number | Yes | PostgreSQL server port \(default: 5432\) |
-| `database` | string | Yes | Database name to connect to |
-| `username` | string | Yes | Database username |
-| `password` | string | Yes | Database password |
-| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
 | `schema` | string | No | Schema to introspect \(default: public\) |
 
 #### Output

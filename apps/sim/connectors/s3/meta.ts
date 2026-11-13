@@ -13,6 +13,7 @@ export const s3ConnectorMeta: ConnectorMeta = {
     mode: 'apiKey',
     label: 'Secret Access Key',
     placeholder: 'Enter your AWS Secret Access Key',
+    savedCredential: { provider: 'aws', label: 'Saved AWS credential' },
   },
 
   configFields: [
@@ -22,6 +23,7 @@ export const s3ConnectorMeta: ConnectorMeta = {
       type: 'short-input',
       placeholder: 'e.g. AKIAIOSFODNN7EXAMPLE',
       required: true,
+      apiKeyOnly: true,
     },
     {
       id: 'region',
@@ -30,7 +32,7 @@ export const s3ConnectorMeta: ConnectorMeta = {
       placeholder: 'e.g. us-east-1 (use auto for Cloudflare R2)',
       required: true,
       description:
-        'AWS region for the bucket. For Cloudflare R2 use "auto"; for MinIO use the region the server is configured with (commonly us-east-1).',
+        'AWS region for the bucket. For Cloudflare R2 use "auto"; for MinIO use the region the server is configured with (commonly us-east-1). A saved AWS credential needs a commercial or GovCloud AWS region.',
     },
     {
       id: 'bucket',
@@ -47,6 +49,7 @@ export const s3ConnectorMeta: ConnectorMeta = {
       required: false,
       description:
         'S3-compatible endpoint for Cloudflare R2, MinIO, etc. Leave empty for AWS S3. Uses path-style addressing. Plain http:// is only allowed for localhost.',
+      apiKeyOnly: true,
     },
     {
       id: 'prefix',

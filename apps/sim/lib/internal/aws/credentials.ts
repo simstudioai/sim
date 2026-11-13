@@ -1,7 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import {
   type AwsSessionCredentials,
@@ -9,6 +7,7 @@ import {
   getAwsCredentialConfig,
   resolveAwsSessionCredentials,
 } from '@/lib/credentials/aws-service-account.server'
+import { awsCredentialFailureMessage, isTransientAwsFailure } from '@/lib/internal/aws/failure'
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
@@ -112,27 +111,6 @@ export async function resolveAuthorizedAwsCredential(
   })
 }
 
-const THROTTLING_ERROR_NAMES = new Set(['Throttling', 'ThrottlingException'])
-
-/**
- * Whether resolving a credential failed because AWS was briefly unavailable rather
- * than because it denied the credential: an error STS models as retryable
- * (IDPCommunicationError, when STS could not reach Sim's OIDC issuer), throttling,
- * an STS 5xx, or a network failure. The SDK has already retried these.
- */
-function isTransientAwsFailure(error: unknown): boolean {
-  if (!isRecordLike(error)) return false
-  const status = isRecordLike(error.$metadata) ? error.$metadata.httpStatusCode : undefined
-  return (
-    error.$retryable !== undefined ||
-    THROTTLING_ERROR_NAMES.has(String(error.name)) ||
-    status === 429 ||
-    (typeof status === 'number' && status >= 500) ||
-    error.name === 'TimeoutError' ||
-    isRetryableNetworkError(error)
-  )
-}
-
 /** Wraps a family's operation handler so it also accepts a saved AWS credential. */
 export function withAwsCredential<Result>(
   handler: InternalToolOperationHandler<Result>
@@ -152,7 +130,7 @@ export function withAwsCredential<Result>(
     } catch (error) {
       request.signal?.throwIfAborted()
       return Response.json(
-        { error: `Could not use the AWS credential: ${getErrorMessage(error, 'Unknown error')}` },
+        { error: awsCredentialFailureMessage(error) },
         { status: isTransientAwsFailure(error) ? 503 : 403 }
       )
     }

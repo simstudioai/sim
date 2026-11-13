@@ -3,6 +3,7 @@ import type {
   LaunchDarklyListMembersResponse,
 } from '@/tools/launchdarkly/types'
 import { MEMBER_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
 import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -17,6 +18,7 @@ export const launchDarklyListMembersTool: ToolConfig<
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
+    instance: LAUNCHDARKLY_INSTANCES.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -36,7 +38,7 @@ export const launchDarklyListMembersTool: ToolConfig<
       const queryParams = new URLSearchParams()
       if (params.limit) queryParams.set('limit', String(params.limit))
       const qs = queryParams.toString()
-      return `https://app.launchdarkly.com/api/v2/members${qs ? `?${qs}` : ''}`
+      return `${LAUNCHDARKLY_INSTANCES.apiBase(params.instance)}/members${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

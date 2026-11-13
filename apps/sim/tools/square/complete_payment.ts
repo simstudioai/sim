@@ -4,7 +4,7 @@ import type { CompletePaymentParams, PaymentResponse } from '@/tools/square/type
 import {
   PAYMENT_METADATA_OUTPUT_PROPERTIES,
   PAYMENT_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -18,6 +18,7 @@ export const squareCompletePaymentTool: ToolConfig<CompletePaymentParams, Paymen
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -40,7 +41,7 @@ export const squareCompletePaymentTool: ToolConfig<CompletePaymentParams, Paymen
 
   request: {
     url: (params) =>
-      `${SQUARE_BASE_URL}/v2/payments/${encodeURIComponent(params.paymentId)}/complete`,
+      `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/payments/${encodeURIComponent(params.paymentId)}/complete`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => (params.versionToken ? { version_token: params.versionToken } : {}),

@@ -1,5 +1,6 @@
 import type { CbInsightsAuthParams, CbInsightsRagResponse } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export interface CbInsightsRagParams extends CbInsightsAuthParams {
@@ -12,6 +13,7 @@ export const cbinsightsRagTool: InternalToolConfig<CbInsightsRagParams, CbInsigh
   description:
     'Retrieve the raw structured CB Insights data relevant to a question, for feeding your own model rather than reading a written answer. Uses generative AI and can be wrong — verify anything that matters.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

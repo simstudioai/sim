@@ -1,4 +1,5 @@
 import type { CreateListParams, ListResult, SendGridList } from '@/tools/sendgrid/types'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,6 +11,7 @@ export const sendGridCreateListTool: ToolConfig<CreateListParams, ListResult> = 
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENDGRID_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -25,7 +27,7 @@ export const sendGridCreateListTool: ToolConfig<CreateListParams, ListResult> = 
   },
 
   request: {
-    url: () => 'https://api.sendgrid.com/v3/marketing/lists',
+    url: (params) => `${SENDGRID_REGIONS.apiBase(params.region)}/marketing/lists`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -23,6 +23,13 @@ const GetRoleResponseSchema = z.object({
   assumeRolePolicyDocument: z.string().nullable(),
   roleLastUsedDate: z.string().nullable(),
   roleLastUsedRegion: z.string().nullable(),
+  permissionsBoundaryArn: z.string().nullable(),
+  tags: z.array(
+    z.object({
+      key: z.string(),
+      value: z.string(),
+    })
+  ),
 })
 
 export const awsIamGetRoleContract = defineRouteContract({

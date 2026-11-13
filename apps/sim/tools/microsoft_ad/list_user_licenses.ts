@@ -5,6 +5,7 @@ import type {
 import { LICENSE_DETAIL_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
 import { mapServicePlans } from '@/tools/microsoft_ad/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listUserLicensesTool: ToolConfig<
   MicrosoftAdListUserLicensesParams,
@@ -37,7 +38,7 @@ export const listUserLicensesTool: ToolConfig<
     url: (params) => {
       const userId = params.userId?.trim()
       if (!userId) throw new Error('User ID is required')
-      return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/licenseDetails`
+      return `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}/licenseDetails`
     },
     method: 'GET',
     headers: (params) => ({

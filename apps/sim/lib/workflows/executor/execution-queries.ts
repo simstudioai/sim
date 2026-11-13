@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
 import { and, asc, desc, eq, gt, gte, lt, lte, or, sql } from 'drizzle-orm'
+import { PAUSE_POINT_ROWS } from '@/lib/workflows/executor/pause-point-sql'
 
 export type WorkflowExecutionStatus =
   | 'pending'
@@ -26,8 +27,20 @@ export interface ListWorkflowExecutionsInput {
   order: 'asc' | 'desc'
 }
 
+/**
+ * An open pause record reads `paused` unless the log has finished and no point is left to resume,
+ * the same rule `readWorkflowExecutionStatus` applies to a single run.
+ */
 const executionStatus = sql<string>`CASE
-  WHEN ${pausedExecutions.status} IN ('paused', 'partially_resumed') THEN 'paused'
+  WHEN ${pausedExecutions.status} IN ('paused', 'partially_resumed')
+    AND NOT (
+      ${workflowExecutionLogs.status} IN ('completed', 'failed', 'cancelled')
+      AND NOT EXISTS (
+        select 1 from ${PAUSE_POINT_ROWS}
+        where coalesce(point.value ->> 'resumeStatus', 'paused') NOT IN ('resumed', 'failed')
+      )
+    )
+  THEN 'paused'
   ELSE ${workflowExecutionLogs.status}
 END`
 

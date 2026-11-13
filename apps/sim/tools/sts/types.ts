@@ -17,6 +17,7 @@ export interface STSAssumeRoleParams extends STSConnectionConfig {
   policyArns?: string | null
   tags?: string | null
   transitiveTagKeys?: string | null
+  sourceIdentity?: string | null
 }
 
 export interface STSAssumeRoleWithWebIdentityParams {

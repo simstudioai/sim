@@ -3,6 +3,7 @@ import type {
   LaunchDarklyListSegmentsResponse,
 } from '@/tools/launchdarkly/types'
 import { SEGMENT_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
 import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -17,6 +18,7 @@ export const launchDarklyListSegmentsTool: ToolConfig<
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
+    instance: LAUNCHDARKLY_INSTANCES.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -48,7 +50,7 @@ export const launchDarklyListSegmentsTool: ToolConfig<
       const queryParams = new URLSearchParams()
       if (params.limit) queryParams.set('limit', String(params.limit))
       const qs = queryParams.toString()
-      return `https://app.launchdarkly.com/api/v2/segments/${encodeURIComponent(params.projectKey.trim())}/${encodeURIComponent(params.environmentKey.trim())}${qs ? `?${qs}` : ''}`
+      return `${LAUNCHDARKLY_INSTANCES.apiBase(params.instance)}/segments/${encodeURIComponent(params.projectKey.trim())}/${encodeURIComponent(params.environmentKey.trim())}${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

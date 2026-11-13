@@ -1,4 +1,5 @@
 import type { PostgresQueryParams, PostgresQueryResponse } from '@/tools/postgresql/types'
+import { POSTGRESQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const queryTool: InternalToolConfig<PostgresQueryParams, PostgresQueryResponse> = {
@@ -6,6 +7,7 @@ export const queryTool: InternalToolConfig<PostgresQueryParams, PostgresQueryRes
   name: 'PostgreSQL Query',
   description: 'Execute a SELECT query on PostgreSQL database',
   version: '1.0',
+  oauth: POSTGRESQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

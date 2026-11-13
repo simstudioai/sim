@@ -3,17 +3,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComputerUseAppPermission } from '@sim/desktop-bridge'
 import { Chip, ChipSwitch, Label, toast } from '@sim/emcn'
+import { useParams } from 'next/navigation'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { getDesktopBridge } from '@/lib/desktop'
-import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { useComputerUseStatus } from '@/hooks/use-computer-use-status'
 
+/** The activity stays visible so an in-flight action can be stopped; the device controls need the permission group's consent. */
 export function ComputerUseSettings() {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const permission = useUserPermissionConfig(workspaceId)
+  const allowed =
+    permission.isSuccess &&
+    (permission.data.config === null ||
+      !CAPABILITY_RULES['computer_use.use'].deniedBy(permission.data.config))
   return (
     <>
       <ComputerUseActivity />
-      <ComputerUseSettingsControls />
+      {allowed && <ComputerUseSettingsControls />}
     </>
   )
 }
@@ -21,7 +30,6 @@ export function ComputerUseSettings() {
 function ComputerUseSettingsControls() {
   const requestVersion = useRef(0)
   const bridge = getDesktopBridge()?.computerUse
-  const enabled = useFeatureFlag('mothership-computer-use')
   const { status, setStatus, refresh, error } = useComputerUseStatus()
   const [apps, setApps] = useState<ComputerUseAppPermission[]>([])
   const [pending, setPending] = useState(false)
@@ -36,13 +44,12 @@ function ComputerUseSettingsControls() {
     }
   }, [bridge])
   useEffect(() => {
-    if (!enabled) return
     void refreshApps()
     return () => {
       requestVersion.current += 1
     }
-  }, [enabled, refreshApps, status?.activeAction])
-  if (!bridge || !enabled || status?.supported === false) return null
+  }, [refreshApps, status?.activeAction])
+  if (!bridge || status?.supported === false) return null
   const update = async (action: () => Promise<void>) => {
     setPending(true)
     try {

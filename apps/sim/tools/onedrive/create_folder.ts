@@ -1,5 +1,7 @@
 import type { OneDriveToolParams, OneDriveUploadResponse } from '@/tools/onedrive/types'
+import { driveItemDetails } from '@/tools/onedrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> = {
   id: 'onedrive_create_folder',
@@ -36,10 +38,9 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
 
   request: {
     url: (params) => {
-      // Use specific parent folder URL if parentId is provided
       const parentFolderId = params.folderId?.trim()
       if (parentFolderId) {
-        return `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(parentFolderId)}/children`
+        return `https://graph.microsoft.com/v1.0/me/drive/items/${safeUrlPathSegment(parentFolderId, 'folderId')}/children`
       }
       return 'https://graph.microsoft.com/v1.0/me/drive/root/children'
     },
@@ -72,6 +73,7 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
           createdTime: data.createdDateTime,
           modifiedTime: data.lastModifiedDateTime,
           parentReference: data.parentReference,
+          ...driveItemDetails(data),
         },
       },
     }
@@ -82,7 +84,7 @@ export const createFolderTool: ToolConfig<OneDriveToolParams, OneDriveUploadResp
     file: {
       type: 'object',
       description:
-        'The created folder object with metadata including id, name, webViewLink, and timestamps',
+        'The created folder object with metadata including id, name, webViewLink, timestamps, parentReference, childCount, eTag, createdBy, and lastModifiedBy',
     },
   },
 }

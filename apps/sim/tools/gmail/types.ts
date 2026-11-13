@@ -11,6 +11,7 @@ export interface GmailSendParams extends BaseGmailParams {
   to: string
   cc?: string
   bcc?: string
+  replyTo?: string
   subject?: string
   body: string
   contentType?: 'text' | 'html'
@@ -32,6 +33,7 @@ export interface GmailReadParams extends BaseGmailParams {
 export interface GmailSearchParams extends BaseGmailParams {
   query: string
   maxResults?: number
+  pageToken?: string
 }
 
 // Move operation parameters
@@ -59,20 +61,43 @@ interface BaseGmailMetadata {
   labelIds?: string[]
 }
 
-interface EmailMetadata extends BaseGmailMetadata {
+/** Recipient and threading headers; each is `null` when the message does not carry it. */
+export interface GmailExtendedHeaders {
+  cc: string | null
+  bcc: string | null
+  replyTo: string | null
+  /** RFC 5322 `Message-ID` header, distinct from the Gmail message `id`. */
+  rfcMessageId: string | null
+  inReplyTo: string | null
+  references: string | null
+}
+
+interface EmailMetadata extends BaseGmailMetadata, Partial<GmailExtendedHeaders> {
   from?: string
   to?: string
   subject?: string
   date?: string
   hasAttachments?: boolean
   attachmentCount?: number
+  snippet?: string | null
+  internalDate?: string | null
+}
+
+export interface GmailMessageSummary extends Partial<GmailExtendedHeaders> {
+  id: string
+  threadId: string
+  subject: string
+  from: string
+  to: string
+  date: string
+  snippet: string
+  internalDate?: string | null
 }
 
 interface SearchMetadata extends BaseGmailMetadata {
-  results: Array<{
-    id: string
-    threadId: string
-  }>
+  results: Array<{ id: string; threadId: string } & Partial<GmailMessageSummary>>
+  nextPageToken?: string | null
+  resultSizeEstimate?: number | null
 }
 
 // Response format
@@ -90,6 +115,7 @@ export interface GmailMessage {
   threadId: string
   labelIds: string[]
   snippet: string
+  internalDate?: string
   payload: {
     headers: Array<{
       name: string

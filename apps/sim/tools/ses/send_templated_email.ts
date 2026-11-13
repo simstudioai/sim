@@ -1,4 +1,5 @@
 import type { SESSendTemplatedEmailParams, SESSendTemplatedEmailResponse } from '@/tools/ses/types'
+import { parseEmailTagsParam } from '@/tools/ses/utils'
 import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -67,11 +68,30 @@ export const sendTemplatedEmailTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Comma-separated list of BCC email addresses',
     },
+    replyToAddresses: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated list of reply-to email addresses',
+    },
     configurationSetName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'SES configuration set name for tracking',
+    },
+    fromName: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Friendly sender name shown with the From address (e.g., Acme Support)',
+    },
+    emailTags: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Message tags for filtering sending events, as a JSON array of {"name", "value"} objects (letters, digits, _ and - only, up to 256 characters)',
     },
   },
 
@@ -86,7 +106,10 @@ export const sendTemplatedEmailTool: InternalToolConfig<
       templateData: params.templateData,
       ccAddresses: params.ccAddresses,
       bccAddresses: params.bccAddresses,
+      replyToAddresses: params.replyToAddresses,
       configurationSetName: params.configurationSetName,
+      fromName: params.fromName,
+      emailTags: parseEmailTagsParam(params.emailTags),
     }),
   },
 

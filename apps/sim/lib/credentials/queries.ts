@@ -44,6 +44,8 @@ export interface VisibleWorkspaceCredential {
   envKey: string | null
   envOwnerUserId: string | null
   providerTenantId?: string | null
+  /** When the saved token stops working, for a service account or personal token that states it. */
+  accessTokenExpiresAt?: Date | null
   createdBy: string
   createdAt: Date
   updatedAt: Date
@@ -197,6 +199,7 @@ export async function listVisibleWorkspaceCredentials(params: {
       envKey: credential.envKey,
       envOwnerUserId: credential.envOwnerUserId,
       providerTenantId: credential.providerTenantId,
+      accessTokenExpiresAt: credential.accessTokenExpiresAt,
       createdBy: credential.createdBy,
       createdAt: credential.createdAt,
       updatedAt: credential.updatedAt,

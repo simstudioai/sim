@@ -867,11 +867,12 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
     task: {
       type: 'json',
       description:
-        'The Microsoft Planner task object, including details such as id, title, description, status, due date, and assignees.',
+        'The Microsoft Planner task object as returned by Graph (id, title, planId, bucketId, percentComplete, priority, startDateTime, dueDateTime, assignments keyed by user ID, appliedCategories, @odata.etag). The description and checklist live on task details.',
     },
     tasks: {
       type: 'json',
-      description: 'Array of Microsoft Planner tasks',
+      description:
+        'Array of Microsoft Planner tasks (id, title, planId, bucketId, percentComplete, priority, startDateTime, dueDateTime, createdDateTime, completedDateTime, hasDescription, assignments as user IDs, assignees with userId/assignedDateTime/assignedBy, appliedCategories, checklistItemCount, activeChecklistItemCount, referenceCount, previewType, orderHint, conversationThreadId, createdBy, completedBy, etag)',
     },
     taskId: {
       type: 'string',
@@ -904,7 +905,8 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
     },
     taskDetails: {
       type: 'json',
-      description: 'The Microsoft Planner task details including checklist and references',
+      description:
+        'The Microsoft Planner task details (id, description, previewType, checklist keyed by item ID with title/isChecked/orderHint, references keyed by encoded URL with alias/type, @odata.etag for Update Task Details)',
     },
     deleted: {
       type: 'boolean',

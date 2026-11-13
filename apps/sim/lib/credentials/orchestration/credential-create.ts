@@ -286,6 +286,7 @@ export async function createCredentialRecord(
     let resolvedEnvOwnerUserId: string | null = null
     let resolvedEncryptedServiceAccountKey: string | null = null
     let resolvedWorkloadIdentitySubject: string | undefined
+    let resolvedTokenExpiresAt: Date | null = null
     const extraAuditMetadata: Record<string, unknown> = {}
 
     if (type === 'oauth') {
@@ -353,6 +354,7 @@ export async function createCredentialRecord(
         if (!resolvedDisplayName) resolvedDisplayName = secret.displayName
         resolvedEncryptedServiceAccountKey = secret.encryptedServiceAccountKey
         resolvedWorkloadIdentitySubject = secret.newWorkloadIdentitySubject
+        resolvedTokenExpiresAt = secret.tokenExpiresAt ?? null
         Object.assign(extraAuditMetadata, secret.auditMetadata)
       } catch (error) {
         if (error instanceof KeylessCredentialRefusedError) return keylessFailure(error)
@@ -559,6 +561,7 @@ export async function createCredentialRecord(
         envKey: resolvedEnvKey,
         envOwnerUserId: resolvedEnvOwnerUserId,
         encryptedServiceAccountKey: resolvedEncryptedServiceAccountKey,
+        accessTokenExpiresAt: resolvedTokenExpiresAt,
         createdBy: userId,
         createdAt: now,
         updatedAt: now,

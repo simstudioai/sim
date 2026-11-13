@@ -11,10 +11,15 @@ import {
   SecretInput,
 } from '@sim/emcn'
 import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
+import {
+  MICROSOFT_CLOUD_IDS,
+  MICROSOFT_CLOUDS,
+  type MicrosoftCloudId,
+} from '@/lib/credentials/microsoft-clouds'
 import { MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   KeylessTrustFields,
-  keylessSubjectFields,
+  keylessConfigFields,
   useKeylessSetup,
   useSavedConnectionSubmit,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/keyless-connection'
@@ -42,6 +47,11 @@ const AUTH_TYPE_HINTS: Record<MicrosoftAuthType, string> = {
 }
 
 const DOCS_URL = 'https://docs.sim.ai/integrations/microsoft-app-credentials'
+
+const CLOUD_OPTIONS = MICROSOFT_CLOUD_IDS.map((id) => ({
+  value: id,
+  label: MICROSOFT_CLOUDS[id].label,
+}))
 
 /** Saved Microsoft app credentials share the standard credential create/reconnect lifecycle. */
 export function MicrosoftAppAccountModal(props: MicrosoftAppAccountModalProps) {
@@ -80,6 +90,7 @@ function MicrosoftAppAccountForm({
     onClose: () => onOpenChange(false),
   })
   const [selectedAuthType, setSelectedAuthType] = useState<MicrosoftAuthType | null>(null)
+  const [selectedCloud, setSelectedCloud] = useState<MicrosoftCloudId | null>(null)
   const [tenantId, setTenantId] = useState('')
   const [clientId, setClientId] = useState('')
   const [environmentUrl, setEnvironmentUrl] = useState('')
@@ -97,8 +108,15 @@ function MicrosoftAppAccountForm({
       ? 'federated'
       : 'client_secret'
   const authType: MicrosoftAuthType = selectedAuthType ?? defaultAuthType
+  // A reconnect opens on the credential's stored cloud. Until that is known (still loading, a
+  // failed lookup, or an organization credential) the cloud must be chosen, so a rotation never
+  // silently moves a national-cloud credential to the global cloud.
+  const storedCloudKnown = !credentialId || keyless.reconnectFieldsLoaded
+  const cloud: MicrosoftCloudId | undefined =
+    selectedCloud ?? (storedCloudKnown ? (keyless.reconnectCloud ?? 'global') : undefined)
   const disabled =
     isPending ||
+    !cloud ||
     !tenantId.trim() ||
     !clientId.trim() ||
     (authType === 'client_secret' && !clientSecret.trim()) ||
@@ -110,14 +128,16 @@ function MicrosoftAppAccountForm({
     clearError()
   }
 
-  const buildConfig = (): Record<string, unknown> => {
+  const buildConfig = (appCloud: MicrosoftCloudId): Record<string, unknown> => {
+    const isGlobal = appCloud === 'global'
     const base = {
       authType,
       tenantId: tenantId.trim(),
       clientId: clientId.trim(),
-      ...(environmentUrl.trim() ? { environmentUrl: environmentUrl.trim() } : {}),
+      ...(isGlobal ? {} : { cloud: appCloud }),
+      ...(isGlobal && environmentUrl.trim() ? { environmentUrl: environmentUrl.trim() } : {}),
     }
-    if (authType === 'federated') return { ...base, ...keylessSubjectFields(keyless) }
+    if (authType === 'federated') return { ...base, ...keylessConfigFields(keyless) }
     if (authType === 'certificate') return { ...base, privateKey, certificate }
     return { ...base, clientSecret }
   }
@@ -155,6 +175,19 @@ function MicrosoftAppAccountForm({
           hint={AUTH_TYPE_HINTS[authType]}
         />
         <ChipModalField
+          type='dropdown'
+          title='Cloud'
+          value={cloud}
+          onChange={(value) => {
+            setSelectedCloud(value as MicrosoftCloudId)
+            clearError()
+          }}
+          options={CLOUD_OPTIONS}
+          placeholder='Choose the app’s cloud'
+          required
+          hint='The Microsoft cloud the app is registered in. Only Azure Data Explorer runs outside the global cloud.'
+        />
+        <ChipModalField
           type='input'
           title='Directory (tenant) ID'
           value={tenantId}
@@ -172,15 +205,17 @@ function MicrosoftAppAccountForm({
           required
           autoComplete='off'
         />
-        <ChipModalField
-          type='input'
-          title='Dataverse environment URL'
-          value={environmentUrl}
-          onChange={edit(setEnvironmentUrl)}
-          placeholder='https://contoso.crm.dynamics.com'
-          autoComplete='off'
-          hint='Needed for Dataverse and Dynamics 365. The app must be an application user there.'
-        />
+        {cloud === 'global' && (
+          <ChipModalField
+            type='input'
+            title='Dataverse environment URL'
+            value={environmentUrl}
+            onChange={edit(setEnvironmentUrl)}
+            placeholder='https://contoso.crm.dynamics.com'
+            autoComplete='off'
+            hint='Needed for Dataverse and Dynamics 365. The app must be an application user there.'
+          />
+        )}
 
         {authType === 'client_secret' && (
           <ChipModalField type='custom' title='Client secret' required>
@@ -226,6 +261,7 @@ function MicrosoftAppAccountForm({
           <KeylessTrustFields
             setup={keyless}
             pasteHint='In the app registration, open Certificates & secrets → Federated credentials → Add credential → Other issuer, and paste these values.'
+            audienceHint='The federated credential’s Audience must match it.'
           />
         )}
 
@@ -258,7 +294,9 @@ function MicrosoftAppAccountForm({
         primaryAction={{
           label: isPending ? 'Verifying...' : `${action} credential`,
           onClick: () => {
-            if (!disabled) void submit({ config: buildConfig(), displayName, description })
+            if (!disabled && cloud) {
+              void submit({ config: buildConfig(cloud), displayName, description })
+            }
           },
           disabled,
         }}

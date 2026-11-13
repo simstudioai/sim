@@ -86,7 +86,8 @@ export const getFunctionTool: InternalToolConfig<
     },
     code: {
       type: 'json',
-      description: 'Presigned download URL for the deployment package, or the container image URI',
+      description:
+        'Deployment package location (repositoryType, location presigned download URL, imageUri, resolvedImageUri, sourceKmsKeyArn, and error when the code cannot be retrieved)',
       nullable: true,
     },
     tags: {

@@ -3,6 +3,7 @@ import type {
   MicrosoftWordReplaceTextResponse,
   MicrosoftWordToolParams,
 } from '@/tools/microsoft_word/types'
+import { DOCUMENT_METADATA_DETAIL_PROPERTIES } from '@/tools/microsoft_word/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const replaceTextTool: InternalToolConfig<
@@ -97,6 +98,7 @@ export const replaceTextTool: InternalToolConfig<
           description: 'ISO 8601 last modification time',
           optional: true,
         },
+        ...DOCUMENT_METADATA_DETAIL_PROPERTIES,
       },
     },
   },

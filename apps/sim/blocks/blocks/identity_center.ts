@@ -297,6 +297,15 @@ export const IdentityCenterBlock: BlockConfig = {
       },
     },
     {
+      id: 'filterAccountId',
+      title: 'Filter by AWS Account ID',
+      type: 'short-input',
+      placeholder: '123456789012',
+      condition: { field: 'operation', value: 'list_account_assignments' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
       id: 'requestId',
       title: 'Request ID',
       type: 'short-input',
@@ -496,6 +505,7 @@ export const IdentityCenterBlock: BlockConfig = {
             result.instanceArn = rest.instanceArn
             result.principalId = rest.principalId
             result.principalType = rest.principalType
+            result.accountId = rest.filterAccountId || undefined
             if (maxResults) {
               const parsed = Number.parseInt(String(maxResults), 10)
               if (!Number.isNaN(parsed)) result.maxResults = parsed
@@ -534,6 +544,10 @@ export const IdentityCenterBlock: BlockConfig = {
     userId: { type: 'string', description: 'Identity Store user ID' },
     groupId: { type: 'string', description: 'Identity Store group ID' },
     requestId: { type: 'string', description: 'Assignment creation/deletion request ID' },
+    filterAccountId: {
+      type: 'string',
+      description: 'Only list assignments for this AWS account ID (list_account_assignments)',
+    },
     maxResults: {
       type: 'number',
       description: 'Maximum number of results to return (1-100; List Accounts allows at most 20)',
@@ -570,6 +584,8 @@ export const IdentityCenterBlock: BlockConfig = {
     email: { type: 'string', description: 'Email address of the user' },
     userStatus: { type: 'string', description: 'User account status (ENABLED or DISABLED)' },
     title: { type: 'string', description: 'Job title of the user' },
+    givenName: { type: 'string', description: 'Given (first) name of the user' },
+    familyName: { type: 'string', description: 'Family (last) name of the user' },
     externalIds: {
       type: 'json',
       description: 'External identity provider IDs on the user or group (issuer, id)',

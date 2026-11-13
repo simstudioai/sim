@@ -3,7 +3,8 @@
  * PostgreSQL: the pause's reviewer content is stored and read back with the run's resolved
  * secret redacted, and the run detail withholds that content on the same terms as the run's
  * output, while the pause's input fields stay readable. The workspace's paused-run list shows
- * each point on exactly the same terms.
+ * each point on exactly the same terms. A run whose resumed execution failed reads failed, not
+ * paused, once no point is left to resume.
  */
 import { db } from '@sim/db'
 import {
@@ -32,6 +33,7 @@ import { encryptSecret } from '@/lib/core/security/encryption'
 import { executeWorkflowOperation } from '@/lib/workflows/application/execute-workflow'
 import { listPausedRuns } from '@/lib/workflows/application/list-paused-runs'
 import { readWorkflowRun } from '@/lib/workflows/application/read-workflow-run'
+import { listWorkflowExecutions } from '@/lib/workflows/executor/execution-queries'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import type { PausePoint } from '@/executor/types'
 
@@ -473,5 +475,57 @@ describe("the workspace's paused-run list", () => {
     expect(second.runs).toHaveLength(1)
     expect(second.runs[0].runId).not.toBe(first.runs[0].runId)
     expect(second.runs[0].pausedAt.getTime()).toBeLessThanOrEqual(first.runs[0].pausedAt.getTime())
+  })
+})
+
+describe('a run whose resumed execution failed', () => {
+  /** What a failed resume leaves behind: the log failed, its point failed, the record still open. */
+  async function settleAsFailed(runId: string) {
+    const [row] = await db
+      .select({ id: pausedExecutions.id, pausePoints: pausedExecutions.pausePoints })
+      .from(pausedExecutions)
+      .where(eq(pausedExecutions.executionId, runId))
+    const points = row.pausePoints as Record<string, PausePoint>
+    await db
+      .update(pausedExecutions)
+      .set({
+        pausePoints: Object.fromEntries(
+          Object.entries(points).map(([id, point]) => [id, { ...point, resumeStatus: 'failed' }])
+        ),
+      })
+      .where(eq(pausedExecutions.id, row.id))
+    await db
+      .update(workflowExecutionLogs)
+      .set({ status: 'failed', level: 'error', endedAt: new Date() })
+      .where(eq(workflowExecutionLogs.executionId, runId))
+  }
+
+  async function listedStatus(runId: string) {
+    const rows = await listWorkflowExecutions({ workflowId, limit: 100, order: 'desc' })
+    return rows.data.find((row) => row.executionId === runId)?.status
+  }
+
+  it('reads failed in the run detail and the run list once no point can be resumed', async () => {
+    const runId = await pausedRun()
+    await settleAsFailed(runId)
+
+    const run = await readRun(owner, runId, { includeOutput: false })
+    expect(run).toMatchObject({ status: 'failed', paused: null, pausePoints: null })
+    expect(await listedStatus(runId)).toBe('failed')
+  })
+
+  it('still reads paused while a point is waiting, even though the log has finished', async () => {
+    const runId = await pausedRun()
+    await db
+      .update(workflowExecutionLogs)
+      .set({ status: 'failed', level: 'error', endedAt: new Date() })
+      .where(eq(workflowExecutionLogs.executionId, runId))
+
+    const run = await readRun(owner, runId, { includeOutput: false })
+    expect(run.status).toBe('paused')
+    expect(run.pausePoints).toEqual([
+      expect.objectContaining({ contextId: 'approval', status: 'paused' }),
+    ])
+    expect(await listedStatus(runId)).toBe('paused')
   })
 })

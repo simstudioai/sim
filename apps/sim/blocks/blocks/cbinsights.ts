@@ -2,6 +2,7 @@ import { Building, ListChecks, Search, Sparkles, Sprout, Users } from '@sim/emcn
 import { CbInsightsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /** Operations that take a single organization ID on the path. */
 const ORG_OPERATIONS = [
@@ -63,6 +64,8 @@ const DATE_RANGE_OPERATIONS = ['get_commercial_maturity_history', 'get_exit_prob
 
 export const CbInsightsBlock: BlockConfig = {
   type: 'cbinsights',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'cbinsights_v2' },
   name: 'CB Insights',
   description: 'Research private markets — firmographics, funding, and predictive scores',
   longDescription:
@@ -907,6 +910,21 @@ export const CbInsightsBlock: BlockConfig = {
       description: 'Notes describing what each retrieved data source contains',
     },
   },
+}
+
+/** Every operation runs with a saved CB Insights API client. */
+export const CbInsightsV2Block: BlockConfig = {
+  ...CbInsightsBlock,
+  type: 'cbinsights_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(CbInsightsBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'cbinsights',
+    title: 'CB Insights Credential',
+  }),
 }
 
 export const CbInsightsBlockMeta = {

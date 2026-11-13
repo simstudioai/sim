@@ -3,6 +3,7 @@ import type {
   AmplitudeGroupIdentifyResponse,
 } from '@/tools/amplitude/types'
 import { getIngestionHost } from '@/tools/amplitude/utils'
+import { AMPLITUDE_INGESTION_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const groupIdentifyTool: ToolConfig<
@@ -14,6 +15,7 @@ export const groupIdentifyTool: ToolConfig<
   description:
     'Set group-level properties in Amplitude. Supports $set, $setOnce, $add, $append, $unset operations.',
   version: '1.0.0',
+  oauth: AMPLITUDE_INGESTION_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,5 +1,6 @@
 import type { JiraUpdateParams, JiraUpdateResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
+import { parseJiraFieldMap } from '@/tools/jira/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
 interface JiraUpdateOperationEnvelope {
@@ -117,6 +118,20 @@ export const jiraUpdateTool: InternalToolConfig<JiraUpdateParams, JiraUpdateResp
       visibility: 'user-or-llm',
       description: 'Value for the custom field',
     },
+    customFields: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Additional fields as a JSON object mapping field IDs to Jira field values (e.g., {"customfield_10016": 5, "customfield_10020": 42, "customfield_10050": {"value": "Option A"}}). Numeric keys become customfield_<n>. Explicit params take precedence for the same field.',
+    },
+    parent: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'New parent issue key or ID (e.g., "PROJ-123" or { "key": "PROJ-123" }) to move a subtask or set the epic',
+    },
     notifyUsers: {
       type: 'boolean',
       required: false,
@@ -151,6 +166,9 @@ export const jiraUpdateTool: InternalToolConfig<JiraUpdateParams, JiraUpdateResp
         customFieldValue: params.customFieldValue,
         notifyUsers: params.notifyUsers,
         cloudId: params.cloudId,
+        parent:
+          typeof params.parent === 'string' && !params.parent.trim() ? undefined : params.parent,
+        customFields: parseJiraFieldMap(params.customFields),
       }
     },
   },

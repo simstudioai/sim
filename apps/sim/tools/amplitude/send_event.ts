@@ -1,5 +1,6 @@
 import type { AmplitudeSendEventParams, AmplitudeSendEventResponse } from '@/tools/amplitude/types'
 import { getIngestionHost } from '@/tools/amplitude/utils'
+import { AMPLITUDE_INGESTION_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendEventTool: ToolConfig<AmplitudeSendEventParams, AmplitudeSendEventResponse> = {
@@ -7,6 +8,7 @@ export const sendEventTool: ToolConfig<AmplitudeSendEventParams, AmplitudeSendEv
   name: 'Amplitude Send Event',
   description: 'Track an event in Amplitude using the HTTP V2 API.',
   version: '1.0.0',
+  oauth: AMPLITUDE_INGESTION_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -12,7 +12,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Square](https://squareup.com/) to take, retrieve, list, cancel, complete, or refund payments; manage customer profiles; create, retrieve, search, or pay for orders; and create, publish, cancel, or delete invoices.
 
-The actions also manage catalog objects and images, read inventory counts, and look up locations. Connect with a saved Square credential holding a production access token. Payment and refund actions change live commerce records; use the action's idempotency fields before running them.
+The actions also manage catalog objects and images, read inventory counts, and look up locations. Connect with a saved Square credential holding a production or sandbox access token, and choose the environment that issued it; a sandbox credential runs every action against the Square sandbox. Payment and refund actions on a production credential change live commerce records; use the action's idempotency fields before running them.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]

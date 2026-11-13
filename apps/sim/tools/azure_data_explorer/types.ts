@@ -14,8 +14,8 @@ interface AzureDataExplorerColumn {
   dataType: string | null
 }
 
-/** Primary result table of a Kusto query or management command. */
-export interface AzureDataExplorerTable {
+/** One projected Kusto result table. */
+export interface AzureDataExplorerResultTable {
   tableName: string | null
   columns: AzureDataExplorerColumn[]
   rows: unknown[][]
@@ -25,6 +25,12 @@ export interface AzureDataExplorerTable {
   /** Rows Kusto returned, before the row cap. */
   totalRowCount: number
   truncated: boolean
+}
+
+/** Primary result table of a Kusto query or management command. */
+export interface AzureDataExplorerTable extends AzureDataExplorerResultTable {
+  /** Further QueryResult tables, present only when a batch or `fork` produced more than one. */
+  additionalResults?: AzureDataExplorerResultTable[]
 }
 
 export interface AzureDataExplorerTableResponse extends ToolResponse {

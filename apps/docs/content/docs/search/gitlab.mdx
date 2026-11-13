@@ -73,6 +73,37 @@ In this example, Alice can search `engineering/platform` because the files link 
 
 Saving the CSVs grants the access listed in them. Changing a membership in GitLab alone does not change these grants. Replace the CSVs to add or revoke access; the change applies to the next search or read without re-indexing.
 
+### Export both CSVs from GitLab
+
+Download [export-permissions.py](/static/examples/gitlab/export-permissions.py) and save it as `ci/export-gitlab-permissions.py` in your repository. It uses Python 3.10 or later with no extra packages and exports one project per run.
+
+Use GitLab 17.4 or later and an internal export token with `read_api` and permission to see all members of the target project, their primary emails, and confirmation status. Keep this token in a masked, protected CI variable named `GITLAB_EXPORT_TOKEN`. It stays in your CI job; Sim receives the CSVs. The source's separate read-only PAT continues to retrieve content.
+
+The exporter makes only these GitLab API requests:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/v4/projects/:id` | Resolve the numeric ID and full project path. |
+| `GET /api/v4/projects/:id/members/all` | Page through visible direct, inherited, and invited-group members, 100 at a time. |
+| `GET /api/v4/users/:id` | Read each eligible member's account state, email confirmation, and primary email. |
+
+GitLab documents [membership visibility](https://docs.gitlab.com/api/project_members/#list-all-members-of-a-project) and [user profile fields](https://docs.gitlab.com/api/users/#retrieve-a-single-user). The `read_api` scope alone does not grant access to private emails. The export token needs that directory permission too. Profiles without a valid `confirmed_at` timestamp are excluded. If an eligible reader's primary email is unavailable, the script stops; it never substitutes a public email. Confirm the exported emails match your teammates' verified Sim emails.
+
+With `GITLAB_EXPORT_TOKEN` set in the environment, run:
+
+```bash
+python3 ci/export-gitlab-permissions.py \
+  --gitlab-url https://gitlab.example.com \
+  --project engineering/platform \
+  --output-dir gitlab-permissions
+```
+
+This creates `gitlab-permissions/users.csv` and `gitlab-permissions/project-permissions.csv`. Numeric project IDs are also accepted. The output directory must not already exist. Both files are published together after the export completes and passes validation.
+
+The export includes active, unlocked human members with Reporter access or higher. It excludes Guests, Planners, bots, and memberships expiring today or earlier in UTC. It does not infer access from public/internal visibility, administrator or Auditor privileges, or custom permissions below Reporter. GitLab policies such as SSO or external authorization are not represented by these CSVs. Review the grants against your organization's access requirements before uploading them.
+
+Requests run serially, paced at 60 per minute by default. Set `--requests-per-minute` to change this export-job ceiling; it does not configure live Search traffic. Each run uses one project request, one request per membership page, and one profile request per candidate reader. API errors, hidden emails, identity conflicts, inconsistent pagination totals (when GitLab provides them), and oversized exports stop the job without publishing either file. Run exports after bulk membership updates finish; paginated API reads are not a point-in-time snapshot.
+
 ## Access checks
 
 The source token retrieves content. Administrator mode proves the reader's current GitLab identity from verified Sim email, then checks project/group membership and policy during the request. Unsupported restrictions fail closed.
@@ -93,7 +124,7 @@ After an admin configures a source in **Non-admin token** mode, a job can [read 
 
 Store an organization admin's [personal Sim API key](/api-reference/authentication) with [**Full access**](/api-reference/authentication#key-access) as a [masked, protected GitLab CI variable](https://docs.gitlab.com/ci/variables/) named `SIM_API_KEY`. A personal key inherits its owner's access; a read-only key can read the revision but not replace the CSVs. This endpoint can only read the revision or replace both CSVs; it cannot change the GitLab PAT, host, or project.
 
-This example runs on a schedule against a protected branch. Replace `./ci/export-gitlab-permissions` with your existing export command. It must write a fresh, complete `users.csv` and `project-permissions.csv` and exit nonzero if it cannot finish.
+Commit [the exporter above](#export-both-csvs-from-gitlab) at `ci/export-gitlab-permissions.py`. Set `GITLAB_EXPORT_TOKEN`, `GITLAB_PROJECT` (full path or numeric ID), and the Sim variables above. This example uses `CI_SERVER_URL` for the GitLab host and runs on a schedule against a protected branch. Choose the schedule based on how quickly permission changes must reach Sim.
 
 ```yaml title=".gitlab-ci.yml"
 sync_gitlab_permissions:
@@ -102,22 +133,28 @@ sync_gitlab_permissions:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_PROTECTED == "true"'
   before_script:
-    - apk add --no-cache curl jq
+    - apk add --no-cache ca-certificates curl jq python3
   script:
     - |
       set -eu
+      umask 077
+      export_root=$(mktemp -d)
+      trap 'rm -rf "$export_root"' EXIT
       url="${SIM_BASE_URL%/}/api/v2/organizations/$SIM_ORG_ID/search/sources/$SIM_SOURCE_ID/permissions"
       auth="X-API-Key: $SIM_API_KEY"
       current=$(curl --fail --silent --show-error -H "$auth" "$url")
       revision=$(printf '%s' "$current" | jq -er '.data.revision')
-      ./ci/export-gitlab-permissions
+      python3 ci/export-gitlab-permissions.py \
+        --gitlab-url "$CI_SERVER_URL" --project "$GITLAB_PROJECT" \
+        --output-dir "$export_root/permissions" --requests-per-minute 60
       jq -n --argjson rev "$revision" \
-        --rawfile users users.csv --rawfile grants project-permissions.csv \
+        --rawfile users "$export_root/permissions/users.csv" \
+        --rawfile grants "$export_root/permissions/project-permissions.csv" \
         '{expectedRevision: $rev, permissions: {provider: "gitlab",
           userMapping: {filename: "users.csv", content: $users},
-          projectPermissions: {filename: "project-permissions.csv", content: $grants}}}' > update.json
+          projectPermissions: {filename: "project-permissions.csv", content: $grants}}}' > "$export_root/update.json"
       curl --fail --silent --show-error --request PUT -H "$auth" \
-        -H 'Content-Type: application/json' --data-binary @update.json "$url"
+        -H 'Content-Type: application/json' --data-binary "@$export_root/update.json" "$url"
 ```
 
 A successful update returns the new revision. A `409 Conflict` means someone updated the source after the job read its revision. Rerun the job from the beginning so it exports current grants. An invalid or header-only export leaves the previous grants in place. Alert on failed jobs so revocations aren't missed. If the project should have no readers, choose **Pause search** in the source settings. You can update the grants while the source is paused, then resume search when the grants are correct.

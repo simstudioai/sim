@@ -2,7 +2,7 @@
 title: Amplitude
 description: Track events and query analytics from Amplitude
 integration:
-  type: "amplitude"
+  type: "amplitude_v2"
   color: "#13294B"
 ---
 
@@ -11,6 +11,8 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Amplitude](https://amplitude.com/) to send events, update user and group properties, and query product analytics from a workflow. The HTTP and Dashboard REST APIs use API-key and secret-key authentication.
+
+Connect an Amplitude project once as an Amplitude credential: in Amplitude, open **Settings > Projects**, choose the project, and copy the **API key** and **secret key** from its **General** tab. Enter `eu` as the data residency only for a project hosted in Amplitude's EU data center. Sim checks the pair by listing the project's events, a read with no billing cost. Event and identify operations send the API key, analytics operations and **User Profile** send both keys; User Profile is not available for EU projects. Workflows built with the earlier Amplitude block keep the keys they entered in the block.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -29,7 +31,6 @@ Track an event in Amplitude using the HTTP V2 API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Amplitude API Key |
 | `userId` | string | No | User ID \(required if no device_id\) |
 | `deviceId` | string | No | Device ID \(required if no user_id\) |
 | `eventType` | string | Yes | Name of the event \(e.g., "page_view", "purchase"\) |
@@ -48,7 +49,6 @@ Track an event in Amplitude using the HTTP V2 API.
 | `revenue` | string | No | Revenue amount |
 | `productId` | string | No | Product identifier |
 | `revenueType` | string | No | Revenue type \(e.g., "purchase", "refund"\) |
-| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -71,11 +71,9 @@ Set user properties in Amplitude using the Identify API. Supports $set, $setOnce
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Amplitude API Key |
 | `userId` | string | No | User ID \(required if no device_id\) |
 | `deviceId` | string | No | Device ID \(required if no user_id\) |
 | `userProperties` | string | Yes | JSON object of user properties. Use operations like $set, $setOnce, $add, $append, $unset. |
-| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -96,11 +94,9 @@ Set group-level properties in Amplitude. Supports $set, $setOnce, $add, $append,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Amplitude API Key |
 | `groupType` | string | Yes | Group classification \(e.g., "company", "org_id"\) |
 | `groupValue` | string | Yes | Specific group identifier \(e.g., "Acme Corp"\) |
 | `groupProperties` | string | Yes | JSON object of group properties. Use operations like $set, $setOnce, $add, $append, $unset. |
-| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -121,10 +117,7 @@ Search for a user by User ID, Device ID, or Amplitude ID using the Dashboard RES
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Amplitude API Key |
-| `secretKey` | string | Yes | Amplitude Secret Key |
 | `user` | string | Yes | User ID, Device ID, or Amplitude ID to search for |
-| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -147,13 +140,10 @@ Get the event stream for a specific user by their Amplitude ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Amplitude API Key |
-| `secretKey` | string | Yes | Amplitude Secret Key |
 | `amplitudeId` | string | Yes | Amplitude internal user ID |
 | `offset` | string | No | Offset for pagination \(default 0\) |
 | `limit` | string | No | Maximum number of events to return \(default 1000, max 1000\) |
 | `direction` | string | No | Sort direction: "latest" or "earliest" \(default: latest\) |
-| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -190,7 +180,6 @@ Get a user profile including properties, cohort memberships, and computed proper
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | Amplitude Secret Key |
 | `userId` | string | No | External user ID \(required if no device_id\) |
 | `deviceId` | string | No | Device ID \(required if no user_id\) |
 | `getAmpProps` | string | No | Include Amplitude user properties \(true/false, default: false\) |
@@ -219,8 +208,6 @@ Query event analytics data with segmentation. Get event counts, uniques, average
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Amplitude API Key |
-| `secretKey` | string | Yes | Amplitude Secret Key |
 | `eventType` | string | Yes | Event type name to analyze |
 | `start` | string | Yes | Start date in YYYYMMDD format |
 | `end` | string | Yes | End date in YYYYMMDD format |
@@ -232,7 +219,6 @@ Query event analytics data with segmentation. Get event counts, uniques, average
 | `filters` | string | No | JSON array of filter objects applied to the event, e.g. \[\{"subprop_type":"event","subprop_key":"city","subprop_op":"is","subprop_value":\["San Francisco"\]\}\] |
 | `formula` | string | No | Required when metric is "formula", e.g. "UNIQUES\(A\)/UNIQUES\(B\)" |
 | `segment` | string | No | JSON segment definition\(s\) applied to the query |
-| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -255,15 +241,12 @@ Get active or new user counts over a date range from the Dashboard REST API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Amplitude API Key |
-| `secretKey` | string | Yes | Amplitude Secret Key |
 | `start` | string | Yes | Start date in YYYYMMDD format |
 | `end` | string | Yes | End date in YYYYMMDD format |
 | `metric` | string | No | Metric type: "active" or "new" \(default: active\) |
 | `interval` | string | No | Time interval: 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
 | `groupBy` | string | No | Property name to group by |
 | `segment` | string | No | JSON segment definition\(s\) applied to the query |
-| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -285,9 +268,6 @@ Get real-time active user counts at 5-minute granularity for the last 2 days.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Amplitude API Key |
-| `secretKey` | string | Yes | Amplitude Secret Key |
-| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -309,9 +289,6 @@ List all event types in the Amplitude project with their weekly totals and uniqu
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Amplitude API Key |
-| `secretKey` | string | Yes | Amplitude Secret Key |
-| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -338,15 +315,12 @@ Get revenue LTV data including ARPU, ARPPU, total revenue, and paying user count
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Amplitude API Key |
-| `secretKey` | string | Yes | Amplitude Secret Key |
 | `start` | string | Yes | Start date in YYYYMMDD format |
 | `end` | string | Yes | End date in YYYYMMDD format |
 | `metric` | string | No | Metric: 0 \(ARPU\), 1 \(ARPPU\), 2 \(Total Revenue\), 3 \(Paying Users\) |
 | `interval` | string | No | Time interval: 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
 | `groupBy` | string | No | Property name to group by \(limit: one\) |
 | `segment` | string | No | JSON segment definition\(s\) applied to the query |
-| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -369,8 +343,6 @@ Analyze conversion rates and drop-off between a sequence of events.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Amplitude API Key |
-| `secretKey` | string | Yes | Amplitude Secret Key |
 | `events` | string | Yes | JSON array of event objects, one per funnel step in order, e.g. \[\{"event_type":"signup"\},\{"event_type":"purchase"\}\] |
 | `start` | string | Yes | Start date in YYYYMMDD format |
 | `end` | string | Yes | End date in YYYYMMDD format |
@@ -381,7 +353,6 @@ Analyze conversion rates and drop-off between a sequence of events.
 | `groupBy` | string | No | Property to group by \(limit: one; prefix custom properties with "gp:"\) |
 | `limit` | string | No | Maximum number of group-by values \(default: 100, max: 1000\) |
 | `segment` | string | No | JSON segment definition\(s\) applied to the query |
-| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -408,8 +379,6 @@ Measure how many users return to perform an action after a starting action.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Amplitude API Key |
-| `secretKey` | string | Yes | Amplitude Secret Key |
 | `startEvent` | string | Yes | JSON starting event object, e.g. \{"event_type":"_new"\} or \{"event_type":"_active"\} |
 | `returnEvent` | string | Yes | JSON returning event object, e.g. \{"event_type":"_all"\} or \{"event_type":"_active"\} |
 | `start` | string | Yes | Start date in YYYYMMDD format |
@@ -419,7 +388,6 @@ Measure how many users return to perform an action after a starting action.
 | `interval` | string | No | Time interval: 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
 | `groupBy` | string | No | Property to group by \(limit: one; prefix custom properties with "gp:"\) |
 | `segment` | string | No | JSON segment definition\(s\) applied to the query |
-| `dataResidency` | string | No | Data residency region: "us" \(default\) or "eu" |
 
 #### Output
 

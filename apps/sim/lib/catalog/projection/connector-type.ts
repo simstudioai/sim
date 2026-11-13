@@ -16,7 +16,14 @@ import type {
 /** How a connector authenticates against its source. */
 export type CatalogConnectorAuth =
   | { mode: 'oauth'; provider: string; requiredScopes?: string[] }
-  | { mode: 'apiKey'; label?: string; placeholder?: string; optional: boolean }
+  | {
+      mode: 'apiKey'
+      label?: string
+      placeholder?: string
+      optional: boolean
+      /** A saved credential of this service may be sent as `credentialId` instead of the key. */
+      savedCredential?: { provider: string; label: string }
+    }
 
 /**
  * One field of a connector's `sourceConfig`.
@@ -48,6 +55,8 @@ export interface CatalogConnectorConfigField {
   mode?: 'basic' | 'advanced'
   canonicalParamId?: string
   multi?: boolean
+  /** Applies only with the connector's API key; omit it when sending a saved `credentialId`. */
+  apiKeyOnly?: boolean
 }
 
 /** A tag slot a connector populates on the documents it syncs. */
@@ -83,6 +92,14 @@ function projectAuth(auth: ConnectorMeta['auth']): CatalogConnectorAuth {
     optional: auth.optional === true,
     ...(auth.label !== undefined ? { label: auth.label } : {}),
     ...(auth.placeholder !== undefined ? { placeholder: auth.placeholder } : {}),
+    ...(auth.savedCredential
+      ? {
+          savedCredential: {
+            provider: auth.savedCredential.provider,
+            label: auth.savedCredential.label,
+          },
+        }
+      : {}),
   }
 }
 
@@ -120,6 +137,7 @@ function projectConfigField(field: ConnectorConfigField): CatalogConnectorConfig
   if (field.mode !== undefined) projected.mode = field.mode
   if (field.canonicalParamId !== undefined) projected.canonicalParamId = field.canonicalParamId
   if (field.multi !== undefined) projected.multi = field.multi
+  if (field.apiKeyOnly) projected.apiKeyOnly = true
   return projected
 }
 

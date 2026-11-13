@@ -3,6 +3,7 @@ import type {
   GoogleSheetsV2CopySheetResponse,
 } from '@/tools/google_sheets/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const copySheetV2Tool: ToolConfig<
   GoogleSheetsV2CopySheetParams,
@@ -58,7 +59,7 @@ export const copySheetV2Tool: ToolConfig<
         throw new Error('Sheet ID is required')
       }
 
-      return `https://sheets.googleapis.com/v4/spreadsheets/${sourceSpreadsheetId}/sheets/${sheetId}:copyTo`
+      return `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(sourceSpreadsheetId, 'sourceSpreadsheetId')}/sheets/${safeUrlPathSegment(sheetId, 'sheetId')}:copyTo`
     },
     method: 'POST',
     headers: (params) => {

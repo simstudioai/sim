@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { SERVICENOW_CREDENTIAL_PARAMS } from '@/tools/servicenow/params'
 import type { ServiceNowReadParams, ServiceNowReadResponse } from '@/tools/servicenow/types'
 import {
   buildServiceNowHeaders,
@@ -37,6 +38,7 @@ export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResp
       visibility: 'user-only',
       description: 'ServiceNow password',
     },
+    ...SERVICENOW_CREDENTIAL_PARAMS,
     tableName: {
       type: 'string',
       required: true,

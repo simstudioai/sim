@@ -416,7 +416,8 @@ Example for "Add a required multiple choice question about favorite color":
   outputs: {
     responses: {
       type: 'json',
-      description: 'Array of form responses',
+      description:
+        'Array of form responses [{responseId, createTime, lastSubmittedTime, answers, respondentEmail, totalScore}]',
       condition: {
         field: 'operation',
         value: 'get_responses',
@@ -434,7 +435,8 @@ Example for "Add a required multiple choice question about favorite color":
     },
     response: {
       type: 'json',
-      description: 'Single form response',
+      description:
+        'Single form response (responseId, createTime, lastSubmittedTime, answers, respondentEmail, totalScore)',
       condition: {
         field: 'operation',
         value: 'get_responses',

@@ -47,6 +47,18 @@ describe('s3_get_object request signing', () => {
     })
   })
 
+  it("escapes !'()* in the key the way the AWS SDK's SignatureV4 does", () => {
+    const headers = headersFor({
+      s3Uri: "https://my-bucket.s3.us-east-1.amazonaws.com/reports/q3 (final)!*'.pdf",
+      accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+      secretAccessKey: SECRET_ACCESS_KEY,
+    })
+
+    expect(headers.Authorization).toBe(
+      'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20261106/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=d3ac6102b527b7f08b266cbb9e733f4875c91cabbea21fc724476ff6e58ce400'
+    )
+  })
+
   it('presigns an inline-key download URL exactly as before', () => {
     expect(
       generatePresignedUrl(

@@ -16,6 +16,7 @@ vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
 import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/functional-outputs'
 import { isWaitingHumanPausePoint } from '@/lib/workflows/executor/execution-state'
 import {
+  getProjectedWorkflowExecutionStatus,
   getWorkflowExecutionStatus,
   readPausedRunPoints,
 } from '@/lib/workflows/executor/execution-status'
@@ -662,6 +663,120 @@ describe('getWorkflowExecutionStatus polls that read no execution data', () => {
     await expect(
       getWorkflowExecutionStatus({ ...input, selectedOutputs: ['block-1'] })
     ).rejects.toBeInstanceOf(FunctionalOutputsUnavailableError)
+  })
+})
+
+describe('getWorkflowExecutionStatus once a pause has settled', () => {
+  const FAILED_TIME_POINT = {
+    contextId: 'wait-five',
+    blockId: 'wait-five',
+    registeredAt: '2026-08-05T12:00:01.000Z',
+    resumeStatus: 'failed',
+    pauseKind: 'time',
+    resumeAt: '2026-08-05T12:05:01.000Z',
+  }
+
+  /** A run whose resumed execution failed: the log is terminal, the pause record still open. */
+  function queueFailedRunWithOpenPause(pausePoints: Record<string, unknown>) {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        status: 'failed',
+        level: 'error',
+        trigger: 'api',
+        startedAt: new Date('2026-08-05T12:00:00.000Z'),
+        endedAt: new Date('2026-08-05T12:05:03.000Z'),
+        totalDurationMs: 303000,
+        executionData: {},
+        costTotal: null,
+      },
+    ])
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.pausedExecutions, [
+      {
+        id: 'paused-execution-1',
+        status: 'paused',
+        pausePoints,
+        metadata: {},
+        resumedCount: 0,
+        pausedAt: new Date('2026-08-05T12:00:01.000Z'),
+        nextResumeAt: null,
+      },
+    ])
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+    mockGetJob.mockResolvedValue(null)
+    mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
+      executionData: {
+        error: 'Lookup: upstream returned 500',
+        traceSpans: [
+          {
+            id: 'span-1',
+            name: 'Lookup',
+            type: 'api',
+            status: 'error',
+            blockId: 'lookup',
+            executionOrder: 2,
+          },
+        ],
+      },
+      blockOutputs: new Map(),
+    })
+  })
+
+  it('reports a run whose resumed execution failed as failed, with its error and failing block', async () => {
+    queueFailedRunWithOpenPause({ 'wait-five': FAILED_TIME_POINT })
+
+    const projected = await getProjectedWorkflowExecutionStatus(input)
+
+    expect(projected?.status).toMatchObject({
+      status: 'failed',
+      paused: null,
+      error: 'Lookup: upstream returned 500',
+    })
+    expect(projected?.pausePoints).toBeNull()
+    expect(projected?.failedBlock).toMatchObject({ blockId: 'lookup', blockName: 'Lookup' })
+  })
+
+  it.each([
+    [
+      'a human pause',
+      {
+        contextId: 'approval',
+        blockId: 'approval',
+        resumeStatus: 'paused',
+        pauseKind: 'human',
+        resumeAt: null,
+      },
+    ],
+    [
+      'a time pause',
+      {
+        contextId: 'wait-ten',
+        blockId: 'wait-ten',
+        resumeStatus: 'paused',
+        pauseKind: 'time',
+        resumeAt: '2026-08-05T12:10:01.000Z',
+      },
+    ],
+  ])('still reads paused while %s is waiting beside the failed one', async (_, waiting) => {
+    queueFailedRunWithOpenPause({ 'wait-five': FAILED_TIME_POINT, [waiting.contextId]: waiting })
+
+    const status = await getWorkflowExecutionStatus(input)
+
+    expect(status).toMatchObject({
+      status: 'paused',
+      error: null,
+      paused: {
+        contextId: waiting.contextId,
+        pauseKind: waiting.pauseKind,
+        resumeAt: waiting.resumeAt,
+      },
+    })
   })
 })
 

@@ -1,4 +1,4 @@
-import type { ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
  * Common parameters for Google Groups API calls
@@ -16,6 +16,9 @@ export interface GoogleGroupsListParams extends GoogleGroupsCommonParams {
   maxResults?: number
   pageToken?: string
   query?: string
+  userKey?: string
+  orderBy?: string
+  sortOrder?: string
 }
 
 /**
@@ -59,6 +62,7 @@ export interface GoogleGroupsListMembersParams extends GoogleGroupsCommonParams 
   maxResults?: number
   pageToken?: string
   roles?: string
+  includeDerivedMembership?: boolean
 }
 
 /**
@@ -217,83 +221,104 @@ export interface GoogleGroupsRemoveAliasResponse extends ToolResponse {
 }
 
 /**
+ * Group settings fields returned by the Groups Settings API
+ */
+interface GoogleGroupsSettings {
+  email: string | null
+  name: string | null
+  description: string | null
+  whoCanJoin: string | null
+  whoCanViewMembership: string | null
+  whoCanViewGroup: string | null
+  whoCanPostMessage: string | null
+  allowExternalMembers: string | null
+  allowWebPosting: string | null
+  primaryLanguage: string | null
+  isArchived: string | null
+  archiveOnly: string | null
+  messageModerationLevel: string | null
+  spamModerationLevel: string | null
+  replyTo: string | null
+  customReplyTo: string | null
+  includeCustomFooter: string | null
+  customFooterText: string | null
+  sendMessageDenyNotification: string | null
+  defaultMessageDenyNotificationText: string | null
+  membersCanPostAsTheGroup: string | null
+  includeInGlobalAddressList: string | null
+  whoCanLeaveGroup: string | null
+  whoCanContactOwner: string | null
+  favoriteRepliesOnTop: string | null
+  whoCanApproveMembers: string | null
+  whoCanBanUsers: string | null
+  whoCanModerateMembers: string | null
+  whoCanModerateContent: string | null
+  whoCanAssistContent: string | null
+  enableCollaborativeInbox: string | null
+  whoCanDiscoverGroup: string | null
+  defaultSender: string | null
+}
+
+/**
  * Response for getting group settings
  */
 export interface GoogleGroupsGetSettingsResponse extends ToolResponse {
-  output: {
-    email: string | null
-    name: string | null
-    description: string | null
-    whoCanJoin: string | null
-    whoCanViewMembership: string | null
-    whoCanViewGroup: string | null
-    whoCanPostMessage: string | null
-    allowExternalMembers: string | null
-    allowWebPosting: string | null
-    primaryLanguage: string | null
-    isArchived: string | null
-    archiveOnly: string | null
-    messageModerationLevel: string | null
-    spamModerationLevel: string | null
-    replyTo: string | null
-    customReplyTo: string | null
-    includeCustomFooter: string | null
-    customFooterText: string | null
-    sendMessageDenyNotification: string | null
-    defaultMessageDenyNotificationText: string | null
-    membersCanPostAsTheGroup: string | null
-    includeInGlobalAddressList: string | null
-    whoCanLeaveGroup: string | null
-    whoCanContactOwner: string | null
-    favoriteRepliesOnTop: string | null
-    whoCanApproveMembers: string | null
-    whoCanBanUsers: string | null
-    whoCanModerateMembers: string | null
-    whoCanModerateContent: string | null
-    whoCanAssistContent: string | null
-    enableCollaborativeInbox: string | null
-    whoCanDiscoverGroup: string | null
-    defaultSender: string | null
-  }
+  output: GoogleGroupsSettings & { settings: GoogleGroupsSettings }
 }
 
 /**
  * Response for updating group settings
  */
 export interface GoogleGroupsUpdateSettingsResponse extends ToolResponse {
-  output: {
-    email: string | null
-    name: string | null
-    description: string | null
-    whoCanJoin: string | null
-    whoCanViewMembership: string | null
-    whoCanViewGroup: string | null
-    whoCanPostMessage: string | null
-    allowExternalMembers: string | null
-    allowWebPosting: string | null
-    primaryLanguage: string | null
-    isArchived: string | null
-    archiveOnly: string | null
-    messageModerationLevel: string | null
-    spamModerationLevel: string | null
-    replyTo: string | null
-    customReplyTo: string | null
-    includeCustomFooter: string | null
-    customFooterText: string | null
-    sendMessageDenyNotification: string | null
-    defaultMessageDenyNotificationText: string | null
-    membersCanPostAsTheGroup: string | null
-    includeInGlobalAddressList: string | null
-    whoCanLeaveGroup: string | null
-    whoCanContactOwner: string | null
-    favoriteRepliesOnTop: string | null
-    whoCanApproveMembers: string | null
-    whoCanBanUsers: string | null
-    whoCanModerateMembers: string | null
-    whoCanModerateContent: string | null
-    whoCanAssistContent: string | null
-    enableCollaborativeInbox: string | null
-    whoCanDiscoverGroup: string | null
-    defaultSender: string | null
+  output: GoogleGroupsSettings & { settings: GoogleGroupsSettings }
+}
+
+/** Settings fields as the Groups Settings API returns them (`default_sender` is snake_case on the wire). */
+type GoogleGroupsSettingsApiData = { [K in keyof GoogleGroupsSettings]?: string | null } & {
+  default_sender?: string | null
+}
+
+/** Maps a Groups Settings API resource to the flat settings output shared by Get and Update Settings. */
+export function mapGroupSettings(data: GoogleGroupsSettingsApiData): GoogleGroupsSettings {
+  return {
+    email: data.email ?? null,
+    name: data.name ?? null,
+    description: data.description ?? null,
+    whoCanJoin: data.whoCanJoin ?? null,
+    whoCanViewMembership: data.whoCanViewMembership ?? null,
+    whoCanViewGroup: data.whoCanViewGroup ?? null,
+    whoCanPostMessage: data.whoCanPostMessage ?? null,
+    allowExternalMembers: data.allowExternalMembers ?? null,
+    allowWebPosting: data.allowWebPosting ?? null,
+    primaryLanguage: data.primaryLanguage ?? null,
+    isArchived: data.isArchived ?? null,
+    archiveOnly: data.archiveOnly ?? null,
+    messageModerationLevel: data.messageModerationLevel ?? null,
+    spamModerationLevel: data.spamModerationLevel ?? null,
+    replyTo: data.replyTo ?? null,
+    customReplyTo: data.customReplyTo ?? null,
+    includeCustomFooter: data.includeCustomFooter ?? null,
+    customFooterText: data.customFooterText ?? null,
+    sendMessageDenyNotification: data.sendMessageDenyNotification ?? null,
+    defaultMessageDenyNotificationText: data.defaultMessageDenyNotificationText ?? null,
+    membersCanPostAsTheGroup: data.membersCanPostAsTheGroup ?? null,
+    includeInGlobalAddressList: data.includeInGlobalAddressList ?? null,
+    whoCanLeaveGroup: data.whoCanLeaveGroup ?? null,
+    whoCanContactOwner: data.whoCanContactOwner ?? null,
+    favoriteRepliesOnTop: data.favoriteRepliesOnTop ?? null,
+    whoCanApproveMembers: data.whoCanApproveMembers ?? null,
+    whoCanBanUsers: data.whoCanBanUsers ?? null,
+    whoCanModerateMembers: data.whoCanModerateMembers ?? null,
+    whoCanModerateContent: data.whoCanModerateContent ?? null,
+    whoCanAssistContent: data.whoCanAssistContent ?? null,
+    enableCollaborativeInbox: data.enableCollaborativeInbox ?? null,
+    whoCanDiscoverGroup: data.whoCanDiscoverGroup ?? null,
+    defaultSender: data.default_sender ?? data.defaultSender ?? null,
   }
+}
+
+export const SETTINGS_OBJECT_OUTPUT: OutputProperty = {
+  type: 'json',
+  description:
+    'All returned group settings as one object, with the same fields as the top-level outputs (email, name, description, whoCanJoin, whoCanViewMembership, whoCanViewGroup, whoCanPostMessage, allowExternalMembers, ..., defaultSender)',
 }

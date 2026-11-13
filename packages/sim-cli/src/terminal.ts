@@ -46,6 +46,7 @@ function explainFailure(error: unknown, program: Command): number | null {
           code: error.code ?? 'CLI_ERROR',
           message: error.message,
           ...(error.details === undefined ? {} : { details: error.details }),
+          ...(error.requestId ? { requestId: error.requestId } : {}),
         },
       }
       process.stderr.write(output === 'json' ? `${JSON.stringify(payload)}\n` : dump(payload))
@@ -58,6 +59,7 @@ function explainFailure(error: unknown, program: Command): number | null {
         console.error(styles().dim(sanitize(line)))
       }
     }
+    if (error.requestId) console.error(styles().dim(`  request id: ${sanitize(error.requestId)}`))
     return error.exitCode
   }
   return null

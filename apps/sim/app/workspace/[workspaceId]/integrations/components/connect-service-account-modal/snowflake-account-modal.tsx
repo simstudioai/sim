@@ -9,6 +9,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipTextarea,
+  cn,
   SecretInput,
 } from '@sim/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
@@ -25,11 +26,10 @@ import {
 import {
   type KeylessSetup,
   KeylessTrustFields,
-  keylessSubjectFields,
+  keylessConfigFields,
   useKeylessSetup,
   useSavedConnectionSubmit,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/keyless-connection'
-import { TokenServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/token-service-account-modal'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import {
   useCreateScopedCredential,
@@ -49,16 +49,28 @@ interface SnowflakeAccountModalProps {
   onCreated?: (credentialId: string) => void
 }
 
-type SnowflakeAuthType = 'workload_identity' | 'programmatic_access_token'
+type SnowflakeAuthType = 'workload_identity' | 'key_pair' | 'programmatic_access_token'
 
 const SNOWFLAKE_DESCRIPTOR = getTokenServiceAccountDescriptor(SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID)
 const SNOWFLAKE_DOCS_URL = 'https://docs.sim.ai/integrations/snowflake-service-account'
-const HOST_PATTERN = /^[a-z0-9][a-z0-9.-]*\.snowflakecomputing\.(com|cn)$/i
+const HOST_PATTERN = /^[a-z0-9][a-z0-9_.-]*\.snowflakecomputing\.(com|cn)$/i
 
 const AUTH_TYPE_HINTS: Record<SnowflakeAuthType, string> = {
   workload_identity:
     'No secret is stored. Sim signs a short-lived token your Snowflake service user trusts.',
+  key_pair:
+    'Sim stores the private key and signs a short-lived token with it for each run. Assign the public key to the user in Snowflake first.',
   programmatic_access_token: 'Sim sends this token on every request.',
+}
+
+/** Copy for the shared verification codes a key-pair save reports. */
+function keyPairErrorMessage(code: string): string | undefined {
+  switch (code) {
+    case 'invalid_credentials':
+      return 'Snowflake did not accept a token signed with this key. Check the user name, that its RSA_PUBLIC_KEY (or key pair) is this private key’s public key, and that a network policy allows Sim to reach the account.'
+    default:
+      return keylessErrorMessage(code)
+  }
 }
 
 /** Copy for the shared verification codes a keyless save reports. */
@@ -75,14 +87,19 @@ function keylessErrorMessage(code: string): string | undefined {
   }
 }
 
-/** The statement that creates a service user trusting only this credential's subject. */
-function buildCreateUserStatement(issuer: string, subject: string) {
+/**
+ * The statement that creates a service user trusting only this credential's
+ * subject. Snowflake accepts the default `snowflakecomputing.com` audience with
+ * no `OIDC_AUDIENCE_LIST`; a custom audience must be listed there.
+ */
+function buildCreateUserStatement(issuer: string, subject: string, customAudience?: string) {
   return [
     'CREATE USER SIM_WORKFLOWS',
     '  WORKLOAD_IDENTITY = (',
     '    TYPE = OIDC',
     `    ISSUER = '${issuer}'`,
     `    SUBJECT = '${subject}'`,
+    ...(customAudience ? [`    OIDC_AUDIENCE_LIST = ('${customAudience}')`] : []),
     '  )',
     '  TYPE = SERVICE;',
   ].join('\n')
@@ -96,10 +113,10 @@ function normalizeHostInput(raw: string): string {
 }
 
 /**
- * Snowflake connections: a programmatic access token, or keyless workload
- * identity where this deployment can sign tokens. Where it cannot (or for an
- * organization credential, which keyless never binds to), the standard
- * token dialog is shown unchanged.
+ * Snowflake connections: a programmatic access token, a key pair, or keyless
+ * workload identity where this deployment can sign tokens. Where it cannot (or
+ * for an organization credential, which keyless never binds to), keyless is
+ * simply not offered.
  */
 export function SnowflakeAccountModal(props: SnowflakeAccountModalProps) {
   if (!props.open) return null
@@ -118,9 +135,6 @@ function SnowflakeAccountGate(props: SnowflakeAccountModalProps) {
     organizationId: props.organizationId,
     credentialId: props.credentialId,
   })
-  if (keyless.available === false && SNOWFLAKE_DESCRIPTOR) {
-    return <TokenServiceAccountModal {...props} descriptor={SNOWFLAKE_DESCRIPTOR} />
-  }
   return <SnowflakeAccountForm {...props} keyless={keyless} />
 }
 
@@ -137,44 +151,49 @@ function SnowflakeAccountForm({
   keyless,
 }: SnowflakeAccountModalProps & { keyless: KeylessSetup<'snowflake'> }) {
   const close = () => onOpenChange(false)
-  const keylessSubmit = useSavedConnectionSubmit({
-    providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
-    workspaceId,
-    organizationId,
-    credentialId,
-    onCreated,
-    onClose: close,
-    messageForCode: keylessErrorMessage,
-  })
   const createCredential = useCreateScopedCredential()
   const updateCredential = useUpdateScopedCredential()
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [selectedAuthType, setSelectedAuthType] = useState<SnowflakeAuthType | null>(null)
   const [host, setHost] = useState('')
   const [token, setToken] = useState('')
+  const [user, setUser] = useState('')
+  const [privateKey, setPrivateKey] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
 
-  // A reconnect opens on the credential's stored mode, so it never switches auth by default;
-  // a new connection defaults to keyless wherever this deployment supports it.
-  const defaultAuthType: SnowflakeAuthType = credentialId
-    ? (keyless.reconnectAuthType ?? 'programmatic_access_token')
+  // A reconnect opens on the credential's stored mode, so it never switches auth by default. An
+  // organization credential's mode is not reported, so its reconnect starts with no mode chosen
+  // rather than a guess. A new connection defaults to keyless wherever this deployment supports it.
+  const defaultAuthType: SnowflakeAuthType | null = credentialId
+    ? (keyless.reconnectAuthType ?? null)
     : keyless.available
       ? 'workload_identity'
       : 'programmatic_access_token'
-  const authType: SnowflakeAuthType = selectedAuthType ?? defaultAuthType
+  const authType = selectedAuthType ?? defaultAuthType
+  const connectionSubmit = useSavedConnectionSubmit({
+    providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+    workspaceId,
+    organizationId,
+    credentialId,
+    onCreated,
+    onClose: close,
+    messageForCode: authType === 'key_pair' ? keyPairErrorMessage : keylessErrorMessage,
+  })
   const normalizedHost = normalizeHostInput(host)
   const isPending =
-    keylessSubmit.isPending || createCredential.isPending || updateCredential.isPending
+    connectionSubmit.isPending || createCredential.isPending || updateCredential.isPending
   const disabled =
     isPending ||
+    !authType ||
     !normalizedHost ||
     (authType === 'programmatic_access_token' && !token.trim()) ||
+    (authType === 'key_pair' && (!user.trim() || !privateKey.trim())) ||
     (authType === 'workload_identity' && !keyless.ready)
-  const error = authType === 'workload_identity' ? keylessSubmit.error : tokenError
+  const error = authType === 'programmatic_access_token' ? tokenError : connectionSubmit.error
 
   const clearErrors = () => {
-    keylessSubmit.clearError()
+    connectionSubmit.clearError()
     setTokenError(null)
   }
   const edit = (setter: (value: string) => void) => (value: string) => {
@@ -220,11 +239,24 @@ function SnowflakeAccountForm({
       void submitToken()
       return
     }
-    void keylessSubmit.submit({
+    if (authType === 'key_pair') {
+      void connectionSubmit.submit({
+        config: {
+          authType: 'key_pair',
+          host: normalizedHost,
+          user: user.trim(),
+          privateKey: privateKey.trim(),
+        },
+        displayName,
+        description,
+      })
+      return
+    }
+    void connectionSubmit.submit({
       config: {
         authType: 'workload_identity',
         host: normalizedHost,
-        ...keylessSubjectFields(keyless),
+        ...keylessConfigFields(keyless),
       },
       displayName,
       description,
@@ -232,14 +264,19 @@ function SnowflakeAccountForm({
   }
 
   const createUserStatement =
-    authType === 'workload_identity' && keyless.trust
-      ? buildCreateUserStatement(keyless.trust.issuer, keyless.trust.subject)
+    authType === 'workload_identity' && keyless.trust && !keyless.audienceError
+      ? buildCreateUserStatement(
+          keyless.trust.issuer,
+          keyless.trust.subject,
+          keyless.customAudience
+        )
       : null
   const action = credentialId ? 'Reconnect' : 'Add'
   const authOptions = [
     ...(keyless.available
       ? [{ value: 'workload_identity', label: 'Service user (keyless, via Sim OIDC)' }]
       : []),
+    { value: 'key_pair', label: 'Key pair (RSA private key)' },
     { value: 'programmatic_access_token', label: 'Programmatic access token' },
   ]
 
@@ -252,7 +289,7 @@ function SnowflakeAccountForm({
         <ChipModalField
           type='dropdown'
           title='Authentication'
-          value={authType}
+          value={authType ?? undefined}
           onChange={(value) => {
             setSelectedAuthType(value as SnowflakeAuthType)
             clearErrors()
@@ -260,7 +297,7 @@ function SnowflakeAccountForm({
           options={authOptions}
           placeholder='Choose how Sim signs in to Snowflake'
           required
-          hint={AUTH_TYPE_HINTS[authType]}
+          hint={authType ? AUTH_TYPE_HINTS[authType] : undefined}
         />
         <ChipModalField
           type='input'
@@ -272,7 +309,7 @@ function SnowflakeAccountForm({
           autoComplete='off'
           error={
             normalizedHost && !HOST_PATTERN.test(normalizedHost)
-              ? 'Snowflake account hosts end in .snowflakecomputing.com.'
+              ? 'Snowflake account hosts end in .snowflakecomputing.com, or .snowflakecomputing.cn in China.'
               : undefined
           }
         />
@@ -292,7 +329,51 @@ function SnowflakeAccountForm({
           </ChipModalField>
         )}
 
-        {authType === 'workload_identity' && <KeylessTrustFields setup={keyless} />}
+        {authType === 'key_pair' && (
+          <>
+            <ChipModalField
+              type='input'
+              title='User'
+              value={user}
+              onChange={edit(setUser)}
+              placeholder='SIM_WORKFLOWS'
+              required
+              autoComplete='off'
+            />
+            <ChipModalField
+              type='custom'
+              title='Private key'
+              required
+              hint='An unencrypted PKCS#8 PEM RSA key of 2048 to 4096 bits, such as one created with openssl pkcs8 -topk8 -nocrypt.'
+            >
+              {(aria) => (
+                <ChipTextarea
+                  {...aria}
+                  value={privateKey}
+                  onChange={(event) => edit(setPrivateKey)(event.target.value)}
+                  placeholder='-----BEGIN PRIVATE KEY-----'
+                  className={cn(
+                    'min-h-[120px] font-mono',
+                    privateKey && '[&:not(:focus)]:[-webkit-text-security:disc]'
+                  )}
+                  spellCheck={false}
+                  autoComplete='off'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  data-lpignore='true'
+                  data-form-type='other'
+                />
+              )}
+            </ChipModalField>
+          </>
+        )}
+
+        {authType === 'workload_identity' && (
+          <KeylessTrustFields
+            setup={keyless}
+            audienceHint='The statement below lists it in OIDC_AUDIENCE_LIST.'
+          />
+        )}
 
         {createUserStatement && (
           <ChipModalField

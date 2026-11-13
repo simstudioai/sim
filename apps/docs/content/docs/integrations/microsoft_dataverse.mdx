@@ -345,6 +345,8 @@ Query and list records from a Microsoft Dataverse table. Supports OData query op
 | `top` | number | No | Maximum number of records to return \(OData $top\) |
 | `expand` | string | No | Navigation properties to expand \(OData $expand\) |
 | `count` | string | No | Set to "true" to include total record count in response \(OData $count\) |
+| `pageSize` | number | No | Records per page \(Prefer: odata.maxpagesize, 1-5000\). Defaults to 100 when Max Results is not set. Dataverse ignores $top when a page size is sent. When following nextLink, pass the same pageSize used for the first page, as Dataverse requires. |
+| `nextLink` | string | No | nextLink returned by a previous page. When set, the other query options are ignored and the same page size must be used. It is empty on the last page; stop when empty. |
 
 #### Output
 
@@ -354,6 +356,7 @@ Query and list records from a Microsoft Dataverse table. Supports OData query op
 | `count` | number | Number of records returned in the current page |
 | `totalCount` | number | Total number of matching records server-side \(requires $count=true\) |
 | `nextLink` | string | URL for the next page of results |
+| `pageSize` | number | Page size sent as odata.maxpagesize \(null when Max Results applied instead\); pass it with nextLink, since Dataverse requires the same value on every page |
 | `success` | boolean | Operation success status |
 
 </ReferenceDetails>
@@ -434,12 +437,14 @@ Update an existing record in a Microsoft Dataverse table. Only send the columns 
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `recordId` | string | Yes | The unique identifier \(GUID\) of the record to update |
 | `data` | object | Yes | Record data to update as a JSON object with column names as keys |
+| `returnRecord` | boolean | No | Return the updated record, including formatted values \(Prefer: return=representation\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `recordId` | string | The ID of the updated record |
+| `record` | object | Dataverse record object. Contains dynamic columns based on the queried table, plus OData metadata fields. |
 | `success` | boolean | Operation success status |
 
 </ReferenceDetails>

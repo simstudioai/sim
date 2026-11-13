@@ -10,10 +10,10 @@ import {
   MysqlOperationInputError,
 } from '@/lib/internal/mysql/operations'
 import {
+  mysqlConnectionInputSchema,
   mysqlDeleteInputSchema,
   mysqlExecuteInputSchema,
   mysqlInsertInputSchema,
-  mysqlIntrospectInputSchema,
   mysqlQueryInputSchema,
   mysqlUpdateInputSchema,
 } from '@/lib/internal/mysql/schema'
@@ -96,7 +96,7 @@ export const executeMysqlTool: InternalToolOperationHandler = async ({ toolId, i
       )
     case 'mysql_introspect':
       return executeOperation(
-        mysqlIntrospectInputSchema,
+        mysqlConnectionInputSchema,
         input,
         executeMysqlIntrospection,
         'MySQL introspection failed',

@@ -3466,6 +3466,34 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     pageType: { type: 'string', description: 'Page type (SLIDE, MASTER, etc.)' },
     pageElements: { type: 'json', description: 'Page elements array' },
     slideProperties: { type: 'json', description: 'Slide-specific properties' },
+    slideContents: {
+      type: 'json',
+      description:
+        'Plain-text view of each slide from Read: [{objectId, index, text, speakerNotes, isSkipped}]',
+    },
+    revisionId: {
+      type: 'string',
+      description: 'Presentation revision ID from Get Page (Read returns it in metadata)',
+    },
+    pageProperties: {
+      type: 'json',
+      description: 'Page properties from Get Page (pageBackgroundFill, colorScheme)',
+    },
+    layoutProperties: {
+      type: 'json',
+      description:
+        'Layout properties from Get Page, for layout pages (masterObjectId, name, displayName)',
+    },
+    notesProperties: {
+      type: 'json',
+      description: 'Notes properties from Get Page, for notes pages (speakerNotesObjectId)',
+    },
+    masterProperties: {
+      type: 'json',
+      description: 'Master properties from Get Page, for master pages (displayName)',
+    },
+    pageText: { type: 'string', description: 'Text on the page from Get Page' },
+    speakerNotes: { type: 'string', description: 'Speaker notes of the slide from Get Page' },
     deleted: { type: 'boolean', description: 'Whether object was deleted' },
     duplicatedObjectId: { type: 'string', description: 'Object ID of the duplicate' },
     moved: { type: 'boolean', description: 'Whether slides were moved' },

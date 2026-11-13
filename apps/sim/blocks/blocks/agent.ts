@@ -4,6 +4,7 @@ import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  BEDROCK_SAVED_CREDENTIAL_INPUTS,
   getAgentModelOptions,
   getModelCapabilityCondition,
   getProviderCredentialSubBlocks,
@@ -136,7 +137,7 @@ Return ONLY the JSON array.`,
       options: getAgentModelOptions,
       commandSearchable: true,
     },
-    ...getProviderCredentialSubBlocks(),
+    ...getProviderCredentialSubBlocks({ bedrockSavedCredential: true }),
     {
       id: 'evaluationState',
       title: 'State',
@@ -559,6 +560,7 @@ Return ONLY the JSON array.`,
     bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },
     bedrockSecretKey: { type: 'string', description: 'AWS Secret Access Key for Bedrock' },
     bedrockRegion: { type: 'string', description: 'AWS region for Bedrock' },
+    ...BEDROCK_SAVED_CREDENTIAL_INPUTS,
     responseFormat: {
       type: 'json',
       description: 'JSON response format schema',

@@ -13,6 +13,7 @@ export const microsoftTeamsWriteChatInputSchema = z.object({
   chatId: z.string().min(1, 'Chat ID is required'),
   content: z.string().min(1, 'Message content is required'),
   files: messageFilesSchema.optional().nullable(),
+  contentType: z.enum(['text', 'html']).optional().nullable(),
 })
 
 export const microsoftTeamsWriteChannelInputSchema = z.object({
@@ -21,6 +22,7 @@ export const microsoftTeamsWriteChannelInputSchema = z.object({
   channelId: z.string().min(1, 'Channel ID is required'),
   content: z.string().min(1, 'Message content is required'),
   files: messageFilesSchema.optional().nullable(),
+  contentType: z.enum(['text', 'html']).optional().nullable(),
 })
 
 export type MicrosoftTeamsWriteChatInput = z.infer<typeof microsoftTeamsWriteChatInputSchema>

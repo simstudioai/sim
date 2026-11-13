@@ -7,6 +7,7 @@ import { isHosted } from '@/lib/core/config/env-flags'
 import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { readAwsSession } from '@/connectors/aws-session'
 import { s3ConnectorMeta } from '@/connectors/s3/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -51,6 +52,13 @@ const BUCKET_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{1,62}$/
 
 /** Accepted region shape — AWS region codes plus Cloudflare R2's `auto`. */
 const REGION_PATTERN = /^[A-Za-z0-9-]{1,64}$/
+
+/**
+ * A commercial or GovCloud AWS region code (`us-east-1`, `us-gov-west-1`): the only regions a
+ * saved AWS credential signs for, because their S3 hosts are all `s3.<region>.amazonaws.com`.
+ * China (`cn-*`, under `amazonaws.com.cn`) and the isolated partitions use other domains.
+ */
+const AWS_REGION_PATTERN = /^(?!cn-)[a-z]{2}(-gov)?-[a-z]+-\d+$/
 
 /**
  * Default set of file extensions considered safely text-extractable. Objects
@@ -115,6 +123,8 @@ interface S3Endpoint {
 interface S3Context {
   accessKeyId: string
   secretAccessKey: string
+  /** The STS session token of a saved AWS credential's role session; signed into every request. */
+  sessionToken?: string
   region: string
   bucket: string
   endpoint?: S3Endpoint
@@ -206,20 +216,29 @@ function parseEndpoint(raw: string): S3Endpoint {
 }
 
 /**
- * Resolves AWS credentials and the target bucket from the connector's
- * sourceConfig and the encrypted secret (delivered as accessToken). When an
- * `endpoint` is configured it is parsed/validated into an {@link S3Endpoint} so
- * the connector targets an S3-compatible store via path-style addressing.
+ * Resolves AWS credentials and the target bucket.
+ *
+ * With a saved AWS credential, the server seeds its resolved keys into
+ * `syncContext` and those sign every request; the inline `accessKeyId` and the
+ * access token are not read. A saved credential signs only for Amazon S3 in an
+ * AWS region: a custom endpoint would hand the customer's AWS session to
+ * whatever host it names, so it is refused rather than ignored.
+ *
+ * Otherwise the inline key pair comes from `sourceConfig.accessKeyId` and the
+ * encrypted secret (delivered as accessToken), and an `endpoint` is parsed into
+ * an {@link S3Endpoint} so the connector targets an S3-compatible store via
+ * path-style addressing.
  */
-function resolveContext(accessToken: string, sourceConfig: Record<string, unknown>): S3Context {
-  const accessKeyId = ((sourceConfig.accessKeyId as string) ?? '').trim()
+function resolveContext(
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  syncContext: Record<string, unknown> | undefined
+): S3Context {
   const region = ((sourceConfig.region as string) ?? '').trim()
   const bucket = ((sourceConfig.bucket as string) ?? '').trim()
-  const secretAccessKey = (accessToken ?? '').trim()
   const rawEndpoint = ((sourceConfig.endpoint as string) ?? '').trim()
+  const savedSession = readAwsSession(syncContext)
 
-  if (!accessKeyId) throw new Error('Missing AWS Access Key ID')
-  if (!secretAccessKey) throw new Error('Missing AWS Secret Access Key')
   if (!region) throw new Error('Missing AWS region')
   if (!bucket) throw new Error('Missing S3 bucket name')
   if (!REGION_PATTERN.test(region)) {
@@ -230,6 +249,25 @@ function resolveContext(accessToken: string, sourceConfig: Record<string, unknow
       'Bucket name must be 2-63 characters of letters, digits, dots, hyphens, or underscores'
     )
   }
+
+  if (savedSession) {
+    if (rawEndpoint) {
+      throw new Error(
+        'A saved AWS credential signs only for Amazon S3. Remove the custom endpoint, or use access keys for an S3-compatible store.'
+      )
+    }
+    if (!AWS_REGION_PATTERN.test(region)) {
+      throw new Error(
+        'A saved AWS credential needs a commercial or GovCloud AWS region, e.g. us-east-1'
+      )
+    }
+    return { ...savedSession, region, bucket }
+  }
+
+  const accessKeyId = ((sourceConfig.accessKeyId as string) ?? '').trim()
+  const secretAccessKey = (accessToken ?? '').trim()
+  if (!accessKeyId) throw new Error('Missing AWS Access Key ID')
+  if (!secretAccessKey) throw new Error('Missing AWS Secret Access Key')
 
   const endpoint = rawEndpoint ? parseEndpoint(rawEndpoint) : undefined
 
@@ -316,6 +354,9 @@ function buildUrl(ctx: S3Context, encodedPath: string, canonicalQueryString: str
  * port for non-default custom-endpoint ports, exactly matching the wire Host.
  * Reuses {@link getSignatureKey} from the s3 tool utilities.
  *
+ * An STS session token is sent as `x-amz-security-token` and, like every
+ * `x-amz-*` header, included in the canonical and signed headers.
+ *
  * The signed headers embed `x-amz-date` and are reused verbatim across
  * `secureFetchWithRetry` attempts. S3 allows a 15-minute clock-skew window; the
  * retry helper's worst-case total backoff (~31s default, ~10s in validate) is
@@ -336,8 +377,13 @@ function buildSignedHeaders(
   const payloadHash = crypto.createHash('sha256').update('').digest('hex')
 
   const canonicalHeaders =
-    `host:${host}\n` + `x-amz-content-sha256:${payloadHash}\n` + `x-amz-date:${amzDate}\n`
-  const signedHeaders = 'host;x-amz-content-sha256;x-amz-date'
+    `host:${host}\n` +
+    `x-amz-content-sha256:${payloadHash}\n` +
+    `x-amz-date:${amzDate}\n` +
+    (ctx.sessionToken ? `x-amz-security-token:${ctx.sessionToken}\n` : '')
+  const signedHeaders = ctx.sessionToken
+    ? 'host;x-amz-content-sha256;x-amz-date;x-amz-security-token'
+    : 'host;x-amz-content-sha256;x-amz-date'
 
   const canonicalRequest = `${method}\n${encodedPath}\n${canonicalQueryString}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`
 
@@ -357,6 +403,7 @@ function buildSignedHeaders(
     Host: host,
     'X-Amz-Content-Sha256': payloadHash,
     'X-Amz-Date': amzDate,
+    ...(ctx.sessionToken ? { 'X-Amz-Security-Token': ctx.sessionToken } : {}),
     Authorization: authorizationHeader,
   }
 }
@@ -546,7 +593,7 @@ export const s3Connector: ConnectorConfig = {
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const ctx = resolveContext(accessToken, sourceConfig)
+    const ctx = resolveContext(accessToken, sourceConfig, syncContext)
     const prefix = ((sourceConfig.prefix as string) ?? '').trim()
     const allowedExtensions = resolveExtensions(sourceConfig.extensions)
 
@@ -602,9 +649,10 @@ export const s3Connector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
-    const ctx = resolveContext(accessToken, sourceConfig)
+    const ctx = resolveContext(accessToken, sourceConfig, syncContext)
     const key = externalId
 
     if (hasDotSegment(key)) {
@@ -680,11 +728,12 @@ export const s3Connector: ConnectorConfig = {
 
   validateConfig: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     let ctx: S3Context
     try {
-      ctx = resolveContext(accessToken, sourceConfig)
+      ctx = resolveContext(accessToken, sourceConfig, syncContext)
     } catch (error) {
       return { valid: false, error: getErrorMessage(error, 'Invalid configuration') }
     }

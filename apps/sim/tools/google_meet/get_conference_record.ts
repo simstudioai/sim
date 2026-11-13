@@ -4,6 +4,7 @@ import {
   type GoogleMeetGetConferenceRecordResponse,
   MEET_API_BASE,
 } from '@/tools/google_meet/types'
+import { buildMeetResourceName } from '@/tools/google_meet/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getConferenceRecordTool: ToolConfig<
@@ -37,10 +38,11 @@ export const getConferenceRecordTool: ToolConfig<
 
   request: {
     url: (params: GoogleMeetGetConferenceRecordParams) => {
-      const trimmed = params.conferenceName.trim()
-      const name = trimmed.startsWith('conferenceRecords/')
-        ? trimmed
-        : `conferenceRecords/${trimmed}`
+      const name = buildMeetResourceName(
+        params.conferenceName,
+        'conferenceRecords',
+        'conferenceName'
+      )
       return `${MEET_API_BASE}/${name}`
     },
     method: 'GET',

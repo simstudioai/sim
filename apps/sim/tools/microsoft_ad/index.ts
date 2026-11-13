@@ -25,6 +25,7 @@ import { listSubscribedSkusTool } from '@/tools/microsoft_ad/list_subscribed_sku
 import { listUserAppRoleAssignmentsTool } from '@/tools/microsoft_ad/list_user_app_role_assignments'
 import { listUserDevicesTool } from '@/tools/microsoft_ad/list_user_devices'
 import { listUserLicensesTool } from '@/tools/microsoft_ad/list_user_licenses'
+import { listUserMembershipsTool } from '@/tools/microsoft_ad/list_user_memberships'
 import { listUsersTool } from '@/tools/microsoft_ad/list_users'
 import { removeDirectoryRoleMemberTool } from '@/tools/microsoft_ad/remove_directory_role_member'
 import { removeGroupMemberTool } from '@/tools/microsoft_ad/remove_group_member'
@@ -46,6 +47,7 @@ export const microsoftAdCreateGroupTool = createGroupTool
 export const microsoftAdUpdateGroupTool = updateGroupTool
 export const microsoftAdDeleteGroupTool = deleteGroupTool
 export const microsoftAdListGroupMembersTool = listGroupMembersTool
+export const microsoftAdListUserMembershipsTool = listUserMembershipsTool
 export const microsoftAdAddGroupMemberTool = addGroupMemberTool
 export const microsoftAdRemoveGroupMemberTool = removeGroupMemberTool
 export const microsoftAdAssignLicenseTool = assignLicenseTool

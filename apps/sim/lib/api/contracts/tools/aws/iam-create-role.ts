@@ -3,8 +3,10 @@ import {
   iamAssumeRolePolicyDocumentSchema,
   iamConnectionShape,
   iamCreatePathSchema,
+  iamPolicyArnSchema,
   iamRoleDescriptionSchema,
   iamRoleNameSchema,
+  iamTagsJsonSchema,
 } from '@/lib/api/contracts/tools/aws/iam-shared'
 import type {
   ContractBody,
@@ -26,6 +28,8 @@ const Schema = z.object({
     .max(43200, 'Max session duration cannot exceed 43200 seconds (12 hours)')
     .optional()
     .nullable(),
+  permissionsBoundary: iamPolicyArnSchema.optional().nullable(),
+  tags: iamTagsJsonSchema.optional().nullable(),
 })
 
 const CreateRoleResponseSchema = z.object({
@@ -35,6 +39,13 @@ const CreateRoleResponseSchema = z.object({
   arn: z.string(),
   path: z.string(),
   createDate: z.string().nullable(),
+  permissionsBoundaryArn: z.string().nullable(),
+  tags: z.array(
+    z.object({
+      key: z.string(),
+      value: z.string(),
+    })
+  ),
 })
 
 export const awsIamCreateRoleContract = defineRouteContract({

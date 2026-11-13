@@ -1,3 +1,4 @@
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import type {
   CloudFormationCreateStackParams,
   CloudFormationCreateStackResponse,
@@ -79,6 +80,19 @@ export const createStackTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Amount of time before the stack creation times out and rolls back',
     },
+    roleArn: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ARN of an IAM service role CloudFormation assumes for stack operations (defaults to the caller credentials or the role previously used for the stack)',
+    },
+    enableTerminationProtection: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to enable termination protection on the new stack (default false)',
+    },
   },
 
   operation: {
@@ -93,6 +107,10 @@ export const createStackTool: InternalToolConfig<
       ...(params.tags && { tags: params.tags }),
       ...(params.onFailure && { onFailure: params.onFailure }),
       ...(params.timeoutInMinutes !== undefined && { timeoutInMinutes: params.timeoutInMinutes }),
+      ...(params.roleArn && { roleArn: params.roleArn }),
+      ...(toBooleanFromInput(params.enableTerminationProtection) !== undefined && {
+        enableTerminationProtection: toBooleanFromInput(params.enableTerminationProtection),
+      }),
     }),
   },
 

@@ -2,6 +2,7 @@ import type {
   AmplitudeUserProfileParams,
   AmplitudeUserProfileResponse,
 } from '@/tools/amplitude/types'
+import { AMPLITUDE_PROFILE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const userProfileTool: ToolConfig<AmplitudeUserProfileParams, AmplitudeUserProfileResponse> =
@@ -11,8 +12,16 @@ export const userProfileTool: ToolConfig<AmplitudeUserProfileParams, AmplitudeUs
     description:
       'Get a user profile including properties, cohort memberships, and computed properties. Not available for EU data-residency projects.',
     version: '1.0.0',
+    oauth: AMPLITUDE_PROFILE_CREDENTIAL_OAUTH,
 
     params: {
+      apiKey: {
+        type: 'string',
+        required: false,
+        visibility: 'user-only',
+        description:
+          'Amplitude API Key. With it, the request authenticates with both keys over Basic auth',
+      },
       secretKey: {
         type: 'string',
         required: true,
@@ -62,9 +71,15 @@ export const userProfileTool: ToolConfig<AmplitudeUserProfileParams, AmplitudeUs
         return url.toString()
       },
       method: 'GET',
-      headers: (params) => ({
-        Authorization: `Api-Key ${params.secretKey}`,
-      }),
+      headers: (params) => {
+        const apiKey = params.apiKey?.trim()
+        // Without an API key (an inline block that never asked for one), keep the secret-key-only header.
+        return {
+          Authorization: apiKey
+            ? `Basic ${btoa(`${apiKey}:${params.secretKey}`)}`
+            : `Api-Key ${params.secretKey}`,
+        }
+      },
     },
 
     transformResponse: async (response: Response) => {

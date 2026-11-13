@@ -4,7 +4,14 @@ import type {
   GoogleSheetsV2ToolParams,
   GoogleSheetsV2UpdateResponse,
 } from '@/tools/google_sheets/types'
+import {
+  appendResponseRenderParams,
+  mapValueRange,
+  RESPONSE_RENDER_PARAMS,
+  UPDATED_DATA_OUTPUT,
+} from '@/tools/google_sheets/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateResponse> = {
   id: 'google_sheets_update',
@@ -63,7 +70,7 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
       const range = params.range || 'Sheet1!A2'
 
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId?.trim()}/values/${encodeURIComponent(range)}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(params.spreadsheetId, 'spreadsheetId')}/values/${encodeURIComponent(range)}`
       )
 
       // Default to USER_ENTERED if not specified
@@ -235,9 +242,10 @@ export const updateV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Up
     includeValuesInResponse: {
       type: 'boolean',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'Whether to include the updated values in the response',
     },
+    ...RESPONSE_RENDER_PARAMS,
   },
 
   request: {
@@ -251,7 +259,7 @@ export const updateV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Up
       const fullRange = `${sheetName}!${cellRange}`
 
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId?.trim()}/values/${encodeURIComponent(fullRange)}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(params.spreadsheetId, 'spreadsheetId')}/values/${encodeURIComponent(fullRange)}`
       )
 
       const valueInputOption = params.valueInputOption || 'USER_ENTERED'
@@ -260,6 +268,7 @@ export const updateV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Up
       if (params.includeValuesInResponse) {
         url.searchParams.append('includeValuesInResponse', 'true')
       }
+      appendResponseRenderParams(url.searchParams, params)
 
       return url.toString()
     },
@@ -338,6 +347,7 @@ export const updateV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Up
         updatedRows: data.updatedRows ?? 0,
         updatedColumns: data.updatedColumns ?? 0,
         updatedCells: data.updatedCells ?? 0,
+        updatedData: mapValueRange(data.updatedData),
         metadata: {
           spreadsheetId: metadata.spreadsheetId,
           spreadsheetUrl: metadata.spreadsheetUrl,
@@ -351,6 +361,7 @@ export const updateV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Up
     updatedRows: { type: 'number', description: 'Number of rows updated' },
     updatedColumns: { type: 'number', description: 'Number of columns updated' },
     updatedCells: { type: 'number', description: 'Number of cells updated' },
+    updatedData: UPDATED_DATA_OUTPUT,
     metadata: {
       type: 'json',
       description: 'Spreadsheet metadata including ID and URL',

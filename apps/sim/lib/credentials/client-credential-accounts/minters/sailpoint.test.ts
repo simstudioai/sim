@@ -102,6 +102,92 @@ describe('SailPoint API client token exchange', () => {
     await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({ code })
   })
 
+  it("carries the token endpoint's Retry-After on an unavailable answer", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({ error: 'unavailable' }, { status: 503, headers: { 'Retry-After': '7' } })
+    )
+
+    await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      retryAfterMs: 7_000,
+    })
+  })
+
+  it('waits out one short throttle and mints on the retry', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      mockFetch
+        .mockResolvedValueOnce(
+          jsonResponse({ error: 'rate limited' }, { status: 429, headers: { 'Retry-After': '2' } })
+        )
+        .mockResolvedValueOnce(jsonResponse({ access_token: 'sp-access', expires_in: 749 }))
+
+      const minted = mintSailPointServiceAccountToken(FIELDS)
+      await vi.advanceTimersByTimeAsync(1_999)
+      expect(mockFetch).toHaveBeenCalledOnce()
+      await vi.advanceTimersByTimeAsync(1)
+
+      await expect(minted).resolves.toMatchObject({ accessToken: 'sp-access' })
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retries a short throttle only once and returns the second answer with its Retry-After', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      mockFetch.mockImplementation(async () =>
+        jsonResponse({ error: 'rate limited' }, { status: 429, headers: { 'Retry-After': '1' } })
+      )
+
+      const minted = mintSailPointServiceAccountToken(FIELDS)
+      const settled = expect(minted).rejects.toMatchObject({
+        code: 'provider_unavailable',
+        status: 429,
+        retryAfterMs: 1_000,
+      })
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      await settled
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('returns a long throttle with its Retry-After instead of retrying it', async () => {
+    mockFetch.mockImplementation(async () =>
+      jsonResponse({ error: 'rate limited' }, { status: 429, headers: { 'Retry-After': '120' } })
+    )
+
+    await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      status: 429,
+      retryAfterMs: 120_000,
+    })
+    expect(mockFetch).toHaveBeenCalledOnce()
+  })
+
+  it("keeps a throttled answer's status and Retry-After when its error body cannot be read", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(new TypeError('terminated'))
+          },
+        }),
+        { status: 429, headers: { 'Retry-After': '120' } }
+      )
+    )
+
+    await expect(mintSailPointServiceAccountToken(FIELDS)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      status: 429,
+      retryAfterMs: 120_000,
+    })
+  })
+
   it('treats a network failure or refused redirect as a provider failure', async () => {
     mockFetch.mockRejectedValue(new TypeError('fetch failed: unexpected redirect'))
 

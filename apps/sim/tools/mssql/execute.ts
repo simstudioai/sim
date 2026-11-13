@@ -1,4 +1,5 @@
 import type { MSSQLExecuteParams, MSSQLExecuteResponse } from '@/tools/mssql/types'
+import { MSSQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const executeTool: InternalToolConfig<MSSQLExecuteParams, MSSQLExecuteResponse> = {
@@ -6,6 +7,7 @@ export const executeTool: InternalToolConfig<MSSQLExecuteParams, MSSQLExecuteRes
   name: 'Microsoft SQL Server Execute',
   description: 'Execute a raw T-SQL statement on a Microsoft SQL Server database',
   version: '1.0',
+  oauth: MSSQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

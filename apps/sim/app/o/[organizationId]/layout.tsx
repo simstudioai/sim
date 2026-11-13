@@ -7,7 +7,6 @@ import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { canUseBenchmarks } from '@/lib/benchmarks/config'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
-import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
@@ -82,7 +81,6 @@ export default async function OrganizationLayout({
     modelSelectorEnabled,
     dashboardsEnabled,
     benchmarkEnabled,
-    computerUseEnabled,
     workflowTestsEnabled,
     changelogEnabled,
     projectsEnabled,
@@ -102,7 +100,6 @@ export default async function OrganizationLayout({
       logger.warn('Could not resolve benchmark navigation access')
       return false
     }),
-    isComputerUseAvailable(organizationId),
     isWorkflowTestsEnabled(organizationId),
     isChangelogEnabled(organizationId),
     isProjectsEnabled(),
@@ -124,7 +121,6 @@ export default async function OrganizationLayout({
           'workflow-tests': workflowTestsEnabled,
           changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
-          'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': benchmarkEnabled,
           'mothership-memory-spaces': benchmarkEnabled,
           projects: projectsEnabled,

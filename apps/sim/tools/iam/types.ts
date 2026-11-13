@@ -19,6 +19,8 @@ export interface IAMGetUserParams extends IAMConnectionConfig {
 export interface IAMCreateUserParams extends IAMConnectionConfig {
   userName: string
   path?: string | null
+  permissionsBoundary?: string | null
+  tags?: string | null
 }
 
 export interface IAMDeleteUserParams extends IAMConnectionConfig {
@@ -41,6 +43,8 @@ export interface IAMCreateRoleParams extends IAMConnectionConfig {
   description?: string | null
   path?: string | null
   maxSessionDuration?: number | null
+  permissionsBoundary?: string | null
+  tags?: string | null
 }
 
 export interface IAMDeleteRoleParams extends IAMConnectionConfig {
@@ -69,12 +73,15 @@ export interface IAMDetachRolePolicyParams extends IAMConnectionConfig {
 
 type IAMPolicyScope = 'All' | 'AWS' | 'Local'
 
+type IAMPolicyUsageFilter = 'PermissionsPolicy' | 'PermissionsBoundary'
+
 export interface IAMListPoliciesParams extends IAMConnectionConfig {
   scope?: IAMPolicyScope | null
   onlyAttached?: boolean | null
   pathPrefix?: string | null
   maxItems?: number | null
   marker?: string | null
+  policyUsageFilter?: IAMPolicyUsageFilter | null
 }
 
 export interface IAMGetPolicyParams extends IAMConnectionConfig {
@@ -160,6 +167,8 @@ export interface IAMCreateUserResponse extends ToolResponse {
     arn: string
     path: string
     createDate: string | null
+    permissionsBoundaryArn: string | null
+    tags: Array<{ key: string; value: string }>
   }
   error?: string
 }
@@ -199,6 +208,8 @@ export interface IAMGetRoleResponse extends ToolResponse {
     assumeRolePolicyDocument: string | null
     roleLastUsedDate: string | null
     roleLastUsedRegion: string | null
+    permissionsBoundaryArn: string | null
+    tags: Array<{ key: string; value: string }>
   }
   error?: string
 }
@@ -211,6 +222,8 @@ export interface IAMCreateRoleResponse extends ToolResponse {
     arn: string
     path: string
     createDate: string | null
+    permissionsBoundaryArn: string | null
+    tags: Array<{ key: string; value: string }>
   }
   error?: string
 }

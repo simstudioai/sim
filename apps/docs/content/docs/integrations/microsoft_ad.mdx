@@ -82,6 +82,17 @@ List users in Azure AD (Microsoft Entra ID)
 |   ↳ `officeLocation` | string | Office location |
 |   ↳ `mobilePhone` | string | Mobile phone number |
 |   ↳ `accountEnabled` | boolean | Whether the account is enabled |
+|   ↳ `businessPhones` | array | Business phone numbers |
+|   ↳ `preferredLanguage` | string | Preferred language |
+|   ↳ `employeeId` | string | Employee identifier |
+|   ↳ `employeeType` | string | Employee type \(e.g., Employee, Contractor\) |
+|   ↳ `companyName` | string | Company name |
+|   ↳ `userType` | string | User type: Member or Guest |
+|   ↳ `usageLocation` | string | Two-letter country code, required before a license can be assigned |
+|   ↳ `city` | string | City |
+|   ↳ `country` | string | Country or region |
+|   ↳ `createdDateTime` | string | When the user was created |
+|   ↳ `onPremisesSyncEnabled` | boolean | Whether the user is synced from on-premises Active Directory |
 | `userCount` | number | Number of users returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
@@ -98,6 +109,7 @@ Get a user by ID or user principal name from Azure AD
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `userId` | string | Yes | User ID or user principal name \(e.g., "user@example.com"\) |
+| `includeManager` | boolean | No | Also return the user's manager \(adds $expand=manager to the request\) |
 
 #### Output
 
@@ -115,6 +127,23 @@ Get a user by ID or user principal name from Azure AD
 |   ↳ `officeLocation` | string | Office location |
 |   ↳ `mobilePhone` | string | Mobile phone number |
 |   ↳ `accountEnabled` | boolean | Whether the account is enabled |
+|   ↳ `businessPhones` | array | Business phone numbers |
+|   ↳ `preferredLanguage` | string | Preferred language |
+|   ↳ `employeeId` | string | Employee identifier |
+|   ↳ `employeeType` | string | Employee type \(e.g., Employee, Contractor\) |
+|   ↳ `companyName` | string | Company name |
+|   ↳ `userType` | string | User type: Member or Guest |
+|   ↳ `usageLocation` | string | Two-letter country code, required before a license can be assigned |
+|   ↳ `city` | string | City |
+|   ↳ `country` | string | Country or region |
+|   ↳ `createdDateTime` | string | When the user was created |
+|   ↳ `onPremisesSyncEnabled` | boolean | Whether the user is synced from on-premises Active Directory |
+| `manager` | object | The user's manager, returned only when includeManager is true; null when no manager is assigned |
+|   ↳ `id` | string | Manager object ID |
+|   ↳ `displayName` | string | Manager display name |
+|   ↳ `mail` | string | Manager email address |
+|   ↳ `userPrincipalName` | string | Manager user principal name |
+|   ↳ `jobTitle` | string | Manager job title |
 
 </ReferenceDetails>
 
@@ -379,7 +408,42 @@ List members of a group in Azure AD (Microsoft Entra ID)
 |   ↳ `displayName` | string | Display name |
 |   ↳ `mail` | string | Email address |
 |   ↳ `odataType` | string | Directory object type |
+|   ↳ `userPrincipalName` | string | User principal name, null for members that are not users |
 | `memberCount` | number | Number of members returned |
+| `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
+
+</ReferenceDetails>
+
+### List Azure AD User Memberships
+
+List the groups, directory roles, and administrative units a user is a member of in Azure AD (Microsoft Entra ID)
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | No | User ID or user principal name. Required unless continuing from a nextLink. |
+| `transitive` | boolean | No | Include memberships inherited through nested groups \(transitiveMemberOf\). Defaults to direct memberships only. |
+| `top` | number | No | Maximum number of memberships to return per page \(default 100, max 999\) |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `memberships` | array | Groups, directory roles, and administrative units the user belongs to |
+|   ↳ `id` | string | Object ID of the group, directory role, or administrative unit |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Description |
+|   ↳ `odataType` | string | Directory object type \(e.g., "#microsoft.graph.group", "#microsoft.graph.directoryRole"\) |
+|   ↳ `mail` | string | Email address \(groups only\) |
+|   ↳ `mailEnabled` | boolean | Whether mail is enabled \(groups only\) |
+|   ↳ `securityEnabled` | boolean | Whether security is enabled \(groups only\) |
+|   ↳ `groupTypes` | array | Group types \(groups only\) |
+|   ↳ `roleTemplateId` | string | Directory role template ID \(directory roles only\) |
+| `membershipCount` | number | Number of memberships returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
 </ReferenceDetails>
@@ -915,6 +979,7 @@ List the principals holding an administrator role. Returns up to 1000 members; t
 |   ↳ `displayName` | string | Display name |
 |   ↳ `mail` | string | Email address |
 |   ↳ `odataType` | string | Directory object type |
+|   ↳ `userPrincipalName` | string | User principal name, null for members that are not users |
 | `memberCount` | number | Number of members returned |
 
 </ReferenceDetails>

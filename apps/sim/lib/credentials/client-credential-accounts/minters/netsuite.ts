@@ -17,6 +17,7 @@ import { tenantPrincipal } from '@/lib/credentials/principal'
 import {
   isTransientProviderStatus,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 
 const TOKEN_PATH = '/services/rest/auth/oauth2/v1/token'
@@ -141,10 +142,12 @@ async function exchangeNetSuiteToken(
       response.status >= 400 && response.status < 500 && !isTransientProviderStatus(response.status)
         ? 'invalid_credentials'
         : 'provider_unavailable'
-    throw new TokenServiceAccountValidationError(code, response.status, {
-      step: TOKEN_MINT_STEP,
-      body: sanitizeNetSuiteTokenError(body, fields, assertion),
-    })
+    throw new TokenServiceAccountValidationError(
+      code,
+      response.status,
+      { step: TOKEN_MINT_STEP, body: sanitizeNetSuiteTokenError(body, fields, assertion) },
+      { retryAfterMs: throttledRetryAfterMs(response) }
+    )
   }
 
   let payload: NetSuiteTokenResponse

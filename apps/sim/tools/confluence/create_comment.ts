@@ -1,3 +1,4 @@
+import { VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
 import type { InternalToolConfig } from '@/tools/types'
 
 export interface ConfluenceCreateCommentParams {
@@ -5,6 +6,7 @@ export interface ConfluenceCreateCommentParams {
   domain: string
   pageId: string
   comment: string
+  parentCommentId?: string
   cloudId?: string
 }
 
@@ -14,6 +16,10 @@ export interface ConfluenceCreateCommentResponse {
     ts: string
     commentId: string
     pageId: string
+    parentCommentId: string | null
+    status: string | null
+    version: Record<string, unknown> | null
+    webUrl: string | null
   }
 }
 
@@ -56,6 +62,13 @@ export const confluenceCreateCommentTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Comment text in Confluence storage format',
     },
+    parentCommentId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ID of a footer or inline comment to reply to. When set, the comment is posted as a reply in that thread.',
+    },
     cloudId: {
       type: 'string',
       required: false,
@@ -73,6 +86,7 @@ export const confluenceCreateCommentTool: InternalToolConfig<
         cloudId: params.cloudId,
         pageId: params.pageId,
         comment: params.comment,
+        parentCommentId: String(params.parentCommentId ?? '').trim() || undefined,
       }
     },
   },
@@ -85,6 +99,10 @@ export const confluenceCreateCommentTool: InternalToolConfig<
         ts: new Date().toISOString(),
         commentId: data.id,
         pageId: data.pageId || '',
+        parentCommentId: data.parentCommentId ?? null,
+        status: data.status ?? null,
+        version: data.version ?? null,
+        webUrl: data._links?.webui ?? null,
       },
     }
   },
@@ -93,5 +111,22 @@ export const confluenceCreateCommentTool: InternalToolConfig<
     ts: { type: 'string', description: 'Timestamp of creation' },
     commentId: { type: 'string', description: 'Created comment ID' },
     pageId: { type: 'string', description: 'Page ID' },
+    parentCommentId: {
+      type: 'string',
+      description: 'ID of the parent comment when the comment is a reply',
+      optional: true,
+    },
+    status: { type: 'string', description: 'Comment status (e.g., current)', optional: true },
+    version: {
+      type: 'object',
+      description: 'Comment version information',
+      properties: VERSION_OUTPUT_PROPERTIES,
+      optional: true,
+    },
+    webUrl: {
+      type: 'string',
+      description: 'URL to view the comment in Confluence',
+      optional: true,
+    },
   },
 }

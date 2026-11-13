@@ -9,6 +9,7 @@ import {
   RAILWAY_GRAPHQL_URL,
   railwayHeaders,
 } from '@/tools/railway/utils'
+import { RAILWAY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface RailwayListVariablesData {
@@ -23,6 +24,7 @@ export const railwayListVariablesTool: ToolConfig<
   name: 'Railway List Variables',
   description: 'List Railway environment variables for a service or shared environment',
   version: '1.0.0',
+  oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

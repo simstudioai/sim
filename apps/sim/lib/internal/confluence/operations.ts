@@ -116,10 +116,18 @@ function mappedPage(value: unknown): JsonObject {
     spaceId: page.spaceId ?? null,
     parentId: page.parentId ?? null,
     authorId: page.authorId ?? null,
+    ownerId: page.ownerId ?? null,
     createdAt: page.createdAt ?? null,
     version: page.version ?? null,
     webUrl: nested(page, '_links', 'webui') ?? null,
   }
+}
+
+function mappedLabels(value: unknown): JsonObject[] {
+  return toArray(toRecord(value).results).map((item) => {
+    const label = toRecord(item)
+    return { id: label.id, name: label.name, prefix: label.prefix || 'global' }
+  })
 }
 
 const NUMERIC_SPACE_ID_PATTERN = /^[1-9][0-9]{0,19}$/
@@ -193,7 +201,7 @@ export async function executeConfluenceRetrievePage(
 ) {
   const client = await createConfluenceClient(input, context.signal)
   const data = await client.json(
-    client.apiV2(`/pages/${input.pageId}?body-format=storage`),
+    client.apiV2(`/pages/${input.pageId}?body-format=storage&include-labels=true`),
     {},
     context.signal
   )
@@ -213,6 +221,10 @@ export async function executeConfluenceRetrievePage(
     createdAt: data.createdAt ?? null,
     version: data.version ?? null,
     _links: data._links ?? null,
+    ownerId: data.ownerId ?? null,
+    lastOwnerId: data.lastOwnerId ?? null,
+    parentType: data.parentType ?? null,
+    labels: mappedLabels(data.labels),
   }
 }
 
@@ -323,7 +335,9 @@ export async function executeConfluenceListAttachments(
         mediaType: attachment.mediaType || '',
         downloadUrl: attachment.downloadLink || nested(attachment, '_links', 'download') || '',
         status: attachment.status ?? null,
-        webuiUrl: nested(attachment, '_links', 'webui') ?? null,
+        webuiUrl: nested(attachment, '_links', 'webui') ?? attachment.webuiLink ?? null,
+        createdAt: attachment.createdAt ?? null,
+        fileId: attachment.fileId ?? null,
         pageId: attachment.pageId ?? null,
         blogPostId: attachment.blogPostId ?? null,
         comment: attachment.comment ?? null,
@@ -488,16 +502,34 @@ export async function executeConfluenceCreateComment(
   context: ConfluenceOperationContext
 ) {
   assertId(input.pageId, 'pageId')
-  const client = await createConfluenceClient(input, context.signal)
+  if (!input.parentCommentId) {
+    const client = await createConfluenceClient(input, context.signal)
+    const data = await client.json(
+      client.apiV2('/footer-comments'),
+      jsonInit('POST', {
+        pageId: input.pageId,
+        body: { representation: 'storage', value: input.comment },
+      }),
+      context.signal
+    )
+    return { ...data, pageId: input.pageId }
+  }
+  assertId(input.parentCommentId, 'parentCommentId')
+  const { client, endpoint, response } = await detectCommentEndpoint(
+    { ...input, commentId: input.parentCommentId },
+    context
+  )
+  if (!response.ok) await throwConfluenceResponseError(response, context.signal)
+  await readConfluenceResponseText(response, context.signal, 'Confluence comment lookup response')
   const data = await client.json(
-    client.apiV2('/footer-comments'),
+    client.apiV2(`/${endpoint}`),
     jsonInit('POST', {
-      pageId: input.pageId,
+      parentCommentId: input.parentCommentId,
       body: { representation: 'storage', value: input.comment },
     }),
     context.signal
   )
-  return { ...data, pageId: input.pageId }
+  return { ...data, pageId: data.pageId ?? input.pageId }
 }
 
 export async function executeConfluenceListComments(
@@ -511,31 +543,40 @@ export async function executeConfluenceListComments(
     'body-format': input.bodyFormat,
   })
   if (input.cursor) query.set('cursor', input.cursor)
+  const commentType = input.commentType === 'inline' ? 'inline' : 'footer'
   const data = await client.json(
-    client.apiV2(`/pages/${input.pageId}/footer-comments?${query}`),
+    client.apiV2(`/pages/${input.pageId}/${commentType}-comments?${query}`),
     {},
     context.signal
   )
   return {
     comments: toArray(data.results).map((value) => {
       const comment = toRecord(value)
+      const body = toRecord(comment.body)
       return {
         id: comment.id,
         body: {
           value:
-            nested(comment, 'body', 'storage', 'value') ||
-            nested(comment, 'body', 'view', 'value') ||
+            nested(body, input.bodyFormat, 'value') ||
+            nested(body, 'storage', 'value') ||
+            nested(body, 'atlas_doc_format', 'value') ||
+            nested(body, 'view', 'value') ||
             '',
           representation: input.bodyFormat,
         },
-        createdAt: comment.createdAt || '',
-        authorId: comment.authorId || '',
+        createdAt: comment.createdAt || nested(comment, 'version', 'createdAt') || '',
+        authorId: comment.authorId || nested(comment, 'version', 'authorId') || '',
         status: comment.status ?? null,
         title: comment.title ?? null,
         pageId: comment.pageId ?? null,
         blogPostId: comment.blogPostId ?? null,
         parentCommentId: comment.parentCommentId ?? null,
         version: comment.version ?? null,
+        commentType,
+        resolutionStatus: comment.resolutionStatus ?? null,
+        inlineOriginalSelection: nested(comment, 'properties', 'inlineOriginalSelection') ?? null,
+        inlineMarkerRef: nested(comment, 'properties', 'inlineMarkerRef') ?? null,
+        webUrl: nested(comment, '_links', 'webui') ?? null,
       }
     }),
     nextCursor: nextCursor(data),
@@ -864,47 +905,102 @@ export async function executeConfluenceGetPagesByLabel(
   }
 }
 
+const CQL_ORDER_BY = /\s*\border\s+by\s/iy
+
+/**
+ * Splits a trailing `order by` clause off a CQL fragment so the condition can be
+ * parenthesized while the ordering stays at the end, ignoring quoted values.
+ */
+function splitCqlOrderBy(cql: string): { condition: string; orderBy: string } {
+  let quote: string | null = null
+  let orderByStart = -1
+  for (let index = 0; index < cql.length; index++) {
+    const char = cql[index]
+    if (char === '"' || char === "'") {
+      let backslashes = 0
+      for (let cursor = index - 1; cursor >= 0 && cql[cursor] === '\\'; cursor--) backslashes++
+      if (backslashes % 2 === 0) {
+        if (quote === null) quote = char
+        else if (quote === char) quote = null
+      }
+      continue
+    }
+    if (quote !== null) continue
+    if (index > 0 && !/\s/.test(cql[index - 1])) continue
+    CQL_ORDER_BY.lastIndex = index
+    if (CQL_ORDER_BY.test(cql)) orderByStart = index
+  }
+  if (orderByStart === -1) return { condition: cql, orderBy: '' }
+  return { condition: cql.slice(0, orderByStart), orderBy: ` ${cql.slice(orderByStart).trim()}` }
+}
+
 function escapeCql(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+/**
+ * Pages the v1 `/search` endpoint forward. Confluence's own `_links.next` URLs carry
+ * `next=true` alongside the cursor, so a resumed page sends both.
+ */
+function setSearchCursor(query: URLSearchParams, cursor: string | undefined) {
+  if (!cursor) return
+  query.set('next', 'true')
+  query.set('cursor', cursor)
 }
 
 export async function executeConfluenceSearch(
   input: ConfluenceSearchBody,
   context: ConfluenceOperationContext
 ) {
+  assertCursor(input.cursor)
   const client = await createConfluenceClient(input, context.signal)
+  let cql = `text ~ "${escapeCql(input.query)}"`
+  const extraCql = input.cql?.trim()
+  if (extraCql) {
+    const { condition, orderBy } = splitCqlOrderBy(extraCql)
+    cql += condition.trim() ? ` AND (${condition.trim()})${orderBy}` : orderBy
+  }
   const query = new URLSearchParams({
-    cql: `text ~ "${escapeCql(input.query)}"`,
+    cql,
     limit: input.limit.toString(),
+    expand: 'content.space',
   })
+  setSearchCursor(query, input.cursor)
   const data = await client.json(client.rest(`/search?${query}`), {}, context.signal)
-  return {
-    results: toArray(data.results).map((value) => {
-      const result = toRecord(value)
-      const content = toRecord(result.content)
-      const globalContainer = toRecord(result.resultGlobalContainer)
-      const contentSpace = toRecord(content.space)
-      const space = Object.keys(globalContainer).length ? globalContainer : contentSpace
-      return {
-        id: content.id || result.id,
-        title: content.title || result.title,
-        type: content.type || result.type,
-        url: result.url || nested(result, '_links', 'webui') || '',
-        excerpt: result.excerpt || '',
-        status: content.status ?? null,
-        spaceKey: globalContainer.key ?? contentSpace.key ?? null,
-        space: Object.keys(space).length
+  const results = toArray(data.results).map((value) => {
+    const result = toRecord(value)
+    const content = toRecord(result.content)
+    const globalContainer = toRecord(result.resultGlobalContainer)
+    const contentSpace = toRecord(content.space)
+    const resultSpace = toRecord(result.space)
+    const space = Object.keys(contentSpace).length ? contentSpace : resultSpace
+    const spaceId = space.id ?? null
+    const spaceName = space.name ?? globalContainer.title ?? null
+    return {
+      id: content.id || result.id,
+      title: content.title || result.title,
+      type: content.type || result.type,
+      url: result.url || nested(result, '_links', 'webui') || '',
+      excerpt: result.excerpt || '',
+      status: content.status ?? null,
+      spaceKey: space.key ?? null,
+      space:
+        space.key || spaceName
           ? {
-              id: space.id ?? null,
+              id: spaceId === null ? null : String(spaceId),
               key: space.key ?? null,
-              name: space.name ?? space.title ?? null,
+              name: spaceName,
             }
           : null,
-        lastModified:
-          result.lastModified ?? nested(content, 'history', 'lastUpdated', 'when') ?? null,
-        entityType: result.entityType ?? null,
-      }
-    }),
+      lastModified:
+        result.lastModified ?? nested(content, 'history', 'lastUpdated', 'when') ?? null,
+      entityType: result.entityType ?? null,
+    }
+  })
+  return {
+    results,
+    totalSize: data.totalSize ?? results.length,
+    nextCursor: nextCursor(data),
   }
 }
 
@@ -917,7 +1013,9 @@ export async function executeConfluenceSearchInSpace(
   let cql = `space = "${escapeCql(spaceKey)}"`
   if (input.query) cql += ` AND text ~ "${escapeCql(input.query)}"`
   if (input.contentType) cql += ` AND type = "${escapeCql(input.contentType)}"`
+  assertCursor(input.cursor)
   const query = new URLSearchParams({ cql, limit: cappedLimit(input.limit) })
+  setSearchCursor(query, input.cursor)
   const data = await client.json(client.rest(`/search?${query}`), {}, context.signal)
   const results = toArray(data.results).map((value) => {
     const result = toRecord(value)
@@ -932,7 +1030,12 @@ export async function executeConfluenceSearchInSpace(
       lastModified: result.lastModified ?? null,
     }
   })
-  return { results, spaceKey, totalSize: data.totalSize ?? results.length }
+  return {
+    results,
+    spaceKey,
+    totalSize: data.totalSize ?? results.length,
+    nextCursor: nextCursor(data),
+  }
 }
 
 export async function executeConfluenceListBlogPostsInSpace(
@@ -1109,9 +1212,10 @@ export async function executeConfluenceGetBlogPost(
 ) {
   if (!('blogPostId' in input)) throw new ConfluenceOperationError('Blog post ID is required', 400)
   const client = await createConfluenceClient(input, context.signal)
-  const query = input.bodyFormat ? `?body-format=${encodeURIComponent(input.bodyFormat)}` : ''
+  const query = new URLSearchParams({ 'include-labels': 'true' })
+  if (input.bodyFormat) query.set('body-format', input.bodyFormat)
   const data = await client.json(
-    client.apiV2(`/blogposts/${input.blogPostId}${query}`),
+    client.apiV2(`/blogposts/${input.blogPostId}?${query}`),
     {},
     context.signal
   )
@@ -1125,6 +1229,7 @@ export async function executeConfluenceGetBlogPost(
     version: data.version ?? null,
     body: data.body ?? null,
     webUrl: nested(data, '_links', 'webui') ?? null,
+    labels: mappedLabels(data.labels),
   }
 }
 
@@ -1185,7 +1290,11 @@ export async function executeConfluenceGetSpace(
 ) {
   const client = await createConfluenceClient(input, context.signal)
   const spaceId = await resolveConfluenceSpaceId(client, input.spaceId, context.signal)
-  return client.json(client.apiV2(`/spaces/${spaceId}`), {}, context.signal)
+  return client.json(
+    client.apiV2(`/spaces/${spaceId}?description-format=plain`),
+    {},
+    context.signal
+  )
 }
 
 export async function executeConfluenceCreateSpace(
@@ -1262,7 +1371,10 @@ export async function executeConfluenceListSpaces(
   context: ConfluenceOperationContext
 ) {
   const client = await createConfluenceClient(input, context.signal)
-  const query = new URLSearchParams({ limit: cappedLimit(input.limit) })
+  const query = new URLSearchParams({
+    limit: cappedLimit(input.limit),
+    'description-format': 'plain',
+  })
   if (input.cursor) query.set('cursor', input.cursor)
   const data = await client.json(client.apiV2(`/spaces?${query}`), {}, context.signal)
   return {
@@ -1277,7 +1389,9 @@ export async function executeConfluenceListSpaces(
         authorId: space.authorId ?? null,
         createdAt: space.createdAt ?? null,
         homepageId: space.homepageId ?? null,
-        description: space.description ?? null,
+        description: nested(space, 'description', 'plain') ?? null,
+        spaceOwnerId: space.spaceOwnerId ?? null,
+        webUrl: nested(space, '_links', 'webui') ?? null,
       }
     }),
     nextCursor: nextCursor(data),

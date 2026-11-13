@@ -1,5 +1,11 @@
-import { GMAIL_API_BASE } from '@/tools/gmail/utils'
+import {
+  extractExtendedHeaders,
+  extractMessageBody,
+  GMAIL_API_BASE,
+  getHeaderValue,
+} from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GmailGetDraftParams {
   accessToken: string
@@ -14,7 +20,15 @@ interface GmailGetDraftResponse {
     threadId?: string
     to?: string
     from?: string
+    cc?: string | null
+    bcc?: string | null
+    replyTo?: string | null
     subject?: string
+    date?: string | null
+    rfcMessageId?: string | null
+    inReplyTo?: string | null
+    references?: string | null
+    snippet?: string | null
     body?: string
     labelIds?: string[]
   }
@@ -47,7 +61,8 @@ export const gmailGetDraftV2Tool: ToolConfig<GmailGetDraftParams, GmailGetDraftR
   },
 
   request: {
-    url: (params: GmailGetDraftParams) => `${GMAIL_API_BASE}/drafts/${params.draftId}?format=full`,
+    url: (params: GmailGetDraftParams) =>
+      `${GMAIL_API_BASE}/drafts/${safeUrlPathSegment(params.draftId, 'draftId')}?format=full`,
     method: 'GET',
     headers: (params: GmailGetDraftParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -68,21 +83,8 @@ export const gmailGetDraftV2Tool: ToolConfig<GmailGetDraftParams, GmailGetDraftR
 
     const message = data.message || {}
     const headers = message.payload?.headers || []
-    const getHeader = (name: string): string | undefined =>
-      headers.find((h: Record<string, string>) => h.name.toLowerCase() === name.toLowerCase())
-        ?.value
 
-    let body = ''
-    if (message.payload?.body?.data) {
-      body = Buffer.from(message.payload.body.data, 'base64').toString()
-    } else if (message.payload?.parts) {
-      const textPart = message.payload.parts.find(
-        (part: Record<string, unknown>) => part.mimeType === 'text/plain'
-      )
-      if (textPart?.body?.data) {
-        body = Buffer.from(textPart.body.data, 'base64').toString()
-      }
-    }
+    const body = message.payload ? extractMessageBody(message.payload) : ''
 
     return {
       success: true,
@@ -90,9 +92,12 @@ export const gmailGetDraftV2Tool: ToolConfig<GmailGetDraftParams, GmailGetDraftR
         id: data.id,
         messageId: message.id ?? undefined,
         threadId: message.threadId ?? undefined,
-        to: getHeader('To'),
-        from: getHeader('From'),
-        subject: getHeader('Subject'),
+        to: getHeaderValue(headers, 'To'),
+        from: getHeaderValue(headers, 'From'),
+        subject: getHeaderValue(headers, 'Subject'),
+        ...extractExtendedHeaders(headers),
+        date: getHeaderValue(headers, 'Date') ?? null,
+        snippet: message.snippet ?? null,
         body: body || undefined,
         labelIds: message.labelIds ?? undefined,
       },
@@ -105,7 +110,19 @@ export const gmailGetDraftV2Tool: ToolConfig<GmailGetDraftParams, GmailGetDraftR
     threadId: { type: 'string', description: 'Gmail thread ID', optional: true },
     to: { type: 'string', description: 'Recipient email address', optional: true },
     from: { type: 'string', description: 'Sender email address', optional: true },
+    cc: { type: 'string', description: 'Cc recipients', optional: true },
+    bcc: { type: 'string', description: 'Bcc recipients', optional: true },
+    replyTo: { type: 'string', description: 'Reply-To header', optional: true },
     subject: { type: 'string', description: 'Draft subject', optional: true },
+    date: { type: 'string', description: 'Date header', optional: true },
+    rfcMessageId: {
+      type: 'string',
+      description: 'RFC Message-ID header (not the Gmail message id)',
+      optional: true,
+    },
+    inReplyTo: { type: 'string', description: 'In-Reply-To header', optional: true },
+    references: { type: 'string', description: 'References header', optional: true },
+    snippet: { type: 'string', description: 'Short excerpt of the draft text', optional: true },
     body: { type: 'string', description: 'Draft body text', optional: true },
     labelIds: {
       type: 'array',

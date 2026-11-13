@@ -3,6 +3,7 @@ import type {
   LaunchDarklyListEnvironmentsResponse,
 } from '@/tools/launchdarkly/types'
 import { ENVIRONMENT_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
 import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -17,6 +18,7 @@ export const launchDarklyListEnvironmentsTool: ToolConfig<
   oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
+    instance: LAUNCHDARKLY_INSTANCES.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -42,7 +44,7 @@ export const launchDarklyListEnvironmentsTool: ToolConfig<
       const queryParams = new URLSearchParams()
       if (params.limit) queryParams.set('limit', String(params.limit))
       const qs = queryParams.toString()
-      return `https://app.launchdarkly.com/api/v2/projects/${encodeURIComponent(params.projectKey.trim())}/environments${qs ? `?${qs}` : ''}`
+      return `${LAUNCHDARKLY_INSTANCES.apiBase(params.instance)}/projects/${encodeURIComponent(params.projectKey.trim())}/environments${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

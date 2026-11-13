@@ -35,7 +35,7 @@ List all pipelines in an Azure DevOps project. Returns pipeline ID, name, folder
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `project` | string | Yes | Azure DevOps project name |
-| `orderBy` | string | No | Field to sort results by \(e.g. "name"\) |
+| `orderBy` | string | No | Sort expression \(defaults to "name asc"\) |
 | `top` | number | No | Maximum number of pipelines to return |
 | `continuationToken` | string | No | Continuation token for paginating results |
 
@@ -46,6 +46,7 @@ List all pipelines in an Azure DevOps project. Returns pipeline ID, name, folder
 | `content` | string | Human-readable summary of pipelines |
 | `metadata` | object | Pipelines metadata |
 |   ↳ `count` | number | Total number of pipelines returned |
+|   ↳ `continuationToken` | string | Token for the next page \(from the x-ms-continuationtoken header\); pass it back as continuationToken. Null on the last page. |
 |   ↳ `pipelines` | array | Array of pipeline objects |
 |     ↳ `id` | number | Pipeline ID |
 |     ↳ `name` | string | Pipeline name |
@@ -165,7 +166,7 @@ Get details for a specific pipeline run in an Azure DevOps project. Returns run 
 
 ### Azure DevOps List Builds
 
-List builds in an Azure DevOps project. Optionally filter by pipeline definition, status, result, or branch.
+List builds in an Azure DevOps project. Optionally filter by pipeline definition, status, result, reason, requester, branch, or time range, and page with a continuation token.
 
 <ReferenceDetails>
 
@@ -179,6 +180,12 @@ List builds in an Azure DevOps project. Optionally filter by pipeline definition
 | `statusFilter` | string | No | Filter by build status: inProgress, completed, cancelling, postponed, notStarted, none |
 | `resultFilter` | string | No | Filter by build result: succeeded, partiallySucceeded, failed, canceled |
 | `branchName` | string | No | Filter by source branch name \(e.g. "refs/heads/main"\) |
+| `reasonFilter` | string | No | Filter by build reason: manual, individualCI, batchedCI, schedule, pullRequest, buildCompletion, resourceTrigger |
+| `requestedFor` | string | No | Filter to builds requested for this user \(email or ID\) |
+| `minTime` | string | No | ISO 8601 date-time; only builds that finished/started/queued after it \(per queryOrder\) |
+| `maxTime` | string | No | ISO 8601 date-time; only builds that finished/started/queued before it \(per queryOrder\) |
+| `queryOrder` | string | No | Sort order: queueTimeDescending, queueTimeAscending, startTimeDescending, startTimeAscending, finishTimeDescending, finishTimeAscending |
+| `continuationToken` | string | No | Continuation token from a previous List Builds call, to fetch the next page |
 
 #### Output
 
@@ -187,6 +194,7 @@ List builds in an Azure DevOps project. Optionally filter by pipeline definition
 | `content` | string | Human-readable summary of builds |
 | `metadata` | object | Builds metadata |
 |   ↳ `count` | number | Total number of builds returned |
+|   ↳ `continuationToken` | string | Token for the next page \(from the x-ms-continuationtoken header\); pass it back as continuationToken. Null on the last page. |
 |   ↳ `builds` | array | Array of build objects |
 |     ↳ `id` | number | Build ID |
 |     ↳ `buildNumber` | string | Build number \(e.g. "20210601.1"\) |
@@ -201,6 +209,9 @@ List builds in an Azure DevOps project. Optionally filter by pipeline definition
 |       ↳ `id` | number | Definition ID |
 |       ↳ `name` | string | Definition name |
 |     ↳ `webUrl` | string | Browser URL for the build |
+|     ↳ `reason` | string | Why the build was created \(e.g. manual, individualCI, pullRequest\) |
+|     ↳ `requestedFor` | string | Display name of the user the build was queued for |
+|     ↳ `tags` | array | Build tags |
 
 </ReferenceDetails>
 
@@ -291,6 +302,12 @@ Get the execution timeline for an Azure DevOps build — every stage, job, and t
 |     ↳ `warningCount` | number | Number of warnings |
 |     ↳ `startTime` | string | ISO 8601 start timestamp |
 |     ↳ `finishTime` | string | ISO 8601 finish timestamp |
+|     ↳ `parentId` | string | GUID of the parent record \(job for a task, stage for a job\) |
+|     ↳ `state` | string | pending \| inProgress \| completed |
+|     ↳ `issues` | array | Errors and warnings the step reported \(type error\|warning, category, message\) |
+|       ↳ `type` | string | error or warning |
+|       ↳ `category` | string | Issue category |
+|       ↳ `message` | string | Issue message |
 |   ↳ `failedRecords` | array | Subset of records where result is failed, partiallySucceeded, or succeededWithIssues — use logId to fetch logs |
 |     ↳ `id` | string | Record GUID |
 |     ↳ `name` | string | Step name |
@@ -301,6 +318,12 @@ Get the execution timeline for an Azure DevOps build — every stage, job, and t
 |     ↳ `warningCount` | number | Number of warnings |
 |     ↳ `startTime` | string | ISO 8601 start timestamp |
 |     ↳ `finishTime` | string | ISO 8601 finish timestamp |
+|     ↳ `parentId` | string | GUID of the parent record \(job for a task, stage for a job\) |
+|     ↳ `state` | string | pending \| inProgress \| completed |
+|     ↳ `issues` | array | Errors and warnings the step reported \(type error\|warning, category, message\) |
+|       ↳ `type` | string | error or warning |
+|       ↳ `category` | string | Issue category |
+|       ↳ `message` | string | Issue message |
 
 </ReferenceDetails>
 
@@ -333,7 +356,7 @@ Get work item references associated with commits between two builds in Azure Dev
 
 ### Azure DevOps Query Work Items
 
-Execute a WIQL query to search for work items in Azure DevOps and return full field details. Use TOP N in your query to limit results (Azure enforces a 200-item maximum per batch fetch).
+Execute a WIQL query to search for work items in Azure DevOps and return full field details. Supports flat queries and link queries (FROM WorkItemLinks). Use the top parameter to limit results.
 
 <ReferenceDetails>
 
@@ -342,7 +365,8 @@ Execute a WIQL query to search for work items in Azure DevOps and return full fi
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `project` | string | Yes | Azure DevOps project name |
-| `wiqlQuery` | string | Yes | WIQL query string \(e.g. "SELECT \[System.Id\] FROM workitems WHERE \[System.State\] = 'Doing' ORDER BY \[System.Id\] ASC"\). Use TOP N to limit results. |
+| `wiqlQuery` | string | Yes | WIQL query string \(e.g. "SELECT \[System.Id\] FROM workitems WHERE \[System.State\] = 'Doing' ORDER BY \[System.Id\] ASC"\). Link queries \(FROM WorkItemLinks\) are supported. |
+| `top` | number | No | Maximum number of work items the query returns \(WIQL $top\). Each matched item is fetched with full details, so set this for broad queries. |
 
 #### Output
 
@@ -352,6 +376,10 @@ Execute a WIQL query to search for work items in Azure DevOps and return full fi
 | `metadata` | object | Work items metadata |
 |   ↳ `count` | number | Number of work items returned \(after hydration\) |
 |   ↳ `totalMatched` | number | Total number of work items matched by the WIQL query before hydration |
+|   ↳ `workItemRelations` | array | Links returned by a link query \(FROM WorkItemLinks\); source and target items are included in workItems |
+|     ↳ `rel` | string | Link type, or null for a root item |
+|     ↳ `sourceId` | number | Source work item ID |
+|     ↳ `targetId` | number | Target work item ID |
 |   ↳ `workItems` | array | Array of work item details |
 |     ↳ `id` | number | Work item ID |
 |     ↳ `title` | string | Work item title |
@@ -360,6 +388,18 @@ Execute a WIQL query to search for work items in Azure DevOps and return full fi
 |     ↳ `assignedTo` | string | Display name of assigned user, or null if unassigned |
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the work item |
+|     ↳ `rev` | number | Revision number of the work item |
+|     ↳ `description` | string | Description \(System.Description, HTML\) |
+|     ↳ `iterationPath` | string | Iteration path \(System.IterationPath\) |
+|     ↳ `reason` | string | Reason for the current state \(System.Reason\) |
+|     ↳ `tags` | string | Semicolon-separated tags \(System.Tags\) |
+|     ↳ `priority` | number | Priority \(Microsoft.VSTS.Common.Priority\) |
+|     ↳ `assignedToUniqueName` | string | Unique name \(usually the email\) of the assigned user |
+|     ↳ `createdBy` | string | Display name of the creator |
+|     ↳ `createdDate` | string | ISO 8601 creation timestamp |
+|     ↳ `changedBy` | string | Display name of the last user to change the work item |
+|     ↳ `changedDate` | string | ISO 8601 last-changed timestamp |
+|     ↳ `webUrl` | string | Browser URL for the work item |
 
 </ReferenceDetails>
 
@@ -390,6 +430,23 @@ Fetch full details of a single work item by ID from Azure DevOps, including titl
 |     ↳ `assignedTo` | string | Display name of assigned user, or null if unassigned |
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the work item |
+|     ↳ `rev` | number | Revision number of the work item |
+|     ↳ `description` | string | Description \(System.Description, HTML\) |
+|     ↳ `iterationPath` | string | Iteration path \(System.IterationPath\) |
+|     ↳ `reason` | string | Reason for the current state \(System.Reason\) |
+|     ↳ `tags` | string | Semicolon-separated tags \(System.Tags\) |
+|     ↳ `priority` | number | Priority \(Microsoft.VSTS.Common.Priority\) |
+|     ↳ `assignedToUniqueName` | string | Unique name \(usually the email\) of the assigned user |
+|     ↳ `createdBy` | string | Display name of the creator |
+|     ↳ `createdDate` | string | ISO 8601 creation timestamp |
+|     ↳ `changedBy` | string | Display name of the last user to change the work item |
+|     ↳ `changedDate` | string | ISO 8601 last-changed timestamp |
+|     ↳ `webUrl` | string | Browser URL for the work item |
+|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\); null when the response did not include relations \(Create and Update do not expand them\) |
+|       ↳ `rel` | string | Relation type |
+|       ↳ `url` | string | URL of the linked resource |
+|       ↳ `attributes` | json | Link attributes \(name, comment, isLocked\) |
+|     ↳ `fields` | json | Every field returned for the work item, keyed by reference name \(includes custom and process-specific fields\) |
 
 </ReferenceDetails>
 
@@ -422,6 +479,18 @@ Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-s
 |     ↳ `assignedTo` | string | Display name of assigned user, or null if unassigned |
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the work item |
+|     ↳ `rev` | number | Revision number of the work item |
+|     ↳ `description` | string | Description \(System.Description, HTML\) |
+|     ↳ `iterationPath` | string | Iteration path \(System.IterationPath\) |
+|     ↳ `reason` | string | Reason for the current state \(System.Reason\) |
+|     ↳ `tags` | string | Semicolon-separated tags \(System.Tags\) |
+|     ↳ `priority` | number | Priority \(Microsoft.VSTS.Common.Priority\) |
+|     ↳ `assignedToUniqueName` | string | Unique name \(usually the email\) of the assigned user |
+|     ↳ `createdBy` | string | Display name of the creator |
+|     ↳ `createdDate` | string | ISO 8601 creation timestamp |
+|     ↳ `changedBy` | string | Display name of the last user to change the work item |
+|     ↳ `changedDate` | string | ISO 8601 last-changed timestamp |
+|     ↳ `webUrl` | string | Browser URL for the work item |
 
 </ReferenceDetails>
 
@@ -465,6 +534,23 @@ Create a new Basic-process work item (Issue, Task, or Epic) in Azure DevOps. Ret
 |     ↳ `assignedTo` | string | Display name of assigned user, or null if unassigned |
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the created work item |
+|     ↳ `rev` | number | Revision number of the work item |
+|     ↳ `description` | string | Description \(System.Description, HTML\) |
+|     ↳ `iterationPath` | string | Iteration path \(System.IterationPath\) |
+|     ↳ `reason` | string | Reason for the current state \(System.Reason\) |
+|     ↳ `tags` | string | Semicolon-separated tags \(System.Tags\) |
+|     ↳ `priority` | number | Priority \(Microsoft.VSTS.Common.Priority\) |
+|     ↳ `assignedToUniqueName` | string | Unique name \(usually the email\) of the assigned user |
+|     ↳ `createdBy` | string | Display name of the creator |
+|     ↳ `createdDate` | string | ISO 8601 creation timestamp |
+|     ↳ `changedBy` | string | Display name of the last user to change the work item |
+|     ↳ `changedDate` | string | ISO 8601 last-changed timestamp |
+|     ↳ `webUrl` | string | Browser URL for the work item |
+|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\); null when the response did not include relations \(Create and Update do not expand them\) |
+|       ↳ `rel` | string | Relation type |
+|       ↳ `url` | string | URL of the linked resource |
+|       ↳ `attributes` | json | Link attributes \(name, comment, isLocked\) |
+|     ↳ `fields` | json | Every field returned for the work item, keyed by reference name \(includes custom and process-specific fields\) |
 
 </ReferenceDetails>
 
@@ -485,6 +571,7 @@ Update one or more fields on an existing work item in Azure DevOps. Provide only
 | `assignedTo` | string | No | Email or display name to reassign the work item to \(optional\) |
 | `areaPath` | string | No | New area path for the work item \(optional\) |
 | `priority` | number | No | Priority of the work item \(1 = Critical, 2 = High, 3 = Medium, 4 = Low\) \(optional\) |
+| `iterationPath` | string | No | Iteration path to move the work item to \(System.IterationPath\) \(optional\) |
 | `state` | string | No | New state for Basic-process work items: "To Do", "Doing", or "Done" \(optional\) |
 | `effort` | number | No | Effort \(Microsoft.VSTS.Scheduling.Effort\). Basic process: Issue only. |
 | `startDate` | string | No | Start date \(Microsoft.VSTS.Scheduling.StartDate\), ISO 8601. Basic process: Epic only. |
@@ -508,6 +595,23 @@ Update one or more fields on an existing work item in Azure DevOps. Provide only
 |     ↳ `assignedTo` | string | Display name of assigned user, or null if unassigned |
 |     ↳ `areaPath` | string | Area path of the work item |
 |     ↳ `url` | string | API URL for the work item |
+|     ↳ `rev` | number | Revision number of the work item |
+|     ↳ `description` | string | Description \(System.Description, HTML\) |
+|     ↳ `iterationPath` | string | Iteration path \(System.IterationPath\) |
+|     ↳ `reason` | string | Reason for the current state \(System.Reason\) |
+|     ↳ `tags` | string | Semicolon-separated tags \(System.Tags\) |
+|     ↳ `priority` | number | Priority \(Microsoft.VSTS.Common.Priority\) |
+|     ↳ `assignedToUniqueName` | string | Unique name \(usually the email\) of the assigned user |
+|     ↳ `createdBy` | string | Display name of the creator |
+|     ↳ `createdDate` | string | ISO 8601 creation timestamp |
+|     ↳ `changedBy` | string | Display name of the last user to change the work item |
+|     ↳ `changedDate` | string | ISO 8601 last-changed timestamp |
+|     ↳ `webUrl` | string | Browser URL for the work item |
+|     ↳ `relations` | array | Links to other work items, attachments, and artifacts \(rel such as System.LinkTypes.Hierarchy-Forward or AttachedFile, url, attributes\); null when the response did not include relations \(Create and Update do not expand them\) |
+|       ↳ `rel` | string | Relation type |
+|       ↳ `url` | string | URL of the linked resource |
+|       ↳ `attributes` | json | Link attributes \(name, comment, isLocked\) |
+|     ↳ `fields` | json | Every field returned for the work item, keyed by reference name \(includes custom and process-specific fields\) |
 
 </ReferenceDetails>
 
@@ -524,6 +628,7 @@ Add a comment to a work item in Azure DevOps.
 | `project` | string | Yes | Azure DevOps project name |
 | `workItemId` | number | Yes | ID of the work item to comment on |
 | `text` | string | Yes | Comment text \(HTML supported, e.g. "&lt;p&gt;My comment&lt;/p&gt;"\) |
+| `format` | string | No | Comment format: "markdown" or "html". Omit to send the text without a format \(API version 7.0 behavior\). |
 
 #### Output
 

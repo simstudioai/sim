@@ -99,12 +99,18 @@ describe('mintBoxServiceAccountToken', () => {
     })
   })
 
-  it('throws provider_unavailable (not invalid_credentials) on a 429 rate limit', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'rate_limit_exceeded' }, 429))
+  it('throws provider_unavailable (not invalid_credentials) on a 429 rate limit, with its Retry-After', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        { error: 'rate_limit_exceeded' },
+        { status: 429, headers: { 'Retry-After': '7' } }
+      )
+    )
 
     await expect(mintBoxServiceAccountToken(FIELDS)).rejects.toMatchObject({
       code: 'provider_unavailable',
       status: 429,
+      retryAfterMs: 7_000,
     })
   })
 })

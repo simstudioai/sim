@@ -104,3 +104,8 @@ export function getDataverseRequestBaseUrl(params: DataverseRequestTarget): stri
   }
   return credentialEnvironment
 }
+
+/** A numeric option counts as provided unless it is absent or blank, so an explicit 0 is still sent. */
+export function isSet(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== ''
+}

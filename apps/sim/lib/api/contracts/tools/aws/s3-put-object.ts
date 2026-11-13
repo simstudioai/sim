@@ -17,6 +17,10 @@ const S3PutObjectSchema = z.object({
   content: z.string().optional().nullable(),
   contentType: z.string().optional().nullable(),
   acl: z.string().optional().nullable(),
+  metadata: z.record(z.string(), z.string()).optional().nullable(),
+  storageClass: z.string().optional().nullable(),
+  serverSideEncryption: z.string().optional().nullable(),
+  sseKmsKeyId: z.string().optional().nullable(),
 })
 
 const S3PutObjectResponseSchema = z.object({
@@ -28,6 +32,8 @@ const S3PutObjectResponseSchema = z.object({
     location: z.string(),
     key: z.string(),
     bucket: z.string(),
+    versionId: z.string().nullable(),
+    serverSideEncryption: z.string().nullable(),
   }),
 })
 

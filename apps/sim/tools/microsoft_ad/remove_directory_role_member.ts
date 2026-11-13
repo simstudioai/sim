@@ -3,6 +3,7 @@ import type {
   MicrosoftAdRemoveDirectoryRoleMemberResponse,
 } from '@/tools/microsoft_ad/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const removeDirectoryRoleMemberTool: ToolConfig<
   MicrosoftAdRemoveDirectoryRoleMemberParams,
@@ -44,7 +45,7 @@ export const removeDirectoryRoleMemberTool: ToolConfig<
       const memberId = params.memberId?.trim()
       if (!directoryRoleId) throw new Error('Directory role ID is required')
       if (!memberId) throw new Error('Member ID is required')
-      return `https://graph.microsoft.com/v1.0/directoryRoles/${encodeURIComponent(directoryRoleId)}/members/${encodeURIComponent(memberId)}/$ref`
+      return `https://graph.microsoft.com/v1.0/directoryRoles/${safeUrlPathSegment(directoryRoleId, 'directoryRoleId')}/members/${safeUrlPathSegment(memberId, 'memberId')}/$ref`
     },
     method: 'DELETE',
     headers: (params) => ({

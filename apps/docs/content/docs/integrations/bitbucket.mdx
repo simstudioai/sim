@@ -346,6 +346,9 @@ List repository commits in reverse chronological order
 | --------- | ---- | -------- | ----------- |
 | `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
 | `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `include` | array | No | Branches, tags, or commit hashes whose history to include; omit to list commits on every ref |
+| `exclude` | array | No | Branches, tags, or commit hashes whose reachable commits to leave out |
+| `path` | string | No | Only list commits that changed this file or directory |
 | `nextUrl` | string | No | Opaque next-page URL returned by a previous Bitbucket call |
 | `pageLen` | number | No | Results per page \(1-100\) |
 
@@ -602,11 +605,15 @@ List pull requests in a Bitbucket Cloud repository
 |     ↳ `commitHash` | string | Commit hash |
 |     ↳ `repositoryUuid` | string | Repository UUID |
 |     ↳ `repositoryFullName` | string | Repository full name |
+|     ↳ `mergeStrategies` | array | Merge strategies available when this endpoint is the destination |
+|     ↳ `defaultMergeStrategy` | string | Default merge strategy when this endpoint is the destination |
 |   ↳ `destination` | object | Destination endpoint |
 |     ↳ `branchName` | string | Branch name |
 |     ↳ `commitHash` | string | Commit hash |
 |     ↳ `repositoryUuid` | string | Repository UUID |
 |     ↳ `repositoryFullName` | string | Repository full name |
+|     ↳ `mergeStrategies` | array | Merge strategies available when this endpoint is the destination |
+|     ↳ `defaultMergeStrategy` | string | Default merge strategy when this endpoint is the destination |
 |   ↳ `mergeCommitHash` | string | Merge commit hash |
 |   ↳ `commentCount` | number | Comment count |
 |   ↳ `taskCount` | number | Open task count |
@@ -692,11 +699,15 @@ Get a pull request by repository-scoped ID
 |     ↳ `commitHash` | string | Commit hash |
 |     ↳ `repositoryUuid` | string | Repository UUID |
 |     ↳ `repositoryFullName` | string | Repository full name |
+|     ↳ `mergeStrategies` | array | Merge strategies available when this endpoint is the destination |
+|     ↳ `defaultMergeStrategy` | string | Default merge strategy when this endpoint is the destination |
 |   ↳ `destination` | object | Destination endpoint |
 |     ↳ `branchName` | string | Branch name |
 |     ↳ `commitHash` | string | Commit hash |
 |     ↳ `repositoryUuid` | string | Repository UUID |
 |     ↳ `repositoryFullName` | string | Repository full name |
+|     ↳ `mergeStrategies` | array | Merge strategies available when this endpoint is the destination |
+|     ↳ `defaultMergeStrategy` | string | Default merge strategy when this endpoint is the destination |
 |   ↳ `mergeCommitHash` | string | Merge commit hash |
 |   ↳ `commentCount` | number | Comment count |
 |   ↳ `taskCount` | number | Open task count |
@@ -788,11 +799,15 @@ Create a pull request between repository branches
 |     ↳ `commitHash` | string | Commit hash |
 |     ↳ `repositoryUuid` | string | Repository UUID |
 |     ↳ `repositoryFullName` | string | Repository full name |
+|     ↳ `mergeStrategies` | array | Merge strategies available when this endpoint is the destination |
+|     ↳ `defaultMergeStrategy` | string | Default merge strategy when this endpoint is the destination |
 |   ↳ `destination` | object | Destination endpoint |
 |     ↳ `branchName` | string | Branch name |
 |     ↳ `commitHash` | string | Commit hash |
 |     ↳ `repositoryUuid` | string | Repository UUID |
 |     ↳ `repositoryFullName` | string | Repository full name |
+|     ↳ `mergeStrategies` | array | Merge strategies available when this endpoint is the destination |
+|     ↳ `defaultMergeStrategy` | string | Default merge strategy when this endpoint is the destination |
 |   ↳ `mergeCommitHash` | string | Merge commit hash |
 |   ↳ `commentCount` | number | Comment count |
 |   ↳ `taskCount` | number | Open task count |
@@ -884,11 +899,15 @@ Start an asynchronous pull request merge and return a task to poll when needed
 |     ↳ `commitHash` | string | Commit hash |
 |     ↳ `repositoryUuid` | string | Repository UUID |
 |     ↳ `repositoryFullName` | string | Repository full name |
+|     ↳ `mergeStrategies` | array | Merge strategies available when this endpoint is the destination |
+|     ↳ `defaultMergeStrategy` | string | Default merge strategy when this endpoint is the destination |
 |   ↳ `destination` | object | Destination endpoint |
 |     ↳ `branchName` | string | Branch name |
 |     ↳ `commitHash` | string | Commit hash |
 |     ↳ `repositoryUuid` | string | Repository UUID |
 |     ↳ `repositoryFullName` | string | Repository full name |
+|     ↳ `mergeStrategies` | array | Merge strategies available when this endpoint is the destination |
+|     ↳ `defaultMergeStrategy` | string | Default merge strategy when this endpoint is the destination |
 |   ↳ `mergeCommitHash` | string | Merge commit hash |
 |   ↳ `commentCount` | number | Comment count |
 |   ↳ `taskCount` | number | Open task count |
@@ -977,11 +996,15 @@ Poll the status of an asynchronous pull request merge task
 |     ↳ `commitHash` | string | Commit hash |
 |     ↳ `repositoryUuid` | string | Repository UUID |
 |     ↳ `repositoryFullName` | string | Repository full name |
+|     ↳ `mergeStrategies` | array | Merge strategies available when this endpoint is the destination |
+|     ↳ `defaultMergeStrategy` | string | Default merge strategy when this endpoint is the destination |
 |   ↳ `destination` | object | Destination endpoint |
 |     ↳ `branchName` | string | Branch name |
 |     ↳ `commitHash` | string | Commit hash |
 |     ↳ `repositoryUuid` | string | Repository UUID |
 |     ↳ `repositoryFullName` | string | Repository full name |
+|     ↳ `mergeStrategies` | array | Merge strategies available when this endpoint is the destination |
+|     ↳ `defaultMergeStrategy` | string | Default merge strategy when this endpoint is the destination |
 |   ↳ `mergeCommitHash` | string | Merge commit hash |
 |   ↳ `commentCount` | number | Comment count |
 |   ↳ `taskCount` | number | Open task count |
@@ -1067,11 +1090,15 @@ Decline an open pull request
 |     ↳ `commitHash` | string | Commit hash |
 |     ↳ `repositoryUuid` | string | Repository UUID |
 |     ↳ `repositoryFullName` | string | Repository full name |
+|     ↳ `mergeStrategies` | array | Merge strategies available when this endpoint is the destination |
+|     ↳ `defaultMergeStrategy` | string | Default merge strategy when this endpoint is the destination |
 |   ↳ `destination` | object | Destination endpoint |
 |     ↳ `branchName` | string | Branch name |
 |     ↳ `commitHash` | string | Commit hash |
 |     ↳ `repositoryUuid` | string | Repository UUID |
 |     ↳ `repositoryFullName` | string | Repository full name |
+|     ↳ `mergeStrategies` | array | Merge strategies available when this endpoint is the destination |
+|     ↳ `defaultMergeStrategy` | string | Default merge strategy when this endpoint is the destination |
 |   ↳ `mergeCommitHash` | string | Merge commit hash |
 |   ↳ `commentCount` | number | Comment count |
 |   ↳ `taskCount` | number | Open task count |

@@ -3,6 +3,7 @@ import {
   BatchGetNamedQueryCommand,
   BatchGetPreparedStatementCommand,
   BatchGetQueryExecutionCommand,
+  type ColumnInfo,
   CreateNamedQueryCommand,
   CreatePreparedStatementCommand,
   type Database,
@@ -27,6 +28,8 @@ import {
   ListWorkGroupsCommand,
   type NamedQuery,
   type PreparedStatement,
+  type QueryExecution,
+  type Row,
   StartQueryExecutionCommand,
   StopQueryExecutionCommand,
   type TableMetadata,
@@ -131,6 +134,48 @@ function mapEngineVersion(engineVersion: EngineVersion | undefined) {
   }
 }
 
+/** Query execution fields beyond the core status and statistics every caller reads. */
+function mapQueryExecutionDetails(execution: QueryExecution) {
+  const athenaError = execution.Status?.AthenaError
+  return {
+    servicePreProcessingTimeInMillis:
+      execution.Statistics?.ServicePreProcessingTimeInMillis ?? null,
+    serviceProcessingTimeInMillis: execution.Statistics?.ServiceProcessingTimeInMillis ?? null,
+    dataManifestLocation: execution.Statistics?.DataManifestLocation ?? null,
+    reusedPreviousResult:
+      execution.Statistics?.ResultReuseInformation?.ReusedPreviousResult ?? null,
+    athenaError: athenaError
+      ? {
+          errorCategory: athenaError.ErrorCategory ?? null,
+          errorType: athenaError.ErrorType ?? null,
+          retryable: athenaError.Retryable ?? null,
+          errorMessage: athenaError.ErrorMessage ?? null,
+        }
+      : null,
+    executionParameters: execution.ExecutionParameters ?? null,
+    substatementType: execution.SubstatementType ?? null,
+    engineVersion: mapEngineVersion(execution.EngineVersion),
+  }
+}
+
+/**
+ * Whether the first row of a first results page is the column-header row. SELECT results
+ * start with one; DDL and utility statements such as SHOW TABLES do not, so their first row
+ * is data. Without column metadata to compare against, the row is treated as a header, as
+ * it always was before.
+ */
+function isHeaderRow(row: Row | undefined, columnInfo: ColumnInfo[]): boolean {
+  if (!row) return false
+  if (columnInfo.length === 0) return true
+  const values = row.Data ?? []
+  if (values.length !== columnInfo.length) return false
+  return values.every((value, index) => {
+    const column = columnInfo[index]
+    const cell = value.VarCharValue
+    return cell !== undefined && (cell === column.Label || cell === column.Name)
+  })
+}
+
 export async function executeAthenaBatchGetQueryExecution(
   input: AwsAthenaBatchGetQueryExecutionBody,
   signal?: AbortSignal
@@ -160,6 +205,7 @@ export async function executeAthenaBatchGetQueryExecution(
           queryQueueTimeInMillis: execution.Statistics?.QueryQueueTimeInMillis ?? null,
           totalExecutionTimeInMillis: execution.Statistics?.TotalExecutionTimeInMillis ?? null,
           outputLocation: execution.ResultConfiguration?.OutputLocation ?? null,
+          ...mapQueryExecutionDetails(execution),
         })),
         unprocessedQueryExecutionIds: (response.UnprocessedQueryExecutionIds ?? []).map((item) => ({
           queryExecutionId: item.QueryExecutionId ?? null,
@@ -250,6 +296,7 @@ export async function executeAthenaGetQueryExecution(
         queryQueueTimeInMillis: execution.Statistics?.QueryQueueTimeInMillis ?? null,
         totalExecutionTimeInMillis: execution.Statistics?.TotalExecutionTimeInMillis ?? null,
         outputLocation: execution.ResultConfiguration?.OutputLocation ?? null,
+        ...mapQueryExecutionDetails(execution),
       },
     }
   })
@@ -271,12 +318,19 @@ export async function executeAthenaGetQueryResults(
       }),
       { abortSignal: signal }
     )
-    const columns = (response.ResultSet?.ResultSetMetadata?.ColumnInfo ?? []).map((column) => ({
+    const columnInfo = response.ResultSet?.ResultSetMetadata?.ColumnInfo ?? []
+    const columns = columnInfo.map((column) => ({
       name: column.Name ?? '',
       type: column.Type ?? 'varchar',
+      label: column.Label ?? null,
+      precision: column.Precision ?? null,
+      scale: column.Scale ?? null,
+      nullable: column.Nullable ?? null,
+      caseSensitive: column.CaseSensitive ?? null,
     }))
     const rawRows = response.ResultSet?.Rows ?? []
-    const dataRows = input.nextToken ? rawRows : rawRows.slice(1)
+    const hasHeaderRow = !input.nextToken && isHeaderRow(rawRows[0], columnInfo)
+    const dataRows = hasHeaderRow ? rawRows.slice(1) : rawRows
     const rows = dataRows.map((row) => {
       const record: Record<string, string> = {}
       const rowData = row.Data ?? []
@@ -409,9 +463,27 @@ export async function executeAthenaStartQuery(
               },
             }
           : {}),
-        ...(input.outputLocation
-          ? { ResultConfiguration: { OutputLocation: input.outputLocation } }
+        ...(input.outputLocation || input.encryptionOption || input.expectedBucketOwner
+          ? {
+              ResultConfiguration: {
+                ...(input.outputLocation ? { OutputLocation: input.outputLocation } : {}),
+                ...(input.encryptionOption
+                  ? {
+                      EncryptionConfiguration: {
+                        EncryptionOption: input.encryptionOption,
+                        ...(input.kmsKey && input.encryptionOption !== 'SSE_S3'
+                          ? { KmsKey: input.kmsKey }
+                          : {}),
+                      },
+                    }
+                  : {}),
+                ...(input.expectedBucketOwner
+                  ? { ExpectedBucketOwner: input.expectedBucketOwner }
+                  : {}),
+              },
+            }
           : {}),
+        ...(input.clientRequestToken ? { ClientRequestToken: input.clientRequestToken } : {}),
         ...(input.workGroup ? { WorkGroup: input.workGroup } : {}),
         ...(input.executionParameters ? { ExecutionParameters: input.executionParameters } : {}),
         ...(input.resultReuseEnabled !== undefined

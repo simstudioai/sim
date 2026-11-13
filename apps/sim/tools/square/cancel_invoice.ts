@@ -4,7 +4,7 @@ import type { CancelInvoiceParams, InvoiceResponse } from '@/tools/square/types'
 import {
   INVOICE_METADATA_OUTPUT_PROPERTIES,
   INVOICE_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -18,6 +18,7 @@ export const squareCancelInvoiceTool: ToolConfig<CancelInvoiceParams, InvoiceRes
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -40,7 +41,7 @@ export const squareCancelInvoiceTool: ToolConfig<CancelInvoiceParams, InvoiceRes
 
   request: {
     url: (params) =>
-      `${SQUARE_BASE_URL}/v2/invoices/${encodeURIComponent(params.invoiceId)}/cancel`,
+      `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/invoices/${encodeURIComponent(params.invoiceId)}/cancel`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => ({ version: params.version }),

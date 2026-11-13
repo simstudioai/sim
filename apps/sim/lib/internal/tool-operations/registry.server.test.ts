@@ -1,15 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
+import { DATABASE_CONNECTION_DESCRIPTORS } from '@/lib/credentials/database-connections/descriptors'
 import {
   AWS_CREDENTIAL_OPERATION_TOOL_IDS,
   getInternalToolOperationHandler,
   getRegisteredInternalToolOperationIds,
   isInternalToolOperationRegistered,
+  SAVED_DATABASE_CONNECTION_TOOL_SERVICES,
 } from '@/lib/internal/tool-operations/registry.server'
 import { getToolMetadata } from '@/tools/metadata'
-import { AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
+import {
+  AWS_SESSION_SIGNED_TOOL_IDS,
+  OPERATION_RESOLVED_CREDENTIAL_PROVIDERS,
+} from '@/tools/shared/saved-credentials'
 import { getToolIds } from '@/tools/tool-ids'
 
-// The AWS routing check reads real tool policies.
+// The saved-credential routing checks read real tool policies.
 vi.unmock('@/tools/metadata')
 
 /**
@@ -61,6 +66,31 @@ describe('internal tool operation registry', () => {
     }
     for (const toolId of AWS_SESSION_SIGNED_TOOL_IDS) {
       expect(isInternalToolOperationRegistered(toolId), toolId).toBe(false)
+    }
+  })
+
+  /**
+   * The saved-credential contract check skips operation-resolved providers, so
+   * a tool that names a saved database connection but runs outside a wrapped
+   * family would pass it and still run on the call's inline fields.
+   */
+  it('routes every saved-database-connection tool through a family that loads its connection', () => {
+    const databaseServices = new Set<string>(
+      Object.values(DATABASE_CONNECTION_DESCRIPTORS).map(({ service }) => service)
+    )
+    const databaseTools = getToolIds().filter((toolId) => {
+      const provider = getToolMetadata(toolId)?.oauth?.provider
+      return provider !== undefined && databaseServices.has(provider)
+    })
+
+    for (const service of databaseServices) {
+      expect(OPERATION_RESOLVED_CREDENTIAL_PROVIDERS.has(service), service).toBe(true)
+    }
+    expect(databaseTools.length).toBeGreaterThan(0)
+    for (const toolId of databaseTools) {
+      expect(SAVED_DATABASE_CONNECTION_TOOL_SERVICES.get(toolId), toolId).toBe(
+        getToolMetadata(toolId)?.oauth?.provider
+      )
     }
   })
 })

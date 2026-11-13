@@ -5,6 +5,7 @@ import { resourceScopeFromOwner, sameResourceScope } from '@/lib/core/resource-s
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { isHostNotFound } from '@/lib/credentials/token-service-accounts/errors'
+import { credibleTokenExpiry, gitlabTokenExpiration } from '@/lib/credentials/vendor-token-expiry'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 
 const gitLabUserSchema = z.object({
@@ -99,7 +100,7 @@ export async function verifyGitLabPersonalToken(accessToken: string, rawHost?: s
     instanceUrl,
     displayName: `${user.data.name || user.data.username} (${new URL(instanceUrl).host})`,
     grantedScopes: token.data.scopes,
-    expiresAt: token.data.expires_at ? new Date(`${token.data.expires_at}T00:00:00Z`) : null,
+    expiresAt: credibleTokenExpiry(gitlabTokenExpiration(token.data.expires_at)) ?? null,
   }
 }
 

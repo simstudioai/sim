@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
 import {
+  contactResourcePath,
   DEFAULT_PERSON_FIELDS,
   type GoogleContactsUpdateParams,
   type GoogleContactsUpdateResponse,
   PEOPLE_API_BASE,
+  parsePeopleDate,
   transformPerson,
 } from '@/tools/google_contacts/types'
 import type { ToolConfig } from '@/tools/types'
@@ -94,6 +96,12 @@ export const updateTool: ToolConfig<GoogleContactsUpdateParams, GoogleContactsUp
       visibility: 'user-or-llm',
       description: 'Updated notes or biography',
     },
+    birthday: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Birthday as YYYY-MM-DD, or MM-DD when the year is unknown',
+    },
   },
 
   request: {
@@ -104,6 +112,7 @@ export const updateTool: ToolConfig<GoogleContactsUpdateParams, GoogleContactsUp
       if (params.phone) updateFields.push('phoneNumbers')
       if (params.organization || params.jobTitle) updateFields.push('organizations')
       if (params.notes) updateFields.push('biographies')
+      if (params.birthday) updateFields.push('birthdays')
 
       if (updateFields.length === 0) {
         throw new Error('At least one field to update must be provided')
@@ -111,7 +120,7 @@ export const updateTool: ToolConfig<GoogleContactsUpdateParams, GoogleContactsUp
 
       const updatePersonFields = updateFields.join(',')
 
-      return `${PEOPLE_API_BASE}/${params.resourceName.trim()}:updateContact?updatePersonFields=${updatePersonFields}&personFields=${DEFAULT_PERSON_FIELDS}`
+      return `${PEOPLE_API_BASE}/${contactResourcePath(params.resourceName)}:updateContact?updatePersonFields=${updatePersonFields}&personFields=${DEFAULT_PERSON_FIELDS}`
     },
     method: 'PATCH',
     headers: (params: GoogleContactsUpdateParams) => ({
@@ -154,6 +163,10 @@ export const updateTool: ToolConfig<GoogleContactsUpdateParams, GoogleContactsUp
         person.biographies = [{ value: params.notes, contentType: 'TEXT_PLAIN' }]
       }
 
+      if (params.birthday) {
+        person.birthdays = [{ date: parsePeopleDate(params.birthday, 'birthday') }]
+      }
+
       return person
     },
   },
@@ -182,7 +195,8 @@ export const updateTool: ToolConfig<GoogleContactsUpdateParams, GoogleContactsUp
     content: { type: 'string', description: 'Contact update confirmation message' },
     metadata: {
       type: 'json',
-      description: 'Updated contact metadata',
+      description:
+        'Updated contact (resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames)',
     },
   },
 }

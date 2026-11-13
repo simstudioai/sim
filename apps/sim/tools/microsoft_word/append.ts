@@ -3,6 +3,7 @@ import type {
   MicrosoftWordToolParams,
   MicrosoftWordUpdateResponse,
 } from '@/tools/microsoft_word/types'
+import { DOCUMENT_METADATA_DETAIL_PROPERTIES } from '@/tools/microsoft_word/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
 type AppendToolConfig = InternalToolConfig<MicrosoftWordToolParams, MicrosoftWordUpdateResponse>
@@ -82,6 +83,7 @@ export const appendTool: AppendToolConfig = {
           description: 'ISO 8601 last modification time',
           optional: true,
         },
+        ...DOCUMENT_METADATA_DETAIL_PROPERTIES,
       },
     },
   },

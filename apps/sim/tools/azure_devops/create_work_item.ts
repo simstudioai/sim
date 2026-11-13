@@ -10,6 +10,8 @@ import {
   azureDevOpsProjectUrl,
   formatWorkItem,
   mapWorkItem,
+  WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
+  WORK_ITEM_RAW_DETAIL_OUTPUT_PROPERTIES,
 } from '@/tools/azure_devops/utils'
 import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -242,6 +244,8 @@ export const createWorkItemTool: ToolConfig<CreateWorkItemParams, CreateWorkItem
             },
             areaPath: { type: 'string', description: 'Area path of the work item' },
             url: { type: 'string', description: 'API URL for the created work item' },
+            ...WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
+            ...WORK_ITEM_RAW_DETAIL_OUTPUT_PROPERTIES,
           },
         },
       },

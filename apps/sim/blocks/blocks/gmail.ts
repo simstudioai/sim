@@ -312,6 +312,15 @@ Return ONLY the email body - no explanations, no extra text.`,
       mode: 'advanced',
       required: false,
     },
+    {
+      id: 'replyTo',
+      title: 'Reply-To',
+      type: 'short-input',
+      placeholder: 'Address replies should go to (e.g., support@example.com)',
+      condition: { field: 'operation', value: ['send_gmail', 'draft_gmail', 'edit_draft_gmail'] },
+      mode: 'advanced',
+      required: false,
+    },
     // Label/folder selector (basic mode)
     {
       id: 'folder',
@@ -382,8 +391,18 @@ Return ONLY the search query - no explanations, no extra text.`,
       id: 'maxResults',
       title: 'Max Results',
       type: 'short-input',
-      placeholder: 'Maximum number of results (default: 10)',
+      placeholder:
+        'Maximum number of results (read: default 1, max 10; search: default 100, max 500)',
       condition: { field: 'operation', value: ['search_gmail', 'read_gmail'] },
+    },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'nextPageToken from a previous search',
+      condition: { field: 'operation', value: 'search_gmail' },
+      mode: 'advanced',
+      required: false,
     },
     // Move Email Fields
     {
@@ -603,10 +622,11 @@ Return ONLY the search query - no explanations, no extra text.`,
     threadId: { type: 'string', description: 'Thread ID to reply to (for threading)' },
     replyToMessageId: {
       type: 'string',
-      description: 'Gmail message ID to reply to (use "id" field from results, not "messageId")',
+      description: 'Gmail message ID to reply to (use "id" field from results, not "rfcMessageId")',
     },
     cc: { type: 'string', description: 'CC recipients (comma-separated)' },
     bcc: { type: 'string', description: 'BCC recipients (comma-separated)' },
+    replyTo: { type: 'string', description: 'Reply-To address for the outgoing email' },
     attachments: { type: 'array', description: 'Files to attach (canonical param)' },
     // Read operation inputs
     folder: { type: 'string', description: 'Gmail folder (canonical param)' },
@@ -616,6 +636,10 @@ Return ONLY the search query - no explanations, no extra text.`,
     // Search operation inputs
     query: { type: 'string', description: 'Search query' },
     maxResults: { type: 'number', description: 'Maximum results' },
+    pageToken: {
+      type: 'string',
+      description: 'Search page token (nextPageToken from a prior search)',
+    },
     // Move operation inputs
     moveMessageId: { type: 'string', description: 'Message ID to move' },
     addLabelIds: { type: 'string', description: 'Label IDs to add (canonical param)' },
@@ -632,7 +656,11 @@ Return ONLY the search query - no explanations, no extra text.`,
   outputs: {
     // Tool outputs
     content: { type: 'string', description: 'Response content' },
-    metadata: { type: 'json', description: 'Email metadata' },
+    metadata: {
+      type: 'json',
+      description:
+        'Email metadata (id, threadId, labelIds, from, to, cc, bcc, replyTo, subject, date, rfcMessageId, inReplyTo, references, snippet, internalDate, hasAttachments, attachmentCount); search/multi-read returns results[] with the same header fields plus nextPageToken and resultSizeEstimate for search',
+    },
     attachments: { type: 'file[]', description: 'Email attachments array' },
     // Trigger outputs
     email_id: { type: 'string', description: 'Gmail message ID' },
@@ -655,6 +683,223 @@ Return ONLY the search query - no explanations, no extra text.`,
   },
 }
 
+const LABEL_WRITE_OPERATIONS = ['create_label_gmail', 'update_label_gmail']
+const LABEL_TARGET_OPERATIONS = ['update_label_gmail', 'delete_label_gmail']
+const THREAD_TARGET_OPERATIONS = ['get_thread_gmail', 'trash_thread_gmail', 'untrash_thread_gmail']
+const LIST_OPERATIONS = ['list_drafts_gmail', 'list_threads_gmail']
+const PAGINATED_OPERATIONS = ['search_gmail', ...LIST_OPERATIONS]
+const LABEL_TARGET_FIELD = ['labelTarget', 'manualLabelTarget'] as const
+
+/** Operations only the V2 block exposes; their tools exist only in a `_v2` version. */
+const GMAIL_V2_OPERATION_TOOLS: Record<string, string> = {
+  list_labels_gmail: 'gmail_list_labels_v2',
+  create_label_gmail: 'gmail_create_label_v2',
+  update_label_gmail: 'gmail_update_label_v2',
+  delete_label_gmail: 'gmail_delete_label_v2',
+  list_drafts_gmail: 'gmail_list_drafts_v2',
+  get_draft_gmail: 'gmail_get_draft_v2',
+  delete_draft_gmail: 'gmail_delete_draft_v2',
+  list_threads_gmail: 'gmail_list_threads_v2',
+  get_thread_gmail: 'gmail_get_thread_v2',
+  trash_thread_gmail: 'gmail_trash_thread_v2',
+  untrash_thread_gmail: 'gmail_untrash_thread_v2',
+}
+
+function selectGmailV2ToolId(params: Record<string, unknown>): string {
+  const operation = typeof params.operation === 'string' ? params.operation : ''
+  return (
+    (Object.hasOwn(GMAIL_V2_OPERATION_TOOLS, operation) && GMAIL_V2_OPERATION_TOOLS[operation]) ||
+    selectGmailToolId(params)
+  )
+}
+
+const GMAIL_V2_OPERATION_OPTIONS = [
+  { label: 'List Labels', id: 'list_labels_gmail' },
+  { label: 'Create Label', id: 'create_label_gmail' },
+  { label: 'Update Label', id: 'update_label_gmail' },
+  { label: 'Delete Label', id: 'delete_label_gmail' },
+  { label: 'List Drafts', id: 'list_drafts_gmail' },
+  { label: 'Get Draft', id: 'get_draft_gmail' },
+  { label: 'Delete Draft', id: 'delete_draft_gmail' },
+  { label: 'List Threads', id: 'list_threads_gmail' },
+  { label: 'Get Thread', id: 'get_thread_gmail' },
+  { label: 'Trash Thread', id: 'trash_thread_gmail' },
+  { label: 'Untrash Thread', id: 'untrash_thread_gmail' },
+]
+
+const GMAIL_V2_SUBBLOCKS: BlockConfig['subBlocks'] = [
+  {
+    id: 'labelTarget',
+    title: 'Label',
+    type: 'folder-selector',
+    canonicalParamId: 'labelId',
+    serviceId: 'gmail',
+    selectorKey: 'gmail.labels',
+    requiredScopes: getScopesForService('gmail'),
+    placeholder: 'Select label',
+    dependsOn: ['credential'],
+    mode: 'basic',
+    condition: { field: 'operation', value: LABEL_TARGET_OPERATIONS },
+    required: true,
+  },
+  {
+    id: 'manualLabelTarget',
+    title: 'Label ID',
+    type: 'short-input',
+    canonicalParamId: 'labelId',
+    placeholder: 'Enter label ID (e.g., Label_123)',
+    dependsOn: ['credential'],
+    mode: 'advanced',
+    condition: { field: 'operation', value: LABEL_TARGET_OPERATIONS },
+    required: true,
+  },
+  {
+    id: 'labelName',
+    title: 'Label Name',
+    type: 'short-input',
+    placeholder: 'Label display name (e.g., Clients/Acme)',
+    condition: { field: 'operation', value: LABEL_WRITE_OPERATIONS },
+    required: { field: 'operation', value: 'create_label_gmail' },
+  },
+  {
+    id: 'messageListVisibility',
+    title: 'Message List Visibility',
+    type: 'dropdown',
+    options: [
+      { label: 'Default', id: '' },
+      { label: 'Show', id: 'show' },
+      { label: 'Hide', id: 'hide' },
+    ],
+    value: () => '',
+    condition: { field: 'operation', value: LABEL_WRITE_OPERATIONS },
+    mode: 'advanced',
+    required: false,
+  },
+  {
+    id: 'labelListVisibility',
+    title: 'Label List Visibility',
+    type: 'dropdown',
+    options: [
+      { label: 'Default', id: '' },
+      { label: 'Show', id: 'labelShow' },
+      { label: 'Show if unread', id: 'labelShowIfUnread' },
+      { label: 'Hide', id: 'labelHide' },
+    ],
+    value: () => '',
+    condition: { field: 'operation', value: LABEL_WRITE_OPERATIONS },
+    mode: 'advanced',
+    required: false,
+  },
+  {
+    id: 'targetThreadId',
+    title: 'Thread ID',
+    type: 'short-input',
+    placeholder: 'ID of the thread (threadId from Read, Search, or List Threads)',
+    condition: { field: 'operation', value: THREAD_TARGET_OPERATIONS },
+    required: true,
+  },
+  {
+    id: 'threadFormat',
+    title: 'Format',
+    type: 'dropdown',
+    options: [
+      { label: 'Full', id: 'full' },
+      { label: 'Metadata', id: 'metadata' },
+      { label: 'Minimal', id: 'minimal' },
+    ],
+    value: () => 'full',
+    condition: { field: 'operation', value: 'get_thread_gmail' },
+    mode: 'advanced',
+    required: false,
+  },
+  {
+    id: 'listQuery',
+    title: 'Search Query',
+    type: 'short-input',
+    placeholder: 'Optional Gmail search filter (e.g., from:alice is:unread)',
+    condition: { field: 'operation', value: LIST_OPERATIONS },
+    required: false,
+    wandConfig: {
+      enabled: true,
+      prompt: `Generate a Gmail search query based on the user's request.
+Gmail search supports operators like:
+- from: to: subject: has:attachment
+- is:unread is:starred is:important
+- before: after: older: newer:
+- filename: label: category:
+
+Return ONLY the search query - no explanations, no extra text.`,
+      placeholder: 'Describe which drafts or threads you want...',
+    },
+  },
+  {
+    id: 'threadLabelIds',
+    title: 'Label IDs',
+    type: 'short-input',
+    placeholder: 'Comma-separated label IDs (e.g., INBOX,Label_123)',
+    condition: { field: 'operation', value: 'list_threads_gmail' },
+    mode: 'advanced',
+    required: false,
+    wandConfig: {
+      enabled: true,
+      prompt: `Generate a comma-separated list of Gmail label IDs based on the user's request.
+System labels are uppercase (INBOX, SENT, DRAFT, SPAM, TRASH, STARRED, IMPORTANT, UNREAD); custom labels look like Label_123.
+
+Return ONLY the comma-separated label IDs - no explanations, no extra text.`,
+      placeholder: 'Describe which labels to filter by...',
+    },
+  },
+]
+
+function buildGmailV2SubBlocks(): BlockConfig['subBlocks'] {
+  return GmailBlock.subBlocks.flatMap((subBlock) => {
+    switch (subBlock.id) {
+      case 'operation':
+        return [
+          {
+            ...subBlock,
+            options: [
+              ...(Array.isArray(subBlock.options) ? subBlock.options : []),
+              ...GMAIL_V2_OPERATION_OPTIONS,
+            ],
+          },
+        ]
+      case 'draftId':
+        return [
+          {
+            ...subBlock,
+            placeholder: 'ID of the draft (from List Drafts)',
+            condition: {
+              field: 'operation',
+              value: ['edit_draft_gmail', 'get_draft_gmail', 'delete_draft_gmail'],
+            },
+          },
+        ]
+      case 'maxResults':
+        return [
+          {
+            ...subBlock,
+            placeholder:
+              'Maximum number of results (read: default 1, max 10; search and lists: default 100, max 500)',
+            condition: { field: 'operation', value: ['read_gmail', ...PAGINATED_OPERATIONS] },
+          },
+        ]
+      case 'pageToken':
+        return [
+          {
+            ...subBlock,
+            placeholder: 'nextPageToken from a previous search or list',
+            condition: { field: 'operation', value: PAGINATED_OPERATIONS },
+          },
+        ]
+      case 'manualLabelId':
+        return [subBlock, ...GMAIL_V2_SUBBLOCKS]
+      default:
+        return [subBlock]
+    }
+  })
+}
+
 export const GmailV2Block: BlockConfig = {
   ...GmailBlock,
   sunset: undefined,
@@ -662,6 +907,33 @@ export const GmailV2Block: BlockConfig = {
   name: 'Gmail',
   hideFromToolbar: false,
   integrationType: IntegrationType.Email,
+  canvasPresentation: GmailBlock.canvasPresentation && {
+    ...GmailBlock.canvasPresentation,
+    sentences: {
+      byOperation: {
+        ...GmailBlock.canvasPresentation.sentences?.byOperation,
+        list_labels_gmail: ['List labels'],
+        create_label_gmail: [{ text: 'Create label', field: 'labelName', core: true }],
+        update_label_gmail: [
+          { text: 'Update label', field: LABEL_TARGET_FIELD, core: true },
+          { text: ', renaming it to', field: 'labelName' },
+        ],
+        delete_label_gmail: [{ text: 'Delete label', field: LABEL_TARGET_FIELD, core: true }],
+        list_drafts_gmail: ['List drafts', { text: 'matching', field: 'listQuery' }],
+        get_draft_gmail: [{ text: 'Get draft', field: 'draftId', core: true }],
+        delete_draft_gmail: [{ text: 'Delete draft', field: 'draftId', core: true }],
+        list_threads_gmail: ['List threads', { text: 'matching', field: 'listQuery' }],
+        get_thread_gmail: [{ text: 'Get thread', field: 'targetThreadId', core: true }],
+        trash_thread_gmail: [
+          { text: 'Move thread', field: 'targetThreadId', core: true, after: 'to trash' },
+        ],
+        untrash_thread_gmail: [
+          { text: 'Restore thread', field: 'targetThreadId', core: true, after: 'from trash' },
+        ],
+      },
+    },
+  },
+  subBlocks: buildGmailV2SubBlocks(),
   tools: {
     ...GmailBlock.tools,
     access: [
@@ -679,48 +951,204 @@ export const GmailV2Block: BlockConfig = {
       'gmail_add_label_v2',
       'gmail_remove_label_v2',
       'gmail_list_labels_v2',
+      'gmail_create_label_v2',
+      'gmail_update_label_v2',
+      'gmail_delete_label_v2',
+      'gmail_list_drafts_v2',
+      'gmail_get_draft_v2',
+      'gmail_delete_draft_v2',
+      'gmail_list_threads_v2',
+      'gmail_get_thread_v2',
+      'gmail_trash_thread_v2',
+      'gmail_untrash_thread_v2',
     ],
     config: {
       ...GmailBlock.tools?.config,
       tool: createVersionedToolSelector({
-        baseToolSelector: selectGmailToolId,
+        baseToolSelector: selectGmailV2ToolId,
         suffix: '_v2',
         fallbackToolId: 'gmail_send_v2',
       }),
+      params: (params) => {
+        const mapped = GmailBlock.tools?.config?.params?.(params) ?? params
+        const {
+          labelName,
+          targetThreadId,
+          threadFormat,
+          listQuery,
+          threadLabelIds,
+          messageListVisibility,
+          labelListVisibility,
+          ...rest
+        } = mapped
+        if (LABEL_WRITE_OPERATIONS.includes(rest.operation)) {
+          rest.name = labelName || undefined
+          rest.messageListVisibility = messageListVisibility || undefined
+          rest.labelListVisibility = labelListVisibility || undefined
+        }
+        if (THREAD_TARGET_OPERATIONS.includes(rest.operation)) {
+          rest.threadId = targetThreadId
+          rest.format = threadFormat || undefined
+        }
+        if (LIST_OPERATIONS.includes(rest.operation)) {
+          rest.query = listQuery || undefined
+          rest.labelIds = threadLabelIds ? String(threadLabelIds).trim() : undefined
+        }
+        return rest
+      },
     },
+  },
+  inputs: {
+    ...GmailBlock.inputs,
+    labelId: { type: 'string', description: 'Label ID to update or delete (canonical param)' },
+    labelName: { type: 'string', description: 'Label display name' },
+    messageListVisibility: {
+      type: 'string',
+      description: 'Message list visibility for the label (show or hide)',
+    },
+    labelListVisibility: {
+      type: 'string',
+      description: 'Label list visibility (labelShow, labelShowIfUnread, or labelHide)',
+    },
+    targetThreadId: { type: 'string', description: 'Thread ID for thread operations' },
+    threadFormat: { type: 'string', description: 'Thread format (full, metadata, or minimal)' },
+    listQuery: { type: 'string', description: 'Search filter for listing drafts or threads' },
+    threadLabelIds: { type: 'string', description: 'Comma-separated label IDs to filter threads' },
   },
   outputs: {
     // V2 tool outputs (API-aligned)
-    id: { type: 'string', description: 'Gmail message ID' },
+    id: {
+      type: 'string',
+      description:
+        'Gmail message ID (thread ID for thread operations, label ID for label operations, draft ID for Get Draft)',
+    },
     threadId: { type: 'string', description: 'Gmail thread ID' },
     labelIds: { type: 'array', description: 'Email label IDs' },
     from: { type: 'string', description: 'Sender' },
     to: { type: 'string', description: 'To' },
+    bcc: { type: 'string', description: 'Bcc recipients (only on messages you sent or drafted)' },
+    replyTo: { type: 'string', description: 'Reply-To header' },
     subject: { type: 'string', description: 'Subject' },
     date: { type: 'string', description: 'Date' },
+    rfcMessageId: {
+      type: 'string',
+      description: 'RFC Message-ID header (not the Gmail message id)',
+    },
+    inReplyTo: { type: 'string', description: 'In-Reply-To header' },
+    references: { type: 'string', description: 'References header' },
+    snippet: { type: 'string', description: 'Short excerpt of the message text' },
+    internalDate: {
+      type: 'string',
+      description: 'Gmail internal creation timestamp in epoch milliseconds',
+    },
     body: { type: 'string', description: 'Email body text (best-effort)' },
-    results: { type: 'json', description: 'Search/read summary results' },
+    results: {
+      type: 'json',
+      description:
+        'Search/read summary results [{id, threadId, subject, from, to, cc, bcc, replyTo, date, snippet, rfcMessageId, inReplyTo, references, internalDate}]',
+    },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token for the next page of results',
+      condition: { field: 'operation', value: PAGINATED_OPERATIONS },
+    },
+    resultSizeEstimate: {
+      type: 'number',
+      description: 'Estimated total number of results',
+      condition: { field: 'operation', value: PAGINATED_OPERATIONS },
+    },
+    name: {
+      type: 'string',
+      description: 'Label display name',
+      condition: { field: 'operation', value: LABEL_WRITE_OPERATIONS },
+    },
+    type: {
+      type: 'string',
+      description: 'Label type (system or user)',
+      condition: { field: 'operation', value: LABEL_WRITE_OPERATIONS },
+    },
+    messageListVisibility: {
+      type: 'string',
+      description: 'Message list visibility of the label',
+      condition: { field: 'operation', value: LABEL_WRITE_OPERATIONS },
+    },
+    labelListVisibility: {
+      type: 'string',
+      description: 'Label list visibility of the label',
+      condition: { field: 'operation', value: LABEL_WRITE_OPERATIONS },
+    },
+    labelId: {
+      type: 'string',
+      description: 'ID of the deleted label',
+      condition: { field: 'operation', value: 'delete_label_gmail' },
+    },
+    deleted: {
+      type: 'boolean',
+      description: 'Whether the label or draft was deleted',
+      condition: { field: 'operation', value: ['delete_label_gmail', 'delete_draft_gmail'] },
+    },
+    drafts: {
+      type: 'json',
+      description: 'Drafts [{id, messageId, threadId}]',
+      condition: { field: 'operation', value: 'list_drafts_gmail' },
+    },
+    threads: {
+      type: 'json',
+      description: 'Threads [{id, snippet, historyId}]',
+      condition: { field: 'operation', value: 'list_threads_gmail' },
+    },
+    messages: {
+      type: 'json',
+      description:
+        'Thread messages [{id, threadId, labelIds, snippet, from, to, cc, bcc, replyTo, subject, date, rfcMessageId, inReplyTo, references, internalDate, body}]',
+      condition: { field: 'operation', value: 'get_thread_gmail' },
+    },
+    historyId: {
+      type: 'string',
+      description: 'ID of the last history record that modified the thread',
+      condition: { field: 'operation', value: 'get_thread_gmail' },
+    },
+    trashed: {
+      type: 'boolean',
+      description: 'Whether the thread was moved to trash',
+      condition: { field: 'operation', value: 'trash_thread_gmail' },
+    },
+    untrashed: {
+      type: 'boolean',
+      description: 'Whether the thread was restored from trash',
+      condition: { field: 'operation', value: 'untrash_thread_gmail' },
+    },
     attachments: { type: 'file[]', description: 'Downloaded attachments (if enabled)' },
 
     // Draft-specific outputs
     draftId: {
       type: 'string',
       description: 'Draft ID',
-      condition: { field: 'operation', value: ['draft_gmail', 'edit_draft_gmail'] },
+      condition: {
+        field: 'operation',
+        value: ['draft_gmail', 'edit_draft_gmail', 'delete_draft_gmail'],
+      },
     },
     messageId: {
       type: 'string',
       description: 'Gmail message ID for the draft',
-      condition: { field: 'operation', value: ['draft_gmail', 'edit_draft_gmail'] },
+      condition: {
+        field: 'operation',
+        value: ['draft_gmail', 'edit_draft_gmail', 'get_draft_gmail'],
+      },
     },
 
     // Trigger outputs (unchanged)
     email_id: { type: 'string', description: 'Gmail message ID' },
     thread_id: { type: 'string', description: 'Gmail thread ID' },
-    cc: { type: 'string', description: 'CC recipients (comma-separated)' },
+    cc: { type: 'string', description: 'Cc recipients (raw Cc header, comma-separated)' },
     body_text: { type: 'string', description: 'Plain text email body' },
     body_html: { type: 'string', description: 'HTML email body' },
-    labels: { type: 'string', description: 'Email labels (comma-separated)' },
+    labels: {
+      type: 'json',
+      description:
+        'Email labels (trigger, comma-separated); for List Labels, the label array [{id, name, type, messageListVisibility, labelListVisibility}]',
+    },
     has_attachments: { type: 'boolean', description: 'Whether email has attachments' },
     raw_email: { type: 'json', description: 'Complete raw email data from Gmail API (if enabled)' },
     timestamp: { type: 'string', description: 'Event timestamp' },

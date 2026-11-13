@@ -9,6 +9,7 @@ import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { throttledRetryAfterMs } from '@/lib/credentials/token-service-accounts/errors'
 
 /** API client credentials typed inline on the legacy block. */
 export interface SailPointCredentials {
@@ -29,7 +30,9 @@ export type SailPointAuth = SailPointCredentials | SailPointTokenCredentials
 export class SailPointAuthError extends Error {
   constructor(
     message: string,
-    readonly status: number
+    readonly status: number,
+    /** The token endpoint's `Retry-After` on a 429 or 503, in milliseconds. */
+    readonly retryAfterMs?: number
   ) {
     super(message)
     this.name = 'SailPointAuthError'
@@ -180,8 +183,11 @@ async function readBoundedBody(
 /**
  * Exchanges API client credentials for an access token at a tenant's token
  * endpoint (`client_credentials` grant, credentials in the form body), with
- * redirects refused and up to four backoff retries on 429. A refusal throws
- * {@link SailPointAuthError} with the provider's status and message.
+ * redirects refused and up to four backoff retries on 429 (`maxThrottleRetries`).
+ * A 429 whose wait (its `Retry-After`, or the backoff when it names none)
+ * exceeds `maxThrottleWaitMs` is not retried. A refusal throws
+ * {@link SailPointAuthError} with the provider's status, message, and
+ * `Retry-After`, even when its error body cannot be read.
  *
  * @see https://developer.sailpoint.com/docs/api/authentication
  */
@@ -189,7 +195,11 @@ export async function requestSailPointToken(
   tokenUrl: string,
   clientId: string,
   clientSecret: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  {
+    maxThrottleRetries = MAX_FETCH_RETRIES,
+    maxThrottleWaitMs = Number.POSITIVE_INFINITY,
+  }: { maxThrottleRetries?: number; maxThrottleWaitMs?: number } = {}
 ): Promise<{ token: string; expiresInSeconds: number }> {
   let attempt = 0
 
@@ -211,24 +221,27 @@ export async function requestSailPointToken(
       signal,
     })
 
-    if (response.status === 429 && attempt < MAX_FETCH_RETRIES) {
-      const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
+    const throttleWaitMs =
+      response.status === 429 && attempt < maxThrottleRetries
+        ? backoffWithJitter(attempt + 1, parseRetryAfter(response.headers.get('retry-after')))
+        : undefined
+    if (throttleWaitMs !== undefined && throttleWaitMs <= maxThrottleWaitMs) {
       await consumeOrCancelBody(response, DEFAULT_MAX_ERROR_BODY_BYTES)
       attempt += 1
-      await interruptibleSleep(backoffWithJitter(attempt, retryAfterMs), signal)
+      await interruptibleSleep(throttleWaitMs, signal)
       signal?.throwIfAborted()
       continue
     }
 
-    const data = await readBoundedBody(
-      response,
-      response.ok ? MAX_TOKEN_RESPONSE_BYTES : DEFAULT_MAX_ERROR_BODY_BYTES,
-      signal
-    )
+    const data = response.ok
+      ? await readBoundedBody(response, MAX_TOKEN_RESPONSE_BYTES, signal)
+      : await readBoundedBody(response, DEFAULT_MAX_ERROR_BODY_BYTES, signal).catch(() => null)
+    signal?.throwIfAborted()
     if (!response.ok) {
       throw new SailPointAuthError(
         getSailPointErrorMessage(data, 'Failed to authenticate with SailPoint'),
-        response.status
+        response.status,
+        throttledRetryAfterMs(response)
       )
     }
     if (!isRecordLike(data) || typeof data.access_token !== 'string' || !data.access_token) {

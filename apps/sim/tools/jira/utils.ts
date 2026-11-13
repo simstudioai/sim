@@ -182,6 +182,378 @@ export function transformUser(user: any): {
 }
 
 /**
+ * Collects every `customfield_*` entry from a Jira issue `fields` object, keeping
+ * Jira's raw value so sprint, story points, team, and app fields stay readable.
+ */
+function extractCustomFields(fields: unknown): Record<string, unknown> {
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return {}
+  const custom: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(fields)) {
+    if (key.startsWith('customfield_') && value !== null && value !== undefined) {
+      custom[key] = value
+    }
+  }
+  return custom
+}
+
+interface JiraRawNamed {
+  id?: string
+  name?: string
+  description?: string | null
+}
+
+interface JiraRawStatus extends JiraRawNamed {
+  statusCategory?: {
+    id?: number
+    key?: string
+    name?: string
+    colorName?: string
+  } | null
+}
+
+interface JiraRawIssueType extends JiraRawNamed {
+  subtask?: boolean
+  iconUrl?: string | null
+}
+
+interface JiraRawIssueRef {
+  id?: string
+  key?: string
+  fields?: {
+    summary?: string | null
+    status?: { name?: string | null } | null
+    issuetype?: { name?: string | null } | null
+  } | null
+}
+
+interface JiraRawComment {
+  id?: string
+  body?: unknown
+  author?: unknown
+  updateAuthor?: unknown
+  created?: string
+  updated?: string
+  visibility?: { type?: string; value?: string } | null
+}
+
+interface JiraRawWorklog {
+  id?: string
+  author?: unknown
+  updateAuthor?: unknown
+  comment?: unknown
+  started?: string
+  timeSpent?: string
+  timeSpentSeconds?: number
+  created?: string
+  updated?: string
+}
+
+interface JiraRawAttachment {
+  id?: string
+  filename?: string
+  mimeType?: string
+  size?: number
+  content?: string
+  thumbnail?: string | null
+  author?: unknown
+  created?: string
+}
+
+interface JiraRawWatches {
+  watchCount?: number
+  isWatching?: boolean
+  watchers?: unknown
+}
+
+interface JiraRawUserName {
+  accountId?: string
+  displayName?: string
+}
+
+interface JiraRawIssueFields {
+  [field: string]: unknown
+  summary?: string
+  description?: unknown
+  environment?: unknown
+  status?: JiraRawStatus | null
+  issuetype?: JiraRawIssueType | null
+  project?: { id?: string; key?: string; name?: string; projectTypeKey?: string | null } | null
+  priority?: { id?: string; name?: string; iconUrl?: string | null } | null
+  assignee?: JiraRawUserName | null
+  reporter?: unknown
+  creator?: unknown
+  labels?: string[]
+  components?: JiraRawNamed[]
+  fixVersions?: Array<{
+    id?: string
+    name?: string
+    released?: boolean | null
+    releaseDate?: string | null
+  }>
+  resolution?: JiraRawNamed | null
+  duedate?: string | null
+  created?: string
+  updated?: string
+  resolutiondate?: string | null
+  timetracking?: {
+    originalEstimate?: string | null
+    remainingEstimate?: string | null
+    timeSpent?: string | null
+    originalEstimateSeconds?: number | null
+    remainingEstimateSeconds?: number | null
+    timeSpentSeconds?: number | null
+  } | null
+  parent?: JiraRawIssueRef | null
+  issuelinks?: Array<{
+    id?: string
+    type?: { id?: string; name?: string; inward?: string; outward?: string } | null
+    inwardIssue?: JiraRawIssueRef | null
+    outwardIssue?: JiraRawIssueRef | null
+  }>
+  subtasks?: JiraRawIssueRef[]
+  votes?: { votes?: number; hasVoted?: boolean } | null
+  watches?: JiraRawWatches | null
+  watcher?: JiraRawWatches | null
+  comment?: { comments?: JiraRawComment[] } | JiraRawComment[] | null
+  worklog?: { worklogs?: JiraRawWorklog[] } | JiraRawWorklog[] | null
+  attachment?: JiraRawAttachment[]
+}
+
+/** The subset of a Jira REST v3 issue payload that {@link transformIssueData} reads. */
+interface JiraRawIssue {
+  id?: string
+  key?: string
+  self?: string
+  fields?: JiraRawIssueFields | null
+  renderedFields?: { description?: string | null } | null
+  names?: Record<string, string> | null
+}
+
+/** Reads a paginated Jira container (`{ comments: [...] }`) or a bare array as a list. */
+function pagedList<T>(
+  value: T[] | Record<string, T[] | undefined> | null | undefined,
+  key: string
+): T[] {
+  if (Array.isArray(value)) return value
+  const nested = value?.[key]
+  return Array.isArray(nested) ? nested : []
+}
+
+function displayNameOf(user: unknown): string {
+  const named = (user ?? {}) as JiraRawUserName
+  return named.displayName ?? named.accountId ?? 'Unknown'
+}
+
+function isPresent<T>(value: T | null): value is T {
+  return value !== null
+}
+
+function transformIssueRef(ref: JiraRawIssueRef) {
+  return {
+    id: ref.id ?? '',
+    key: ref.key ?? '',
+    statusName: ref.fields?.status?.name ?? null,
+    summary: ref.fields?.summary ?? null,
+  }
+}
+
+/**
+ * Transforms a raw Jira REST v3 issue (as returned by `GET /issue/{key}` or a JQL search
+ * item) into the typed issue output shared by the retrieve and search tools.
+ */
+export function transformIssueData(data: JiraRawIssue | null | undefined) {
+  const fields: JiraRawIssueFields = data?.fields ?? {}
+  const watches = fields.watches ?? fields.watcher
+  return {
+    id: data?.id ?? '',
+    issueKey: data?.key ?? '',
+    key: data?.key ?? '',
+    self: data?.self ?? '',
+    summary: fields.summary ?? '',
+    description: extractAdfText(fields.description),
+    descriptionAdf: fields.description ?? null,
+    renderedDescription: data?.renderedFields?.description ?? null,
+    environment: extractAdfText(fields.environment),
+    status: {
+      id: fields.status?.id ?? '',
+      name: fields.status?.name ?? '',
+      description: fields.status?.description ?? null,
+      statusCategory: fields.status?.statusCategory
+        ? {
+            id: fields.status.statusCategory.id,
+            key: fields.status.statusCategory.key ?? '',
+            name: fields.status.statusCategory.name ?? '',
+            colorName: fields.status.statusCategory.colorName ?? '',
+          }
+        : undefined,
+    },
+    issuetype: {
+      id: fields.issuetype?.id ?? '',
+      name: fields.issuetype?.name ?? '',
+      description: fields.issuetype?.description ?? null,
+      subtask: fields.issuetype?.subtask ?? false,
+      iconUrl: fields.issuetype?.iconUrl ?? null,
+    },
+    project: {
+      id: fields.project?.id ?? '',
+      key: fields.project?.key ?? '',
+      name: fields.project?.name ?? '',
+      projectTypeKey: fields.project?.projectTypeKey ?? null,
+    },
+    priority: fields.priority
+      ? {
+          id: fields.priority.id ?? '',
+          name: fields.priority.name ?? '',
+          iconUrl: fields.priority.iconUrl ?? null,
+        }
+      : null,
+    statusName: fields.status?.name ?? '',
+    assignee: transformUser(fields.assignee),
+    assigneeName: fields.assignee?.displayName ?? fields.assignee?.accountId ?? null,
+    reporter: transformUser(fields.reporter),
+    creator: transformUser(fields.creator),
+    labels: fields.labels ?? [],
+    components: (fields.components ?? []).map((c) => ({
+      id: c.id ?? '',
+      name: c.name ?? '',
+      description: c.description ?? null,
+    })),
+    fixVersions: (fields.fixVersions ?? []).map((v) => ({
+      id: v.id ?? '',
+      name: v.name ?? '',
+      released: v.released ?? null,
+      releaseDate: v.releaseDate ?? null,
+    })),
+    resolution: fields.resolution
+      ? {
+          id: fields.resolution.id ?? '',
+          name: fields.resolution.name ?? '',
+          description: fields.resolution.description ?? null,
+        }
+      : null,
+    duedate: fields.duedate ?? null,
+    created: fields.created ?? '',
+    updated: fields.updated ?? '',
+    resolutiondate: fields.resolutiondate ?? null,
+    timetracking: fields.timetracking
+      ? {
+          originalEstimate: fields.timetracking.originalEstimate ?? null,
+          remainingEstimate: fields.timetracking.remainingEstimate ?? null,
+          timeSpent: fields.timetracking.timeSpent ?? null,
+          originalEstimateSeconds: fields.timetracking.originalEstimateSeconds ?? null,
+          remainingEstimateSeconds: fields.timetracking.remainingEstimateSeconds ?? null,
+          timeSpentSeconds: fields.timetracking.timeSpentSeconds ?? null,
+        }
+      : null,
+    parent: fields.parent
+      ? {
+          id: fields.parent.id ?? '',
+          key: fields.parent.key ?? '',
+          summary: fields.parent.fields?.summary ?? null,
+        }
+      : null,
+    issuelinks: (fields.issuelinks ?? []).map((link) => ({
+      id: link.id ?? '',
+      type: {
+        id: link.type?.id ?? '',
+        name: link.type?.name ?? '',
+        inward: link.type?.inward ?? '',
+        outward: link.type?.outward ?? '',
+      },
+      inwardIssue: link.inwardIssue ? transformIssueRef(link.inwardIssue) : null,
+      outwardIssue: link.outwardIssue ? transformIssueRef(link.outwardIssue) : null,
+    })),
+    subtasks: (fields.subtasks ?? []).map((sub) => ({
+      id: sub.id ?? '',
+      key: sub.key ?? '',
+      summary: sub.fields?.summary ?? '',
+      statusName: sub.fields?.status?.name ?? '',
+      issueTypeName: sub.fields?.issuetype?.name ?? null,
+    })),
+    votes: fields.votes
+      ? {
+          votes: fields.votes.votes ?? 0,
+          hasVoted: fields.votes.hasVoted ?? false,
+        }
+      : null,
+    watches: watches
+      ? {
+          watchCount: watches.watchCount ?? 0,
+          isWatching: watches.isWatching ?? false,
+        }
+      : null,
+    comments: pagedList(fields.comment, 'comments').map((c) => ({
+      id: c.id ?? '',
+      body: extractAdfText(c.body) ?? '',
+      author: transformUser(c.author),
+      authorName: displayNameOf(c.author),
+      updateAuthor: transformUser(c.updateAuthor),
+      created: c.created ?? '',
+      updated: c.updated ?? '',
+      visibility: c.visibility
+        ? { type: c.visibility.type ?? '', value: c.visibility.value ?? '' }
+        : null,
+    })),
+    worklogs: pagedList(fields.worklog, 'worklogs').map((w) => ({
+      id: w.id ?? '',
+      author: transformUser(w.author),
+      authorName: displayNameOf(w.author),
+      updateAuthor: transformUser(w.updateAuthor),
+      comment: w.comment ? (extractAdfText(w.comment) ?? null) : null,
+      started: w.started ?? '',
+      timeSpent: w.timeSpent ?? '',
+      timeSpentSeconds: w.timeSpentSeconds ?? 0,
+      created: w.created ?? '',
+      updated: w.updated ?? '',
+    })),
+    watchers: Array.isArray(fields.watches?.watchers)
+      ? fields.watches.watchers.map(transformUser).filter(isPresent)
+      : [],
+    customFields: extractCustomFields(fields),
+    names: data?.names ?? null,
+    attachments: (fields.attachment ?? []).map((att) => ({
+      id: att.id ?? '',
+      filename: att.filename ?? '',
+      mimeType: att.mimeType ?? '',
+      size: att.size ?? 0,
+      content: att.content ?? '',
+      thumbnail: att.thumbnail ?? null,
+      author: transformUser(att.author),
+      authorName: displayNameOf(att.author),
+      created: att.created ?? '',
+    })),
+  }
+}
+
+/**
+ * Normalizes a caller-supplied map of Jira field IDs to values. Numeric keys become
+ * `customfield_<n>`; a JSON string is parsed. Returns undefined when nothing usable is given.
+ */
+export function parseJiraFieldMap(value: unknown): Record<string, unknown> | undefined {
+  let parsed = value
+  if (typeof parsed === 'string') {
+    const trimmed = parsed.trim()
+    if (!trimmed) return undefined
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      throw new Error('Fields must be a JSON object mapping field IDs to values')
+    }
+  }
+  if (parsed === null || parsed === undefined) return undefined
+  if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Fields must be a JSON object mapping field IDs to values')
+  }
+  const result: Record<string, unknown> = {}
+  for (const [key, fieldValue] of Object.entries(parsed)) {
+    const fieldId = key.trim()
+    if (!fieldId) continue
+    result[/^\d+$/.test(fieldId) ? `customfield_${fieldId}` : fieldId] = fieldValue
+  }
+  return Object.keys(result).length > 0 ? result : undefined
+}
+
+/**
  * Downloads Jira attachment file content given attachment metadata and an access token.
  * Returns buffered files within the per-file and shared download limits.
  */

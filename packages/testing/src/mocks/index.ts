@@ -389,6 +389,10 @@ export {
   integrationsAvailabilityMockFns,
 } from './integrations-availability.mock'
 export {
+  internalAwsCredentialsMock,
+  internalAwsCredentialsMockFns,
+} from './internal-aws-credentials.mock'
+export {
   invitationsCoreMock,
   invitationsCoreMockFns,
 } from './invitations-core.mock'
@@ -481,6 +485,11 @@ export {
   libDesktopMock,
   libDesktopMockFns,
 } from './lib-desktop.mock'
+export {
+  llmBedrockCredentialMock,
+  llmBedrockCredentialMockFns,
+  MockBedrockCredentialError,
+} from './llm-bedrock-credential.mock'
 export {
   createMockLogger,
   getAllMockLoggers,

@@ -387,32 +387,26 @@ Return ONLY the file content - no explanations, no markdown code blocks, no extr
       id: 'query',
       title: 'Search Query',
       type: 'short-input',
-      placeholder: 'Search for specific files (e.g., name contains "report")',
+      placeholder: 'Filter by part of the file name (e.g., report)',
       condition: { field: 'operation', value: 'list' },
       wandConfig: {
         enabled: true,
-        prompt: `Generate a Google Drive search query based on the user's description.
-Use Google Drive query syntax:
-- name contains 'term' - search by filename
-- mimeType = 'type' - filter by file type
-- modifiedTime > 'date' - filter by date
-- 'email' in owners - filter by owner
-- fullText contains 'term' - search file contents
+        prompt: `Extract a plain file-name search term from the user's description.
+The term is matched against file names only (name contains). Do not use Google Drive query syntax, operators, or quotes; use the Search Files operation for advanced queries.
 
 Examples:
-- "PDF files" -> mimeType = 'application/pdf'
-- "files named report" -> name contains 'report'
-- "spreadsheets modified today" -> mimeType = 'application/vnd.google-apps.spreadsheet' and modifiedTime > '2024-01-01'
+- "files named report" -> report
+- "the Q3 budget spreadsheet" -> Q3 budget
 
-Return ONLY the query string - no explanations, no quotes around the whole thing, no extra text.`,
-        placeholder: 'Describe the files you want to find...',
+Return ONLY the search term - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the file name you want to find...',
       },
     },
     {
       id: 'pageSize',
       title: 'Results Per Page',
       type: 'short-input',
-      placeholder: 'Number of results (default: 100, max: 100)',
+      placeholder: 'Number of results (default: 100, max: 1000)',
       condition: { field: 'operation', value: 'list' },
     },
     {
@@ -420,6 +414,32 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       title: 'Page Token',
       type: 'short-input',
       placeholder: 'Token from a previous nextPageToken',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list' },
+    },
+    {
+      id: 'listOrderBy',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Last modified (newest first)', id: 'modifiedTime desc' },
+        { label: 'Last modified (oldest first)', id: 'modifiedTime' },
+        { label: 'Name (A-Z)', id: 'name_natural' },
+        { label: 'Name (Z-A)', id: 'name_natural desc' },
+        { label: 'Created (newest first)', id: 'createdTime desc' },
+        { label: 'Recently used', id: 'recency desc' },
+        { label: 'Folders first, then name', id: 'folder,name_natural' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list' },
+    },
+    {
+      id: 'listDriveId',
+      title: 'Shared Drive ID',
+      type: 'short-input',
+      placeholder: 'Restrict to one shared drive (default: My Drive and all shared drives)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'list' },
     },
@@ -799,6 +819,57 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
       },
     },
     {
+      id: 'shareExpirationTime',
+      title: 'Access Expires',
+      type: 'short-input',
+      placeholder: 'Optional expiry, at most one year out (e.g., 2025-12-31T23:59:59Z)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'share',
+        and: { field: 'shareType', value: ['user', 'group'] },
+      },
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt: `Generate an RFC 3339 timestamp for when shared access should expire, based on the user's description. It must be in the future and no more than one year from now.
+Examples:
+- "in 30 days" -> a timestamp 30 days from now, e.g. 2025-02-14T00:00:00Z
+- "end of the year" -> 2025-12-31T23:59:59Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe when access should expire (e.g., "in 2 weeks")...',
+      },
+    },
+    {
+      id: 'shareAllowFileDiscovery',
+      title: 'Discoverable in Search',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No (link only)', id: 'false' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'share',
+        and: { field: 'shareType', value: ['domain', 'anyone'] },
+      },
+    },
+    {
+      id: 'shareMoveToNewOwnersRoot',
+      title: "Move to New Owner's My Drive",
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'share',
+        and: { field: 'role', value: 'owner' },
+      },
+    },
+    {
       id: 'unshareFileSelector',
       title: 'Select File',
       type: 'file-selector',
@@ -853,6 +924,14 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_permissions' },
       required: true,
+    },
+    {
+      id: 'permissionsPageSize',
+      title: 'Results Per Page',
+      type: 'short-input',
+      placeholder: 'Number of permissions (max: 100; default: all for My Drive files)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_permissions' },
     },
     {
       id: 'permissionsPageToken',
@@ -1023,7 +1102,7 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       id: 'searchPageSize',
       title: 'Results Per Page',
       type: 'short-input',
-      placeholder: 'Number of results (default: 100, max: 100)',
+      placeholder: 'Number of results (default: 100, max: 1000)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'search' },
     },
@@ -1032,6 +1111,32 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       title: 'Page Token',
       type: 'short-input',
       placeholder: 'Token from a previous nextPageToken',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'searchOrderBy',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Last modified (newest first)', id: 'modifiedTime desc' },
+        { label: 'Last modified (oldest first)', id: 'modifiedTime' },
+        { label: 'Name (A-Z)', id: 'name_natural' },
+        { label: 'Name (Z-A)', id: 'name_natural desc' },
+        { label: 'Created (newest first)', id: 'createdTime desc' },
+        { label: 'Recently used', id: 'recency desc' },
+        { label: 'Folders first, then name', id: 'folder,name_natural' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'searchDriveId',
+      title: 'Shared Drive ID',
+      type: 'short-input',
+      placeholder: 'Restrict to one shared drive (default: My Drive and all shared drives)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'search' },
     },
@@ -1231,6 +1336,25 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       placeholder: 'Token from a previous nextPageToken',
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_comments' },
+    },
+    {
+      id: 'commentsStartModifiedTime',
+      title: 'Modified After',
+      type: 'short-input',
+      placeholder: 'Only comments modified after this time (e.g., 2025-01-01T00:00:00Z)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_comments' },
+      wandConfig: {
+        enabled: true,
+        generationType: 'timestamp',
+        prompt: `Generate an RFC 3339 timestamp based on the user's description.
+Examples:
+- "last week" -> a timestamp 7 days before now, e.g. 2025-01-08T00:00:00Z
+- "since January 1st 2025" -> 2025-01-01T00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the cutoff time (e.g., "last 7 days")...',
+      },
     },
     {
       id: 'includeDeleted',
@@ -1453,6 +1577,15 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           commentsPageToken,
           getContentExportMimeType,
           exportMimeType,
+          listOrderBy,
+          searchOrderBy,
+          listDriveId,
+          searchDriveId,
+          permissionsPageSize,
+          commentsStartModifiedTime,
+          shareExpirationTime,
+          shareAllowFileDiscovery,
+          shareMoveToNewOwnersRoot,
           ...rest
         } = params
 
@@ -1555,6 +1688,7 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
         if (params.operation === 'search') effectivePageSize = searchPageSize
         else if (params.operation === 'list_revisions') effectivePageSize = revisionsPageSize
         else if (params.operation === 'list_comments') effectivePageSize = commentsPageSize
+        else if (params.operation === 'list_permissions') effectivePageSize = permissionsPageSize
 
         let effectivePageToken: string | undefined = pageToken
         if (params.operation === 'search') effectivePageToken = searchPageToken
@@ -1564,6 +1698,36 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
         else if (params.operation !== 'list') effectivePageToken = undefined
 
         const effectiveQuery = params.operation === 'search' ? searchQuery : query
+
+        const effectiveOrderBy =
+          params.operation === 'list'
+            ? listOrderBy
+            : params.operation === 'search'
+              ? searchOrderBy
+              : undefined
+        const effectiveDriveId =
+          params.operation === 'list'
+            ? listDriveId
+            : params.operation === 'search'
+              ? searchDriveId
+              : undefined
+
+        const isShare = params.operation === 'share'
+        const isUserOrGroupShare = isShare && (shareType === 'user' || shareType === 'group')
+        const isDomainOrAnyoneShare = isShare && (shareType === 'domain' || shareType === 'anyone')
+        const allowFileDiscoveryValue = !isDomainOrAnyoneShare
+          ? undefined
+          : shareAllowFileDiscovery === 'true' || shareAllowFileDiscovery === true
+            ? true
+            : shareAllowFileDiscovery === 'false' || shareAllowFileDiscovery === false
+              ? false
+              : undefined
+        const moveToNewOwnersRootValue =
+          isShare &&
+          rest.role === 'owner' &&
+          (shareMoveToNewOwnersRoot === true || shareMoveToNewOwnersRoot === 'true')
+            ? true
+            : undefined
         const effectiveMimeType =
           params.operation === 'get_content'
             ? getContentExportMimeType
@@ -1590,6 +1754,15 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           includeRevisions: includeRevisionsValue,
           includeDeleted: includeDeletedValue,
           transferOwnership: rest.role === 'owner' ? true : undefined,
+          orderBy: effectiveOrderBy?.trim() || undefined,
+          driveId: effectiveDriveId?.trim() || undefined,
+          startModifiedTime:
+            params.operation === 'list_comments'
+              ? commentsStartModifiedTime?.trim() || undefined
+              : undefined,
+          expirationTime: isUserOrGroupShare ? shareExpirationTime?.trim() || undefined : undefined,
+          allowFileDiscovery: allowFileDiscoveryValue,
+          moveToNewOwnersRoot: moveToNewOwnersRootValue,
           ...rest,
         }
       },
@@ -1653,6 +1826,27 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
     anchor: { type: 'string', description: 'Anchor region for a new comment' },
     includeDeleted: { type: 'string', description: 'Include deleted comments when listing' },
     commentsPageSize: { type: 'string', description: 'Results per page for comments' },
+    listOrderBy: { type: 'string', description: 'Sort order when listing files' },
+    searchOrderBy: { type: 'string', description: 'Sort order when searching files' },
+    listDriveId: { type: 'string', description: 'Shared drive to restrict listing to' },
+    searchDriveId: { type: 'string', description: 'Shared drive to restrict search to' },
+    permissionsPageSize: { type: 'string', description: 'Results per page for permissions' },
+    commentsStartModifiedTime: {
+      type: 'string',
+      description: 'Only list comments modified after this RFC 3339 time',
+    },
+    shareExpirationTime: {
+      type: 'string',
+      description: 'RFC 3339 time when a user or group permission expires',
+    },
+    shareAllowFileDiscovery: {
+      type: 'string',
+      description: 'Whether a domain or anyone permission is discoverable in search',
+    },
+    shareMoveToNewOwnersRoot: {
+      type: 'boolean',
+      description: "Move the file to the new owner's My Drive root when transferring ownership",
+    },
   },
   outputs: {
     file: { type: 'file', description: 'Downloaded file stored in execution files' },
@@ -1660,6 +1854,10 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
     metadata: { type: 'json', description: 'Complete file metadata (from download)' },
     content: { type: 'string', description: 'File content as text' },
     nextPageToken: { type: 'string', description: 'Token for fetching the next page of results' },
+    incompleteSearch: {
+      type: 'boolean',
+      description: 'Whether a list or search was incomplete and some results may be missing',
+    },
     permission: { type: 'json', description: 'Permission details' },
     permissions: { type: 'json', description: 'List of permissions' },
     user: { type: 'json', description: 'User information' },

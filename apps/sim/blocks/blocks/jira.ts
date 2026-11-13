@@ -538,6 +538,37 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       mode: 'advanced',
     },
     {
+      id: 'customFields',
+      title: 'Additional Fields',
+      type: 'code',
+      language: 'json',
+      placeholder: '{"customfield_10016": 5, "customfield_10050": {"value": "Option A"}}',
+      condition: { field: 'operation', value: ['write', 'update'] },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object mapping Jira field IDs to values for an issue create or edit request, based on the user's description.
+Use Jira REST API v3 value shapes:
+- Number or text custom fields: "customfield_10016": 5
+- Select lists: "customfield_10050": {"value": "Option A"}
+- Multi-select: "customfield_10051": [{"value": "A"}, {"value": "B"}]
+- User pickers: "customfield_10060": {"accountId": "5b10a2844c20165700ede21g"}
+- Sprint: "customfield_10020": 42
+
+Return ONLY the JSON object - no explanations or markdown formatting.`,
+        placeholder: 'Describe the fields to set (e.g., "story points 5, team Platform")...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'updateParentIssue',
+      title: 'New Parent Issue Key',
+      type: 'short-input',
+      placeholder: 'Parent issue key or epic key (e.g., PROJ-123)',
+      condition: { field: 'operation', value: 'update' },
+      mode: 'advanced',
+    },
+    {
       id: 'notifyUsers',
       title: 'Notify Users',
       type: 'dropdown',
@@ -604,6 +635,24 @@ Return ONLY the comment text - no explanations.`,
       mode: 'advanced',
     },
     {
+      id: 'transitionFields',
+      title: 'Transition Fields',
+      type: 'code',
+      language: 'json',
+      placeholder: '{"assignee": {"accountId": "5b10a2844c20165700ede21g"}}',
+      condition: { field: 'operation', value: 'transition' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object of Jira fields to set on a transition screen, keyed by field ID, based on the user's description.
+Use Jira REST API v3 value shapes (e.g., "assignee": {"accountId": "..."}, "customfield_10050": {"value": "Option A"}).
+
+Return ONLY the JSON object - no explanations or markdown formatting.`,
+        placeholder: 'Describe the fields to set (e.g., "assign to the QA lead")...',
+        generationType: 'json-object',
+      },
+    },
+    {
       id: 'jql',
       title: 'JQL Query',
       type: 'long-input',
@@ -657,6 +706,21 @@ Return ONLY the JQL query - no explanations or markdown formatting.`,
       type: 'short-input',
       placeholder: 'Comma-separated fields to return (e.g., key,summary,status)',
       condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'expand',
+      title: 'Expand',
+      type: 'short-input',
+      placeholder: 'Comma-separated expansions (e.g., names,renderedFields,changelog)',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'includeAttachments',
+      title: 'Download Attachment Files',
+      type: 'switch',
+      condition: { field: 'operation', value: ['read', 'get_attachments'] },
       mode: 'advanced',
     },
     {
@@ -1071,6 +1135,7 @@ Return ONLY the comment text - no explanations.`,
               environment: params.environment || undefined,
               customFieldId: params.customFieldId || undefined,
               customFieldValue: customFieldValue,
+              customFields: params.customFields || undefined,
             }
             return {
               ...baseParams,
@@ -1100,6 +1165,8 @@ Return ONLY the comment text - no explanations.`,
               environment: params.environment || undefined,
               customFieldId: params.customFieldId || undefined,
               customFieldValue: params.customFieldValue || undefined,
+              customFields: params.customFields || undefined,
+              parent: String(params.updateParentIssue ?? '').trim() || undefined,
               notifyUsers:
                 params.notifyUsers === 'false'
                   ? false
@@ -1117,6 +1184,10 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               issueKey: effectiveIssueKey,
               ...(effectiveProjectId && { projectId: effectiveProjectId }),
+              includeAttachments:
+                params.includeAttachments === true || params.includeAttachments === 'true'
+                  ? true
+                  : undefined,
             }
           }
           case 'read-bulk': {
@@ -1146,6 +1217,7 @@ Return ONLY the comment text - no explanations.`,
               transitionId: params.transitionId,
               comment: params.transitionComment,
               resolution: params.resolution || undefined,
+              fields: params.transitionFields || undefined,
             }
           }
           case 'search': {
@@ -1160,6 +1232,7 @@ Return ONLY the comment text - no explanations.`,
                     .map((f: string) => f.trim())
                     .filter(Boolean)
                 : undefined,
+              expand: params.expand ? String(params.expand).trim() || undefined : undefined,
             }
           }
           case 'add_comment': {
@@ -1196,6 +1269,10 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
+              includeAttachments:
+                params.includeAttachments === true || params.includeAttachments === 'true'
+                  ? true
+                  : undefined,
             }
           }
           case 'add_attachment': {
@@ -1385,6 +1462,20 @@ Return ONLY the comment text - no explanations.`,
     environment: { type: 'string', description: 'Environment information' },
     customFieldId: { type: 'string', description: 'Custom field ID (e.g., customfield_10001)' },
     customFieldValue: { type: 'string', description: 'Value for the custom field' },
+    customFields: {
+      type: 'json',
+      description: 'JSON object mapping field IDs to values for create or update',
+    },
+    updateParentIssue: { type: 'string', description: 'New parent issue key for update' },
+    transitionFields: {
+      type: 'json',
+      description: 'JSON object of fields to set during a transition',
+    },
+    expand: { type: 'string', description: 'Comma-separated search expansions' },
+    includeAttachments: {
+      type: 'boolean',
+      description: 'Download attachment file contents for read or get attachments',
+    },
     notifyUsers: { type: 'string', description: 'Whether to send notifications on update' },
     deleteSubtasks: { type: 'string', description: 'Whether to delete subtasks (true/false)' },
     accountId: {
@@ -1461,6 +1552,60 @@ Return ONLY the comment text - no explanations.`,
     status: { type: 'string', description: 'Issue status name' },
     assignee: { type: 'string', description: 'Issue assignee display name or account ID' },
 
+    descriptionAdf: {
+      type: 'json',
+      description: 'Issue description as raw Atlassian Document Format (read)',
+    },
+    renderedDescription: {
+      type: 'string',
+      description: 'Issue description rendered as HTML (read)',
+    },
+    environment: { type: 'string', description: 'Environment text (read)' },
+    statusName: { type: 'string', description: 'Issue status name (read)' },
+    priority: { type: 'json', description: 'Issue priority (id, name, iconUrl) (read)' },
+    reporter: {
+      type: 'json',
+      description: 'Reporter (accountId, displayName, emailAddress, active) (read)',
+    },
+    creator: {
+      type: 'json',
+      description: 'Creator (accountId, displayName, emailAddress, active) (read)',
+    },
+    issuetype: { type: 'json', description: 'Issue type (id, name, subtask) (read)' },
+    labels: { type: 'json', description: 'Issue labels as an array of strings (read)' },
+    components: { type: 'json', description: 'Components [{id, name, description}] (read)' },
+    fixVersions: {
+      type: 'json',
+      description: 'Fix versions [{id, name, released, releaseDate}] (read)',
+    },
+    resolution: { type: 'json', description: 'Resolution (id, name, description) (read)' },
+    resolutiondate: { type: 'string', description: 'When the issue was resolved (read)' },
+    duedate: { type: 'string', description: 'Due date YYYY-MM-DD (read)' },
+    timetracking: {
+      type: 'json',
+      description:
+        'Time tracking (originalEstimate, remainingEstimate, timeSpent and their *Seconds) (read)',
+    },
+    parent: { type: 'json', description: 'Parent issue or epic (id, key, summary) (read)' },
+    subtasks: { type: 'json', description: 'Subtasks [{id, key, summary, statusName}] (read)' },
+    issuelinks: {
+      type: 'json',
+      description: 'Issue links [{id, type, inwardIssue, outwardIssue}] (read)',
+    },
+    watches: { type: 'json', description: 'Watch info (watchCount, isWatching) (read)' },
+    watchers: {
+      type: 'json',
+      description: 'Watching users [{accountId, displayName, emailAddress}] (read)',
+    },
+    customFields: {
+      type: 'json',
+      description:
+        'Every customfield_* value keyed by field ID, e.g. sprint or story points (read)',
+    },
+    names: {
+      type: 'json',
+      description: 'Map of field ID to display name (read; search when expand includes names)',
+    },
     url: { type: 'string', description: 'URL to the created/accessed issue' },
     id: { type: 'string', description: 'Jira issue ID' },
     key: { type: 'string', description: 'Jira issue key' },
@@ -1473,7 +1618,8 @@ Return ONLY the comment text - no explanations.`,
     maxResults: { type: 'number', description: 'Maximum results per page' },
     issues: {
       type: 'json',
-      description: 'Array of matching issues with key, summary, status, assignee, dates',
+      description:
+        'Array of matching issues with key, summary, description, status, assignee, reporter, priority, labels, components, fixVersions, parent, timetracking, dates. descriptionAdf, subtasks, issuelinks, attachments, and customFields are only included when Fields is set; renderedDescription needs the renderedFields expansion',
     },
 
     comments: {
@@ -1489,7 +1635,11 @@ Return ONLY the comment text - no explanations.`,
       type: 'json',
       description: 'Array of attachments with id, filename, size, mimeType, created, author',
     },
-    files: { type: 'file[]', description: 'Uploaded attachment files' },
+    files: {
+      type: 'file[]',
+      description:
+        'Uploaded attachment files (add attachment) or downloaded attachment files (read or get attachments with Download Attachment Files on)',
+    },
     attachmentIds: { type: 'json', description: 'Uploaded attachment IDs' },
 
     // jira_delete_attachment, jira_delete_comment, jira_delete_issue, jira_delete_worklog, jira_delete_issue_link outputs
@@ -1563,7 +1713,7 @@ Return ONLY the comment text - no explanations.`,
     worklog_id: { type: 'string', description: 'Worklog ID (for worklog events)' },
     time_spent: { type: 'string', description: 'Time spent (for worklog events)' },
     changelog: { type: 'json', description: 'Changelog object (for update events)' },
-    issue: { type: 'json', description: 'Complete issue object from webhook' },
+    issue: { type: 'json', description: 'Complete raw issue object (read, webhook)' },
     sprint: { type: 'json', description: 'Sprint object (for sprint events)' },
     project: { type: 'json', description: 'Project object (for project events)' },
     version: { type: 'json', description: 'Version object (for version events)' },

@@ -10,6 +10,8 @@ import {
   azureDevOpsProjectUrl,
   formatWorkItem,
   mapWorkItem,
+  WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
+  WORK_ITEM_RAW_DETAIL_OUTPUT_PROPERTIES,
 } from '@/tools/azure_devops/utils'
 import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -71,6 +73,12 @@ export const updateWorkItemTool: ToolConfig<UpdateWorkItemParams, UpdateWorkItem
       visibility: 'user-or-llm',
       description:
         'Priority of the work item (1 = Critical, 2 = High, 3 = Medium, 4 = Low) (optional)',
+    },
+    iterationPath: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Iteration path to move the work item to (System.IterationPath) (optional)',
     },
     state: {
       type: 'string',
@@ -148,6 +156,7 @@ export const updateWorkItemTool: ToolConfig<UpdateWorkItemParams, UpdateWorkItem
         !params.description &&
         !params.assignedTo &&
         !params.areaPath &&
+        !params.iterationPath &&
         params.priority === undefined &&
         !params.state &&
         params.effort === undefined &&
@@ -171,6 +180,13 @@ export const updateWorkItemTool: ToolConfig<UpdateWorkItemParams, UpdateWorkItem
       }
       if (params.areaPath) {
         ops.push({ op: 'replace', path: '/fields/System.AreaPath', value: params.areaPath })
+      }
+      if (params.iterationPath) {
+        ops.push({
+          op: 'replace',
+          path: '/fields/System.IterationPath',
+          value: params.iterationPath,
+        })
       }
       if (params.priority !== undefined) {
         ops.push({
@@ -263,6 +279,8 @@ export const updateWorkItemTool: ToolConfig<UpdateWorkItemParams, UpdateWorkItem
             },
             areaPath: { type: 'string', description: 'Area path of the work item' },
             url: { type: 'string', description: 'API URL for the work item' },
+            ...WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
+            ...WORK_ITEM_RAW_DETAIL_OUTPUT_PROPERTIES,
           },
         },
       },

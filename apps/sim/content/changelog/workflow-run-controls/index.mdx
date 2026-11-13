@@ -1,0 +1,41 @@
+---
+slug: workflow-run-controls
+title: 'See which workflows need your attention'
+description: 'Sim makes paused runs and schedules easier to inspect from the CLI or API, and lets you run an earlier deployed version without changing the active one.'
+date: '2026-11-11T20:00:00Z'
+updated: '2026-11-12T05:00:30Z'
+authors: [waleed]
+tags: [Workflows, Tables]
+ogImage: /changelog/workflow-paths-v1.jpg
+ogAlt: 'Monochrome illustration of two roads meeting around a mountain ridge'
+technical: false
+draft: false
+release:
+  versions: [v0.9.37, v0.9.47, v0.9.53, v0.9.54]
+---
+
+<ChangelogImage
+  src="/changelog/workflow-paths-v1.jpg"
+  alt="Monochrome illustration of two roads meeting around a mountain ridge"
+  width="1672"
+  height="941"
+/>
+
+Find the work waiting on a person without opening every workflow. In v0.9.54, the [Sim CLI](https://docs.sim.ai/cli/workflows) and API can list paused runs across a workspace, including the review or input each run needs. Details follow your access permissions.
+
+You can also [list workspace schedules](https://docs.sim.ai/cli/schedules) to see their timing and health together. Change timing in the workflow and redeploy it.
+
+### Keep work moving
+
+- **v0.9.37 — Long runs:** Set a wait limit when starting a workflow through the CLI or API; if it’s still running, it continues in the background and you can check back later, within your plan’s execution limits.
+- **v0.9.53 — Earlier versions:** Run a previous deployed version through the API without changing the active version; this requires Write access. [Run a deployed version](https://docs.sim.ai/workflows/deployment/api).
+- **v0.9.53 — Trigger controls:** Inspect trigger health or disable a deployed trigger through the CLI or API; disabling lasts until the next deployment or version activation and leaves running work alone.
+
+### Work with files
+
+- **v0.9.47:** New CSV columns keep leading-zero ZIP codes and SKUs as text.
+- **v0.9.53:** Mistral Parser V3 can extract images from an uploaded or referenced PDF as files for later steps, and return tables as Markdown or HTML. [Parser guide](https://docs.sim.ai/integrations/mistral_parse).
+
+The legacy `simstudio` CLI and Python and TypeScript SDKs were retired in v0.9.53. Use the current Sim CLI or HTTP API.
+
+Technical releases: [v0.9.37](https://github.com/simstudioai/sim/releases/tag/v0.9.37), [v0.9.47](https://github.com/simstudioai/sim/releases/tag/v0.9.47), [v0.9.53](https://github.com/simstudioai/sim/releases/tag/v0.9.53), [v0.9.54](https://github.com/simstudioai/sim/releases/tag/v0.9.54).

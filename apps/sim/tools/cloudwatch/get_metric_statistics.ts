@@ -66,15 +66,30 @@ export const getMetricStatisticsTool: InternalToolConfig<
     },
     statistics: {
       type: 'array',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Statistics to retrieve (Average, Sum, Minimum, Maximum, SampleCount)',
+      description:
+        'Statistics to retrieve (Average, Sum, Minimum, Maximum, SampleCount). Required unless extendedStatistics is set, which takes precedence',
     },
     dimensions: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Dimensions as JSON (e.g., {"InstanceId": "i-1234"})',
+    },
+    extendedStatistics: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Percentile statistics to retrieve (e.g., ["p99", "p95"]). AWS accepts either Statistics or ExtendedStatistics, so when set these are requested instead of statistics',
+    },
+    unit: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only return data reported with this unit (e.g., Percent, Milliseconds). Omit to return all units',
     },
   },
 
@@ -88,8 +103,13 @@ export const getMetricStatisticsTool: InternalToolConfig<
       startTime: params.startTime,
       endTime: params.endTime,
       period: params.period,
-      statistics: params.statistics,
+      ...(params.statistics && params.statistics.length > 0 && { statistics: params.statistics }),
       ...(params.dimensions && { dimensions: params.dimensions }),
+      ...(params.extendedStatistics &&
+        params.extendedStatistics.length > 0 && {
+          extendedStatistics: params.extendedStatistics,
+        }),
+      ...(params.unit && { unit: params.unit }),
     }),
   },
 
@@ -124,6 +144,10 @@ export const getMetricStatisticsTool: InternalToolConfig<
           maximum: { type: 'number', description: 'Maximum statistic value' },
           sampleCount: { type: 'number', description: 'Sample count statistic value' },
           unit: { type: 'string', description: 'Unit of the metric' },
+          extendedStatistics: {
+            type: 'json',
+            description: 'Percentile values keyed by statistic (e.g., {"p99": 120.5})',
+          },
         },
       },
     },

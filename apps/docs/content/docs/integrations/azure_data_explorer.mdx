@@ -2,7 +2,7 @@
 title: Azure Data Explorer
 description: Query and manage Azure Data Explorer (Kusto) clusters with KQL
 integration:
-  type: "azure_data_explorer"
+  type: "azure_data_explorer_v2"
   color: "#FFFFFF"
 ---
 
@@ -32,7 +32,7 @@ In Sim, this integration gives your agents both halves:
 - **Debug the pipeline** — list ingestion failures with their error codes and root causes, and check the state of a long-running operation
 - **Run any management command** — the escape hatch for policies, mappings, and anything else on the control plane
 
-Authentication uses a **Microsoft Entra service principal** (an app registration with a tenant ID, client ID, and client secret) rather than an interactive sign-in, so scheduled and unattended workflows keep working without anyone logging in. Grant that principal access to the database with `.add database <DATABASE> viewers ('aadapp=<clientId>;<tenantId>')` — use `viewers` for read-only agents, and `ingestors` or `users` only when a workflow needs to write.
+Authentication uses a **Microsoft Entra app registration** rather than an interactive sign-in, so scheduled and unattended workflows keep working without anyone logging in. Select a saved [Microsoft app credential](/integrations/microsoft-app-credentials), which signs in with a client secret, a certificate, or a keyless federated credential; choose the credential's cloud to match the cluster (a `kusto.usgovcloudapi.net` cluster needs a US Government credential, a `kusto.chinacloudapi.cn` one a China credential). Sim mints a token for the cluster itself (`https://<cluster host>`) on each run. Grant the app access to the database with `.add database <DATABASE> viewers ('aadapp=<clientId>;<tenantId>')` — use `viewers` for read-only agents, and `ingestors` or `users` only when a workflow needs to write. Workflows built before saved credentials keep their inline tenant ID, client ID, and client secret.
 
 A few things worth knowing before you build:
 
@@ -46,13 +46,13 @@ A few things worth knowing before you build:
 
 ## Use the block [#usage-instructions]
 
-Run Kusto Query Language queries against Azure Data Explorer and Fabric Eventhouse clusters, discover databases, tables, and schemas, push small batches of rows inline, and run management commands. Authenticates with a Microsoft Entra service principal using client credentials, so no interactive sign-in is needed.
+Run Kusto Query Language queries against Azure Data Explorer and Fabric Eventhouse clusters, discover databases, tables, and schemas, push small batches of rows inline, and run management commands. Runs as a Microsoft app credential: an app registration signing in with a client secret, a certificate, or a keyless federated credential, in the global cloud or a national cloud, so no interactive sign-in is needed.
 
 ## Actions
 
 ### Azure Data Explorer Query
 
-Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table.
+Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table (plus any further tables a batch or fork produces).
 
 <ReferenceDetails>
 
@@ -61,9 +61,6 @@ Run a Kusto Query Language (KQL) query against an Azure Data Explorer database a
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `database` | string | Yes | Database to run the query against |
 | `query` | string | Yes | KQL query text \(e.g., StormEvents \| where State == "FLORIDA" \| summarize count\(\) by EventType\) |
@@ -83,7 +80,18 @@ Run a Kusto Query Language (KQL) query against an Azure Data Explorer database a
 | `records` | array | Result rows keyed by column name |
 | `rowCount` | number | Rows carried in this result, after the row cap |
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
-| `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
+| `truncated` | boolean | Whether rows of the primary result table were dropped to stay within the row or size cap \(each additionalResults entry has its own truncated flag\) — narrow the query if true |
+| `additionalResults` | array | Further result tables, present only when a query batch \(statements separated by ;\) or fork returns more than one; the row and size caps are shared across all tables |
+|   ↳ `tableName` | string | Result table name |
+|   ↳ `columns` | array | Column metadata |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Kusto scalar type |
+|     ↳ `dataType` | string | Approximate .NET type |
+|   ↳ `rows` | array | Rows as positional arrays matching the columns order |
+|   ↳ `records` | array | Rows keyed by column name |
+|   ↳ `rowCount` | number | Rows carried after the caps |
+|   ↳ `totalRowCount` | number | Rows Kusto returned |
+|   ↳ `truncated` | boolean | Whether rows were dropped by the caps |
 
 </ReferenceDetails>
 
@@ -98,9 +106,6 @@ Run an Azure Data Explorer management command (a control command starting with "
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `command` | string | Yes | Management command text, starting with "." \(e.g., .show table Events details\) |
 | `database` | string | No | Database context for the command. Required for all commands except cluster-level ones such as .show databases |
@@ -133,9 +138,6 @@ List the databases on an Azure Data Explorer cluster that the service principal 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 
 #### Output
@@ -167,9 +169,6 @@ List the tables in an Azure Data Explorer database, with their folder and docstr
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `database` | string | Yes | Database whose tables should be listed |
 
@@ -202,9 +201,6 @@ Read the column schema of an Azure Data Explorer table in CSL form (e.g., "Times
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `database` | string | Yes | Database containing the table |
 | `table` | string | Yes | Table whose schema should be read |
@@ -232,9 +228,6 @@ Read the full schema of an Azure Data Explorer database as a flat list of every 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `database` | string | Yes | Database whose schema should be read |
 
@@ -266,9 +259,6 @@ Read size, row count, hot-cache footprint, and effective policies for a table �
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `database` | string | Yes | Database to read table details from |
 | `table` | string | No | Table to describe. Omit to describe every table in the database |
@@ -301,9 +291,6 @@ List the stored functions in an Azure Data Explorer database, with their paramet
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `database` | string | Yes | Database whose stored functions should be listed |
 
@@ -336,9 +323,6 @@ Push rows directly into an Azure Data Explorer table with .ingest inline. Data i
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `database` | string | Yes | Database containing the target table |
 | `table` | string | Yes | Table to ingest into. Its schema is the assumed schema for the data |
@@ -374,9 +358,6 @@ Materialize the result of a KQL query into a table with .set, .append, .set-or-a
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `database` | string | Yes | Database containing the target table |
 | `table` | string | Yes | Table to ingest the query result into |
@@ -413,9 +394,6 @@ Create a table in an Azure Data Explorer database from a CSL column schema. Succ
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `database` | string | Yes | Database to create the table in |
 | `table` | string | Yes | Name of the table to create |
@@ -450,9 +428,6 @@ Drop a table from an Azure Data Explorer database. The table becomes unavailable
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `database` | string | Yes | Database containing the table |
 | `table` | string | Yes | Name of the table to drop |
@@ -487,9 +462,6 @@ List ingestion failures recorded for a database, with the failing table, error c
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `database` | string | Yes | Database whose ingestion failures should be listed |
 | `operationId` | string | No | Limit results to a single ingestion operation ID |
@@ -522,9 +494,6 @@ Check the state of administrative operations on a cluster, such as an async inge
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `clusterUri` | string | Yes | Cluster URI \(e.g., https://mycluster.eastus.kusto.windows.net) |
-| `tenantId` | string | Yes | Microsoft Entra tenant ID hosting the service principal |
-| `clientId` | string | Yes | Microsoft Entra application \(client\) ID |
-| `clientSecret` | string | Yes | Microsoft Entra application client secret |
 | `resource` | string | No | Token audience override. Defaults to the cluster URI itself |
 | `database` | string | No | Database context for the command |
 | `operationId` | string | No | Operation ID to check, e.g. the ID returned by an async ingestion |

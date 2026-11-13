@@ -57,6 +57,8 @@ Send emails using Outlook
 | `replyToMessageId` | string | No | Message ID to reply to \(for threading\) |
 | `cc` | string | No | CC recipients \(comma-separated\) |
 | `bcc` | string | No | BCC recipients \(comma-separated\) |
+| `replyTo` | string | No | Reply-To addresses that replies should go to \(comma-separated\) |
+| `importance` | string | No | Message importance: low, normal, or high |
 | `attachments` | file[] | No | Files to attach to the email |
 
 #### Output
@@ -86,6 +88,8 @@ Draft emails using Outlook
 | `contentType` | string | No | Content type for the email body \(text or html\) |
 | `cc` | string | No | CC recipients \(comma-separated\) |
 | `bcc` | string | No | BCC recipients \(comma-separated\) |
+| `replyTo` | string | No | Reply-To addresses that replies should go to \(comma-separated\) |
+| `importance` | string | No | Message importance: low, normal, or high |
 | `attachments` | file[] | No | Files to attach to the email draft |
 
 #### Output
@@ -144,6 +148,29 @@ Read emails from Outlook
 |   ↳ `hasAttachments` | boolean | Whether the message has attachments |
 |   ↳ `isRead` | boolean | Whether the message has been read |
 |   ↳ `importance` | string | Message importance \(low, normal, high\) |
+|   ↳ `bccRecipients` | array | BCC recipients \(only visible on messages you sent or drafted\) |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `replyTo` | array | Addresses replies should go to, when the sender set Reply-To |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `internetMessageId` | string | RFC 2822 Message-ID header value |
+|   ↳ `conversationId` | string | ID of the conversation \(thread\) the message belongs to |
+|   ↳ `parentFolderId` | string | ID of the mail folder containing the message |
+|   ↳ `categories` | array | Category names assigned to the message |
+|   ↳ `flag` | object | Follow-up flag |
+|     ↳ `flagStatus` | string | Flag status \(notFlagged, flagged, complete\) |
+|     ↳ `startDateTime` | object | When the follow-up starts |
+|       ↳ `dateTime` | string | Date and time \(ISO 8601\) |
+|       ↳ `timeZone` | string | Time zone name |
+|     ↳ `dueDateTime` | object | When the follow-up is due |
+|       ↳ `dateTime` | string | Date and time \(ISO 8601\) |
+|       ↳ `timeZone` | string | Time zone name |
+|     ↳ `completedDateTime` | object | When the follow-up was completed |
+|       ↳ `dateTime` | string | Date and time \(ISO 8601\) |
+|       ↳ `timeZone` | string | Time zone name |
+|   ↳ `isDraft` | boolean | Whether the message is a draft |
+|   ↳ `webLink` | string | URL that opens the message in Outlook on the web |
 | `attachments` | file[] | All email attachments flattened from all emails |
 
 </ReferenceDetails>
@@ -190,6 +217,29 @@ Search Outlook messages using a free-text query (Microsoft Graph $search)
 |   ↳ `hasAttachments` | boolean | Whether the message has attachments |
 |   ↳ `isRead` | boolean | Whether the message has been read |
 |   ↳ `importance` | string | Message importance \(low, normal, high\) |
+|   ↳ `bccRecipients` | array | BCC recipients \(only visible on messages you sent or drafted\) |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `replyTo` | array | Addresses replies should go to, when the sender set Reply-To |
+|     ↳ `name` | string | Display name of the person or entity |
+|     ↳ `address` | string | Email address |
+|   ↳ `internetMessageId` | string | RFC 2822 Message-ID header value |
+|   ↳ `conversationId` | string | ID of the conversation \(thread\) the message belongs to |
+|   ↳ `parentFolderId` | string | ID of the mail folder containing the message |
+|   ↳ `categories` | array | Category names assigned to the message |
+|   ↳ `flag` | object | Follow-up flag |
+|     ↳ `flagStatus` | string | Flag status \(notFlagged, flagged, complete\) |
+|     ↳ `startDateTime` | object | When the follow-up starts |
+|       ↳ `dateTime` | string | Date and time \(ISO 8601\) |
+|       ↳ `timeZone` | string | Time zone name |
+|     ↳ `dueDateTime` | object | When the follow-up is due |
+|       ↳ `dateTime` | string | Date and time \(ISO 8601\) |
+|       ↳ `timeZone` | string | Time zone name |
+|     ↳ `completedDateTime` | object | When the follow-up was completed |
+|       ↳ `dateTime` | string | Date and time \(ISO 8601\) |
+|       ↳ `timeZone` | string | Time zone name |
+|   ↳ `isDraft` | boolean | Whether the message is a draft |
+|   ↳ `webLink` | string | URL that opens the message in Outlook on the web |
 
 </ReferenceDetails>
 
@@ -205,6 +255,8 @@ Reply to the sender of an Outlook message with a comment
 | --------- | ---- | -------- | ----------- |
 | `messageId` | string | Yes | The ID of the message to reply to |
 | `comment` | string | No | The reply text to include above the original message |
+| `cc` | string | No | CC recipients to add to the reply \(comma-separated\) |
+| `bcc` | string | No | BCC recipients to add to the reply \(comma-separated\) |
 
 #### Output
 
@@ -231,6 +283,7 @@ Reply to all recipients of an Outlook message with a comment
 | --------- | ---- | -------- | ----------- |
 | `messageId` | string | Yes | The ID of the message to reply to |
 | `comment` | string | No | The reply text to include above the original message |
+| `bcc` | string | No | BCC recipients to add to the reply \(comma-separated\) |
 
 #### Output
 
@@ -258,6 +311,8 @@ Forward an existing Outlook message to specified recipients
 | `messageId` | string | Yes | The ID of the message to forward |
 | `to` | string | Yes | Recipient email address\(es\), comma-separated |
 | `comment` | string | No | Optional comment to include with the forwarded message |
+| `cc` | string | No | CC recipients for the forwarded message \(comma-separated\) |
+| `bcc` | string | No | BCC recipients for the forwarded message \(comma-separated\) |
 
 #### Output
 
@@ -832,6 +887,14 @@ Triggers when new emails are received in Outlook (requires Microsoft credentials
 |   ↳ `folderId` | string | Outlook folder ID where email is located |
 |   ↳ `messageId` | string | Message ID for threading |
 |   ↳ `threadId` | string | Thread ID for conversation threading |
+|   ↳ `bcc` | string | BCC recipients \(only present on messages you sent\) |
+|   ↳ `replyTo` | string | Reply-To addresses, comma-separated \(empty when the sender set none\) |
+|   ↳ `internetMessageId` | string | RFC 2822 Message-ID header value |
+|   ↳ `importance` | string | Message importance \(low, normal, high\) |
+|   ↳ `categories` | array | Category names assigned to the message |
+|   ↳ `flagStatus` | string | Follow-up flag status \(notFlagged, flagged, complete\) |
+|   ↳ `bodyPreview` | string | First 255 characters of the body as plain text |
+|   ↳ `webLink` | string | URL that opens the message in Outlook on the web |
 | `timestamp` | string | Event timestamp |
 
 </ReferenceDetails>

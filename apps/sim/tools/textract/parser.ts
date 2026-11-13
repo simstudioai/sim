@@ -104,6 +104,10 @@ export const textractParserTool: InternalToolConfig<TextractParserInput, Textrac
         properties: {
           Text: { type: 'string', description: 'The query text' },
           Alias: { type: 'string', description: 'Optional alias for the result' },
+          Pages: {
+            type: 'array',
+            description: 'Optional pages to search, as strings (e.g., ["1", "2-3", "*"])',
+          },
         },
       },
     },
@@ -196,6 +200,13 @@ export const textractParserTool: InternalToolConfig<TextractParserInput, Textrac
             textractData.DetectDocumentTextModelVersion ??
             textractData.detectDocumentTextModelVersion ??
             undefined,
+          ...(textractData.jobStatus !== undefined
+            ? {
+                jobStatus: textractData.jobStatus ?? null,
+                statusMessage: textractData.statusMessage ?? null,
+                warnings: textractData.warnings ?? [],
+              }
+            : {}),
         },
       }
     } catch (error) {
@@ -317,6 +328,28 @@ export const textractParserTool: InternalToolConfig<TextractParserInput, Textrac
       type: 'string',
       description: 'Version of the Textract model used for processing',
       optional: true,
+    },
+    jobStatus: {
+      type: 'string',
+      description: 'Async job status: SUCCEEDED or PARTIAL_SUCCESS (multi-page mode only)',
+      optional: true,
+    },
+    statusMessage: {
+      type: 'string',
+      description: 'Why an async job only partially succeeded (multi-page mode only)',
+      optional: true,
+    },
+    warnings: {
+      type: 'array',
+      description: 'Async job warnings for pages Textract could not fully process',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          errorCode: { type: 'string', description: 'Warning error code' },
+          pages: { type: 'array', description: 'Page numbers the warning applies to' },
+        },
+      },
     },
   },
 }

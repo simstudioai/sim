@@ -4,16 +4,26 @@ import {
 } from '@aws-sdk/client-marketplace-entitlement-service'
 import { compareStrings } from '@sim/utils/string'
 import { getEntitlementClient } from '@/lib/billing/aws-marketplace/client'
+import type { AwsMarketplaceProduct } from '@/lib/billing/aws-marketplace/products'
 
 /** A license carries one entitlement per purchased dimension; this bounds a runaway `NextToken`. */
 const MAX_PAGES = 20
 
 /** What the last Entitlement Service read says about one license. */
 export interface EntitlementSummary {
-  /** At least one entitlement has no expiry or expires in the future. */
+  /**
+   * The product's required dimension (any dimension, for a plan with none) has an entitlement with
+   * no expiry or one in the future.
+   */
   active: boolean
-  /** Entitlements AWS returned, current or lapsed; zero is ambiguous, see the license's status. */
-  entitlementCount: number
+  /** AWS returned an entitlement of any dimension: the license exists and names its account. */
+  licenseSeen: boolean
+  /**
+   * AWS returned an entitlement, current or lapsed, for the dimension that grants access (any
+   * dimension, for a plan with none). A usage dimension alone is not an answer about access, and
+   * no answer is ambiguous: see the license's status.
+   */
+  accessReported: boolean
   dimension: string | null
   quantity: number | null
   expiresAt: Date | null
@@ -25,15 +35,20 @@ function isCurrent(entitlement: Entitlement, now: Date): boolean {
 }
 
 /**
- * Reduces a license's entitlements to the one the row records. A current entitlement wins, the
- * lowest dimension name first so repeated reads agree; with none current, the latest-expiring one
- * still describes what lapsed. Quantity is read only from an integer value: a contract's dollar
- * amount is never inferred from it.
+ * Reduces a license's entitlements to the one the row records. Only the plan's required dimension
+ * counts, when it names one; usage dimensions on the same license never grant access. A current
+ * entitlement wins, the lowest dimension name first so repeated reads agree; with none current,
+ * the latest-expiring one still describes what lapsed. Quantity is read only from an integer
+ * value: a contract's dollar amount is never inferred from it.
  */
 function summarizeEntitlements(
-  entitlements: readonly Entitlement[],
+  allEntitlements: readonly Entitlement[],
+  requiredDimension: string | null,
   now: Date
 ): EntitlementSummary {
+  const entitlements = requiredDimension
+    ? allEntitlements.filter((entitlement) => entitlement.Dimension === requiredDimension)
+    : allEntitlements
   const current = entitlements
     .filter((entitlement) => isCurrent(entitlement, now))
     .sort((left, right) => compareStrings(left.Dimension ?? '', right.Dimension ?? ''))
@@ -45,11 +60,13 @@ function summarizeEntitlements(
   const chosen = current[0] ?? lapsed[0]
   return {
     active: current.length > 0,
-    entitlementCount: entitlements.length,
+    licenseSeen: allEntitlements.length > 0,
+    accessReported: entitlements.length > 0,
     dimension: chosen?.Dimension ?? null,
     quantity: chosen?.Value?.IntegerValue ?? null,
     expiresAt: chosen?.ExpirationDate ?? null,
-    customerAwsAccountId: chosen?.CustomerAWSAccountId ?? null,
+    customerAwsAccountId:
+      chosen?.CustomerAWSAccountId ?? allEntitlements[0]?.CustomerAWSAccountId ?? null,
   }
 }
 
@@ -87,10 +104,10 @@ async function fetchLicenseEntitlements(
 
 /** Reads and summarizes one license's entitlements as of now; `signal` bounds the whole read. */
 export async function verifyLicense(
-  productCode: string,
+  product: AwsMarketplaceProduct,
   licenseArn: string,
   signal?: AbortSignal
 ): Promise<EntitlementSummary> {
-  const entitlements = await fetchLicenseEntitlements(productCode, licenseArn, signal)
-  return summarizeEntitlements(entitlements, new Date())
+  const entitlements = await fetchLicenseEntitlements(product.productCode, licenseArn, signal)
+  return summarizeEntitlements(entitlements, product.plan.requiredDimension, new Date())
 }

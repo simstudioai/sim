@@ -91,6 +91,10 @@ export function transformPageData(data: any) {
       url: data._links?.webui ?? null,
       body: data.body ?? null,
       version: data.version ?? null,
+      ownerId: data.ownerId ?? null,
+      lastOwnerId: data.lastOwnerId ?? null,
+      parentType: data.parentType ?? null,
+      labels: data.labels ?? [],
     },
   }
 }

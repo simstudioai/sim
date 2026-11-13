@@ -92,6 +92,7 @@ export const queryLogsTool: InternalToolConfig<
         results: data.output.results,
         statistics: data.output.statistics,
         status: data.output.status,
+        queryId: data.output.queryId ?? null,
       },
     }
   },
@@ -116,6 +117,11 @@ export const queryLogsTool: InternalToolConfig<
     status: {
       type: 'string',
       description: 'Query completion status (Complete, Failed, Cancelled, or Timeout)',
+    },
+    queryId: {
+      type: 'string',
+      description: 'ID of the Logs Insights query',
+      optional: true,
     },
   },
 }

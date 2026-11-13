@@ -11,6 +11,7 @@ interface GmailEditDraftParams {
   replyToMessageId?: string
   cc?: string
   bcc?: string
+  replyTo?: string
   attachments?: unknown
 }
 
@@ -86,7 +87,7 @@ export const gmailEditDraftV2Tool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Gmail message ID to reply to - use the "id" field from Gmail Read results (not the RFC "messageId")',
+        'Gmail message ID to reply to - use the "id" field from Gmail Read results (not "rfcMessageId")',
     },
     cc: {
       type: 'string',
@@ -99,6 +100,12 @@ export const gmailEditDraftV2Tool: InternalToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'BCC recipients (comma-separated)',
+    },
+    replyTo: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Reply-To address that replies should go to (e.g., support@example.com)',
     },
     attachments: {
       type: 'file[]',
@@ -120,6 +127,7 @@ export const gmailEditDraftV2Tool: InternalToolConfig<
       replyToMessageId: params.replyToMessageId,
       cc: params.cc,
       bcc: params.bcc,
+      replyTo: params.replyTo,
       attachments: params.attachments,
     }),
   },

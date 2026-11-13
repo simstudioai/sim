@@ -1,5 +1,5 @@
 import type { SharepointDeleteFileResponse, SharepointToolParams } from '@/tools/sharepoint/types'
-import { optionalTrim } from '@/tools/sharepoint/utils'
+import { graphPathSegment, optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteFileTool: ToolConfig<SharepointToolParams, SharepointDeleteFileResponse> = {
@@ -40,7 +40,7 @@ export const deleteFileTool: ToolConfig<SharepointToolParams, SharepointDeleteFi
       const driveItemId = optionalTrim(params.driveItemId)
       if (!driveId) throw new Error('driveId must be provided')
       if (!driveItemId) throw new Error('driveItemId must be provided')
-      return `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(driveItemId)}`
+      return `https://graph.microsoft.com/v1.0/drives/${graphPathSegment(driveId, 'driveId')}/items/${graphPathSegment(driveItemId, 'driveItemId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

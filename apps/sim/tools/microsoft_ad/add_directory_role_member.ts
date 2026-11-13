@@ -3,6 +3,7 @@ import type {
   MicrosoftAdAddDirectoryRoleMemberResponse,
 } from '@/tools/microsoft_ad/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const addDirectoryRoleMemberTool: ToolConfig<
   MicrosoftAdAddDirectoryRoleMemberParams,
@@ -42,7 +43,7 @@ export const addDirectoryRoleMemberTool: ToolConfig<
     url: (params) => {
       const directoryRoleId = params.directoryRoleId?.trim()
       if (!directoryRoleId) throw new Error('Directory role ID is required')
-      return `https://graph.microsoft.com/v1.0/directoryRoles/${encodeURIComponent(directoryRoleId)}/members/$ref`
+      return `https://graph.microsoft.com/v1.0/directoryRoles/${safeUrlPathSegment(directoryRoleId, 'directoryRoleId')}/members/$ref`
     },
     method: 'POST',
     headers: (params) => ({
@@ -53,7 +54,7 @@ export const addDirectoryRoleMemberTool: ToolConfig<
       const memberId = params.memberId?.trim()
       if (!memberId) throw new Error('Member ID is required')
       return {
-        '@odata.id': `https://graph.microsoft.com/v1.0/directoryObjects/${memberId}`,
+        '@odata.id': `https://graph.microsoft.com/v1.0/directoryObjects/${safeUrlPathSegment(memberId, 'memberId')}`,
       }
     },
   },

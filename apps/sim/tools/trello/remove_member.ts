@@ -2,6 +2,7 @@ import { env } from '@/lib/core/config/env'
 import { extractTrelloErrorMessage, TRELLO_API_BASE_URL } from '@/tools/trello/shared'
 import type { TrelloRemoveMemberParams, TrelloRemoveMemberResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloRemoveMemberTool: ToolConfig<
   TrelloRemoveMemberParams,
@@ -53,7 +54,7 @@ export const trelloRemoveMemberTool: ToolConfig<
       }
 
       const url = new URL(
-        `${TRELLO_API_BASE_URL}/cards/${params.cardId.trim()}/idMembers/${params.memberId.trim()}`
+        `${TRELLO_API_BASE_URL}/cards/${safeUrlPathSegment(params.cardId, 'cardId')}/idMembers/${safeUrlPathSegment(params.memberId, 'memberId')}`
       )
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)

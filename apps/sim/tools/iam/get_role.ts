@@ -65,6 +65,8 @@ export const getRoleTool: InternalToolConfig<IAMGetRoleParams, IAMGetRoleRespons
         assumeRolePolicyDocument: data.assumeRolePolicyDocument ?? null,
         roleLastUsedDate: data.roleLastUsedDate ?? null,
         roleLastUsedRegion: data.roleLastUsedRegion ?? null,
+        permissionsBoundaryArn: data.permissionsBoundaryArn ?? null,
+        tags: data.tags ?? [],
       },
     }
   },
@@ -94,6 +96,16 @@ export const getRoleTool: InternalToolConfig<IAMGetRoleParams, IAMGetRoleRespons
     roleLastUsedRegion: {
       type: 'string',
       description: 'AWS region where the role was last used',
+      optional: true,
+    },
+    permissionsBoundaryArn: {
+      type: 'string',
+      description: 'ARN of the permissions boundary policy set on the role',
+      optional: true,
+    },
+    tags: {
+      type: 'json',
+      description: 'Tags attached to the role (key, value pairs)',
       optional: true,
     },
   },

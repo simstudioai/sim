@@ -67,6 +67,8 @@ const KEYLESS_FLOW_HELP = [
   '',
   "Step 1: run `sim credentials keyless-subject <providerId> --output json` and configure your cloud to trust the printed issuer, audience, and subject. Its requiredConfigFields lists the values your provider's keylessConfig still needs.",
   '',
+  "The printed audience is the default. To have Sim sign tokens for your own audience instead, set audience in keylessConfig and trust that value. Google Cloud prints no audience: its default is the credential's own workload identity pool provider.",
+  '',
   'Step 2: add those values to keylessConfig and pass it to `sim credentials create <providerId> --credentials @file`.',
   '',
   `The proof expires after 24 hours and works only for the user who requested it, with the same providerId. If creation reports ${[...KEYLESS_RETRY_CODES].join(', ')}, run step 1 again, trust the new subject, and retry.`,
@@ -135,8 +137,10 @@ async function credentialValues(
     }
   }
 
-  // A keyless configuration stands in for the provider's required fields.
-  if (provider.keyless && values.serviceAccountJson !== undefined) {
+  if (
+    values.serviceAccountJson !== undefined &&
+    (provider.keyless !== undefined || offersConfigurationAlternative(provider))
+  ) {
     return values as Record<string, string>
   }
 
@@ -160,9 +164,19 @@ async function credentialValues(
 }
 
 /**
- * Accepts the keylessConfig from `sim credentials keyless-subject` as it is:
- * an object that carries a subject and its proof, or the provider's keyless
- * `authType`, is sent as `serviceAccountJson`.
+ * Whether the catalog lists `serviceAccountJson` as an optional alternative to
+ * the provider's other fields (such as a Snowflake key pair).
+ */
+function offersConfigurationAlternative(provider: ServiceAccountProvider): boolean {
+  return provider.fields.some((field) => field.id === 'serviceAccountJson' && !field.required)
+}
+
+/**
+ * Accepts a configuration object as it is: the keylessConfig from
+ * `sim credentials keyless-subject` (an object that carries a subject and its
+ * proof, or the provider's keyless `authType`), or an object with an
+ * `authType` where `serviceAccountJson` is an optional alternative, is sent as
+ * `serviceAccountJson`.
  * Anything else is read as the provider's fields, so a misspelled field is
  * still reported as unsupported.
  */
@@ -170,10 +184,14 @@ function asServiceAccountJson(
   values: Record<string, unknown>,
   provider: ServiceAccountProvider
 ): Record<string, unknown> {
-  const keylessConfig =
+  const configuration =
     (values.subject !== undefined && values.subjectProof !== undefined) ||
-    (provider.keyless !== undefined && values.authType === provider.keyless.authType)
-  return keylessConfig ? { serviceAccountJson: JSON.stringify(values) } : values
+    (provider.keyless !== undefined && values.authType === provider.keyless.authType) ||
+    (values.authType !== undefined &&
+      values.serviceAccountJson === undefined &&
+      !provider.fields.some((field) => field.id === 'authType') &&
+      offersConfigurationAlternative(provider))
+  return configuration ? { serviceAccountJson: JSON.stringify(values) } : values
 }
 
 /** Names the command that fixes a refused keyless subject, keeping the API's code and details. */
@@ -186,7 +204,8 @@ function withKeylessRetryHint(error: unknown, providerId: string): unknown {
     error.status,
     error.code,
     error.details,
-    error.exitCode
+    error.exitCode,
+    error.requestId
   )
 }
 

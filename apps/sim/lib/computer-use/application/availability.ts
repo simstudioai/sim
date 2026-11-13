@@ -1,17 +1,14 @@
 import type { Principal } from '@sim/auth/principal'
-import type { ComputerUseOwner } from '@/lib/api/contracts/computer-use'
-import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
 import { defineAuthorizedOrganizationUseCase } from '@/lib/core/application/authorized-organization-use-case'
-import {
-  assertOperationPrincipal,
-  defineOperation,
-  type OperationUseCase,
-} from '@/lib/core/application/operation'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import {
+  isOrganizationCapabilityWithheld,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
-/** permission-group-exempt: reports the rollout for a workspace the caller can read; actions require chat authorization. */
+/** permission-group-exempt: reports whether computer_use.use is withheld instead of refusing; actions declare it. */
 const workspaceAvailabilityOperation = defineWorkspaceOperation({
   id: 'desktop.computer.availability',
   minimumRole: 'read',
@@ -20,7 +17,7 @@ const workspaceAvailabilityOperation = defineWorkspaceOperation({
   principalKinds: ['session'],
 })
 
-/** permission-group-exempt: reports the rollout for an organization the caller belongs to; actions require chat authorization. */
+/** permission-group-exempt: reports whether computer_use.use is withheld instead of refusing; actions declare it. */
 const organizationAvailabilityOperation = defineOrganizationOperation({
   id: 'desktop.computer.availability',
   minimumRole: 'member',
@@ -33,19 +30,29 @@ const workspaceAvailability = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: { workspaceId: string } }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: {},
-  execute: ({ context }) => isComputerUseAvailable(context.workspaceOrganizationId),
+  execute: async ({ principal, input, context }) =>
+    // permission-group-enforced: computer_use.use — an availability read answers false rather than 403
+    !(await isWorkspaceCapabilityWithheld(
+      principal.userId,
+      input.workspaceId,
+      'computer_use.use',
+      context.workspaceOrganizationId
+    )),
 })
 
 const organizationAvailability = defineAuthorizedOrganizationUseCase({
   operation: organizationAvailabilityOperation,
-  execute: ({ input }: { input: { organizationId: string } }) =>
-    isComputerUseAvailable(input.organizationId),
+  execute: async ({ input }: { input: { organizationId: string } }) =>
+    // permission-group-enforced: computer_use.use — an availability read answers false rather than 403
+    !(await isOrganizationCapabilityWithheld(input.organizationId, 'computer_use.use')),
 })
 
+/** The chat whose permission group applies: exactly one of a workspace or an organization. */
+type ComputerUseOwner = { workspaceId: string } | { organizationId: string }
+
 /**
- * Whether computer use is rolled out for a chat's owner: an organization chat follows its
- * organization, a workspace chat its workspace's organization, and a personal workspace the
- * global switch.
+ * Whether the chat owner's permission group allows computer use: an organization chat follows
+ * its organization's default group, a workspace chat the group governing that workspace.
  */
 export function isComputerUseAvailableFor(
   principal: Principal,
@@ -54,24 +61,4 @@ export function isComputerUseAvailableFor(
   return 'organizationId' in owner
     ? organizationAvailability.execute({ principal, input: owner })
     : workspaceAvailability.execute({ principal, input: owner })
-}
-
-/** permission-group-exempt: dispatches to the owner's authorized rollout read above. */
-const availabilityOperation = defineOperation({
-  id: 'desktop.computer.availability',
-  capability: 'none',
-  principalKinds: ['session'],
-})
-
-/** The desktop's rollout read before it touches the native helper; no device or app data leaves the desktop. */
-export const readComputerUseAvailability: OperationUseCase<
-  typeof availabilityOperation,
-  ComputerUseOwner,
-  { enabled: boolean }
-> = {
-  operation: availabilityOperation,
-  async execute({ principal, input }) {
-    assertOperationPrincipal(principal, availabilityOperation)
-    return { enabled: await isComputerUseAvailableFor(principal, input) }
-  },
 }

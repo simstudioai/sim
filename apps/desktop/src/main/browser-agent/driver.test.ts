@@ -1507,13 +1507,13 @@ describe('browserToolWatchdogMs', () => {
   })
 
   it.each([
-    ['number', 30_000, 35_000],
-    ['numeric string', '30000', 35_000],
-    ['absent', undefined, 15_000],
-    ['non-numeric', 'soon', 15_000],
-    ['zero', 0, 15_000],
-    ['negative', -5_000, 15_000],
-    ['above the wait clamp', 500_000, 125_000],
+    ['number', 30_000, 55_000],
+    ['numeric string', '30000', 55_000],
+    ['absent', undefined, 35_000],
+    ['non-numeric', 'soon', 35_000],
+    ['zero', 0, 35_000],
+    ['negative', -5_000, 35_000],
+    ['above the wait clamp', 500_000, 145_000],
   ])('normalizes browser_wait_for timeout (%s)', (_label, timeoutMs, expected) => {
     const params = timeoutMs === undefined ? {} : { timeoutMs }
 
@@ -3098,40 +3098,180 @@ describe('credential protection', () => {
     })
   })
 
+  it('gives a wait that runs to its timeout a full snapshot budget for its closing observation', async () => {
+    const contents = await openPage()
+    let finishSnapshot: (value: unknown) => void = () => {}
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (!isPageCall(expression, 'collectSnapshot')) return Promise.resolve(undefined)
+      return new Promise((resolve) => {
+        finishSnapshot = resolve
+      })
+    })
+    vi.useFakeTimers()
+    try {
+      const waiting = driver.executeTool('chat-test', 'browser_wait_for', { timeoutMs: 1_000 })
+      await vi.advanceTimersByTimeAsync(9_000)
+      finishSnapshot({
+        url: 'https://example.com/',
+        title: 'Example',
+        outline: '- heading "Order confirmed"',
+        truncated: false,
+        refIds: [],
+        refLineIndexes: {},
+        nextElementId: 1_000,
+      })
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      expect(await waiting).toMatchObject({
+        ok: true,
+        result: { observation: { ok: true, result: { outline: '- heading "Order confirmed"' } } },
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('accepts a later snapshot that keeps refs this scope issued for the same page', async () => {
+    const contents = await openPage()
+    const snapshot = (refIds: number[], nextElementId: number) => ({
+      url: 'https://example.com/',
+      title: 'Example',
+      outline: refIds.map((ref) => `- button "B${ref}" [ref=${ref}]`).join('\n'),
+      truncated: false,
+      refIds,
+      refLineIndexes: Object.fromEntries(refIds.map((ref, index) => [ref, index])),
+      nextElementId,
+    })
+    respondWith(contents, { collectSnapshot: snapshot([4, 5], 6) })
+    await driver.executeTool('chat-test', 'browser_snapshot', {})
+    respondWith(contents, { collectSnapshot: snapshot([4, 6], 7) })
+
+    const kept = await driver.executeTool('chat-test', 'browser_snapshot', {})
+    expect(kept).toMatchObject({ ok: true })
+    respondWith(contents, { collectSnapshot: snapshot([2], 7) })
+
+    const forged = await driver.executeTool('chat-test', 'browser_snapshot', {})
+    expect(forged).toMatchObject({ ok: false })
+  })
+
+  it("forgets a page's oldest refs once its history passes the retention bound", async () => {
+    const contents = await openPage()
+    const snapshot = (refIds: number[], nextElementId: number) => ({
+      url: 'https://example.com/',
+      title: 'Example',
+      outline: refIds.map((ref) => `- button "B${ref}" [ref=${ref}]`).join('\n'),
+      truncated: false,
+      refIds,
+      refLineIndexes: Object.fromEntries(refIds.map((ref, index) => [ref, index])),
+      nextElementId,
+    })
+    let next = 0
+    for (let round = 0; round < 19; round++) {
+      const refIds = Array.from({ length: 300 }, (_, index) => next + index)
+      next += 300
+      respondWith(contents, { collectSnapshot: snapshot(refIds, next) })
+      expect(await driver.executeTool('chat-test', 'browser_snapshot', {})).toMatchObject({
+        ok: true,
+      })
+    }
+    respondWith(contents, { collectSnapshot: snapshot([next - 1], next) })
+    expect(await driver.executeTool('chat-test', 'browser_snapshot', {})).toMatchObject({
+      ok: true,
+    })
+    respondWith(contents, { collectSnapshot: snapshot([0], next) })
+
+    expect(await driver.executeTool('chat-test', 'browser_snapshot', {})).toMatchObject({
+      ok: false,
+    })
+  })
+
+  it('recaptures with fresh ids when the page reuses an id this scope never committed', async () => {
+    const contents = await openPage()
+    const snapshot = (refIds: number[], nextElementId: number) => ({
+      url: 'https://example.com/',
+      title: 'Example',
+      outline: refIds.map((ref) => `- button "B${ref}" [ref=${ref}]`).join('\n'),
+      truncated: false,
+      refIds,
+      refLineIndexes: Object.fromEntries(refIds.map((ref, index) => [ref, index])),
+      nextElementId,
+    })
+    respondWith(contents, { collectSnapshot: snapshot([4, 5], 6) })
+    await driver.executeTool('chat-test', 'browser_snapshot', {})
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (!isPageCall(expression, 'collectSnapshot')) return Promise.resolve(undefined)
+      const forgets = expression.includes(',true])')
+      return Promise.resolve(forgets ? snapshot([6, 7], 8) : snapshot([2, 6], 7))
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_snapshot', {})
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: { outline: expect.stringContaining('[ref=7]') },
+    })
+  })
+
+  it('acts on a ref an earlier snapshot of the same page issued', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      collectSnapshot: {
+        url: 'https://example.com/',
+        title: 'Example',
+        outline: '- button "Pins" [ref=4]\n- button "Files" [ref=5]',
+        truncated: false,
+        refIds: [4, 5],
+        refLineIndexes: { 4: 0, 5: 1 },
+        nextElementId: 6,
+      },
+    })
+    await driver.executeTool('chat-test', 'browser_snapshot', {})
+    respondWith(contents, {
+      collectSnapshot: {
+        url: 'https://example.com/',
+        title: 'Example',
+        outline: '- dialog "Pick a time" [ref=6]',
+        truncated: false,
+        refIds: [6],
+        refLineIndexes: { 6: 0 },
+        nextElementId: 7,
+      },
+    })
+    await driver.executeTool('chat-test', 'browser_find', { query: 'time' })
+
+    const clicked = await driver.executeTool('chat-test', 'browser_click', { elementId: 4 })
+    expect(clicked).toMatchObject({ ok: true, result: { dispatched: true } })
+  })
+
   it.each([
     ['browser_snapshot', 'true'],
     ['browser_find', 'false'],
-  ] as const)(
-    'passes the current root ref to %s and invalidates previous refs',
-    async (tool, markNew) => {
-      const contents = await openPage()
-      respondWith(contents, {
-        collectSnapshot: {
-          url: 'https://example.com/login',
-          title: 'Scoped',
-          scoped: true,
-          outline: '- button "Save" [ref=1]',
-          truncated: false,
-          refIds: [1],
-          refLineIndexes: { 1: 0 },
-          nextElementId: 2,
-        },
-      })
-      const result = await driver.executeTool('chat-test', tool, { elementId: 0, query: 'Save' })
-      expect(result).toMatchObject({ ok: true, result: { scoped: true } })
-      expect(
-        vi
-          .mocked(contents.executeJavaScript)
-          .mock.calls.some(
-            ([expression]) =>
-              isPageCall(expression, 'collectSnapshot') &&
-              expression.includes(`.apply(null, [1,0,${markNew}])`)
-          )
-      ).toBe(true)
-      const stale = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
-      expect(stale).toMatchObject({ ok: false })
-    }
-  )
+  ] as const)('passes the current root ref to %s', async (tool, markNew) => {
+    const contents = await openPage()
+    respondWith(contents, {
+      collectSnapshot: {
+        url: 'https://example.com/login',
+        title: 'Scoped',
+        scoped: true,
+        outline: '- button "Save" [ref=1]',
+        truncated: false,
+        refIds: [1],
+        refLineIndexes: { 1: 0 },
+        nextElementId: 2,
+      },
+    })
+    const result = await driver.executeTool('chat-test', tool, { elementId: 0, query: 'Save' })
+    expect(result).toMatchObject({ ok: true, result: { scoped: true } })
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(
+          ([expression]) =>
+            isPageCall(expression, 'collectSnapshot') &&
+            expression.includes(`.apply(null, [1,0,${markNew},`)
+        )
+    ).toBe(true)
+  })
 
   it.each([
     { kind: 'input:checkbox', checked: true, disabled: false, readOnly: false },

@@ -8,6 +8,7 @@ import {
   RAILWAY_GRAPHQL_URL,
   railwayHeaders,
 } from '@/tools/railway/utils'
+import { RAILWAY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface RailwayGetDeploymentLogsData {
@@ -26,6 +27,7 @@ export const railwayGetDeploymentLogsTool: ToolConfig<
   name: 'Railway Get Deployment Logs',
   description: 'Retrieve runtime logs for a Railway deployment',
   version: '1.0.0',
+  oauth: RAILWAY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

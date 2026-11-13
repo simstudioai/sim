@@ -2,10 +2,13 @@ import {
   CALENDAR_API_BASE,
   type GoogleCalendarApiEventResponse,
   type GoogleCalendarApiListResponse,
+  type GoogleCalendarEventDetails,
   type GoogleCalendarListParams,
   type GoogleCalendarListResponse,
 } from '@/tools/google_calendar/types'
+import { buildEventDetails, EVENT_DETAIL_OUTPUTS } from '@/tools/google_calendar/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListResponse> = {
   id: 'google_calendar_list',
@@ -75,6 +78,20 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
       visibility: 'hidden',
       description: 'Include deleted events',
     },
+    timeZone: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "IANA time zone used for times in the response (e.g., America/New_York). Defaults to the calendar's time zone.",
+    },
+    updatedMin: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only return events modified at or after this time (RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z). Events deleted since then are always included.',
+    },
   },
 
   request: {
@@ -91,9 +108,11 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
       queryParams.append('orderBy', params.orderBy || 'startTime')
       if (params.showDeleted !== undefined)
         queryParams.append('showDeleted', params.showDeleted.toString())
+      if (params.timeZone) queryParams.append('timeZone', params.timeZone)
+      if (params.updatedMin) queryParams.append('updatedMin', params.updatedMin)
 
       const queryString = queryParams.toString()
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events${queryString ? `?${queryString}` : ''}`
+      return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params: GoogleCalendarListParams) => ({
@@ -116,6 +135,7 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
           nextSyncToken: data.nextSyncToken,
           timeZone: data.timeZone,
           events: events.map((event: GoogleCalendarApiEventResponse) => ({
+            ...buildEventDetails(event),
             id: event.id,
             htmlLink: event.htmlLink,
             status: event.status,
@@ -142,7 +162,7 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
   },
 }
 
-interface GoogleCalendarListV2Event {
+interface GoogleCalendarListV2Event extends GoogleCalendarEventDetails {
   id: string
   htmlLink: string
   status: string
@@ -160,6 +180,7 @@ interface GoogleCalendarListV2Response {
   success: boolean
   output: {
     nextPageToken: string | null
+    nextSyncToken: string | null
     timeZone: string | null
     events: GoogleCalendarListV2Event[]
   }
@@ -181,8 +202,10 @@ export const listV2Tool: ToolConfig<GoogleCalendarListParams, GoogleCalendarList
       success: true,
       output: {
         nextPageToken: data.nextPageToken ?? null,
+        nextSyncToken: data.nextSyncToken ?? null,
         timeZone: data.timeZone ?? null,
         events: events.map((event: GoogleCalendarApiEventResponse) => ({
+          ...buildEventDetails(event),
           id: event.id,
           htmlLink: event.htmlLink,
           status: event.status,
@@ -200,7 +223,45 @@ export const listV2Tool: ToolConfig<GoogleCalendarListParams, GoogleCalendarList
   },
   outputs: {
     nextPageToken: { type: 'string', description: 'Next page token', optional: true },
+    nextSyncToken: {
+      type: 'string',
+      description: 'Sync token for incremental sync, returned on the last page',
+      optional: true,
+    },
     timeZone: { type: 'string', description: 'Calendar time zone', optional: true },
-    events: { type: 'json', description: 'List of events' },
+    events: {
+      type: 'array',
+      description: 'List of events',
+      items: {
+        type: 'object',
+        properties: {
+          ...EVENT_DETAIL_OUTPUTS,
+          id: { type: 'string', description: 'Event ID' },
+          htmlLink: { type: 'string', description: 'Event link' },
+          status: { type: 'string', description: 'Event status (confirmed, tentative, cancelled)' },
+          summary: { type: 'string', description: 'Event title', optional: true },
+          description: { type: 'string', description: 'Event description', optional: true },
+          location: { type: 'string', description: 'Event location', optional: true },
+          start: { type: 'json', description: 'Event start { dateTime | date, timeZone }' },
+          end: { type: 'json', description: 'Event end { dateTime | date, timeZone }' },
+          attendees: {
+            type: 'json',
+            description:
+              'Attendees [{ email, displayName, responseStatus (needsAction, declined, tentative, accepted), optional, organizer, self, resource, comment }]',
+            optional: true,
+          },
+          creator: {
+            type: 'json',
+            description: 'Event creator { email, displayName, self }',
+            optional: true,
+          },
+          organizer: {
+            type: 'json',
+            description: 'Event organizer { email, displayName, self }',
+            optional: true,
+          },
+        },
+      },
+    },
   },
 }

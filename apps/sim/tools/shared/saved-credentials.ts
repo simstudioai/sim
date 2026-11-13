@@ -1,4 +1,14 @@
+import {
+  DATABASE_CONNECTION_DESCRIPTORS,
+  type DatabaseConnectionProviderId,
+  databaseConnectionFieldIds,
+} from '@/lib/credentials/database-connections/descriptors'
 import type { OAuthService } from '@/lib/oauth'
+import {
+  MSSQL_SERVICE_ACCOUNT_PROVIDER_ID,
+  MYSQL_SERVICE_ACCOUNT_PROVIDER_ID,
+  POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID,
+} from '@/lib/oauth/types'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { CredentialParamSource, OAuthConfig, ToolConfig } from '@/tools/types'
 
@@ -29,12 +39,53 @@ export const AWS_CREDENTIAL_OAUTH = {
 export const AWS_SESSION_SIGNED_TOOL_IDS: ReadonlySet<string> = new Set(['s3_get_object'])
 
 /**
+ * Credential policy for every Azure Data Explorer tool. `required: false` keeps the inline
+ * tenant, client ID, and client secret working unchanged; with a saved Microsoft app credential
+ * selected instead, the executor authorizes it and the operation mints a token for the cluster it
+ * validated, in the credential's own cloud.
+ */
+export const AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH = {
+  required: false,
+  provider: 'azure-data-explorer',
+  credentialKind: 'service-account',
+  credentialSuppliedParams: ['tenantId', 'clientId', 'clientSecret'],
+} as const satisfies OAuthConfig
+
+/**
+ * Credential policy for a SQL family's tools. `required: false` keeps the
+ * inline connection fields working unchanged; with a saved connection
+ * selected, the tool operation reads it server-side
+ * (`withSavedDatabaseConnection`) and every connection field it stores
+ * replaces the call's. The stored fields and the params declared here are the
+ * same list (`databaseConnectionFieldIds`).
+ */
+function databaseConnectionOAuth(providerId: DatabaseConnectionProviderId) {
+  return {
+    required: false,
+    provider: DATABASE_CONNECTION_DESCRIPTORS[providerId].service,
+    credentialKind: 'service-account',
+    credentialSuppliedParams: databaseConnectionFieldIds(providerId),
+  } as const satisfies OAuthConfig
+}
+
+export const POSTGRESQL_CREDENTIAL_OAUTH = databaseConnectionOAuth(
+  POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID
+)
+export const MYSQL_CREDENTIAL_OAUTH = databaseConnectionOAuth(MYSQL_SERVICE_ACCOUNT_PROVIDER_ID)
+export const MSSQL_CREDENTIAL_OAUTH = databaseConnectionOAuth(MSSQL_SERVICE_ACCOUNT_PROVIDER_ID)
+
+/**
  * Saved-credential providers whose tools resolve the credential inside their
- * own operation (AWS mints session keys per call) rather than through
- * `credentialParams`.
+ * own operation (AWS mints session keys per call, Azure Data Explorer a token
+ * for the cluster each call names, and a saved database connection is read and
+ * bound to the run's owner) rather than through `credentialParams`.
  */
 export const OPERATION_RESOLVED_CREDENTIAL_PROVIDERS: ReadonlySet<string> = new Set([
   AWS_CREDENTIAL_OAUTH.provider,
+  AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH.provider,
+  POSTGRESQL_CREDENTIAL_OAUTH.provider,
+  MYSQL_CREDENTIAL_OAUTH.provider,
+  MSSQL_CREDENTIAL_OAUTH.provider,
 ])
 
 /**
@@ -56,17 +107,22 @@ export function savedCredentialTokenParam(serviceLabel: string) {
  * credential field that fills it server-side; the same keys are the params
  * the credential supplies, so the two can never drift apart. Mapped params are
  * always overwritten, so a bound host can never be steered by the caller.
+ *
+ * `tokenReplacesParams` names inline sign-in alternatives the token makes unused (a username and
+ * password the tools read only without a token), so a credential-only block drops them too.
  */
 export function tokenCredentialOAuth(
   provider: OAuthService,
-  credentialParams: Readonly<Record<string, CredentialParamSource>>
+  credentialParams: Readonly<Record<string, CredentialParamSource>>,
+  tokenReplacesParams: readonly string[] = []
 ) {
   return {
     required: false,
     provider,
     credentialKind: 'service-account',
     credentialParams,
-    credentialSuppliedParams: Object.keys(credentialParams),
+    ...(tokenReplacesParams.length > 0 ? { tokenReplacesParams } : {}),
+    credentialSuppliedParams: [...Object.keys(credentialParams), ...tokenReplacesParams],
   } as const satisfies OAuthConfig
 }
 
@@ -100,7 +156,7 @@ export function isSavedCredentialPicker(
 ): boolean {
   return (
     subBlock.type === 'oauth-input' &&
-    subBlock.credentialKind === 'service-account' &&
+    (subBlock.credentialKind === 'service-account' || subBlock.credentialKind === 'any') &&
     subBlock.canonicalParamId === 'oauthCredential'
   )
 }
@@ -191,8 +247,34 @@ export const ALGOLIA_CREDENTIAL_OAUTH = tokenCredentialOAuth('algolia', {
   applicationId: 'providerWorkspaceId',
   apiKey: 'accessToken',
 })
+/**
+ * Credential policies for the Amplitude tools. A saved Amplitude project credential holds the
+ * project API key (as its account id), the secret key (as its token), and the data residency
+ * region (as its domain). Each policy maps only the params its tools declare: the Dashboard REST
+ * tools send both keys to the region's host, the ingestion tools send the API key to the
+ * region's host, and the User Profile tool sends both keys to its single US host.
+ */
+export const AMPLITUDE_CREDENTIAL_OAUTH = tokenCredentialOAuth('amplitude', {
+  apiKey: 'providerWorkspaceId',
+  secretKey: 'accessToken',
+  dataResidency: 'domain',
+})
+export const AMPLITUDE_INGESTION_CREDENTIAL_OAUTH = tokenCredentialOAuth('amplitude', {
+  apiKey: 'providerWorkspaceId',
+  dataResidency: 'domain',
+})
+export const AMPLITUDE_PROFILE_CREDENTIAL_OAUTH = tokenCredentialOAuth('amplitude', {
+  apiKey: 'providerWorkspaceId',
+  secretKey: 'accessToken',
+})
 export const APIFY_CREDENTIAL_OAUTH = tokenCredentialOAuth('apify', { apiKey: 'accessToken' })
-export const APOLLO_CREDENTIAL_OAUTH = tokenCredentialOAuth('apollo', { apiKey: 'accessToken' })
+export const APOLLO_CREDENTIAL_OAUTH = {
+  required: false,
+  provider: 'apollo',
+  credentialParams: { apiKey: 'accessToken' },
+  credentialSuppliedParams: ['apiKey'],
+  authoritativeParams: ['credentialType'],
+} as const satisfies OAuthConfig
 export const ASHBY_CREDENTIAL_OAUTH = tokenCredentialOAuth('ashby', { apiKey: 'accessToken' })
 export const AZURE_DEVOPS_CREDENTIAL_OAUTH = tokenCredentialOAuth('azure_devops', {
   accessToken: 'accessToken',
@@ -207,6 +289,14 @@ export const BROWSER_USE_CREDENTIAL_OAUTH = tokenCredentialOAuth('browser_use', 
 })
 export const BUFFER_CREDENTIAL_OAUTH = tokenCredentialOAuth('buffer', { apiKey: 'accessToken' })
 export const CALENDLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('calendly', { apiKey: 'accessToken' })
+/**
+ * Credential policy for every CB Insights tool. A saved CB Insights API client fills the client
+ * ID and secret the tools exchange for an access token on each run, as they do inline.
+ */
+export const CBINSIGHTS_CREDENTIAL_OAUTH = tokenCredentialOAuth('cbinsights', {
+  clientId: 'providerWorkspaceId',
+  clientSecret: 'accessToken',
+})
 export const CHECKR_CREDENTIAL_OAUTH = tokenCredentialOAuth('checkr', { apiKey: 'accessToken' })
 export const CIRCLEBACK_CREDENTIAL_OAUTH = tokenCredentialOAuth('circleback', {
   apiKey: 'accessToken',
@@ -266,7 +356,10 @@ export const GRAFANA_CREDENTIAL_OAUTH = tokenCredentialOAuth('grafana', {
 })
 export const GRAIN_CREDENTIAL_OAUTH = tokenCredentialOAuth('grain', { apiKey: 'accessToken' })
 export const GRANOLA_CREDENTIAL_OAUTH = tokenCredentialOAuth('granola', { apiKey: 'accessToken' })
-export const HEX_CREDENTIAL_OAUTH = tokenCredentialOAuth('hex', { apiKey: 'accessToken' })
+export const HEX_CREDENTIAL_OAUTH = tokenCredentialOAuth('hex', {
+  apiKey: 'accessToken',
+  host: 'domain',
+})
 export const HUGGINGFACE_CREDENTIAL_OAUTH = tokenCredentialOAuth('huggingface', {
   apiKey: 'accessToken',
 })
@@ -291,11 +384,22 @@ export const JUPYTER_CREDENTIAL_OAUTH = tokenCredentialOAuth('jupyter', {
   serverUrl: 'domain',
   token: 'accessToken',
 })
+/**
+ * Credential policy for the Kalshi tools that sign requests. A saved Kalshi API key holds the
+ * key ID (as its account id) and the private key (as its token); the tools sign each request
+ * with them, so the key never leaves Sim.
+ */
+export const KALSHI_CREDENTIAL_OAUTH = tokenCredentialOAuth('kalshi', {
+  keyId: 'providerWorkspaceId',
+  privateKey: 'accessToken',
+})
 export const LANGSMITH_CREDENTIAL_OAUTH = tokenCredentialOAuth('langsmith', {
   apiKey: 'accessToken',
+  region: 'domain',
 })
 export const LAUNCHDARKLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('launchdarkly', {
   apiKey: 'accessToken',
+  instance: 'domain',
 })
 export const LEMLIST_CREDENTIAL_OAUTH = tokenCredentialOAuth('lemlist', { apiKey: 'accessToken' })
 export const LINQ_CREDENTIAL_OAUTH = tokenCredentialOAuth('linq', { apiKey: 'accessToken' })
@@ -342,8 +446,25 @@ export const PLANETSCALE_CREDENTIAL_OAUTH = tokenCredentialOAuth('planetscale', 
 })
 export const PROFOUND_CREDENTIAL_OAUTH = tokenCredentialOAuth('profound', { apiKey: 'accessToken' })
 export const PULSE_CREDENTIAL_OAUTH = tokenCredentialOAuth('pulse', { apiKey: 'accessToken' })
+/**
+ * Credential policy for every Qdrant tool. A saved Qdrant API key fills the key and the instance
+ * URL it was verified against, so a run reaches only that instance.
+ */
+export const QDRANT_CREDENTIAL_OAUTH = tokenCredentialOAuth('qdrant', {
+  apiKey: 'accessToken',
+  url: 'domain',
+})
 export const QUARTR_CREDENTIAL_OAUTH = tokenCredentialOAuth('quartr', { apiKey: 'accessToken' })
 export const QUIVER_CREDENTIAL_OAUTH = tokenCredentialOAuth('quiver', { apiKey: 'accessToken' })
+/**
+ * Credential policy for every Railway tool. A saved Railway token fills the token and its type
+ * (account, workspace, or project), so a project token is sent in the Project-Access-Token header
+ * and the others as a Bearer token, as the tools do inline.
+ */
+export const RAILWAY_CREDENTIAL_OAUTH = tokenCredentialOAuth('railway', {
+  apiKey: 'accessToken',
+  tokenType: 'domain',
+})
 export const RB2B_CREDENTIAL_OAUTH = tokenCredentialOAuth('rb2b', { apiKey: 'accessToken' })
 export const REDUCTO_CREDENTIAL_OAUTH = tokenCredentialOAuth('reducto', { apiKey: 'accessToken' })
 export const RESEND_CREDENTIAL_OAUTH = tokenCredentialOAuth('resend', {
@@ -354,13 +475,28 @@ export const ROCKETLANE_CREDENTIAL_OAUTH = tokenCredentialOAuth('rocketlane', {
   apiKey: 'accessToken',
 })
 export const ROOTLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('rootly', { apiKey: 'accessToken' })
-export const SENDGRID_CREDENTIAL_OAUTH = tokenCredentialOAuth('sendgrid', { apiKey: 'accessToken' })
-export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', { apiKey: 'accessToken' })
-export const SERVICENOW_CREDENTIAL_OAUTH = tokenCredentialOAuth('servicenow', {
-  instanceUrl: 'domain',
-  username: 'providerWorkspaceId',
-  password: 'accessToken',
+export const SENDGRID_CREDENTIAL_OAUTH = tokenCredentialOAuth('sendgrid', {
+  apiKey: 'accessToken',
+  region: 'domain',
 })
+export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', {
+  apiKey: 'accessToken',
+  region: 'domain',
+})
+/**
+ * Credential policy for every ServiceNow tool. A saved login fills the instance, username, and
+ * password; a saved OAuth client resolves to a minted token (in `password` and `accessToken`)
+ * with `authStyle: 'bearer'` and no username, so the username is optional and cleared then.
+ */
+export const SERVICENOW_CREDENTIAL_OAUTH = {
+  ...tokenCredentialOAuth('servicenow', {
+    instanceUrl: 'domain',
+    username: 'providerWorkspaceId',
+    password: 'accessToken',
+  }),
+  optionalCredentialParams: ['username'],
+  authoritativeParams: ['authStyle'],
+} as const satisfies OAuthConfig
 export const SIMILARWEB_CREDENTIAL_OAUTH = tokenCredentialOAuth('similarweb', {
   apiKey: 'accessToken',
 })
@@ -373,7 +509,26 @@ export const SMARTLEAD_CREDENTIAL_OAUTH = tokenCredentialOAuth('smartlead', {
 export const SPORTMONKS_CREDENTIAL_OAUTH = tokenCredentialOAuth('sportmonks', {
   apiKey: 'accessToken',
 })
-export const SQUARE_CREDENTIAL_OAUTH = tokenCredentialOAuth('square', { apiKey: 'accessToken' })
+/**
+ * Credential policy for every Splunk tool. A saved Splunk credential fills the management URL
+ * and its secret into both sign-ins: a saved token has no username, so the username is cleared
+ * and the tools send the token; a saved username and password resolves with `authStyle: 'basic'`,
+ * which the tools read to send HTTP Basic instead. The caller can never set `authStyle`.
+ */
+export const SPLUNK_CREDENTIAL_OAUTH = {
+  ...tokenCredentialOAuth('splunk', {
+    authToken: 'accessToken',
+    baseUrl: 'domain',
+    username: 'providerWorkspaceId',
+    password: 'accessToken',
+  }),
+  optionalCredentialParams: ['username'],
+  authoritativeParams: ['authStyle'],
+} as const satisfies OAuthConfig
+export const SQUARE_CREDENTIAL_OAUTH = tokenCredentialOAuth('square', {
+  apiKey: 'accessToken',
+  environment: 'domain',
+})
 export const STRIPE_CREDENTIAL_OAUTH = tokenCredentialOAuth('stripe', { apiKey: 'accessToken' })
 export const SUPABASE_CREDENTIAL_OAUTH = tokenCredentialOAuth('supabase', {
   apiKey: 'accessToken',
@@ -441,16 +596,19 @@ export const SAVED_CREDENTIAL_OAUTH = {
   agentphone: AGENTPHONE_CREDENTIAL_OAUTH,
   ahrefs: AHREFS_CREDENTIAL_OAUTH,
   algolia: ALGOLIA_CREDENTIAL_OAUTH,
+  amplitude: AMPLITUDE_CREDENTIAL_OAUTH,
   apify: APIFY_CREDENTIAL_OAUTH,
   apollo: APOLLO_CREDENTIAL_OAUTH,
   ashby: ASHBY_CREDENTIAL_OAUTH,
   aws: AWS_CREDENTIAL_OAUTH,
+  'azure-data-explorer': AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   azure_devops: AZURE_DEVOPS_CREDENTIAL_OAUTH,
   brex: BREX_CREDENTIAL_OAUTH,
   brightdata: BRIGHTDATA_CREDENTIAL_OAUTH,
   browser_use: BROWSER_USE_CREDENTIAL_OAUTH,
   buffer: BUFFER_CREDENTIAL_OAUTH,
   calendly: CALENDLY_CREDENTIAL_OAUTH,
+  cbinsights: CBINSIGHTS_CREDENTIAL_OAUTH,
   checkr: CHECKR_CREDENTIAL_OAUTH,
   circleback: CIRCLEBACK_CREDENTIAL_OAUTH,
   clerk: CLERK_CREDENTIAL_OAUTH,
@@ -488,6 +646,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   intercom: INTERCOM_CREDENTIAL_OAUTH,
   jotform: JOTFORM_CREDENTIAL_OAUTH,
   jupyter: JUPYTER_CREDENTIAL_OAUTH,
+  kalshi: KALSHI_CREDENTIAL_OAUTH,
   langsmith: LANGSMITH_CREDENTIAL_OAUTH,
   launchdarkly: LAUNCHDARKLY_CREDENTIAL_OAUTH,
   lemlist: LEMLIST_CREDENTIAL_OAUTH,
@@ -498,6 +657,8 @@ export const SAVED_CREDENTIAL_OAUTH = {
   mailchimp: MAILCHIMP_CREDENTIAL_OAUTH,
   mailgun: MAILGUN_CREDENTIAL_OAUTH,
   mem0: MEM0_CREDENTIAL_OAUTH,
+  mssql: MSSQL_CREDENTIAL_OAUTH,
+  mysql: MYSQL_CREDENTIAL_OAUTH,
   new_relic: NEW_RELIC_CREDENTIAL_OAUTH,
   okta: OKTA_CREDENTIAL_OAUTH,
   otter: OTTER_CREDENTIAL_OAUTH,
@@ -505,10 +666,13 @@ export const SAVED_CREDENTIAL_OAUTH = {
   persona: PERSONA_CREDENTIAL_OAUTH,
   plane: PLANE_CREDENTIAL_OAUTH,
   planetscale: PLANETSCALE_CREDENTIAL_OAUTH,
+  postgresql: POSTGRESQL_CREDENTIAL_OAUTH,
   profound: PROFOUND_CREDENTIAL_OAUTH,
   pulse: PULSE_CREDENTIAL_OAUTH,
+  qdrant: QDRANT_CREDENTIAL_OAUTH,
   quartr: QUARTR_CREDENTIAL_OAUTH,
   quiver: QUIVER_CREDENTIAL_OAUTH,
+  railway: RAILWAY_CREDENTIAL_OAUTH,
   rb2b: RB2B_CREDENTIAL_OAUTH,
   reducto: REDUCTO_CREDENTIAL_OAUTH,
   resend: RESEND_CREDENTIAL_OAUTH,
@@ -522,6 +686,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   similarweb: SIMILARWEB_CREDENTIAL_OAUTH,
   sixtyfour: SIXTYFOUR_CREDENTIAL_OAUTH,
   smartlead: SMARTLEAD_CREDENTIAL_OAUTH,
+  splunk: SPLUNK_CREDENTIAL_OAUTH,
   sportmonks: SPORTMONKS_CREDENTIAL_OAUTH,
   square: SQUARE_CREDENTIAL_OAUTH,
   stripe: STRIPE_CREDENTIAL_OAUTH,

@@ -7,26 +7,33 @@ import type {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 
-const GetMetricStatisticsSchema = z.object({
-  region: z
-    .string()
-    .min(1, 'AWS region is required')
-    .refine((v) => validateAwsRegion(v).isValid, {
-      message: 'Invalid AWS region format (e.g., us-east-1, eu-west-2)',
-    }),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  namespace: z.string().min(1, 'Namespace is required'),
-  metricName: z.string().min(1, 'Metric name is required'),
-  startTime: z.coerce.number().int(),
-  endTime: z.coerce.number().int(),
-  period: z.coerce.number().int().min(1),
-  statistics: z
-    .array(z.enum(['Average', 'Sum', 'Minimum', 'Maximum', 'SampleCount']))
-    .min(1, 'At least one statistic is required')
-    .max(5, 'At most 5 statistics are allowed per GetMetricStatistics call'),
-  dimensions: z.string().optional(),
-})
+const GetMetricStatisticsSchema = z
+  .object({
+    region: z
+      .string()
+      .min(1, 'AWS region is required')
+      .refine((v) => validateAwsRegion(v).isValid, {
+        message: 'Invalid AWS region format (e.g., us-east-1, eu-west-2)',
+      }),
+    accessKeyId: z.string().min(1, 'AWS access key ID is required'),
+    secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
+    namespace: z.string().min(1, 'Namespace is required'),
+    metricName: z.string().min(1, 'Metric name is required'),
+    startTime: z.coerce.number().int(),
+    endTime: z.coerce.number().int(),
+    period: z.coerce.number().int().min(1),
+    statistics: z
+      .array(z.enum(['Average', 'Sum', 'Minimum', 'Maximum', 'SampleCount']))
+      .max(5, 'At most 5 statistics are allowed per GetMetricStatistics call')
+      .optional(),
+    dimensions: z.string().optional(),
+    extendedStatistics: z.array(z.string().min(1)).max(10).optional(),
+    unit: z.string().optional(),
+  })
+  .refine((body) => Boolean(body.statistics?.length || body.extendedStatistics?.length), {
+    message: 'Provide statistics or extendedStatistics',
+    path: ['statistics'],
+  })
 
 const GetMetricStatisticsResponseSchema = z.object({
   success: z.literal(true),
@@ -41,6 +48,7 @@ const GetMetricStatisticsResponseSchema = z.object({
         maximum: z.number().optional(),
         sampleCount: z.number().optional(),
         unit: z.string().optional(),
+        extendedStatistics: z.record(z.string(), z.number()).optional(),
       })
     ),
   }),

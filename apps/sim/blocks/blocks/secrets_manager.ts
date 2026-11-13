@@ -1,7 +1,18 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { SecretsManagerIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { withSavedCredential } from '@/blocks/utils'
+
+/** Parses a JSON field typed into the block, naming the field when it is invalid. */
+function parseJsonField(value: unknown, fieldName: string): unknown {
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch (error) {
+    throw new Error(`Invalid JSON in ${fieldName}: ${getErrorMessage(error)}`)
+  }
+}
 
 export const SecretsManagerBlock: BlockConfig = {
   type: 'secrets_manager',
@@ -155,6 +166,24 @@ export const SecretsManagerBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'kmsKeyId',
+      title: 'KMS Key ID',
+      type: 'short-input',
+      placeholder: 'alias/my-key (defaults to aws/secretsmanager)',
+      condition: { field: 'operation', value: ['create_secret', 'update_secret'] },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'createTags',
+      title: 'Tags',
+      type: 'code',
+      placeholder: '[{"key":"env","value":"prod"}]',
+      condition: { field: 'operation', value: 'create_secret' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
       id: 'versionId',
       title: 'Version ID',
       type: 'short-input',
@@ -186,6 +215,61 @@ export const SecretsManagerBlock: BlockConfig = {
       title: 'Next Token',
       type: 'short-input',
       placeholder: 'Pagination token',
+      condition: { field: 'operation', value: 'list_secrets' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'listFilters',
+      title: 'Filters',
+      type: 'code',
+      placeholder: '[{"key":"name","values":["prod/"]}]',
+      condition: { field: 'operation', value: 'list_secrets' },
+      required: false,
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an AWS Secrets Manager ListSecrets filters JSON array from the user's description.
+Each item is {"key": <one of description, name, tag-key, tag-value, primary-region, owning-service, all>, "values": [strings]}. Values match by prefix; prefix a value with ! to negate it.
+
+Return ONLY the JSON array - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe which secrets to list...',
+      },
+    },
+    {
+      id: 'sortBy',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (created date)', id: '' },
+        { label: 'Created Date', id: 'created-date' },
+        { label: 'Last Accessed Date', id: 'last-accessed-date' },
+        { label: 'Last Changed Date', id: 'last-changed-date' },
+        { label: 'Name', id: 'name' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'list_secrets' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'sortOrder',
+      title: 'Sort Order',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (ascending)', id: '' },
+        { label: 'Ascending', id: 'asc' },
+        { label: 'Descending', id: 'desc' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'list_secrets' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
+      id: 'includePlannedDeletion',
+      title: 'Include Secrets Scheduled for Deletion',
+      type: 'switch',
       condition: { field: 'operation', value: 'list_secrets' },
       required: false,
       mode: 'advanced',
@@ -359,16 +443,27 @@ export const SecretsManagerBlock: BlockConfig = {
               if (!Number.isNaN(parsed)) result.maxResults = parsed
             }
             if (rest.nextToken) result.nextToken = rest.nextToken
+            if (rest.listFilters) {
+              result.filters = parseJsonField(rest.listFilters, 'Filters')
+            }
+            if (rest.sortBy) result.sortBy = rest.sortBy
+            if (rest.sortOrder) result.sortOrder = rest.sortOrder
+            if (rest.includePlannedDeletion === true || rest.includePlannedDeletion === 'true') {
+              result.includePlannedDeletion = true
+            }
             break
           case 'create_secret':
             result.name = rest.name
             result.secretValue = rest.secretValue
             if (rest.description) result.description = rest.description
+            result.kmsKeyId = rest.kmsKeyId || undefined
+            result.tags = rest.createTags ? parseJsonField(rest.createTags, 'Tags') : undefined
             break
           case 'update_secret':
             result.secretId = rest.secretId
             result.secretValue = rest.secretValue
             if (rest.description) result.description = rest.description
+            result.kmsKeyId = rest.kmsKeyId || undefined
             break
           case 'delete_secret':
             result.secretId = rest.secretId
@@ -383,12 +478,11 @@ export const SecretsManagerBlock: BlockConfig = {
             break
           case 'tag_resource':
             result.secretId = rest.secretId
-            result.tags = typeof rest.tags === 'string' ? JSON.parse(rest.tags) : rest.tags
+            result.tags = parseJsonField(rest.tags, 'Tags')
             break
           case 'untag_resource':
             result.secretId = rest.secretId
-            result.tagKeys =
-              typeof rest.tagKeys === 'string' ? JSON.parse(rest.tagKeys) : rest.tagKeys
+            result.tagKeys = parseJsonField(rest.tagKeys, 'Tag Keys')
             break
           case 'restore_secret':
             result.secretId = rest.secretId
@@ -428,6 +522,21 @@ export const SecretsManagerBlock: BlockConfig = {
     versionStage: { type: 'string', description: 'Version stage (e.g., AWSCURRENT)' },
     maxResults: { type: 'number', description: 'Maximum number of results to return' },
     nextToken: { type: 'string', description: 'Pagination token' },
+    listFilters: {
+      type: 'json',
+      description: 'ListSecrets filters, as an array of {key, values}',
+    },
+    sortBy: { type: 'string', description: 'Field to sort listed secrets by' },
+    sortOrder: { type: 'string', description: 'Sort order for listed secrets (asc or desc)' },
+    includePlannedDeletion: {
+      type: 'boolean',
+      description: 'Include secrets scheduled for deletion when listing',
+    },
+    kmsKeyId: { type: 'string', description: 'KMS key used to encrypt the secret' },
+    createTags: {
+      type: 'json',
+      description: 'Tags for a new secret, as an array of {key, value} pairs',
+    },
     recoveryWindowInDays: { type: 'number', description: 'Days before permanent deletion' },
     forceDelete: { type: 'string', description: 'Force immediate deletion' },
     tags: { type: 'json', description: 'Tags to attach, as an array of {key, value} pairs' },
@@ -452,6 +561,10 @@ export const SecretsManagerBlock: BlockConfig = {
       type: 'string',
       description: 'The decrypted secret value',
     },
+    secretBinary: {
+      type: 'string',
+      description: 'Base64-encoded decrypted binary secret value, when stored as SecretBinary',
+    },
     arn: {
       type: 'string',
       description: 'ARN of the secret',
@@ -466,7 +579,8 @@ export const SecretsManagerBlock: BlockConfig = {
     },
     secrets: {
       type: 'json',
-      description: 'List of secrets',
+      description:
+        'List of secrets [{name, arn, description, kmsKeyId, rotationEnabled, rotationLambdaARN, rotationRules, owningService, primaryRegion, createdDate, lastChangedDate, lastAccessedDate, lastRotatedDate, nextRotationDate, deletedDate, tags, secretVersionsToStages}]',
     },
     count: {
       type: 'number',
@@ -508,6 +622,18 @@ export const SecretsManagerBlock: BlockConfig = {
     lastRotatedDate: {
       type: 'string',
       description: 'Date the secret was last rotated',
+    },
+    lastChangedDate: {
+      type: 'string',
+      description: 'Date the secret was last changed',
+    },
+    lastAccessedDate: {
+      type: 'string',
+      description: 'Date the secret was last accessed',
+    },
+    versionIdsToStages: {
+      type: 'json',
+      description: 'Map of version IDs to their staging labels',
     },
     nextRotationDate: {
       type: 'string',

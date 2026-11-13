@@ -155,6 +155,26 @@ export const GoogleContactsBlock: BlockConfig = {
       condition: { field: 'operation', value: ['create', 'update'] },
       mode: 'advanced',
     },
+    {
+      id: 'birthday',
+      title: 'Birthday',
+      type: 'short-input',
+      placeholder: '1990-04-15 or 04-15',
+      condition: { field: 'operation', value: ['create', 'update'] },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Convert the user's description of a birthday into a date.
+Use YYYY-MM-DD when the year is known, or MM-DD when it is not.
+
+Examples:
+- "April 15th 1990" -> 1990-04-15
+- "March 3" -> 03-03
+
+Return ONLY the date - no explanations, no extra text.`,
+        placeholder: 'Describe the birthday...',
+      },
+    },
 
     // Get / Update / Delete Fields
     {
@@ -277,6 +297,7 @@ export const GoogleContactsBlock: BlockConfig = {
     organization: { type: 'string', description: 'Organization name' },
     jobTitle: { type: 'string', description: 'Job title' },
     notes: { type: 'string', description: 'Notes' },
+    birthday: { type: 'string', description: 'Birthday (YYYY-MM-DD or MM-DD)' },
 
     // Get/Update/Delete inputs
     resourceName: { type: 'string', description: 'Contact resource name' },
@@ -292,7 +313,11 @@ export const GoogleContactsBlock: BlockConfig = {
   },
   outputs: {
     content: { type: 'string', description: 'Operation response content' },
-    metadata: { type: 'json', description: 'Contact or contacts metadata' },
+    metadata: {
+      type: 'json',
+      description:
+        'Contact (resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames), list {contacts, nextPageToken, totalItems}, or search {contacts}',
+    },
   },
 }
 

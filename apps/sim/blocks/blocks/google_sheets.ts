@@ -552,6 +552,44 @@ Return ONLY the range string - no sheet name, no explanations, no quotes.`,
       mode: 'advanced',
     },
     {
+      id: 'valueRenderOption',
+      title: 'Value Render Option',
+      type: 'dropdown',
+      options: [
+        { label: 'Formatted (as displayed)', id: 'FORMATTED_VALUE' },
+        { label: 'Unformatted (raw values)', id: 'UNFORMATTED_VALUE' },
+        { label: 'Formulas', id: 'FORMULA' },
+      ],
+      condition: { field: 'operation', value: ['read', 'batch_get'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'dateTimeRenderOption',
+      title: 'Date/Time Render Option',
+      type: 'dropdown',
+      options: [
+        { label: 'Serial Number', id: 'SERIAL_NUMBER' },
+        { label: 'Formatted String', id: 'FORMATTED_STRING' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['read', 'batch_get'],
+        and: { field: 'valueRenderOption', value: ['UNFORMATTED_VALUE', 'FORMULA'] },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'majorDimension',
+      title: 'Major Dimension',
+      type: 'dropdown',
+      options: [
+        { label: 'Rows', id: 'ROWS' },
+        { label: 'Columns', id: 'COLUMNS' },
+      ],
+      condition: { field: 'operation', value: 'batch_get' },
+      mode: 'advanced',
+    },
+    {
       id: 'values',
       title: 'Values',
       type: 'long-input',
@@ -585,6 +623,23 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         { label: "Raw (Don't parse formulas)", id: 'RAW' },
       ],
       condition: { field: 'operation', value: ['write', 'update', 'batch_update'] },
+    },
+    {
+      id: 'appendValueInputOption',
+      title: 'Value Input Option',
+      type: 'dropdown',
+      options: [
+        { label: 'User Entered (Parse formulas)', id: 'USER_ENTERED' },
+        { label: "Raw (Don't parse formulas)", id: 'RAW' },
+      ],
+      condition: { field: 'operation', value: 'append' },
+    },
+    {
+      id: 'includeValuesInResponse',
+      title: 'Return Updated Values',
+      type: 'switch',
+      condition: { field: 'operation', value: ['write', 'update', 'append', 'batch_update'] },
+      mode: 'advanced',
     },
     {
       id: 'values',
@@ -891,6 +946,8 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           filterColumn,
           filterValue,
           filterMatchType,
+          majorDimension,
+          appendValueInputOption,
           ...rest
         } = params
 
@@ -926,6 +983,11 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             spreadsheetId: effectiveSpreadsheetId,
             ranges: parsedRanges,
             oauthCredential,
+            ...(majorDimension ? { majorDimension } : {}),
+            ...(rest.valueRenderOption ? { valueRenderOption: rest.valueRenderOption } : {}),
+            ...(rest.dateTimeRenderOption
+              ? { dateTimeRenderOption: rest.dateTimeRenderOption }
+              : {}),
           }
         }
 
@@ -1016,6 +1078,10 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             ? { filterValue: filterValue as string }
             : {}),
           ...(filterMatchType ? { filterMatchType: filterMatchType as string } : {}),
+          ...(operation === 'append'
+            ? { valueInputOption: appendValueInputOption || undefined }
+            : {}),
+          majorDimension: undefined,
         }
       },
     },
@@ -1028,7 +1094,24 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     cellRange: { type: 'string', description: 'Cell range (e.g., A1:D10)' },
     values: { type: 'string', description: 'Cell values data' },
     valueInputOption: { type: 'string', description: 'Value input option' },
+    appendValueInputOption: { type: 'string', description: 'Value input option for Append' },
     insertDataOption: { type: 'string', description: 'Data insertion option' },
+    includeValuesInResponse: {
+      type: 'boolean',
+      description: 'Return the values of the updated cells in updatedData',
+    },
+    valueRenderOption: {
+      type: 'string',
+      description: 'How read values are rendered: FORMATTED_VALUE, UNFORMATTED_VALUE, or FORMULA',
+    },
+    dateTimeRenderOption: {
+      type: 'string',
+      description: 'How read dates are rendered: SERIAL_NUMBER or FORMATTED_STRING',
+    },
+    majorDimension: {
+      type: 'string',
+      description: 'Major dimension of batch read values: ROWS or COLUMNS',
+    },
     title: { type: 'string', description: 'Title for new spreadsheet' },
     sheetTitles: { type: 'string', description: 'Comma-separated sheet names for new spreadsheet' },
     ranges: { type: 'string', description: 'JSON array of ranges for batch operations' },
@@ -1082,6 +1165,17 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       description:
         'Filter summary (present only when a filter was requested): applied, column, matchType, columnFound, matchedRows, totalRows',
       condition: { field: 'operation', value: 'read' },
+    },
+    majorDimension: {
+      type: 'string',
+      description: 'Major dimension of the returned values (ROWS or COLUMNS)',
+      condition: { field: 'operation', value: 'read' },
+    },
+    updatedData: {
+      type: 'json',
+      description:
+        'Values of the updated cells (range, majorDimension, values), present only when Return Updated Values is on',
+      condition: { field: 'operation', value: ['write', 'update', 'append'] },
     },
     updatedRange: {
       type: 'string',

@@ -20,14 +20,27 @@ import {
   getClientCredentialAccountMinter,
   parseClientCredentialAccountSecretBlob,
 } from '@/lib/credentials/client-credential-accounts/server'
-import { isGoogleWorkloadIdentitySecret } from '@/lib/credentials/google-workload-identity'
+import { DATABASE_CONNECTION_DESCRIPTORS } from '@/lib/credentials/database-connections/descriptors'
+import {
+  GOOGLE_SERVICE_ACCOUNT_EXCLUDED_SCOPES,
+  isGoogleWorkloadIdentitySecret,
+} from '@/lib/credentials/google-workload-identity'
+import {
+  assessTokenRequestFailure,
+  requestTokenWithRetry,
+  TOKEN_EXPIRY_MARGIN_MS,
+  TOKEN_FAILURE_STREAK_RETENTION_MS,
+  type TokenRequestFailureKind,
+} from '@/lib/credentials/token-request-resilience'
 import { getTokenClientCredentialMinter } from '@/lib/credentials/token-service-accounts/client-credentials'
 import {
   type CLIENT_CREDENTIALS_AUTH_METHOD,
   getTokenServiceAccountDescriptor,
+  getTokenServiceAccountDomainDefault,
   isTokenServiceAccountProviderId,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
+import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   parseStoredSecretMode,
   parseTokenServiceAccountSecret,
@@ -42,7 +55,10 @@ import {
   GITHUB_INSTALLATION_PROVIDER_ID,
   type GitHubInstallationRepositoryScope,
 } from '@/lib/oauth/github-installation-types'
-import { exchangeGoogleServiceAccountJwt } from '@/lib/oauth/google-service-account-transport'
+import {
+  exchangeGoogleServiceAccountJwt,
+  GOOGLE_TOKEN_DIAGNOSTIC_ERROR_CODES,
+} from '@/lib/oauth/google-service-account-transport'
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -220,29 +236,6 @@ export async function resolveOAuthAccountId(
 }
 
 /**
- * Userinfo scopes are excluded because service accounts don't represent a user
- * and cannot request user identity information. Google rejects token requests
- * that include these scopes for service account credentials.
- */
-const SA_EXCLUDED_SCOPES = new Set([
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile',
-])
-
-/** Google's documented JWT error codes are safe to retain without the provider description. */
-const SA_DIAGNOSTIC_ERROR_CODES = new Set([
-  'access_denied',
-  'admin_policy_enforced',
-  'deleted_client',
-  'disabled_client',
-  'invalid_client',
-  'invalid_grant',
-  'invalid_scope',
-  'org_internal',
-  'unauthorized_client',
-])
-
-/**
  * The decrypted key of a live Google service-account credential. Reads running at once (one per
  * delegated subject) share one query and decrypt; a later read queries again, so it sees a
  * revocation recorded since. Sharing also bounds a hung read by the coalescing settle timeout.
@@ -293,10 +286,11 @@ function readGoogleServiceAccountKey(credentialId: string): Promise<GoogleServic
  * Generates a short-lived access token for a Google service account credential
  * using the two-legged OAuth JWT flow (RFC 7523).
  *
- * @param impersonateEmail - Optional. Required for Google Workspace APIs (Gmail, Drive, Calendar, etc.)
- *   where the service account must impersonate a domain user via domain-wide delegation.
- *   Not needed for project-scoped APIs like BigQuery or Vertex AI where the service account
- *   authenticates directly with its own IAM permissions.
+ * @param impersonateEmail - Optional. For a JSON key, the Google Workspace user a Workspace API
+ *   call (Gmail, Drive, Calendar, etc.) acts as through domain-wide delegation. Not needed for
+ *   project-scoped APIs like BigQuery or Vertex AI, where the service account authenticates with
+ *   its own IAM permissions. A keyless credential with domain-wide delegation always acts as its
+ *   stored Workspace user and accepts only that user here.
  */
 export async function getServiceAccountToken(
   credentialId: string,
@@ -309,7 +303,7 @@ export async function getServiceAccountToken(
     readGoogleServiceAccountKey(credentialId),
     options?.signal
   )
-  const filteredScopes = scopes.filter((s) => !SA_EXCLUDED_SCOPES.has(s))
+  const filteredScopes = scopes.filter((s) => !GOOGLE_SERVICE_ACCOUNT_EXCLUDED_SCOPES.has(s))
 
   if (isGoogleWorkloadIdentitySecret(decrypted)) {
     const { resolveGoogleWorkloadIdentityToken } = await import(
@@ -420,7 +414,9 @@ export async function getServiceAccountToken(
         : {
             subject: impersonateEmail,
             scopes: filteredScopes,
-            ...(errorCode && SA_DIAGNOSTIC_ERROR_CODES.has(errorCode) ? { errorCode } : {}),
+            ...(errorCode && GOOGLE_TOKEN_DIAGNOSTIC_ERROR_CODES.has(errorCode)
+              ? { errorCode }
+              : {}),
           }),
     })
     throw new ServiceAccountTokenError(response.status, description, errorCode)
@@ -614,11 +610,19 @@ export interface ServiceAccountTokenResult {
    * Set when the token must be sent in an `x-api-token` header instead of
    * `Authorization: Bearer` (e.g. Pipedrive personal API tokens), or is a
    * Sim-signed OIDC token a keyless Snowflake credential presents through
-   * workload identity federation, or `basic` for an HTTP Basic credential (a
-   * Zendesk API token sign-in). Absent means Bearer; OAuth credentials never
-   * carry it.
+   * workload identity federation, or a JWT a key-pair Snowflake credential
+   * signs with its private key, or `basic` for an HTTP Basic credential (a
+   * Zendesk API token sign-in, or a Splunk username and password), or `bearer` for a token minted for a provider
+   * whose pasted mode is not a bearer token (ServiceNow client credentials).
+   * Absent means Bearer, except to tools whose pasted mode says otherwise;
+   * OAuth credentials never carry it.
    */
-  authStyle?: 'x-api-token' | 'snowflake-workload-identity' | 'basic'
+  authStyle?:
+    | 'x-api-token'
+    | 'snowflake-workload-identity'
+    | 'snowflake-key-pair'
+    | 'basic'
+    | 'bearer'
 }
 
 interface CachedClientCredentialToken {
@@ -644,7 +648,13 @@ interface MintedServiceAccountToken {
 interface FailedClientCredentialMint {
   /** The error the failed mint threw, re-thrown to callers while memoized. */
   error: unknown
+  kind: TokenRequestFailureKind
+  /** Failures of this kind in a row; the next one of the same kind backs off longer. */
+  consecutiveFailures: number
   secretFingerprint: string
+  /** Until when the failure is replayed instead of minting again. */
+  retryAtMs: number
+  /** When the entry is dropped: after its replay, once a later failure can no longer extend the streak. */
   expiresAtMs: number
 }
 
@@ -665,10 +675,19 @@ interface FailedClientCredentialMint {
  * multiple concurrently valid tokens, so each instance minting its own token
  * is correct.
  *
- * Failed mints are never cached as tokens; instead they are memoized for
- * {@link CLIENT_CREDENTIAL_MINT_FAILURE_TTL_MS} so a hot workflow on a
- * revoked/invalid secret doesn't hammer the provider's token endpoint once
- * per block execution.
+ * A token inside its last {@link CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS} is refreshed
+ * early, and a refresh that fails with an outage or throttling (not a refusal of
+ * the credentials) keeps the still-valid token in service until
+ * {@link TOKEN_EXPIRY_MARGIN_MS} before it expires, as MSAL, Azure.Core and
+ * botocore do with a failed proactive refresh.
+ *
+ * Failed mints are never cached as tokens; instead they are replayed (see
+ * {@link assessTokenRequestFailure}) so a hot workflow neither hammers the
+ * provider's token endpoint with a revoked secret nor floods a struggling one:
+ * a refusal for 30 s, a throttled answer as long as its `Retry-After` asks (at
+ * most five minutes) or for 1 min growing to 5 min without one, and an outage
+ * for 5 s growing to 30 s while it lasts. A quick outage is first retried once
+ * inside the mint.
  *
  * Both maps are pruned of expired entries on each resolution
  * ({@link pruneExpiredClientCredentialCaches}), so their size is bounded by the
@@ -678,7 +697,6 @@ interface FailedClientCredentialMint {
 const clientCredentialTokenCache = new Map<string, CachedClientCredentialToken>()
 const clientCredentialMintFailureCache = new Map<string, FailedClientCredentialMint>()
 const CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS = 5 * 60 * 1000
-const CLIENT_CREDENTIAL_MINT_FAILURE_TTL_MS = 30 * 1000
 
 /** Drops fully-expired token and failure entries so the maps stay bounded. */
 function pruneExpiredClientCredentialCaches(nowMs: number): void {
@@ -721,14 +739,28 @@ function secretFingerprintOf(encryptedServiceAccountKey: string): string {
 }
 
 /**
+ * Whether a `sharedToken` mint failed with a failure the coordinated layer remembers for every
+ * worker. Only those are replayed here, for exactly as long as that layer still replays them; a
+ * failure it does not remember (a lock timeout, a database error) may already be over for
+ * another worker, so the next resolution asks again.
+ */
+function isCoordinatedReplay(error: unknown): boolean {
+  return error instanceof TokenServiceAccountValidationError && error.replayForMs !== undefined
+}
+
+/**
  * Resolves a stored secret that mints short-lived tokens, read-through the
  * per-instance cache: re-reads the credential row, serves a cached token minted
  * from the same ciphertext while enough of it remains, replays a recent mint
- * failure, and otherwise decrypts and mints. Wrapped in `coalesceLocally` so
- * concurrent block executions on one instance share a single mint.
- * `sharedToken` providers coordinate one token per application themselves, so
- * their tokens are never cached here, and a caller that already read the
- * secret to choose its mode passes it as `stored` rather than reading it twice.
+ * failure, and otherwise decrypts and mints, falling back to the cached token
+ * while it is still valid when the refresh fails with an outage and dropping it
+ * when the refresh is refused, so no later outage serves it again. Wrapped in
+ * `coalesceLocally` so concurrent block executions on one instance share a
+ * single mint. `sharedToken` providers coordinate one token per application
+ * themselves (including the in-request retry and the fallback), so their tokens
+ * are never cached here and only a failure their own layer remembers is
+ * replayed, for as long as it reports; a caller that already read the secret to choose its mode
+ * passes it as `stored` rather than reading it twice.
  */
 async function resolveMintedServiceAccountToken(
   credentialId: string,
@@ -761,29 +793,37 @@ async function resolveMintedServiceAccountToken(
     }
     const secretFingerprint = secretFingerprintOf(encryptedServiceAccountKey)
 
-    const cached = sharedToken ? undefined : clientCredentialTokenCache.get(cacheIdentity)
-    if (
-      cached &&
-      cached.secretFingerprint === secretFingerprint &&
-      cached.expiresAtMs - Date.now() > CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS
-    ) {
+    const cachedEntry = sharedToken ? undefined : clientCredentialTokenCache.get(cacheIdentity)
+    const cached = cachedEntry?.secretFingerprint === secretFingerprint ? cachedEntry : undefined
+    if (cached && cached.expiresAtMs - Date.now() > CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS) {
       return { ...cached.token }
     }
+    /**
+     * The cached token while it is still the one in the cache (a provider may refuse it while a
+     * refresh is in flight) and more than the expiry margin of it is left, checked at each use.
+     */
+    const stillValid = () =>
+      cached &&
+      clientCredentialTokenCache.get(cacheIdentity) === cached &&
+      cached.expiresAtMs - Date.now() > TOKEN_EXPIRY_MARGIN_MS
+        ? cached
+        : undefined
 
-    const failed = clientCredentialMintFailureCache.get(cacheIdentity)
-    if (
-      failed &&
-      failed.secretFingerprint === secretFingerprint &&
-      Date.now() < failed.expiresAtMs
-    ) {
+    const failedEntry = clientCredentialMintFailureCache.get(cacheIdentity)
+    const failed = failedEntry?.secretFingerprint === secretFingerprint ? failedEntry : undefined
+    if (failed && Date.now() < failed.retryAtMs) {
+      const fallback = failed.kind === 'permanent' ? undefined : stillValid()
+      if (fallback) return { ...fallback.token }
       throw failed.error
     }
-    clientCredentialMintFailureCache.delete(cacheIdentity)
 
     try {
       const decrypted =
         stored?.decrypted ?? (await decryptSecret(encryptedServiceAccountKey)).decrypted
-      const minted = await mint(decrypted)
+      const minted = sharedToken
+        ? await mint(decrypted)
+        : await requestTokenWithRetry(() => mint(decrypted))
+      clientCredentialMintFailureCache.delete(cacheIdentity)
       if (!sharedToken)
         clientCredentialTokenCache.set(cacheIdentity, {
           token: minted.token,
@@ -793,12 +833,33 @@ async function resolveMintedServiceAccountToken(
         })
       return { ...minted.token }
     } catch (error) {
-      if (!(error instanceof Error && error.name === 'AbortError')) {
-        clientCredentialMintFailureCache.set(cacheIdentity, {
-          error: options?.privacyMode === 'selector' ? new Error('Credential mint failed') : error,
-          secretFingerprint,
-          expiresAtMs: Date.now() + CLIENT_CREDENTIAL_MINT_FAILURE_TTL_MS,
+      if (error instanceof Error && error.name === 'AbortError') throw error
+      if (sharedToken && !isCoordinatedReplay(error)) {
+        clientCredentialMintFailureCache.delete(cacheIdentity)
+        throw error
+      }
+      const failure = assessTokenRequestFailure(error, failed)
+      const retryAtMs = Date.now() + failure.replayMs
+      clientCredentialMintFailureCache.set(cacheIdentity, {
+        error: options?.privacyMode === 'selector' ? new Error('Credential mint failed') : error,
+        kind: failure.kind,
+        consecutiveFailures: failure.consecutiveFailures,
+        secretFingerprint,
+        retryAtMs,
+        expiresAtMs: retryAtMs + TOKEN_FAILURE_STREAK_RETENTION_MS,
+      })
+      if (failure.kind === 'permanent') {
+        clientCredentialTokenCache.delete(cacheIdentity)
+        throw error
+      }
+      const fallback = stillValid()
+      if (fallback) {
+        logger.warn('Serving a still-valid client-credential token after its refresh failed', {
+          ...(options?.privacyMode === 'selector' ? {} : { credentialId }),
+          failure: failure.kind,
+          retryInMs: failure.replayMs,
         })
+        return { ...fallback.token }
       }
       throw error
     }
@@ -879,13 +940,15 @@ function resolveTokenClientCredentialToken(
     )
   }
   const { clientId, clientSecret, domain } = secret
+  const authStyle = getTokenServiceAccountDescriptor(secret.providerId)?.clientCredentials
+    ?.authStyle
   return resolveMintedServiceAccountToken(
     credentialId,
     async () => {
       // The mint is shared by every coalesced caller, so no one caller's signal may cancel it.
       const minted = await mint({ clientId, clientSecret, domain })
       return {
-        token: { accessToken: minted.accessToken, domain },
+        token: { accessToken: minted.accessToken, domain, ...(authStyle ? { authStyle } : {}) },
         expiresInSeconds: minted.expiresInSeconds,
       }
     },
@@ -932,6 +995,13 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
   [OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
     accessToken: credentialId,
   }),
+  // A saved database connection is read inside the tool operation, bound to the run's owner.
+  ...Object.fromEntries(
+    Object.values(DATABASE_CONNECTION_DESCRIPTORS).map(({ providerId }) => [
+      providerId,
+      async (credentialId: string) => ({ accessToken: credentialId }),
+    ])
+  ),
   [GITHUB_INSTALLATION_PROVIDER_ID]: async (credentialId, { githubRepositoryScope }) => {
     if (!githubRepositoryScope)
       throw new Error('GitHub installation tokens require a source repository')
@@ -1039,16 +1109,25 @@ export async function resolveServiceAccountToken(
       credentialId,
       'Token service account secret not found'
     )
-    const secret = parseTokenServiceAccountSecret(stored.decrypted, providerId)
+    const parsed = parseTokenServiceAccountSecret(stored.decrypted, providerId)
+    // A credential saved before its provider gained a defaulted region or host stores none, and
+    // resolves to that default: the host it has always used.
+    const domain = parsed.domain || getTokenServiceAccountDomainDefault(providerId)
+    const secret = domain === undefined ? parsed : { ...parsed, domain }
     if ('authMethod' in secret) {
       return resolveTokenClientCredentialToken(credentialId, secret, stored, options)
     }
-    const descriptorAuthStyle = getTokenServiceAccountDescriptor(providerId)?.authStyle
+    const descriptor = getTokenServiceAccountDescriptor(providerId)
+    const descriptorAuthStyle = descriptor?.authStyle
     return {
       accessToken: secret.apiToken,
       domain: secret.domain,
       providerWorkspaceId: secret.providerWorkspaceId,
-      ...(descriptorAuthStyle === 'x-api-token' ? { authStyle: descriptorAuthStyle } : {}),
+      ...(descriptor?.passwordWithUsername && secret.providerWorkspaceId
+        ? { authStyle: 'basic' as const }
+        : descriptorAuthStyle === 'x-api-token'
+          ? { authStyle: descriptorAuthStyle }
+          : {}),
     }
   }
   if (providerId && isClientCredentialAccountProviderId(providerId)) {

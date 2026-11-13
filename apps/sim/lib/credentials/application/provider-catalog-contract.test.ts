@@ -25,6 +25,7 @@ import { v2ListCredentialProvidersContract } from '@/lib/api/contracts/v2/creden
 import { env } from '@/lib/core/config/env'
 import { listCredentialProviders } from '@/lib/credentials/application/list-credential-providers'
 import { listCredentialProviderCatalog } from '@/lib/credentials/application/provider-catalog'
+import { DATABASE_CONNECTION_DESCRIPTORS } from '@/lib/credentials/database-connections/descriptors'
 import { getMissingServiceAccountFields } from '@/lib/credentials/service-account-fields'
 import {
   isWorkloadIdentityServiceAccountProviderId,
@@ -79,6 +80,24 @@ describe('v2 credential provider catalog contract', () => {
     ).toBe(false)
   })
 
+  it('tells API callers the region an optional region field takes when omitted', async () => {
+    const providers = await listProviders()
+    const sentry = providers.find(
+      (provider) =>
+        provider.type === 'service_account' && provider.providerId === 'sentry-service-account'
+    )
+
+    expect(sentry?.fields.find((field) => field.id === 'domain')).toMatchObject({
+      required: false,
+      defaultValue: 'us',
+      options: [
+        { value: 'us', label: 'US (sentry.io)' },
+        { value: 'de', label: 'EU (de.sentry.io)' },
+      ],
+    })
+    expect(responseSchema.safeParse({ data: providers, nextCursor: null }).success).toBe(true)
+  })
+
   it('keeps the field-less GitHub installation in the internal catalog for existing credentials', async () => {
     const catalog = await listCredentialProviderCatalog(createSessionPrincipal(), context)
     const installation = catalog.find(
@@ -127,10 +146,12 @@ describe('v2 credential provider catalog contract', () => {
     const snowflake = keyless.find(
       (provider) => provider.providerId === 'snowflake-service-account'
     )
-    expect(snowflake?.fields.find((field) => field.id === 'serviceAccountJson')).toMatchObject({
-      required: false,
-      secret: true,
-    })
+    const snowflakeConfiguration = snowflake?.fields.find(
+      (field) => field.id === 'serviceAccountJson'
+    )
+    expect(snowflakeConfiguration).toMatchObject({ required: false, secret: true })
+    expect(snowflakeConfiguration?.hint).toContain('"key_pair"')
+    expect(snowflakeConfiguration?.hint).toContain('Keyless')
   })
 
   it('offers no keyless mode where this deployment cannot sign', async () => {
@@ -151,7 +172,49 @@ describe('v2 credential provider catalog contract', () => {
       (provider) =>
         provider.type === 'service_account' && provider.providerId === 'snowflake-service-account'
     )
-    expect(snowflake?.fields.map((field) => field.id)).toEqual(['domain', 'apiToken'])
+    expect(snowflake?.fields.map((field) => field.id)).toEqual([
+      'domain',
+      'apiToken',
+      'serviceAccountJson',
+    ])
+    const configuration = snowflake?.fields.find((field) => field.id === 'serviceAccountJson')
+    expect(configuration).toMatchObject({ required: false, secret: true, multiline: true })
+    expect(configuration?.hint).toContain('"key_pair"')
+    expect(configuration?.hint).not.toContain('Keyless')
+  })
+
+  it('offers the Snowflake key pair to organization credentials, which have no keyless mode', async () => {
+    Reflect.set(env, 'WORKLOAD_IDENTITY_SIGNING_KEY', SIGNING_KEY)
+    Reflect.set(env, 'WORKLOAD_IDENTITY_ISSUER', 'https://sim.example.com/oidc/workload')
+    const catalog = await listCredentialProviderCatalog(createSessionPrincipal(), {
+      organizationId: 'org-1',
+    })
+    const snowflake = catalog.find(
+      (provider) =>
+        provider.type === 'service_account' && provider.providerId === 'snowflake-service-account'
+    )
+
+    expect(snowflake?.type === 'service_account' && snowflake.keyless).toBeFalsy()
+    const configuration = snowflake?.fields.find((field) => field.id === 'serviceAccountJson')
+    expect(configuration?.hint).toContain('"key_pair"')
+    expect(configuration?.hint).not.toContain('Keyless')
+  })
+
+  it('tells headless clients the ServiceNow username belongs to the password sign-in only', async () => {
+    const providers = await listProviders('servicenow')
+    const servicenow = providers.find(
+      (provider) =>
+        provider.type === 'service_account' && provider.providerId === 'servicenow-service-account'
+    )
+
+    expect(responseSchema.safeParse({ data: providers, nextCursor: null }).success).toBe(true)
+    expect(servicenow?.fields.find((field) => field.id === 'providerWorkspaceId')).toMatchObject({
+      required: true,
+      requiredForAuthMethods: ['token'],
+    })
+    expect(
+      servicenow?.fields.find((field) => field.id === 'domain')?.requiredForAuthMethods
+    ).toBeUndefined()
   })
 
   it('lists the native Claude Platform provider when filtered', async () => {
@@ -179,5 +242,19 @@ describe('v2 credential provider catalog contract', () => {
     expect(providers).toContainEqual(
       expect.objectContaining({ providerId: CLAUDE_PROVIDER_ID, available: false })
     )
+  })
+
+  it('tells API callers what each saved database connection transport-security mode trades away', async () => {
+    const providers = await listProviders()
+
+    for (const descriptor of Object.values(DATABASE_CONNECTION_DESCRIPTORS)) {
+      const provider = providers.find(
+        (entry) => entry.type === 'service_account' && entry.providerId === descriptor.providerId
+      )
+      const hint = provider?.fields.find((field) => field.id === 'serviceAccountJson')?.hint
+      for (const field of descriptor.tls) {
+        expect(hint).toContain(field.hint)
+      }
+    }
   })
 })

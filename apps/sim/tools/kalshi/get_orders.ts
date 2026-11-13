@@ -10,6 +10,7 @@ import {
   handleKalshiError,
   KALSHI_ORDER_OUTPUT_PROPERTIES,
 } from '@/tools/kalshi/types'
+import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface KalshiGetOrdersParams extends KalshiAuthParams, KalshiPaginationParams {
@@ -31,6 +32,7 @@ export const kalshiGetOrdersTool: ToolConfig<KalshiGetOrdersParams, KalshiGetOrd
   name: 'Get Orders from Kalshi',
   description: 'Retrieve your orders from Kalshi with optional filtering',
   version: '1.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {
@@ -193,6 +195,7 @@ export const kalshiGetOrdersV2Tool: ToolConfig<KalshiGetOrdersV2Params, KalshiGe
     name: 'Get Orders from Kalshi V2',
     description: 'Retrieve your orders from Kalshi with optional filtering',
     version: '2.0.0',
+    oauth: KALSHI_CREDENTIAL_OAUTH,
 
     params: {
       keyId: {

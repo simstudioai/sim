@@ -6,6 +6,7 @@ import { isEqual } from 'es-toolkit'
 import type { UpdateConnectorBody } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { isContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import { CREDENTIAL_REMOVED_SYNC_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import { readSourceSelectionLabels, SOURCE_LABELS_KEY } from '@/lib/sim-search/source-identity'
@@ -20,9 +21,10 @@ import {
   useConnectorConfigFields,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
-import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import { isConnectorCredentialTypeAllowed, isConnectorFieldForAuth } from '@/connectors/auth'
 import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import type { ConnectorConfigField } from '@/connectors/types'
 import {
   type ConnectorData,
   isConnectorSyncingOrPending,
@@ -125,6 +127,8 @@ interface UseConnectorSettingsFormOptions {
   connector: ConnectorData
   onSaved: (connector: ConnectorData) => void
   syncing?: boolean
+  /** Whether a key connector's saved credential may be replaced; the server refuses it while setup is off. */
+  savedCredentialSetupEnabled?: boolean
 }
 
 /** Editable connector settings shared by the source page and knowledge-base modal. */
@@ -135,6 +139,7 @@ export function useConnectorSettingsForm({
   connector,
   onSaved,
   syncing = isConnectorSyncingOrPending(connector),
+  savedCredentialSetupEnabled = false,
 }: UseConnectorSettingsFormOptions) {
   const liveSearch = isSearchIndex
   const connectorConfig = liveSearchSourceMeta(
@@ -232,6 +237,18 @@ export function useConnectorSettingsForm({
     initialSelectionLabels,
   })
 
+  /**
+   * A key connector that syncs with its saved credential, or did until the credential was
+   * removed: its credential stays replaceable here while saved-credential setup is enabled,
+   * and its key-only settings do not apply.
+   */
+  const usesSavedCredential =
+    connectorConfig?.auth.mode === 'apiKey' &&
+    Boolean(connectorConfig.auth.savedCredential) &&
+    (Boolean(connector.credentialId) || connector.lastSyncError === CREDENTIAL_REMOVED_SYNC_ERROR)
+  const isAuthFieldVisible = (field: ConnectorConfigField) =>
+    isFieldVisible(field) && isConnectorFieldForAuth(field, !usesSavedCredential)
+
   const { scope, canAdmin, memberAccessAvailable, mirroredAccessAvailable, hasMaxAccess } =
     useConnectorScope(explicitScope)
   const { mutate: updateConnector, isPending: isSavingSettings } = useUpdateConnector()
@@ -280,10 +297,11 @@ export function useConnectorSettingsForm({
     accessDirty && !accessModeChanged && isContentEngineAccessMode(access.accessMode)
   /** Exposes credential selection for mode changes and administrator credential recovery. */
   const needsWorkspaceCredential =
-    connectorConfig?.auth.mode === 'oauth' &&
-    isContentEngineAccessMode(access.accessMode) &&
-    (persistedAccess.accessMode === 'members' ||
-      !isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth'))
+    (usesSavedCredential && savedCredentialSetupEnabled) ||
+    (connectorConfig?.auth.mode === 'oauth' &&
+      isContentEngineAccessMode(access.accessMode) &&
+      (persistedAccess.accessMode === 'members' ||
+        !isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')))
   const missingAdminField =
     accessDirty && access.accessMode === 'admin'
       ? connectorConfig?.configFields.find((field) => {
@@ -316,7 +334,7 @@ export function useConnectorSettingsForm({
   const settingsComplete = connectorConfig?.configFields.every(
     (field) =>
       !isConnectorFieldRequired(field, connectorConfig, persistedAccess.accessMode) ||
-      !isFieldVisible(field) ||
+      !isAuthFieldVisible(field) ||
       hiddenCapFieldIds.has(field.id) ||
       isFieldPopulated(field)
   )
@@ -526,7 +544,7 @@ export function useConnectorSettingsForm({
     canonicalModes,
     onToggleCanonicalMode: toggleCanonicalMode,
     onFieldChange: handleFieldChange,
-    isFieldVisible: (field) => isFieldVisible(field) && !hiddenCapFieldIds.has(field.id),
+    isFieldVisible: (field) => isAuthFieldVisible(field) && !hiddenCapFieldIds.has(field.id),
     syncInterval,
     setSyncInterval,
     hasMaxAccess,

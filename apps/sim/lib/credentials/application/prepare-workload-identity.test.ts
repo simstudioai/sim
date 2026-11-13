@@ -197,6 +197,65 @@ const STORED_MODES = [
   },
 ] as const
 
+const CUSTOM_AUDIENCE = 'sim-123456789012'
+
+/** One stored keyless secret per provider, each carrying {@link CUSTOM_AUDIENCE}. */
+const CUSTOM_AUDIENCE_SECRETS = [
+  {
+    provider: 'aws',
+    providerId: 'aws-service-account',
+    secret: {
+      type: 'aws_credential_v1',
+      config: { authType: 'oidc_role', roleArn, subject, audience: CUSTOM_AUDIENCE },
+    },
+  },
+  {
+    provider: 'databricks',
+    providerId: 'databricks-service-account',
+    secret: {
+      type: 'databricks_credential_v1',
+      config: {
+        authType: 'oidc_federation',
+        host: databricksHost,
+        clientId,
+        subject,
+        audience: CUSTOM_AUDIENCE,
+      },
+    },
+  },
+  {
+    provider: 'snowflake',
+    providerId: 'snowflake-service-account',
+    secret: {
+      ...keylessSecret,
+      config: { ...keylessSecret.config, audience: CUSTOM_AUDIENCE },
+    },
+  },
+  {
+    provider: 'microsoft',
+    providerId: 'microsoft-app-service-account',
+    secret: {
+      type: 'microsoft_app_credential_v1',
+      config: { ...appConfig, authType: 'federated', subject, audience: CUSTOM_AUDIENCE },
+    },
+  },
+  {
+    provider: 'google',
+    providerId: 'google-service-account',
+    secret: {
+      type: 'google_workload_identity_v1',
+      config: {
+        projectNumber: '123456789012',
+        poolId: 'sim-pool',
+        providerId: 'sim-oidc',
+        serviceAccountEmail: 'runner@analytics-prod.iam.gserviceaccount.com',
+        subject,
+        audience: CUSTOM_AUDIENCE,
+      },
+    },
+  },
+] as const
+
 describe('preparing a reconnect', () => {
   beforeEach(() => {
     workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue({
@@ -219,6 +278,25 @@ describe('preparing a reconnect', () => {
     }
   )
 
+  it.each(CUSTOM_AUDIENCE_SECRETS)(
+    'reopens a $provider keyless credential on its custom audience',
+    async ({ provider, providerId, secret }) => {
+      reconnecting(secret, { providerId })
+      await expect(prepare(provider)).resolves.toMatchObject({
+        available: true,
+        reconnectAudience: CUSTOM_AUDIENCE,
+      })
+    }
+  )
+
+  it.each(STORED_MODES)(
+    'reports no audience for a $provider credential stored as $expected',
+    async ({ provider, providerId, secret }) => {
+      reconnecting(secret, { providerId })
+      expect(await prepare(provider)).not.toHaveProperty('reconnectAudience')
+    }
+  )
+
   it('reports the stored mode when this deployment cannot sign, so keyed modes still reopen', async () => {
     Reflect.set(env, 'WORKLOAD_IDENTITY_SIGNING_KEY', undefined)
     try {
@@ -235,9 +313,51 @@ describe('preparing a reconnect', () => {
     }
   })
 
+  it('reports a national-cloud Microsoft credential’s cloud, so the dialog reopens on it', async () => {
+    reconnecting(
+      {
+        type: 'microsoft_app_credential_v1',
+        config: { ...appConfig, authType: 'client_secret', clientSecret: 'value', cloud: 'usgov' },
+      },
+      { providerId: 'microsoft-app-service-account' }
+    )
+    await expect(prepare('microsoft')).resolves.toMatchObject({
+      reconnectAuthType: 'client_secret',
+      reconnectCloud: 'usgov',
+    })
+  })
+
+  it('reports no cloud for a global Microsoft credential or another provider', async () => {
+    reconnecting(STORED_MODES[9].secret, { providerId: 'microsoft-app-service-account' })
+    expect(await prepare('microsoft')).not.toHaveProperty('reconnectCloud')
+    reconnecting(keylessSecret)
+    expect(await prepare()).not.toHaveProperty('reconnectCloud')
+  })
+
   it('gives Google no fixed audience', async () => {
     reconnecting(STORED_MODES[11].secret, { providerId: 'google-service-account' })
     expect(await prepare('google')).not.toHaveProperty('audience')
+  })
+
+  it('reports a keyless Google credential’s delegation so a reconnect keeps it', async () => {
+    reconnecting(
+      {
+        type: 'google_workload_identity_v1',
+        config: {
+          projectNumber: '123456789012',
+          poolId: 'sim-pool',
+          providerId: 'sim-oidc',
+          serviceAccountEmail: 'runner@analytics-prod.iam.gserviceaccount.com',
+          subject,
+          delegation: { user: 'alice@example.com', services: ['gmail', 'google-calendar'] },
+        },
+      },
+      { providerId: 'google-service-account' }
+    )
+    await expect(prepare('google')).resolves.toMatchObject({
+      reconnectAuthType: 'workload_identity',
+      reconnectDelegation: { user: 'alice@example.com', services: ['gmail', 'google-calendar'] },
+    })
   })
 
   it('reveals nothing about a credential the caller does not administer', async () => {

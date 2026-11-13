@@ -78,6 +78,12 @@ export const filterLogEventsTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Maximum number of events to return',
     },
+    nextToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination token from a previous call to continue where it stopped',
+    },
   },
 
   operation: {
@@ -92,6 +98,7 @@ export const filterLogEventsTool: InternalToolConfig<
       ...(params.endTime !== undefined && { endTime: params.endTime }),
       ...(params.startFromHead !== undefined && { startFromHead: params.startFromHead }),
       ...(params.limit !== undefined && { limit: params.limit }),
+      ...(params.nextToken && { nextToken: params.nextToken }),
     }),
   },
 
@@ -106,6 +113,7 @@ export const filterLogEventsTool: InternalToolConfig<
       success: true,
       output: {
         events: data.output.events,
+        nextToken: data.output.nextToken ?? null,
       },
     }
   },
@@ -121,8 +129,14 @@ export const filterLogEventsTool: InternalToolConfig<
           timestamp: { type: 'number', description: 'Event timestamp in epoch milliseconds' },
           message: { type: 'string', description: 'Log event message' },
           ingestionTime: { type: 'number', description: 'Ingestion time in epoch milliseconds' },
+          eventId: { type: 'string', description: 'Unique ID of the log event' },
         },
       },
+    },
+    nextToken: {
+      type: 'string',
+      description: 'Token to fetch the next page of matching events, if more remain',
+      optional: true,
     },
   },
 }

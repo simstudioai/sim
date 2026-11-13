@@ -7,6 +7,10 @@ import type {
   TrelloActionListTarget,
   TrelloBoard,
   TrelloCard,
+  TrelloCardAttachment,
+  TrelloCardBadges,
+  TrelloCardCheckItem,
+  TrelloCardChecklist,
   TrelloChecklist,
   TrelloChecklistItem,
   TrelloComment,
@@ -46,6 +50,100 @@ function getOptionalNumber(value: unknown): number | null {
   }
 
   return null
+}
+
+function getOptionalPosition(value: unknown): number | null {
+  if (value === undefined || value === null) {
+    return null
+  }
+
+  return getNumber(value)
+}
+
+function mapCardBadges(value: unknown): TrelloCardBadges | null {
+  if (!isRecordLike(value)) {
+    return null
+  }
+
+  return {
+    votes: getOptionalNumber(value.votes),
+    comments: getOptionalNumber(value.comments),
+    attachments: getOptionalNumber(value.attachments),
+    checkItems: getOptionalNumber(value.checkItems),
+    checkItemsChecked: getOptionalNumber(value.checkItemsChecked),
+    description: toBooleanOrNull(value.description),
+    subscribed: toBooleanOrNull(value.subscribed),
+    location: toBooleanOrNull(value.location),
+    due: toStringOrNull(value.due),
+    start: toStringOrNull(value.start),
+    dueComplete: toBooleanOrNull(value.dueComplete),
+  }
+}
+
+function mapCardCheckItem(value: unknown): TrelloCardCheckItem | null {
+  if (!isRecordLike(value) || typeof value.id !== 'string') {
+    return null
+  }
+
+  return {
+    id: value.id,
+    name: typeof value.name === 'string' ? value.name : '',
+    state: toStringOrNull(value.state),
+    pos: getOptionalPosition(value.pos),
+    idChecklist: toStringOrNull(value.idChecklist),
+    due: toStringOrNull(value.due),
+    idMember: toStringOrNull(value.idMember),
+  }
+}
+
+function mapCardChecklist(value: unknown): TrelloCardChecklist | null {
+  if (!isRecordLike(value) || typeof value.id !== 'string') {
+    return null
+  }
+
+  const checkItems = Array.isArray(value.checkItems)
+    ? value.checkItems
+        .map((item) => mapCardCheckItem(item))
+        .filter((item): item is TrelloCardCheckItem => item !== null)
+    : []
+
+  return {
+    id: value.id,
+    name: typeof value.name === 'string' ? value.name : '',
+    idCard: toStringOrNull(value.idCard),
+    idBoard: toStringOrNull(value.idBoard),
+    pos: getOptionalPosition(value.pos),
+    checkItems,
+  }
+}
+
+function mapCardAttachment(value: unknown): TrelloCardAttachment | null {
+  if (!isRecordLike(value) || typeof value.id !== 'string') {
+    return null
+  }
+
+  return {
+    id: value.id,
+    name: toStringOrNull(value.name),
+    url: toStringOrNull(value.url),
+    mimeType: toStringOrNull(value.mimeType),
+    bytes: getOptionalNumber(value.bytes),
+    date: toStringOrNull(value.date),
+    idMember: toStringOrNull(value.idMember),
+    isUpload: toBooleanOrNull(value.isUpload),
+    pos: getOptionalPosition(value.pos),
+  }
+}
+
+function mapOptionalCollection<T>(
+  value: unknown,
+  mapItem: (item: unknown) => T | null
+): T[] | null {
+  if (!Array.isArray(value)) {
+    return null
+  }
+
+  return value.map((item) => mapItem(item)).filter((item): item is T => item !== null)
 }
 
 export function getIdArray(value: unknown): string[] {
@@ -156,6 +254,8 @@ export function mapTrelloCard(value: unknown): TrelloCard {
     labelIds.push(...rawLabels.filter((label): label is string => typeof label === 'string'))
   }
 
+  const badges = mapCardBadges(value.badges)
+
   return {
     id: getRequiredString(value.id, 'id'),
     name: getRequiredString(value.name, 'name'),
@@ -167,7 +267,19 @@ export function mapTrelloCard(value: unknown): TrelloCard {
     labelIds,
     labels,
     due: toStringOrNull(value.due),
-    dueComplete: toBooleanOrNull(value.dueComplete),
+    dueComplete: toBooleanOrNull(value.dueComplete) ?? badges?.dueComplete ?? null,
+    start: toStringOrNull(value.start),
+    pos: getOptionalPosition(value.pos),
+    shortUrl: toStringOrNull(value.shortUrl),
+    shortLink: toStringOrNull(value.shortLink),
+    idShort: getOptionalNumber(value.idShort),
+    idMembers: getIdArray(value.idMembers),
+    idChecklists: getIdArray(value.idChecklists),
+    dateLastActivity: toStringOrNull(value.dateLastActivity),
+    badges,
+    checklists: mapOptionalCollection(value.checklists, mapCardChecklist),
+    attachments: mapOptionalCollection(value.attachments, mapCardAttachment),
+    members: mapOptionalCollection(value.members, mapTrelloMember),
   }
 }
 

@@ -95,7 +95,8 @@ export const listTool: ToolConfig<GoogleContactsListParams, GoogleContactsListRe
     content: { type: 'string', description: 'Summary of found contacts count' },
     metadata: {
       type: 'json',
-      description: 'List of contacts with pagination tokens',
+      description:
+        'totalItems, nextPageToken, and contacts: [{resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames}]',
     },
   },
 }

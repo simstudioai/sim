@@ -19,6 +19,7 @@ import {
   parseProviderJson,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 
 const TOKEN_STEP = 'docusign_token_mint'
@@ -266,11 +267,12 @@ export async function mintDocuSignServiceAccountToken(
         { step: TOKEN_STEP, environment, body, ...(hint ? { hint } : {}) }
       )
     }
-    throw new TokenServiceAccountValidationError('provider_unavailable', tokenRes.status, {
-      step: TOKEN_STEP,
-      environment,
-      body,
-    })
+    throw new TokenServiceAccountValidationError(
+      'provider_unavailable',
+      tokenRes.status,
+      { step: TOKEN_STEP, environment, body },
+      { retryAfterMs: throttledRetryAfterMs(tokenRes) }
+    )
   }
 
   const payload = await parseProviderJson<DocuSignTokenResponse>(tokenRes, TOKEN_STEP)
@@ -297,11 +299,12 @@ export async function mintDocuSignServiceAccountToken(
   )
   if (!userinfoRes.ok) {
     const body = await readProviderErrorSnippet(userinfoRes)
-    throw new TokenServiceAccountValidationError('provider_unavailable', userinfoRes.status, {
-      step: USERINFO_STEP,
-      environment,
-      body,
-    })
+    throw new TokenServiceAccountValidationError(
+      'provider_unavailable',
+      userinfoRes.status,
+      { step: USERINFO_STEP, environment, body },
+      { retryAfterMs: throttledRetryAfterMs(userinfoRes) }
+    )
   }
   const userinfo = await parseProviderJson<DocuSignUserinfoResponse>(userinfoRes, USERINFO_STEP)
   const accounts = (Array.isArray(userinfo.accounts) ? userinfo.accounts : []).filter(

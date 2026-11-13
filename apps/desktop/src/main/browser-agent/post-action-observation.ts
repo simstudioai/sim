@@ -17,7 +17,14 @@ const OBSERVABLE_ACTIONS: ReadonlySet<BrowserToolName> = new Set([
   'browser_hover',
   'browser_drag',
   'browser_batch',
+  'browser_wait_for',
 ])
+
+/** The call's post-action observation request; a wait observes by default, to show what the page became. */
+export function observeRequest(tool: BrowserToolName, params: Record<string, unknown>): unknown {
+  if (params.observe !== undefined) return params.observe
+  return tool === 'browser_wait_for' ? {} : undefined
+}
 
 /** Preserves a dispatched action when its acknowledgement or observation is interrupted. */
 export function withFailedPostActionObservation(result: unknown, error: unknown): unknown {
@@ -38,7 +45,7 @@ export async function withPostActionObservation(
   observe: (query: string | undefined) => Promise<unknown>,
   assertCurrent: () => void
 ): Promise<unknown> {
-  const request = params.observe
+  const request = observeRequest(tool, params)
   if (request === undefined) return action(params)
   if (
     !OBSERVABLE_ACTIONS.has(tool) ||

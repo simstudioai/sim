@@ -2,6 +2,7 @@ import {
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { isDatabaseConnectionProviderId } from '@/lib/credentials/database-connections/descriptors'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
@@ -39,6 +40,7 @@ export function asServiceAccountProviderId(
     value === AWS_SERVICE_ACCOUNT_PROVIDER_ID ||
     value === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID ||
     value === MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID ||
+    isDatabaseConnectionProviderId(value) ||
     isTokenServiceAccountProviderId(value) ||
     isClientCredentialAccountProviderId(value)
   ) {
@@ -81,7 +83,11 @@ export function getServiceAccountGatingBlockType(providerId: string): string | n
 export function getServiceAccountConnectNoun(providerId: string): string {
   if (providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) return 'custom bot'
   if (providerId === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID) return 'API key'
-  if (providerId === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID) return 'database connection'
+  if (
+    providerId === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID ||
+    isDatabaseConnectionProviderId(providerId)
+  )
+    return 'database connection'
   if (providerId === AWS_SERVICE_ACCOUNT_PROVIDER_ID) return 'AWS credential'
   if (providerId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID) return 'Databricks connection'
   if (providerId === MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID) return 'Microsoft app credential'

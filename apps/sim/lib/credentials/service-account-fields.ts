@@ -1,4 +1,5 @@
 import { CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS } from '@/lib/credentials/client-credential-accounts/descriptors'
+import { DATABASE_CONNECTION_DESCRIPTORS } from '@/lib/credentials/database-connections/descriptors'
 import {
   CLIENT_CREDENTIALS_AUTH_METHOD,
   TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS,
@@ -55,6 +56,12 @@ export type ServiceAccountFieldId =
  */
 export const SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, readonly ServiceAccountFieldId[]> = {
   [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
+  ...Object.fromEntries(
+    Object.keys(DATABASE_CONNECTION_DESCRIPTORS).map((providerId) => [
+      providerId,
+      ['serviceAccountJson'] as const,
+    ])
+  ),
   [AWS_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
   [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],
   [MICROSOFT_APP_SERVICE_ACCOUNT_PROVIDER_ID]: ['serviceAccountJson'],

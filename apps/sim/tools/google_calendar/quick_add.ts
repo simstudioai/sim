@@ -2,10 +2,13 @@ import { createLogger } from '@sim/logger'
 import {
   CALENDAR_API_BASE,
   type GoogleCalendarApiEventResponse,
+  type GoogleCalendarEventDetails,
   type GoogleCalendarQuickAddParams,
   type GoogleCalendarQuickAddResponse,
 } from '@/tools/google_calendar/types'
+import { buildEventDetails, EVENT_DETAIL_OUTPUTS } from '@/tools/google_calendar/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('GoogleCalendarQuickAddTool')
 
@@ -68,7 +71,7 @@ export const quickAddTool: ToolConfig<
         queryParams.append('sendUpdates', params.sendUpdates)
       }
 
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/quickAdd?${queryParams.toString()}`
+      return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/quickAdd?${queryParams.toString()}`
     },
     method: 'POST',
     headers: (params: GoogleCalendarQuickAddParams) => ({
@@ -108,7 +111,7 @@ export const quickAddTool: ToolConfig<
             updateQueryParams.append('sendUpdates', params.sendUpdates)
           }
 
-          const updateUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}${updateQueryParams.toString() ? `?${updateQueryParams.toString()}` : ''}`
+          const updateUrl = `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(eventId, 'eventId')}${updateQueryParams.toString() ? `?${updateQueryParams.toString()}` : ''}`
 
           const updateResponse = await fetch(updateUrl, {
             method: 'PATCH',
@@ -137,6 +140,7 @@ export const quickAddTool: ToolConfig<
       output: {
         content: `Event "${finalEventData?.summary || 'Untitled'}" created successfully ${finalEventData?.attendees?.length ? ` with ${finalEventData.attendees.length} attendee(s)` : ''}`,
         metadata: {
+          ...buildEventDetails(finalEventData),
           id: finalEventData.id,
           htmlLink: finalEventData.htmlLink,
           status: finalEventData.status,
@@ -162,6 +166,7 @@ export const quickAddTool: ToolConfig<
       type: 'json',
       description: 'Created event metadata including parsed details',
       properties: {
+        ...EVENT_DETAIL_OUTPUTS,
         id: { type: 'string', description: 'Event ID' },
         htmlLink: { type: 'string', description: 'URL to view the event in Google Calendar' },
         status: { type: 'string', description: 'Event status (confirmed, tentative, cancelled)' },
@@ -180,7 +185,7 @@ export const quickAddTool: ToolConfig<
 
 interface GoogleCalendarQuickAddV2Response {
   success: boolean
-  output: {
+  output: GoogleCalendarEventDetails & {
     id: string
     htmlLink: string
     status: string
@@ -237,7 +242,7 @@ export const quickAddV2Tool: ToolConfig<
             updateQueryParams.append('sendUpdates', params.sendUpdates)
           }
 
-          const updateUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}${updateQueryParams.toString() ? `?${updateQueryParams.toString()}` : ''}`
+          const updateUrl = `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(eventId, 'eventId')}${updateQueryParams.toString() ? `?${updateQueryParams.toString()}` : ''}`
 
           const updateResponse = await fetch(updateUrl, {
             method: 'PATCH',
@@ -264,6 +269,7 @@ export const quickAddV2Tool: ToolConfig<
     return {
       success: true,
       output: {
+        ...buildEventDetails(finalEventData),
         id: finalEventData.id,
         htmlLink: finalEventData.htmlLink,
         status: finalEventData.status,
@@ -279,6 +285,7 @@ export const quickAddV2Tool: ToolConfig<
     }
   },
   outputs: {
+    ...EVENT_DETAIL_OUTPUTS,
     id: { type: 'string', description: 'Event ID' },
     htmlLink: { type: 'string', description: 'Event link' },
     status: { type: 'string', description: 'Event status' },

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import {
+  contactResourcePath,
   type GoogleContactsDeleteParams,
   type GoogleContactsDeleteResponse,
   PEOPLE_API_BASE,
@@ -36,7 +37,7 @@ export const deleteTool: ToolConfig<GoogleContactsDeleteParams, GoogleContactsDe
 
   request: {
     url: (params: GoogleContactsDeleteParams) =>
-      `${PEOPLE_API_BASE}/${params.resourceName.trim()}:deleteContact`,
+      `${PEOPLE_API_BASE}/${contactResourcePath(params.resourceName)}:deleteContact`,
     method: 'DELETE',
     headers: (params: GoogleContactsDeleteParams) => ({
       Authorization: `Bearer ${params.accessToken}`,

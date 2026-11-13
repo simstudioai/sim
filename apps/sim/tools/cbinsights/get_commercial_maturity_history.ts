@@ -1,5 +1,6 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export interface CbInsightsCommercialMaturityHistoryParams extends CbInsightsOrgParams {
@@ -16,6 +17,7 @@ export const cbinsightsGetCommercialMaturityHistoryTool: InternalToolConfig<
   description:
     "Retrieve an organization's historical Commercial Maturity levels, tracking how its ability to compete for customers or serve as a partner has moved over time.",
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

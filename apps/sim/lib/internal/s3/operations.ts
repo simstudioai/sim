@@ -13,6 +13,8 @@ import {
   type ObjectCannedACL,
   PutObjectCommand,
   type S3Client,
+  type ServerSideEncryption,
+  type StorageClass,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { createLogger } from '@sim/logger'
@@ -260,6 +262,8 @@ export async function executeS3ListObjects(input: AwsS3ListObjectsBody, signal?:
         Prefix: input.prefix || undefined,
         MaxKeys: input.maxKeys || undefined,
         ContinuationToken: input.continuationToken || undefined,
+        Delimiter: input.delimiter || undefined,
+        StartAfter: input.startAfter || undefined,
       }),
       { abortSignal: signal }
     )
@@ -271,7 +275,11 @@ export async function executeS3ListObjects(input: AwsS3ListObjectsBody, signal?:
           size: object.Size || 0,
           lastModified: object.LastModified?.toISOString() || '',
           etag: object.ETag || '',
+          storageClass: object.StorageClass ?? null,
         })),
+        commonPrefixes: (response.CommonPrefixes ?? []).flatMap((commonPrefix) =>
+          commonPrefix.Prefix ? [commonPrefix.Prefix] : []
+        ),
         isTruncated: response.IsTruncated,
         nextContinuationToken: response.NextContinuationToken,
         keyCount: response.KeyCount,
@@ -378,6 +386,11 @@ export async function executeS3PutObject(input: AwsS3PutObjectBody, context: S3O
         Body: uploadBody,
         ContentType: uploadContentType,
         ACL: input.acl as ObjectCannedACL | undefined,
+        Metadata: input.metadata ?? undefined,
+        StorageClass: (input.storageClass as StorageClass | undefined) || undefined,
+        ServerSideEncryption:
+          (input.serverSideEncryption as ServerSideEncryption | undefined) || undefined,
+        SSEKMSKeyId: input.sseKmsKeyId || undefined,
       }),
       { abortSignal: signal }
     )
@@ -392,6 +405,8 @@ export async function executeS3PutObject(input: AwsS3PutObjectBody, context: S3O
         location: url,
         key: input.objectKey,
         bucket: input.bucketName,
+        versionId: response.VersionId ?? null,
+        serverSideEncryption: response.ServerSideEncryption ?? null,
       },
     }
   })

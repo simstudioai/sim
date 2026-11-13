@@ -1,6 +1,7 @@
 import type { GoogleVaultCreateMattersExportParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportParams> = {
   id: 'google_vault_create_matters_export',
@@ -71,10 +72,31 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
       description:
         'Search query terms to filter exported content (e.g., "from:sender@example.com subject:invoice")',
     },
+    includeSharedDrives: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Set to true to include files in shared drives (DRIVE corpus only)',
+    },
+    exportFormat: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'File format for exported messages: MBOX or PST (MAIL, GROUPS, HANGOUTS_CHAT, and VOICE corpus; ignored for DRIVE)',
+    },
+    dataScope: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Data to search: ALL_DATA (default), HELD_DATA (only data on hold), or UNPROCESSED_DATA (MAIL and GROUPS only)',
+    },
   },
 
   request: {
-    url: (params) => `https://vault.googleapis.com/v1/matters/${params.matterId}/exports`,
+    url: (params) =>
+      `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/exports`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -116,19 +138,46 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
         )
       }
 
-      const query: any = {
+      if (
+        params.dataScope === 'UNPROCESSED_DATA' &&
+        params.corpus !== 'MAIL' &&
+        params.corpus !== 'GROUPS'
+      ) {
+        throw new Error('Unprocessed data scope is only supported for MAIL and GROUPS')
+      }
+
+      const includeSharedDrives =
+        params.corpus === 'DRIVE' && String(params.includeSharedDrives) === 'true'
+
+      const query = {
         corpus: params.corpus,
-        dataScope: 'ALL_DATA',
+        dataScope: params.dataScope || 'ALL_DATA',
         method,
         terms: params.terms || undefined,
         startTime: params.startTime || undefined,
         endTime: params.endTime || undefined,
         ...scope,
+        ...(includeSharedDrives && { driveOptions: { sharedDrivesOption: 'INCLUDED' } }),
       }
+
+      const exportOptionsKey =
+        params.corpus === 'MAIL'
+          ? 'mailOptions'
+          : params.corpus === 'GROUPS'
+            ? 'groupsOptions'
+            : params.corpus === 'HANGOUTS_CHAT'
+              ? 'hangoutsChatOptions'
+              : params.corpus === 'VOICE'
+                ? 'voiceOptions'
+                : undefined
 
       return {
         name: params.exportName,
         query,
+        ...(params.exportFormat &&
+          exportOptionsKey && {
+            exportOptions: { [exportOptionsKey]: { exportFormat: params.exportFormat } },
+          }),
       }
     },
   },
@@ -143,6 +192,10 @@ export const createMattersExportTool: ToolConfig<GoogleVaultCreateMattersExportP
   },
 
   outputs: {
-    export: { type: 'json', description: 'Created export object' },
+    export: {
+      type: 'json',
+      description:
+        'Created export object (id, matterId, name, status, createTime, query, exportOptions, requester, stats, cloudStorageSink once completed)',
+    },
   },
 }

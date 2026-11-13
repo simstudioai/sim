@@ -18,8 +18,10 @@ import {
 } from '@/lib/internal/sailpoint/client'
 
 const STEP = 'sailpoint_token_mint'
-/** Bounds the whole exchange, including its 429 backoff retries. */
+/** Bounds the whole exchange. */
 const TOKEN_EXCHANGE_TIMEOUT_MS = 30_000
+/** The longest throttle the mint waits out in place, leaving both requests well inside the exchange budget. */
+const MAX_IN_PLACE_THROTTLE_WAIT_MS = 5_000
 
 /**
  * Mints a SailPoint Identity Security Cloud access token for an API client or
@@ -32,6 +34,10 @@ const TOKEN_EXCHANGE_TIMEOUT_MS = 30_000
  * from `expires_in`; the credential cache re-mints before it lapses.
  *
  * The token response names no identity, so the connect-time check is the mint.
+ * A 429 asking for at most {@link MAX_IN_PLACE_THROTTLE_WAIT_MS} is retried once
+ * here, so a brief throttle does not fail a cold mint or a connect-time check.
+ * A longer one, or a second 429, is returned at once with its `Retry-After`, and
+ * the credential resolver replays it for that long (within its own bounds).
  *
  * @see https://developer.sailpoint.com/docs/api/authentication
  */
@@ -57,7 +63,8 @@ export async function mintSailPointServiceAccountToken(
       tokenUrl,
       fields.clientId,
       clientSecret,
-      options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout
+      options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout,
+      { maxThrottleRetries: 1, maxThrottleWaitMs: MAX_IN_PLACE_THROTTLE_WAIT_MS }
     )
   } catch (error) {
     options?.signal?.throwIfAborted()
@@ -68,7 +75,8 @@ export async function mintSailPointServiceAccountToken(
         {
           step: STEP,
           tenant: host,
-        }
+        },
+        { retryAfterMs: error.retryAfterMs }
       )
     }
     if (isHostNotFound(error)) {

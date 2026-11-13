@@ -51,12 +51,6 @@ const FEATURE_FLAGS = {
       'Enable dashboard resources, rendering, analytics, and Mothership authoring. Supports global and organization rollout; disabled by default.',
     fallback: 'DASHBOARDS',
   },
-  'mothership-computer-use': {
-    description:
-      'Enable native macOS computer use in Mothership. Supports global and organization rollout; ' +
-      'personal workspaces follow the global switch. Each device must also opt in.',
-    fallback: 'MSHIP_COMPUTER_USE',
-  },
   'workflow-tests': {
     description:
       'Enable workflow tests: the workspace Tests page, tests/<name>.test.js files, and the Sim tests tool. Supports global and organization rollout; disabled by default.',
@@ -113,6 +107,17 @@ const FEATURE_FLAGS = {
       'workspace creation assigns Projects and lifecycle protections apply either way. ' +
       'Off-AppConfig falls back to PROJECTS.',
     fallback: 'PROJECTS',
+  },
+  'knowledge-connector-saved-credentials': {
+    description:
+      'Let a key-based knowledge connector that declares a saved-credential alternative (Amazon S3 ' +
+      'with a saved AWS credential) be set up with that credential. Global on/off only; gates new ' +
+      'setup and credential changes, never syncing of connectors already using a credential. Turn ' +
+      'on only after the release that adds it is live on both the app and Trigger.dev workers. ' +
+      'Once any connector uses a saved credential, rolling back to an earlier release is unsafe ' +
+      'even with the flag off: older workers unschedule those connectors as credential-removed. ' +
+      'Off-AppConfig falls back to KNOWLEDGE_CONNECTOR_SAVED_CREDENTIALS.',
+    fallback: 'KNOWLEDGE_CONNECTOR_SAVED_CREDENTIALS',
   },
   'knowledge-member-access': {
     description:

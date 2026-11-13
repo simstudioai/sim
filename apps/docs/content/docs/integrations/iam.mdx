@@ -90,6 +90,8 @@ Create a new IAM user
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `userName` | string | Yes | Name for the new IAM user \(1-64 characters\) |
 | `path` | string | No | Path for the user \(e.g., /division_abc/\), defaults to / |
+| `permissionsBoundary` | string | No | ARN of a managed policy to set as the user permissions boundary |
+| `tags` | string | No | JSON object of up to 50 tag key/value pairs to attach to the new user |
 
 #### Output
 
@@ -101,6 +103,8 @@ Create a new IAM user
 | `arn` | string | The ARN of the created user |
 | `path` | string | The path of the created user |
 | `createDate` | string | Date the user was created |
+| `permissionsBoundaryArn` | string | ARN of the permissions boundary policy set on the user |
+| `tags` | json | Tags attached to the user \(key, value pairs\) |
 
 </ReferenceDetails>
 
@@ -178,6 +182,8 @@ Get detailed information about an IAM role
 | `assumeRolePolicyDocument` | string | The trust policy document \(JSON\) |
 | `roleLastUsedDate` | string | Date the role was last used |
 | `roleLastUsedRegion` | string | AWS region where the role was last used |
+| `permissionsBoundaryArn` | string | ARN of the permissions boundary policy set on the role |
+| `tags` | json | Tags attached to the role \(key, value pairs\) |
 
 </ReferenceDetails>
 
@@ -197,6 +203,8 @@ Create a new IAM role with a trust policy
 | `description` | string | No | Description of the role |
 | `path` | string | No | Path for the role \(e.g., /application/\), defaults to / |
 | `maxSessionDuration` | number | No | Maximum session duration in seconds \(3600-43200, default 3600\) |
+| `permissionsBoundary` | string | No | ARN of a managed policy to set as the role permissions boundary |
+| `tags` | string | No | JSON object of up to 50 tag key/value pairs to attach to the new role |
 
 #### Output
 
@@ -208,6 +216,8 @@ Create a new IAM role with a trust policy
 | `arn` | string | The ARN of the created role |
 | `path` | string | The path of the created role |
 | `createDate` | string | Date the role was created |
+| `permissionsBoundaryArn` | string | ARN of the permissions boundary policy set on the role |
+| `tags` | json | Tags attached to the role \(key, value pairs\) |
 
 </ReferenceDetails>
 
@@ -336,6 +346,7 @@ List managed IAM policies
 | `pathPrefix` | string | No | Path prefix to filter policies |
 | `maxItems` | number | No | Maximum number of policies to return \(1-1000, default 100\) |
 | `marker` | string | No | Pagination marker from a previous request |
+| `policyUsageFilter` | string | No | Filter by how the policy is used. Must be exactly one of: PermissionsPolicy, PermissionsBoundary |
 
 #### Output
 

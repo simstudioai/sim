@@ -60,7 +60,6 @@ async function render(advanced: boolean, workspaceId?: string) {
             changelog: false,
             'mothership-model-selector': advanced,
             'mothership-plan-mode': true,
-            'mothership-computer-use': false,
           }}
         >
           <MothershipChat

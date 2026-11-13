@@ -1,5 +1,6 @@
 import type { KalshiAuthParams, KalshiOrder } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
+import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface KalshiGetOrderParams extends KalshiAuthParams {
@@ -18,6 +19,7 @@ export const kalshiGetOrderTool: ToolConfig<KalshiGetOrderParams, KalshiGetOrder
   name: 'Get Order from Kalshi',
   description: 'Retrieve details of a specific order by ID from Kalshi',
   version: '1.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {
@@ -122,6 +124,7 @@ export const kalshiGetOrderV2Tool: ToolConfig<KalshiGetOrderV2Params, KalshiGetO
   name: 'Get Order from Kalshi V2',
   description: 'Retrieve details of a specific order by ID from Kalshi',
   version: '2.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {

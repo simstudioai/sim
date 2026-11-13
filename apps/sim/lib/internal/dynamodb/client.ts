@@ -3,13 +3,102 @@ import {
   DeleteCommand,
   DynamoDBDocumentClient,
   GetCommand,
+  NumberValue,
   PutCommand,
   QueryCommand,
   ScanCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb'
+import { isRecordLike } from '@sim/utils/object'
 import { awsClientConfig } from '@/lib/internal/aws/credentials'
 import type { DynamoDBConnectionConfig, DynamoDBTableSchema } from '@/tools/dynamodb/types'
+
+type DynamoDBReturnValues = 'NONE' | 'ALL_OLD' | 'UPDATED_OLD' | 'ALL_NEW' | 'UPDATED_NEW'
+
+/**
+ * Keeps any DynamoDB number a JS number cannot hold exactly (integers beyond
+ * `Number.MAX_SAFE_INTEGER`, high-precision decimals, non-finite values) as a `NumberValue`
+ * with the exact string, so pagination cursors can round-trip it. The SDK default would turn
+ * large integers into a `BigInt` that the JSON response cannot serialize.
+ */
+function unwrapNumber(value: string): number | NumberValue {
+  const parsed = Number(value)
+  const exact = Number.isFinite(parsed) && String(parsed) === value
+  if (exact && (!Number.isInteger(parsed) || Number.isSafeInteger(parsed))) return parsed
+  return NumberValue.from(value)
+}
+
+/**
+ * Item output for a number kept as a `NumberValue`: the exact string for integers beyond
+ * `Number.MAX_SAFE_INTEGER` and non-finite values, otherwise the nearest JS number.
+ */
+function numberValueToJson(value: NumberValue): number | string {
+  const exact = value.toString()
+  const parsed = Number(exact)
+  if (!Number.isFinite(parsed) || (Number.isInteger(parsed) && !Number.isSafeInteger(parsed))) {
+    return exact
+  }
+  return parsed
+}
+
+/**
+ * Converts unmarshalled DynamoDB values into JSON-serializable shapes: string, number and
+ * binary sets become arrays, binary values become base64 strings, and numbers kept as a
+ * `NumberValue` become a JS number or, when one cannot hold them, their exact string. Without this a set serializes as `{}` and a binary
+ * value as an object of byte indexes.
+ */
+function toJsonSafe(value: unknown): unknown {
+  if (value instanceof NumberValue) return numberValueToJson(value)
+  if (value instanceof Set) return Array.from(value, toJsonSafe)
+  if (value instanceof Uint8Array) return Buffer.from(value).toString('base64')
+  if (Array.isArray(value)) return value.map(toJsonSafe)
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, toJsonSafe(entry)]))
+  }
+  return value
+}
+
+function toJsonSafeRecord(
+  value: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  return value ? (toJsonSafe(value) as Record<string, unknown>) : undefined
+}
+
+/**
+ * Encodes a `LastEvaluatedKey` so it can be passed back as `exclusiveStartKey`. Key
+ * attributes are always scalar (S, N or B), so strings and exact numbers stay as-is while a
+ * number a JS number cannot hold exactly becomes `{ N }` and a binary key becomes `{ B }` (base64):
+ * plain strings would otherwise be sent back as S and fail the key type check.
+ */
+function toCursor(key: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!key) return undefined
+  return Object.fromEntries(
+    Object.entries(key).map(([name, value]) => {
+      if (value instanceof NumberValue) return [name, { N: value.toString() }]
+      if (value instanceof Uint8Array) return [name, { B: toJsonSafe(value) }]
+      return [name, value]
+    })
+  )
+}
+
+const DYNAMODB_NUMBER = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/
+
+/** Restores the `{ N }` and `{ B }` cursor values written by {@link toCursor}. */
+function fromCursor(key: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(key).map(([name, value]) => {
+      if (isRecordLike(value) && Object.keys(value).length === 1) {
+        if (typeof value.N === 'string' && DYNAMODB_NUMBER.test(value.N)) {
+          return [name, NumberValue.from(value.N)]
+        }
+        if (typeof value.B === 'string') {
+          return [name, new Uint8Array(Buffer.from(value.B, 'base64'))]
+        }
+      }
+      return [name, value]
+    })
+  )
+}
 
 export function createDynamoDBClient(config: DynamoDBConnectionConfig): DynamoDBDocumentClient {
   const client = new DynamoDBClient({
@@ -22,7 +111,7 @@ export function createDynamoDBClient(config: DynamoDBConnectionConfig): DynamoDB
       convertEmptyValues: false,
     },
     unmarshallOptions: {
-      wrapNumbers: false,
+      wrapNumbers: unwrapNumber,
     },
   })
 }
@@ -32,17 +121,25 @@ export async function getItem(
   tableName: string,
   key: Record<string, unknown>,
   consistentRead?: boolean,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options?: {
+    projectionExpression?: string
+    expressionAttributeNames?: Record<string, string>
+  }
 ): Promise<{ item: Record<string, unknown> | null }> {
   const command = new GetCommand({
     TableName: tableName,
     Key: key,
     ConsistentRead: consistentRead,
+    ...(options?.projectionExpression && { ProjectionExpression: options.projectionExpression }),
+    ...(options?.expressionAttributeNames && {
+      ExpressionAttributeNames: options.expressionAttributeNames,
+    }),
   })
 
   const response = await client.send(command, { abortSignal: signal })
   return {
-    item: (response.Item as Record<string, unknown>) || null,
+    item: toJsonSafeRecord(response.Item) ?? null,
   }
 }
 
@@ -54,9 +151,10 @@ export async function putItem(
     conditionExpression?: string
     expressionAttributeNames?: Record<string, string>
     expressionAttributeValues?: Record<string, unknown>
+    returnValues?: 'NONE' | 'ALL_OLD'
   },
   signal?: AbortSignal
-): Promise<{ success: boolean }> {
+): Promise<{ success: boolean; attributes: Record<string, unknown> | null }> {
   const command = new PutCommand({
     TableName: tableName,
     Item: item,
@@ -67,10 +165,11 @@ export async function putItem(
     ...(options?.expressionAttributeValues && {
       ExpressionAttributeValues: options.expressionAttributeValues,
     }),
+    ...(options?.returnValues && { ReturnValues: options.returnValues }),
   })
 
-  await client.send(command, { abortSignal: signal })
-  return { success: true }
+  const response = await client.send(command, { abortSignal: signal })
+  return { success: true, attributes: toJsonSafeRecord(response.Attributes) ?? null }
 }
 
 export async function queryItems(
@@ -85,11 +184,14 @@ export async function queryItems(
     limit?: number
     exclusiveStartKey?: Record<string, unknown>
     scanIndexForward?: boolean
+    projectionExpression?: string
+    consistentRead?: boolean
   },
   signal?: AbortSignal
 ): Promise<{
   items: Record<string, unknown>[]
   count: number
+  scannedCount: number | null
   lastEvaluatedKey?: Record<string, unknown>
 }> {
   const command = new QueryCommand({
@@ -104,15 +206,18 @@ export async function queryItems(
     }),
     ...(options?.indexName && { IndexName: options.indexName }),
     ...(options?.limit && { Limit: options.limit }),
-    ...(options?.exclusiveStartKey && { ExclusiveStartKey: options.exclusiveStartKey }),
+    ...(options?.exclusiveStartKey && { ExclusiveStartKey: fromCursor(options.exclusiveStartKey) }),
     ...(options?.scanIndexForward !== undefined && { ScanIndexForward: options.scanIndexForward }),
+    ...(options?.projectionExpression && { ProjectionExpression: options.projectionExpression }),
+    ...(options?.consistentRead !== undefined && { ConsistentRead: options.consistentRead }),
   })
 
   const response = await client.send(command, { abortSignal: signal })
   return {
-    items: (response.Items as Record<string, unknown>[]) || [],
+    items: (response.Items ?? []).map((item) => toJsonSafeRecord(item) ?? {}),
     count: response.Count || 0,
-    lastEvaluatedKey: response.LastEvaluatedKey as Record<string, unknown> | undefined,
+    scannedCount: response.ScannedCount ?? null,
+    lastEvaluatedKey: toCursor(response.LastEvaluatedKey),
   }
 }
 
@@ -126,11 +231,16 @@ export async function scanItems(
     expressionAttributeValues?: Record<string, unknown>
     limit?: number
     exclusiveStartKey?: Record<string, unknown>
+    indexName?: string
+    consistentRead?: boolean
+    segment?: number
+    totalSegments?: number
   },
   signal?: AbortSignal
 ): Promise<{
   items: Record<string, unknown>[]
   count: number
+  scannedCount: number | null
   lastEvaluatedKey?: Record<string, unknown>
 }> {
   const command = new ScanCommand({
@@ -144,14 +254,19 @@ export async function scanItems(
       ExpressionAttributeValues: options.expressionAttributeValues,
     }),
     ...(options?.limit && { Limit: options.limit }),
-    ...(options?.exclusiveStartKey && { ExclusiveStartKey: options.exclusiveStartKey }),
+    ...(options?.exclusiveStartKey && { ExclusiveStartKey: fromCursor(options.exclusiveStartKey) }),
+    ...(options?.indexName && { IndexName: options.indexName }),
+    ...(options?.consistentRead !== undefined && { ConsistentRead: options.consistentRead }),
+    ...(options?.segment !== undefined && { Segment: options.segment }),
+    ...(options?.totalSegments !== undefined && { TotalSegments: options.totalSegments }),
   })
 
   const response = await client.send(command, { abortSignal: signal })
   return {
-    items: (response.Items as Record<string, unknown>[]) || [],
+    items: (response.Items ?? []).map((item) => toJsonSafeRecord(item) ?? {}),
     count: response.Count || 0,
-    lastEvaluatedKey: response.LastEvaluatedKey as Record<string, unknown> | undefined,
+    scannedCount: response.ScannedCount ?? null,
+    lastEvaluatedKey: toCursor(response.LastEvaluatedKey),
   }
 }
 
@@ -164,6 +279,7 @@ export async function updateItem(
     expressionAttributeNames?: Record<string, string>
     expressionAttributeValues?: Record<string, unknown>
     conditionExpression?: string
+    returnValues?: DynamoDBReturnValues
   },
   signal?: AbortSignal
 ): Promise<{ attributes: Record<string, unknown> | null }> {
@@ -178,12 +294,12 @@ export async function updateItem(
       ExpressionAttributeValues: options.expressionAttributeValues,
     }),
     ...(options?.conditionExpression && { ConditionExpression: options.conditionExpression }),
-    ReturnValues: 'ALL_NEW',
+    ReturnValues: options?.returnValues ?? 'ALL_NEW',
   })
 
   const response = await client.send(command, { abortSignal: signal })
   return {
-    attributes: (response.Attributes as Record<string, unknown>) || null,
+    attributes: toJsonSafeRecord(response.Attributes) ?? null,
   }
 }
 
@@ -195,9 +311,10 @@ export async function deleteItem(
     conditionExpression?: string
     expressionAttributeNames?: Record<string, string>
     expressionAttributeValues?: Record<string, unknown>
+    returnValues?: 'NONE' | 'ALL_OLD'
   },
   signal?: AbortSignal
-): Promise<{ success: boolean }> {
+): Promise<{ success: boolean; attributes: Record<string, unknown> | null }> {
   const command = new DeleteCommand({
     TableName: tableName,
     Key: key,
@@ -208,10 +325,11 @@ export async function deleteItem(
     ...(options?.expressionAttributeValues && {
       ExpressionAttributeValues: options.expressionAttributeValues,
     }),
+    ...(options?.returnValues && { ReturnValues: options.returnValues }),
   })
 
-  await client.send(command, { abortSignal: signal })
-  return { success: true }
+  const response = await client.send(command, { abortSignal: signal })
+  return { success: true, attributes: toJsonSafeRecord(response.Attributes) ?? null }
 }
 
 /**
@@ -305,6 +423,12 @@ export async function describeTable(
     itemCount: Number(table.ItemCount) || 0,
     tableSizeBytes: Number(table.TableSizeBytes) || 0,
     billingMode: table.BillingModeSummary?.BillingMode || 'PROVISIONED',
+    tableArn: table.TableArn ?? null,
+    creationDateTime: table.CreationDateTime?.toISOString() ?? null,
+    deletionProtectionEnabled: table.DeletionProtectionEnabled ?? null,
+    streamEnabled: table.StreamSpecification?.StreamEnabled ?? null,
+    streamViewType: table.StreamSpecification?.StreamViewType ?? null,
+    latestStreamArn: table.LatestStreamArn ?? null,
   }
 
   return { tableDetails }

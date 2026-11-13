@@ -52,6 +52,12 @@ Read content from a Google Slides presentation
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `slides` | json | Array of slides with their content |
+| `slideContents` | array | Plain-text view of each slide in order, including speaker notes |
+|   ↳ `objectId` | string | Slide object ID |
+|   ↳ `index` | number | Zero-based slide position |
+|   ↳ `text` | string | Text from the slide shapes, tables, and groups, one block per line |
+|   ↳ `speakerNotes` | string | Speaker notes text \(empty if none\) |
+|   ↳ `isSkipped` | boolean | Whether the slide is skipped in presentation mode |
 | `metadata` | json | Presentation metadata including ID, title, and URL |
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `title` | string | The presentation title |
@@ -60,6 +66,8 @@ Read content from a Google Slides presentation
 |     ↳ `height` | json | Page height as a Dimension object |
 |   ↳ `mimeType` | string | The mime type of the presentation |
 |   ↳ `url` | string | URL to open the presentation |
+|   ↳ `revisionId` | string | Revision ID of the presentation \(only for users with edit access\); pass as requiredRevisionId in a batch update writeControl |
+|   ↳ `locale` | string | Presentation locale as an IETF BCP 47 language tag |
 
 </ReferenceDetails>
 
@@ -259,6 +267,14 @@ Get detailed information about a specific slide/page in a Google Slides presenta
 |   ↳ `layoutObjectId` | string | Object ID of the layout this slide is based on |
 |   ↳ `masterObjectId` | string | Object ID of the master this slide is based on |
 |   ↳ `notesPage` | json | The notes page associated with the slide |
+|   ↳ `isSkipped` | boolean | Whether the slide is skipped in presentation mode |
+| `revisionId` | string | Revision ID of the presentation; pass as requiredRevisionId in a batch update writeControl |
+| `pageProperties` | json | Page properties \(background fill, color scheme\) |
+| `layoutProperties` | json | Layout properties \(masterObjectId, name, displayName\); set only for LAYOUT pages |
+| `notesProperties` | json | Notes properties \(speakerNotesObjectId\); set only for NOTES pages |
+| `masterProperties` | json | Master properties \(displayName\); set only for MASTER pages |
+| `pageText` | string | Text from the page shapes, tables, and groups, one block per line |
+| `speakerNotes` | string | Speaker notes text of the slide \(empty if none\) |
 | `metadata` | object | Operation metadata including presentation ID and URL |
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |

@@ -9,6 +9,7 @@ import type {
   MicrosoftAdAddUserAppRoleAssignmentResponse,
 } from '@/tools/microsoft_ad/types'
 import { extractGraphErrorMessage, resolveGraphUserObjectId } from '@/tools/microsoft_ad/utils'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const executeAddUserAppRoleAssignmentOperation: InternalToolOperationImplementation<
   MicrosoftAdAddUserAppRoleAssignmentParams
@@ -17,7 +18,7 @@ export const executeAddUserAppRoleAssignmentOperation: InternalToolOperationImpl
   const principalId = await resolveGraphUserObjectId(userId, params.accessToken, signal)
 
   const response = await fetch(
-    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/appRoleAssignments`,
+    `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}/appRoleAssignments`,
     {
       method: 'POST',
       headers: {

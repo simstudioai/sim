@@ -2,10 +2,13 @@ import { ClipboardList, Database, Search, Server, Table, Wrench } from '@sim/emc
 import { getErrorMessage } from '@sim/utils/errors'
 import { MySQLIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const MySQLBlock: BlockConfig = {
   type: 'mysql',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'mysql_v2' },
   name: 'MySQL',
   description: 'Connect to MySQL database',
   longDescription: 'Query, insert, update, delete, and execute raw SQL.',
@@ -410,6 +413,46 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
       description: 'Number of rows affected by the operation',
     },
   },
+}
+
+/**
+ * MySQL on a saved connection: host, port, database, login, password, and
+ * transport-security settings come from the credential, never the block.
+ */
+export const MySQLV2Block: BlockConfig = {
+  ...MySQLBlock,
+  type: 'mysql_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  canvasPresentation: {
+    defaultTitle: 'MySQL',
+    sentences: {
+      byOperation: {
+        query: [{ text: 'Run SELECT query', field: 'query', core: true }],
+        insert: [
+          { text: 'Insert', field: 'data', core: true },
+          { text: 'into', field: 'table', core: true },
+        ],
+        update: [
+          { text: 'Update rows in', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+          { text: ', setting', field: 'data' },
+        ],
+        delete: [
+          { text: 'Delete rows from', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+        ],
+        execute: [{ text: 'Execute raw SQL', field: 'query', core: true }],
+        introspect: ['Read the database schema'],
+      },
+    },
+  },
+  ...withSavedCredential(
+    MySQLBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'mysql', title: 'MySQL Connection' },
+    { required: true }
+  ),
 }
 
 export const MySQLBlockMeta = {

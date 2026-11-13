@@ -57,7 +57,7 @@ export const jsmSearchObjectsAqlTool: InternalToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Results per page (e.g., 25, 50)',
+      description: 'Results per page (e.g., 25, 50; defaults to 25)',
     },
     includeAttributes: {
       type: 'boolean',
@@ -140,8 +140,23 @@ export const jsmSearchObjectsAqlTool: InternalToolConfig<
         },
       },
     },
-    total: { type: 'number', description: 'Total number of matching objects (totalFilterCount)' },
+    total: { type: 'number', description: 'Total number of matching objects' },
     pageNumber: { type: 'number', description: 'Current page number' },
     pageSize: { type: 'number', description: 'Number of objects on this page' },
+    startAt: {
+      type: 'number',
+      description: 'Index of the first object on this page',
+      optional: true,
+    },
+    maxResults: {
+      type: 'number',
+      description: 'Maximum objects requested for this page',
+      optional: true,
+    },
+    isLast: {
+      type: 'boolean',
+      description: 'Whether this is the last page of results',
+      optional: true,
+    },
   },
 }

@@ -51,16 +51,39 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
       visibility: 'user-or-llm',
       description: 'The page token to use for pagination',
     },
+    orderBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated sort keys: createdTime, folder, modifiedByMeTime, modifiedTime, name, name_natural, quotaBytesUsed, recency, sharedWithMeTime, starred, viewedByMeTime. Append " desc" to reverse (e.g., "modifiedTime desc")',
+    },
+    driveId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ID of a shared drive to restrict results to (default: search My Drive and all shared drives)',
+    },
   },
 
   request: {
     url: (params) => {
       const url = new URL('https://www.googleapis.com/drive/v3/files')
-      url.searchParams.append('fields', `files(${ALL_FILE_FIELDS}),nextPageToken`)
-      // Ensure shared drives support - corpora=allDrives is critical for searching across shared drives
-      url.searchParams.append('corpora', 'allDrives')
+      url.searchParams.append('fields', `files(${ALL_FILE_FIELDS}),nextPageToken,incompleteSearch`)
+      const driveId = params.driveId?.trim()
+      if (driveId) {
+        url.searchParams.append('corpora', 'drive')
+        url.searchParams.append('driveId', driveId)
+      } else {
+        url.searchParams.append('corpora', 'allDrives')
+      }
       url.searchParams.append('supportsAllDrives', 'true')
       url.searchParams.append('includeItemsFromAllDrives', 'true')
+      const orderBy = params.orderBy?.trim()
+      if (orderBy) {
+        url.searchParams.append('orderBy', orderBy)
+      }
 
       // Helper to escape single quotes for Google Drive query syntax
       const escapeQueryValue = (value: string): string =>
@@ -113,6 +136,7 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
       output: {
         files: data.files ?? [],
         nextPageToken: data.nextPageToken,
+        incompleteSearch: data.incompleteSearch ?? false,
       },
     }
   },
@@ -200,6 +224,12 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
       type: 'string',
       description:
         'Page token for the next page of files; absent from the response when the end of the files list has been reached',
+    },
+    incompleteSearch: {
+      type: 'boolean',
+      description:
+        'Whether the search was incomplete and some results may be missing (can happen when searching all drives; set driveId to narrow the search)',
+      optional: true,
     },
   },
 }

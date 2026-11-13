@@ -20,6 +20,7 @@ interface LLMChatParams {
   bedrockAccessKeyId?: string
   bedrockSecretKey?: string
   bedrockRegion?: string
+  bedrockCredential?: string
   _context?: {
     workspaceId?: string
     workflowId?: string
@@ -126,6 +127,12 @@ export const llmChatTool: InternalToolConfig<LLMChatParams, LLMChatResponse> = {
       visibility: 'hidden',
       description: 'AWS region for Bedrock (defaults to us-east-1)',
     },
+    bedrockCredential: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Saved AWS credential ID for Bedrock, used instead of access keys',
+    },
   },
 
   operation: {
@@ -156,6 +163,7 @@ export const llmChatTool: InternalToolConfig<LLMChatParams, LLMChatResponse> = {
         bedrockAccessKeyId: params.bedrockAccessKeyId,
         bedrockSecretKey: params.bedrockSecretKey,
         bedrockRegion: params.bedrockRegion,
+        bedrockCredential: params.bedrockCredential,
       }
     },
   },

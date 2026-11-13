@@ -25,6 +25,25 @@ import {
 } from '@/tools/microsoft_excel/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
+const VALUES_ONLY_PARAM = {
+  type: 'boolean',
+  required: false,
+  visibility: 'user-or-llm',
+  description:
+    'For used-range reads (no cell range given): true (default) counts only cells with values; false also counts cells that only have formatting.',
+} satisfies ToolConfig['params'][string]
+
+function usedRangePath(valuesOnly: boolean | undefined): string {
+  return `usedRange(valuesOnly=${valuesOnly !== false})`
+}
+
+/** Excel sheet names cannot start or end with an apostrophe, so a fully quoted name is an A1-style quoted reference. */
+function unquoteSheetName(sheetName: string): string {
+  return sheetName.length > 2 && sheetName.startsWith("'") && sheetName.endsWith("'")
+    ? sheetName.slice(1, -1).replace(/''/g, "'")
+    : sheetName
+}
+
 const EXCEL_RETRY_CONFIG = {
   enabled: true,
   maxRetries: 3,
@@ -46,6 +65,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   },
 
   params: {
+    valuesOnly: VALUES_ONLY_PARAM,
     sessionId: EXCEL_WORKBOOK_PARAMS.sessionId,
     accessToken: {
       type: 'string',
@@ -91,8 +111,8 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       const rangeInput = params.range.trim()
 
       if (!rangeInput.includes('!')) {
-        const sheetOnly = encodeURIComponent(escapeODataString(rangeInput))
-        return `${basePath}/workbook/worksheets('${sheetOnly}')/usedRange(valuesOnly=true)`
+        const sheetOnly = encodeURIComponent(escapeODataString(unquoteSheetName(rangeInput)))
+        return `${basePath}/workbook/worksheets('${sheetOnly}')/${usedRangePath(params.valuesOnly)}`
       }
 
       return buildWorksheetRangeUrl(basePath, rangeInput)
@@ -125,7 +145,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       }
 
       const basePath = getItemBasePath(spreadsheetId, driveId)
-      const rangeUrl = `${basePath}/workbook/worksheets('${encodeURIComponent(escapeODataString(firstSheetName))}')/usedRange(valuesOnly=true)`
+      const rangeUrl = `${basePath}/workbook/worksheets('${encodeURIComponent(escapeODataString(firstSheetName))}')/${usedRangePath(params?.valuesOnly)}`
 
       const rangeResp = await fetch(rangeUrl, {
         headers: excelHeaders({ accessToken, sessionId: params?.sessionId }),
@@ -247,6 +267,7 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
   },
 
   params: {
+    valuesOnly: VALUES_ONLY_PARAM,
     sessionId: EXCEL_WORKBOOK_PARAMS.sessionId,
     accessToken: {
       type: 'string',
@@ -298,7 +319,7 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
       const encodedSheetName = encodeURIComponent(escapeODataString(sheetName))
 
       if (!params.cellRange) {
-        return `${basePath}/workbook/worksheets('${encodedSheetName}')/usedRange(valuesOnly=true)`
+        return `${basePath}/workbook/worksheets('${encodedSheetName}')/${usedRangePath(params.valuesOnly)}`
       }
 
       return buildWorksheetRangeUrl(basePath, params.cellRange, sheetName)

@@ -46,7 +46,7 @@ API-key and personal-access-token connections use the credential shown in their 
 | Azure DevOps | PAT with Project and Team Read, Wiki Read, Work Items Read, and Code Read. |
 | GitLab | PAT with `read_api` and access to the selected project; permission-aware methods have additional requirements. |
 | YouTube | YouTube Data API key from Google Cloud Console. |
-| Amazon S3 | Secret Access Key; enter Access Key ID, region, and bucket as configuration fields. |
+| Amazon S3 | Secret Access Key; enter Access Key ID, region, and bucket as configuration fields. Where enabled, **Authentication → Saved AWS credential** uses a workspace AWS credential instead (access keys, an assumed IAM role, or a keyless role trusted through Sim OIDC); it signs only for Amazon S3 in a commercial or GovCloud AWS region (not China or isolated regions), so it has no Access Key ID or custom endpoint. Either way, the identity needs `s3:ListBucket` on the bucket and `s3:GetObject` on the synced objects. |
 | Sentry | Auth token with `project:read` and `event:read`. |
 | PagerDuty | Create a [REST API key](https://support.pagerduty.com/main/docs/api-access-keys) under **Integrations → Developer Tools → API Access Keys**. |
 | SFTP | Password or unencrypted private key, plus a required SHA-256 host-key fingerprint; enter host, port, username, and root path as configuration fields. |

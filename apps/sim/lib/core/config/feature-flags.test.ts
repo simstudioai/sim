@@ -41,7 +41,6 @@ setEnv({
   APPCONFIG_ENVIRONMENT: 'staging',
   DASHBOARDS: undefined,
   MSHIP_MODEL_SELECTOR: undefined,
-  MSHIP_COMPUTER_USE: undefined,
   AGENT_MEMORY_HISTORY: undefined,
   KNOWLEDGE_MEMBER_ACCESS: undefined,
   SLACK_SEARCH_SHARED_APP: undefined,
@@ -64,16 +63,16 @@ const enabled = (flag: string, ctx?: FeatureFlagContext) =>
 afterAll(resetEnvFlagsMock)
 
 describe('getFeatureFlags', () => {
-  it('gates computer use globally and defaults off without AppConfig', async () => {
-    withAppConfig({ 'mothership-computer-use': { enabled: true } })
-    expect(await isFeatureEnabled('mothership-computer-use')).toBe(true)
-    withAppConfig({ 'mothership-computer-use': { enabled: false, userIds: ['user-1'] } })
-    expect(await isFeatureEnabled('mothership-computer-use')).toBe(false)
+  it('gates a flag globally and defaults off without AppConfig', async () => {
+    withAppConfig({ dashboards: { enabled: true } })
+    expect(await isFeatureEnabled('dashboards')).toBe(true)
+    withAppConfig({ dashboards: { enabled: false, userIds: ['user-1'] } })
+    expect(await isFeatureEnabled('dashboards')).toBe(false)
     setEnvFlags({ isAppConfigEnabled: false })
-    expect(await isFeatureEnabled('mothership-computer-use')).toBe(false)
-    envRef.MSHIP_COMPUTER_USE = true
-    expect(await isFeatureEnabled('mothership-computer-use')).toBe(true)
-    envRef.MSHIP_COMPUTER_USE = undefined
+    expect(await isFeatureEnabled('dashboards')).toBe(false)
+    envRef.DASHBOARDS = true
+    expect(await isFeatureEnabled('dashboards')).toBe(true)
+    envRef.DASHBOARDS = undefined
   })
 
   beforeEach(() => {

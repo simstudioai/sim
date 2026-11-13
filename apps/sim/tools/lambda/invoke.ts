@@ -69,6 +69,13 @@ export const invokeTool: InternalToolConfig<LambdaInvokeParams, LambdaInvokeResp
       visibility: 'user-or-llm',
       description: 'Version number or alias name to act on. Omit to target the function itself',
     },
+    tenantId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Tenant identifier for a function with tenant isolation enabled (required by those functions, rejected by others)',
+    },
   },
 
   operation: {
@@ -82,6 +89,7 @@ export const invokeTool: InternalToolConfig<LambdaInvokeParams, LambdaInvokeResp
       ...(isSupplied(params.logType) && { logType: params.logType }),
       ...(isSupplied(params.clientContext) && { clientContext: params.clientContext }),
       ...(isSupplied(params.qualifier) && { qualifier: params.qualifier }),
+      ...(isSupplied(params.tenantId) && { tenantId: params.tenantId }),
     }),
   },
 

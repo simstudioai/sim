@@ -106,6 +106,9 @@ Retrieve detailed information about a specific Jira issue
 | `self` | string | REST API URL for this issue |
 | `summary` | string | Issue summary |
 | `description` | string | Issue description text \(extracted from ADF\) |
+| `descriptionAdf` | json | Issue description as the raw Atlassian Document Format \(ADF\) document |
+| `renderedDescription` | string | Issue description rendered as HTML \(requires the renderedFields expansion\) |
+| `environment` | string | Environment text \(extracted from ADF\) |
 | `status` | object | Issue status |
 |   ↳ `id` | string | Status ID |
 |   ↳ `name` | string | Status name \(e.g., Open, In Progress, Done\) |
@@ -274,6 +277,16 @@ Retrieve detailed information about a specific Jira issue
 |     ↳ `timeZone` | string | User timezone |
 |   ↳ `authorName` | string | Attachment author display name |
 |   ↳ `created` | string | ISO 8601 timestamp when the attachment was created |
+| `watchers` | array | Users watching the issue |
+|   ↳ `accountId` | string | Atlassian account ID of the user |
+|   ↳ `displayName` | string | Display name of the user |
+|   ↳ `active` | boolean | Whether the user account is active |
+|   ↳ `emailAddress` | string | Email address of the user |
+|   ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
+|   ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
+|   ↳ `timeZone` | string | User timezone |
+| `customFields` | json | Every customfield_* value Jira returned, keyed by field ID \(e.g., sprint, story points, team\). Use the names output or Get Fields to map IDs to names. |
+| `names` | json | Map of field ID to display name for every returned field |
 | `issueKey` | string | Issue key \(e.g., PROJ-123\) |
 | `issue` | json | Complete raw Jira issue object from the API |
 | `files` | file[] | Downloaded attachment files \(only when includeAttachments is true\) |
@@ -303,6 +316,8 @@ Update a Jira issue
 | `environment` | string | No | Environment information for the issue |
 | `customFieldId` | string | No | Custom field ID to update \(e.g., customfield_10001\) |
 | `customFieldValue` | string | No | Value for the custom field |
+| `customFields` | json | No | Additional fields as a JSON object mapping field IDs to Jira field values \(e.g., \{"customfield_10016": 5, "customfield_10020": 42, "customfield_10050": \{"value": "Option A"\}\}\). Numeric keys become customfield_&lt;n&gt;. Explicit params take precedence for the same field. |
+| `parent` | json | No | New parent issue key or ID \(e.g., "PROJ-123" or \{ "key": "PROJ-123" \}\) to move a subtask or set the epic |
 | `notifyUsers` | boolean | No | Whether to send email notifications about this update \(default: true\) |
 
 #### Output
@@ -342,6 +357,7 @@ Create a new Jira issue
 | `environment` | string | No | Environment information for the issue |
 | `customFieldId` | string | No | Custom field ID \(e.g., customfield_10001\) |
 | `customFieldValue` | string | No | Value for the custom field |
+| `customFields` | json | No | Additional fields as a JSON object mapping field IDs to Jira field values \(e.g., \{"customfield_10016": 5, "customfield_10020": 42, "customfield_10050": \{"value": "Option A"\}\}\). Numeric keys become customfield_&lt;n&gt;. Explicit params take precedence for the same field. |
 
 #### Output
 
@@ -501,6 +517,7 @@ Move a Jira issue between workflow statuses (e.g., To Do -&gt; In Progress)
 | `transitionId` | string | Yes | ID of the transition to execute \(e.g., "11" for "To Do", "21" for "In Progress"\) |
 | `comment` | string | No | Optional comment to add when transitioning the issue |
 | `resolution` | string | No | Resolution name to set during transition \(e.g., "Fixed", "Won't Fix"\) |
+| `fields` | json | No | Fields to set on the transition screen, as a JSON object mapping field IDs to Jira values \(e.g., \{"assignee": \{"accountId": "5b10..."\}, "customfield_10010": "value"\}\). The resolution param takes precedence over a resolution set here. |
 
 #### Output
 
@@ -531,7 +548,8 @@ Search for Jira issues using JQL (Jira Query Language)
 | `jql` | string | Yes | JQL query string to search for issues \(e.g., "project = PROJ AND status = Open"\) |
 | `nextPageToken` | string | No | Cursor token for the next page of results. Omit for the first page. |
 | `maxResults` | number | No | Maximum number of results to return per page \(default: 50\) |
-| `fields` | array | No | Array of field names to return \(default: all fields\). |
+| `fields` | array | No | Array of field names to return \(default: all fields\). When set, each issue also includes descriptionAdf, customFields, attachments, issuelinks, and subtasks. |
+| `expand` | string | No | Comma-separated expansions: renderedFields, names, schema, transitions, operations, editmeta, changelog |
 
 #### Output
 
@@ -544,6 +562,9 @@ Search for Jira issues using JQL (Jira Query Language)
 |   ↳ `self` | string | REST API URL for this issue |
 |   ↳ `summary` | string | Issue summary |
 |   ↳ `description` | string | Issue description text \(extracted from ADF\) |
+|   ↳ `descriptionAdf` | json | Issue description as the raw Atlassian Document Format \(ADF\) document. Only included when the fields param is set |
+|   ↳ `renderedDescription` | string | Issue description rendered as HTML. Only included when expand includes renderedFields |
+|   ↳ `environment` | string | Environment text \(extracted from ADF\) |
 |   ↳ `status` | object | Issue status |
 |     ↳ `id` | string | Status ID |
 |     ↳ `name` | string | Status name \(e.g., Open, In Progress, Done\) |
@@ -598,8 +619,81 @@ Search for Jira issues using JQL (Jira Query Language)
 |   ↳ `duedate` | string | Due date \(YYYY-MM-DD\) |
 |   ↳ `created` | string | ISO 8601 timestamp when the issue was created |
 |   ↳ `updated` | string | ISO 8601 timestamp when the issue was last updated |
+|   ↳ `creator` | object | Issue creator |
+|     ↳ `accountId` | string | Atlassian account ID of the user |
+|     ↳ `displayName` | string | Display name of the user |
+|     ↳ `active` | boolean | Whether the user account is active |
+|     ↳ `emailAddress` | string | Email address of the user |
+|     ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
+|     ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
+|     ↳ `timeZone` | string | User timezone |
+|   ↳ `fixVersions` | array | Fix versions |
+|     ↳ `id` | string | Version ID |
+|     ↳ `name` | string | Version name |
+|     ↳ `released` | boolean | Whether the version is released |
+|     ↳ `releaseDate` | string | Release date \(YYYY-MM-DD\) |
+|   ↳ `resolutiondate` | string | ISO 8601 timestamp when the issue was resolved |
+|   ↳ `timetracking` | object | Time tracking information |
+|     ↳ `originalEstimate` | string | Original estimate in human-readable format \(e.g., 1w 2d\) |
+|     ↳ `remainingEstimate` | string | Remaining estimate in human-readable format |
+|     ↳ `timeSpent` | string | Time spent in human-readable format |
+|     ↳ `originalEstimateSeconds` | number | Original estimate in seconds |
+|     ↳ `remainingEstimateSeconds` | number | Remaining estimate in seconds |
+|     ↳ `timeSpentSeconds` | number | Time spent in seconds |
+|   ↳ `parent` | object | Parent issue \(subtask parent or epic\) |
+|     ↳ `id` | string | Parent issue ID |
+|     ↳ `key` | string | Parent issue key |
+|     ↳ `summary` | string | Parent issue summary |
+|   ↳ `issuelinks` | array | Linked issues. Only included when the fields param is set |
+|     ↳ `id` | string | Issue link ID |
+|     ↳ `type` | object | Link type information |
+|       ↳ `id` | string | Link type ID |
+|       ↳ `name` | string | Link type name \(e.g., Blocks, Relates\) |
+|       ↳ `inward` | string | Inward description \(e.g., is blocked by\) |
+|       ↳ `outward` | string | Outward description \(e.g., blocks\) |
+|     ↳ `inwardIssue` | object | Inward linked issue |
+|       ↳ `id` | string | Issue ID |
+|       ↳ `key` | string | Issue key |
+|       ↳ `statusName` | string | Issue status name |
+|       ↳ `summary` | string | Issue summary |
+|     ↳ `outwardIssue` | object | Outward linked issue |
+|       ↳ `id` | string | Issue ID |
+|       ↳ `key` | string | Issue key |
+|       ↳ `statusName` | string | Issue status name |
+|       ↳ `summary` | string | Issue summary |
+|   ↳ `subtasks` | array | Subtask issues. Only included when the fields param is set |
+|     ↳ `id` | string | Subtask issue ID |
+|     ↳ `key` | string | Subtask issue key |
+|     ↳ `summary` | string | Subtask summary |
+|     ↳ `statusName` | string | Subtask status name |
+|     ↳ `issueTypeName` | string | Subtask issue type name |
+|   ↳ `votes` | object | Vote information |
+|     ↳ `votes` | number | Number of votes |
+|     ↳ `hasVoted` | boolean | Whether the current user has voted |
+|   ↳ `watches` | object | Watch information |
+|     ↳ `watchCount` | number | Number of watchers |
+|     ↳ `isWatching` | boolean | Whether the current user is watching |
+|   ↳ `attachments` | array | Attachment metadata \(no file contents\). Only included when the fields param is set |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `filename` | string | Attachment file name |
+|     ↳ `mimeType` | string | MIME type of the attachment |
+|     ↳ `size` | number | File size in bytes |
+|     ↳ `content` | string | URL to download the attachment content |
+|     ↳ `thumbnail` | string | URL to the attachment thumbnail |
+|     ↳ `author` | object | Attachment author |
+|       ↳ `accountId` | string | Atlassian account ID of the user |
+|       ↳ `displayName` | string | Display name of the user |
+|       ↳ `active` | boolean | Whether the user account is active |
+|       ↳ `emailAddress` | string | Email address of the user |
+|       ↳ `accountType` | string | Type of account \(e.g., atlassian, app, customer\) |
+|       ↳ `avatarUrl` | string | URL to the user avatar \(48x48\) |
+|       ↳ `timeZone` | string | User timezone |
+|     ↳ `authorName` | string | Attachment author display name |
+|     ↳ `created` | string | ISO 8601 timestamp when the attachment was created |
+|   ↳ `customFields` | json | Every customfield_* value Jira returned, keyed by field ID \(e.g., sprint, story points, team\). Only included when the fields param is set; use the names output or Get Fields to map IDs to names. |
 | `nextPageToken` | string | Cursor token for the next page. Null when no more results. |
 | `isLast` | boolean | Whether this is the last page of results |
+| `names` | json | Map of field ID to display name \(e.g., customfield_10020 → "Sprint"\). Only returned when expand includes names. |
 | `total` | number | Always null. The Jira /search/jql endpoint does not return a total count; use isLast and nextPageToken for pagination. |
 
 </ReferenceDetails>
@@ -1374,7 +1468,7 @@ Trigger workflow when a comment is deleted from a Jira issue
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | string | No | Filter which comment deletions trigger this workflow using JQL |
+| `jqlFilter` | string | No | Filter which comment deletions trigger this workflow using JQL. Sim does not evaluate this filter: enter the same JQL in the Jira webhook's JQL field so Jira only sends matching events. |
 
 #### Output
 
@@ -1461,7 +1555,7 @@ Trigger workflow when a comment is updated on a Jira issue
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | string | No | Filter which comment updates trigger this workflow using JQL |
+| `jqlFilter` | string | No | Filter which comment updates trigger this workflow using JQL. Sim does not evaluate this filter: enter the same JQL in the Jira webhook's JQL field so Jira only sends matching events. |
 
 #### Output
 
@@ -1548,7 +1642,7 @@ Trigger workflow when a comment is added to a Jira issue
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | string | No | Filter which issue comments trigger this workflow using JQL |
+| `jqlFilter` | string | No | Filter which issue comments trigger this workflow using JQL. Sim does not evaluate this filter: enter the same JQL in the Jira webhook's JQL field so Jira only sends matching events. |
 
 #### Output
 
@@ -1635,7 +1729,7 @@ Trigger workflow when a new issue is created in Jira
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | string | No | Filter which issues trigger this workflow using JQL \(Jira Query Language\) |
+| `jqlFilter` | string | No | Filter which issues trigger this workflow using JQL \(Jira Query Language\). Sim does not evaluate this filter: enter the same JQL in the Jira webhook's JQL field so Jira only sends matching events. |
 
 #### Output
 
@@ -1710,7 +1804,7 @@ Trigger workflow when an issue is deleted in Jira
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | string | No | Filter which issue deletions trigger this workflow using JQL |
+| `jqlFilter` | string | No | Filter which issue deletions trigger this workflow using JQL. Sim does not evaluate this filter: enter the same JQL in the Jira webhook's JQL field so Jira only sends matching events. |
 
 #### Output
 
@@ -1785,7 +1879,7 @@ Trigger workflow when an issue is updated in Jira
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | string | No | Filter which issue updates trigger this workflow using JQL |
+| `jqlFilter` | string | No | Filter which issue updates trigger this workflow using JQL. Sim does not evaluate this filter: enter the same JQL in the Jira webhook's JQL field so Jira only sends matching events. |
 | `fieldFilters` | string | No | Comma-separated list of Jira field names. Only trigger when one of these fields changes. Leave empty to trigger on any field change. |
 
 #### Output
@@ -2174,7 +2268,7 @@ Trigger workflow when time is logged on a Jira issue
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | string | No | Filter which worklog entries trigger this workflow using JQL |
+| `jqlFilter` | string | No | Filter which worklog entries trigger this workflow using JQL. Sim does not evaluate this filter: enter the same JQL in the Jira webhook's JQL field so Jira only sends matching events. |
 
 #### Output
 
@@ -2265,7 +2359,7 @@ Trigger workflow when a worklog entry is deleted from a Jira issue
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | string | No | Filter which worklog deletions trigger this workflow using JQL |
+| `jqlFilter` | string | No | Filter which worklog deletions trigger this workflow using JQL. Sim does not evaluate this filter: enter the same JQL in the Jira webhook's JQL field so Jira only sends matching events. |
 
 #### Output
 
@@ -2356,7 +2450,7 @@ Trigger workflow when a worklog entry is updated on a Jira issue
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | string | No | Filter which worklog updates trigger this workflow using JQL |
+| `jqlFilter` | string | No | Filter which worklog updates trigger this workflow using JQL. Sim does not evaluate this filter: enter the same JQL in the Jira webhook's JQL field so Jira only sends matching events. |
 
 #### Output
 

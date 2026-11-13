@@ -2,10 +2,16 @@ import { ErrorExtractorId } from '@/tools/error-extractors'
 import { escapeODataString, parseGraphErrorMessage } from '@/tools/microsoft_excel/utils'
 import type {
   MicrosoftWordDocumentMetadata,
+  MicrosoftWordGraphDriveItem,
   MicrosoftWordListResponse,
   MicrosoftWordToolParams,
 } from '@/tools/microsoft_word/types'
-import { getDriveBasePath, getFolderBasePath } from '@/tools/microsoft_word/utils'
+import {
+  DOCUMENT_METADATA_DETAIL_PROPERTIES,
+  getDriveBasePath,
+  getFolderBasePath,
+  toDocumentMetadata,
+} from '@/tools/microsoft_word/utils'
 import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -17,19 +23,8 @@ const MAX_PAGE_SIZE = 200
  * and without the field every item looks like a file — so a folder named
  * `Something.docx` would be returned as a document.
  */
-const DRIVE_ITEM_SELECT = 'id,name,size,webUrl,createdDateTime,lastModifiedDateTime,file,folder'
-
-/** Microsoft Graph `driveItem` fields this tool projects. */
-interface GraphDriveItem {
-  id?: string
-  name?: string
-  size?: number
-  webUrl?: string
-  createdDateTime?: string
-  lastModifiedDateTime?: string
-  file?: { mimeType?: string }
-  folder?: Record<string, unknown>
-}
+const DRIVE_ITEM_SELECT =
+  'id,name,size,webUrl,createdDateTime,lastModifiedDateTime,file,folder,parentReference,createdBy,lastModifiedBy'
 
 export const listTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordListResponse> = {
   id: 'microsoft_word_list',
@@ -133,19 +128,11 @@ export const listTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordListResp
     }
 
     const data = await response.json()
-    const items: GraphDriveItem[] = Array.isArray(data?.value) ? data.value : []
+    const items: MicrosoftWordGraphDriveItem[] = Array.isArray(data?.value) ? data.value : []
 
     const documents: MicrosoftWordDocumentMetadata[] = items
       .filter((item) => !item.folder && item.id && item.name?.toLowerCase().endsWith('.docx'))
-      .map((item) => ({
-        documentId: item.id as string,
-        name: item.name ?? null,
-        mimeType: item.file?.mimeType ?? null,
-        webViewLink: item.webUrl ?? null,
-        size: item.size ?? null,
-        createdTime: item.createdDateTime ?? null,
-        modifiedTime: item.lastModifiedDateTime ?? null,
-      }))
+      .map((item) => toDocumentMetadata(item, ''))
 
     const nextPageToken = getGraphNextPageUrl(data)
 
@@ -177,6 +164,7 @@ export const listTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordListResp
             description: 'ISO 8601 last modification time',
             optional: true,
           },
+          ...DOCUMENT_METADATA_DETAIL_PROPERTIES,
         },
       },
     },

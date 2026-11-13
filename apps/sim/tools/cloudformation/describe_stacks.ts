@@ -69,7 +69,8 @@ export const describeStacksTool: InternalToolConfig<
   outputs: {
     stacks: {
       type: 'array',
-      description: 'List of CloudFormation stacks with status, outputs, and tags',
+      description:
+        'List of CloudFormation stacks (stackName, stackId, stackStatus, stackStatusReason, detailedStatus, creationTime, lastUpdatedTime, deletionTime, description, enableTerminationProtection, driftInformation, outputs [{outputKey, outputValue, description, exportName}], tags, parameters [{parameterKey, parameterValue, usePreviousValue, resolvedValue}], capabilities, changeSetId, roleArn, parentId, rootId, notificationArns, timeoutInMinutes, disableRollback, deletionMode, retainExceptOnCreate)',
     },
   },
 }

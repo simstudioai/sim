@@ -66,6 +66,16 @@ Resources:
       DBSubnetGroupDescription: Sim PostgreSQL subnets
       SubnetIds: !Ref PrivateSubnetIds
 
+  # A fixed, URL-safe password: the chart puts it into the connection URL as is, and copies it into
+  # a Kubernetes Secret once, so an RDS-managed password that rotates would lock Sim out.
+  DatabasePassword:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Master password for the Sim PostgreSQL instance
+      GenerateSecretString:
+        PasswordLength: 40
+        ExcludePunctuation: true
+
   Database:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Snapshot
@@ -76,8 +86,7 @@ Resources:
       DBInstanceClass: !Ref DatabaseInstanceClass
       DBName: sim
       MasterUsername: sim
-      # RDS generates the password and keeps it in Secrets Manager (output DatabaseSecretArn).
-      ManageMasterUserPassword: true
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DatabasePassword}}}'
       AllocatedStorage: '100'
       StorageType: gp3
       StorageEncrypted: true
@@ -159,9 +168,9 @@ Outputs:
   DatabaseEndpoint:
     Description: externalDatabase.host in values.yaml
     Value: !GetAtt Database.Endpoint.Address
-  DatabaseSecretArn:
+  DatabasePasswordArn:
     Description: Secrets Manager secret holding the RDS master password (EXTERNAL_DB_PASSWORD)
-    Value: !GetAtt Database.MasterUserSecret.SecretArn
+    Value: !Ref DatabasePassword
   CachePrimaryEndpoint:
     Description: Host for REDIS_URL (rediss://:<auth token>@<this host>:6379)
     Value: !GetAtt Cache.PrimaryEndPoint.Address

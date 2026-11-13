@@ -9,9 +9,13 @@ import type {
 import {
   downloadAllReferenceAttachments,
   extractMessageAttachments,
+  extractMessageDetails,
+  extractNextPageToken,
   fetchHostedContentsForChatMessage,
+  resolvePageSize,
 } from '@/tools/microsoft_teams/utils'
 import type { ToolConfig, ToolFileData, ToolResponseContext } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
   id: 'microsoft_teams_read_chat',
@@ -45,15 +49,26 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       visibility: 'user-only',
       description: 'Download and include message attachments (hosted contents) into storage',
     },
+    top: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of messages to return per page (1-50, default 50)',
+    },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Page token from a previous read (nextPageToken) to fetch older messages',
+    },
   },
 
   request: {
     url: (params) => {
-      const chatId = params.chatId?.trim()
-      if (!chatId) {
-        throw new Error('Chat ID is required')
-      }
-      return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages?$top=50&$orderby=createdDateTime desc`
+      const chatId = safeUrlPathSegment(params.chatId ?? '', 'Chat ID')
+      const pageToken = params.pageToken?.trim()
+      const skipToken = pageToken ? `&$skiptoken=${encodeURIComponent(pageToken)}` : ''
+      return `https://graph.microsoft.com/v1.0/chats/${chatId}/messages?$top=${resolvePageSize(params.top)}&$orderby=createdDateTime desc${skipToken}`
     },
     method: 'GET',
     headers: (params) => {
@@ -77,6 +92,8 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
     const data = await response.json()
 
     const messages = data.value || []
+    const nextPageToken = extractNextPageToken(data['@odata.nextLink'])
+    const hasMore = Boolean(data['@odata.nextLink'])
 
     if (messages.length === 0) {
       return {
@@ -89,7 +106,16 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
             messages: [],
             totalAttachments: 0,
             attachmentTypes: [],
+            hasMore,
+            nextPageToken,
           },
+          messages: [],
+          messageCount: 0,
+          chatId: params?.chatId ?? '',
+          attachmentCount: 0,
+          attachmentTypes: [],
+          hasMore,
+          nextPageToken,
         },
       }
     }
@@ -128,6 +154,7 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       }
 
       processedMessages.push({
+        ...extractMessageDetails(message),
         id: messageId,
         content: content, // Keep original content without modification
         sender: message.from?.user?.displayName || 'Unknown',
@@ -173,6 +200,8 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       totalAttachments: allAttachments.length,
       attachmentTypes,
       messages: processedMessages,
+      hasMore,
+      nextPageToken,
     }
 
     // Flatten uploaded files across all messages for convenience
@@ -184,6 +213,13 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
         content: formattedMessages,
         metadata,
         attachments: flattenedUploads,
+        messages: metadata.messages,
+        messageCount: metadata.messageCount,
+        chatId: metadata.chatId,
+        attachmentCount: metadata.totalAttachments,
+        attachmentTypes,
+        hasMore,
+        nextPageToken,
       },
     }
   },
@@ -192,10 +228,24 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
     success: { type: 'boolean', description: 'Teams chat read operation success status' },
     messageCount: { type: 'number', description: 'Number of messages retrieved from chat' },
     chatId: { type: 'string', description: 'ID of the chat that was read from' },
-    messages: { type: 'array', description: 'Array of chat message objects' },
+    messages: {
+      type: 'array',
+      description:
+        'Array of chat message objects (also available at metadata.messages). Each has id, content, sender, timestamp, messageType, attachments, from (user/application/device), senderId, senderType, replyToId, subject, importance, webUrl, contentType, lastModifiedDateTime, lastEditedDateTime, deletedDateTime, mentions, and reactions',
+    },
     attachmentCount: { type: 'number', description: 'Total number of attachments found' },
     attachmentTypes: { type: 'array', description: 'Types of attachments found' },
     content: { type: 'string', description: 'Formatted content of chat messages' },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether Graph indicated more messages beyond this page',
+      optional: true,
+    },
+    nextPageToken: {
+      type: 'string',
+      description: 'Token to pass as pageToken to fetch the next page, or null on the last page',
+      optional: true,
+    },
     attachments: {
       type: 'file[]',
       description: 'Uploaded attachments for convenience (flattened)',

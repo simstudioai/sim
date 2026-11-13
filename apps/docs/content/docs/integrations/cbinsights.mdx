@@ -2,7 +2,7 @@
 title: CB Insights
 description: Research private markets — firmographics, funding, and predictive scores
 integration:
-  type: "cbinsights"
+  type: "cbinsights_v2"
   color: "#FFFFFF"
 ---
 
@@ -14,7 +14,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 ## Credentials and access
 
-Obtain a client ID and secret from your CB Insights Customer Success Manager. Sim exchanges them for a short-lived bearer token automatically. Most data operations consume credits; access depends on your license for Firmographics, Financial Transactions, Business Relationships, Management and Board, Outlook, or Scouting Reports. Check your entitlements before building a workflow around a dataset.
+Obtain a client ID and secret from your CB Insights Customer Success Manager and save them once as a CB Insights credential. Sim checks the pair by exchanging it for an access token, and exchanges it for a short-lived bearer token on each run. Workflows built with the earlier CB Insights block keep the client ID and secret they entered in the block. Most data operations consume credits; access depends on your license for Firmographics, Financial Transactions, Business Relationships, Management and Board, Outlook, or Scouting Reports. Check your entitlements before building a workflow around a dataset.
 
 ## Working with company data
 
@@ -43,8 +43,6 @@ Resolve company names or websites to CB Insights organization IDs. The integrati
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `names` | json | No | Organization names to look up, e.g. \["CB Insights"\] |
 | `urls` | json | No | Organization websites to look up, e.g. \["cbinsights.com"\] |
 | `profileUrl` | string | No | A CB Insights profile URL to resolve. Mutually exclusive with names and urls — the API rejects a request that sets both. |
@@ -72,8 +70,6 @@ Search profiles of private companies, public companies, and investors by market,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `keyword` | string | No | Search term matched against organization names, descriptions, and aliases |
 | `orgIds` | json | No | CB Insights organization IDs to return, e.g. \[129410, 129411\] |
 | `orgNames` | json | No | Organization names to match exactly, e.g. \["CB Insights"\] |
@@ -133,8 +129,6 @@ Retrieve the funding rounds one organization has received, its cap table history
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 | `limit` | number | No | Rows to return in a single response, 1-100 |
 | `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
@@ -161,8 +155,6 @@ Retrieve the rounds in which one organization invested in another, with AI-gener
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 | `limit` | number | No | Rows to return in a single response, 1-100 |
 | `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
@@ -188,8 +180,6 @@ Retrieve exit rounds for companies this organization invested in before the exit
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
@@ -210,8 +200,6 @@ Retrieve one organization's partnerships, client/vendor relationships, and licen
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
@@ -232,8 +220,6 @@ Retrieve an organization's leadership team and board members with their educatio
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 | `titleIds` | json | No | CB Insights person title IDs to filter the people returned, e.g. \[50, 75\] |
 
@@ -256,8 +242,6 @@ Retrieve an organization's current Mosaic Score, Commercial Maturity level, and 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
@@ -280,8 +264,6 @@ Retrieve the estimated window in which an organization is likely to raise its ne
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
@@ -306,8 +288,6 @@ Retrieve reported and estimated revenue by calendar year for one organization, w
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
@@ -331,8 +311,6 @@ Retrieve an organization's historical Mosaic Scores — overall plus the managem
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 | `startDate` | string | No | Earliest date to return, as YYYY-MM-DD. Must be on or after 2024-01-01 and within the last 24 months. Defaults to the later of one year ago and 2024-01-01. |
 
@@ -358,8 +336,6 @@ Retrieve an organization's historical Commercial Maturity levels, tracking how i
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 | `startDate` | string | No | Earliest date to return, as YYYY-MM-DD. Must be on or after 2024-07-25 and within 24 months of endDate. Defaults to the later of one year ago and 2024-07-25. |
 | `endDate` | string | No | Latest date to return, as YYYY-MM-DD. Must be on or after 2024-07-25 and within 24 months of startDate. Defaults to today. |
@@ -382,8 +358,6 @@ Retrieve an organization's historical two-year IPO and M&A exit probabilities, e
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 | `startDate` | string | No | Earliest date to return, as YYYY-MM-DD. Must be on or after 2025-02-25 and within 24 months of endDate. Defaults to the later of one year ago and 2025-02-25. |
 | `endDate` | string | No | Latest date to return, as YYYY-MM-DD. Must be on or after 2025-02-25 and within 24 months of startDate. Defaults to today. |
@@ -408,8 +382,6 @@ Retrieve the companies related to an organization, grouped into industry categor
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
@@ -432,8 +404,6 @@ Generate an AI-written Scouting Report on a private company covering its busines
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgId` | number | Yes | CB Insights organization ID of an active company. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
@@ -456,8 +426,6 @@ Retrieve funding rounds and cap table history for up to 100 organizations at onc
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
 | `limit` | number | No | Rows to return in a single response, 1-100 |
 | `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
@@ -483,8 +451,6 @@ Retrieve the rounds up to 100 organizations participated in as investors, with A
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
 | `limit` | number | No | Rows to return in a single response, 1-100 |
 | `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
@@ -510,8 +476,6 @@ Retrieve exit rounds for companies up to 100 organizations invested in before th
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
 | `limit` | number | No | Rows to return in a single response, 1-100 |
 | `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
@@ -537,8 +501,6 @@ Retrieve partnerships, client/vendor relationships, and licensing activity for u
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
 | `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
 
@@ -561,8 +523,6 @@ Retrieve leadership teams, board members, and the Management factor of the Mosai
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
 | `titleIds` | json | No | CB Insights person title IDs to filter the people returned, e.g. \[50, 75\] |
 
@@ -584,8 +544,6 @@ Retrieve Mosaic Score, Commercial Maturity, and Exit Probability for up to 100 o
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
 
 #### Output
@@ -606,8 +564,6 @@ Retrieve the estimated next-round funding window for up to 100 organizations at 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
 
 #### Output
@@ -628,8 +584,6 @@ Retrieve reported and estimated revenue by calendar year for up to 100 organizat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `orgIds` | json | Yes | CB Insights organization IDs, 1-100 per request, e.g. \[129410, 1034157\] |
 
 #### Output
@@ -650,8 +604,6 @@ Ask ChatCBI a question in natural language and get an answer grounded in CB Insi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `message` | string | Yes | The question to ask, e.g. "Which emerging technology markets are seeing the highest equity funding growth right now?" |
 | `chatId` | string | No | Conversation ID returned by a previous call. Pass it to continue that conversation rather than starting a new one. |
 
@@ -678,8 +630,6 @@ Retrieve the raw structured CB Insights data relevant to a question, for feeding
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
-| `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
 | `message` | string | Yes | The question to retrieve context for. Must be under 10,000 characters. |
 
 #### Output

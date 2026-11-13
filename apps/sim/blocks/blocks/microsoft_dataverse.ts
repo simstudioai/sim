@@ -222,6 +222,13 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         generationType: 'json-object',
       },
     },
+    {
+      id: 'returnRecord',
+      title: 'Return Updated Record',
+      type: 'switch',
+      condition: { field: 'operation', value: 'update_record' },
+      mode: 'advanced',
+    },
     // FetchXML Query
     {
       id: 'fetchXml',
@@ -537,6 +544,22 @@ Return ONLY the orderby expression - no $orderby= prefix, no explanations.`,
       mode: 'advanced',
     },
     {
+      id: 'pageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '1-5000 (default 100 when Max Results is empty); reuse with Next Page Link',
+      condition: { field: 'operation', value: 'list_records' },
+      mode: 'advanced',
+    },
+    {
+      id: 'nextLink',
+      title: 'Next Page Link',
+      type: 'short-input',
+      placeholder: 'nextLink from the previous page (empty on the last page; stop when empty)',
+      condition: { field: 'operation', value: 'list_records' },
+      mode: 'advanced',
+    },
+    {
       id: 'expand',
       title: 'Expand',
       type: 'short-input',
@@ -662,6 +685,13 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
           }
         })
 
+        for (const key of ['top', 'skip', 'pageSize'] as const) {
+          const value = cleanParams[key]
+          if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) {
+            cleanParams[key] = Number(value)
+          }
+        }
+
         return cleanParams
       },
     },
@@ -682,6 +712,16 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
       description: 'Set to "true" to include total record count in the response (list records)',
     },
     expand: { type: 'string', description: 'Navigation properties to expand' },
+    pageSize: {
+      type: 'string',
+      description:
+        'Records per page for list records (1-5000); keep unchanged across Next Page Link pages',
+    },
+    nextLink: { type: 'string', description: 'nextLink from a previous list records page' },
+    returnRecord: {
+      type: 'boolean',
+      description: 'Return the updated record (update record)',
+    },
     navigationProperty: {
       type: 'string',
       description: 'Navigation property name for associations',
@@ -734,6 +774,11 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
       description: 'Total matching records server-side',
     },
     nextLink: { type: 'string', description: 'URL for next page of results' },
+    pageSize: {
+      type: 'number',
+      description:
+        'Page size sent for list records (null when Max Results applied instead); pass it with nextLink for the next page',
+    },
     created: { type: 'boolean', description: 'Whether a new record was created (upsert)' },
     userId: { type: 'string', description: 'Authenticated user ID (WhoAmI)' },
     businessUnitId: { type: 'string', description: 'Business unit ID (WhoAmI)' },

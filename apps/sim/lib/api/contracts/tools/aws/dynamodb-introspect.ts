@@ -46,6 +46,12 @@ const TableDetailsSchema = z.object({
   itemCount: z.number(),
   tableSizeBytes: z.number(),
   billingMode: z.string(),
+  tableArn: z.string().nullable(),
+  creationDateTime: z.string().nullable(),
+  deletionProtectionEnabled: z.boolean().nullable(),
+  streamEnabled: z.boolean().nullable(),
+  streamViewType: z.string().nullable(),
+  latestStreamArn: z.string().nullable(),
 })
 
 const IntrospectResponseSchema = z.object({

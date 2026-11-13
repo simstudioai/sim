@@ -515,7 +515,7 @@ export const MicrosoftWordBlock: BlockConfig = {
     metadata: {
       type: 'json',
       description:
-        'Document metadata (documentId, name, mimeType, webViewLink, size, createdTime, modifiedTime)',
+        'Document metadata (documentId, name, mimeType, webViewLink, size, createdTime, modifiedTime, driveId, parentFolderId, createdBy {id, displayName}, lastModifiedBy {id, displayName})',
     },
     updatedContent: {
       type: 'boolean',
@@ -524,7 +524,7 @@ export const MicrosoftWordBlock: BlockConfig = {
     documents: {
       type: 'json',
       description:
-        'Word documents that matched a list or search operation ([{documentId, name, mimeType, webViewLink, size, createdTime, modifiedTime}])',
+        'Word documents that matched a list or search operation ([{documentId, name, mimeType, webViewLink, size, createdTime, modifiedTime, driveId, parentFolderId, createdBy, lastModifiedBy}])',
     },
     nextPageToken: {
       type: 'string',
