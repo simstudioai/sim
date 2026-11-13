@@ -470,17 +470,23 @@ describe('combobox typing surfaces', () => {
       [
         'header',
         'Menu',
-        (_x: number, y: number) =>
-          (topHalf(y) ? [byId('header')] : []).concat(byId('map'), ...page()),
+        (_x: number, y: number): Element[] => [
+          ...(topHalf(y) ? [byId('header')] : []),
+          byId('map'),
+          ...page(),
+        ],
       ],
       // a fixed header with a cookie banner pinned to the bottom corners
       [
         'header',
         'Menu',
-        (_x: number, y: number) => [topHalf(y) ? byId('header') : byId('banner'), ...page()],
+        (_x: number, y: number): Element[] => [
+          topHalf(y) ? byId('header') : byId('banner'),
+          ...page(),
+        ],
       ],
       // a toast whose full-screen wrapper lets the pointer through, so the wrapper is in no stack
-      ['toast', 'Saved to your list', () => page()],
+      ['toast', 'Saved to your list', (): Element[] => page()],
     ] as const) {
       stackTo([byId(cover), input, byId('map'), ...page()], elsewhere)
       expect(focusElementForTyping(0)).toMatchObject({ focused: true, coveredBy: label })
