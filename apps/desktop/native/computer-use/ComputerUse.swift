@@ -748,6 +748,8 @@ final class Driver {
                  "sequence": ["completedSteps": completed, "totalSteps": steps.count, "error": String((message + " The remaining steps were not run; observe the app before continuing, and do not retry the batch.").prefix(2000))]]
             }
             for (index, step) in steps.enumerated() {
+                // Stop can arrive during the previous step's settle; no later step may start after it.
+                do { try checkCancellation() } catch { if completed == 0 { throw error }; return stopped("Stopped before step \(index + 1).") }
                 var params = step; params.bundleId = p.bundleId; params.snapshotId = p.snapshotId
                 let before = uiStructure(pid: pid)
                 do { _ = try await act(Request(id: request.id, method: try required(step.action, "action"), params: params), app: app, bundle: bundle, snapshot: snapshot) }
@@ -946,19 +948,21 @@ final class Driver {
         return ["kind": "action", "action": request.method, "bundleId": bundle, "dispatched": true, "verified": false]
     }
 }
-/// The app's window structure: its windows, which one has focus and its direct content (a sheet is
-/// a child of its window), and on-screen surfaces such as menus and popovers.
+/// The app's window structure by identity: its on-screen windows (sheets, menus and popovers are
+/// windows of their own), the focused window, and that window's direct content, where a sheet sits.
+/// Identities rather than counts, so switching one open menu or sheet for another still registers.
 func uiStructure(pid: pid_t) -> [Int] {
     let root = AXUIElementCreateApplication(pid)
     AXUIElementSetMessagingTimeout(root, 0.1)
-    var structure = [(attribute(root, kAXWindowsAttribute) as? [AXUIElement])?.count ?? -1]
+    var structure = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? [])
+        .filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid }
+        .compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+        .sorted()
     if let raw = attribute(root, kAXFocusedWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() {
-        var count = 0
         structure.append(Int(bitPattern: UInt(CFHash(raw))))
-        structure.append(AXUIElementGetAttributeValueCount(unsafeBitCast(raw, to: AXUIElement.self), kAXChildrenAttribute as CFString, &count) == .success ? count : -1)
+        let (children, _) = pagedElements(unsafeBitCast(raw, to: AXUIElement.self), name: kAXChildrenAttribute, limit: 64)
+        structure.append(contentsOf: children.map { Int(bitPattern: UInt(CFHash($0))) })
     }
-    structure.append((CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? [])
-        .filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid }.count)
     return structure
 }
 func nextLine() throws -> String? {

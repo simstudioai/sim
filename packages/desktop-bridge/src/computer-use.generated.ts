@@ -88,6 +88,13 @@ const KeyChord = z
   );
 const AccessibilityAction = z.string().min(1).max(128).describe("Exact action advertised by this element.");
 
+/** The text a batch step sends, counted against the batch's 32000 UTF-16 code units. */
+function batchStepTextLength(step: { action: string; text?: string; value?: string }): number {
+  if (step.action === "type_text") return step.text?.length ?? 0;
+  if (step.action === "set_value") return step.value?.length ?? 0;
+  return 0;
+}
+
 /** A batch step is the matching single action without its app, snapshot and observation fields, which the batch carries. */
 const BatchStep = z.union([
   z.strictObject({ action: z.literal("click"), elementId: ElementId, ...ClickOptions }),
@@ -212,17 +219,7 @@ export const ComputerUseSchema = z.union([
       .min(2)
       .max(8)
       .refine(
-        (steps) =>
-          steps.reduce(
-            (total, step) =>
-              total +
-              (step.action === "type_text"
-                ? step.text.length
-                : step.action === "set_value"
-                  ? step.value.length
-                  : 0),
-            0,
-          ) <= 32_000,
+        (steps) => steps.reduce((total, step) => total + batchStepTextLength(step), 0) <= 32_000,
         "Combined batch text exceeds 32000 UTF-16 code units",
       )
       .describe(
@@ -342,6 +339,16 @@ export const ComputerUseResultSchema = z.discriminatedUnion("kind", [
           code: "custom",
           path: ["sequence"],
           message: "Input sequences and batches require dispatch progress",
+        });
+      if (
+        result.action === "batch" &&
+        result.sequence &&
+        (result.sequence.totalSteps < 2 || result.sequence.totalSteps > 8)
+      )
+        ctx.addIssue({
+          code: "custom",
+          path: ["sequence", "totalSteps"],
+          message: "A batch has 2 to 8 steps",
         });
       if (result.sequence && result.sequence.completedSteps > result.sequence.totalSteps)
         ctx.addIssue({
