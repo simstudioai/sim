@@ -29,6 +29,7 @@ import {
   Trash,
   X,
 } from '@sim/emcn/icons'
+import { formatShortcut } from '@/lib/core/utils/platform'
 import { ResourceZoomMenuItems } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/resource-zoom-menu-items'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -133,7 +134,7 @@ export function TerminalContextMenu({
         <DropdownMenuItem onSelect={run(onClear)}>
           <Trash />
           Clear
-          <DropdownMenuShortcut>⌘R</DropdownMenuShortcut>
+          <DropdownMenuShortcut>{formatShortcut('R')}</DropdownMenuShortcut>
         </DropdownMenuItem>
         {onAppearanceThemeChange && (
           <DropdownMenuSub>
@@ -181,12 +182,12 @@ export function TerminalContextMenu({
         <DropdownMenuItem onSelect={run(onNewTab)}>
           <Plus />
           New Tab
-          <DropdownMenuShortcut>⌘T</DropdownMenuShortcut>
+          <DropdownMenuShortcut>{formatShortcut('T')}</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={run(onCloseTerminal)}>
           <X />
           Close Terminal
-          <DropdownMenuShortcut>⌘W</DropdownMenuShortcut>
+          <DropdownMenuShortcut>{formatShortcut('W')}</DropdownMenuShortcut>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />

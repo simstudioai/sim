@@ -287,7 +287,8 @@ type BrowserShortcutInput = Pick<
  * wrong guess reloads all of Sim instead of the page.
  *
  * `stop` is any bare Escape; only a loading page acts on it, and the page
- * still receives the key.
+ * still receives the key. Ctrl+Tab cycles tabs with Control on macOS too, as
+ * Chrome does.
  */
 export function browserShortcutForInput(
   input: BrowserShortcutInput,
@@ -311,6 +312,9 @@ export function browserShortcutForInput(
     return arrow === 'left' ? 'back' : 'forward'
   }
   if (input.key === 'Escape' && !input.shift && !input.control && !input.meta) return 'stop'
+  if (input.key === 'Tab' && input.control && !input.meta) {
+    return input.shift ? 'previous-tab' : 'next-tab'
+  }
   if (input.key === 'F5' && !otherModifier) {
     if (input.shift || input.control) return 'hard-reload'
     return input.meta ? null : 'reload'

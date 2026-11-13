@@ -9,6 +9,8 @@ import {
 } from 'node:fs'
 import { mkdir, open, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
 
 /** Owner-only, matching every store that keeps user data in userData. */
 const FILE_MODE = 0o600
@@ -84,6 +86,69 @@ function temporaryPathFor(filePath: string): string {
   return `${filePath}.${process.pid}.${temporaryFileCounter}.tmp`
 }
 
+/** Defender and the search indexer briefly hold files open on Windows, which fails the rename. */
+const WINDOWS_TRANSIENT_RENAME_CODES = new Set(['EPERM', 'EBUSY', 'EACCES'])
+const MAX_RENAME_ATTEMPTS = 5
+
+interface RenameOptions<Result> {
+  platform?: NodeJS.Platform
+  rename?: (from: string, to: string) => Result
+}
+
+function shouldRetryRename(error: unknown, attempt: number, platform: NodeJS.Platform): boolean {
+  const code = (error as NodeJS.ErrnoException).code
+  return (
+    platform === 'win32' &&
+    attempt < MAX_RENAME_ATTEMPTS &&
+    code !== undefined &&
+    WINDOWS_TRANSIENT_RENAME_CODES.has(code)
+  )
+}
+
+function renameRetryDelayMs(attempt: number): number {
+  return backoffWithJitter(attempt, null, { baseMs: 20, maxMs: 200 })
+}
+
+/**
+ * Renames over `to`, retrying a few times on Windows while another process
+ * holds the target. Other platforms and other errors fail on the first try.
+ */
+export async function renameReplacing(
+  from: string,
+  to: string,
+  { platform = process.platform, rename: renameFile = rename }: RenameOptions<Promise<void>> = {}
+): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await renameFile(from, to)
+      return
+    } catch (error) {
+      if (!shouldRetryRename(error, attempt, platform)) throw error
+      await sleep(renameRetryDelayMs(attempt))
+    }
+  }
+}
+
+/**
+ * {@link renameReplacing} for a caller that cannot await. The waits block the
+ * thread, bounded by the same few short attempts.
+ */
+export function renameReplacingSync(
+  from: string,
+  to: string,
+  { platform = process.platform, rename: renameFile = renameSync }: RenameOptions<void> = {}
+): void {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      renameFile(from, to)
+      return
+    } catch (error) {
+      if (!shouldRetryRename(error, attempt, platform)) throw error
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, renameRetryDelayMs(attempt))
+    }
+  }
+}
+
 /**
  * Crash-safe JSON writes for the small encrypted stores in userData.
  *
@@ -97,7 +162,7 @@ export async function writeJsonFileAtomically(filePath: string, value: unknown):
   await mkdir(dirname(filePath), { recursive: true })
   const temporaryPath = temporaryPathFor(filePath)
   await writeFile(temporaryPath, JSON.stringify(value), { mode: FILE_MODE })
-  await rename(temporaryPath, filePath)
+  await renameReplacing(temporaryPath, filePath)
 }
 
 /**
@@ -115,7 +180,7 @@ export function writeJsonFileAtomicallySync(
   mkdirSync(dirname(filePath), { recursive: true })
   const temporaryPath = temporaryPathFor(filePath)
   writeFileSync(temporaryPath, JSON.stringify(value, null, indent), { mode: FILE_MODE })
-  renameSync(temporaryPath, filePath)
+  renameReplacingSync(temporaryPath, filePath)
 }
 
 /**

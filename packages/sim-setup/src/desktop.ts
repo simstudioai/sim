@@ -10,12 +10,35 @@ import { APP_URL } from './urls'
 
 /**
  * Where a deployment redirects to the newest installer for its own channel,
- * and the manifest installed shells poll. Both ship in every Sim deployment
- * (`app/api/desktop/update/*`), so a self-hosted install already serves them —
- * there is nothing to build or host.
+ * and the manifest installed shells poll, per desktop platform. Both ship in
+ * every Sim deployment (`app/api/desktop/update/*`), so a self-hosted install
+ * already serves them — there is nothing to build or host.
  */
-const DOWNLOAD_PATH = '/api/desktop/update/download'
-const FEED_PATH = '/api/desktop/update/latest-mac.yml'
+const DESKTOP_PLATFORMS = {
+  mac: {
+    label: 'macOS',
+    installerExtensions: ['.dmg', '.zip'],
+    downloadPath: '/api/desktop/update/download',
+    feedPath: '/api/desktop/update/latest-mac.yml',
+    serverCommand: 'Sim → Server…',
+    serverCommandWhere: 'in the menu bar',
+  },
+  windows: {
+    label: 'Windows',
+    installerExtensions: ['.exe'],
+    downloadPath: '/api/desktop/update/download?platform=windows',
+    feedPath: '/api/desktop/update/latest.yml',
+    serverCommand: 'File → Server…',
+    serverCommandWhere: 'in the menu bar (press Alt to show it)',
+  },
+} as const
+
+type DesktopPlatform = (typeof DESKTOP_PLATFORMS)[keyof typeof DESKTOP_PLATFORMS]
+
+/** The desktop build for the machine running the CLI; macOS unless it is Windows. */
+function desktopPlatformForHost(): DesktopPlatform {
+  return process.platform === 'win32' ? DESKTOP_PLATFORMS.windows : DESKTOP_PLATFORMS.mac
+}
 
 const PROBE_TIMEOUT_MS = 15_000
 
@@ -134,6 +157,7 @@ export function resolveDeploymentUrl(
 
 export type DesktopProbe =
   | { status: 'ok'; installerUrl: string; installerName: string }
+  | { status: 'wrong-platform'; platform: string; installerName: string }
   | { status: 'no-release' }
   | { status: 'feed-unavailable' }
   | { status: 'unreachable'; error: string }
@@ -143,9 +167,15 @@ export type DesktopProbe =
  * Asks the deployment to resolve its own installer, following no redirects:
  * the redirect's Location IS the answer, and downloading the artifact here
  * would pull hundreds of megabytes to check a link.
+ *
+ * The resolved name must carry one of the platform's installer extensions. A
+ * deployment older than Windows support ignores `?platform=windows` and
+ * redirects to the macOS DMG, which must not be reported as a Windows
+ * installer.
  */
 export async function probeDownload(
   downloadUrl: string,
+  platform: { label: string; installerExtensions: readonly string[] },
   fetchImpl: typeof fetch = fetch
 ): Promise<DesktopProbe> {
   let response: Response
@@ -166,7 +196,11 @@ export async function probeDownload(
     } catch {
       // Keep the raw Location; it is still the most useful thing to print.
     }
-    return { status: 'ok', installerUrl: location, installerName: sanitizeForTerminal(name) }
+    const installerName = sanitizeForTerminal(name)
+    const lowerName = name.toLowerCase()
+    if (!platform.installerExtensions.some((extension) => lowerName.endsWith(extension)))
+      return { status: 'wrong-platform', platform: platform.label, installerName }
+    return { status: 'ok', installerUrl: location, installerName }
   }
   if (response.status === 404) return { status: 'no-release' }
   if (response.status === 502) return { status: 'feed-unavailable' }
@@ -185,6 +219,13 @@ export function describeProbe(
   switch (probe.status) {
     case 'ok':
       return { headline: `${glyph.pass} Installer resolved: ${probe.installerName}`, hints: [] }
+    case 'wrong-platform':
+      return {
+        headline: `${glyph.fail} This deployment does not offer a ${probe.platform} desktop build (it resolved ${probe.installerName}).`,
+        hints: [
+          `Upgrade the Sim deployment to a release that publishes ${probe.platform} builds, or use the web app at ${appUrl}.`,
+        ],
+      }
     case 'no-release':
       return {
         headline: `${glyph.fail} This deployment reports no desktop release for its channel.`,
@@ -219,15 +260,16 @@ export async function runDesktop(flags: DesktopFlags): Promise<number> {
   // values`, so it is seconds of blocking work — and every bit of it is
   // discarded when --url already names the deployment.
   const appUrl = resolveDeploymentUrl(flags.url ? [] : discoverConfigurationSources(), flags.url)
-  const downloadUrl = `${appUrl}${DOWNLOAD_PATH}`
+  const platform = desktopPlatformForHost()
+  const downloadUrl = `${appUrl}${platform.downloadPath}`
 
   p.log.step(`Deployment: ${theme.accent(appUrl)}`)
 
   const spin = p.spinner()
   spin.start('Resolving the desktop installer…')
   const [probe, feedOk] = await Promise.all([
-    probeDownload(downloadUrl),
-    httpHealth(`${appUrl}${FEED_PATH}`, PROBE_TIMEOUT_MS),
+    probeDownload(downloadUrl, platform),
+    httpHealth(`${appUrl}${platform.feedPath}`, PROBE_TIMEOUT_MS),
   ])
   const { headline, hints } = describeProbe(probe, appUrl)
   spin.stop(headline)
@@ -242,7 +284,7 @@ export async function runDesktop(flags: DesktopFlags): Promise<number> {
 
   if (!feedOk) {
     p.log.warn(
-      `${FEED_PATH} did not resolve — the app will install but will not auto-update from this deployment.`
+      `${platform.feedPath} did not resolve — the app will install but will not auto-update from this deployment.`
     )
   }
 
@@ -251,13 +293,15 @@ export async function runDesktop(flags: DesktopFlags): Promise<number> {
       `1. Download and install Sim:`,
       `   ${theme.accent(downloadUrl)}`,
       '',
-      `2. Open Sim, then choose ${theme.command('Sim → Server…')} in the menu bar.`,
+      `2. Open Sim, then choose ${theme.command(platform.serverCommand)} ${platform.serverCommandWhere}.`,
       '',
       `3. Enter your server URL and press Connect:`,
       `   ${theme.accent(appUrl)}`,
       '',
       theme.muted('Sim relaunches against your deployment and updates from it from then on.'),
-      theme.muted('The desktop app is macOS-only today; the web app works everywhere.'),
+      theme.muted(
+        'The desktop app runs on macOS and Windows (x64, 10 1809 or later); the web app works everywhere.'
+      ),
     ].join('\n'),
     'Connect the desktop app'
   )

@@ -26,4 +26,35 @@ describe('describeRunningCommand', () => {
     expect(describeRunningCommand('sudo /usr/bin/docker compose up')).toBe('docker')
     expect(describeRunningCommand('env FOO=1 nohup python train.py')).toBe('python')
   })
+
+  it('names a Windows program by its file name without the directory or .exe', () => {
+    expect(describeRunningCommand('C:\\tools\\node.exe server.js', 'pwsh')).toBe('node')
+    expect(describeRunningCommand('& "C:\\Git\\bin\\git.EXE" status', 'pwsh')).toBe('git')
+  })
+
+  it('keeps a quoted program path with spaces whole', () => {
+    expect(describeRunningCommand('& "C:\\Program Files\\Git\\bin\\git.exe" status', 'pwsh')).toBe(
+      'git'
+    )
+    expect(describeRunningCommand("& 'C:\\Program Files\\nodejs\\node.exe' x", 'powershell')).toBe(
+      'node'
+    )
+    expect(describeRunningCommand('"C:\\Program Files\\Git\\bin\\git.exe" status', 'cmd')).toBe(
+      'git'
+    )
+    expect(describeRunningCommand("'/opt/my tools/bin/deploy' --prod")).toBe('deploy')
+  })
+
+  it('reads a backslash as a path separator in Windows shells, never an escape', () => {
+    expect(describeRunningCommand('cd C:\\; npm test', 'powershell')).toBe('npm')
+  })
+
+  it("honors each Windows shell's own escape character", () => {
+    expect(describeRunningCommand('echo ^& npm test', 'cmd')).toBe('echo')
+    expect(describeRunningCommand('echo `; npm test', 'pwsh')).toBe('echo')
+  })
+
+  it('reads a single quote in cmd as an ordinary character', () => {
+    expect(describeRunningCommand("echo 'a & npm test'", 'cmd')).toBe('npm')
+  })
 })

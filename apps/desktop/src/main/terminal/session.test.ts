@@ -11,23 +11,27 @@ const ptyStub = vi.hoisted(() => ({
   dataHandler: null as ((data: string) => void) | null,
   exitHandler: null as (() => void) | null,
   writes: [] as string[],
+  args: [] as string[],
 }))
 
 vi.mock('@lydell/node-pty', () => ({
-  spawn: () => ({
-    pid: 1234,
-    onData: (handler: (data: string) => void) => {
-      ptyStub.dataHandler = handler
-    },
-    onExit: (handler: () => void) => {
-      ptyStub.exitHandler = handler
-    },
-    write: (data: string) => ptyStub.writes.push(data),
-    resize: vi.fn(),
-    kill: vi.fn(),
-    pause: vi.fn(),
-    resume: vi.fn(),
-  }),
+  spawn: (_file: string, args: string[]) => {
+    ptyStub.args = args
+    return {
+      pid: 1234,
+      onData: (handler: (data: string) => void) => {
+        ptyStub.dataHandler = handler
+      },
+      onExit: (handler: () => void) => {
+        ptyStub.exitHandler = handler
+      },
+      write: (data: string) => ptyStub.writes.push(data),
+      resize: vi.fn(),
+      kill: vi.fn(),
+      pause: vi.fn(),
+      resume: vi.fn(),
+    }
+  },
 }))
 
 vi.mock('@/main/terminal/shell-integration', async (importOriginal) => {
@@ -165,6 +169,94 @@ describe('TerminalSession command lifecycle', () => {
     }
   })
 
+  it('returns the output that arrives in one chunk with its start and finish markers', async () => {
+    const session = TerminalSession.create({
+      terminalId: 'terminal-batched',
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      callbacks: { onData: () => {}, onState: () => {}, onCommand: () => {}, onExit: () => {} },
+    })
+    try {
+      const result = session.runCommand('echo sim-ok', 'tool-call-batched', 60_000)
+      // A fast command on a ConPTY: the echoed line, both markers, the output, and the next prompt
+      // flushed together.
+      ptyStub.dataHandler?.(
+        'echo sim-ok\r\n\u001b]633;C;test-nonce\u0007sim-ok\r\n\u001b]633;D;0;test-nonce\u0007\u001b]633;A;test-nonce\u0007$ '
+      )
+
+      await expect(result).resolves.toMatchObject({
+        status: 'completed',
+        exitCode: 0,
+        output: 'sim-ok',
+      })
+    } finally {
+      session.dispose()
+    }
+  })
+
+  describe('handing back a command that looks stuck on a prompt', () => {
+    function promptSession(): TerminalSession {
+      return TerminalSession.create({
+        terminalId: 'terminal-prompt',
+        cwd: '/tmp',
+        cols: 80,
+        rows: 24,
+        callbacks: { onData: () => {}, onState: () => {}, onCommand: () => {}, onExit: () => {} },
+      })
+    }
+
+    /** Whether `promise` has settled after `ms` of quiet. */
+    async function settledAfter(promise: Promise<unknown>, ms: number): Promise<boolean> {
+      let settled = false
+      void promise.then(() => {
+        settled = true
+      })
+      await vi.advanceTimersByTimeAsync(ms)
+      return settled
+    }
+
+    it('keeps waiting on a silent command whose only output is escape codes', async () => {
+      vi.useFakeTimers()
+      const session = promptSession()
+      try {
+        const result = session.runCommand('sleep 60', 'tool-call-silent', 60_000)
+        // ConPTY repaints the cursor and resets colour after the command line is echoed.
+        ptyStub.dataHandler?.('\u001b]633;C;test-nonce\u0007\u001b[?25h\u001b[m')
+
+        expect(await settledAfter(result, 5_000)).toBe(false)
+        ptyStub.dataHandler?.('\u001b]633;D;0;test-nonce\u0007')
+        await expect(result).resolves.toMatchObject({ status: 'completed' })
+      } finally {
+        session.dispose()
+      }
+    })
+
+    it.each([
+      ['Stop', (session: TerminalSession) => session.interrupt()],
+      ['the agent', (session: TerminalSession) => session.sendKey('ctrl-c')],
+      ['the user typing in the panel', (session: TerminalSession) => session.write('\u0003')],
+    ])(
+      "never reads an interrupted command's ^C echo as a prompt, sent by %s",
+      async (_by, interrupt) => {
+        vi.useFakeTimers()
+        const session = promptSession()
+        try {
+          const result = session.runCommand('stubborn', 'tool-call-stop', 60_000)
+          ptyStub.dataHandler?.('\u001b]633;C;test-nonce\u0007working\r\n')
+          interrupt(session)
+          ptyStub.dataHandler?.('^C')
+
+          expect(await settledAfter(result, 5_000)).toBe(false)
+          ptyStub.dataHandler?.('\u001b]633;D;143;test-nonce\u0007')
+          await expect(result).resolves.toMatchObject({ status: 'completed', exitCode: 143 })
+        } finally {
+          session.dispose()
+        }
+      }
+    )
+  })
+
   it('stops pressing a batch of keys once the call is stopped', async () => {
     vi.useFakeTimers()
     const session = TerminalSession.create({
@@ -217,6 +309,179 @@ describe('TerminalSession command lifecycle', () => {
       expect(ptyStub.writes.slice(writesBefore)).toEqual(['first'])
     } finally {
       clearInterval(redraw)
+      session.dispose()
+    }
+  })
+})
+
+describe('waiting for the prompt before typing a command', () => {
+  const marker = (body: string) => `\u001b]633;${body};test-nonce\u0007`
+
+  function promptSession(): TerminalSession {
+    return TerminalSession.create({
+      terminalId: 'terminal-prompt-drawn',
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      callbacks: { onData: () => {}, onState: () => {}, onCommand: () => {}, onExit: () => {} },
+    })
+  }
+
+  async function settledAfter(promise: Promise<unknown>, ms: number): Promise<boolean> {
+    let settled = false
+    void promise.then(() => {
+      settled = true
+    })
+    await vi.advanceTimersByTimeAsync(ms)
+    return settled
+  }
+
+  it('waits, in a shell that reports it, until the next prompt is drawn', async () => {
+    vi.useFakeTimers()
+    const session = promptSession()
+    try {
+      ptyStub.dataHandler?.(`${marker('A')}$ ${marker('B')}`)
+      // The last command just finished: its prompt is not drawn yet.
+      ptyStub.dataHandler?.(`${marker('D;0')}${marker('A')}`)
+      const drawn = session.waitForPromptDrawn()
+
+      expect(await settledAfter(drawn, 500)).toBe(false)
+      ptyStub.dataHandler?.(`$ ${marker('B')}`)
+      expect(await settledAfter(drawn, 0)).toBe(true)
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it('never waits on a shell that does not report its prompt', async () => {
+    vi.useFakeTimers()
+    const session = promptSession()
+    try {
+      ptyStub.dataHandler?.(`${marker('D;0')}${marker('A')}`)
+      expect(await settledAfter(session.waitForPromptDrawn(), 0)).toBe(true)
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it('types anyway once a prompt that reports itself is slow to come', async () => {
+    vi.useFakeTimers()
+    const session = promptSession()
+    try {
+      ptyStub.dataHandler?.(`${marker('A')}$ ${marker('B')}${marker('A')}`)
+      expect(await settledAfter(session.waitForPromptDrawn(), 2_100)).toBe(true)
+    } finally {
+      session.dispose()
+    }
+  })
+})
+
+describe('TerminalSession on Windows', () => {
+  const marker = (body: string) => `\u001b]633;${body};test-nonce\u0007`
+
+  function sessionOn(
+    platform: NodeJS.Platform,
+    onData: (terminalId: string, data: string) => void = () => {}
+  ): TerminalSession {
+    return TerminalSession.create({
+      terminalId: 'terminal-windows',
+      cwd: 'C:\\Users\\me',
+      cols: 80,
+      rows: 24,
+      platform,
+      callbacks: { onData, onState: () => {}, onCommand: () => {}, onExit: () => {} },
+    })
+  }
+
+  const DEVICE_ATTRIBUTES_REPLY = '\u001b[?1;2c'
+
+  it("answers ConPTY's startup query once, which otherwise holds the shell back for 3 s", async () => {
+    vi.useFakeTimers()
+    let painted = ''
+    const session = sessionOn('win32', (_id, data) => {
+      painted += data
+    })
+    try {
+      ptyStub.dataHandler?.('\u001b[1t')
+      ptyStub.dataHandler?.('\u001b[c\u001b[?1004h')
+      // A program's own query later on is the panel's to answer.
+      ptyStub.dataHandler?.('\u001b[c')
+      await vi.advanceTimersByTimeAsync(50)
+
+      expect(ptyStub.writes.filter((write) => write === DEVICE_ATTRIBUTES_REPLY)).toHaveLength(1)
+      expect(painted).toBe('\u001b[1t\u001b[?1004h\u001b[c')
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it.each([
+    [['\u001b[1t\u001b', '[c\u001b[?1004h']],
+    [['\u001b[1t\u001b[', 'c\u001b[?1004h']],
+    [['\u001b[1t\u001b', '[', 'c\u001b[?1004h']],
+  ])('answers the startup query when ConPTY splits it across chunks: %j', async (chunks) => {
+    vi.useFakeTimers()
+    let painted = ''
+    const session = sessionOn('win32', (_id, data) => {
+      painted += data
+    })
+    try {
+      for (const chunk of chunks) ptyStub.dataHandler?.(chunk)
+      await vi.advanceTimersByTimeAsync(50)
+
+      expect(ptyStub.writes.filter((write) => write === DEVICE_ATTRIBUTES_REPLY)).toHaveLength(1)
+      expect(painted).toBe('\u001b[1t\u001b[?1004h')
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it('releases a held escape the next chunk shows was not the query', async () => {
+    vi.useFakeTimers()
+    let painted = ''
+    const session = sessionOn('win32', (_id, data) => {
+      painted += data
+    })
+    try {
+      ptyStub.dataHandler?.('\u001b[1t\u001b[')
+      ptyStub.dataHandler?.('?1004h')
+      await vi.advanceTimersByTimeAsync(50)
+
+      expect(painted).toBe('\u001b[1t\u001b[?1004h')
+      expect(ptyStub.writes).not.toContain(DEVICE_ATTRIBUTES_REPLY)
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it('leaves the startup query of a macOS shell to the panel', async () => {
+    vi.useFakeTimers()
+    const session = sessionOn('darwin')
+    try {
+      ptyStub.dataHandler?.('\u001b[c')
+      await vi.advanceTimersByTimeAsync(50)
+
+      expect(ptyStub.writes).not.toContain(DEVICE_ATTRIBUTES_REPLY)
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it('starts the shell without the POSIX login flag, which Windows shells reject', () => {
+    const session = sessionOn('win32')
+    try {
+      expect(ptyStub.args).not.toContain('-l')
+    } finally {
+      session.dispose()
+    }
+  })
+
+  it('names the tab after the last folder of a Windows path', () => {
+    const session = sessionOn('win32')
+    try {
+      ptyStub.dataHandler?.(marker('P;Cwd=D:\\\\work\\\\project'))
+      expect(session.tabState(true).title).toBe('project')
+    } finally {
       session.dispose()
     }
   })

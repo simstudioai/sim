@@ -26,31 +26,37 @@ describe('scrubUrl', () => {
 })
 
 describe('createEventLog', () => {
-  it('creates its directory and log with private permissions', () => {
-    const root = mkdtempSync(join(tmpdir(), 'sim-desktop-events-'))
-    const dir = join(root, 'logs')
-    const events = createEventLog(dir)
-    events.record('app_launch')
+  it.skipIf(process.platform === 'win32')(
+    'creates its directory and log with private permissions',
+    () => {
+      const root = mkdtempSync(join(tmpdir(), 'sim-desktop-events-'))
+      const dir = join(root, 'logs')
+      const events = createEventLog(dir)
+      events.record('app_launch')
 
-    expect(statSync(dir).mode & 0o777).toBe(0o700)
-    expect(statSync(events.filePath).mode & 0o777).toBe(0o600)
-  })
+      expect(statSync(dir).mode & 0o777).toBe(0o700)
+      expect(statSync(events.filePath).mode & 0o777).toBe(0o600)
+    }
+  )
 
-  it('reports permission failures without exposing local paths or OS errors', () => {
-    const root = mkdtempSync(join(tmpdir(), 'sim-desktop-events-'))
-    const overlongDir = join(root, 'x'.repeat(300))
+  it.skipIf(process.platform === 'win32')(
+    'reports permission failures without exposing local paths or OS errors',
+    () => {
+      const root = mkdtempSync(join(tmpdir(), 'sim-desktop-events-'))
+      const overlongDir = join(root, 'x'.repeat(300))
 
-    const events = createEventLog(overlongDir)
-    events.record('app_launch')
+      const events = createEventLog(overlongDir)
+      events.record('app_launch')
 
-    expect(mockLogger.warn.mock.calls).toEqual([
-      ['Could not apply private desktop event-log permissions', { target: 'directory' }],
-      ['Could not apply private desktop event-log permissions', { target: 'current-log' }],
-      ['Could not apply private desktop event-log permissions', { target: 'rotated-log' }],
-    ])
-    expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(root)
-    expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain('ENAMETOOLONG')
-  })
+      expect(mockLogger.warn.mock.calls).toEqual([
+        ['Could not apply private desktop event-log permissions', { target: 'directory' }],
+        ['Could not apply private desktop event-log permissions', { target: 'current-log' }],
+        ['Could not apply private desktop event-log permissions', { target: 'rotated-log' }],
+      ])
+      expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(root)
+      expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain('ENAMETOOLONG')
+    }
+  )
 })
 
 describe('installMainProcessFailureObservers', () => {

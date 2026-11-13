@@ -35,7 +35,15 @@
  */
 import { spawnSync } from 'node:child_process'
 import { rmSync } from 'node:fs'
+import { createLogger } from '@sim/logger'
 import { ALL_CHANNELS, type ChannelIdentity, identityForOrigin } from './channels'
+
+if (process.platform !== 'darwin') {
+  createLogger('DesktopPackageShare').error(
+    'package:share builds macOS dmg/zip artifacts and only runs on macOS. On Windows, use `bun run package:win`.'
+  )
+  process.exit(1)
+}
 
 const FLAG_TO_CHANNEL: Record<string, ChannelIdentity> = Object.fromEntries(
   ALL_CHANNELS.map((channel) => [

@@ -17,16 +17,26 @@
  */
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { join, sep } from 'node:path'
+import { programName } from '@sim/terminal-protocol'
+
+const SUPPORTED_SHELLS = ['zsh', 'bash', 'pwsh', 'powershell'] as const
 
 /** Shells we can install prompt hooks into. */
-export type SupportedShell = 'zsh' | 'bash'
+export type SupportedShell = (typeof SUPPORTED_SHELLS)[number]
+
+/**
+ * A shell's program name, as it is reported to the agent: no directory (either
+ * separator), no login dash, no `.exe`. `C:\Windows\...\PowerShell.exe` is
+ * `powershell`, `-zsh` is `zsh`.
+ */
+export function shellKind(shellPath: string): string {
+  return programName(shellPath).replace(/^-/, '').toLowerCase()
+}
 
 export function detectShell(shellPath: string): SupportedShell | null {
-  const name = basename(shellPath)
-  if (name === 'zsh' || name === '-zsh') return 'zsh'
-  if (name === 'bash' || name === '-bash') return 'bash'
-  return null
+  const kind = shellKind(shellPath)
+  return SUPPORTED_SHELLS.find((shell) => shell === kind) ?? null
 }
 
 export function createNonce(): string {
@@ -35,7 +45,8 @@ export function createNonce(): string {
 
 /**
  * Marker kinds we act on. `A` (prompt start) doubles as the "integration is
- * live" signal; `C`/`D` bracket a command's output; `E` reports the exact
+ * live" signal; `B` (prompt end) says the prompt is drawn and reading input;
+ * `C`/`D` bracket a command's output; `E` reports the exact
  * command line; `P` tracks the working directory across `cd`. `SimStartup` is
  * ours, not VS Code's: the shell sends it before running the user's startup
  * files, so a shell that is still starting can be told from one we never
@@ -44,21 +55,28 @@ export function createNonce(): string {
 export type ShellMarker =
   | { kind: 'startup' }
   | { kind: 'prompt-start' }
+  | { kind: 'prompt-end' }
   | { kind: 'command-line'; command: string }
   | { kind: 'output-start' }
   | { kind: 'output-end'; exitCode: number }
   | { kind: 'cwd'; cwd: string }
 
-export interface ParseResult {
-  /** Stream with the OSC 633 sequences removed, safe to hand to xterm.js. */
-  text: string
-  markers: ShellMarker[]
-}
+/**
+ * One piece of the stream, in the order the shell wrote it: a run of display text with the OSC 633
+ * sequences removed, or a marker. Order matters because a pty chunk can carry a command's start
+ * marker, its output, and its finish marker together; read apart, the output cannot be told from
+ * the text either side of it.
+ */
+type ParseSegment = { kind: 'text'; text: string } | ShellMarker
 
-/** Undoes the escaping applied by the shell hooks. */
+/**
+ * Undoes the escaping applied by the shell hooks: `\\` is one backslash and
+ * `\xHH` one character. Both are read in one pass, so `C:\x3b`, which the
+ * hooks send as `C:\\x3b`, comes back unchanged rather than as `C:\;`.
+ */
 function unescapeValue(value: string): string {
-  return value.replace(/\\x([0-9a-fA-F]{2})/g, (_match, hex: string) =>
-    String.fromCharCode(Number.parseInt(hex, 16))
+  return value.replace(/\\(?:\\|x([0-9a-fA-F]{2}))/g, (_match, hex: string | undefined) =>
+    hex === undefined ? '\\' : String.fromCharCode(Number.parseInt(hex, 16))
   )
 }
 
@@ -79,11 +97,11 @@ export class ShellIntegrationParser {
    */
   private static readonly MAX_PENDING = 8192
 
-  parse(chunk: string): ParseResult {
+  parse(chunk: string): ParseSegment[] {
     const buffer = this.pending + chunk
     this.pending = ''
 
-    const markers: ShellMarker[] = []
+    const segments: ParseSegment[] = []
     let text = ''
     let index = 0
 
@@ -110,11 +128,16 @@ export class ShellIntegrationParser {
 
       const body = buffer.slice(start + '\u001b]633;'.length, terminator.index)
       const marker = this.toMarker(body)
-      if (marker) markers.push(marker)
+      if (marker) {
+        if (text) segments.push({ kind: 'text', text })
+        text = ''
+        segments.push(marker)
+      }
       index = terminator.index + terminator.length
     }
 
-    return { text, markers }
+    if (text) segments.push({ kind: 'text', text })
+    return segments
   }
 
   private toMarker(body: string): ShellMarker | null {
@@ -131,6 +154,8 @@ export class ShellIntegrationParser {
         return { kind: 'startup' }
       case 'A':
         return { kind: 'prompt-start' }
+      case 'B':
+        return { kind: 'prompt-end' }
       case 'C':
         return { kind: 'output-start' }
       case 'D': {
@@ -215,6 +240,7 @@ __sim_preexec() {
 
 __sim_precmd() {
   local st=$?
+  __sim_at_prompt=1
   # Cwd is reported before the finish marker so a \`cd\` is already visible by
   # the time the command's result is resolved.
   builtin printf '\\e]633;P;Cwd=%s;%s\\a' "$(__sim_esc "$PWD")" "$__sim_nonce"
@@ -239,38 +265,62 @@ add-zsh-hook precmd __sim_precmd
 /**
  * bash has no preexec hook, so command start is detected with a DEBUG trap and
  * command end from PROMPT_COMMAND. The trap fires once per command in a
- * pipeline, hence the in-command latch.
+ * pipeline, hence the in-command latch, and for every command PROMPT_COMMAND
+ * runs, hence the at-prompt latch: set by `__sim_precmd` and cleared only by
+ * `__sim_prompt_end`, so the user's own PROMPT_COMMAND never counts as a command.
+ * The parts of PROMPT_COMMAND are joined by newlines, which parse after any user
+ * value, including one ending in `;` (`history -a; `) or a newline.
  */
 function writeBashFile(dir: string, nonce: string): string {
   const rcPath = join(dir, 'sim-bash-rc.sh')
   writeFileSync(
     rcPath,
     `builtin printf '\\e]633;SimStartup;%s\\a' '${nonce}'
+# MSYS and Cygwin (Git Bash) set up PATH, /usr/bin included, in /etc/profile, which only a login
+# shell reads; their cwd is a POSIX path (/c/..., /tmp) that only cygpath can map to Windows.
+# Starting a process is slow there, so cygpath runs only when the directory changed.
+if [ -x /usr/bin/cygpath ]; then
+  [ -f /etc/profile ] && builtin source /etc/profile
+  __sim_cwd_of=''
+  __sim_cwd() {
+    [ "$PWD" = "$__sim_cwd_of" ] && return
+    __sim_cwd_of=$PWD
+    __sim_cwd_value=$(/usr/bin/cygpath -w "$PWD" 2>/dev/null) || __sim_cwd_value=$PWD
+  }
+else
+  __sim_cwd() { __sim_cwd_value=$PWD; }
+fi
 [ -f "$HOME/.bashrc" ] && builtin source "$HOME/.bashrc"
 
 __sim_nonce='${nonce}'
 __sim_in_cmd=''
+__sim_at_prompt=1
 
+# Sets __sim_escaped rather than printing it, so no subshell is forked to read it.
 __sim_esc() {
-  local s=\${1//\\\\/\\\\\\\\}
-  s=\${s//;/\\\\x3b}
-  s=\${s//$'\\n'/\\\\x0a}
-  builtin printf '%s' "$s"
+  __sim_escaped=\${1//\\\\/\\\\\\\\}
+  __sim_escaped=\${__sim_escaped//;/\\\\x3b}
+  __sim_escaped=\${__sim_escaped//$'\\n'/\\\\x0a}
 }
 
 __sim_preexec() {
   case "$BASH_COMMAND" in __sim_*) return ;; esac
+  [ -n "$__sim_at_prompt" ] && return
   [ -n "$__sim_in_cmd" ] && return
   __sim_in_cmd=1
-  builtin printf '\\e]633;E;%s;%s\\a' "$(__sim_esc "$BASH_COMMAND")" "$__sim_nonce"
+  __sim_esc "$BASH_COMMAND"
+  builtin printf '\\e]633;E;%s;%s\\a' "$__sim_escaped" "$__sim_nonce"
   builtin printf '\\e]633;C;%s\\a' "$__sim_nonce"
 }
 
 __sim_precmd() {
   local st=$?
+  __sim_at_prompt=1
   # Cwd is reported before the finish marker so a \`cd\` is already visible by
   # the time the command's result is resolved.
-  builtin printf '\\e]633;P;Cwd=%s;%s\\a' "$(__sim_esc "$PWD")" "$__sim_nonce"
+  __sim_cwd
+  __sim_esc "$__sim_cwd_value"
+  builtin printf '\\e]633;P;Cwd=%s;%s\\a' "$__sim_escaped" "$__sim_nonce"
   if [ -n "$__sim_in_cmd" ]; then
     builtin printf '\\e]633;D;%s;%s\\a' "$st" "$__sim_nonce"
   fi
@@ -279,11 +329,125 @@ __sim_precmd() {
   return $st
 }
 
+# The prompt-end marker rides at the end of PS1, so it is drawn by readline itself, once the
+# prompt is up and reading. Appended after the user's PROMPT_COMMAND, which may rebuild PS1.
+__sim_prompt_end() {
+  local st=$? marker="\\[\\e]633;B;\${__sim_nonce}\\a\\]"
+  case "$PS1" in *"$marker") ;; *) PS1="$PS1$marker" ;; esac
+  __sim_at_prompt=''
+  return $st
+}
+
+# Set before the trap, so assigning it is not reported as a command.
+PROMPT_COMMAND="__sim_precmd
+$PROMPT_COMMAND
+__sim_prompt_end"
 trap '__sim_preexec' DEBUG
-PROMPT_COMMAND="__sim_precmd\${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
 `
   )
   return rcPath
+}
+
+/**
+ * PowerShell (7 and Windows PowerShell 5.1) has no preexec hook either. The
+ * command line is caught by wrapping PSReadLine's `PSConsoleHostReadLine`,
+ * which returns each line the user accepts, and the finish by wrapping
+ * `prompt`. Without PSReadLine there is no line to report, so nothing is
+ * installed and the agent is refused as for any uninstrumented shell.
+ *
+ * The shell starts with `-NoProfile` and this script loads the profiles
+ * itself, in PowerShell's own order, so the startup marker goes out before any
+ * of the user's code runs and the hooks wrap the prompt their profile set
+ * (oh-my-posh, starship) rather than being replaced by it. The script travels
+ * as `-EncodedCommand` because a `.ps1` file is refused under Windows
+ * PowerShell's default `Restricted` execution policy; the profiles stay under
+ * the user's policy exactly as they would without us.
+ *
+ * The exit code is 0 when the line succeeded, else `$LASTEXITCODE` when a
+ * native program the line ran set a failing one, else 1 (a failing cmdlet has
+ * no code). `$LASTEXITCODE` outlives the line that set it, so it counts as this
+ * line's only when it changed, or when it is unchanged and the line added no
+ * error record (a native program failing with the same code again); a failing
+ * cmdlet after a failing program is 1, not that program's code. Both are only
+ * read, so the user's own `$LASTEXITCODE` and `$Error` are left as they were.
+ */
+function powerShellScript(nonce: string): string {
+  return String.raw`$Global:__SimNonce = '${nonce}'
+$Global:__SimInCommand = $false
+
+function Global:__Sim-Osc([string]$Body) {
+  "$([char]27)]633;$Body;$Global:__SimNonce$([char]7)"
+}
+
+function Global:__Sim-Escape([string]$Value) {
+  [regex]::Replace($Value, '[\\;\x00-\x1f]', {
+    param($m)
+    if ($m.Value -eq '\') { '\\' } else { '\x{0:x2}' -f [int][char]$m.Value }
+  })
+}
+
+[Console]::Write((__Sim-Osc 'SimStartup'))
+
+foreach ($__simProfile in @($PROFILE.AllUsersAllHosts, $PROFILE.AllUsersCurrentHost, $PROFILE.CurrentUserAllHosts, $PROFILE.CurrentUserCurrentHost)) {
+  if ($__simProfile -and (Test-Path -LiteralPath $__simProfile -PathType Leaf)) {
+    try { . $__simProfile } catch { Write-Error -ErrorRecord $_ }
+  }
+}
+Remove-Variable -Name __simProfile -ErrorAction SilentlyContinue
+
+if (-not (Get-Module -Name PSReadLine)) { Import-Module PSReadLine -ErrorAction SilentlyContinue }
+
+if (Test-Path -Path Function:\PSConsoleHostReadLine) {
+  # Sim clears a half-typed line with Ctrl+U before typing a command; Windows mode leaves it unbound.
+  try {
+    if (-not (Get-PSReadLineKeyHandler -Bound | Where-Object { $_.Key -eq 'Ctrl+u' })) {
+      Set-PSReadLineKeyHandler -Chord 'Ctrl+u' -Function BackwardDeleteLine
+    }
+  } catch {}
+
+  $Global:__SimReadLine = $function:PSConsoleHostReadLine
+  function Global:PSConsoleHostReadLine {
+    $line = & $Global:__SimReadLine
+    if (-not [string]::IsNullOrWhiteSpace($line)) {
+      $Global:__SimInCommand = $true
+      $Global:__SimLastExitCode = $global:LASTEXITCODE
+      $Global:__SimLastError = if ($global:Error.Count -gt 0) { $global:Error[0] } else { $null }
+      [Console]::Write((__Sim-Osc "E;$(__Sim-Escape $line)") + (__Sim-Osc 'C'))
+    }
+    $line
+  }
+
+  $Global:__SimPrompt = $function:prompt
+  if (-not $Global:__SimPrompt) { $Global:__SimPrompt = { "PS $($PWD.Path)> " } }
+  function Global:prompt {
+    $succeeded = $global:?
+    $nativeExitCode = $global:LASTEXITCODE
+    # Cwd is reported before the finish marker so a cd is already visible by the time the
+    # command's result is resolved.
+    $markers = ''
+    if ($PWD.Provider.Name -eq 'FileSystem') {
+      $markers += (__Sim-Osc "P;Cwd=$(__Sim-Escape $PWD.ProviderPath)")
+    }
+    if ($Global:__SimInCommand) {
+      $Global:__SimInCommand = $false
+      $newError = $global:Error.Count -gt 0 -and -not [object]::ReferenceEquals($global:Error[0], $Global:__SimLastError)
+      $nativeRan = $nativeExitCode -is [int] -and ($nativeExitCode -ne $Global:__SimLastExitCode -or -not $newError)
+      $exitCode = if ($succeeded) { 0 } elseif ($nativeRan -and $nativeExitCode -ne 0) { $nativeExitCode } else { 1 }
+      $markers += (__Sim-Osc "D;$exitCode")
+    }
+    $markers += (__Sim-Osc 'A')
+    # Hands the user's prompt the $? it would have seen, for prompts that show the last result.
+    if (-not $succeeded) { Write-Error 'failure' -ErrorAction Ignore }
+    $userPrompt = (& $Global:__SimPrompt) -join ''
+    $markers + $userPrompt + (__Sim-Osc 'B')
+  }
+}
+`
+}
+
+/** PowerShell's `-EncodedCommand` takes base64 of UTF-16LE text. */
+function encodePowerShellCommand(script: string): string {
+  return Buffer.from(script, 'utf16le').toString('base64')
 }
 
 export interface ShellLaunch {
@@ -301,6 +465,19 @@ export function buildShellLaunch(
   nonce: string,
   env: Record<string, string>
 ): ShellLaunch {
+  if (shell === 'pwsh' || shell === 'powershell') {
+    return {
+      args: [
+        '-NoLogo',
+        '-NoProfile',
+        '-NoExit',
+        '-EncodedCommand',
+        encodePowerShellCommand(powerShellScript(nonce)),
+      ],
+      env: {},
+    }
+  }
+
   mkdirSync(dir, { recursive: true })
 
   if (shell === 'zsh') {
@@ -312,7 +489,9 @@ export function buildShellLaunch(
   }
 
   const rcPath = writeBashFile(dir, nonce)
+  // Git Bash reads `C:/...` without the MS-DOS path warning `C:\...` can raise.
+  const initFile = sep === '\\' ? rcPath.replaceAll('\\', '/') : rcPath
   // `--init-file` is honoured only by interactive non-login bash, so the login
   // flag is deliberately omitted here; the generated file sources ~/.bashrc.
-  return { args: ['--init-file', rcPath, '-i'], env: {} }
+  return { args: ['--init-file', initFile, '-i'], env: {} }
 }

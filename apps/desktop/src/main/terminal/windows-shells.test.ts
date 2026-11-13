@@ -1,0 +1,313 @@
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import type { TerminalRunResult } from '@sim/terminal-protocol'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { TerminalService } from '@/main/terminal'
+
+/**
+ * The agent terminal against the real Windows shells: node-pty's ConPTY, the PowerShell and Git
+ * Bash integration, and the Windows Stop path, nothing stubbed. Runs only on Windows, and each
+ * shell only where it is installed (windows-latest has all three).
+ */
+const WINDOWS_POWERSHELL = join(
+  process.env.SystemRoot ?? 'C:\\Windows',
+  'System32',
+  'WindowsPowerShell',
+  'v1.0',
+  'powershell.exe'
+)
+
+interface ShellUnderTest {
+  name: string
+  path: string
+  /** Prints `sim-ok-<n>`. */
+  succeed(n: number): string
+  fail: string
+  /** A cmdlet that fails, which sets no exit code of its own. */
+  failingCmdlet?: string
+  /** A Windows path as a quoted argument this shell reads. */
+  quote(path: string): string
+  cd: string
+  /** What runs a program named by a quoted path. */
+  call: string
+  /** Starts a quoted program with quoted arguments in the background, as a user would. */
+  background(program: string, args: string[]): string
+}
+
+const POWERSHELL: Omit<ShellUnderTest, 'name' | 'path'> = {
+  succeed: (n) => `Write-Output sim-ok-${n}`,
+  fail: 'cmd /c exit 3',
+  failingCmdlet: 'Get-Item -LiteralPath C:\\sim-does-not-exist',
+  quote: (path) => `'${path}'`,
+  cd: 'Set-Location -LiteralPath',
+  call: '&',
+  background: (program, args) =>
+    `Start-Process -WindowStyle Hidden -FilePath ${program} -ArgumentList ${args.join(',')}`,
+}
+
+const SHELLS: ShellUnderTest[] = [
+  { name: 'PowerShell 7', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', ...POWERSHELL },
+  { name: 'Windows PowerShell 5.1', path: WINDOWS_POWERSHELL, ...POWERSHELL },
+  {
+    name: 'Git Bash',
+    path: 'C:\\Program Files\\Git\\bin\\bash.exe',
+    succeed: (n) => `echo sim-ok-${n}`,
+    fail: "sh -c 'exit 3'",
+    quote: (path) => `'${path.replaceAll('\\', '/')}'`,
+    cd: 'cd',
+    call: '',
+    background: (program, args) => `${program} ${args.join(' ')} &`,
+  },
+]
+
+/** Ctrl-C reaches this as a keystroke rather than a signal, so it cannot interrupt it. */
+const STUBBORN_SCRIPT = `param($PidFile)
+[Console]::TreatControlCAsInput = $true
+Set-Content -LiteralPath $PidFile -Value $PID
+Start-Sleep -Seconds 120
+`
+
+/**
+ * A server left running in the background: up at once, it starts a worker of its own only once
+ * `TriggerFile` appears, so the worker is newer than a command that runs meanwhile.
+ */
+const BACKGROUND_SCRIPT = `param($PidFile, $TriggerFile, $WorkerScript, $WorkerPidFile)
+[Console]::TreatControlCAsInput = $true
+Set-Content -LiteralPath $PidFile -Value $PID
+$deadline = (Get-Date).AddSeconds(60)
+while (-not (Test-Path -LiteralPath $TriggerFile) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
+Start-Process -WindowStyle Hidden -FilePath (Join-Path $PSHOME 'powershell.exe') -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $WorkerScript + '"'), ('"' + $WorkerPidFile + '"')
+Start-Sleep -Seconds 120
+`
+
+/** Enough runs that output lost to a reordering ConPTY (a quarter of runs or more) shows. */
+const OUTPUT_RUNS = 12
+
+/** A shell's first start on a cold CI runner, then the Stop escalation, take a while. */
+const SHELL_TEST_TIMEOUT_MS = 90_000
+
+function scratchDirectory(): string {
+  return realpathSync.native(mkdtempSync(join(tmpdir(), 'sim-windows-shell-')))
+}
+
+/** The pid a stubborn script wrote once it is up. */
+async function readPid(pidFile: string): Promise<number> {
+  const pid = () => (existsSync(pidFile) ? Number.parseInt(readFileSync(pidFile, 'utf8'), 10) : 0)
+  await vi.waitFor(() => expect(pid()).toBeGreaterThan(0), { timeout: 30_000, interval: 100 })
+  return pid()
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function run(
+  service: TerminalService,
+  toolCallId: string,
+  command: string
+): Promise<TerminalRunResult> {
+  const response = await service.executeTool(toolCallId, 'run', { command, waitSeconds: 60 })
+  expect(response).toMatchObject({ ok: true })
+  return response.result as TerminalRunResult
+}
+
+describe.runIf(process.platform === 'win32')('the agent terminal on Windows', () => {
+  let service: TerminalService | null = null
+
+  afterEach(() => {
+    service?.dispose()
+    service = null
+  })
+
+  function open(shell: ShellUnderTest, cwd = scratchDirectory()): TerminalService {
+    vi.stubEnv('SHELL', shell.path)
+    service = new TerminalService({ loadCwd: () => cwd })
+    return service
+  }
+
+  describe.each(SHELLS)('$name', (shell) => {
+    const installed = existsSync(shell.path)
+
+    it.runIf(installed)(
+      "reports each successful command's output and exit code",
+      async () => {
+        const terminal = open(shell)
+        // Repeated: a ConPTY that reorders output past the finish marker loses it only some runs.
+        for (let n = 0; n < OUTPUT_RUNS; n++) {
+          const result = await run(terminal, `call-ok-${n}`, shell.succeed(n))
+
+          expect(result).toMatchObject({ status: 'completed', exitCode: 0 })
+          expect(result.output).toContain(`sim-ok-${n}`)
+        }
+      },
+      SHELL_TEST_TIMEOUT_MS
+    )
+
+    it.runIf(installed)(
+      "reports a failing program's own exit code",
+      async () => {
+        const result = await run(open(shell), 'call-fail', shell.fail)
+
+        expect(result).toMatchObject({ status: 'completed', exitCode: 3 })
+      },
+      SHELL_TEST_TIMEOUT_MS
+    )
+
+    it.runIf(installed && shell.failingCmdlet !== undefined)(
+      "reports a failing cmdlet as 1, never an earlier program's code, and keeps that code for the user",
+      async () => {
+        const terminal = open(shell)
+        expect(await run(terminal, 'call-native', shell.fail)).toMatchObject({ exitCode: 3 })
+
+        const result = await run(terminal, 'call-cmdlet', shell.failingCmdlet ?? '')
+
+        expect(result).toMatchObject({ status: 'completed', exitCode: 1 })
+        const after = await run(terminal, 'call-code', 'Write-Output "code-$LASTEXITCODE"')
+        expect(after.output).toContain('code-3')
+        // The same failing code again is still the program's, not a stale one.
+        expect(await run(terminal, 'call-native-again', shell.fail)).toMatchObject({ exitCode: 3 })
+      },
+      SHELL_TEST_TIMEOUT_MS
+    )
+
+    it.runIf(installed)(
+      'follows the working directory across cd, in Windows form',
+      async () => {
+        const directory = join(scratchDirectory(), 'my project')
+        mkdirSync(directory)
+
+        const result = await run(open(shell), 'call-cd', `${shell.cd} ${shell.quote(directory)}`)
+
+        expect(result.exitCode).toBe(0)
+        expect(result.cwd?.toLowerCase()).toBe(directory.toLowerCase())
+      },
+      SHELL_TEST_TIMEOUT_MS
+    )
+
+    it.runIf(installed)(
+      'Stop ends a command that ignores Ctrl-C, spares earlier background work and its new workers, and leaves the shell usable',
+      async () => {
+        const scratch = scratchDirectory()
+        const script = join(scratch, 'stubborn.ps1')
+        const backgroundScript = join(scratch, 'background.ps1')
+        const backgroundPidFile = join(scratch, 'background-pid')
+        const triggerFile = join(scratch, 'start-worker')
+        const workerPidFile = join(scratch, 'worker-pid')
+        const pidFile = join(scratch, 'pid')
+        writeFileSync(script, STUBBORN_SCRIPT)
+        writeFileSync(backgroundScript, BACKGROUND_SCRIPT)
+        const terminal = open(shell, scratch)
+        const stubbornArgs = (pidPath: string) => [
+          "'-NoProfile'",
+          "'-ExecutionPolicy'",
+          "'Bypass'",
+          "'-File'",
+          shell.quote(script),
+          shell.quote(pidPath),
+        ]
+        const command = [shell.call, shell.quote(WINDOWS_POWERSHELL), ...stubbornArgs(pidFile)]
+          .filter(Boolean)
+          .join(' ')
+
+        // A server the user left running in this shell before the agent's command.
+        await run(
+          terminal,
+          'call-background',
+          shell.background(shell.quote(WINDOWS_POWERSHELL), [
+            "'-NoProfile'",
+            "'-ExecutionPolicy'",
+            "'Bypass'",
+            "'-File'",
+            shell.quote(backgroundScript),
+            shell.quote(backgroundPidFile),
+            shell.quote(triggerFile),
+            shell.quote(script),
+            shell.quote(workerPidFile),
+          ])
+        )
+        const backgroundPid = await readPid(backgroundPidFile)
+        let workerPid = 0
+        try {
+          const running = run(terminal, 'call-stubborn', command)
+          const pid = await readPid(pidFile)
+          // The server starts a worker while the agent's command runs.
+          writeFileSync(triggerFile, '')
+          workerPid = await readPid(workerPidFile)
+
+          await expect(terminal.cancelTool('call-stubborn')).resolves.toBe(true)
+          expect(await running).toMatchObject({ status: 'completed' })
+          expect(isAlive(pid)).toBe(false)
+          expect(isAlive(backgroundPid)).toBe(true)
+          expect(isAlive(workerPid)).toBe(true)
+          expect(await run(terminal, 'call-after', shell.succeed(0))).toMatchObject({
+            exitCode: 0,
+          })
+        } finally {
+          for (const leftover of [workerPid, backgroundPid]) {
+            if (leftover > 0 && isAlive(leftover)) process.kill(leftover)
+          }
+        }
+      },
+      SHELL_TEST_TIMEOUT_MS
+    )
+
+    it.runIf(installed)(
+      "a terminating kill ends the agent's command, never the shell",
+      async () => {
+        const scratch = scratchDirectory()
+        const script = join(scratch, 'stubborn.ps1')
+        const pidFile = join(scratch, 'pid')
+        writeFileSync(script, STUBBORN_SCRIPT)
+        const terminal = open(shell, scratch)
+        const command = [
+          shell.call,
+          shell.quote(WINDOWS_POWERSHELL),
+          "'-NoProfile'",
+          "'-ExecutionPolicy'",
+          "'Bypass'",
+          "'-File'",
+          shell.quote(script),
+          shell.quote(pidFile),
+        ]
+          .filter(Boolean)
+          .join(' ')
+
+        const handedBack = await terminal.executeTool('call-stubborn', 'run', {
+          command,
+          waitSeconds: 1,
+        })
+        expect(handedBack).toMatchObject({ ok: true, result: { status: 'running' } })
+        const pid = await readPid(pidFile)
+
+        const killed = await terminal.executeTool('call-kill', 'kill', { signal: 'SIGTERM' })
+
+        expect(killed).toMatchObject({ ok: true, result: { signalled: true } })
+        await vi.waitFor(() => expect(isAlive(pid)).toBe(false), { timeout: 15_000 })
+        await vi.waitFor(
+          async () => {
+            const after = await terminal.executeTool('call-after', 'run', {
+              command: shell.succeed(0),
+              waitSeconds: 30,
+            })
+            expect(after).toMatchObject({ ok: true, result: { exitCode: 0 } })
+          },
+          { timeout: 30_000, interval: 500 }
+        )
+      },
+      SHELL_TEST_TIMEOUT_MS
+    )
+  })
+})

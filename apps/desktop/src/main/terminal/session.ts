@@ -6,11 +6,9 @@
  * batching, the scrollback ring buffer, and the command lifecycle derived from
  * shell-integration markers.
  */
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { IPty } from '@lydell/node-pty'
-import { spawn } from '@lydell/node-pty'
 import { createLogger } from '@sim/logger'
 import {
   MAX_CAPTURE_CHARS,
@@ -31,12 +29,16 @@ import {
   type IBufferLine,
 } from '@xterm/headless'
 import { readProcessCwd } from '@/main/terminal/process-cwd'
+import { spawnTerminalPty, type TerminalPty } from '@/main/terminal/pty'
 import {
   buildShellLaunch,
   createNonce,
   detectShell,
   ShellIntegrationParser,
+  type ShellMarker,
+  shellKind,
 } from '@/main/terminal/shell-integration'
+import { resolveShellPath } from '@/main/terminal/shell-path'
 
 const logger = createLogger('DesktopTerminalSession')
 
@@ -245,6 +247,9 @@ const KEYSTROKE_GAP_MS = 150
  */
 const KEYSTROKE_SETTLE_MAX_MS = 1_000
 
+/** Cap on waiting for a shell's prompt to be drawn before typing into it anyway. */
+const PROMPT_DRAW_MAX_MS = 2_000
+
 interface PendingCommand {
   command: string
   toolCallId: string
@@ -257,6 +262,14 @@ interface PendingCommand {
   /** Rolling tail kept once {@link MAX_CAPTURE_CHARS} is exceeded. */
   overflow: string
   capturing: boolean
+  /**
+   * Set once Ctrl-C was sent, by Stop, the agent, or the user. Whatever it leaves on screen (the
+   * tty's `^C` echo) is the interrupt landing, not a prompt, so the command is waited on to end, or
+   * for Stop to end it. The trade-off: a program that catches Ctrl-C and goes back to reading input
+   * (a REPL, a confirmation) is no longer recognised as waiting at a prompt, so the run waits out
+   * its full wait instead of returning early.
+   */
+  interrupted: boolean
   timer: NodeJS.Timeout
   resolve(result: TerminalRunResult): void
 }
@@ -294,16 +307,39 @@ export interface TerminalSessionOptions {
   cols: number
   rows: number
   callbacks: TerminalSessionCallbacks
+  /** The operating system the shell runs on; the current one by default. */
+  platform?: NodeJS.Platform
+}
+
+/**
+ * The shell, found once for each platform and `SHELL`: on Windows the search stats every PATH
+ * entry, and which shells are installed does not change while Sim runs.
+ */
+let resolvedShell: {
+  platform: NodeJS.Platform
+  configured: string | undefined
+  path: string
+} | null = null
+
+function shellPathFor(platform: NodeJS.Platform): string {
+  const configured = process.env.SHELL
+  if (resolvedShell?.platform !== platform || resolvedShell.configured !== configured) {
+    const path = resolveShellPath({ platform, env: process.env, exists: existsSync })
+    resolvedShell = { platform, configured, path }
+  }
+  return resolvedShell.path
 }
 
 export class TerminalSession {
-  private readonly pty: IPty
+  private readonly pty: TerminalPty
   /** The environment the shell was spawned with, for tmux to reuse. */
   private readonly shellEnv: NodeJS.ProcessEnv
   private readonly parser: ShellIntegrationParser
   private readonly integrationDir: string
   private readonly callbacks: TerminalSessionCallbacks
   private readonly shellName: string
+  /** The shell's program name (`zsh`, `pwsh`, `cmd`), for reading its command lines. */
+  readonly shellProgram: string
   readonly terminalId: string
 
   /**
@@ -330,7 +366,8 @@ export class TerminalSession {
   private shellIntegration = false
   /** When the shell began the startup files we generated, or null while it has not. */
   private startupBegunAt: number | null = null
-  private readonly spawnedAt = Date.now()
+  /** When the shell was spawned, in epoch milliseconds; nothing typed into it starts before. */
+  readonly spawnedAt = Date.now()
   private altScreen = false
   private foregroundCommand: string | null = null
   private foregroundToolCallId: string | null = null
@@ -340,15 +377,26 @@ export class TerminalSession {
    * the command is still the agent's, so Stop and sign-out can still end it.
    */
   private agentToolCallId: string | null = null
+  /** When that command was typed into the shell; anything it started began after this. */
+  private agentCommandSentAt: number | null = null
+  /**
+   * When the shell last began its prompt (`A`), or null before it first does. A command the user
+   * types is started after that prompt reached the screen, so after this.
+   */
+  private promptStartedAt: number | null = null
   private pendingCommand: PendingCommand | null = null
   /** Command line reported by the shell but not yet bracketed by output-start. */
   private announcedCommand: string | null = null
-  /** Pending shell-readiness waits, rechecked whenever the shell's startup moves on. */
+  /** Pending readiness and prompt waits, rechecked whenever startup moves on or a prompt is drawn. */
   private readonly readinessWaiters = new Set<() => void>()
+  /** Whether the shell says when its prompt is drawn (`B`); bash and PowerShell do, zsh does not. */
+  private reportsPromptEnd = false
+  /** Whether the prompt is drawn and reading input, as far as the shell has said. */
+  private promptDrawn = false
 
   private constructor(
     options: TerminalSessionOptions,
-    pty: IPty,
+    pty: TerminalPty,
     integrationDir: string,
     nonce: string,
     shellName: string,
@@ -364,6 +412,7 @@ export class TerminalSession {
     this.shellEnv = shellEnv
     this.integrationDir = integrationDir
     this.shellName = shellName
+    this.shellProgram = shellKind(shellName)
     this.parser = new ShellIntegrationParser(nonce)
 
     this.pty.onData((chunk) => this.handleData(chunk))
@@ -371,7 +420,8 @@ export class TerminalSession {
   }
 
   static create(options: TerminalSessionOptions): TerminalSession {
-    const shellPath = process.env.SHELL || '/bin/zsh'
+    const platform = options.platform ?? process.platform
+    const shellPath = shellPathFor(platform)
     const shell = detectShell(shellPath)
     const nonce = createNonce()
     const integrationDir = mkdtempSync(join(tmpdir(), 'sim-terminal-'))
@@ -384,13 +434,13 @@ export class TerminalSession {
 
     // A shell we cannot instrument still gives the user a working terminal;
     // the agent is refused separately via NO_SHELL_INTEGRATION.
-    const launch = shell
-      ? buildShellLaunch(shell, integrationDir, nonce, env)
-      : { args: ['-l'], env: {} }
+    const launch = shell ? buildShellLaunch(shell, integrationDir, nonce, env) : null
 
-    const shellEnv = { ...env, ...launch.env, TERM: 'xterm-256color', TERM_PROGRAM: 'Sim' }
-    const pty = spawn(shellPath, launch.args, {
-      name: 'xterm-256color',
+    const shellEnv = { ...env, ...launch?.env, TERM: 'xterm-256color', TERM_PROGRAM: 'Sim' }
+    const pty = spawnTerminalPty({
+      platform,
+      shellPath,
+      args: launch?.args,
       cols: options.cols,
       rows: options.rows,
       cwd: options.cwd,
@@ -478,6 +528,25 @@ export class TerminalSession {
     return this.agentToolCallId
   }
 
+  /** When the shell began running its startup file, or null before (or for a shell that never says). */
+  get shellReadyAt(): number | null {
+    return this.startupBegunAt
+  }
+
+  /** When the agent's still-running command was typed into the shell, in epoch milliseconds. */
+  get agentCommandStartedAt(): number | null {
+    return this.agentCommandSentAt
+  }
+
+  /**
+   * The earliest the command holding the foreground can have started, in epoch milliseconds: when
+   * the agent typed it, else when the shell last began its prompt; null for a shell that announces
+   * neither.
+   */
+  get foregroundStartedAt(): number | null {
+    return this.agentCommandSentAt ?? this.promptStartedAt
+  }
+
   /**
    * Tab-strip view of this terminal. The label prefers the running command,
    * which is what the user is actually waiting on, and falls back to the
@@ -485,7 +554,7 @@ export class TerminalSession {
    * at a glance.
    */
   tabState(active: boolean): TerminalTabState {
-    const directory = this.cwd ? (this.cwd.split('/').filter(Boolean).pop() ?? '/') : null
+    const directory = this.cwd ? (this.cwd.split(/[\\/]/).filter(Boolean).pop() ?? '/') : null
     return {
       terminalId: this.terminalId,
       // The directory, always: whether to show the running command instead is
@@ -502,6 +571,7 @@ export class TerminalSession {
       running: this.foregroundCommand === null ? null : this.foregroundCommand.trim() || 'command',
       interactive: this.altScreen,
       active,
+      shell: this.shellProgram,
     }
   }
 
@@ -561,12 +631,38 @@ export class TerminalSession {
     return now - this.startupBegunAt >= bounds.startingMs ? 'starting' : null
   }
 
+  /**
+   * Resolves once the prompt is drawn and reading input, for a shell that reports it; at once for
+   * one that does not. Git Bash drops what is typed while it is still switching from a native
+   * program back to its prompt, so a command typed straight after the last one finished can vanish.
+   * Also resolves after {@link PROMPT_DRAW_MAX_MS}, on exit, or when `signal` aborts.
+   */
+  waitForPromptDrawn(signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve) => {
+      let timer: NodeJS.Timeout | null = null
+      const done = () => {
+        if (timer) clearTimeout(timer)
+        this.readinessWaiters.delete(check)
+        signal?.removeEventListener('abort', done)
+        resolve()
+      }
+      const check = () => {
+        if (this.promptDrawn || !this.reportsPromptEnd || this.disposed) done()
+      }
+      timer = setTimeout(done, PROMPT_DRAW_MAX_MS)
+      this.readinessWaiters.add(check)
+      signal?.addEventListener('abort', done)
+      check()
+    })
+  }
+
   private notifyReadinessWaiters(): void {
     for (const check of [...this.readinessWaiters]) check()
   }
 
   write(data: string): void {
     if (this.disposed) return
+    if (this.pendingCommand && data.includes('\u0003')) this.pendingCommand.interrupted = true
     this.pty.write(data)
   }
 
@@ -634,19 +730,13 @@ export class TerminalSession {
     this.emitState()
   }
 
-  kill(signal: 'SIGINT' | 'SIGTERM' | 'SIGKILL'): void {
+  /**
+   * Sends Ctrl-C as a keystroke, so the foreground command gets it the way the user's own would,
+   * rather than only the shell.
+   */
+  interrupt(): void {
     if (this.disposed) return
-    // SIGINT is delivered as a keystroke so the foreground process group gets
-    // it the way Ctrl-C would, rather than only the shell.
-    if (signal === 'SIGINT') {
-      this.write('\u0003')
-      return
-    }
-    try {
-      this.pty.kill(signal)
-    } catch (error) {
-      logger.warn('Failed to signal pty', { signal, error: (error as Error).message })
-    }
+    this.write('\u0003')
   }
 
   /**
@@ -671,12 +761,14 @@ export class TerminalSession {
         output: '',
         overflow: '',
         capturing: false,
+        interrupted: false,
         timer,
         resolve,
       }
       this.foregroundCommand = command
       this.foregroundToolCallId = toolCallId
       this.agentToolCallId = toolCallId
+      this.agentCommandSentAt = Date.now()
       this.emitState()
       this.callbacks.onCommand({ terminalId: this.terminalId, phase: 'start', command, toolCallId })
 
@@ -823,35 +915,36 @@ export class TerminalSession {
     }
   }
 
+  /**
+   * Applies the chunk's text and markers in the order the shell wrote them, so output between a
+   * command's start and finish markers is captured even when all three arrive in one chunk.
+   */
   private handleData(chunk: string): void {
-    const { text, markers } = this.parser.parse(chunk)
-
-    for (const marker of markers) {
-      this.applyMarker(marker)
-    }
-
-    if (text) {
-      this.lastOutputAt = Date.now()
-      this.trackAltScreen(text)
-      this.scrollback += text
-      if (this.scrollback.length > MAX_SCROLLBACK_CHARS + TRIM_SLACK_CHARS) {
-        this.scrollback = this.scrollback.slice(-MAX_SCROLLBACK_CHARS)
-      }
-      if (this.pendingCommand?.capturing) {
-        this.pendingCommand.lastActivityAt = Date.now()
-        this.captureOutput(this.pendingCommand, text)
-        if (text.includes(ALT_SCREEN_ENTER)) {
-          this.resolveInteractiveCommand()
-        }
-      }
-      this.pendingOutput += text
-      this.scheduleFlush()
+    for (const segment of this.parser.parse(chunk)) {
+      if (segment.kind === 'text') this.handleText(segment.text)
+      else this.applyMarker(segment)
     }
   }
 
-  private applyMarker(
-    marker: ReturnType<ShellIntegrationParser['parse']>['markers'][number]
-  ): void {
+  private handleText(text: string): void {
+    this.lastOutputAt = Date.now()
+    this.trackAltScreen(text)
+    this.scrollback += text
+    if (this.scrollback.length > MAX_SCROLLBACK_CHARS + TRIM_SLACK_CHARS) {
+      this.scrollback = this.scrollback.slice(-MAX_SCROLLBACK_CHARS)
+    }
+    if (this.pendingCommand?.capturing) {
+      this.pendingCommand.lastActivityAt = Date.now()
+      this.captureOutput(this.pendingCommand, text)
+      if (text.includes(ALT_SCREEN_ENTER)) {
+        this.resolveInteractiveCommand()
+      }
+    }
+    this.pendingOutput += text
+    this.scheduleFlush()
+  }
+
+  private applyMarker(marker: ShellMarker): void {
     switch (marker.kind) {
       case 'startup':
         if (this.startupBegunAt === null) {
@@ -859,7 +952,14 @@ export class TerminalSession {
           this.notifyReadinessWaiters()
         }
         break
+      case 'prompt-end':
+        this.reportsPromptEnd = true
+        this.promptDrawn = true
+        this.notifyReadinessWaiters()
+        break
       case 'prompt-start':
+        this.promptDrawn = false
+        this.promptStartedAt = Date.now()
         if (!this.shellIntegration) {
           this.shellIntegration = true
           this.emitState()
@@ -870,6 +970,7 @@ export class TerminalSession {
         this.announcedCommand = marker.command
         break
       case 'output-start': {
+        this.promptDrawn = false
         if (this.pendingCommand) {
           this.pendingCommand.capturing = true
           break
@@ -952,13 +1053,14 @@ export class TerminalSession {
    * Hands a command back early when it has stopped mid-line and gone quiet —
    * the shape of something sitting on a prompt. Output that ends with a
    * newline, or that is still arriving, is a command doing work and is left to
-   * run out the full wait window.
+   * run out the full wait window. Escape sequences are not text: ConPTY ends a
+   * silent command's capture with cursor and colour codes that print nothing.
    */
   private checkForPrompt(): void {
     const pending = this.pendingCommand
-    if (!pending?.capturing) return
+    if (!pending?.capturing || pending.interrupted) return
     if (Date.now() - pending.lastActivityAt < PROMPT_IDLE_MS) return
-    const captured = this.capturedText(pending)
+    const captured = stripAnsi(this.capturedText(pending))
     if (!captured.trim() || /[\r\n]$/.test(captured)) return
     this.resolveStillRunning(true)
   }
@@ -1062,6 +1164,7 @@ export class TerminalSession {
     this.foregroundCommand = null
     this.foregroundToolCallId = null
     this.agentToolCallId = null
+    this.agentCommandSentAt = null
     this.announcedCommand = null
     this.altScreen = false
     this.emitState()

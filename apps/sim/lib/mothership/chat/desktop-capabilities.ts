@@ -1,3 +1,5 @@
 /** Wire limits shared by the desktop capability snapshot and its request schema. */
 export const DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH = 64
 export const DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH = 1024
+/** A shell's program name (`zsh`, `pwsh`), never a path. */
+export const DESKTOP_TERMINAL_HINT_SHELL_MAX_LENGTH = 32

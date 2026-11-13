@@ -159,6 +159,9 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
     // ways out must therefore work without the page: Escape is handled here,
     // and a page that fails to load closes the window instead of leaving a
     // blank sheet nothing can dismiss.
+    // Windows attaches the app menu to every window; its accelerators would
+    // otherwise act on (and close) this sheet behind the page's back.
+    if (process.platform === 'win32') win.removeMenu()
     attachShellTheme(win)
     const opened = win
     let closed = false

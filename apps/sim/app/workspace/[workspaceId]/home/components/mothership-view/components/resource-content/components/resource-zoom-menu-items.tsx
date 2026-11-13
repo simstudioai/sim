@@ -1,6 +1,7 @@
 'use client'
 
 import { DropdownMenuItem, DropdownMenuShortcut } from '@sim/emcn'
+import { formatShortcut } from '@/lib/core/utils/platform'
 
 interface ResourceZoomMenuItemsProps {
   onZoomIn: () => void
@@ -18,15 +19,15 @@ export function ResourceZoomMenuItems({
     <>
       <DropdownMenuItem onSelect={onZoomIn}>
         Zoom In
-        <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
+        <DropdownMenuShortcut>{formatShortcut('+')}</DropdownMenuShortcut>
       </DropdownMenuItem>
       <DropdownMenuItem onSelect={onZoomOut}>
         Zoom Out
-        <DropdownMenuShortcut>⌘−</DropdownMenuShortcut>
+        <DropdownMenuShortcut>{formatShortcut('−')}</DropdownMenuShortcut>
       </DropdownMenuItem>
       <DropdownMenuItem onSelect={onActualSize}>
         Actual Size
-        <DropdownMenuShortcut>⌘0</DropdownMenuShortcut>
+        <DropdownMenuShortcut>{formatShortcut('0')}</DropdownMenuShortcut>
       </DropdownMenuItem>
     </>
   )

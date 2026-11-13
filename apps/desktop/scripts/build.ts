@@ -1,10 +1,14 @@
 import { execFileSync } from 'node:child_process'
 import { cpSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type BuildOptions, build } from 'esbuild'
 import postcss from 'postcss'
 import loadPostcssConfig from 'postcss-load-config'
 import { identityForOrigin } from './channels'
+
+const logger = createLogger('DesktopBuild')
 
 const watch = process.argv.includes('--watch')
 
@@ -19,20 +23,21 @@ if (
   !/^https:\/\/[^\s/]+$/.test(bakedDefaultOrigin) &&
   !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(bakedDefaultOrigin)
 ) {
-  console.error(
-    `SIM_DESKTOP_DEFAULT_ORIGIN must be a bare https origin or http://localhost (got "${bakedDefaultOrigin}")`
-  )
+  logger.error('SIM_DESKTOP_DEFAULT_ORIGIN must be a bare https origin or http://localhost', {
+    origin: bakedDefaultOrigin,
+  })
   process.exit(1)
 }
 if (bakedDefaultOrigin) {
-  console.log(`• Baking default server origin: ${bakedDefaultOrigin}`)
+  logger.info('Baking default server origin', { origin: bakedDefaultOrigin })
 }
 
-const appIcon = identityForOrigin(bakedDefaultOrigin).icon
+const identity = identityForOrigin(bakedDefaultOrigin)
 const generatedIcon = 'build/generated-icon.icon'
 rmSync(generatedIcon, { force: true, recursive: true })
-cpSync(appIcon, generatedIcon, { recursive: true })
-console.log(`• Selecting desktop icon: ${appIcon}`)
+cpSync(identity.icon, generatedIcon, { recursive: true })
+cpSync(identity.windowsIcon, 'build/generated-icon.ico')
+logger.info('Selecting desktop icon', { icon: identity.icon, windowsIcon: identity.windowsIcon })
 
 const common = {
   bundle: true,
@@ -161,6 +166,6 @@ async function run(): Promise<void> {
 }
 
 run().catch((error) => {
-  console.error(error)
+  logger.error('Desktop build failed', { error: getErrorMessage(error) })
   process.exit(1)
 })

@@ -104,6 +104,8 @@ export async function revealCredential(id: string): Promise<string | null> {
  *
  * The clipboard is only cleared if it still holds this password — overwriting
  * whatever the user copied in the meantime would be its own small betrayal.
+ * Where clearing cannot reach every copy (`DesktopFeatures.passwordCopy`), its IPC channel is
+ * never registered.
  */
 export async function copyCredential(id: string): Promise<boolean> {
   const authorized = await authorizeForSecret({

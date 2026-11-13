@@ -8,8 +8,6 @@
   "apps/desktop/src/main/browser-agent/driver.ts#showDownloadsMenu",
   "apps/desktop/src/main/browser-agent/known-sessions.ts#normalizePublicHostname",
   "apps/desktop/src/main/browser-agent/panel.ts#getActivePanelScopeId",
-  "apps/desktop/src/main/browser-agent/session.ts#BrowserShortcut",
-  "apps/desktop/src/main/browser-agent/session.ts#browserShortcutForInput",
   "apps/desktop/src/main/browser-agent/session.ts#setBrowserTheme",
   "apps/desktop/src/main/browser-credentials/index.ts#credentialVault",
   "apps/desktop/src/main/browser-credentials/os-auth.ts#SecretOperation",
