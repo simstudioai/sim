@@ -1,4 +1,4 @@
-import { lstat, realpath, stat } from 'node:fs/promises'
+import { lstat, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { isDesktopScopeId } from '@sim/desktop-bridge'
@@ -6,6 +6,7 @@ import type { BrowserWindow } from 'electron'
 import { showShellDialog } from '@/main/dialogs'
 import type { LocalFileAuthorization } from '@/main/local-files'
 import type { LocalFileAccess, LocalFilesystemService } from '@/main/local-filesystem'
+import { localRealpath } from '@/main/local-realpath'
 import { openNativeFile } from '@/main/native-directory'
 import { resolveWin32NativePath } from '@/main/win32-path'
 
@@ -27,8 +28,9 @@ interface PendingFolderDecision {
 }
 
 /**
- * Lexically resolves a model-supplied path. Runs before any filesystem call,
- * which on Windows is what keeps a UNC path from reaching the network.
+ * Lexically resolves a model-supplied path without touching the filesystem. On
+ * Windows it refuses a path that is itself a share; a link inside the path is
+ * left to {@link localRealpath}, which callers resolve it with.
  */
 export function nativePath(
   value: unknown,
@@ -39,7 +41,7 @@ export function nativePath(
     throw new Error('A native absolute path or ~/ path is required.')
   if (platform === 'win32') return resolveWin32NativePath(value, home())
   const path =
-    value === '~' ? homedir() : value.startsWith('~/') ? join(homedir(), value.slice(2)) : value
+    value === '~' ? home() : value.startsWith('~/') ? join(home(), value.slice(2)) : value
   if (!isAbsolute(path)) throw new Error('Use an absolute path or ~/ path.')
   return resolve(path)
 }
@@ -80,7 +82,7 @@ export class LocalFilePermissions {
           !isDesktopScopeId(authorization.args.folderId)))
     )
       throw new Error('A valid destination workspace and folder are required for imports.')
-    const path = await realpath(nativePath(authorization.args.path))
+    const path = await localRealpath(nativePath(authorization.args.path))
     if (this.fullFileAccess()) {
       return this.unrestrictedAccess(path, context)
     }
@@ -130,7 +132,7 @@ export class LocalFilePermissions {
     return this.authorizedAccess(
       {
         path,
-        resolve: realpath,
+        resolve: (requested) => localRealpath(requested),
         open: (requested, directory = false) =>
           openNativeFile(folder, relative(folder, requested), identity, directory),
       },

@@ -48,11 +48,11 @@ const DRIVE_PATH_REQUIRED = 'Use a drive path such as C:\\Users\\name\\file or a
  * user's NTLM hash before any consent dialog. Only a drive-absolute path or a
  * path under `~` is accepted, so UNC, `\\?\` and `\\.\` device paths,
  * drive-relative `C:foo`, and rooted `\foo` (relative to the current drive)
- * are all refused. UNC shares are refused outright, even inside a granted
- * share, until grants can be matched lexically. A drive letter the user
- * mapped to a share passes this check, since it reaches only the server the
- * user chose; the file backend refuses it once it resolves to the share. Each
- * segment must also pass {@link isWin32SafeSegment}.
+ * are all refused. Each segment must also pass {@link isWin32SafeSegment}.
+ *
+ * Being lexical, it cannot see a symlink inside the path that targets a share,
+ * or a drive letter mapped to one; `localRealpath` refuses both before any
+ * consent dialog.
  */
 export function resolveWin32NativePath(value: string, home: string): string {
   const homeRelative = value === '~' ? '' : HOME_RELATIVE.test(value) ? value.slice(2) : null

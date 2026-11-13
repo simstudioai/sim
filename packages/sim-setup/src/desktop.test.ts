@@ -11,6 +11,9 @@ function source(appUrl?: string, label = 'configuration') {
   }
 }
 
+const MAC = { label: 'macOS', installerExtensions: ['.dmg', '.zip'] }
+const WINDOWS = { label: 'Windows', installerExtensions: ['.exe'] }
+
 function respond(status: number, headers: Record<string, string> = {}): typeof fetch {
   return vi.fn(async () => new Response(null, { status, headers })) as unknown as typeof fetch
 }
@@ -35,6 +38,7 @@ describe('probeDownload', () => {
 
     const result = await probeDownload(
       'https://sim.example.com/x',
+      MAC,
       respond(302, { location: hostile })
     )
 
@@ -45,9 +49,25 @@ describe('probeDownload', () => {
     })
   })
 
+  // A deployment older than Windows support ignores ?platform=windows and
+  // redirects to the macOS DMG.
+  it('refuses a macOS installer resolved for Windows', async () => {
+    const result = await probeDownload(
+      'https://sim.example.com/api/desktop/update/download?platform=windows',
+      WINDOWS,
+      respond(302, { location: ASSET })
+    )
+
+    expect(result).toEqual({
+      status: 'wrong-platform',
+      platform: 'Windows',
+      installerName: 'Sim-1.2.3-universal.dmg',
+    })
+  })
+
   it('does not follow the redirect', async () => {
     const impl = respond(302, { location: ASSET })
-    await probeDownload('https://sim.example.com/x', impl)
+    await probeDownload('https://sim.example.com/x', MAC, impl)
 
     expect(impl).toHaveBeenCalledWith(
       'https://sim.example.com/x',

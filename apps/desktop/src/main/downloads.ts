@@ -41,7 +41,11 @@ export function sanitizeFilename(
     .replace(/^\.+/, '')
     .trim()
     .slice(0, MAX_FILENAME_LENGTH)
-  return platform === 'win32' ? toWin32SafeFileName(cleaned) : cleaned
+  if (platform !== 'win32') return cleaned
+  const safe = toWin32SafeFileName(cleaned)
+  return safe.length > MAX_FILENAME_LENGTH
+    ? toWin32SafeFileName(cleaned.slice(0, MAX_FILENAME_LENGTH - 1))
+    : safe
 }
 
 /**

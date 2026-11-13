@@ -1020,17 +1020,6 @@ export interface DesktopPreferences {
   terminalDefaultZoom: DesktopZoomPercent
 }
 
-/**
- * Set on the theme provider's pre-hydration script: the localStorage key the document's theme
- * preference lives under (`sim-theme` in the app, `sim-landing-theme` on the landing pages) and the
- * preference it falls back to, so the desktop shell reports the preference the page actually uses.
- * A page that forces one theme (`/login`, `/chat`) also carries it, since that overrides the saved
- * preference.
- */
-export const DESKTOP_THEME_STORAGE_KEY_ATTRIBUTE = 'data-sim-theme-storage-key'
-export const DESKTOP_THEME_DEFAULT_ATTRIBUTE = 'data-sim-theme-default'
-export const DESKTOP_THEME_FORCED_ATTRIBUTE = 'data-sim-theme-forced'
-
 export const DESKTOP_ZOOM_PERCENTS = [67, 75, 80, 90, 100, 110, 125, 150, 175, 200] as const
 
 export type DesktopZoomPercent = (typeof DESKTOP_ZOOM_PERCENTS)[number]

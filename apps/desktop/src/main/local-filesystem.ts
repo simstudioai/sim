@@ -1,5 +1,5 @@
 import { constants, type Dirent } from 'node:fs'
-import { type FileHandle, lstat, open, opendir, readFile, realpath, stat } from 'node:fs/promises'
+import { type FileHandle, lstat, open, opendir, readFile, stat } from 'node:fs/promises'
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path'
 import type {
   LocalFilesystemData,
@@ -37,6 +37,7 @@ import type {
   LocalFilesystemGrantStore,
   PersistedLocalFilesystemGrant,
 } from '@/main/local-filesystem-grant-store'
+import { localRealpath, NetworkLocationError } from '@/main/local-realpath'
 import { openNativeFile } from '@/main/native-directory'
 import { isWithinRoot } from '@/main/path-containment'
 import { isWin32SafeSegment } from '@/main/win32-path'
@@ -234,6 +235,9 @@ function isBinary(buffer: Uint8Array): boolean {
 
 function safeError(error: unknown): LocalFilesystemError {
   if (error instanceof LocalFilesystemError) return error
+  if (error instanceof NetworkLocationError) {
+    return new LocalFilesystemError('ACCESS_DENIED', error.message)
+  }
   if (error instanceof DOMException && error.name === 'AbortError') {
     return new LocalFilesystemError('CANCELLED', 'The local filesystem operation was cancelled.')
   }
@@ -638,7 +642,7 @@ export class LocalFilesystemService {
       : undefined
 
     try {
-      const rootPath = await realpath(selected.path)
+      const rootPath = await localRealpath(selected.path)
       const rootStat = await stat(rootPath, { bigint: true })
       if (!isAccountDataGenerationCurrent(generation)) {
         throw new LocalFilesystemError('CANCELLED', 'The folder request expired during sign-out.')
@@ -702,7 +706,7 @@ export class LocalFilesystemService {
 
   /** Resolves native tool paths through the same remembered grants as VFS reads. */
   async nativeAccess(candidate: string): Promise<LocalFileAccess | null> {
-    const path = await realpath(candidate)
+    const path = await localRealpath(candidate)
     for (const mount of this.mounts.values()) {
       if (!isWithinRoot(mount.rootPath, path)) continue
       try {
@@ -712,7 +716,7 @@ export class LocalFilesystemService {
       }
       const resolveGranted = async (requested: string): Promise<string> => {
         await this.assertMountCurrent(mount)
-        const resolved = await realpath(requested)
+        const resolved = await localRealpath(requested)
         if (!isWithinRoot(mount.rootPath, resolved)) {
           throw new LocalFilesystemError(
             'ACCESS_DENIED',
@@ -817,7 +821,7 @@ export class LocalFilesystemService {
       }
       const stopAccessing = grant.bookmark ? this.startAccessingBookmark(grant.bookmark) : undefined
       try {
-        const rootPath = await realpath(grant.rootPath)
+        const rootPath = await localRealpath(grant.rootPath)
         const rootStat = await stat(rootPath, { bigint: true })
         if (!isAccountDataGenerationCurrent(generation)) {
           stopAccessing?.()
@@ -1063,7 +1067,7 @@ export class LocalFilesystemService {
         'The requested path is outside the selected folder.'
       )
     }
-    const realPath = await realpath(lexicalPath)
+    const realPath = await localRealpath(lexicalPath)
     if (!isWithinRoot(mount.rootPath, realPath)) {
       throw new LocalFilesystemError(
         'ACCESS_DENIED',

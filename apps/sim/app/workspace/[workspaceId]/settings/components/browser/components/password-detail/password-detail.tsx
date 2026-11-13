@@ -124,7 +124,7 @@ export function PasswordDetail({ credential, onBack, onForgotten }: PasswordDeta
 
   const site = siteLabel(credential.origin)
   // Absent where the OS clipboard keeps history Sim cannot clear (Windows).
-  const canCopy = typeof getDesktopBridge()?.browserCredentials.copy === 'function'
+  const canCopy = typeof getDesktopBridge()?.browserCredentials?.copy === 'function'
   return (
     <>
       <SettingsPanel

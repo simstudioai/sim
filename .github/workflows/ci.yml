@@ -1330,9 +1330,11 @@ jobs:
   # Windows desktop builds are signed with Azure Artifact Signing over GitHub
   # OIDC. Gated like the macOS build: until the Azure identity and signing
   # variables exist, the Windows build skips with a warning, and nothing is
-  # ever published unsigned. Windows jobs are separate workflow calls that no
-  # other job needs, so a Windows failure never blocks a macOS release; the
-  # update feed treats a release without latest.yml as having no Windows build.
+  # ever published unsigned. Windows jobs are separate workflow calls, and a
+  # Windows failure never blocks a macOS release; the update feed treats a
+  # release without latest.yml as having no Windows build. The prerelease path
+  # still waits for them: prerelease-publish needs prerelease-build-windows, so
+  # it starts only once that job finishes, whatever its result.
   desktop-signing-windows:
     name: desktop-signing-windows
     runs-on: *runner-2vcpu
