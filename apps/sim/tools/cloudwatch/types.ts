@@ -106,7 +106,7 @@ export interface CloudWatchGetMetricStatisticsParams extends CloudWatchConnectio
   startTime: number
   endTime: number
   period: number
-  statistics: string[]
+  statistics?: string[]
   dimensions?: string
   extendedStatistics?: string[]
   unit?: string

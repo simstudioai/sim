@@ -66,9 +66,10 @@ export const getMetricStatisticsTool: InternalToolConfig<
     },
     statistics: {
       type: 'array',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Statistics to retrieve (Average, Sum, Minimum, Maximum, SampleCount)',
+      description:
+        'Statistics to retrieve (Average, Sum, Minimum, Maximum, SampleCount). Required unless extendedStatistics is set, which takes precedence',
     },
     dimensions: {
       type: 'string',
@@ -102,7 +103,7 @@ export const getMetricStatisticsTool: InternalToolConfig<
       startTime: params.startTime,
       endTime: params.endTime,
       period: params.period,
-      statistics: params.statistics,
+      ...(params.statistics && params.statistics.length > 0 && { statistics: params.statistics }),
       ...(params.dimensions && { dimensions: params.dimensions }),
       ...(params.extendedStatistics &&
         params.extendedStatistics.length > 0 && {
