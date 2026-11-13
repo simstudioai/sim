@@ -739,10 +739,6 @@ const nextConfig: NextConfig = {
           source: '/favicon.ico',
           destination: '/icon.svg',
         },
-        {
-          source: '/r/:shortCode',
-          destination: 'https://go.trybeluga.ai/:shortCode',
-        },
       ],
       /**
        * Fallback rewrites run only after every page and dynamic route has failed to match, so

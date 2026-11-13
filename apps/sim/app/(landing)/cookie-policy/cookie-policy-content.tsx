@@ -44,7 +44,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
   title: 'Cookie Policy',
   description:
     'What cookies Sim sets, why, how long they last, and how to change your choice at any time.',
-  lastUpdated: 'October 13, 2026',
+  lastUpdated: 'November 12, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -238,12 +238,6 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
           ],
           ['personalization_id', 'X (Twitter)', 'Personalizes the ads shown on X.', '13 months'],
           ['muc_ads', 'X (Twitter)', 'Measures ad conversions across X domains.', '13 months'],
-          [
-            'bfcid',
-            'Freebuff',
-            'Stores the click identifier from a Freebuff ad that brought you to sim.ai, so a sign-up can be credited to that ad. Deleted if you withdraw Marketing consent.',
-            '30 days',
-          ],
         ]),
       ],
     },
@@ -280,8 +274,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
               </ProseLink>
               , <ProseLink href='https://adssettings.google.com'>Google Ads</ProseLink>,{' '}
               <ProseLink href='https://x.com/settings/privacy_and_safety'>X (Twitter)</ProseLink>,
-              and <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>. For Freebuff,{' '}
-              {CHANGE_CHOICES} to withdraw Marketing consent.
+              and <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>.
             </>
           ),
         },
@@ -303,7 +296,6 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
               <ProseLink href='https://policies.google.com/technologies/cookies'>Google</ProseLink>{' '}
               (Analytics and Ads),{' '}
               <ProseLink href='https://x.com/en/privacy'>X (Twitter)</ProseLink>,{' '}
-              <ProseLink href='https://freebuff.com/privacy-policy'>Freebuff</ProseLink>,{' '}
               <ProseLink href='https://ahrefs.com/legal/privacy-policy'>Ahrefs</ProseLink>,{' '}
               <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>, and{' '}
               <ProseLink href='https://www.cloudflare.com/privacypolicy/'>Cloudflare</ProseLink>.
