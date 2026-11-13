@@ -481,6 +481,10 @@ func validateBatchSteps(_ steps: [Parameters]) throws {
         case "press_key": _ = try parseKey(required(step.key, "key"))
         case "click":
             guard ["left", "right"].contains(step.button ?? "left"), (1...3).contains(step.clickCount ?? 1) else { throw ComputerError("invalid_arguments", "Invalid button or clickCount.") }
+            guard step.elementId != nil || (step.x != nil && step.y != nil) else { throw ComputerError("invalid_arguments", "A click step needs an elementId or x and y.") }
+        case "scroll":
+            guard step.elementId != nil || (step.x != nil && step.y != nil) else { throw ComputerError("invalid_arguments", "A scroll step needs an elementId or x and y.") }
+            guard step.deltaX != nil || step.deltaY != nil else { throw ComputerError("invalid_arguments", "A scroll step needs deltaX or deltaY.") }
         default: break
         }
         units += (step.text?.utf16.count ?? 0) + (step.value?.utf16.count ?? 0)
@@ -799,7 +803,11 @@ final class Driver {
             }
             for (index, step) in steps.enumerated() {
                 // Stop can arrive during the previous step's render wait; no later step may start after it.
-                if index > 0 { do { try checkCancellation() } catch { return stopped("Stopped before step \(index + 1).") } }
+                do { try checkCancellation() } catch {
+                    // Before any step ran nothing was sent, so Stop fails the batch as cancelled.
+                    if completed == 0 { throw error }
+                    return stopped("Stopped before step \(index + 1).")
+                }
                 let before = uiStructure(pid: pid)
                 do { _ = try await act(Request(id: request.id, method: try required(step.action, "action"), params: step), app: app, bundle: bundle, snapshot: snapshot) }
                 catch {

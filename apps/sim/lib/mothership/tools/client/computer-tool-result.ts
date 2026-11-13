@@ -178,8 +178,8 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
   let bytes = jsonBytes(model) + envelopeBytes
   const add = (ids: string[]) => {
     const additional = ids.filter((id) => !selected.has(id))
-    /** A row's JSON length less its two quotes, plus the newline that joins it. */
-    const cost = additional.reduce((total, id) => total + jsonBytes(rows.get(id)) - 1, 0)
+    /** A row's JSON length: its two quotes come off, and the escaped joining newline (`\\n`) adds two bytes back. */
+    const cost = additional.reduce((total, id) => total + jsonBytes(rows.get(id)), 0)
     if (bytes + cost > MAX_STATE_BYTES) return false
     for (const id of additional) selected.add(id)
     bytes += cost

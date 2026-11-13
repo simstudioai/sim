@@ -57,6 +57,8 @@ import AppKit
         expectError("invalid_arguments") { try validateBatchSteps(Array(repeating: Parameters(action: "press_key", key: "Tab"), count: 9)) }
         expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "drag"), Parameters(action: "press_key", key: "Enter")]) }
         expectError("unsupported_key") { try validateBatchSteps([Parameters(action: "click", elementId: "e1"), Parameters(action: "press_key", key: "F99")]) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "click", elementId: "e1"), Parameters(action: "click")]) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "click", elementId: "e1"), Parameters(action: "scroll", elementId: "e2")]) }
         expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "click", elementId: "e1"), Parameters(action: "type_text", elementId: "e2")]) }
         expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "set_value", value: "x"), Parameters(action: "click", elementId: "e1")]) }
         expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "click", elementId: "e1", clickCount: 4), Parameters(action: "press_key", key: "Enter")]) }
