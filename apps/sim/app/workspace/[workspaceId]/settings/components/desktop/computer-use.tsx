@@ -88,8 +88,8 @@ function ComputerUseSettingsControls() {
           {askForApps === undefined
             ? 'Each app needs your approval before Sim can use it.'
             : askForApps
-              ? 'Sim asks before using each new app, and never uses terminals, password managers, System Settings, or Sim itself.'
-              : 'Sim can use any app except terminals, password managers, System Settings, and Sim itself.'}
+              ? 'Sim asks before using each new app, and never uses terminals, scripting apps, password managers, System Settings, or Sim itself.'
+              : 'Sim can use any app except terminals, scripting apps, password managers, System Settings, and Sim itself.'}
         </p>
         {error && (
           <div className='flex items-center justify-between text-sm'>
