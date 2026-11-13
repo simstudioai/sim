@@ -495,12 +495,17 @@ describe('combobox typing surfaces', () => {
     `
     const input = visible(byId<HTMLInputElement>('field'))
     register(input)
-    stackTo([byId('card'), input, byId('shell'), ...page()], () => [byId('shell'), ...page()])
-
-    expect(focusElementForTyping(0)).toMatchObject({
-      focused: true,
-      coveredBy: 'Shop for your home',
-    })
+    // the shell paints below the field, or above it when the field sits at a negative z-index
+    for (const overField of [
+      [byId('card'), input, byId('shell'), ...page()],
+      [byId('card'), byId('shell'), input, ...page()],
+    ]) {
+      stackTo(overField, () => [byId('shell'), ...page()])
+      expect(focusElementForTyping(0)).toMatchObject({
+        focused: true,
+        coveredBy: 'Shop for your home',
+      })
+    }
   })
 
   it('refuses a top-page field when no sampled point hits anything', () => {
