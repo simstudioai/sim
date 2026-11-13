@@ -177,6 +177,9 @@ try:
         result = call('type_text', bundleId=bundle, snapshotId=snapshot['snapshotId'], elementId=click_field['elementId'], text='clicked')
         assert result['dispatched'], result
         assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'clicked', 'Click-to-focus did not reach the editor'
+        # Move focus to the other editor, then put another app in front: the click-only editor cannot take focus.
+        snapshot = state()
+        mutate('click', snapshot, **coordinate(snapshot, find(snapshot, role='AXTextField', label='Fixture editable text')))
         call('activate_app', bundleId='com.apple.finder')
         time.sleep(0.5)
         snapshot = state()
