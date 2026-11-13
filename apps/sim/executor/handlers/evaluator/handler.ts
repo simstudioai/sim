@@ -10,7 +10,6 @@ import type { BlockOutput } from '@/blocks/types'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
 import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
-import { resolveBlockBedrockSession } from '@/executor/utils/bedrock-credential'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
 import { executeModelRequestWithFallbacks } from '@/executor/utils/model-fallback-request'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
@@ -19,7 +18,6 @@ import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
-import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import type { ProviderRequest } from '@/providers/types'
@@ -181,19 +179,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
     await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx)
     const providerId = getProviderFromModel(model)
 
-    let finalApiKey: string | undefined = evaluatorConfig.apiKey
-    if (providerId === 'vertex' && evaluatorConfig.vertexCredential) {
-      finalApiKey = await resolveVertexCredential({
-        credentialId: evaluatorConfig.vertexCredential,
-        actingUserId: ctx.userId,
-        workspaceId: ctx.workspaceId,
-        workflowId: ctx.workflowId,
-        executionId: ctx.executionId,
-        callerLabel: 'vertex-evaluator',
-      })
-    }
-    const bedrockSession = await resolveBlockBedrockSession(ctx, providerId, evaluatorConfig)
-
     try {
       const providerRequest: ProviderRequest = {
         model,
@@ -208,7 +193,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         ]),
 
         temperature: EVALUATOR.DEFAULT_TEMPERATURE,
-        apiKey: finalApiKey,
+        apiKey: evaluatorConfig.apiKey,
         azureEndpoint: inputs.azureEndpoint,
         azureApiVersion: inputs.azureApiVersion,
         vertexProject: evaluatorConfig.vertexProject,
@@ -216,7 +201,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
         bedrockAccessKeyId: evaluatorConfig.bedrockAccessKeyId,
         bedrockSecretKey: evaluatorConfig.bedrockSecretKey,
         bedrockRegion: evaluatorConfig.bedrockRegion,
-        bedrockSession,
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
       }
@@ -231,6 +215,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         providerId,
         request: providerRequest,
         resolvedSecretTraceRegistry: modelInputProjection.registry,
+        credentials: { inputs: evaluatorConfig, callerLabel: 'vertex-evaluator' },
       })
 
       const parsedContent = this.extractJSONFromResponse(

@@ -5,6 +5,7 @@ import {
 import {
   llmBedrockCredentialMock,
   llmBedrockCredentialMockFns,
+  MockBedrockCredentialError,
 } from '@sim/testing/mocks/llm-bedrock-credential.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import '@sim/testing/mocks/executor'
@@ -221,6 +222,53 @@ describe('RouterBlockHandler', () => {
       })
     ).rejects.toThrow('Select an AWS credential for Bedrock')
     expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
+  it('routes with a fallback model when the saved AWS credential is unavailable on the final try', async () => {
+    mockGetProviderFromModel.mockImplementation((model: string) =>
+      model.startsWith('claude') ? 'anthropic' : 'bedrock'
+    )
+    mockResolveBedrockCredentialSession.mockRejectedValueOnce(
+      new MockBedrockCredentialError('AWS STS is unavailable', { reason: 'unavailable' })
+    )
+    mockExecuteProviderRequest.mockResolvedValueOnce({
+      content: 'target-block-1',
+      model: 'claude-sonnet-5',
+      tokens: { input: 10, output: 2, total: 12 },
+      cost: 0,
+    })
+    mockContext.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry()
+    mockContext.blockLogs = [
+      {
+        blockId: mockBlock.id,
+        startedAt: '',
+        endedAt: '',
+        durationMs: 0,
+        success: false,
+        executionOrder: 1,
+      },
+    ]
+
+    const output = await handler.execute(
+      mockContext,
+      mockBlock,
+      {
+        prompt: 'Pick a destination',
+        model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
+        bedrockCredential: 'aws-cred',
+        fallbackModels: [{ model: 'claude-sonnet-5' }],
+      },
+      { nodeId: mockBlock.id, retry: { attempt: 2, maxTries: 2, isFinalTry: true } }
+    )
+
+    expect(output).toMatchObject({
+      model: 'claude-sonnet-5',
+      selectedPath: { blockId: 'target-block-1' },
+    })
+    expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+    expect(mockExecuteProviderRequest.mock.calls[0][0]).toBe('anthropic')
+    expect(mockContext.blockLogs[0].modelFallbacks).toEqual(['bedrock/claude'])
   })
 
   it('selects the same legacy destination when a fallback provider answers', async () => {

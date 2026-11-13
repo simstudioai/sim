@@ -91,9 +91,12 @@ import type {
   StreamingExecution,
   UserFile,
 } from '@/executor/types'
-import { resolveBlockBedrockSession } from '@/executor/utils/bedrock-credential'
 import { collectBlockData } from '@/executor/utils/block-data'
 import { stringifyJSON } from '@/executor/utils/json'
+import {
+  BLOCK_MODEL_CREDENTIAL_FIELDS,
+  resolveBlockModelCredentials,
+} from '@/executor/utils/model-credentials'
 import {
   assertFallbackFamilyCredentials,
   getModelFallbacks,
@@ -109,7 +112,6 @@ import type {
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
-import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
   formatAttachmentSizes,
@@ -2710,9 +2712,7 @@ export class AgentBlockHandler implements BlockHandler {
             ? config.modelInputs
             : omit(config.modelInputs, [
                 ...PROVIDER_FAMILY_CREDENTIAL_FIELDS,
-                'vertexCredential',
-                'bedrockCredential',
-                'bedrockAuthMode',
+                ...BLOCK_MODEL_CREDENTIAL_FIELDS,
               ])),
           apiKey: resolveFallbackApiKey({
             candidate,
@@ -2989,19 +2989,12 @@ export class AgentBlockHandler implements BlockHandler {
     const model = providerRequest.model
 
     try {
-      let finalApiKey: string | undefined = providerRequest.apiKey
-
-      if (providerId === 'vertex' && providerRequest.vertexCredential) {
-        finalApiKey = await resolveVertexCredential({
-          credentialId: providerRequest.vertexCredential,
-          actingUserId: ctx.userId,
-          workspaceId: ctx.workspaceId,
-          workflowId: ctx.workflowId,
-          executionId: ctx.executionId,
-          callerLabel: 'vertex-agent',
-        })
-      }
-      const bedrockSession = await resolveBlockBedrockSession(ctx, providerId, providerRequest)
+      const credentials = await resolveBlockModelCredentials(
+        ctx,
+        providerId,
+        providerRequest,
+        'vertex-agent'
+      )
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
       const agentMemoryRetrieval = agentConversation?.memoryId
@@ -3024,7 +3017,7 @@ export class AgentBlockHandler implements BlockHandler {
             : providerRequest.tools,
           temperature: providerRequest.temperature,
           maxTokens: providerRequest.maxTokens,
-          apiKey: finalApiKey,
+          apiKey: credentials.apiKey ?? providerRequest.apiKey,
           azureEndpoint: providerRequest.azureEndpoint,
           azureApiVersion: providerRequest.azureApiVersion,
           vertexProject: providerRequest.vertexProject,
@@ -3032,7 +3025,7 @@ export class AgentBlockHandler implements BlockHandler {
           bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
           bedrockSecretKey: providerRequest.bedrockSecretKey,
           bedrockRegion: providerRequest.bedrockRegion,
-          bedrockSession,
+          bedrockSession: credentials.bedrockSession,
           responseFormat: providerRequest.responseFormat,
           workflowId: providerRequest.workflowId,
           workspaceId: ctx.workspaceId,

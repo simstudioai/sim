@@ -1778,7 +1778,7 @@ export const v2KnowledgeConnectorSchema = z
       .string()
       .nullable()
       .describe(
-        'OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for API-key and unauthenticated sources.'
+        'OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for unauthenticated sources and for `apiKey` sources that use an inline API key.'
       ),
     sourceConfig: z
       .record(z.string(), z.unknown().describe('Connector-specific source configuration value.'))

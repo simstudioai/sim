@@ -1,5 +1,9 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import {
+  llmBedrockCredentialMock,
+  llmBedrockCredentialMockFns,
+} from '@sim/testing/mocks/llm-bedrock-credential.mock'
+import {
   permissionCheckMock,
   permissionCheckMockFns,
 } from '@sim/testing/mocks/permission-check.mock'
@@ -11,8 +15,10 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 import type { SerializedBlock } from '@/serializer/types'
 
 const validateModel = permissionCheckMockFns.mockValidateModelProvider
+const resolveBedrockSession = llmBedrockCredentialMockFns.mockResolveBedrockCredentialSession
 providersUtilsMockFns.mockGetProviderFromModel.mockImplementation((model: string) => {
   if (model.startsWith('claude')) return 'anthropic'
+  if (model.startsWith('bedrock/')) return 'bedrock'
   if (model.startsWith('vertex/')) return 'vertex'
   return 'openai'
 })
@@ -24,6 +30,7 @@ const { request } = vi.hoisted(() => ({
 vi.mock('@/executor/utils/provider-request', () => ({ executeBlockProviderRequest: request }))
 vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 vi.mock('@/providers/utils', () => providersUtilsMock)
+vi.mock('@/lib/internal/llm/bedrock-credential', () => llmBedrockCredentialMock)
 
 function context(): ExecutionContext {
   return {
@@ -244,6 +251,62 @@ describe('executeModelRequestWithFallbacks', () => {
       fallbackModels: [{ model: 'claude-sonnet-5', apiKey: 'old-key' }],
     })
     expect(request.mock.calls[1][0].request.apiKey).toBeUndefined()
+  })
+
+  it('reuses the saved AWS session for a same-provider fallback after the primary model fails', async () => {
+    const session = {
+      credentialId: 'aws-cred',
+      accessKeyId: 'ASIASESSIONKEY000001',
+      secretAccessKey: 'session-secret',
+      sessionToken: 'session-token',
+    }
+    resolveBedrockSession.mockResolvedValueOnce(session)
+    request.mockRejectedValueOnce(new Error('overloaded'))
+
+    const output = await executeModelRequestWithFallbacks({
+      ...input(),
+      providerId: 'bedrock',
+      configuredModel: 'bedrock/claude-sonnet',
+      request: { model: 'bedrock/claude-sonnet', systemPrompt: 'Score the content' },
+      fallbackModels: [{ model: 'bedrock/claude-haiku' }],
+      credentials: {
+        inputs: { bedrockAuthMode: 'credential', bedrockCredential: 'aws-cred' },
+        callerLabel: 'test',
+      },
+    })
+
+    expect(output.result.model).toBe('bedrock/claude-haiku')
+    expect(resolveBedrockSession).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls.map(([args]) => args.request.bedrockSession)).toEqual([
+      session,
+      session,
+    ])
+  })
+
+  it('fails every same-provider candidate after one failed credential resolution, then falls back without the session', async () => {
+    resolveBedrockSession.mockRejectedValueOnce(new Error('AWS STS is unavailable'))
+    const options = input()
+
+    const output = await executeModelRequestWithFallbacks({
+      ...options,
+      providerId: 'bedrock',
+      configuredModel: 'bedrock/claude-sonnet',
+      request: { model: 'bedrock/claude-sonnet', systemPrompt: 'Score the content' },
+      fallbackModels: [{ model: 'bedrock/claude-haiku' }, { model: 'claude-sonnet-5' }],
+      credentials: {
+        inputs: { bedrockAuthMode: 'credential', bedrockCredential: 'aws-cred' },
+        callerLabel: 'test',
+      },
+    })
+
+    expect(output.result.model).toBe('claude-sonnet-5')
+    expect(resolveBedrockSession).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls.map(([args]) => args.providerId)).toEqual(['anthropic'])
+    expect(request.mock.calls[0][0].request.bedrockSession).toBeUndefined()
+    expect(options.ctx.blockLogs[0].modelFallbacks).toEqual([
+      'bedrock/claude-sonnet',
+      'bedrock/claude-haiku',
+    ])
   })
 
   it('strips the Auto identity prompt from fallbacks and keeps the pool model out of the trace', async () => {
