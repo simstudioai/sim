@@ -842,8 +842,18 @@ export interface ResolveGoogleWorkloadIdentityTokenInput {
   service?: string
 }
 
-function unsupportedUse(step: string, reason: string): TokenServiceAccountValidationError {
-  return new TokenServiceAccountValidationError('unsupported_use', 400, { step, reason })
+/** A refusal whose message tells the user what to change; `reason` stays in the log detail. */
+function unsupportedUse(
+  step: string,
+  reason: string,
+  message: string
+): TokenServiceAccountValidationError {
+  return new TokenServiceAccountValidationError(
+    'unsupported_use',
+    400,
+    { step, reason },
+    { message }
+  )
 }
 
 /** Reads the stored secret, or fails in the shared service-account codes. */
@@ -926,20 +936,23 @@ export async function resolveGoogleWorkloadIdentityToken(
     if (input.impersonateEmail && input.impersonateEmail.trim().toLowerCase() !== delegation.user) {
       throw unsupportedUse(
         'google_keyless_delegation_user',
-        'this keyless Google credential acts only as its delegated Workspace user'
+        'this keyless Google credential acts only as its delegated Workspace user',
+        'This keyless Google credential acts only as the Workspace user it was delegated for. Clear the Impersonated Account or set it to that user, or use a JSON key credential to act as other users'
       )
     }
   } else {
     if (input.impersonateEmail) {
       throw unsupportedUse(
         'google_keyless_delegation',
-        'this keyless Google credential has no domain-wide delegation for this service'
+        'this keyless Google credential has no domain-wide delegation for this service',
+        'This keyless Google credential has no domain-wide delegation for this service, so it cannot act as a Workspace user. Clear the Impersonated Account, reconnect the credential to delegate this service, or use a JSON key credential instead'
       )
     }
     if (!input.service || !GOOGLE_KEYLESS_SERVICES.has(input.service)) {
       throw unsupportedUse(
         'google_keyless_service',
-        'this keyless Google credential works only with Google Cloud APIs and the Workspace services it was delegated'
+        'this keyless Google credential works only with Google Cloud APIs and the Workspace services it was delegated',
+        'This keyless Google credential works only with Google Cloud tools such as BigQuery and, through domain-wide delegation, with Gmail, Google Drive, Google Docs, Google Sheets, and Google Calendar. Reconnect it to delegate this service, or use a JSON key credential instead'
       )
     }
   }
@@ -953,7 +966,8 @@ export async function resolveGoogleWorkloadIdentityToken(
   if (!scopes) {
     throw unsupportedUse(
       'google_keyless_delegation_scope',
-      'this keyless Google credential’s domain-wide delegation does not authorize the scopes this use needs'
+      'this keyless Google credential’s domain-wide delegation does not authorize the scopes this use needs',
+      'This keyless Google credential’s domain-wide delegation does not cover the scopes this tool needs. Reconnect it to delegate this service, or use a JSON key credential instead'
     )
   }
   const scopeKey = [...new Set(scopes)].sort().join(' ')

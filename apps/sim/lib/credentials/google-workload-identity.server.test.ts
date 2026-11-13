@@ -420,7 +420,11 @@ describe('getting a keyless Google Cloud token for a run', () => {
 
     await expect(
       resolve({ credentialId: 'cred-dwd', impersonateEmail: 'alice@example.com' })
-    ).rejects.toMatchObject({ code: 'unsupported_use' })
+    ).rejects.toMatchObject({
+      code: 'unsupported_use',
+      logDetail: { step: 'google_keyless_delegation' },
+      userMessage: expect.any(String),
+    })
     expect(fetch).not.toHaveBeenCalled()
   })
 
@@ -431,6 +435,8 @@ describe('getting a keyless Google Cloud token for a run', () => {
 
       await expect(resolve({ credentialId: 'cred-workspace', service })).rejects.toMatchObject({
         code: 'unsupported_use',
+        logDetail: { step: 'google_keyless_service' },
+        userMessage: expect.any(String),
       })
       expect(fetch).not.toHaveBeenCalled()
     }
@@ -755,7 +761,11 @@ describe('getting a delegated Google Workspace token for a run', () => {
 
     await expect(
       resolve({ credentialId: 'dwd-other-user', impersonateEmail: 'bob@example.com' })
-    ).rejects.toMatchObject({ code: 'unsupported_use' })
+    ).rejects.toMatchObject({
+      code: 'unsupported_use',
+      logDetail: { step: 'google_keyless_delegation_user' },
+      userMessage: expect.any(String),
+    })
     expect(fetch).not.toHaveBeenCalled()
   })
 
@@ -778,7 +788,11 @@ describe('getting a delegated Google Workspace token for a run', () => {
 
       await expect(
         resolve({ credentialId: `dwd-${service}`, service, scopes: [CALENDAR_SCOPE] })
-      ).rejects.toMatchObject({ code: 'unsupported_use' })
+      ).rejects.toMatchObject({
+        code: 'unsupported_use',
+        logDetail: { step: 'google_keyless_delegation_scope' },
+        userMessage: expect.any(String),
+      })
       expect(fetch).not.toHaveBeenCalled()
     }
   )

@@ -789,20 +789,24 @@ describe('keyless Google Cloud credential refusals', () => {
       oauth: { required: true, provider: 'google-drive' },
     })
     mockResolveServiceAccountToken.mockReset()
+  })
+
+  it('falls back to a provider-neutral message when the refusal carries none', async () => {
     mockResolveServiceAccountToken.mockRejectedValue(
       new TokenServiceAccountValidationError('unsupported_use', 400)
     )
-  })
-
-  it('tells the caller to use a JSON key instead of asking to reconnect', async () => {
     const result = await resolveCredentialAccessToken({
       requestId: 'google-keyless',
       credentialId: 'google-keyless-1',
       toolId: 'google-drive-tool',
       authenticate,
     })
-    expect(result).toMatchObject({ ok: false, status: 400, code: 'unsupported_use' })
-    expect(result.ok ? '' : result.error).toMatch(/use a JSON key credential instead/)
+    expect(result).toMatchObject({
+      ok: false,
+      status: 400,
+      code: 'unsupported_use',
+      error: 'This credential cannot be used here',
+    })
   })
 })
 

@@ -27,6 +27,7 @@ import { listCredentialProviders } from '@/lib/credentials/application/list-cred
 import { listCredentialProviderCatalog } from '@/lib/credentials/application/provider-catalog'
 import { DATABASE_CONNECTION_DESCRIPTORS } from '@/lib/credentials/database-connections/descriptors'
 import { getMissingServiceAccountFields } from '@/lib/credentials/service-account-fields'
+import { TOKEN_SERVICE_ACCOUNT_DESCRIPTORS } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   isWorkloadIdentityServiceAccountProviderId,
   WORKLOAD_IDENTITY_KEYLESS_CONFIGS,
@@ -215,6 +216,47 @@ describe('v2 credential provider catalog contract', () => {
     expect(
       servicenow?.fields.find((field) => field.id === 'domain')?.requiredForAuthMethods
     ).toBeUndefined()
+  })
+
+  it('lists the client-credentials mode of every provider that offers one, as creation reads it', async () => {
+    const providers = await listProviders()
+    expect(responseSchema.safeParse({ data: providers, nextCursor: null }).success).toBe(true)
+    const offering = Object.values(TOKEN_SERVICE_ACCOUNT_DESCRIPTORS).filter(
+      (descriptor) => descriptor.clientCredentials
+    )
+    expect(offering.length).toBeGreaterThan(0)
+
+    for (const providerId of [
+      ...offering.map((descriptor) => descriptor.providerId),
+      'atlassian-service-account',
+    ]) {
+      const provider = providers.find(
+        (entry) => entry.type === 'service_account' && entry.providerId === providerId
+      )
+      const fields = provider?.fields ?? []
+      const requiredFor = (authMethod: string) =>
+        fields
+          .filter((field) =>
+            field.requiredForAuthMethods
+              ? field.requiredForAuthMethods.includes(authMethod)
+              : field.required
+          )
+          .map((field) => field.id)
+          .sort()
+
+      expect(fields.find((field) => field.id === 'authMethod')).toMatchObject({
+        required: false,
+        defaultValue: 'token',
+        options: [
+          { value: 'token', label: expect.any(String) },
+          { value: 'client_credentials', label: expect.any(String) },
+        ],
+      })
+      expect(requiredFor('client_credentials')).toEqual(
+        getMissingServiceAccountFields(providerId, { authMethod: 'client_credentials' }).sort()
+      )
+      expect(requiredFor('token')).toEqual(getMissingServiceAccountFields(providerId, {}).sort())
+    }
   })
 
   it('lists the native Claude Platform provider when filtered', async () => {
