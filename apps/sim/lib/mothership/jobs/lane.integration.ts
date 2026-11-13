@@ -165,6 +165,7 @@ import { jobOccurrenceId, MIN_JOB_CADENCE_MS } from '@/lib/mothership/jobs/occur
 import { JOB_DISPATCH_GRACE_MS, reconcileJobRuns } from '@/lib/mothership/jobs/reconcile'
 import { takeOverAbandonedRuns } from '@/lib/mothership/request/application/abandoned-runs'
 import { startUnattendedTurn } from '@/lib/mothership/request/lifecycle/unattended'
+import { readEvents } from '@/lib/mothership/request/session/buffer'
 import {
   chatStreamLockKey,
   StreamControllerSupersededError,
@@ -506,6 +507,14 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
     ])
     await runJobLane(new Date())
     await waitFor(async () => worker.open.has(occurrenceId), 'the first leg')
+    /** The worker has written the text, but the process must persist it before it dies. */
+    await waitFor(
+      async () =>
+        (await readEvents(occurrenceId, '0')).some(
+          (event) => event.type === 'text' && event.payload.text === 'Started triage. '
+        ),
+      'the first leg text to persist before the process dies'
+    )
 
     controllers.get(occurrenceId)?.abort(new StreamControllerSupersededError())
     worker.open.get(occurrenceId)?.response.socket?.destroy()
