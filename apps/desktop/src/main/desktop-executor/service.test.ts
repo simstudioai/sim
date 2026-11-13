@@ -34,6 +34,31 @@ import { DesktopExecutor } from '@/main/desktop-executor/executor'
 import { createExecutorJournal } from '@/main/desktop-executor/journal'
 import { createDesktopExecutorService, deviceName } from '@/main/desktop-executor/service'
 
+/**
+ * A list a test can await until it holds `count` entries. The service reaches Sim and the sleep
+ * blocker only after real writes to userData, which Windows Defender can hold for hundreds of
+ * milliseconds each, so waiting on the entry itself beats polling against a fixed deadline.
+ */
+function awaitableList<T>() {
+  const items: T[] = []
+  const waiters = new Set<{ count: number; resolve: () => void }>()
+  return {
+    items,
+    push(item: T) {
+      items.push(item)
+      for (const waiter of waiters) {
+        if (items.length < waiter.count) continue
+        waiters.delete(waiter)
+        waiter.resolve()
+      }
+    },
+    reached(count: number): Promise<void> {
+      if (items.length >= count) return Promise.resolve()
+      return new Promise((resolve) => waiters.add({ count, resolve }))
+    },
+  }
+}
+
 /** Sim's device routes, with registration answers held until the test releases them. */
 function fakeSim(protocolVersion = 1) {
   const requests: string[] = []
@@ -43,7 +68,7 @@ function fakeSim(protocolVersion = 1) {
    * Answers to pending registrations: enabled or not, an HTTP status Sim fails with, or
    * `'offline'` for a request that never reached Sim.
    */
-  const registrations: Array<(answer: boolean | number | 'offline') => void> = []
+  const registrations = awaitableList<(answer: boolean | number | 'offline') => void>()
   const fetch = vi.fn(async (url: string, init: RequestInit): Promise<Response> => {
     const path = new URL(url).pathname
     requests.push(`${init.method} ${path}`)
@@ -93,13 +118,19 @@ function fakeSim(protocolVersion = 1) {
       init.signal?.addEventListener('abort', () => reject(new Error('aborted')))
     )
   })
-  return { fetch, requests, registrations, offered }
+  return {
+    fetch,
+    requests,
+    registrations: registrations.items,
+    registrationsReached: registrations.reached,
+    offered,
+  }
 }
 
 async function service(protocolVersion = 1, userDataPath?: string) {
   const sim = fakeSim(protocolVersion)
   /** What the sleep blocker was told, in order. */
-  const busy: boolean[] = []
+  const busy = awaitableList<boolean>()
   const desktopExecutor = createDesktopExecutorService({
     userDataPath: userDataPath ?? (await mkdtemp(join(tmpdir(), 'sim-executor-service-'))),
     origin: () => 'https://sim.test',
@@ -118,7 +149,7 @@ async function service(protocolVersion = 1, userDataPath?: string) {
     },
     onBusyChange: (value) => busy.push(value),
   })
-  return { sim, desktopExecutor, busy }
+  return { sim, desktopExecutor, busy: busy.items, busyReached: busy.reached }
 }
 
 describe('results recovery will hand to the model', () => {
@@ -192,7 +223,7 @@ describe('results recovery will hand to the model', () => {
     try {
       const { sim, desktopExecutor } = await service(1, userData)
       desktopExecutor.start()
-      await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+      await sim.registrationsReached(1)
       sim.registrations[0]?.(true)
       await vi.waitFor(() => expect(sim.requests).toContain('POST /api/desktop/tool/complete'))
       await vi.waitFor(async () => expect(await createExecutorJournal(path).load()).toEqual([]))
@@ -210,7 +241,7 @@ describe('results recovery will hand to the model', () => {
 
     expect([...(await desktopExecutor.pendingResults())]).toEqual([])
     desktopExecutor.start()
-    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+    await sim.registrationsReached(1)
     sim.registrations[0]?.(true)
 
     await vi.waitFor(() => expect(sim.requests).toContain('GET /api/desktop/inbox'))
@@ -222,7 +253,7 @@ describe('desktop executor registration', () => {
   it('offers the device for binding once Sim enables it', async () => {
     const { sim, desktopExecutor } = await service()
     desktopExecutor.start()
-    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+    await sim.registrationsReached(1)
 
     sim.registrations[0]?.(true)
 
@@ -233,7 +264,7 @@ describe('desktop executor registration', () => {
   it('never resumes for a registration that Sim answers after sign-out', async () => {
     const { sim, desktopExecutor } = await service()
     desktopExecutor.start()
-    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+    await sim.registrationsReached(1)
 
     await desktopExecutor.signOut()
     sim.registrations[0]?.(true)
@@ -247,7 +278,7 @@ describe('desktop executor registration', () => {
   it('offers no binding to a Sim that speaks another protocol version', async () => {
     const { sim, desktopExecutor } = await service(2)
     desktopExecutor.start()
-    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+    await sim.registrationsReached(1)
 
     sim.registrations[0]?.(true)
     await sleep(100)
@@ -259,7 +290,7 @@ describe('desktop executor registration', () => {
   it('stays dormant while Sim has the executor off: no inbox and no doorbell', async () => {
     const { sim, desktopExecutor } = await service()
     desktopExecutor.start()
-    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+    await sim.registrationsReached(1)
 
     sim.registrations[0]?.(false)
     await sleep(100)
@@ -345,12 +376,13 @@ describe('desktop executor registration', () => {
   })
 
   it('releases the sleep blocker at sign-out while a call is still running', async () => {
-    const { sim, desktopExecutor, busy } = await service()
+    const { sim, desktopExecutor, busy, busyReached } = await service()
     sim.offered.push('call-1')
     desktopExecutor.start()
-    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+    await sim.registrationsReached(1)
     sim.registrations[0]?.(true)
-    await vi.waitFor(() => expect(busy).toEqual([true]))
+    await busyReached(1)
+    expect(busy).toEqual([true])
 
     await desktopExecutor.signOut()
 
