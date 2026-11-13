@@ -23,10 +23,8 @@ type DynamoDBReturnValues = 'NONE' | 'ALL_OLD' | 'UPDATED_OLD' | 'ALL_NEW' | 'UP
  */
 function unwrapNumber(value: string): number | NumberValue {
   const parsed = Number(value)
-  if (Number.isSafeInteger(parsed)) return parsed
-  if (Number.isFinite(parsed) && !Number.isInteger(parsed) && String(parsed) === value) {
-    return parsed
-  }
+  const exact = Number.isFinite(parsed) && String(parsed) === value
+  if (exact && (!Number.isInteger(parsed) || Number.isSafeInteger(parsed))) return parsed
   return NumberValue.from(value)
 }
 

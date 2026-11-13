@@ -81,6 +81,7 @@ describe('DynamoDB item unmarshalling', () => {
         bin: { B: new Uint8Array([104, 105]) },
         age: { N: '42' },
         ratio: { N: '0.12345678901234567890123' },
+        nearOne: { N: '1.0000000000000000001' },
       },
     })
     const firstPage = await queryItems(pageClient, 'Users', 'pk = :pk', {
@@ -93,6 +94,7 @@ describe('DynamoDB item unmarshalling', () => {
       bin: { B: 'aGk=' },
       age: 42,
       ratio: { N: '0.12345678901234567890123' },
+      nearOne: { N: '1.0000000000000000001' },
     })
 
     let sentStartKey: unknown
@@ -110,6 +112,7 @@ describe('DynamoDB item unmarshalling', () => {
       bin: { B: new Uint8Array([104, 105]) },
       age: { N: '42' },
       ratio: { N: '0.12345678901234567890123' },
+      nearOne: { N: '1.0000000000000000001' },
     })
     pageClient.destroy()
     client.destroy()
