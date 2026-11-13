@@ -3223,6 +3223,7 @@ describe('credential protection', () => {
       const contents = await openPage()
       const calls: string[] = []
       let probe = 0
+      let snapshotAt = Number.NaN
       vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
         if (isPageCall(expression, 'readDomQuiet')) {
           calls.push('probe')
@@ -3231,6 +3232,7 @@ describe('credential protection', () => {
         }
         if (isPageCall(expression, 'collectSnapshot')) {
           calls.push('snapshot')
+          snapshotAt = Date.now()
           return Promise.resolve({
             url: 'https://example.com/',
             title: 'Example',
@@ -3246,6 +3248,7 @@ describe('credential protection', () => {
       })
       vi.useFakeTimers()
       try {
+        const startedAt = Date.now()
         const clicking = driver.executeTool('chat-test', 'browser_click', {
           elementId: 0,
           observe: {},
@@ -3256,6 +3259,7 @@ describe('credential protection', () => {
         const probesBeforeSnapshot = calls.indexOf('snapshot')
         expect(probesBeforeSnapshot).toBeGreaterThan(0)
         if (expectedProbes !== undefined) expect(probesBeforeSnapshot).toBe(expectedProbes)
+        else expect(snapshotAt - startedAt).toBeLessThanOrEqual(2_000)
       } finally {
         vi.useRealTimers()
       }

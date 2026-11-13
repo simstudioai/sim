@@ -381,6 +381,77 @@ describe('combobox typing surfaces', () => {
     expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
   })
 
+  function coverViewport<T extends Element>(el: T): T {
+    el.getBoundingClientRect = () =>
+      ({
+        x: 0,
+        y: 0,
+        width: window.innerWidth,
+        height: window.innerHeight,
+        top: 0,
+        left: 0,
+        right: window.innerWidth,
+        bottom: window.innerHeight,
+      }) as DOMRect
+    return el
+  }
+
+  it('refuses a top-page field behind an unmarked full-screen modal layer', () => {
+    document.body.innerHTML = `
+      <input type="text" aria-label="Search" />
+      <div id="backdrop" style="position: fixed"><div id="panel">Subscribe to our newsletter</div></div>
+    `
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    coverViewport(document.querySelector('#backdrop') as HTMLDivElement)
+    const panel = visible(document.querySelector('#panel') as HTMLDivElement)
+    register(input)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => panel })
+
+    expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
+    expect(input.value).toBe('')
+  })
+
+  it('types under a fixed bar that does not cover the screen', () => {
+    document.body.innerHTML =
+      '<input type="text" aria-label="Search" /><div style="position: fixed">Free shipping today</div>'
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    const bar = visible(document.querySelector('div') as HTMLDivElement)
+    register(input)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => bar })
+
+    expect(focusElementForTyping(0)).toMatchObject({
+      focused: true,
+      coveredBy: 'Free shipping today',
+    })
+  })
+
+  it('types inside a full-screen fixed app shell that also holds the field', () => {
+    document.body.innerHTML = `
+      <div id="shell" style="position: fixed">
+        <input type="text" aria-label="Search" /><div id="card">Shop for your home</div>
+      </div>
+    `
+    coverViewport(document.querySelector('#shell') as HTMLDivElement)
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    const card = visible(document.querySelector('#card') as HTMLDivElement)
+    register(input)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => card })
+
+    expect(focusElementForTyping(0)).toMatchObject({
+      focused: true,
+      coveredBy: 'Shop for your home',
+    })
+  })
+
+  it('refuses a top-page field when no sampled point hits anything', () => {
+    document.body.innerHTML = '<input type="text" aria-label="Search" />'
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    register(input)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => null })
+
+    expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
+  })
+
   it('still refuses a covered field inside a frame', () => {
     const frame = document.createElement('iframe')
     document.body.append(frame)
