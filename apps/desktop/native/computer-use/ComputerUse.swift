@@ -142,8 +142,10 @@ func elementRect(_ element: AXUIElement) -> CGRect? {
           AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &size) else { return nil }
     return CGRect(origin: position, size: size)
 }
-/// Apps computer use never operates, lowercased: macOS security settings, password managers, and
-/// terminals, whose shell access has its own Terminal control.
+/// Apps computer use never operates, lowercased: macOS security settings, password managers, and apps
+/// whose primary purpose is running shell commands or scripts (terminals, Script Editor, Automator,
+/// Shortcuts), since shell access goes through the Terminal tool's own opt-in. Apps that merely embed a
+/// terminal, such as editors, stay usable.
 let PROTECTED_APPS: Set<String> = [
     "com.apple.systempreferences", "com.apple.keychainaccess", "com.apple.passwords",
     "com.1password.1password", "com.agilebits.onepassword7", "com.agilebits.onepassword-osx", "com.bitwarden.desktop",
@@ -151,6 +153,7 @@ let PROTECTED_APPS: Set<String> = [
     "com.markmcguill.strongbox", "com.markmcguill.strongbox.mac",
     "com.apple.terminal", "com.googlecode.iterm2", "dev.warp.warp-stable", "com.mitchellh.ghostty",
     "net.kovidgoyal.kitty", "org.alacritty", "com.github.wez.wezterm", "co.zeit.hyper", "org.tabby",
+    "com.apple.scripteditor2", "com.apple.automator", "com.apple.shortcuts",
 ]
 /// Whether computer use refuses an app: Sim's own apps and `PROTECTED_APPS`. Bundle identifiers match
 /// case-insensitively in Launch Services.
@@ -161,7 +164,7 @@ func isProtectedApp(_ bundle: String) -> Bool {
 func appFor(_ bundleId: String?, launch: Bool = false) async throws -> NSRunningApplication {
     let bundle = try required(bundleId, "bundleId")
     guard !isProtectedApp(bundle) else {
-        throw ComputerError("protected_app", "Computer use does not operate Sim, System Settings, password managers, or terminals; use the terminal tool for shell work.")
+        throw ComputerError("protected_app", "Computer use does not operate Sim, System Settings, password managers, terminals, or scripting apps; use the terminal tool for shell work.")
     }
     var apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).filter { !$0.isTerminated }
     if apps.isEmpty && launch {

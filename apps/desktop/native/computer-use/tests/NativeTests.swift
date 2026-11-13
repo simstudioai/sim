@@ -26,7 +26,7 @@ import AppKit
         expectError("unsupported_key") { _ = try parseKey("F99") }
         expectError("invalid_arguments") { _ = try parseKey("Hyper+A") }
         expectError("invalid_arguments") { _ = try required(Optional<String>.none, "example") }
-        for bundle in ["com.apple.systempreferences", "com.apple.Terminal", "COM.GOOGLECODE.ITERM2", "net.kovidgoyal.kitty", "com.1password.1password", "com.apple.Passwords", "com.bitwarden.desktop", "ai.sim.desktop", "com.simstudio.computer-use"] {
+        for bundle in ["com.apple.systempreferences", "com.apple.Terminal", "COM.GOOGLECODE.ITERM2", "net.kovidgoyal.kitty", "com.1password.1password", "com.apple.Passwords", "com.bitwarden.desktop", "ai.sim.desktop", "com.simstudio.computer-use", "com.apple.ScriptEditor2", "com.apple.Automator", "com.apple.shortcuts"] {
             precondition(isProtectedApp(bundle), bundle)
         }
         for bundle in ["com.apple.TextEdit", "com.apple.finder", "com.apple.Safari"] { precondition(!isProtectedApp(bundle), bundle) }
