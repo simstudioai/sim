@@ -61,8 +61,9 @@ const RECHECK_JITTER_MS = 2 * 60 * 1000
 const UNRETURNED_UNIT_MS = 60 * 60 * 1000
 
 /**
- * How long "no entitlement" must hold before a running Enterprise deployment believes it: longer
- * than an unreturned unit lasts, plus one re-check, so a unit held elsewhere can never cause it.
+ * How long "no entitlement" must hold, with no other answer in between, before a running Enterprise
+ * deployment believes it: longer than an unreturned unit lasts, plus one re-check, so a unit held
+ * elsewhere can never cause it.
  */
 const NO_ENTITLEMENT_CONFIRMATION_MS = UNRETURNED_UNIT_MS + RECHECK_INTERVAL_MS
 
@@ -211,10 +212,10 @@ export async function applyAwsMarketplaceContainerLicense(): Promise<void> {
   }
   const recheck = async () => {
     const state = await checkLicense(client, productSku)
-    if (state === 'entitled') {
-      noEntitlementSince = null
-      if (!enterpriseAtBoot) return restartToApply(state)
-    } else if (state === 'no-entitlement' && enterpriseAtBoot) {
+    // Only an unbroken run of "no entitlement" answers counts toward switching Enterprise off.
+    if (state !== 'no-entitlement') noEntitlementSince = null
+    if (state === 'entitled' && !enterpriseAtBoot) return restartToApply(state)
+    if (state === 'no-entitlement' && enterpriseAtBoot) {
       noEntitlementSince ??= Date.now()
       if (Date.now() - noEntitlementSince >= NO_ENTITLEMENT_CONFIRMATION_MS) {
         return restartToApply(state)

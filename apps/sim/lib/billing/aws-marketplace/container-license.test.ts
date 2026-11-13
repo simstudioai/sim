@@ -22,12 +22,17 @@ import { applyAwsMarketplaceContainerLicense } from '@/lib/billing/aws-marketpla
 const MINUTE = 60 * 1000
 const TOKEN = 'consumption-token-placeholder'
 
-type Answer = 'entitled' | 'NoEntitlementsAllowedException' | 'AccessDeniedException'
+type Answer =
+  | 'entitled'
+  | 'NoEntitlementsAllowedException'
+  | 'AccessDeniedException'
+  | 'ServerInternalException'
 
 /** License Manager's checkout answers in order; the last one repeats once the list runs out. */
 let answers: Answer[] = []
 let checkInFails = false
-const checkIns: string[] = []
+const checkoutRequests: unknown[] = []
+const checkIns: Array<string | undefined> = []
 
 function awsError(name: string): Error {
   return Object.assign(new Error(name), { name })
@@ -51,6 +56,7 @@ describe('applyAwsMarketplaceContainerLicense', () => {
     answers = []
     checkInFails = false
     checkIns.length = 0
+    checkoutRequests.length = 0
     vi.stubEnv('AWS_MARKETPLACE_LICENSE_PRODUCT_SKU', 'product-placeholder')
     kill = vi.spyOn(process, 'kill').mockImplementation(() => true)
     mockSend.mockReset()
@@ -60,6 +66,7 @@ describe('applyAwsMarketplaceContainerLicense', () => {
         if (checkInFails) throw awsError('ServerInternalException')
         return {}
       }
+      checkoutRequests.push((command as { input: unknown }).input)
       const answer = answers.length > 1 ? answers.shift() : answers[0]
       if (answer !== 'entitled') throw awsError(answer ?? 'ServerInternalException')
       return {
@@ -73,7 +80,6 @@ describe('applyAwsMarketplaceContainerLicense', () => {
     vi.clearAllTimers()
     vi.useRealTimers()
     kill.mockRestore()
-    vi.unstubAllEnvs()
     Reflect.deleteProperty(process.env, 'ENTERPRISE_ENABLED')
     Reflect.deleteProperty(process.env, 'NEXT_PUBLIC_ENTERPRISE_ENABLED')
   })
@@ -88,6 +94,14 @@ describe('applyAwsMarketplaceContainerLicense', () => {
     answers = ['entitled']
     await boot()
     expect(enterpriseEnabled()).toBe(true)
+    expect(checkoutRequests).toEqual([
+      expect.objectContaining({
+        ProductSKU: 'product-placeholder',
+        CheckoutType: 'PROVISIONAL',
+        KeyFingerprint: 'aws:294406891311:AWS/Marketplace:issuer-fingerprint',
+        Entitlements: [{ Name: 'enterprise_license', Value: '1', Unit: 'Count' }],
+      }),
+    ])
     expect(checkIns).toEqual([TOKEN])
   })
 
@@ -130,6 +144,19 @@ describe('applyAwsMarketplaceContainerLicense', () => {
     expect(kill).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(10 * MINUTE)
     expect(kill).toHaveBeenCalledWith(process.pid, 'SIGTERM')
+  })
+
+  it('does not count failed checks toward switching Enterprise off', async () => {
+    answers = [
+      'entitled',
+      'NoEntitlementsAllowedException',
+      ...Array<Answer>(6).fill('ServerInternalException'),
+      'NoEntitlementsAllowedException',
+      'entitled',
+    ]
+    await boot()
+    await vi.advanceTimersByTimeAsync(130 * MINUTE)
+    expect(kill).not.toHaveBeenCalled()
   })
 
   it('never restarts a running Enterprise deployment over a permission failure', async () => {
