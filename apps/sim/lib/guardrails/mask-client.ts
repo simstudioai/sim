@@ -92,8 +92,9 @@ function isRetryableChunkError(error: unknown): boolean {
  * Statuses that mean the service is down rather than that one request was bad:
  * the load balancer has no healthy target (502/503/504), or the mask-batch route
  * could not reach Presidio (503). A 500 is retried but never read as an outage —
- * Presidio answers 500 for deterministic per-input failures too (an over-long text
- * spaCy refuses), and one such chunk must not scrub the rest of the payload.
+ * Presidio answers 500 for deterministic per-input failures too (an input that
+ * raises inside a recognizer), and one such chunk must not scrub the rest of the
+ * payload.
  */
 const OUTAGE_STATUSES = new Set([502, 503, 504])
 
