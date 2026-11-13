@@ -66,9 +66,18 @@ function runSerialized(fn: (...args: never[]) => unknown, args: unknown[]): unkn
   return new Function(`return ${serializePageCall(fn, args)}`)()
 }
 
-function visible<T extends Element>(el: T, width = 100, height = 20): T {
+function visible<T extends Element>(el: T): T {
   el.getBoundingClientRect = () =>
-    ({ x: 0, y: 0, width, height, top: 0, left: 0, right: width, bottom: height }) as DOMRect
+    ({
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 20,
+      top: 0,
+      left: 0,
+      right: 100,
+      bottom: 20,
+    }) as DOMRect
   return el
 }
 
@@ -200,7 +209,7 @@ describe('serialization contract', () => {
 
   it.each(cases)('%s is self-contained', (_name, fn, args) => {
     document.body.innerHTML = '<input type="text" /><select><option value="v">V</option></select>'
-    register(...Array.from(document.body.children).map((el) => visible(el)))
+    register(...Array.from(document.body.children).map(visible))
 
     expect(() => runSerialized(fn, args)).not.toThrow()
   })
@@ -372,54 +381,99 @@ describe('combobox typing surfaces', () => {
     expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
   })
 
-  const coverViewport = <T extends Element>(el: T): T =>
-    visible(el, window.innerWidth, window.innerHeight)
+  /** Answers `elementFromPoint` with `overField` on the field's sampled points, `elsewhere` beyond. */
+  function pointTo(overField: Element, elsewhere: (x: number, y: number) => Element): void {
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: (x: number, y: number) =>
+        x >= 10 && x <= 100 && y <= 20 ? overField : elsewhere(x, y),
+    })
+  }
+  const nearCentre = (x: number, y: number) =>
+    Math.abs(x - window.innerWidth / 2) < 50 && Math.abs(y - window.innerHeight / 2) < 50
 
-  it('refuses a top-page field behind an unmarked full-screen modal layer', () => {
+  it('refuses a top-page field behind an unmarked backdrop and panel', () => {
     document.body.innerHTML = `
       <input type="text" aria-label="Search" />
-      <div id="backdrop" style="position: fixed"><div id="panel">Subscribe to our newsletter</div></div>
+      <div id="backdrop" style="position: fixed"></div>
+      <div id="panel" style="position: fixed">Subscribe to our newsletter</div>
     `
     const input = visible(document.querySelector('input') as HTMLInputElement)
-    coverViewport(document.querySelector('#backdrop') as HTMLDivElement)
-    const panel = visible(document.querySelector('#panel') as HTMLDivElement)
+    const backdrop = document.querySelector('#backdrop') as HTMLDivElement
+    const panel = document.querySelector('#panel') as HTMLDivElement
     register(input)
-    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => panel })
+    pointTo(panel, (x, y) => (nearCentre(x, y) ? panel : backdrop))
 
     expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
   })
 
-  it('types under a fixed bar that does not cover the screen', () => {
-    document.body.innerHTML =
-      '<input type="text" aria-label="Search" /><div style="position: fixed">Free shipping today</div>'
-    const input = visible(document.querySelector('input') as HTMLInputElement)
-    const bar = visible(document.querySelector('div') as HTMLDivElement)
-    register(input)
-    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => bar })
-
-    expect(focusElementForTyping(0)).toMatchObject({
-      focused: true,
-      coveredBy: 'Free shipping today',
-    })
-  })
-
-  it('types under a popup whose full-screen fixed wrapper lets the pointer through', () => {
+  it('refuses a top-page field behind a backdrop inside a wrapper that lets the pointer through', () => {
     document.body.innerHTML = `
       <input type="text" aria-label="Search" />
       <div id="layer" style="position: fixed; pointer-events: none">
-        <div id="toast" style="pointer-events: auto">Saved to your list</div>
+        <div id="backdrop" style="position: absolute; pointer-events: auto"></div>
+        <div id="panel" style="pointer-events: auto">Subscribe to our newsletter</div>
       </div>
     `
     const input = visible(document.querySelector('input') as HTMLInputElement)
-    coverViewport(document.querySelector('#layer') as HTMLDivElement)
-    const toast = visible(document.querySelector('#toast') as HTMLDivElement)
+    const backdrop = document.querySelector('#backdrop') as HTMLDivElement
+    const panel = document.querySelector('#panel') as HTMLDivElement
     register(input)
-    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => toast })
+    pointTo(panel, () => backdrop)
 
-    expect(focusElementForTyping(0)).toMatchObject({
-      focused: true,
-      coveredBy: 'Saved to your list',
-    })
+    expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
+  })
+
+  it('types under a fixed bar or a toast whose wrapper lets the pointer through', () => {
+    document.body.innerHTML = `
+      <input type="text" aria-label="Search" />
+      <div id="bar" style="position: fixed">Free shipping today</div>
+      <div style="position: fixed; pointer-events: none"><div id="toast">Saved to your list</div></div>
+    `
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    register(input)
+    for (const [cover, label] of [
+      ['#bar', 'Free shipping today'],
+      ['#toast', 'Saved to your list'],
+    ] as const) {
+      pointTo(document.querySelector(cover) as HTMLDivElement, () => document.body)
+      expect(focusElementForTyping(0)).toMatchObject({ focused: true, coveredBy: label })
+    }
+  })
+
+  it('types under a fixed header when a cookie banner pins the bottom corners', () => {
+    document.body.innerHTML = `
+      <input type="text" aria-label="Search" />
+      <div id="header" style="position: fixed">Menu</div>
+      <main>Results</main>
+      <div id="banner" style="position: fixed">We use cookies</div>
+    `
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    const header = document.querySelector('#header') as HTMLDivElement
+    const main = document.querySelector('main') as HTMLElement
+    const banner = document.querySelector('#banner') as HTMLDivElement
+    register(input)
+    pointTo(header, (x, y) =>
+      nearCentre(x, y) ? main : y < window.innerHeight / 2 ? header : banner
+    )
+
+    expect(focusElementForTyping(0)).toMatchObject({ focused: true, coveredBy: 'Menu' })
+  })
+
+  it('types into a fixed search box over a full-screen fixed map when a card covers it', () => {
+    document.body.innerHTML = `
+      <div id="map" style="position: fixed">Map</div>
+      <div style="position: fixed"><input type="text" aria-label="Search" /></div>
+      <div id="card" style="position: fixed">Try the new app</div>
+    `
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    register(input)
+    pointTo(
+      document.querySelector('#card') as HTMLDivElement,
+      () => document.querySelector('#map') as HTMLDivElement
+    )
+
+    expect(focusElementForTyping(0)).toMatchObject({ focused: true, coveredBy: 'Try the new app' })
   })
 
   it('types inside a full-screen fixed app shell that also holds the field', () => {
@@ -428,11 +482,10 @@ describe('combobox typing surfaces', () => {
         <input type="text" aria-label="Search" /><div id="card">Shop for your home</div>
       </div>
     `
-    coverViewport(document.querySelector('#shell') as HTMLDivElement)
+    const shell = document.querySelector('#shell') as HTMLDivElement
     const input = visible(document.querySelector('input') as HTMLInputElement)
-    const card = visible(document.querySelector('#card') as HTMLDivElement)
     register(input)
-    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => card })
+    pointTo(document.querySelector('#card') as HTMLDivElement, () => shell)
 
     expect(focusElementForTyping(0)).toMatchObject({
       focused: true,
