@@ -234,7 +234,11 @@ export function KeylessTrustFields({
             title='Subject'
             value={setup.trust.subject}
             copyLabel='Copy subject'
-            hint={`Your trust configuration must allow exactly this subject. Sim holds it for you until ${formatDate(new Date(setup.trust.subjectHeldUntil))}.`}
+            hint={
+              setup.trust.subjectHeldUntil
+                ? `Your trust configuration must allow exactly this subject. Sim holds it for you until ${formatDate(new Date(setup.trust.subjectHeldUntil))}.`
+                : 'Your trust configuration must allow exactly this subject.'
+            }
           />
         </>
       )}

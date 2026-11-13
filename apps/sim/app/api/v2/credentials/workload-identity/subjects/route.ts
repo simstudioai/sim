@@ -48,6 +48,11 @@ export const POST = defineV2JsonRoute({
     if (!result.available) {
       throw new WorkloadIdentityNotConfiguredError()
     }
+    // This route only issues or renews subjects Sim holds, so the hold is always reported.
+    const { subjectIssuedAt, subjectHeldUntil } = result
+    if (!subjectIssuedAt || !subjectHeldUntil) {
+      throw new Error('A held workload identity subject must report its hold')
+    }
     const { authType, requiredFields, optionalFields } =
       WORKLOAD_IDENTITY_KEYLESS_CONFIGS[workloadIdentityProviderFor(body.providerId)]
     return {
@@ -57,8 +62,8 @@ export const POST = defineV2JsonRoute({
         subject: result.subject,
         subjectProof: result.subjectProof,
         expiresAt: result.expiresAt,
-        subjectIssuedAt: result.subjectIssuedAt,
-        subjectHeldUntil: result.subjectHeldUntil,
+        subjectIssuedAt,
+        subjectHeldUntil,
         keylessConfig: { authType, subject: result.subject, subjectProof: result.subjectProof },
         requiredConfigFields: [...requiredFields],
         optionalConfigFields: [...optionalFields],

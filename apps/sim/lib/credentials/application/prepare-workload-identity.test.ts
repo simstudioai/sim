@@ -361,6 +361,25 @@ describe('preparing a reconnect', () => {
     expect(await prepare()).not.toHaveProperty('reconnectCloud')
   })
 
+  it('reports no hold for a reconnect subject Sim does not hold', async () => {
+    reconnecting(keylessSecret)
+
+    const result = await prepareWorkloadIdentity.execute({
+      principal,
+      input: {
+        workspaceId: 'workspace-1',
+        provider: 'snowflake',
+        credentialId: 'cred-1',
+        subjectRequest: { kind: 'unheld' },
+      },
+    })
+
+    expect(result).toMatchObject({ available: true, subject: expect.any(String) })
+    expect(result).not.toHaveProperty('subjectHeldUntil')
+    expect(result).not.toHaveProperty('subjectIssuedAt')
+    expect(result).not.toHaveProperty('subjectReused')
+  })
+
   it('gives Google no fixed audience', async () => {
     reconnecting(STORED_MODES[11].secret, { providerId: 'google-service-account' })
     expect(await prepare('google')).not.toHaveProperty('audience')
