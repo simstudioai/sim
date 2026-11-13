@@ -353,7 +353,10 @@ trap '__sim_preexec' DEBUG
  * the user's policy exactly as they would without us.
  *
  * The exit code is 0 when the line succeeded, else `$LASTEXITCODE` when a
- * native program set a failing one, else 1 (a failing cmdlet has no code).
+ * native program the line ran set a failing one, else 1 (a failing cmdlet has
+ * no code). `$LASTEXITCODE` is cleared as each line is accepted so an earlier
+ * line's code is never read as this one's, and put back when nothing set it,
+ * so the user still sees the last native program's code.
  */
 function powerShellScript(nonce: string): string {
   return String.raw`$Global:__SimNonce = '${nonce}'
@@ -394,6 +397,8 @@ if (Test-Path -Path Function:\PSConsoleHostReadLine) {
     $line = & $Global:__SimReadLine
     if (-not [string]::IsNullOrWhiteSpace($line)) {
       $Global:__SimInCommand = $true
+      $Global:__SimLastExitCode = $global:LASTEXITCODE
+      $global:LASTEXITCODE = $null
       [Console]::Write((__Sim-Osc "E;$(__Sim-Escape $line)") + (__Sim-Osc 'C'))
     }
     $line
@@ -412,6 +417,7 @@ if (Test-Path -Path Function:\PSConsoleHostReadLine) {
     }
     if ($Global:__SimInCommand) {
       $Global:__SimInCommand = $false
+      if ($null -eq $nativeExitCode) { $global:LASTEXITCODE = $Global:__SimLastExitCode }
       $exitCode = if ($succeeded) { 0 } elseif ($nativeExitCode -is [int] -and $nativeExitCode -ne 0) { $nativeExitCode } else { 1 }
       $markers += (__Sim-Osc "D;$exitCode")
     }
