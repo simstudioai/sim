@@ -1,11 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  DESKTOP_THEME_DEFAULT_ATTRIBUTE,
-  DESKTOP_THEME_FORCED_ATTRIBUTE,
-  DESKTOP_THEME_STORAGE_KEY_ATTRIBUTE,
-} from '@sim/desktop-bridge'
 import { usePathname } from 'next/navigation'
 import type { ThemeProviderProps } from 'next-themes'
 import { ThemeProvider as NextThemesProvider } from 'next-themes'
@@ -83,11 +78,6 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       disableTransitionOnChange
       storageKey={surface.storageKey}
       forcedTheme={forcedTheme}
-      scriptProps={{
-        [DESKTOP_THEME_STORAGE_KEY_ATTRIBUTE]: surface.storageKey,
-        [DESKTOP_THEME_DEFAULT_ATTRIBUTE]: surface.defaultTheme,
-        [DESKTOP_THEME_FORCED_ATTRIBUTE]: forcedTheme,
-      }}
       {...props}
     >
       {children}

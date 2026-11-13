@@ -193,10 +193,12 @@ export function handleWillPreventUnload(
 
 /**
  * Points the native caption (and Electron-drawn menus) at Sim's own theme
- * choice on Windows. Only the user's *preference* may drive this, never the
- * resolved theme: `themeSource` also pins `prefers-color-scheme`, so pinning a
- * resolved "light" would freeze a Sim set to follow the system. A sender that
- * reports no preference leaves the OS default in place.
+ * choice on Windows. Only the user's app-wide *preference* (`sim-theme`) may
+ * drive this, never the resolved theme or a page's own theme: `themeSource` is
+ * process-wide and also pins `prefers-color-scheme`, so a forced-light page in
+ * one window would repaint every window, and pinning a resolved "light" would
+ * freeze a Sim set to follow the system. A sender that reports no preference
+ * leaves the OS default in place.
  */
 function syncNativeThemeSource(preference: unknown): void {
   if (preference !== 'system' && preference !== 'dark' && preference !== 'light') return

@@ -1,8 +1,3 @@
-import {
-  DESKTOP_THEME_DEFAULT_ATTRIBUTE,
-  DESKTOP_THEME_FORCED_ATTRIBUTE,
-  DESKTOP_THEME_STORAGE_KEY_ATTRIBUTE,
-} from '@sim/desktop-bridge'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ShellTheme, ShellThemeApi } from '@/shared/shell'
 
@@ -20,21 +15,16 @@ export function exposeShellTheme(): void {
 }
 
 /**
- * The page's theme preference: a theme the page forces (`/login` and `/chat` are always light),
- * else its explicit choice, else the default it falls back to. The theme provider marks its script
- * with these, since landing pages keep their own storage key (`sim-landing-theme`, light by
- * default); a server too old to mark it uses the app's `sim-theme`.
+ * The user's app-wide theme choice (the next-themes `sim-theme` key), or `system`. A page's forced
+ * theme (`/login`, `/chat`) and the landing pages' own `sim-landing-theme` are deliberately ignored:
+ * on Windows this value drives `nativeTheme.themeSource`, which is process-wide, so a per-page theme
+ * would repaint every other window's caption and `prefers-color-scheme`.
  */
 function themePreference(): string {
-  const store = document.querySelector(`script[${DESKTOP_THEME_STORAGE_KEY_ATTRIBUTE}]`)
-  const forced = store?.getAttribute(DESKTOP_THEME_FORCED_ATTRIBUTE)
-  if (forced) return forced
-  const storageKey = store?.getAttribute(DESKTOP_THEME_STORAGE_KEY_ATTRIBUTE) || 'sim-theme'
-  const fallback = store?.getAttribute(DESKTOP_THEME_DEFAULT_ATTRIBUTE) || 'system'
   try {
-    return localStorage.getItem(storageKey) ?? fallback
+    return localStorage.getItem('sim-theme') ?? 'system'
   } catch {
-    return fallback
+    return 'system'
   }
 }
 
