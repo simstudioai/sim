@@ -26,6 +26,18 @@ function getExplicitPageSize(params: DataverseListRecordsParams): number | undef
   return pageSize
 }
 
+/**
+ * Page size sent as `Prefer: odata.maxpagesize`. Dataverse ignores `$top` when a page size is
+ * sent, so the default applies only when no `$top` was requested, except on `nextLink` pages,
+ * which must keep paging.
+ */
+function resolvePageSize(params: DataverseListRecordsParams): number | undefined {
+  return (
+    getExplicitPageSize(params) ??
+    (params.nextLink || !isSet(params.top) ? DATAVERSE_DEFAULT_PAGE_SIZE : undefined)
+  )
+}
+
 /** Dataverse serves the same environment on `org.crm…` and `org.api.crm…`; compare them as one host. */
 function environmentHost(url: URL): string {
   return url.host.toLowerCase().replace(/^([^.]+)\.api\./, '$1.')
@@ -171,12 +183,8 @@ export const dataverseListRecordsTool: ToolConfig<
      */
     stripAuthOnRedirect: true,
     headers: (params) => {
-      // Dataverse ignores $top entirely when Prefer: odata.maxpagesize is also sent, so the
-      // default page-size preference is only applied when the caller hasn't requested a $top.
       const preferParts = ['odata.include-annotations="*"']
-      const pageSize =
-        getExplicitPageSize(params) ??
-        (params.nextLink || !isSet(params.top) ? DATAVERSE_DEFAULT_PAGE_SIZE : undefined)
+      const pageSize = resolvePageSize(params)
       if (pageSize !== undefined) {
         preferParts.push(`odata.maxpagesize=${pageSize}`)
       }
@@ -190,7 +198,7 @@ export const dataverseListRecordsTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: DataverseListRecordsParams) => {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       const errorMessage =
@@ -212,6 +220,7 @@ export const dataverseListRecordsTool: ToolConfig<
         count: records.length,
         totalCount,
         nextLink,
+        pageSize: params ? (resolvePageSize(params) ?? null) : null,
         success: true,
       },
     }
@@ -229,6 +238,13 @@ export const dataverseListRecordsTool: ToolConfig<
       type: 'string',
       description: 'URL for the next page of results',
       optional: true,
+    },
+    pageSize: {
+      type: 'number',
+      description:
+        'Page size sent as odata.maxpagesize (null when Max Results applied instead); pass it with nextLink, since Dataverse requires the same value on every page',
+      optional: true,
+      nullable: true,
     },
     success: { type: 'boolean', description: 'Operation success status' },
   },

@@ -316,7 +316,7 @@ Return ONLY the date - no explanations, no extra text.`,
     metadata: {
       type: 'json',
       description:
-        'Contact (resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames), or for list/search {contacts, nextPageToken, totalItems}',
+        'Contact (resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames), list {contacts, nextPageToken, totalItems}, or search {contacts}',
     },
   },
 }

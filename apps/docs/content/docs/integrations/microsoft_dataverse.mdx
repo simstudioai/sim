@@ -356,6 +356,7 @@ Query and list records from a Microsoft Dataverse table. Supports OData query op
 | `count` | number | Number of records returned in the current page |
 | `totalCount` | number | Total number of matching records server-side \(requires $count=true\) |
 | `nextLink` | string | URL for the next page of results |
+| `pageSize` | number | Page size sent as odata.maxpagesize \(null when Max Results applied instead\); pass it with nextLink, since Dataverse requires the same value on every page |
 | `success` | boolean | Operation success status |
 
 </ReferenceDetails>

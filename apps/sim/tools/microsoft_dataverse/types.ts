@@ -135,6 +135,7 @@ export interface DataverseListRecordsResponse extends ToolResponse {
     count: number
     totalCount: number | null
     nextLink: string | null
+    pageSize: number | null
     success: boolean
   }
 }
