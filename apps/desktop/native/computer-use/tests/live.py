@@ -166,8 +166,10 @@ try:
             {'action': 'click', 'elementId': find(snapshot, role='AXButton', label='Show sheet')['elementId']},
             {'action': 'click', 'elementId': find(snapshot, role='AXButton', label='Increment')['elementId']},
         ])
-        assert progress['completedSteps'] == 1 and 'opened or closed' in progress['error'] and count(snapshot) == before + 3, progress
+        assert progress['completedSteps'] == 1 and 'opened or closed' in progress['error'], progress
+        # While the sheet is open only the sheet is observed; the step after it must not have run.
         snapshot = mutate('click', snapshot, elementId=find(snapshot, role='AXButton', label='Dismiss')['elementId'])
+        assert count(snapshot) == before + 3, 'A batch step ran after a sheet opened'
         print('PASS: real fixture state, secure suppression, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click, a batch that applies, stops at a failing step, refuses before dispatch and stops when a sheet opens; every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
 finally:
     if fixture:
