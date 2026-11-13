@@ -590,14 +590,17 @@ func postMouse(pid: pid_t, type: CGEventType, point: CGPoint, button: CGMouseBut
     event.post(tap: .cghidEventTap)
 }
 
-/// Clicks the center of an observed editor so it takes keyboard focus, only when that point lands on
-/// the editor itself inside its observed window; otherwise nothing is sent and the focus check decides.
+/// Clicks the center of an observed text control so it takes keyboard focus, only when that point lands on
+/// the control (or a text control inside it) within its observed window; otherwise nothing is sent and the focus check decides.
 @MainActor
 func focusByClicking(_ element: AXUIElement, pid: pid_t, snapshot: Snapshot) async throws {
     guard let rect = elementRect(element), let windowID = snapshot.windowId(holding: element),
           let frame = snapshot.windowFrames[windowID], let window = snapshot.windowElements[windowID] else { return }
     let center = CGPoint(x: rect.midX, y: rect.midY)
-    guard frame.contains(center), let hit = elementAtPoint(center), try ancestorPath(hit, to: element) != nil else { return }
+    // The point must land on the editor or a text control inside it, never a button or row nested in a container.
+    guard takesText(element), frame.contains(center), let hit = elementAtPoint(center) else { return }
+    let insideEditor = takesText(hit) ? try ancestorPath(hit, to: element) != nil : false
+    guard CFEqual(hit, element) || insideEditor else { return }
     try await coordinateAction { dispatch in
         try postMouse(pid: pid, type: .leftMouseDown, point: center, button: .left, windowID: windowID, window: window, frame: frame, dispatch: dispatch)
         try postMouse(pid: pid, type: .leftMouseUp, point: center, button: .left, windowID: windowID, window: window, frame: frame, release: true, dispatch: dispatch)
