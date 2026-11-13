@@ -1,6 +1,6 @@
 import { get as httpGet } from 'node:http'
-import type { BrowserWindow } from 'electron'
-import { describe, expect, it, vi } from 'vitest'
+import { BrowserWindow } from 'electron'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
@@ -164,29 +164,31 @@ describe('createHandoffManager', () => {
 })
 
 describe('login handoff landing', () => {
-  it('lands on the app entry after redeeming the login token', async () => {
-    const win = {
-      isDestroyed: () => false,
-      isMinimized: () => false,
-      loadURL: vi.fn(async () => {}),
-      show: vi.fn(),
-      focus: vi.fn(),
-      webContents: {
-        getURL: () => 'https://sim.ai/login',
-        executeJavaScript: vi.fn(async () => 200),
-      },
-    }
-    const flow = createAuthFlow({
-      handoff: { consume: () => true } as unknown as ReturnType<typeof createHandoffManager>,
-      origin: () => 'https://sim.ai',
-      events: makeEvents(),
-      ensureMainWindow: async () => win as unknown as BrowserWindow,
-    })
+  const realPlatform = process.platform
 
-    await flow.handleCallback({ token: VALID_TOKEN, state: _VALID_STATE })
-
-    expect(win.loadURL).toHaveBeenCalledExactlyOnceWith('https://sim.ai/home')
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true })
   })
+
+  it.each(['darwin', 'win32'] as const)(
+    'lands on the app entry after redeeming the login token on %s',
+    async (platform) => {
+      Object.defineProperty(process, 'platform', { value: platform, configurable: true })
+      const win = new BrowserWindow()
+      vi.mocked(win.webContents.getURL).mockReturnValue('https://sim.ai/login')
+      vi.mocked(win.webContents.executeJavaScript).mockResolvedValue(200)
+      const flow = createAuthFlow({
+        handoff: { consume: () => true } as unknown as ReturnType<typeof createHandoffManager>,
+        origin: () => 'https://sim.ai',
+        events: makeEvents(),
+        ensureMainWindow: async () => win,
+      })
+
+      await flow.handleCallback({ token: VALID_TOKEN, state: _VALID_STATE })
+
+      expect(win.loadURL).toHaveBeenCalledExactlyOnceWith('https://sim.ai/home')
+    }
+  )
 })
 
 describe('connect handoff account pinning', () => {
