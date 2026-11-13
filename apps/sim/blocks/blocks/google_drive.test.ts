@@ -70,3 +70,32 @@ describe('GoogleDriveBlock pagination', () => {
     expect(params.searchPageToken).toBeUndefined()
   })
 })
+
+/**
+ * On an agent call the model supplies `pageSize`/`pageToken`/`query` under the tool's own names;
+ * the per-operation fields (`permissionsPageSize`, `searchPageToken`, `searchQuery`) are never rendered.
+ */
+describe('GoogleDriveBlock agent tool calls', () => {
+  const buildParams = GoogleDriveBlock.tools.config.params!
+  const agentCall = (operation: string, args: Record<string, unknown>) => {
+    const inputs = { ...args, operation }
+    return { ...inputs, ...buildParams(inputs, { operation }) }
+  }
+
+  it.each(['search', 'list_permissions', 'list_revisions', 'list_comments'])(
+    'keeps the model pageSize and pageToken on %s',
+    (operation) => {
+      const mapped = agentCall(operation, { fileId: 'f-1', pageSize: 5, pageToken: 'next' })
+      expect(mapped.pageSize).toBe(5)
+      expect(mapped.pageToken).toBe('next')
+    }
+  )
+
+  it('keeps the model query on search', () => {
+    expect(agentCall('search', { query: 'budget' }).query).toBe('budget')
+  })
+
+  it('drops a list page token left over on the canvas under search', () => {
+    expect(buildParams({ operation: 'search', pageToken: 'stale' }).pageToken).toBeUndefined()
+  })
+})

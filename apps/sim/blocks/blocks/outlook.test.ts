@@ -94,3 +94,35 @@ describe('OutlookBlock values stored for another operation', () => {
     }
   })
 })
+
+/**
+ * On an agent call the model supplies `cc`/`bcc`/`importance` under the tool's own names, and the
+ * dedicated `replyCc`/`replyBcc`/`mailImportance` fields are never rendered in the agent tool input.
+ */
+describe('OutlookBlock agent tool calls', () => {
+  const agentCall = (operation: string, args: Record<string, unknown>) => {
+    const inputs = { ...args, operation, oauthCredential: 'cred-1' }
+    return { ...inputs, ...block.tools.config.params?.(inputs, { operation }) }
+  }
+
+  it.each(['reply_outlook', 'forward_outlook'])('keeps the model cc and bcc on %s', (operation) => {
+    const mapped = agentCall(operation, { cc: 'cc@example.com', bcc: 'bcc@example.com' })
+    expect(mapped.cc).toBe('cc@example.com')
+    expect(mapped.bcc).toBe('bcc@example.com')
+  })
+
+  it('keeps the model bcc but never a cc on reply_all_outlook', () => {
+    const mapped = agentCall('reply_all_outlook', { cc: 'cc@example.com', bcc: 'bcc@example.com' })
+    expect(mapped.cc).toBeNull()
+    expect(mapped.bcc).toBe('bcc@example.com')
+  })
+
+  it.each(['send_outlook', 'draft_outlook'])('keeps the model importance on %s', (operation) => {
+    expect(agentCall(operation, { importance: 'high' }).importance).toBe('high')
+  })
+
+  it('prefers the dedicated field when the stored tool params carry one', () => {
+    const mapped = agentCall('reply_outlook', { replyCc: 'stored@example.com', cc: 'model@x.com' })
+    expect(mapped.cc).toBe('stored@example.com')
+  })
+})

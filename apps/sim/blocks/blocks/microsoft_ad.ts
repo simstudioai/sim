@@ -2,6 +2,7 @@ import { AzureIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { parseOptionalBooleanInput } from '@/blocks/utils'
 
 /** Operations that act on a single user and therefore require the User ID field. */
 const USER_ID_OPERATIONS = [
@@ -854,19 +855,29 @@ export const MicrosoftAdBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `microsoft_ad_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
         const top = Number(params.top)
         result.top = params.top && Number.isFinite(top) ? top : undefined
         if (params.nextLink) result.nextLink = params.nextLink
         const values = params as Record<string, unknown>
-        result.filter = values[FILTER_FIELD_BY_OPERATION[params.operation]] || undefined
-        result.search = values[SEARCH_FIELD_BY_OPERATION[params.operation]] || undefined
+        // Agent calls carry the model's `filter`/`search`; on the canvas they may be stale advanced fields
+        const agentArg = (value: unknown) => (context?.operation ? value : undefined)
+        result.filter =
+          values[FILTER_FIELD_BY_OPERATION[params.operation]] ||
+          agentArg(params.filter) ||
+          undefined
+        result.search =
+          values[SEARCH_FIELD_BY_OPERATION[params.operation]] ||
+          agentArg(params.search) ||
+          undefined
         if (params.operation === 'get_user') {
           result.includeManager = params.includeManager === true || params.includeManager === 'true'
         }
         if (params.operation === 'list_user_memberships') {
-          result.transitive = params.membershipScope === 'transitive'
+          result.transitive = params.membershipScope
+            ? params.membershipScope === 'transitive'
+            : (parseOptionalBooleanInput(agentArg(params.transitive)) ?? false)
         }
         if (params.operation === 'set_password') {
           result.forceChangePasswordNextSignIn = params.forceChangePasswordNextSignIn !== 'false'

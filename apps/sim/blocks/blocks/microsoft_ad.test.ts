@@ -73,3 +73,36 @@ describe('MicrosoftAdBlock', () => {
     })
   })
 })
+
+/**
+ * On an agent call the model supplies `filter`/`search`/`transitive` under the tool's own names;
+ * the per-operation fields (`signInFilter`, `deviceSearch`, `membershipScope`) are never rendered.
+ */
+describe('MicrosoftAdBlock agent tool calls', () => {
+  const buildParams = MicrosoftAdBlock.tools.config.params!
+  const agentCall = (operation: string, args: Record<string, unknown>) => {
+    const inputs = { ...args, operation }
+    return { ...inputs, ...buildParams(inputs, { operation }) }
+  }
+
+  it('keeps the model filter on an operation with a dedicated filter field', () => {
+    const mapped = agentCall('list_sign_ins', { filter: 'status/errorCode eq 0' })
+    expect(mapped.filter).toBe('status/errorCode eq 0')
+  })
+
+  it('keeps the model search on an operation with a dedicated search field', () => {
+    const mapped = agentCall('list_devices', { search: '"displayName:laptop"' })
+    expect(mapped.search).toBe('"displayName:laptop"')
+  })
+
+  it('keeps the model transitive flag when no membership scope is chosen', () => {
+    expect(agentCall('list_user_memberships', { userId: 'u-1', transitive: true }).transitive).toBe(
+      true
+    )
+  })
+
+  it('drops a shared filter left over on the canvas for an operation with its own field', () => {
+    const inputs = { operation: 'list_sign_ins', filter: 'stale' }
+    expect({ ...inputs, ...buildParams(inputs) }.filter).toBeUndefined()
+  })
+})

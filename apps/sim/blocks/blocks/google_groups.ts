@@ -739,7 +739,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
               maxResults: rest.maxResults ? Number(rest.maxResults) : undefined,
               pageToken: rest.pageToken || undefined,
               userKey: rest.userKey || undefined,
-              orderBy: rest.sortOrder ? 'email' : undefined,
+              orderBy: rest.orderBy || (rest.sortOrder ? 'email' : undefined),
               sortOrder: rest.sortOrder || undefined,
             }
           case 'get_group':

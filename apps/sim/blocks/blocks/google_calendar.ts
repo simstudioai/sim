@@ -991,7 +991,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             throw new Error(`Invalid Google Calendar operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
           operation,
@@ -1075,7 +1075,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           processedParams.timeZone =
             typeof listTimeZone === 'string' && listTimeZone.trim()
               ? listTimeZone.trim()
-              : undefined
+              : context?.operation
+                ? processedParams.timeZone
+                : undefined
         }
 
         return {
