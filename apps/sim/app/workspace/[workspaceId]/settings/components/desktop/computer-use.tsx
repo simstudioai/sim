@@ -87,7 +87,9 @@ function ComputerUseSettingsControls() {
         <p className='text-[var(--text-muted)] text-sm'>
           {askForApps === undefined
             ? 'Each app needs your approval before Sim can use it.'
-            : 'Sim can use any app except terminals, password managers, System Settings, and Sim itself.'}
+            : askForApps
+              ? 'Sim asks before using each new app, and never uses terminals, password managers, System Settings, or Sim itself.'
+              : 'Sim can use any app except terminals, password managers, System Settings, and Sim itself.'}
         </p>
         {error && (
           <div className='flex items-center justify-between text-sm'>
