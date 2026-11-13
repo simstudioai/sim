@@ -3,7 +3,7 @@ import { GoogleVaultIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalBooleanInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import { parseOptionalBooleanInput, SERVICE_ACCOUNT_SUBBLOCKS, toolCallArg } from '@/blocks/utils'
 
 export const GoogleVaultBlock: BlockConfig = {
   type: 'google_vault',
@@ -958,8 +958,9 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           ...(params.operation === 'list_matters' && matterState && { state: matterState }),
           ...(isQueryOperation && {
             includeSharedDrives:
-              context?.operation && exportIncludeSharedDrives == null
-                ? (parseOptionalBooleanInput(rest.includeSharedDrives) ?? false)
+              exportIncludeSharedDrives == null
+                ? (parseOptionalBooleanInput(toolCallArg(context, rest.includeSharedDrives)) ??
+                  false)
                 : exportIncludeSharedDrives === true || exportIncludeSharedDrives === 'true',
             ...(dataScope && { dataScope }),
           }),

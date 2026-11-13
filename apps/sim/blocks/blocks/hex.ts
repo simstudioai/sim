@@ -1,7 +1,7 @@
 import { HexIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { isToolCall, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /**
  * Sort fields each list endpoint accepts. The only Sort By field is the List Projects one, so a
@@ -25,8 +25,8 @@ const HEX_RUN_STATUSES: readonly string[] = [
 ]
 
 function emptyToUndefined(value: unknown): unknown {
-  if (typeof value === 'string') return value.trim() === '' ? undefined : value.trim()
-  return value === null ? undefined : value
+  if (typeof value === 'string') return value.trim() || undefined
+  return value ?? undefined
 }
 
 export const HexBlock: BlockConfig = {
@@ -712,8 +712,8 @@ Do not include any explanations, markdown formatting, or other text outside the 
       params: (params, context) => {
         const result: Record<string, unknown> = {}
         const op = params.operation
-        /** Only an agent tool call carries a context; its args arrive under the tool param names. */
-        const isAgentCall = context?.operation !== undefined
+        const fieldOrToolArg = (field: unknown, arg: unknown) =>
+          emptyToUndefined(field) ?? emptyToUndefined(toolCallArg(context, arg))
 
         if (params.limit) result.limit = Number(params.limit)
         if (op === 'get_project_runs' && params.offset) result.offset = Number(params.offset)
@@ -722,7 +722,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
           // An agent passes `statusFilter` directly; on the canvas it is the List Projects status.
           result.statusFilter =
             emptyToUndefined(params.runStatusFilter) ??
-            (isAgentCall || HEX_RUN_STATUSES.includes(params.statusFilter)
+            (isToolCall(context) || HEX_RUN_STATUSES.includes(params.statusFilter)
               ? emptyToUndefined(params.statusFilter)
               : undefined)
         }
@@ -732,17 +732,10 @@ Do not include any explanations, markdown formatting, or other text outside the 
         }
         if (op === 'get_queried_tables') {
           // On the canvas the shared list cursors can hold another operation's stale value.
-          result.after =
-            emptyToUndefined(params.queriedTablesAfter) ??
-            (isAgentCall ? emptyToUndefined(params.after) : undefined)
-          result.before =
-            emptyToUndefined(params.queriedTablesBefore) ??
-            (isAgentCall ? emptyToUndefined(params.before) : undefined)
+          result.after = fieldOrToolArg(params.queriedTablesAfter, params.after)
+          result.before = fieldOrToolArg(params.queriedTablesBefore, params.before)
         }
-        if (op === 'list_groups')
-          result.userId =
-            emptyToUndefined(params.groupsUserId) ??
-            (isAgentCall ? emptyToUndefined(params.userId) : undefined)
+        if (op === 'list_groups') result.userId = fieldOrToolArg(params.groupsUserId, params.userId)
         if (
           (op === 'get_group' || op === 'update_group' || op === 'delete_group') &&
           params.groupIdInput

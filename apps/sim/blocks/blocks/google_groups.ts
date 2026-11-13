@@ -2,7 +2,7 @@ import { GoogleGroupsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import { SERVICE_ACCOUNT_SUBBLOCKS, toolCallArg } from '@/blocks/utils'
 
 /** Settings the Update Settings operation forwards when set; empty means unchanged. */
 const UPDATE_SETTINGS_FIELDS = [
@@ -739,9 +739,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
               maxResults: rest.maxResults ? Number(rest.maxResults) : undefined,
               pageToken: rest.pageToken || undefined,
               userKey: rest.userKey || undefined,
-              orderBy:
-                (context?.operation ? rest.orderBy : undefined) ||
-                (rest.sortOrder ? 'email' : undefined),
+              orderBy: toolCallArg(context, rest.orderBy) || (rest.sortOrder ? 'email' : undefined),
               sortOrder: rest.sortOrder || undefined,
             }
           case 'get_group':

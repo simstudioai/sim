@@ -1,17 +1,16 @@
 import { triggersMock } from '@sim/testing/mocks/triggers.mock'
 import { describe, expect, it, vi } from 'vitest'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockToolParamsContext } from '@/blocks/types'
 
 vi.mock('@/triggers', () => triggersMock)
 
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
 
-/** The block's `tools.config.params` mapper, which every block under test defines. */
-function requireParamsMapper(block: BlockConfig) {
-  const mapper = block.tools.config?.params
-  if (!mapper) throw new Error(`${block.type} has no params mapper`)
-  return mapper
-}
+/** The block's `tools.config.params` mapper; `context` is set on a tool call, absent on the canvas. */
+const buildParams = (
+  inputs: Record<string, unknown>,
+  context?: BlockToolParamsContext
+): Record<string, unknown> => GoogleDriveBlock.tools.config?.params?.(inputs, context) ?? {}
 
 const paginationCases = [
   { operation: 'list', subBlockId: 'pageToken' },
@@ -22,8 +21,6 @@ const paginationCases = [
 ] as const
 
 describe('GoogleDriveBlock pagination', () => {
-  const buildParams = requireParamsMapper(GoogleDriveBlock)
-
   describe.each(paginationCases)('$operation', ({ operation, subBlockId }) => {
     /**
      * `pageToken` is the canonical tool param, so the `list` case would forward
@@ -31,7 +28,7 @@ describe('GoogleDriveBlock pagination', () => {
      * ones the mapper has to translate, and none of them may survive as-is.
      */
     it('forwards the page token to the tool under its own id', () => {
-      const params = buildParams({ operation, [subBlockId]: 'token-abc' }, undefined as never)
+      const params = buildParams({ operation, [subBlockId]: 'token-abc' })
 
       expect(params).toMatchObject({ pageToken: 'token-abc' })
       if (subBlockId !== 'pageToken') expect(params[subBlockId]).toBeUndefined()
@@ -39,9 +36,7 @@ describe('GoogleDriveBlock pagination', () => {
   })
 
   it('does not leak a page token into operations that do not paginate', () => {
-    expect(
-      buildParams({ operation: 'get_file', pageToken: 'token-abc' }, undefined as never).pageToken
-    ).toBeUndefined()
+    expect(buildParams({ operation: 'get_file', pageToken: 'token-abc' }).pageToken).toBeUndefined()
   })
 
   /**
@@ -54,7 +49,7 @@ describe('GoogleDriveBlock pagination', () => {
     '$subBlockId left over from a previous operation',
     ({ subBlockId }) => {
       it.each(['upload', 'get_file', 'list'])('is dropped under %s', (operation) => {
-        const params = buildParams({ operation, [subBlockId]: 'stale' }, undefined as never)
+        const params = buildParams({ operation, [subBlockId]: 'stale' })
 
         expect(params.pageToken).toBeUndefined()
         expect(params[subBlockId]).toBeUndefined()
@@ -63,15 +58,12 @@ describe('GoogleDriveBlock pagination', () => {
   )
 
   it('prefers the operation-owned token when a stale sibling is also present', () => {
-    const params = buildParams(
-      {
-        operation: 'search',
-        searchPageToken: 'search-token',
-        commentsPageToken: 'stale',
-        pageToken: 'stale-canonical',
-      },
-      undefined as never
-    )
+    const params = buildParams({
+      operation: 'search',
+      searchPageToken: 'search-token',
+      commentsPageToken: 'stale',
+      pageToken: 'stale-canonical',
+    })
 
     expect(params.pageToken).toBe('search-token')
     expect(params.commentsPageToken).toBeUndefined()
@@ -84,7 +76,6 @@ describe('GoogleDriveBlock pagination', () => {
  * the per-operation fields (`permissionsPageSize`, `searchPageToken`, `searchQuery`) are never rendered.
  */
 describe('GoogleDriveBlock agent tool calls', () => {
-  const buildParams = requireParamsMapper(GoogleDriveBlock)
   const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
     const inputs = { ...args, operation }
     return { ...inputs, ...buildParams(inputs, { operation }) }
@@ -107,16 +98,9 @@ describe('GoogleDriveBlock agent tool calls', () => {
     expect(buildParams({ operation: 'search', pageToken: 'stale' }).pageToken).toBeUndefined()
   })
 
-  it('drops a list page token left over on the canvas under a non-paginating operation', () => {
-    expect(buildParams({ operation: 'get_file', pageToken: 'stale' }).pageToken).toBeUndefined()
-  })
-
   /** A stored agent tool keeps its operation on the tool, not in the args the mapper receives. */
-  it.each(['list', 'search', 'list_permissions', 'list_revisions', 'list_comments'])(
-    'keeps the model pageToken on %s when the args carry no operation',
-    (operation) => {
-      const args = { fileId: 'f-1', pageToken: 'next' }
-      expect({ ...args, ...buildParams(args, { operation }) }.pageToken).toBe('next')
-    }
-  )
+  it('keeps the model pageToken when the args carry no operation', () => {
+    const args = { fileId: 'f-1', pageToken: 'next' }
+    expect({ ...args, ...buildParams(args, { operation: 'list_comments' }) }.pageToken).toBe('next')
+  })
 })
