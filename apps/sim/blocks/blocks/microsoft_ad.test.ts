@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { MicrosoftAdBlock } from '@/blocks/blocks/microsoft_ad'
+import type { BlockConfig } from '@/blocks/types'
+
+/** The block's `tools.config.params` mapper, which every block under test defines. */
+function requireParamsMapper(block: BlockConfig) {
+  const mapper = block.tools.config?.params
+  if (!mapper) throw new Error(`${block.type} has no params mapper`)
+  return mapper
+}
 
 /**
  * The tri-state assertions run against `{ ...inputs, ...buildParams(inputs) }`, the shape the
@@ -8,7 +16,7 @@ import { MicrosoftAdBlock } from '@/blocks/blocks/microsoft_ad'
  * pass against the broken code.
  */
 describe('MicrosoftAdBlock', () => {
-  const buildParams = MicrosoftAdBlock.tools.config.params!
+  const buildParams = requireParamsMapper(MicrosoftAdBlock)
 
   const subBlock = (id: string) =>
     MicrosoftAdBlock.subBlocks.find((candidate) => candidate.id === id)!
@@ -79,8 +87,8 @@ describe('MicrosoftAdBlock', () => {
  * the per-operation fields (`signInFilter`, `deviceSearch`, `membershipScope`) are never rendered.
  */
 describe('MicrosoftAdBlock agent tool calls', () => {
-  const buildParams = MicrosoftAdBlock.tools.config.params!
-  const agentCall = (operation: string, args: Record<string, unknown>) => {
+  const buildParams = requireParamsMapper(MicrosoftAdBlock)
+  const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
     const inputs = { ...args, operation }
     return { ...inputs, ...buildParams(inputs, { operation }) }
   }

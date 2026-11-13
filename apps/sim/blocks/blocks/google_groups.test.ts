@@ -48,7 +48,7 @@ describe('GoogleGroupsBlock update settings', () => {
 describe('GoogleGroupsBlock agent tool calls', () => {
   it('keeps the model orderBy on list_groups when no sort order is chosen', () => {
     const inputs = { operation: 'list_groups', customer: 'my_customer', orderBy: 'email' }
-    const mapped = GoogleGroupsBlock.tools.config.params?.(inputs, { operation: 'list_groups' })
+    const mapped = GoogleGroupsBlock.tools.config?.params?.(inputs, { operation: 'list_groups' })
     expect({ ...inputs, ...mapped }.orderBy).toBe('email')
   })
 })

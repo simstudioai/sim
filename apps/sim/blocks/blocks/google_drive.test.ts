@@ -1,9 +1,17 @@
 import { triggersMock } from '@sim/testing/mocks/triggers.mock'
 import { describe, expect, it, vi } from 'vitest'
+import type { BlockConfig } from '@/blocks/types'
 
 vi.mock('@/triggers', () => triggersMock)
 
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
+
+/** The block's `tools.config.params` mapper, which every block under test defines. */
+function requireParamsMapper(block: BlockConfig) {
+  const mapper = block.tools.config?.params
+  if (!mapper) throw new Error(`${block.type} has no params mapper`)
+  return mapper
+}
 
 const paginationCases = [
   { operation: 'list', subBlockId: 'pageToken' },
@@ -14,7 +22,7 @@ const paginationCases = [
 ] as const
 
 describe('GoogleDriveBlock pagination', () => {
-  const buildParams = GoogleDriveBlock.tools.config.params!
+  const buildParams = requireParamsMapper(GoogleDriveBlock)
 
   describe.each(paginationCases)('$operation', ({ operation, subBlockId }) => {
     /**
@@ -76,8 +84,8 @@ describe('GoogleDriveBlock pagination', () => {
  * the per-operation fields (`permissionsPageSize`, `searchPageToken`, `searchQuery`) are never rendered.
  */
 describe('GoogleDriveBlock agent tool calls', () => {
-  const buildParams = GoogleDriveBlock.tools.config.params!
-  const agentCall = (operation: string, args: Record<string, unknown>) => {
+  const buildParams = requireParamsMapper(GoogleDriveBlock)
+  const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
     const inputs = { ...args, operation }
     return { ...inputs, ...buildParams(inputs, { operation }) }
   }

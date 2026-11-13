@@ -1685,15 +1685,16 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           includeDeleted === 'true' ? true : includeDeleted === 'false' ? false : undefined
 
         let effectivePageSize: string | undefined = pageSize
-        if (params.operation === 'search') effectivePageSize = searchPageSize || pageSize
+        // Basic `pageSize`/`query` and advanced `pageToken` belong to List; only an agent call's value is trusted for other operations
+        const agentPageSize = context?.operation ? pageSize : undefined
+        if (params.operation === 'search') effectivePageSize = searchPageSize || agentPageSize
         else if (params.operation === 'list_revisions')
-          effectivePageSize = revisionsPageSize || pageSize
+          effectivePageSize = revisionsPageSize || agentPageSize
         else if (params.operation === 'list_comments')
-          effectivePageSize = commentsPageSize || pageSize
+          effectivePageSize = commentsPageSize || agentPageSize
         else if (params.operation === 'list_permissions')
-          effectivePageSize = permissionsPageSize || pageSize
+          effectivePageSize = permissionsPageSize || agentPageSize
 
-        // `pageToken` is an advanced list-only field, so only an agent call's value is trusted here
         const agentPageToken = context?.operation ? pageToken : undefined
         let effectivePageToken: string | undefined = pageToken
         if (params.operation === 'search') effectivePageToken = searchPageToken || agentPageToken
@@ -1706,7 +1707,11 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
         else if (params.operation !== 'list') effectivePageToken = undefined
 
         const effectiveQuery =
-          params.operation === 'search' ? searchQuery || (query ?? searchQuery) : query
+          params.operation === 'search'
+            ? context?.operation && !searchQuery
+              ? query
+              : searchQuery
+            : query
 
         const effectiveOrderBy =
           params.operation === 'list'

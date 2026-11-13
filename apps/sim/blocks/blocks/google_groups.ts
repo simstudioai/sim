@@ -726,7 +726,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
             throw new Error(`Invalid Google Groups operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const { oauthCredential, operation, ...rest } = params
 
         switch (operation) {
@@ -739,7 +739,9 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
               maxResults: rest.maxResults ? Number(rest.maxResults) : undefined,
               pageToken: rest.pageToken || undefined,
               userKey: rest.userKey || undefined,
-              orderBy: rest.orderBy || (rest.sortOrder ? 'email' : undefined),
+              orderBy:
+                (context?.operation ? rest.orderBy : undefined) ||
+                (rest.sortOrder ? 'email' : undefined),
               sortOrder: rest.sortOrder || undefined,
             }
           case 'get_group':

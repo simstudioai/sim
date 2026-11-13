@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { AzureDevOpsBlock } from '@/blocks/blocks/azure_devops'
+import type { BlockConfig } from '@/blocks/types'
+
+/** The block's `tools.config.params` mapper, which every block under test defines. */
+function requireParamsMapper(block: BlockConfig) {
+  const mapper = block.tools.config?.params
+  if (!mapper) throw new Error(`${block.type} has no params mapper`)
+  return mapper
+}
 
 /**
  * On an agent call the model supplies `continuationToken`/`top`/`iterationPath`/`format` under the
@@ -7,8 +15,8 @@ import { AzureDevOpsBlock } from '@/blocks/blocks/azure_devops'
  * rendered in the agent tool input. The handler forwards `{ ...inputs, ...mapped }`.
  */
 describe('AzureDevOpsBlock agent tool calls', () => {
-  const buildParams = AzureDevOpsBlock.tools.config.params!
-  const agentCall = (operation: string, args: Record<string, unknown>) => {
+  const buildParams = requireParamsMapper(AzureDevOpsBlock)
+  const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
     const inputs = { ...args, operation, organization: 'org', project: 'proj' }
     return { ...inputs, ...buildParams(inputs, { operation }) }
   }

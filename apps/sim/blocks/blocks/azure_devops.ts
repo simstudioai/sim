@@ -827,7 +827,9 @@ export const AzureDevOpsBlock: BlockConfig = {
               ...base,
               workItemId: Number(params.workItemId),
               text: params.commentText as string,
-              format: ((params.commentFormat || params.format) as string) || undefined,
+              format:
+                ((params.commentFormat ||
+                  (context?.operation ? params.format : undefined)) as string) || undefined,
             }
           case 'azure_devops_get_comments':
             return {

@@ -39,14 +39,14 @@ const CALENDAR_SUBBLOCK_VALUES: Record<string, unknown> = {
 
 describe('OutlookBlock calendar operations', () => {
   it('always sends sendResponse so an unset dropdown cannot read as "do not notify"', () => {
-    const withoutChoice = block.tools.config.params?.({
+    const withoutChoice = block.tools.config?.params?.({
       operation: 'respond_calendar',
       ...CALENDAR_SUBBLOCK_VALUES,
       calSendResponse: undefined,
     })
     expect(withoutChoice?.sendResponse).toBe(true)
 
-    const declined = block.tools.config.params?.({
+    const declined = block.tools.config?.params?.({
       operation: 'respond_calendar',
       ...CALENDAR_SUBBLOCK_VALUES,
       calSendResponse: 'false',
@@ -100,9 +100,9 @@ describe('OutlookBlock values stored for another operation', () => {
  * dedicated `replyCc`/`replyBcc`/`mailImportance` fields are never rendered in the agent tool input.
  */
 describe('OutlookBlock agent tool calls', () => {
-  const agentCall = (operation: string, args: Record<string, unknown>) => {
+  const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
     const inputs = { ...args, operation, oauthCredential: 'cred-1' }
-    return { ...inputs, ...block.tools.config.params?.(inputs, { operation }) }
+    return { ...inputs, ...block.tools.config?.params?.(inputs, { operation }) }
   }
 
   it.each(['reply_outlook', 'forward_outlook'])('keeps the model cc and bcc on %s', (operation) => {
