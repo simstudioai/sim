@@ -200,7 +200,7 @@ describe('serialization contract', () => {
 
   it.each(cases)('%s is self-contained', (_name, fn, args) => {
     document.body.innerHTML = '<input type="text" /><select><option value="v">V</option></select>'
-    register(...Array.from(document.body.children).map(visible))
+    register(...Array.from(document.body.children).map((el) => visible(el)))
 
     expect(() => runSerialized(fn, args)).not.toThrow()
   })
