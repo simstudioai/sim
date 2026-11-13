@@ -639,7 +639,9 @@ func focusByClicking(_ element: AXUIElement, pid: pid_t, snapshot: Snapshot) asy
         if AXUIElementIsAttributeSettable(editor, kAXSelectedTextRangeAttribute as CFString, &settable) == .success, settable.boolValue,
            let value = attribute(editor, kAXValueAttribute) as? String {
             var range = CFRange(location: value.utf16.count, length: 0)
-            if let end = AXValueCreate(.cfRange, &range) { _ = AXUIElementSetAttributeValue(editor, kAXSelectedTextRangeAttribute as CFString, end) }
+            guard let end = AXValueCreate(.cfRange, &range), AXUIElementSetAttributeValue(editor, kAXSelectedTextRangeAttribute as CFString, end) == .success else {
+                throw ComputerError("caret_unconfirmed", "The editor was clicked into focus, but its caret could not be moved to the end, so no text was sent. Observe the app, then use set_value or move the caret with press_key.")
+            }
         }
         return
     }
