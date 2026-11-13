@@ -34,6 +34,7 @@ const tokenCredentialIntegrationTypes = new Map([
   ['coda', 'coda'],
   ['gauge', 'gauge'],
   ['higgsfield', 'higgsfield'],
+  ['monaco', 'monaco'],
   ['flow', 'flow'],
   ['claude-platform', 'managed_agent'],
 ])
