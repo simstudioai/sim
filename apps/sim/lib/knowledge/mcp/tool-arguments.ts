@@ -88,8 +88,8 @@ export function repairToolCallMessage(message: Record<string, unknown>) {
 }
 
 /**
- * Unrecognized field names logged per schema issue, each cut short. The schema caps native queries
- * at nine, so a rejection's log line stays bounded.
+ * Unrecognized field names logged per schema issue, each cut short. The route's request body cap
+ * bounds how many issues one rejection can carry.
  */
 const MAX_LOGGED_KEYS = 5
 const MAX_LOGGED_KEY_CHARACTERS = 64

@@ -448,7 +448,7 @@ describe('Slack channels', () => {
       filters: { startDate: '2026-10-30T00:00:00Z' },
       native: { provider: 'slack', query: '', modifiers: 'in:#announcements' },
     })
-    expect(result.message).toContain('No channel named #announcements is visible to this account.')
+    expect(result.message).toContain('No channel named #announcements can be searched here.')
     expect(result.message).toContain(
       'Channels with similar names: #company-announcements (in:<#C7>).'
     )
@@ -483,6 +483,38 @@ describe('Slack channels', () => {
       native: { provider: 'slack', query: '', modifiers: 'in:#announcements' },
     })
     expect(result.message).not.toContain('#announcements')
+  })
+
+  it('looks up no channel when the query is already scoped to a channel ID', async () => {
+    const api = client()
+    api.json.mockResolvedValue(rts([]))
+    const result = await searchSlack(api, {
+      ...input,
+      scopes,
+      native: { provider: 'slack', query: 'launch in:<#C1>', modifiers: 'in:#announcements' },
+    })
+    expect(api.json).toHaveBeenCalledTimes(1)
+    expect(result.message).not.toContain('#announcements')
+  })
+
+  it.each([
+    ['in:#launch-team.', 'launch-team'],
+    ['in:#équipe_ventes,', 'équipe_ventes'],
+    ['in:#हिंदी-टीम', 'हिंदी-टीम'],
+  ])('looks up the whole channel name in %s', async (modifiers, name) => {
+    const api = client()
+    api.json.mockResolvedValue(rts([]))
+    await searchSlack(api, {
+      ...input,
+      query: '',
+      scopes,
+      filters: { startDate: '2026-10-30T00:00:00Z' },
+      native: { provider: 'slack', query: '', modifiers },
+    })
+    expect(api.json.mock.calls[1]?.[1]?.body).toMatchObject({
+      query: name,
+      content_types: ['channels'],
+    })
   })
 
   it('keeps the empty search when the channel lookup fails', async () => {
