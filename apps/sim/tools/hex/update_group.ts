@@ -2,6 +2,7 @@ import type { HexUpdateGroupParams, HexUpdateGroupResponse } from '@/tools/hex/t
 import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateGroupTool: ToolConfig<HexUpdateGroupParams, HexUpdateGroupResponse> = {
   id: 'hex_update_group',
@@ -45,7 +46,8 @@ export const updateGroupTool: ToolConfig<HexUpdateGroupParams, HexUpdateGroupRes
   },
 
   request: {
-    url: (params) => `${hexApiBase(params.host)}/groups/${params.groupId.trim()}`,
+    url: (params) =>
+      `${hexApiBase(params.host)}/groups/${safeUrlPathSegment(params.groupId, 'groupId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

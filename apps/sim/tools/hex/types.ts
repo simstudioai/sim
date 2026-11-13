@@ -93,11 +93,21 @@ export const HEX_RUN_STATUS_OUTPUT_PROPERTIES = {
     description:
       'Run status (PENDING, RUNNING, COMPLETED, ERRORED, KILLED, UNABLE_TO_ALLOCATE_KERNEL)',
   },
+  runTrigger: {
+    type: 'string',
+    description: 'How the run was triggered (API, SCHEDULED, APP_REFRESH)',
+    optional: true,
+  },
   startTime: { type: 'string', description: 'ISO 8601 run start time', optional: true },
   endTime: { type: 'string', description: 'ISO 8601 run end time', optional: true },
-  elapsedTime: { type: 'number', description: 'Elapsed time in seconds', optional: true },
+  elapsedTime: { type: 'number', description: 'Elapsed run time in milliseconds', optional: true },
   traceId: { type: 'string', description: 'Trace ID for debugging', optional: true },
-  projectVersion: { type: 'number', description: 'Project version number', optional: true },
+  projectVersion: {
+    type: 'number',
+    description:
+      'Project version that was run (Hex returns it as a string, "draft" for notebook runs)',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 export interface HexListProjectsParams {
@@ -202,6 +212,7 @@ export interface HexGetRunStatusResponse extends ToolResponse {
     runId: string
     runUrl: string | null
     status: string
+    runTrigger: string | null
     startTime: string | null
     endTime: string | null
     elapsedTime: number | null
@@ -242,6 +253,7 @@ export interface HexGetProjectRunsResponse extends ToolResponse {
       runId: string
       runUrl: string | null
       status: string
+      runTrigger: string | null
       startTime: string | null
       endTime: string | null
       elapsedTime: number | null
@@ -362,6 +374,8 @@ export interface HexGetQueriedTablesParams {
   host?: string
   projectId: string
   limit?: number
+  after?: string
+  before?: string
 }
 
 export interface HexGetQueriedTablesResponse extends ToolResponse {
@@ -372,6 +386,8 @@ export interface HexGetQueriedTablesResponse extends ToolResponse {
       tableName: string | null
     }>
     total: number
+    after: string | null
+    before: string | null
   }
 }
 
@@ -381,6 +397,7 @@ export interface HexListGroupsParams {
   limit?: number
   sortBy?: string
   sortDirection?: string
+  userId?: string
   after?: string
   before?: string
 }

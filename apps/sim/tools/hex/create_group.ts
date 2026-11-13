@@ -77,6 +77,10 @@ export const createGroupTool: ToolConfig<HexCreateGroupParams, HexCreateGroupRes
   outputs: {
     id: { type: 'string', description: 'Newly created group UUID' },
     name: { type: 'string', description: 'Group name' },
-    createdAt: { type: 'string', description: 'Creation timestamp' },
+    createdAt: {
+      type: 'string',
+      description: 'Creation timestamp (not returned by the create endpoint, so usually null)',
+      optional: true,
+    },
   },
 }

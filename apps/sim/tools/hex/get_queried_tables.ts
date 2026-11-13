@@ -2,6 +2,7 @@ import type { HexGetQueriedTablesParams, HexGetQueriedTablesResponse } from '@/t
 import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getQueriedTablesTool: ToolConfig<
   HexGetQueriedTablesParams,
@@ -32,7 +33,19 @@ export const getQueriedTablesTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of tables to return (1-100)',
+      description: 'Maximum number of tables to return (1-100, default: 25)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor to fetch the page of results after this value',
+    },
+    before: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Cursor to fetch the page of results before this value',
     },
   },
 
@@ -40,8 +53,10 @@ export const getQueriedTablesTool: ToolConfig<
     url: (params) => {
       const searchParams = new URLSearchParams()
       if (params.limit) searchParams.set('limit', String(params.limit))
+      if (params.after) searchParams.set('after', params.after)
+      if (params.before) searchParams.set('before', params.before)
       const qs = searchParams.toString()
-      return `${hexApiBase(params.host)}/projects/${params.projectId.trim()}/queriedTables${qs ? `?${qs}` : ''}`
+      return `${hexApiBase(params.host)}/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/queriedTables${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -63,6 +78,8 @@ export const getQueriedTablesTool: ToolConfig<
           tableName: (t.tableName as string) ?? null,
         })),
         total: tables.length,
+        after: data.pagination?.after ?? null,
+        before: data.pagination?.before ?? null,
       },
     }
   },
@@ -81,5 +98,11 @@ export const getQueriedTablesTool: ToolConfig<
       },
     },
     total: { type: 'number', description: 'Total number of tables returned' },
+    after: { type: 'string', description: 'Cursor for the next page of results', optional: true },
+    before: {
+      type: 'string',
+      description: 'Cursor for the previous page of results',
+      optional: true,
+    },
   },
 }
