@@ -31,7 +31,6 @@ interface ConnectorsSectionProps {
   isLoading: boolean
   canEdit: boolean
   className?: string
-  savedCredentialSetupEnabled?: boolean
 }
 
 const STATUS_CONFIG = {
@@ -52,7 +51,6 @@ export function ConnectorsSection({
   isLoading,
   canEdit,
   className,
-  savedCredentialSetupEnabled = false,
 }: ConnectorsSectionProps) {
   const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   const [editingConnector, setEditingConnector] = useState<ConnectorData | null>(null)
@@ -86,7 +84,6 @@ export function ConnectorsSection({
           knowledgeBaseId={knowledgeBaseId}
           isSearchIndex={isSearchIndex}
           connector={editingConnector}
-          savedCredentialSetupEnabled={savedCredentialSetupEnabled}
         />
       )}
     </div>

@@ -1,3 +1,5 @@
+import { type AwsSigningKeys, awsSigningKeys } from '@/lib/internal/aws/signing-keys'
+
 /**
  * The AWS keys a saved AWS credential resolved to for one connector run.
  *
@@ -8,24 +10,13 @@
  * from one place and never from tool or user input. Server-only state: the
  * slot is never persisted or logged.
  */
-export interface ConnectorAwsSession {
-  accessKeyId: string
-  secretAccessKey: string
-  /** Present for STS sessions (assumed and keyless roles); absent for saved long-lived keys. */
-  sessionToken?: string
-}
+export type ConnectorAwsSession = AwsSigningKeys
 
 const AWS_SESSION_CONTEXT_KEY = 'credentialAwsSession'
 
 /** The `syncContext` entries that carry a resolved AWS session to a connector. */
 export function awsSessionSyncContext(session: ConnectorAwsSession): Record<string, unknown> {
-  return {
-    [AWS_SESSION_CONTEXT_KEY]: {
-      accessKeyId: session.accessKeyId,
-      secretAccessKey: session.secretAccessKey,
-      ...(session.sessionToken ? { sessionToken: session.sessionToken } : {}),
-    },
-  }
+  return { [AWS_SESSION_CONTEXT_KEY]: awsSigningKeys(session) }
 }
 
 /** The AWS session seeded into this run, or undefined when the connector signs with inline keys. */
@@ -40,5 +31,5 @@ export function readAwsSession(
   if (sessionToken !== undefined && (typeof sessionToken !== 'string' || !sessionToken)) {
     return undefined
   }
-  return { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) }
+  return awsSigningKeys({ accessKeyId, secretAccessKey, sessionToken })
 }

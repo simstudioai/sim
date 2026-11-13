@@ -125,29 +125,25 @@ export function workloadIdentityProviderFor(
 }
 
 /**
- * Relying parties that expect one audience for every credential. Google expects
- * each credential's own workload identity provider as its audience (see
- * `googleWorkloadIdentityAudience`), so it has no entry here.
- */
-type FixedAudienceWorkloadIdentityProvider = Exclude<WorkloadIdentityProvider, 'google'>
-
-/**
- * The default `aud` claim for each relying party, used when a keyless credential
- * sets no `audience` of its own (see `workloadIdentityAudienceSchema`). AWS STS
- * conventionally uses its own client ID; Databricks federation policies list
- * whatever audience the customer enters, so Sim publishes one default to paste. Snowflake accepts
+ * The default `aud` claim for each relying party that expects one audience for
+ * every credential, used when a keyless credential sets no `audience` of its own
+ * (see `workloadIdentityAudienceSchema`). AWS STS conventionally uses its own
+ * client ID; Databricks federation policies list whatever audience the customer
+ * enters, so Sim publishes one default to paste. Snowflake accepts
  * `snowflakecomputing.com` without any `OIDC_AUDIENCE_LIST` on the user, so the
  * customer's `CREATE USER` names only the issuer and subject. Microsoft Entra
  * federated identity credentials take one audience, and Microsoft recommends
  * `api://AzureADTokenExchange`
  * (https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust).
+ * Google expects each credential's own workload identity provider as its
+ * audience (see `googleWorkloadIdentityAudience`), so it has no entry here.
  */
-export const WORKLOAD_IDENTITY_AUDIENCES: Record<FixedAudienceWorkloadIdentityProvider, string> = {
+export const WORKLOAD_IDENTITY_AUDIENCES = {
   aws: 'sts.amazonaws.com',
   databricks: 'sim-databricks',
   snowflake: 'snowflakecomputing.com',
   microsoft: 'api://AzureADTokenExchange',
-}
+} as const satisfies Partial<Record<WorkloadIdentityProvider, string>>
 
 /** The provider's default audience, or undefined when each credential has its own (Google). */
 export function fixedWorkloadIdentityAudience(

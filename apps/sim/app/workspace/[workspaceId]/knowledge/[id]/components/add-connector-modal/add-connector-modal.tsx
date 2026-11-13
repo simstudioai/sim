@@ -113,8 +113,6 @@ interface AddConnectorModalProps {
   initialSyncIntervalMinutes?: number
   onCreated?: (connectorType: string, connector: ConnectorData) => void
   setupDraftKey?: string
-  /** Offers a key connector's saved-credential alternative, such as a saved AWS credential for S3. */
-  savedCredentialSetupEnabled?: boolean
 }
 
 type Step = 'select-type' | 'configure'
@@ -131,7 +129,6 @@ export function AddConnectorModal({
   lockedAccessMode,
   initialSyncIntervalMinutes = 1440,
   onCreated,
-  savedCredentialSetupEnabled = false,
   setupDraftKey,
   scope: explicitScope,
 }: AddConnectorModalProps) {
@@ -221,9 +218,7 @@ export function AddConnectorModal({
   const isMembersMode = access.accessMode === 'members'
   const apiKeyConfig = connectorConfig ? getConnectorApiKeyConfig(connectorConfig.auth) : undefined
   const savedCredentialConfig =
-    savedCredentialSetupEnabled && connectorConfig?.auth.mode === 'apiKey'
-      ? connectorConfig.auth.savedCredential
-      : undefined
+    connectorConfig?.auth.mode === 'apiKey' ? connectorConfig.auth.savedCredential : undefined
   const isApiKeyMode =
     connectorConfig?.auth.mode === 'apiKey'
       ? !savedCredentialConfig || useApiKey

@@ -163,6 +163,9 @@ describe('hostSteeringParams', () => {
 /** Any real service-account provider: the fixture tool's URL builder, not the provider, is under test. */
 const PROVIDER = 'jama'
 
+/** A provider with a saved-credential policy whose picker also accepts OAuth accounts. */
+const MIXED_PROVIDER = 'apollo'
+
 /** A native token block: a service-account picker and one tool, no legacy block. */
 function nativeBlock(toolId: string): BlockConfig {
   return {
@@ -244,12 +247,13 @@ describe('savedCredentialContractErrors', () => {
     (credentialKind) => {
       const block = nativeBlock('probe_fixture')
       block.subBlocks[0].credentialKind = 'any'
+      block.subBlocks[0].serviceId = MIXED_PROVIDER
       const errors = savedCredentialContractErrors(
         block,
         [],
         nativeHostTool({
           required: true,
-          provider: PROVIDER,
+          provider: MIXED_PROVIDER,
           credentialKind,
           credentialParams: { accessToken: 'accessToken' },
           credentialSuppliedParams: ['accessToken'],
@@ -316,33 +320,8 @@ describe('savedCredentialContractErrors', () => {
     )
 
     expect(errors).toContainEqual(
-      expect.stringContaining('tokenReplacesParams needs a credentialParams entry filled with')
+      expect.stringContaining('needs credentialParams to fill "accessToken"')
     )
-  })
-
-  it('passes a token-replaced sign-in when the token fills a param not named accessToken', () => {
-    const executable = {
-      ...operationTool('token_fixture', {
-        authToken: { type: 'string' },
-        username: { type: 'string' },
-        password: { type: 'string' },
-      }),
-      oauth: {
-        required: false,
-        provider: PROVIDER,
-        credentialKind: 'service-account',
-        credentialParams: { authToken: 'accessToken' },
-        tokenReplacesParams: ['username', 'password'],
-        credentialSuppliedParams: ['authToken', 'username', 'password'],
-      } satisfies OAuthConfig,
-    }
-
-    const errors = savedCredentialContractErrors(nativeBlock('token_fixture'), [], {
-      metadata: () => executable as ToolMetadata,
-      executable: () => executable,
-    })
-
-    expect(errors).toEqual([])
   })
 
   it('still fails a credential-supplied secret that neither the credential nor its token fills', () => {

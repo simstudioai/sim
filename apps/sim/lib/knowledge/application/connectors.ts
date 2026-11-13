@@ -81,7 +81,6 @@ import {
   readConnectorPermissionSummaries,
   readConnectorPermissionSummary,
 } from '@/lib/knowledge/connectors/permission-config.server'
-import { requireConnectorSavedCredentialSetup } from '@/lib/knowledge/connectors/saved-credential-rollout'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
 import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 import {
@@ -754,7 +753,6 @@ async function executeCreateKnowledgeConnector({
   if (input.apiKey && input.credentialId) {
     throw new OrchestrationError('validation', 'Choose either an OAuth account or an API key')
   }
-  await requireConnectorSavedCredentialSetup(connectorMeta.auth, input.credentialId)
   /** A key connector's saved credential must be of its declared service, as on an access update. */
   const savedCredentialService =
     connectorMeta.auth.mode === 'apiKey' && connectorMeta.auth.savedCredential && input.credentialId

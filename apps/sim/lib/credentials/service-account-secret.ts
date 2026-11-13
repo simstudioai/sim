@@ -66,8 +66,12 @@ import {
   isTokenServiceAccountFieldRequired,
   isTokenServiceAccountProviderId,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+  TOKEN_AUTH_METHOD,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
+  type TokenServiceAccountAuthMethod,
   type TokenServiceAccountDescriptor,
+  type TokenServiceAccountField,
+  tokenFieldBelongsToAuthMethod,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
@@ -632,13 +636,15 @@ async function buildTokenServiceAccountSecret(
   const apiToken = descriptor.fields.find((field) => field.id === 'apiToken')?.preserveWhitespace
     ? fields.apiToken
     : fields.apiToken?.trim()
-  const domainField = descriptor.fields.find((field) => field.id === 'domain')
+  const domainField = tokenModeField(descriptor, 'domain', TOKEN_AUTH_METHOD)
   const domain = fields.domain?.trim() || domainField?.defaultValue
-  const requiresDomain = Boolean(domainField && !domainField.optional)
+  const requiresDomain = Boolean(
+    domainField && isTokenServiceAccountFieldRequired(domainField, TOKEN_AUTH_METHOD)
+  )
   const providerWorkspaceId = fields.providerWorkspaceId?.trim()
-  const workspaceField = descriptor.fields.find((field) => field.id === 'providerWorkspaceId')
+  const workspaceField = tokenModeField(descriptor, 'providerWorkspaceId', TOKEN_AUTH_METHOD)
   const requiresWorkspace = Boolean(
-    workspaceField && isTokenServiceAccountFieldRequired(workspaceField)
+    workspaceField && isTokenServiceAccountFieldRequired(workspaceField, TOKEN_AUTH_METHOD)
   )
   if (
     !apiToken ||
@@ -646,7 +652,9 @@ async function buildTokenServiceAccountSecret(
     (requiresDomain && !domain) ||
     (requiresWorkspace && !providerWorkspaceId)
   ) {
-    const requiredFields = descriptor.fields.filter(isTokenServiceAccountFieldRequired)
+    const requiredFields = descriptor.fields.filter((field) =>
+      isTokenServiceAccountFieldRequired(field, TOKEN_AUTH_METHOD)
+    )
     throw new ServiceAccountSecretError(
       `${requiredFields.map((field) => field.id).join(' and ')} ${requiredFields.length > 1 ? 'are' : 'is'} required for ${descriptor.serviceLabel} service account credentials`
     )
@@ -676,6 +684,17 @@ async function buildTokenServiceAccountSecret(
   }
 }
 
+/** The descriptor field with this id that the given sign-in mode shows and stores. */
+function tokenModeField(
+  descriptor: TokenServiceAccountDescriptor,
+  id: TokenServiceAccountField['id'],
+  authMethod: TokenServiceAccountAuthMethod
+): TokenServiceAccountField | undefined {
+  return descriptor.fields.find(
+    (field) => field.id === id && tokenFieldBelongsToAuthMethod(field, authMethod)
+  )
+}
+
 /**
  * Builds a token provider's client-credentials secret: mints a token with the submitted client
  * ID and secret, proves it with the provider's own token check (the same request the pasted-token
@@ -695,20 +714,22 @@ async function buildTokenClientCredentialSecret(
   }
   const clientId = fields.clientId?.trim()
   const clientSecret = fields.clientSecret?.trim()
-  const domainField = descriptor.fields.find((field) => field.id === 'domain')
-  const domain = fields.domain?.trim() || domainField?.defaultValue
-  const requiresDomain = Boolean(domainField)
+  const domainField = tokenModeField(descriptor, 'domain', CLIENT_CREDENTIALS_AUTH_METHOD)
+  const domain = domainField ? fields.domain?.trim() || domainField.defaultValue : undefined
+  const requiresDomain = Boolean(
+    domainField && isTokenServiceAccountFieldRequired(domainField, CLIENT_CREDENTIALS_AUTH_METHOD)
+  )
   if (!clientId || !clientSecret || (requiresDomain && !domain)) {
     throw new ServiceAccountSecretError(
       `clientId, clientSecret${requiresDomain ? ', and domain are' : ' are'} required for ${descriptor.serviceLabel} client credentials`
     )
   }
   const validation = await proveMintedToken(
-    () => mint({ clientId, clientSecret, ...(requiresDomain ? { domain } : {}) }),
+    () => mint({ clientId, clientSecret, ...(domain ? { domain } : {}) }),
     (accessToken) =>
       validator({
         apiToken: accessToken,
-        ...(requiresDomain ? { domain } : {}),
+        ...(domain ? { domain } : {}),
         authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
       })
   )
@@ -719,7 +740,7 @@ async function buildTokenClientCredentialSecret(
     authMethod: CLIENT_CREDENTIALS_AUTH_METHOD,
     clientId,
     clientSecret,
-    ...(requiresDomain ? { domain: validation.normalizedDomain ?? domain } : {}),
+    ...(domain ? { domain: validation.normalizedDomain ?? domain } : {}),
     metadata: { ...validation.storedMetadata, ...principalMetadata },
   }
   const { encrypted } = await encryptSecret(JSON.stringify(blob))

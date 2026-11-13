@@ -31,6 +31,14 @@ export const TOKEN_EXPIRY_MARGIN_MS = 30_000
  */
 export const TOKEN_FAILURE_STREAK_RETENTION_MS = 5 * 60_000
 
+/**
+ * A tool call's 401 (and an internal operation's 403) can come from the endpoint rather than the
+ * token, so a caller expiring a token on one passes this as `minimumAgeMs`: a token minted within
+ * the last minute is kept, and a call that keeps failing re-mints its application's token at most
+ * once a minute, instead of once per call.
+ */
+export const REJECTED_TOKEN_MINIMUM_AGE_MS = 60_000
+
 /** A refusal of the credentials is replayed this long, so a revoked secret does not hammer the provider. */
 const PERMANENT_FAILURE_REPLAY_MS = 30_000
 /**

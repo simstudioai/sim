@@ -1228,6 +1228,35 @@ describe('AgentBlockHandler', () => {
       expect(mockResolveBedrockCredentialSession).toHaveBeenCalledTimes(1)
     })
 
+    it('resolves the AWS credential once for a fallback on the same provider', async () => {
+      const session = {
+        credentialId: 'aws-cred',
+        accessKeyId: 'ASIASESSIONKEY000001',
+        secretAccessKey: 'session-secret',
+        sessionToken: 'session-token',
+      }
+      mockResolveBedrockCredentialSession.mockResolvedValueOnce(session)
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('overloaded'))
+        .mockResolvedValueOnce(providerResponse('bedrock/claude-fallback'))
+
+      await handler.execute(mockContext, mockBlock, {
+        ...baseInputs,
+        model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
+        bedrockCredential: 'aws-cred',
+        fallbackModels: [{ model: 'bedrock/claude-fallback' }],
+      })
+
+      expect(mockResolveBedrockCredentialSession).toHaveBeenCalledTimes(1)
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+      const [[primaryProvider, primaryRequest], [fallbackProvider, fallbackRequest]] =
+        mockExecuteProviderRequest.mock.calls
+      expect([primaryProvider, fallbackProvider]).toEqual(['bedrock', 'bedrock'])
+      expect(primaryRequest.bedrockSession).toEqual(session)
+      expect(fallbackRequest.bedrockSession).toEqual(session)
+    })
+
     it('re-resolves tuning for the fallback: row value wins, caps clamp, undeclared values drop', async () => {
       const fallbackCap = getModelCapabilities('gpt-5.4-mini')?.maxOutputTokens
       expect(fallbackCap).toEqual(expect.any(Number))

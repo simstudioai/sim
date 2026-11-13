@@ -54,10 +54,11 @@ interface TokenCheck {
    */
   defaultDomain?: string
   /**
-   * The domain picks one of the vendor's own region hosts from a fixed list, never a host the user
-   * typed, so one failing to resolve is the vendor being unavailable rather than the user's typo.
+   * The domain is one of a fixed set of vendor-defined choices (a region, a token type), never a
+   * host the user typed, so a host that fails to resolve is the vendor being unavailable rather than
+   * the user's typo.
    */
-  domainIsVendorRegion?: boolean
+  domainIsFixedChoice?: boolean
   /**
    * The request goes to a host the user chose (self-hosted or white-label), so
    * it runs through the same SSRF-guarded egress profile as the tools instead
@@ -254,7 +255,7 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
           },
           'verify',
           // A host built from the typed domain or account id that doesn't exist is the user's typo.
-          (typedDomain === undefined || check.domainIsVendorRegion) && workspaceId === undefined
+          (typedDomain === undefined || check.domainIsFixedChoice) && workspaceId === undefined
             ? undefined
             : { dnsFailureCode: 'site_not_found' }
         )
