@@ -70,6 +70,7 @@ import {
   readActiveElementState,
   readCheckableElementState,
   readChildFrameElementState,
+  readDomQuiet,
   readFormFieldState,
   readPageActionState,
   readPageText,
@@ -2065,6 +2066,9 @@ async function prepareTypingSurface(
 const TRANSIENT_PROBE_ERRORS = new Set(['stale', 'not-visible', 'not-editable'])
 const SETTLE_GRACE_MS = 1_000
 const SETTLE_PROBE_INTERVAL_MS = 250
+/** Structural quiet that counts as settled, and the most an observation waits for it. */
+const DOM_QUIET_MS = 150
+const DOM_SETTLE_MAX_MS = 2_000
 
 /**
  * First-touch page probe with a short settle grace. A live view re-rendering
@@ -2096,6 +2100,33 @@ async function execInPageWithSettleGrace<Args extends unknown[], Result>(
       return result
     }
     await sleep(SETTLE_PROBE_INTERVAL_MS)
+  }
+}
+
+/**
+ * Lets a page finish rendering what an action started (a route change, a fetched list) before it
+ * is observed, so the observation is not a half-rendered page. A page already quiet costs one probe.
+ */
+async function waitForDomQuiet(
+  target: PageExecutionTarget,
+  signal: AbortSignal,
+  executionDeadline?: number
+) {
+  const until = Math.min(
+    Date.now() + DOM_SETTLE_MAX_MS,
+    executionDeadline ?? Number.POSITIVE_INFINITY
+  )
+  while (!signal.aborted && Date.now() + 25 < until) {
+    const probe = await execInPage(target, readDomQuiet, [], false, executionDeadline).catch(
+      () => null
+    )
+    // A failed probe while the tab loads is a document swapping mid-navigation, so keep waiting;
+    // one that fails on a loaded tab (a page that cannot be scripted) has nothing to settle.
+    if (probe === null && !('isLoading' in target && target.isLoading())) return
+    const state = toRecord(probe)
+    const quietMs = typeof state.quietMs === 'number' ? state.quietMs : 0
+    if (quietMs >= DOM_QUIET_MS && state.loading === false) return
+    await interruptibleSleep(Math.min(100, Math.max(25, DOM_QUIET_MS - quietMs)), signal)
   }
 }
 
@@ -5463,15 +5494,27 @@ export async function executeTool(
               }
               return result
             },
-            (query) =>
-              executeToolInner(
+            async (query) => {
+              await waitForDomQuiet(
+                session.requireAutomationTab().view.webContents,
+                executionController.signal,
+                executionDeadline
+              )
+              assertCurrentExecution()
+              if (executionController.signal.aborted) {
+                throw new ToolError(
+                  'This browser action was cancelled before it could observe the page.'
+                )
+              }
+              return executeToolInner(
                 query === undefined ? 'browser_snapshot' : 'browser_find',
                 query === undefined ? {} : { query },
                 assertCurrentExecution,
                 executionDeadline,
                 invocationEpoch,
                 executionController.signal
-              ),
+              )
+            },
             assertCurrentExecution
           )
           const cancellableExecution = Promise.race([execution, cancellation])

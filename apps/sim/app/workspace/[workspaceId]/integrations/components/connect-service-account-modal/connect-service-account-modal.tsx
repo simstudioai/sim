@@ -31,6 +31,7 @@ import {
   getDatabaseConnectionDescriptor,
 } from '@/lib/credentials/database-connections/descriptors'
 import {
+  GOOGLE_DELEGATION_SERVICE_NAMES,
   googleDelegationServiceFor,
   googleKeylessOffer,
   isGoogleKeylessService,
@@ -61,7 +62,6 @@ import { DatabricksAccountModal } from '@/app/workspace/[workspaceId]/integratio
 import {
   buildGoogleKeylessConfig,
   emptyGoogleKeylessInput,
-  GOOGLE_DELEGATION_SERVICE_NAMES,
   GoogleKeylessFields,
   type GoogleKeylessInput,
   isGoogleKeylessInputComplete,

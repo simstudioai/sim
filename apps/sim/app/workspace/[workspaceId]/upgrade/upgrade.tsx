@@ -38,7 +38,6 @@ import {
 } from '@/app/workspace/[workspaceId]/upgrade/search-params'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin/store'
 
-/** Enterprise "Talk to sales" books time with the sales team on Cal.com. */
 /** The demo form, so a sales booking passes the same spam checks as every other. */
 const SALES_DEMO_URL = `${SIM_SITE_URL}/demo`
 

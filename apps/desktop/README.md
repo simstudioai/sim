@@ -267,7 +267,8 @@ group with the **Computer Use** restriction. Older desktop builds omit this opti
 continue to work.
 
 The user grants Accessibility and Screen Recording through macOS; every app is then available except
-Sim, System Settings, password managers and terminals (shell access has its own Terminal control),
+Sim, System Settings, password managers, terminals and scripting apps (shell access has its own
+Terminal control),
 which the helper refuses. With **Ask before using a new
 app** on, each app's first use is approved for the task or persistently, and persistent approvals are
 listed in Settings and can be revoked. Sign-out and deployment changes clear opt-in, the ask choice
