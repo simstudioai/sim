@@ -6,15 +6,18 @@ FROM oven/bun:1.4.4-alpine AS base
 RUN apk add --no-cache libc6-compat curl
 
 # ========================================
-# Pruner Stage: Emit a minimal monorepo subset that @sim/realtime depends on
+# Pruner Stage: Emit the monorepo subset @sim/realtime runs in production
 # ========================================
 FROM base AS pruner
 WORKDIR /app
 
 COPY . .
 
+# turbo keeps the workspace members @sim/realtime needs to build and test too;
+# scripts/prune-production-workspace.ts drops those and their devDependencies.
 RUN TURBO_VERSION="$(bun -e "console.log(require('./package.json').devDependencies.turbo)")" && \
-    bunx --bun "turbo@${TURBO_VERSION}" prune @sim/realtime --docker
+    bunx --bun "turbo@${TURBO_VERSION}" prune @sim/realtime --docker && \
+    bun scripts/prune-production-workspace.ts @sim/realtime out/full out/json
 
 # ========================================
 # Dependencies Stage: Install Dependencies
@@ -25,8 +28,11 @@ WORKDIR /app
 COPY --from=pruner /app/out/json/ ./
 COPY --from=pruner /app/out/bun.lock ./bun.lock
 
+# Not --frozen-lockfile: the narrowed manifests no longer match the pruned
+# lockfile. Bun keeps every locked resolution, and full-repository CI owns
+# frozen-lockfile validation.
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile --linker=hoisted --omit=dev --ignore-scripts
+    bun install --linker=hoisted --omit=dev --ignore-scripts
 
 # ========================================
 # Runner Stage: Run the Socket Server
