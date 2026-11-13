@@ -18,12 +18,12 @@ function requestBody(tool: ToolConfig, params: Record<string, unknown>) {
   return body(params)
 }
 
-function workflowParams(inputs: Record<string, unknown>) {
+function workflowParams(inputs: Record<string, unknown>): Record<string, unknown> {
   const mapped = MonacoBlock.tools.config?.params?.(inputs) ?? {}
   return { ...inputs, ...mapped, accessToken: CREDENTIAL.accessToken }
 }
 
-function agentParams(operation: string, args: Record<string, unknown>) {
+function agentParams(operation: string, args: Record<string, unknown>): Record<string, unknown> {
   const inputs = { ...CREDENTIAL, ...args }
   const mapped = MonacoBlock.tools.config?.params?.(inputs, { operation }) ?? {}
   return { ...inputs, ...mapped, accessToken: CREDENTIAL.accessToken }

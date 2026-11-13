@@ -1,5 +1,5 @@
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
-import { isRecordLike, toArray, toRecord } from '@sim/utils/object'
+import { isRecordLike, toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   MonacoAccount,
   MonacoAccountCandidate,
@@ -199,7 +199,7 @@ export function toMonacoStringArray(value: unknown): string[] {
 /** Maps Monaco's documented `ContactResponse` fields. */
 export function mapMonacoContact(value: unknown): MonacoContact {
   const contact = toRecord(value)
-  const scoring = isRecordLike(contact.scoring) ? contact.scoring : null
+  const scoring = toRecordOrNull(contact.scoring)
   return {
     id: toStringOrNull(contact.id) ?? '',
     account_id: toStringOrNull(contact.account_id),
@@ -574,9 +574,9 @@ function mapMonacoAccountCompany(value: unknown): MonacoAccountCompany | null {
 /** Maps Monaco's documented `AccountResponse` fields. */
 export function mapMonacoAccount(value: unknown): MonacoAccount {
   const account = toRecord(value)
-  const owner = isRecordLike(account.owner) ? account.owner : null
-  const parent = isRecordLike(account.parent_account) ? account.parent_account : null
-  const scoring = isRecordLike(account.scoring) ? account.scoring : null
+  const owner = toRecordOrNull(account.owner)
+  const parent = toRecordOrNull(account.parent_account)
+  const scoring = toRecordOrNull(account.scoring)
   return {
     id: toStringOrNull(account.id) ?? '',
     name: toStringOrNull(account.name),
@@ -793,7 +793,7 @@ function mapMonacoMessageDraft(value: unknown): MonacoMessageDraft | null {
 /** Maps Monaco's documented `TaskResponse` fields. */
 export function mapMonacoTask(value: unknown): MonacoTask {
   const task = toRecord(value)
-  const assignee = isRecordLike(task.assignee) ? task.assignee : null
+  const assignee = toRecordOrNull(task.assignee)
   return {
     id: toStringOrNull(task.id) ?? '',
     account_id: toStringOrNull(task.account_id),
@@ -830,7 +830,7 @@ function mapMonacoAccountCandidates(value: unknown): MonacoAccountCandidate[] {
 /** Maps Monaco's documented `MeetingResponse` fields. */
 export function mapMonacoMeeting(value: unknown): MonacoMeeting {
   const meeting = toRecord(value)
-  const organizer = isRecordLike(meeting.organizer) ? meeting.organizer : null
+  const organizer = toRecordOrNull(meeting.organizer)
   return {
     id: toStringOrNull(meeting.id) ?? '',
     account_id: toStringOrNull(meeting.account_id),
@@ -1004,10 +1004,8 @@ export function mapMonacoCurrentUser(value: unknown): MonacoCurrentUser {
 /** Maps Monaco's documented `FieldSchemaResponse` fields. */
 export function mapMonacoFieldSchema(value: unknown): MonacoFieldSchema {
   const field = toRecord(value)
-  const customSettings = isRecordLike(field.custom_field_settings)
-    ? field.custom_field_settings
-    : null
-  const enumSettings = isRecordLike(field.enum_field_settings) ? field.enum_field_settings : null
+  const customSettings = toRecordOrNull(field.custom_field_settings)
+  const enumSettings = toRecordOrNull(field.enum_field_settings)
   return {
     name: toStringOrNull(field.name) ?? '',
     key: toStringOrNull(field.key) ?? '',
@@ -1052,7 +1050,7 @@ export function parseMonacoOptionalIdList(value: unknown, name: string): string[
 /** Maps Monaco's documented `SequenceResponse` fields. */
 export function mapMonacoSequence(value: unknown): MonacoSequence {
   const sequence = toRecord(value)
-  const exclusion = isRecordLike(sequence.exclusion_info) ? sequence.exclusion_info : null
+  const exclusion = toRecordOrNull(sequence.exclusion_info)
   return {
     id: toStringOrNull(sequence.id) ?? '',
     contact_id: toStringOrNull(sequence.contact_id) ?? '',
@@ -1193,9 +1191,7 @@ function mapMonacoStopAndDismissRule(value: unknown): MonacoStopAndDismissRule |
 
 function mapMonacoRulesOfEngagement(value: unknown): MonacoRulesOfEngagement | null {
   if (!isRecordLike(value)) return null
-  const maxContacts = isRecordLike(value.max_contacts_in_sequence)
-    ? value.max_contacts_in_sequence
-    : null
+  const maxContacts = toRecordOrNull(value.max_contacts_in_sequence)
   return {
     do_not_contact: mapMonacoToggleRule(value.do_not_contact),
     allow_sequence_stop_on_meeting_booked: mapMonacoToggleRule(
@@ -1224,7 +1220,7 @@ export function mapMonacoCampaignDetail(value: unknown): MonacoCampaignDetail {
   const campaign = toRecord(value)
   const autopilot = toRecord(campaign.autopilot_settings)
   const readiness = toRecord(campaign.contact_readiness_settings)
-  const email = isRecordLike(readiness.email) ? readiness.email : null
+  const email = toRecordOrNull(readiness.email)
   return {
     ...mapMonacoCampaign(campaign),
     distribution: mapMonacoCampaignDistribution(campaign.distribution),
