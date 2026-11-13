@@ -602,6 +602,7 @@ func focusByClicking(_ element: AXUIElement, pid: pid_t, snapshot: Snapshot) asy
     let insideEditor = takesText(hit) ? try ancestorPath(hit, to: element) != nil : false
     guard CFEqual(hit, element) || insideEditor else { return }
     try await coordinateAction { dispatch in
+        try checkCancellation()
         try postMouse(pid: pid, type: .leftMouseDown, point: center, button: .left, windowID: windowID, window: window, frame: frame, dispatch: dispatch)
         try postMouse(pid: pid, type: .leftMouseUp, point: center, button: .left, windowID: windowID, window: window, frame: frame, release: true, dispatch: dispatch)
     }
