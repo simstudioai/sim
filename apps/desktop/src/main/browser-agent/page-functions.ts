@@ -2041,8 +2041,9 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     }
   }
   // Top-page typing goes through keyboard focus, so a non-modal overlay does not block it. A modal
-  // still does: a dialog, or an unmarked fixed layer spanning the viewport that does not hold the
-  // field (a full-screen app shell does). Framed fields keep the check for their mapped point.
+  // still does: a dialog, or an unmarked fixed layer spanning the viewport that catches the pointer
+  // and does not hold the field (a full-screen app shell does). Framed fields keep the check for
+  // their mapped point.
   const topPageField = view === window && window.top === window
   const MODAL_VIEWPORT_COVERAGE = 0.9
   const fieldAncestors = new Set<Element>()
@@ -2050,7 +2051,8 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     fieldAncestors.add(current)
   }
   const spansViewport = (node: Element): boolean => {
-    if (view.getComputedStyle(node).position !== 'fixed') return false
+    const style = view.getComputedStyle(node)
+    if (style.position !== 'fixed' || style.pointerEvents === 'none') return false
     const box = node.getBoundingClientRect()
     const width = Math.min(box.right, view.innerWidth) - Math.max(box.left, 0)
     const height = Math.min(box.bottom, view.innerHeight) - Math.max(box.top, 0)

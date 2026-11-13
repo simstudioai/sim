@@ -403,6 +403,25 @@ describe('combobox typing surfaces', () => {
     })
   })
 
+  it('types under a popup whose full-screen fixed wrapper lets the pointer through', () => {
+    document.body.innerHTML = `
+      <input type="text" aria-label="Search" />
+      <div id="layer" style="position: fixed; pointer-events: none">
+        <div id="toast" style="pointer-events: auto">Saved to your list</div>
+      </div>
+    `
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    coverViewport(document.querySelector('#layer') as HTMLDivElement)
+    const toast = visible(document.querySelector('#toast') as HTMLDivElement)
+    register(input)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => toast })
+
+    expect(focusElementForTyping(0)).toMatchObject({
+      focused: true,
+      coveredBy: 'Saved to your list',
+    })
+  })
+
   it('types inside a full-screen fixed app shell that also holds the field', () => {
     document.body.innerHTML = `
       <div id="shell" style="position: fixed">
