@@ -58,7 +58,6 @@ export async function fetchThreadingHeaders(
   return {}
 }
 
-/** Case-insensitive lookup of a top-level message header value. */
 /** Case-insensitive header lookup on a Gmail message payload. */
 export function getHeaderValue(
   headers: ReadonlyArray<{ name: string; value: string }> | undefined,
