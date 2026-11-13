@@ -26,7 +26,7 @@ function jsonBytes(value: unknown): number {
 
 type SnapshotNode = ComputerUseSnapshot['nodes'][number]
 
-/** Layout wrappers that carry no text, state or action; their children are shown under the nearest meaningful ancestor. */
+/** Layout wrappers that carry no text, state (including disabled) or action; their children are shown under the nearest meaningful ancestor. */
 const WRAPPER_ROLES = new Set([
   'AXGroup',
   'AXSplitGroup',
@@ -43,6 +43,7 @@ function isWrapper(node: SnapshotNode): boolean {
     !node.placeholder &&
     !node.focused &&
     !node.editable &&
+    node.enabled !== false &&
     node.actions.length === 0
   )
 }

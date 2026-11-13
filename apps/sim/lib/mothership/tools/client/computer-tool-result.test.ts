@@ -227,6 +227,34 @@ describe('native computer model projection', () => {
     expect(result.omittedNodeCount).toBe(0)
   })
 
+  it('keeps an empty layout group that reports itself disabled', () => {
+    const state = snapshot()
+    state.nodes = [
+      { elementId: 'window', role: 'AXWindow', label: 'Fixture', actions: [], windowId: '1' },
+      {
+        elementId: 'pane',
+        parentId: 'window',
+        role: 'AXGroup',
+        enabled: false,
+        actions: [],
+        windowId: '1',
+      },
+      {
+        elementId: 'save',
+        parentId: 'pane',
+        role: 'AXButton',
+        label: 'Save',
+        actions: ['AXPress'],
+        windowId: '1',
+      },
+    ]
+    const result = computerToolResultForModel(state)
+    if (!('accessibilityTree' in result)) throw new Error('Missing projected tree')
+    const rows = result.accessibilityTree.split('\n')
+    expect(rows.find((row) => row.startsWith('pane '))).toContain('disabled')
+    expect(rows.find((row) => row.startsWith('save '))).toContain('parent=pane')
+  })
+
   it('does not split an emoji when bounding text for the model', () => {
     const state = snapshot()
     state.nodes[0] = {
