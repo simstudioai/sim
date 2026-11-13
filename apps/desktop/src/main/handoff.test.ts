@@ -167,6 +167,7 @@ describe('login handoff landing', () => {
   it('lands on the app entry after redeeming the login token', async () => {
     const win = {
       isDestroyed: () => false,
+      isMinimized: () => false,
       loadURL: vi.fn(async () => {}),
       show: vi.fn(),
       focus: vi.fn(),
