@@ -645,6 +645,7 @@ export function collectSnapshot(
     const unchanged =
       prior !== undefined &&
       prior.namespace === refNamespace &&
+      prior.element.deref() === el &&
       prior.locator.tag === locator.tag &&
       prior.locator.role === locator.role &&
       prior.locator.name === locator.name &&

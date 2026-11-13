@@ -266,14 +266,14 @@ describe('pendingToolWaitBudgetMs', () => {
   })
 
   it('matches the requested browser_wait_for renderer budget', () => {
-    expect(pendingToolWaitBudgetMs({ name: 'browser_wait_for', status: 'executing' })).toBe(85_000)
+    expect(pendingToolWaitBudgetMs({ name: 'browser_wait_for', status: 'executing' })).toBe(100_000)
     expect(
       pendingToolWaitBudgetMs({
         name: 'browser_wait_for',
         status: 'executing',
         params: { timeoutMs: 120_000 },
       })
-    ).toBe(195_000)
+    ).toBe(210_000)
   })
 
   it('outlasts the wait window the desktop holds a terminal run for', () => {

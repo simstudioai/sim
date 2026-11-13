@@ -1161,8 +1161,9 @@ export function browserToolWatchdogMs(
     return BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS
   }
   if (tool === 'browser_wait_for') {
+    // A wait ends with a snapshot, which gets the same budget a standalone snapshot does.
     const requested = normalizeBrowserWaitForTimeoutMs(params.timeoutMs)
-    return requested + WAIT_FOR_TOOL_WATCHDOG_GRACE_MS
+    return requested + WAIT_FOR_TOOL_WATCHDOG_GRACE_MS + DEFAULT_TOOL_WATCHDOG_MS
   }
   return DEFAULT_TOOL_WATCHDOG_MS
 }
@@ -2971,8 +2972,8 @@ async function executeToolInner(
       }
       const waitedTab = session.requireAutomationTab()
       const contents = waitedTab.view.webContents
-      const elementTarget = elementId === undefined ? undefined : pageTargetForElement(elementId)
-      if (elementTarget && elementTarget !== contents) {
+      const waitTarget = elementId === undefined ? undefined : pageTargetForElement(elementId)
+      if (waitTarget && waitTarget !== contents) {
         throw new ToolError(
           'Element-state waits are limited to the top page. Use a text or URL condition for framed content.'
         )
@@ -2982,7 +2983,7 @@ async function executeToolInner(
       const assertWaitTargetIsCurrent = (): void => {
         assertCurrentExecution()
         if (
-          elementTarget &&
+          waitTarget &&
           (navigationEpoch(contents) !== waitedNavigationEpoch || contents.getURL() !== waitedUrl)
         ) {
           throw new ToolError(
@@ -3025,12 +3026,12 @@ async function executeToolInner(
         }
         const urlMatched = !urlContains || contents.getURL().includes(urlContains)
         let elementMatched = elementId === undefined
-        if (elementId !== undefined && elementState && elementTarget) {
+        if (elementId !== undefined && elementState && waitTarget) {
           assertWaitTargetIsCurrent()
           const state = toRecord(
             unwrapPageResult(
               await execInPage(
-                elementTarget,
+                waitTarget,
                 readPageActionState,
                 [false, elementId, 'registered'],
                 false,
