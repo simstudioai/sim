@@ -148,12 +148,19 @@ export function countProgressingAppDownloads(): number {
   return count
 }
 
+/** Windows flashing until focused, so several downloads finishing in the background share one listener. */
+const flashingWindows = new WeakSet<BrowserWindow>()
+
 /** The Windows counterpart of the Dock bounce: a taskbar flash for a backgrounded window. */
 function flashUntilFocused(win: BrowserWindow | null): void {
   if (!win || win.isDestroyed() || win.isFocused()) return
-  win.once('focus', () => {
-    if (!win.isDestroyed()) win.flashFrame(false)
-  })
+  if (!flashingWindows.has(win)) {
+    flashingWindows.add(win)
+    win.once('focus', () => {
+      flashingWindows.delete(win)
+      if (!win.isDestroyed()) win.flashFrame(false)
+    })
+  }
   win.flashFrame(true)
 }
 
