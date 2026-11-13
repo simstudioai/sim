@@ -21,9 +21,9 @@
 #      provider (for IRSA).
 #   2. RDS for PostgreSQL 17 and ElastiCache reachable from the cluster. The listing's
 #      CloudFormation template creates both in your VPC.
-#   3. An IAM role for the ServiceAccount below that allows license-manager:CheckoutLicense and
-#      license-manager:CheckInLicense (the CloudFormation template creates it; AWS's managed
-#      AWSLicenseManagerConsumptionPolicy grants both too).
+#   3. An IAM role for the ServiceAccount below that allows license-manager:CheckoutLicense (the
+#      CloudFormation template creates it; AWS's managed AWSLicenseManagerConsumptionPolicy
+#      grants it too).
 #   4. An ACM certificate for the two hostnames below.
 #   5. Two Secrets in the install namespace (no secret ever goes in this file). The template's
 #      DatabasePasswordArn and CacheAuthTokenArn outputs are the ARNs of the Secrets Manager

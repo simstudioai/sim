@@ -159,12 +159,10 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                # Sim checks a unit of the license out and returns it at once, the two actions
-                # AWS's managed AWSLicenseManagerConsumptionPolicy also grants. Neither has
-                # resource-level permissions, so they cannot be scoped below '*'.
-                Action:
-                  - license-manager:CheckoutLicense
-                  - license-manager:CheckInLicense
+                # Sim checks the license with an uncounted checkout, which AWS's managed
+                # AWSLicenseManagerConsumptionPolicy also grants. CheckoutLicense has no
+                # resource-level permissions, so it cannot be scoped below '*'.
+                Action: license-manager:CheckoutLicense
                 Resource: '*'
 
 Outputs:

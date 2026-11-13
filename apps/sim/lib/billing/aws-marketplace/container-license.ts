@@ -1,11 +1,6 @@
-import {
-  CheckInLicenseCommand,
-  CheckoutLicenseCommand,
-  LicenseManagerClient,
-} from '@aws-sdk/client-license-manager'
+import { CheckoutLicenseCommand, LicenseManagerClient } from '@aws-sdk/client-license-manager'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
@@ -15,18 +10,12 @@ import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
  *
  * The listing sells an annual contract whose one dimension is `enterprise_license`. AWS Marketplace
  * grants the buyer a license in AWS License Manager, and the running product checks it the way AWS
- * documents for contract-priced containers: a provisional `CheckoutLicense` of the entitlement,
- * which needs only permissions in AWS's managed `AWSLicenseManagerConsumptionPolicy`. While the
- * license is active, the Enterprise suite is on (`ENTERPRISE_ENABLED`). Without one, Sim runs as
- * the open-source core, so a lapsed renewal or an unreachable License Manager never locks a buyer
- * out of their deployment.
- *
- * A contract usually covers the deployment with one unit, which every replica checks out. Each
- * check returns its unit at once (`CheckInLicense`), but two replicas checking together, or a unit
- * a crashed replica never returned (License Manager takes it back after an hour), answer exactly
- * like a license without the entitlement: AWS reports both as `NoEntitlementsAllowedException`. So
- * that answer switches a running deployment's Enterprise off only after it has held for longer
- * than a held unit can last.
+ * documents for a contract that unlocks a tier of features rather than metering a quantity: a
+ * provisional `CheckoutLicense` of the entitlement with unit `None`. Such a checkout is not counted
+ * against the contract, so every replica can check at once, and it needs only the permission AWS's
+ * managed `AWSLicenseManagerConsumptionPolicy` grants. While the license is active, the Enterprise
+ * suite is on (`ENTERPRISE_ENABLED`). Without one, Sim runs as the open-source core, so a lapsed
+ * renewal or an unreachable License Manager never locks a buyer out of their deployment.
  *
  * Opt-in: nothing here runs unless {@link PRODUCT_SKU_ENV} is set, which only the Marketplace
  * Helm profile does. Enterprise flags are read once at startup by both the server and the
@@ -57,21 +46,6 @@ const RECHECK_INTERVAL_MS = 15 * 60 * 1000
 /** Replicas start together; a random part of this added to each re-check keeps them apart. */
 const RECHECK_JITTER_MS = 2 * 60 * 1000
 
-/** License Manager takes back a unit nobody checked in after an hour. */
-const UNRETURNED_UNIT_MS = 60 * 60 * 1000
-
-/**
- * How long "no entitlement" must hold, with no other answer in between, before a running Enterprise
- * deployment believes it: longer than an unreturned unit lasts, plus one re-check, so a unit held
- * elsewhere can never cause it.
- */
-const NO_ENTITLEMENT_CONFIRMATION_MS = UNRETURNED_UNIT_MS + RECHECK_INTERVAL_MS
-
-/** Replicas rolling out together can meet on the unit, so startup retries that answer. */
-const STARTUP_ATTEMPTS = 3
-const STARTUP_RETRY_MIN_MS = 1_000
-const STARTUP_RETRY_MAX_MS = 5_000
-
 /**
  * Replicas see a change together; each waits a random part of this before restarting, so a renewal
  * or lapse never takes every replica down at once.
@@ -80,7 +54,7 @@ const RESTART_SPREAD_MS = 10 * 60 * 1000
 
 const ENTERPRISE_FLAGS = ['ENTERPRISE_ENABLED', 'NEXT_PUBLIC_ENTERPRISE_ENABLED'] as const
 
-/** License Manager's answers when the account holds no unit of the entitlement it can use now. */
+/** License Manager's answers when the account holds no active license with the entitlement. */
 const NO_ENTITLEMENT_ERRORS = new Set([
   'NoEntitlementsAllowedException',
   'ResourceNotFoundException',
@@ -89,11 +63,8 @@ const NO_ENTITLEMENT_ERRORS = new Set([
 /** The ServiceAccount's IAM role does not allow the check: a setup problem, never a verdict. */
 const PERMISSION_ERRORS = new Set(['AccessDeniedException', 'AuthorizationException'])
 
-/**
- * `no-entitlement` is AWS's answer for both an unlicensed account and a unit held elsewhere.
- * `unknown` is a failed check (network, permissions, throttling), never a verdict on the license.
- */
-type LicenseState = 'entitled' | 'no-entitlement' | 'unknown'
+/** `unknown` is a failed check (network, permissions, throttling), never a verdict on the license. */
+type LicenseState = 'entitled' | 'not-entitled' | 'unknown'
 
 function createClient(): LicenseManagerClient {
   const region =
@@ -107,25 +78,15 @@ function createClient(): LicenseManagerClient {
   })
 }
 
-/** A unit left out returns to the pool within the hour, so a failed check-in is only logged. */
-async function checkIn(client: LicenseManagerClient, licenseConsumptionToken: string) {
-  try {
-    await client.send(
-      new CheckInLicenseCommand({ LicenseConsumptionToken: licenseConsumptionToken })
-    )
-  } catch (error) {
-    logger.warn('Could not return the AWS Marketplace license unit; License Manager reclaims it', {
-      message: getErrorMessage(error, 'Unknown error'),
-    })
-  }
-}
-
 function classifyFailure(error: unknown): LicenseState {
   const name = error instanceof Error ? error.name : undefined
-  if (name && NO_ENTITLEMENT_ERRORS.has(name)) return 'no-entitlement'
+  if (name && NO_ENTITLEMENT_ERRORS.has(name)) {
+    logger.info('AWS License Manager reports no active Enterprise entitlement', { error: name })
+    return 'not-entitled'
+  }
   if (name && PERMISSION_ERRORS.has(name)) {
     logger.error(
-      'The IAM role cannot check the AWS Marketplace license; allow license-manager:CheckoutLicense and license-manager:CheckInLicense',
+      'The IAM role cannot check the AWS Marketplace license; allow license-manager:CheckoutLicense',
       { error: name }
     )
     return 'unknown'
@@ -147,30 +108,17 @@ async function checkLicense(
         ProductSKU: productSku,
         CheckoutType: 'PROVISIONAL',
         KeyFingerprint: MARKETPLACE_KEY_FINGERPRINT,
-        Entitlements: [{ Name: ENTERPRISE_ENTITLEMENT, Value: '1', Unit: 'Count' }],
+        Entitlements: [{ Name: ENTERPRISE_ENTITLEMENT, Unit: 'None' }],
         ClientToken: generateId(),
       })
     )
-    if (checkout.LicenseConsumptionToken) await checkIn(client, checkout.LicenseConsumptionToken)
     const allowed = (checkout.EntitlementsAllowed ?? []).some(
       (entitlement) => entitlement.Name === ENTERPRISE_ENTITLEMENT
     )
-    return allowed ? 'entitled' : 'no-entitlement'
+    return allowed ? 'entitled' : 'not-entitled'
   } catch (error) {
     return classifyFailure(error)
   }
-}
-
-async function checkAtStartup(
-  client: LicenseManagerClient,
-  productSku: string
-): Promise<LicenseState> {
-  let state = await checkLicense(client, productSku)
-  for (let attempt = 1; state === 'no-entitlement' && attempt < STARTUP_ATTEMPTS; attempt++) {
-    await sleep(randomInt(STARTUP_RETRY_MIN_MS, STARTUP_RETRY_MAX_MS))
-    state = await checkLicense(client, productSku)
-  }
-  return state
 }
 
 function setEnterpriseFlags(enabled: boolean): void {
@@ -196,7 +144,7 @@ export async function applyAwsMarketplaceContainerLicense(): Promise<void> {
   if (!productSku) return
 
   const client = createClient()
-  const bootState = await checkAtStartup(client, productSku)
+  const bootState = await checkLicense(client, productSku)
   const enterpriseAtBoot = bootState === 'entitled'
   setEnterpriseFlags(enterpriseAtBoot)
   logger.info(
@@ -206,21 +154,15 @@ export async function applyAwsMarketplaceContainerLicense(): Promise<void> {
     { state: bootState }
   )
 
-  let noEntitlementSince: number | null = null
   const scheduleRecheck = () => {
     setTimeout(recheck, RECHECK_INTERVAL_MS + randomInt(0, RECHECK_JITTER_MS)).unref()
   }
   const recheck = async () => {
     const state = await checkLicense(client, productSku)
-    // Only an unbroken run of "no entitlement" answers counts toward switching Enterprise off.
-    if (state !== 'no-entitlement') noEntitlementSince = null
-    if (state === 'entitled' && !enterpriseAtBoot) return restartToApply(state)
-    if (state === 'no-entitlement' && enterpriseAtBoot) {
-      noEntitlementSince ??= Date.now()
-      if (Date.now() - noEntitlementSince >= NO_ENTITLEMENT_CONFIRMATION_MS) {
-        return restartToApply(state)
-      }
-    }
+    // A failed check keeps the current mode; only a definite answer that differs restarts.
+    const changed =
+      (state === 'entitled' && !enterpriseAtBoot) || (state === 'not-entitled' && enterpriseAtBoot)
+    if (changed) return restartToApply(state)
     scheduleRecheck()
   }
   scheduleRecheck()
