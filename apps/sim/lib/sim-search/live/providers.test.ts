@@ -422,9 +422,7 @@ describe('Slack channels', () => {
     const api = client()
     api.json
       .mockResolvedValueOnce(rts([]))
-      .mockResolvedValueOnce(
-        rts([channel('C9', 'launch-team'), channel('C8', 'launch-team-ops')])
-      )
+      .mockResolvedValueOnce(rts([channel('C9', 'launch-team'), channel('C8', 'launch-team-ops')]))
     const result = await searchSlack(api, {
       ...input,
       query: '',
@@ -451,7 +449,9 @@ describe('Slack channels', () => {
       native: { provider: 'slack', query: '', modifiers: 'in:#announcements' },
     })
     expect(result.message).toContain('No channel named #announcements is visible to this account.')
-    expect(result.message).toContain('Channels with similar names: #company-announcements (in:<#C7>).')
+    expect(result.message).toContain(
+      'Channels with similar names: #company-announcements (in:<#C7>).'
+    )
   })
 
   it('keeps the empty search when the channel lookup fails', async () => {
