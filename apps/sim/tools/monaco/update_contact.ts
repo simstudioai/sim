@@ -59,7 +59,7 @@ export const monacoUpdateContactTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Tag IDs for the contact, as an array or comma-separated list. Replaces the contact's existing tags.",
+        "Tag IDs for the contact, as an array or comma-separated list. Replaces the contact's existing tags; send [] to remove them all.",
     },
     country: {
       type: 'string',

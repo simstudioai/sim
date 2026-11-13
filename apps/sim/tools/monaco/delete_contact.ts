@@ -33,7 +33,7 @@ export const monacoDeleteContactTool: ToolConfig<MonacoDeleteContactParams, Mona
 
     transformResponse: async (_response, params) => ({
       success: true,
-      output: { id: params?.contactId.trim() ?? '', deleted: true },
+      output: { id: String(params?.contactId ?? '').trim(), deleted: true },
     }),
 
     outputs: {

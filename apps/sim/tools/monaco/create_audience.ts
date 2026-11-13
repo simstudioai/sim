@@ -1,4 +1,4 @@
-import { toRecord } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { MONACO_ACCESS_TOKEN_PARAM } from '@/tools/monaco/params'
 import {
@@ -14,6 +14,13 @@ import {
   parseMonacoOptionalIdList,
 } from '@/tools/monaco/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Whether a filter list or expression, at any depth, has an empty group, which matches every contact. */
+function hasEmptyFilterGroup(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length === 0 || value.some(hasEmptyFilterGroup)
+  if (isRecordLike(value) && Array.isArray(value.filters)) return hasEmptyFilterGroup(value.filters)
+  return false
+}
 
 export const monacoCreateAudienceTool: ToolConfig<
   MonacoCreateAudienceParams,
@@ -79,9 +86,9 @@ export const monacoCreateAudienceTool: ToolConfig<
       const excludedIds = parseMonacoOptionalIdList(params.excludedIds, 'excludedIds')
       const sourceAudienceId = params.sourceAudienceId?.trim()
 
-      if (Array.isArray(filters) && filters.length === 0) {
+      if (filters !== undefined && hasEmptyFilterGroup(filters)) {
         throw new Error(
-          'filters must contain at least one rule; an empty list matches every contact'
+          'filters must not contain an empty list or group; an empty group matches every contact'
         )
       }
       if (contactIds && filters) {

@@ -217,7 +217,7 @@ Update fields on an existing Monaco contact by ID. Only the fields sent change.
 | `location` | string | No | Location of the contact \(max 256 characters\) |
 | `notes` | string | No | Notes about the contact \(max 1,125,000 characters\) |
 | `doNotContact` | boolean | No | Whether the contact has opted out of outreach |
-| `tags` | array | No | Tag IDs for the contact, as an array or comma-separated list. Replaces the contact's existing tags. |
+| `tags` | array | No | Tag IDs for the contact, as an array or comma-separated list. Replaces the contact's existing tags; send \[\] to remove them all. |
 | `country` | string | No | Country of the contact, as a country name or code \(max 128 characters\) |
 | `jobStartDate` | string | No | Start date of the contact's current job \(YYYY-MM-DD\) |
 | `clearFields` | array | No | Fields to clear on the contact, as an array or comma-separated list. Allowed: first_name, last_name, email, title, phone_number, linkedin_url, notes. |
@@ -596,7 +596,7 @@ Update fields on an existing Monaco account by ID. Only the fields sent change. 
 | `businessModel` | string | No | Business model. One of: B2B, B2C. |
 | `companyStatus` | string | No | Operating status of the company. One of: active, acquired, out_of_business, ipo, unknown. |
 | `location` | string | No | Headquarters as "city, state, country" |
-| `tags` | array | No | Tag IDs for the account, as an array or comma-separated list. Replaces the account's existing tags. |
+| `tags` | array | No | Tag IDs for the account, as an array or comma-separated list. Replaces the account's existing tags; send \[\] to remove them all. |
 | `domains` | array | No | The account's complete list of domains, primary first, as an array or comma-separated list \(max 500\). Replaces the whole list: domains left out are removed. Send \[\] to remove them all. |
 | `resetFields` | array | No | Company fields to reset to the linked company's value, as an array or comma-separated list; later company updates fill them again. Allowed: linkedin_url, description, employee_count, founded_year, estimated_annual_revenue_usd, total_funding_usd, last_funding_round, last_funding_date, industries, business_model, company_status, location, domains. |
 | `clearFields` | array | No | Fields to clear on the account, as an array or comma-separated list. Clearing parent_account makes the account top-level and clearing company_id unlinks its company. Allowed: name, notes, owner, parent_account, company_id, linkedin_url, description, employee_count, founded_year, estimated_annual_revenue_usd, total_funding_usd, last_funding_round, last_funding_date, industries, business_model, company_status, location. |
@@ -859,7 +859,7 @@ Update a Monaco opportunity: rename it, change its owner, move it to another sta
 | `estimatedCloseDate` | string | No | Expected close date \(YYYY-MM-DD\) |
 | `actualCloseDate` | string | No | Actual date the opportunity was closed \(YYYY-MM-DD\) |
 | `notes` | string | No | Notes about the opportunity |
-| `tags` | array | No | Tag IDs for the opportunity, as an array or comma-separated list. Replaces the opportunity's existing tags. |
+| `tags` | array | No | Tag IDs for the opportunity, as an array or comma-separated list. Replaces the opportunity's existing tags; send \[\] to remove them all. |
 | `customFields` | json | No | Custom field values to set, as a JSON object keyed by `custom_field_&lt;id&gt;` \(e.g. \{"custom_field_&lt;id&gt;": "value"\}\). Custom fields are always updatable; use Get Field Schemas to find the keys. |
 
 #### Output

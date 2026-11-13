@@ -106,7 +106,7 @@ export const monacoUpdateOpportunityTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Tag IDs for the opportunity, as an array or comma-separated list. Replaces the opportunity's existing tags.",
+        "Tag IDs for the opportunity, as an array or comma-separated list. Replaces the opportunity's existing tags; send [] to remove them all.",
       items: { type: 'string', description: 'Tag ID' },
     },
     customFields: {

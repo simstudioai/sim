@@ -450,7 +450,7 @@ export function buildMonacoUpdateContactBody(params: MonacoUpdateContactParams):
   setMonacoString(body, 'location', params.location)
   setMonacoString(body, 'notes', params.notes)
   setMonacoValue(body, 'do_not_contact', params.doNotContact)
-  setMonacoValue(body, 'tags', parseOptionalMonacoList(params.tags, 'tags'))
+  setMonacoValue(body, 'tags', parseMonacoListAllowingEmpty(params.tags, 'tags'))
   setMonacoString(body, 'country', params.country)
   setMonacoString(body, 'job_start_date', params.jobStartDate)
   applyMonacoPatchClears(
@@ -468,7 +468,7 @@ function buildMonacoAccountWriteBody(params: MonacoAccountWriteParams): MonacoRe
   setMonacoString(body, 'status', params.status)
   setMonacoString(body, 'notes', params.notes)
   setMonacoString(body, 'owner', params.owner)
-  setMonacoValue(body, 'tags', parseOptionalMonacoList(params.tags, 'tags'))
+  setMonacoValue(body, 'tags', parseMonacoListAllowingEmpty(params.tags, 'tags'))
   setMonacoString(body, 'parent_account', params.parentAccount)
   setMonacoString(body, 'company_id', params.companyId)
   setMonacoValue(body, 'replace_edited_fields', params.replaceEditedFields)
@@ -760,11 +760,8 @@ export function buildMonacoOpportunityWriteBody(params: {
     body.estimated_value = { currency_code: currencyCode, amount_precise: params.amount }
   }
 
-  const hasTags =
-    params.tags !== undefined &&
-    params.tags !== null &&
-    !(typeof params.tags === 'string' && params.tags.trim() === '')
-  if (hasTags) body.tags = parseMonacoIdList(params.tags, 'tags')
+  const tags = parseMonacoListAllowingEmpty(params.tags, 'tags')
+  if (tags) body.tags = tags
 
   return body
 }

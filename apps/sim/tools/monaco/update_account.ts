@@ -42,7 +42,7 @@ export const monacoUpdateAccountTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Tag IDs for the account, as an array or comma-separated list. Replaces the account's existing tags.",
+        "Tag IDs for the account, as an array or comma-separated list. Replaces the account's existing tags; send [] to remove them all.",
     },
     domains: {
       type: 'array',

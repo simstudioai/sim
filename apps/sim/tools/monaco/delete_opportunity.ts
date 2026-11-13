@@ -35,7 +35,7 @@ export const monacoDeleteOpportunityTool: ToolConfig<
 
   transformResponse: async (_response, params) => ({
     success: true,
-    output: { id: params?.opportunityId.trim() ?? '', deleted: true },
+    output: { id: String(params?.opportunityId ?? '').trim(), deleted: true },
   }),
 
   outputs: {

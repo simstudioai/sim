@@ -34,7 +34,7 @@ export const monacoDeleteAccountTool: ToolConfig<MonacoDeleteAccountParams, Mona
 
     transformResponse: async (_response, params) => ({
       success: true,
-      output: { id: params?.accountId.trim() ?? '', deleted: true },
+      output: { id: String(params?.accountId ?? '').trim(), deleted: true },
     }),
 
     outputs: {
