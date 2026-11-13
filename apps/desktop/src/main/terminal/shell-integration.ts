@@ -61,11 +61,13 @@ export type ShellMarker =
   | { kind: 'output-end'; exitCode: number }
   | { kind: 'cwd'; cwd: string }
 
-export interface ParseResult {
-  /** Stream with the OSC 633 sequences removed, safe to hand to xterm.js. */
-  text: string
-  markers: ShellMarker[]
-}
+/**
+ * One piece of the stream, in the order the shell wrote it: a run of display text with the OSC 633
+ * sequences removed, or a marker. Order matters because a pty chunk can carry a command's start
+ * marker, its output, and its finish marker together; read apart, the output cannot be told from
+ * the text either side of it.
+ */
+export type ParseSegment = { kind: 'text'; text: string } | ShellMarker
 
 /**
  * Undoes the escaping applied by the shell hooks: `\\` is one backslash and
@@ -95,11 +97,11 @@ export class ShellIntegrationParser {
    */
   private static readonly MAX_PENDING = 8192
 
-  parse(chunk: string): ParseResult {
+  parse(chunk: string): ParseSegment[] {
     const buffer = this.pending + chunk
     this.pending = ''
 
-    const markers: ShellMarker[] = []
+    const segments: ParseSegment[] = []
     let text = ''
     let index = 0
 
@@ -126,11 +128,16 @@ export class ShellIntegrationParser {
 
       const body = buffer.slice(start + '\u001b]633;'.length, terminator.index)
       const marker = this.toMarker(body)
-      if (marker) markers.push(marker)
+      if (marker) {
+        if (text) segments.push({ kind: 'text', text })
+        text = ''
+        segments.push(marker)
+      }
       index = terminator.index + terminator.length
     }
 
-    return { text, markers }
+    if (text) segments.push({ kind: 'text', text })
+    return segments
   }
 
   private toMarker(body: string): ShellMarker | null {
