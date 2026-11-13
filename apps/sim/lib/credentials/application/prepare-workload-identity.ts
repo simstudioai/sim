@@ -24,7 +24,14 @@ import {
   getWorkloadIdentityIssuer,
   isWorkloadIdentityConfigured,
 } from '@/lib/credentials/workload-identity/issuer'
-import { issueWorkloadIdentitySubject } from '@/lib/credentials/workload-identity/subject'
+import {
+  type PendingSubjectRequest,
+  resolvePendingWorkloadIdentitySubject,
+} from '@/lib/credentials/workload-identity/pending-subjects'
+import {
+  issueWorkloadIdentitySubject,
+  signWorkloadIdentitySubject,
+} from '@/lib/credentials/workload-identity/subject'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface PrepareWorkloadIdentityInput {
@@ -32,6 +39,11 @@ export interface PrepareWorkloadIdentityInput {
   provider: WorkloadIdentityProvider
   /** The credential being reconnected, so the dialog can open on its current mode. */
   credentialId?: string
+  /**
+   * Which subject to hand out; see {@link PendingSubjectRequest}. `unheld` issues one
+   * Sim does not hold, for a reconnect that keeps its current subject and never shows it.
+   */
+  subjectRequest: PendingSubjectRequest | { kind: 'unheld' }
 }
 
 /**
@@ -59,6 +71,12 @@ export type PrepareWorkloadIdentityResult =
       subject: string
       subjectProof: string
       expiresAt: string
+      /** When Sim first issued `subject`. */
+      subjectIssuedAt: string
+      /** Until when Sim keeps holding `subject` for this person if no credential saves it. */
+      subjectHeldUntil: string
+      /** Whether `subject` was issued earlier, so a trust configuration may already allow it. */
+      subjectReused: boolean
     } & ReconnectFields)
 
 /** What a provider's stored-secret reader returns: the non-secret fields a reconnect keeps. */
@@ -133,10 +151,34 @@ async function storedReconnectFields(
  * Starts a keyless cloud connection (an AWS role, a Databricks service
  * principal, a Snowflake service user, a Microsoft app, or a Google service account): the subject the customer's trust
  * configuration will pin, signed for this person and workspace so only they can attach it to the credential
- * they are about to create. Reports `available: false` when this deployment
+ * they are about to create. Sim holds the subject for them until a credential saves it, so a trust
+ * configuration applied days later still matches. Reports `available: false` when this deployment
  * cannot sign tokens, so the connect dialog offers only key-based modes. On a
  * reconnect it also reports the credential's stored mode, signing or not.
  */
+async function subjectGrant(
+  input: PrepareWorkloadIdentityInput,
+  owner: { workspaceId: string },
+  userId: string
+) {
+  if (input.subjectRequest.kind === 'unheld') {
+    const grant = issueWorkloadIdentitySubject(input.provider, owner, userId)
+    const now = new Date()
+    return {
+      grant,
+      pending: { issuedAt: now, heldUntil: new Date(grant.expiresAt), reused: false },
+    }
+  }
+  const pending = await resolvePendingWorkloadIdentitySubject(
+    { provider: input.provider, workspaceId: input.workspaceId, userId },
+    input.subjectRequest
+  )
+  return {
+    grant: signWorkloadIdentitySubject(input.provider, owner, userId, pending.subject),
+    pending,
+  }
+}
+
 export const prepareWorkloadIdentity = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.prepareWorkloadIdentity,
   resolveContext: async ({ input }: { input: PrepareWorkloadIdentityInput }) => {
@@ -157,17 +199,17 @@ export const prepareWorkloadIdentity = defineAuthorizedWorkspaceUseCase({
     // A deployment without a signing key offers only key- and secret-based credentials.
     if (!(await isWorkloadIdentityConfigured())) return { available: false, ...reconnect }
     const userId = requirePrincipalSubjectUserId(principal)
-    const grant = issueWorkloadIdentitySubject(
-      input.provider,
-      { workspaceId: input.workspaceId },
-      userId
-    )
+    const owner = { workspaceId: input.workspaceId }
+    const { grant, pending } = await subjectGrant(input, owner, userId)
     const audience = fixedWorkloadIdentityAudience(input.provider)
     return {
       available: true,
       issuer: getWorkloadIdentityIssuer(),
       ...(audience ? { audience } : {}),
       ...grant,
+      subjectIssuedAt: pending.issuedAt.toISOString(),
+      subjectHeldUntil: pending.heldUntil.toISOString(),
+      subjectReused: pending.reused,
       ...reconnect,
     }
   },

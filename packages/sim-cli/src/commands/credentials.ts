@@ -38,6 +38,7 @@ const KEYLESS_SUBJECT_RESULT: CommandSpec = {
     { header: 'subject' },
     { header: 'subject proof', path: 'subjectProof' },
     { header: 'expires', path: 'expiresAt', format: 'timestamp' },
+    { header: 'held until', path: 'subjectHeldUntil', format: 'timestamp' },
     { header: 'auth type', path: 'keylessConfig.authType' },
     { header: 'required fields', path: 'requiredConfigFields' },
     { header: 'optional fields', path: 'optionalConfigFields' },
@@ -50,9 +51,14 @@ type KeylessProviderId = CreateCredentialWorkloadIdentitySubjectBody['providerId
 const KEYLESS_PROVIDER_IDS =
   V2_OPERATIONS.createCredentialWorkloadIdentitySubject.body.providerId.values
 
-/** Refusals a fresh subject fixes: the proof expired, belongs to someone else, or is already used. */
+/** The refusal a renewed proof fixes: the subject still holds, only its proof aged out. */
+const KEYLESS_PROOF_EXPIRED = 'WORKLOAD_IDENTITY_PROOF_EXPIRED'
+
+/** The refusal of a renewal: Sim no longer holds the subject (saved, expired, or someone else's). */
+const KEYLESS_NOT_PENDING = 'WORKLOAD_IDENTITY_SUBJECT_NOT_PENDING'
+
+/** Refusals a fresh subject fixes: the proof belongs to someone else, or the subject is missing or already used. */
 const KEYLESS_RETRY_CODES: ReadonlySet<string> = new Set([
-  'WORKLOAD_IDENTITY_PROOF_EXPIRED',
   'WORKLOAD_IDENTITY_PROOF_INVALID',
   'WORKLOAD_IDENTITY_SUBJECT_REQUIRED',
   'WORKLOAD_IDENTITY_SUBJECT_IN_USE',
@@ -71,7 +77,9 @@ const KEYLESS_FLOW_HELP = [
   '',
   'Step 2: add those values to keylessConfig and pass it to `sim credentials create <providerId> --credentials @file`.',
   '',
-  `The proof expires after 24 hours and works only for the user who requested it, with the same providerId. If creation reports ${[...KEYLESS_RETRY_CODES].join(', ')}, run step 1 again, trust the new subject, and retry.`,
+  'The proof expires after 24 hours and works only for the user who requested it, with the same providerId. Sim holds the subject for you for 30 days until a credential saves it, so a trust configuration that takes longer to apply still works: renew the proof with `sim credentials keyless-subject <providerId> --subject <subject>`. The subject stays the same, and each renewal restarts the 30 days. Sim holds your 20 newest unsaved subjects per provider in a workspace; issuing more drops the oldest.',
+  '',
+  `If creation reports ${KEYLESS_PROOF_EXPIRED}, renew the proof and retry. If it reports ${[...KEYLESS_RETRY_CODES].join(', ')}, run step 1 again, trust the new subject, and retry.`,
   '',
   'Examples:',
   '  $ sim credentials keyless-subject aws-service-account --output json > subject.json',
@@ -204,13 +212,27 @@ function asServiceAccountJson(
   return configuration ? { serviceAccountJson: JSON.stringify(values) } : values
 }
 
+/** The command that fixes a refused keyless subject or renewal, or null when none does. */
+function keylessHint(code: string | null, providerId: string): string | null {
+  if (code === KEYLESS_PROOF_EXPIRED) {
+    return `Run \`sim credentials keyless-subject ${providerId} --subject <subject>\` to renew the proof for the same subject, and retry.`
+  }
+  if (code === KEYLESS_NOT_PENDING) {
+    return `Run \`sim credentials keyless-subject ${providerId}\` without --subject for a new subject, trust it in your cloud, and retry.`
+  }
+  if (code !== null && KEYLESS_RETRY_CODES.has(code)) {
+    return `Run \`sim credentials keyless-subject ${providerId}\` for a new subject, trust it in your cloud, and retry.`
+  }
+  return null
+}
+
 /** Names the command that fixes a refused keyless subject, keeping the API's code and details. */
-function withKeylessRetryHint(error: unknown, providerId: string): unknown {
+function withKeylessHint(error: unknown, providerId: string): unknown {
   if (!(error instanceof SimApiError)) return error
-  const code = refusalCode(error)
-  if (code === null || !KEYLESS_RETRY_CODES.has(code)) return error
+  const hint = keylessHint(refusalCode(error), providerId)
+  if (hint === null) return error
   return new SimApiError(
-    `${error.message} Run \`sim credentials keyless-subject ${providerId}\` for a new subject, trust it in your cloud, and retry.`,
+    `${error.message} ${hint}`,
     error.status,
     error.code,
     error.details,
@@ -221,12 +243,23 @@ function withKeylessRetryHint(error: unknown, providerId: string): unknown {
 
 async function createKeylessSubject(
   { client, profile }: Connection<'createCredentialWorkloadIdentitySubject'>,
-  providerId: KeylessProviderId
+  providerId: KeylessProviderId,
+  options: { subject?: string }
 ): Promise<void> {
-  const response = await client.request<CreateCredentialWorkloadIdentitySubjectResponse>(
-    'createCredentialWorkloadIdentitySubject',
-    { body: { workspaceId: client.requireWorkspace(), providerId } }
-  )
+  const response = await client
+    .request<CreateCredentialWorkloadIdentitySubjectResponse>(
+      'createCredentialWorkloadIdentitySubject',
+      {
+        body: {
+          workspaceId: client.requireWorkspace(),
+          providerId,
+          ...(options.subject ? { subject: options.subject } : {}),
+        },
+      }
+    )
+    .catch((error: unknown) => {
+      throw withKeylessHint(error, providerId)
+    })
   renderResult(
     'createCredentialWorkloadIdentitySubject',
     profile.output,
@@ -263,7 +296,7 @@ async function createServiceAccount(
       },
     })
     .catch((error: unknown) => {
-      throw withKeylessRetryHint(error, providerId)
+      throw withKeylessHint(error, providerId)
     })
 
   renderResult(
@@ -380,9 +413,13 @@ export function attachCredentialCommands(program: Command): void {
         'Issue the subject and proof for a new keyless (workload identity) credential'
       )
     )
+    .option(
+      '--subject <subject>',
+      'Renew the proof for a subject Sim issued to you earlier, instead of issuing a new one'
+    )
     .addHelpText('after', `\n${KEYLESS_FLOW_HELP}`)
-    .action((providerId: KeylessProviderId) =>
-      createKeylessSubject(connectKeylessSubject(), providerId)
+    .action((providerId: KeylessProviderId, options: { subject?: string }) =>
+      createKeylessSubject(connectKeylessSubject(), providerId, options)
     )
 
   const [connect, connectLink] = apiCommand(credentials, 'connect', ['createCredentialConnection'])

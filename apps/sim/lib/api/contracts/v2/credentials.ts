@@ -442,6 +442,14 @@ const v2CreateCredentialWorkloadIdentitySubjectBodySchema = z
       .describe(
         'Service-account provider the keyless credential will be created under; pass the same value to Create service-account credential. The response and List credential providers name the fields its keyless configuration needs.'
       ),
+    subject: z
+      .string()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe(
+        'A subject Sim issued to you earlier that no credential has saved yet. Renews its proof instead of issuing a new subject, so a trust configuration that already allows it keeps working. Refused with `WORKLOAD_IDENTITY_SUBJECT_NOT_PENDING` once a credential saves it, after its hold ends, or for a subject issued to someone else.'
+      ),
   })
   .strict()
 const v2CredentialWorkloadIdentitySubjectSchema = z
@@ -449,6 +457,12 @@ const v2CredentialWorkloadIdentitySubjectSchema = z
     ...workloadIdentitySubjectGrantShape,
     expiresAt: v2TimestampSchema.describe(
       workloadIdentitySubjectGrantShape.expiresAt.description ?? 'Proof expiry.'
+    ),
+    subjectIssuedAt: v2TimestampSchema.describe(
+      workloadIdentitySubjectGrantShape.subjectIssuedAt.description ?? 'Subject issue time.'
+    ),
+    subjectHeldUntil: v2TimestampSchema.describe(
+      workloadIdentitySubjectGrantShape.subjectHeldUntil.description ?? 'Subject hold expiry.'
     ),
     keylessConfig: z
       .object({

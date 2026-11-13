@@ -60,6 +60,8 @@ type KeylessCredentialErrorCode =
   | 'WORKLOAD_IDENTITY_SUBJECT_IN_USE'
   /** A sibling credential could not be read, so the subject's uniqueness is unknown. */
   | 'WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE'
+  /** The subject to renew is not one Sim holds for this person: never issued to them, saved, or expired. */
+  | 'WORKLOAD_IDENTITY_SUBJECT_NOT_PENDING'
 
 /** Refusals caused by another credential's state rather than by the request itself. */
 const KEYLESS_CONFLICT_CODES: ReadonlySet<KeylessCredentialErrorCode> = new Set([
@@ -176,7 +178,28 @@ export function issueWorkloadIdentitySubject(
   userId: string,
   now: number = Date.now()
 ): WorkloadIdentitySubjectGrant {
-  const subject = newWorkloadIdentitySubject(owner)
+  return signWorkloadIdentitySubject(
+    provider,
+    owner,
+    userId,
+    newWorkloadIdentitySubject(owner),
+    now
+  )
+}
+
+/**
+ * Signs a proof that lets the given user attach `subject`, which Sim already issued
+ * to them, to a new credential of one provider. Callers own the decision that the
+ * subject is theirs to attach.
+ */
+export function signWorkloadIdentitySubject(
+  provider: WorkloadIdentityProvider,
+  owner: WorkloadIdentityOwner,
+  userId: string,
+  subject: string,
+  now: number = Date.now()
+): WorkloadIdentitySubjectGrant {
+  assertWorkloadIdentitySubjectOwner(subject, owner)
   const expiresAt = now + SUBJECT_PROOF_TTL_MS
   return {
     subject,
@@ -289,11 +312,14 @@ function scopeNoun(scope: ResourceScope): string {
   return scope.kind === 'workspace' ? 'this workspace' : 'this organization'
 }
 
-/** Throws unless no live keyless credential of the owner other than `credentialId` holds `subject`. */
-async function assertNoOtherCredentialHolds(
+/**
+ * Whether a live keyless credential of the owner other than `credentialId` holds
+ * `subject`: `unverifiable` when a sibling's secret cannot be read, so it might.
+ */
+async function subjectHolding(
   tx: DbTransaction,
   input: { subject: string; scope: ResourceScope; credentialId?: string }
-): Promise<void> {
+): Promise<'free' | 'held' | 'unverifiable'> {
   const rows = await tx
     .select({
       id: credential.id,
@@ -308,25 +334,51 @@ async function assertNoOtherCredentialHolds(
         input.credentialId ? ne(credential.id, input.credentialId) : undefined
       )
     )
+  let unverifiable = false
   for (const row of rows) {
     if (!row.encryptedServiceAccountKey) continue
     const storedSubject = await readStoredSubject(row.encryptedServiceAccountKey)
+    if (storedSubject === input.subject) return 'held'
     if (storedSubject === null) {
       logger.warn('Unreadable keyless credential blocks a subject uniqueness check', {
         credentialId: row.id,
       })
-      throw new WorkloadIdentitySubjectError(
-        `Sim could not read another keyless credential in ${scopeNoun(input.scope)}, so it cannot confirm this trust setup is unused. Ask an admin to reconnect or delete the broken keyless credential, then try again.`,
-        'WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE'
-      )
-    }
-    if (storedSubject === input.subject) {
-      throw new WorkloadIdentitySubjectError(
-        `Another credential in ${scopeNoun(input.scope)} already uses this trust setup. Start the keyless connection again.`,
-        'WORKLOAD_IDENTITY_SUBJECT_IN_USE'
-      )
+      unverifiable = true
     }
   }
+  return unverifiable ? 'unverifiable' : 'free'
+}
+
+/** Throws unless no live keyless credential of the owner other than `credentialId` holds `subject`. */
+async function assertNoOtherCredentialHolds(
+  tx: DbTransaction,
+  input: { subject: string; scope: ResourceScope; credentialId?: string }
+): Promise<void> {
+  const holding = await subjectHolding(tx, input)
+  if (holding === 'unverifiable') {
+    throw new WorkloadIdentitySubjectError(
+      `Sim could not read another keyless credential in ${scopeNoun(input.scope)}, so it cannot confirm this trust setup is unused. Ask an admin to reconnect or delete the broken keyless credential, then try again.`,
+      'WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE'
+    )
+  }
+  if (holding === 'held') {
+    throw new WorkloadIdentitySubjectError(
+      `Another credential in ${scopeNoun(input.scope)} already uses this trust setup. Start the keyless connection again.`,
+      'WORKLOAD_IDENTITY_SUBJECT_IN_USE'
+    )
+  }
+}
+
+/**
+ * Whether a live keyless credential of the owner holds `subject`. A sibling whose
+ * secret cannot be read does not count: saving still refuses the subject as
+ * unverifiable, and it stays usable once that sibling is fixed.
+ */
+export async function isWorkloadIdentitySubjectHeld(
+  tx: DbTransaction,
+  input: { subject: string; scope: ResourceScope }
+): Promise<boolean> {
+  return (await subjectHolding(tx, input)) === 'held'
 }
 
 /**
@@ -368,14 +420,14 @@ export async function assertWorkloadIdentitySubjectUnclaimed(
  * could have claimed the old one, so writing it back unchecked would leave two
  * credentials holding it. Locks the subject first, then the credential row; no
  * path takes a subject lock while holding a credential row, so the order cannot
- * deadlock.
+ * deadlock. Returns the subject the rotated secret holds, if any.
  */
 export async function assertReconnectedSubjectUnclaimed(
   tx: DbTransaction,
   input: { rotatedSecret: string; scope: ResourceScope; credentialId: string }
-): Promise<void> {
+): Promise<string | undefined> {
   const subject = await readStoredSubject(input.rotatedSecret)
-  if (!subject) return
+  if (!subject) return undefined
   await lockSubject(tx, subject)
   const [current] = await tx
     .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
@@ -385,10 +437,11 @@ export async function assertReconnectedSubjectUnclaimed(
   const currentSubject = current?.encryptedServiceAccountKey
     ? await readStoredSubject(current.encryptedServiceAccountKey)
     : undefined
-  if (currentSubject === subject) return
+  if (currentSubject === subject) return subject
   await assertNoOtherCredentialHolds(tx, {
     subject,
     scope: input.scope,
     credentialId: input.credentialId,
   })
+  return subject
 }

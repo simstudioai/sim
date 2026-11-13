@@ -6725,6 +6725,45 @@ export const credential = pgTable(
   })
 )
 
+/**
+ * Keyless trust subjects Sim issued that no credential holds yet. A customer pins the
+ * subject in a trust policy that can take days to apply, so the subject outlives the
+ * connect dialog: reopening it shows the same subject, and its issuer can renew the
+ * proof that attaches it to a new credential. The row is deleted once a credential
+ * saves the subject, so a subject is never offered again after it has been used.
+ */
+export const workloadIdentityPendingSubject = pgTable(
+  'workload_identity_pending_subject',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** Who the subject was issued to; only they can attach it to a credential. */
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** The keyless provider family (`aws`, `databricks`, …) the subject was issued for. */
+    provider: text('provider').notNull(),
+    subject: text('subject').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    /** Renewed whenever the subject is shown again; once it passes, the subject is no longer offered. */
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (table) => ({
+    subjectUnique: uniqueIndex('workload_identity_pending_subject_subject_unique').on(
+      table.subject
+    ),
+    issuerIdx: index('workload_identity_pending_subject_issuer_idx').on(
+      table.workspaceId,
+      table.userId,
+      table.provider,
+      table.createdAt
+    ),
+    userIdIdx: index('workload_identity_pending_subject_user_id_idx').on(table.userId),
+  })
+)
+
 export const credentialGroupStatusEnum = pgEnum('credential_group_status', ['active', 'disabled'])
 
 export interface CredentialGroupOptionConfig {

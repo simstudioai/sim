@@ -619,6 +619,8 @@ const WORKLOAD_IDENTITY_SUBJECT_EXAMPLE = {
   subject: WORKLOAD_IDENTITY_SUBJECT,
   subjectProof: WORKLOAD_IDENTITY_SUBJECT_PROOF,
   expiresAt: '2026-06-21T14:17:11.000Z',
+  subjectIssuedAt: '2026-06-20T14:17:11.000Z',
+  subjectHeldUntil: '2026-07-20T14:17:11.000Z',
   keylessConfig: {
     authType: 'oidc_role',
     subject: WORKLOAD_IDENTITY_SUBJECT,
@@ -1742,7 +1744,7 @@ const declaredRoutes = [
       applicationOperation: credentialOperations.createServiceAccount,
       operationId: 'createServiceAccountCredential',
       summary: 'Create service-account credential',
-      description: `Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in \`credentials\`. For a keyless AWS, Databricks, Snowflake, Microsoft app, or Google Cloud credential, call Create workload identity subject first, configure the cloud to trust it, then send its \`keylessConfig\` as \`serviceAccountJson\`. A refused keyless credential names its cause in \`details.code\`: \`409\` for \`WORKLOAD_IDENTITY_SUBJECT_IN_USE\` or \`WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE\`, otherwise \`400\`, such as \`WORKLOAD_IDENTITY_PROOF_EXPIRED\` (request a new subject). Requires workspace write access. A matching source returns the existing credential with \`200\`; creation returns \`201\`. Stored secrets are omitted from the response. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in \`credentials\`. For a keyless AWS, Databricks, Snowflake, Microsoft app, or Google Cloud credential, call Create workload identity subject first, configure the cloud to trust it, then send its \`keylessConfig\` as \`serviceAccountJson\`. A refused keyless credential names its cause in \`details.code\`: \`409\` for \`WORKLOAD_IDENTITY_SUBJECT_IN_USE\` or \`WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE\`, otherwise \`400\`, such as \`WORKLOAD_IDENTITY_PROOF_EXPIRED\` (renew the proof by passing the subject to Create workload identity subject). Requires workspace write access. A matching source returns the existing credential with \`200\`; creation returns \`201\`. Stored secrets are omitted from the response. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
         byStatus: {
@@ -1840,7 +1842,7 @@ const declaredRoutes = [
       applicationOperation: credentialOperations.prepareWorkloadIdentity,
       operationId: 'createCredentialWorkloadIdentitySubject',
       summary: 'Create workload identity subject',
-      description: `Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus \`keylessConfig\`: a prefilled \`serviceAccountJson\` whose \`subjectProof\` is valid for 24 hours and only for the requesting user. Add the \`requiredConfigFields\`, then call Create service-account credential with the same \`providerId\`; Sim verifies the trust while saving. The returned \`audience\` is the default; set \`audience\` in \`keylessConfig\` to have Sim sign tokens for your own value instead, and trust that value in the cloud. Google Cloud has no fixed default: it is the credential's own pool provider. Without keyless support the deployment returns \`400\` with \`details.code\` \`WORKLOAD_IDENTITY_NOT_CONFIGURED\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus \`keylessConfig\`: a prefilled \`serviceAccountJson\` whose \`subjectProof\` is valid for 24 hours and only for the requesting user. Sim holds the subject for you until \`subjectHeldUntil\` (30 days, restarted by each renewal) unless a credential saves it first; pass it back as \`subject\` to renew the proof without changing the subject, so a trust policy that takes days to apply still matches. Sim holds your 20 newest unsaved subjects per provider in a workspace; issuing more drops the oldest. Add the \`requiredConfigFields\`, then call Create service-account credential with the same \`providerId\`; Sim verifies the trust while saving. The returned \`audience\` is the default; set \`audience\` in \`keylessConfig\` to have Sim sign tokens for your own value instead, and trust that value in the cloud. Google Cloud has no fixed default: it is the credential's own pool provider. Without keyless support the deployment returns \`400\` with \`details.code\` \`WORKLOAD_IDENTITY_NOT_CONFIGURED\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'A subject and proof for one new keyless credential.' },
     }),
@@ -1850,8 +1852,15 @@ const declaredRoutes = [
         v2CreateCredentialWorkloadIdentitySubjectContract.body,
         'CreateCredentialWorkloadIdentitySubjectRequest',
         'Create workload identity subject request',
-        'Workspace that will own the keyless credential and the service-account provider it will be created under.',
-        [{ workspaceId: WORKSPACE_ID, providerId: 'aws-service-account' }]
+        'Workspace that will own the keyless credential, the service-account provider it will be created under, and optionally a held subject whose proof to renew.',
+        [
+          { workspaceId: WORKSPACE_ID, providerId: 'aws-service-account' },
+          {
+            workspaceId: WORKSPACE_ID,
+            providerId: 'aws-service-account',
+            subject: WORKLOAD_IDENTITY_SUBJECT,
+          },
+        ]
       ),
       response: documentedSchema(
         v2CreateCredentialWorkloadIdentitySubjectContract.response.schema,

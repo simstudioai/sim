@@ -3939,7 +3939,7 @@
       "post": {
         "operationId": "createServiceAccountCredential",
         "summary": "Create service-account credential",
-        "description": "Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in `credentials`. For a keyless AWS, Databricks, Snowflake, Microsoft app, or Google Cloud credential, call Create workload identity subject first, configure the cloud to trust it, then send its `keylessConfig` as `serviceAccountJson`. A refused keyless credential names its cause in `details.code`: `409` for `WORKLOAD_IDENTITY_SUBJECT_IN_USE` or `WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE`, otherwise `400`, such as `WORKLOAD_IDENTITY_PROOF_EXPIRED` (request a new subject). Requires workspace write access. A matching source returns the existing credential with `200`; creation returns `201`. Stored secrets are omitted from the response. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Verify and store a service-account credential. Use the fields from List credential providers, encoded as a JSON object string in `credentials`. For a keyless AWS, Databricks, Snowflake, Microsoft app, or Google Cloud credential, call Create workload identity subject first, configure the cloud to trust it, then send its `keylessConfig` as `serviceAccountJson`. A refused keyless credential names its cause in `details.code`: `409` for `WORKLOAD_IDENTITY_SUBJECT_IN_USE` or `WORKLOAD_IDENTITY_SUBJECT_UNVERIFIABLE`, otherwise `400`, such as `WORKLOAD_IDENTITY_PROOF_EXPIRED` (renew the proof by passing the subject to Create workload identity subject). Requires workspace write access. A matching source returns the existing credential with `200`; creation returns `201`. Stored secrets are omitted from the response. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "credentials.service_accounts.create",
         "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
@@ -4382,7 +4382,7 @@
       "post": {
         "operationId": "createCredentialWorkloadIdentitySubject",
         "summary": "Create workload identity subject",
-        "description": "Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus `keylessConfig`: a prefilled `serviceAccountJson` whose `subjectProof` is valid for 24 hours and only for the requesting user. Add the `requiredConfigFields`, then call Create service-account credential with the same `providerId`; Sim verifies the trust while saving. The returned `audience` is the default; set `audience` in `keylessConfig` to have Sim sign tokens for your own value instead, and trust that value in the cloud. Google Cloud has no fixed default: it is the credential's own pool provider. Without keyless support the deployment returns `400` with `details.code` `WORKLOAD_IDENTITY_NOT_CONFIGURED`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus `keylessConfig`: a prefilled `serviceAccountJson` whose `subjectProof` is valid for 24 hours and only for the requesting user. Sim holds the subject for you until `subjectHeldUntil` (30 days, restarted by each renewal) unless a credential saves it first; pass it back as `subject` to renew the proof without changing the subject, so a trust policy that takes days to apply still matches. Sim holds your 20 newest unsaved subjects per provider in a workspace; issuing more drops the oldest. Add the `requiredConfigFields`, then call Create service-account credential with the same `providerId`; Sim verifies the trust while saving. The returned `audience` is the default; set `audience` in `keylessConfig` to have Sim sign tokens for your own value instead, and trust that value in the cloud. Google Cloud has no fixed default: it is the credential's own pool provider. Without keyless support the deployment returns `400` with `details.code` `WORKLOAD_IDENTITY_NOT_CONFIGURED`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "credentials.workload_identity.prepare",
         "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
@@ -4396,7 +4396,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Workspace that will own the keyless credential and the service-account provider it will be created under.",
+          "description": "Workspace that will own the keyless credential, the service-account provider it will be created under, and optionally a held subject whose proof to renew.",
           "content": {
             "application/json": {
               "schema": {
@@ -4408,6 +4408,14 @@
                   "value": {
                     "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                     "providerId": "aws-service-account"
+                  }
+                },
+                "example2": {
+                  "summary": "Request example 2",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "providerId": "aws-service-account",
+                    "subject": "sim:workspace:<workspaceId>:credential:<subjectId>"
                   }
                 }
               }
@@ -4443,6 +4451,8 @@
                         "subject": "sim:workspace:<workspaceId>:credential:<subjectId>",
                         "subjectProof": "<subjectProof from Create workload identity subject>",
                         "expiresAt": "2026-06-21T14:17:11.000Z",
+                        "subjectIssuedAt": "2026-06-20T14:17:11.000Z",
+                        "subjectHeldUntil": "2026-07-20T14:17:11.000Z",
                         "keylessConfig": {
                           "authType": "oidc_role",
                           "subject": "sim:workspace:<workspaceId>:credential:<subjectId>",
@@ -18650,6 +18660,18 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 timestamp after which `subjectProof` can no longer create a credential."
           },
+          "subjectIssuedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when Sim first issued `subject`."
+          },
+          "subjectHeldUntil": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp until which Sim holds `subject` for you if no credential saves it. Renewing the proof restarts the hold; once a credential saves the subject, it is no longer held."
+          },
           "keylessConfig": {
             "type": "object",
             "properties": {
@@ -18690,6 +18712,8 @@
           "subject",
           "subjectProof",
           "expiresAt",
+          "subjectIssuedAt",
+          "subjectHeldUntil",
           "keylessConfig",
           "requiredConfigFields",
           "optionalConfigFields"
@@ -18718,6 +18742,8 @@
               "subject": "sim:workspace:<workspaceId>:credential:<subjectId>",
               "subjectProof": "<subjectProof from Create workload identity subject>",
               "expiresAt": "2026-06-21T14:17:11.000Z",
+              "subjectIssuedAt": "2026-06-20T14:17:11.000Z",
+              "subjectHeldUntil": "2026-07-20T14:17:11.000Z",
               "keylessConfig": {
                 "authType": "oidc_role",
                 "subject": "sim:workspace:<workspaceId>:credential:<subjectId>",
@@ -18748,16 +18774,27 @@
               "google-service-account"
             ],
             "description": "Service-account provider the keyless credential will be created under; pass the same value to Create service-account credential. The response and List credential providers name the fields its keyless configuration needs."
+          },
+          "subject": {
+            "description": "A subject Sim issued to you earlier that no credential has saved yet. Renews its proof instead of issuing a new subject, so a trust configuration that already allows it keeps working. Refused with `WORKLOAD_IDENTITY_SUBJECT_NOT_PENDING` once a credential saves it, after its hold ends, or for a subject issued to someone else.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
           }
         },
         "required": ["workspaceId", "providerId"],
         "additionalProperties": false,
         "title": "Create workload identity subject request",
-        "description": "Workspace that will own the keyless credential and the service-account provider it will be created under.",
+        "description": "Workspace that will own the keyless credential, the service-account provider it will be created under, and optionally a held subject whose proof to renew.",
         "examples": [
           {
             "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
             "providerId": "aws-service-account"
+          },
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "providerId": "aws-service-account",
+            "subject": "sim:workspace:<workspaceId>:credential:<subjectId>"
           }
         ]
       },
