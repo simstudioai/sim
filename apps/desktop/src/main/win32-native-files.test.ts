@@ -34,7 +34,11 @@ import { openWin32NativeFile, type Win32NativeFileSystem } from '@/main/win32-na
  * 6. a directory replaced while it is listed returns the replacement's names;
  * 7. a reserved name, stream, or trailing dot reaches the filesystem;
  * 8. a directory opened as a file fails differently than on POSIX;
- * 9. a granted folder replaced since the grant is still opened.
+ * 9. a granted folder replaced since the grant is still opened;
+ * 10. a junction pointing back inside the grant is followed, unlike the POSIX module;
+ * 11. a path swapped for a junction leading outside, after its identity check, stays open;
+ * 12. a granted folder replaced while a path beneath it is opened stays open.
+ * A link to a network share, or a path resolving to one, is `localRealpath`'s to refuse.
  */
 
 const isWindows = process.platform === 'win32'
@@ -104,6 +108,47 @@ describe('the Windows native file backend', () => {
 
     await expect(openBeneath(join('docs', 'secret.txt'))).rejects.toThrow(
       'within the approved folder'
+    )
+  })
+
+  it('refuses a junction that points back inside the grant', async () => {
+    await mkdir(join(root, 'inner'))
+    await linkDirectory(join(root, 'inner'), join(root, 'alias'))
+
+    await expect(openBeneath('alias', true)).rejects.toThrow('within the approved folder')
+  })
+
+  it('refuses a directory swapped for a junction leading outside once it is open', async () => {
+    await mkdir(join(root, 'docs'))
+    const openThenSwap: Win32NativeFileSystem = {
+      open: async (path) => {
+        const handle = await open(path, 'r')
+        await rename(path, join(outside, 'docs'))
+        await linkDirectory(join(outside, 'docs'), path)
+        return handle
+      },
+      opendir,
+    }
+
+    await expect(openBeneath('docs', true, openThenSwap)).rejects.toThrow(
+      'within the approved folder'
+    )
+  })
+
+  it('refuses a path opened while its granted folder was replaced', async () => {
+    await mkdir(join(root, 'docs'))
+    const openThenReplaceRoot: Win32NativeFileSystem = {
+      open: async (path) => {
+        const handle = await open(path, 'r')
+        await rename(root, join(base, 'Root-before'))
+        await mkdir(join(root, 'docs'), { recursive: true })
+        return handle
+      },
+      opendir,
+    }
+
+    await expect(openBeneath('docs', true, openThenReplaceRoot)).rejects.toThrow(
+      'The approved folder changed. Request access again.'
     )
   })
 
