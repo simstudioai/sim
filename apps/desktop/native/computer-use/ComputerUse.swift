@@ -150,12 +150,17 @@ let PROTECTED_APPS: Set<String> = [
     "org.keepassxc.keepassxc", "com.lastpass.lastpass", "in.sinew.enpass-desktop", "me.proton.pass.electron",
     "com.markmcguill.strongbox", "com.markmcguill.strongbox.mac",
     "com.apple.terminal", "com.googlecode.iterm2", "dev.warp.warp-stable", "com.mitchellh.ghostty",
+    "net.kovidgoyal.kitty", "org.alacritty", "com.github.wez.wezterm", "co.zeit.hyper", "org.tabby",
 ]
+/// Whether computer use refuses an app: Sim's own apps and `PROTECTED_APPS`. Bundle identifiers match
+/// case-insensitively in Launch Services.
+func isProtectedApp(_ bundle: String) -> Bool {
+    let key = bundle.lowercased()
+    return key == Bundle.main.bundleIdentifier?.lowercased() || key.hasPrefix("com.simstudio.") || key.hasPrefix("ai.sim.desktop") || PROTECTED_APPS.contains(key)
+}
 func appFor(_ bundleId: String?, launch: Bool = false) async throws -> NSRunningApplication {
     let bundle = try required(bundleId, "bundleId")
-    // Bundle identifiers match case-insensitively in Launch Services.
-    let key = bundle.lowercased()
-    guard key != Bundle.main.bundleIdentifier?.lowercased(), !key.hasPrefix("com.simstudio."), !key.hasPrefix("ai.sim.desktop"), !PROTECTED_APPS.contains(key) else {
+    guard !isProtectedApp(bundle) else {
         throw ComputerError("protected_app", "Computer use does not operate Sim, System Settings, password managers, or terminals; use the terminal tool for shell work.")
     }
     var apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).filter { !$0.isTerminated }
