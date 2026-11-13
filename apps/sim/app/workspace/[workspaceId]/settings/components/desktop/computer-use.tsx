@@ -11,6 +11,11 @@ import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/componen
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { useComputerUseStatus } from '@/hooks/use-computer-use-status'
 
+const ON_OFF_OPTIONS = [
+  { value: 'off', label: 'Off' },
+  { value: 'on', label: 'On' },
+]
+
 /** The activity stays visible so an in-flight action can be stopped; the device controls need the permission group's consent. */
 export function ComputerUseSettings() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
@@ -60,19 +65,18 @@ function ComputerUseSettingsControls() {
       setPending(false)
     }
   }
+  const askForApps = status?.askForApps
+  const setAskForApps = bridge.setAskForApps
   return (
     <SettingsSection label='Computer Use'>
       <div className='flex flex-col gap-3'>
         <div className='flex items-center justify-between'>
           <Label asChild>
-            <span>Allow Mothership to use Mac apps</span>
+            <span>Use apps on this Mac</span>
           </Label>
           <ChipSwitch
-            aria-label='Allow Mothership to use Mac apps'
-            options={[
-              { value: 'off', label: 'Off' },
-              { value: 'on', label: 'On' },
-            ]}
+            aria-label='Use apps on this Mac'
+            options={ON_OFF_OPTIONS}
             value={status?.enabled ? 'on' : 'off'}
             disabled={pending || !status}
             onChange={(value) =>
@@ -81,38 +85,62 @@ function ComputerUseSettingsControls() {
           />
         </div>
         <p className='text-[var(--text-muted)] text-sm'>
-          Off by default. Each app requires your approval. You can stop an action from the
-          conversation or revoke an app below.
+          {askForApps === undefined
+            ? 'Each app needs your approval before Sim can use it.'
+            : askForApps
+              ? 'Sim asks before using each new app, and never uses terminals, password managers, System Settings, or Sim itself.'
+              : 'Sim can use any app except terminals, password managers, System Settings, and Sim itself.'}
         </p>
         {error && (
           <div className='flex items-center justify-between text-sm'>
-            <span>Could not connect to the computer helper.</span>
+            <span>Could not reach the Computer Use helper.</span>
             <Chip onClick={() => void refresh()}>Retry</Chip>
           </div>
         )}
-        {(['accessibility', 'screenCapture'] as const).map((permission) => (
-          <div className='flex items-center justify-between' key={permission}>
-            <Label>{permission === 'accessibility' ? 'Accessibility' : 'Screen Recording'}</Label>
-            {status?.permissions[permission] ? (
-              <span className='text-[var(--text-muted)] text-sm'>Allowed</span>
-            ) : (
-              <Chip
-                aria-label={`Open System Settings for ${permission === 'accessibility' ? 'Accessibility' : 'Screen Recording'}`}
-                disabled={pending || !status?.enabled}
-                onClick={() =>
-                  void update(async () => setStatus(await bridge.requestPermission(permission)))
-                }
-              >
-                Open System Settings
-              </Chip>
+        {status?.enabled && (
+          <>
+            {(['accessibility', 'screenCapture'] as const).map((permission) => {
+              const label = permission === 'accessibility' ? 'Accessibility' : 'Screen Recording'
+              return (
+                <div className='flex items-center justify-between' key={permission}>
+                  <Label>{label}</Label>
+                  {status.permissions[permission] ? (
+                    <span className='text-[var(--text-muted)] text-sm'>Allowed</span>
+                  ) : (
+                    <Chip
+                      aria-label={`Allow ${label} in System Settings`}
+                      disabled={pending}
+                      onClick={() =>
+                        void update(async () =>
+                          setStatus(await bridge.requestPermission(permission))
+                        )
+                      }
+                    >
+                      Allow
+                    </Chip>
+                  )}
+                </div>
+              )
+            })}
+            {setAskForApps && askForApps !== undefined && (
+              <div className='flex items-center justify-between'>
+                <Label asChild>
+                  <span>Ask before using a new app</span>
+                </Label>
+                <ChipSwitch
+                  aria-label='Ask before using a new app'
+                  options={ON_OFF_OPTIONS}
+                  value={askForApps ? 'on' : 'off'}
+                  disabled={pending}
+                  onChange={(value) =>
+                    void update(async () => setStatus(await setAskForApps(value === 'on')))
+                  }
+                />
+              </div>
             )}
-          </div>
-        ))}
-        <p className='text-[var(--text-muted)] text-sm'>
-          Accessibility allows interaction with approved apps. Screen Recording allows screenshots.
-          Return here after granting access to refresh the status.
-        </p>
-        {apps.length > 0 && (
+          </>
+        )}
+        {askForApps !== false && apps.length > 0 && (
           <div className='flex flex-col gap-2'>
             <Label>Approved apps</Label>
             {apps.map((app) => (
