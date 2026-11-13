@@ -17,8 +17,9 @@ const ANY_TERM_RESULTS = 5
 
 /**
  * Time the any-term search may take before the all-terms page is returned without it, so a slow
- * OR query cannot cost the account the matches it already has. Jira answers an any-term query
- * within about 1.5 s or stalls until cancelled, and the whole search waits on this budget.
+ * OR query cannot cost the account the matches it already has. Confluence and Jira answer an
+ * any-term query within about 1.5 s, but Jira sometimes stalls until cancelled, and the whole
+ * search waits on this budget.
  */
 const ANY_TERM_BUDGET_MS = 2000
 

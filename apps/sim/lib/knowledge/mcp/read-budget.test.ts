@@ -54,6 +54,16 @@ describe('shareReadBudget', () => {
     expect(content.length).toBeGreaterThan(18_000)
   })
 
+  it('keeps the call within budget when a standard page encodes beyond its share', () => {
+    const shared = shareReadBudget([read(10_000, '"'), read(20_000), read(20_000), read(20_000)])
+    const encoded = shared.reduce(
+      (total, entry) => total + JSON.stringify(entry.chunks[0]?.content ?? '').length - 2,
+      0
+    )
+    expect(encoded).toBeLessThanOrEqual(40_000)
+    expect(lengths(shared)).toEqual([8_000, 8_000, 8_000, 8_000])
+  })
+
   it('passes a failed read through and leaves its share to the others', () => {
     const failed = { documentId: 'missing', error: 'Not found' }
     const shared = shareReadBudget([failed, read(20_000), read(20_000), read(20_000)])

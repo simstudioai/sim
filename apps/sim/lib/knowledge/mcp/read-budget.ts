@@ -3,8 +3,8 @@ import { encodedWindowEnd, READ_WINDOW_CHARACTERS } from '@/lib/sim-search/live/
 /**
  * Characters of document text one batched read call returns. With about a thousand characters of
  * metadata per document, it keeps the call under the 50,000-character size at which MCP clients
- * such as Claude Code save a tool result to a file rather than show it. More than five long
- * documents exceed it, since none is cut below its standard page.
+ * such as Claude Code save a tool result to a file rather than show it. A call whose standard
+ * pages alone exceed it returns those pages, as a read without sharing would.
  */
 const READ_CALL_CHARACTERS = 40_000
 
@@ -19,33 +19,42 @@ const encodedLength = (text: string) => JSON.stringify(text).length - 2
 const isWindowedRead = (document: object): document is WindowedRead => 'chunks' in document
 
 /**
+ * A read's text as JSON encodes it, and the part of that it always keeps: its standard page, or
+ * all of it when it is not a single chunk this budget can shorten.
+ */
+function encodedSize(read: object): { length: number; kept: number } {
+  if (!isWindowedRead(read)) return { length: 0, kept: 0 }
+  const length = read.chunks.reduce((total, chunk) => total + encodedLength(chunk.content), 0)
+  const [chunk] = read.chunks
+  if (!chunk || read.chunks.length !== 1) return { length, kept: length }
+  return { length, kept: encodedLength(chunk.content.slice(0, READ_WINDOW_CHARACTERS)) }
+}
+
+/**
  * Shares one call's text budget across the documents it read; an entry without text, such as a
- * failed read, passes through. Documents shorter than an even share keep all their text and leave
- * the rest to the longer ones, which are cut to an equal share and continue through `next`. No
- * document is cut below the standard page.
+ * failed read, passes through. Every document keeps its standard page, and the budget those pages
+ * leave is shared as further text: documents needing less than an even share keep all theirs and
+ * leave the rest to the longer ones, which are cut to an equal share and continue through `next`.
  */
 export function shareReadBudget<T extends object>(reads: readonly T[]): T[] {
-  const lengths = reads.map((read) =>
-    isWindowedRead(read)
-      ? read.chunks.reduce((total, chunk) => total + encodedLength(chunk.content), 0)
-      : 0
-  )
-  if (lengths.reduce((total, length) => total + length, 0) <= READ_CALL_CHARACTERS)
+  const sizes = reads.map(encodedSize)
+  if (sizes.reduce((total, size) => total + size.length, 0) <= READ_CALL_CHARACTERS)
     return [...reads]
-  let remaining = READ_CALL_CHARACTERS
+  const extras = sizes.map((size) => size.length - size.kept)
+  let remaining = READ_CALL_CHARACTERS - sizes.reduce((total, size) => total + size.kept, 0)
   let left = reads.length
   let cap = 0
-  for (const length of [...lengths].sort((a, b) => a - b)) {
-    const share = Math.floor(remaining / left)
-    if (length > share) {
+  for (const extra of [...extras].sort((a, b) => a - b)) {
+    const share = Math.max(0, Math.floor(remaining / left))
+    if (extra > share) {
       cap = share
       break
     }
-    remaining -= length
+    remaining -= extra
     left--
   }
   return reads.map((read, index) =>
-    isWindowedRead(read) && lengths[index] > cap ? cut(read, cap) : read
+    isWindowedRead(read) && extras[index] > cap ? cut(read, sizes[index].kept + cap) : read
   )
 }
 
