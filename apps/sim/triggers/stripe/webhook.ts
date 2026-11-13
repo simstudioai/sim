@@ -208,9 +208,19 @@ export const stripeWebhookTrigger: TriggerConfig = {
       type: 'string',
       description: 'Always "event"',
     },
+    account: {
+      type: 'string',
+      description:
+        'Connected account that originated the event (Connect events only; absent or null otherwise)',
+    },
     api_version: {
       type: 'string',
       description: 'Stripe API version used to render the event',
+    },
+    context: {
+      type: 'string',
+      description:
+        'Authentication context needed to fetch the event or related object (null when not applicable)',
     },
     created: {
       type: 'number',

@@ -98,7 +98,8 @@ export const stripeCreateSubscriptionTool: ToolConfig<
         })
       }
 
-      if (params.trial_period_days !== undefined) {
+      const trialPeriodDays: unknown = params.trial_period_days
+      if (trialPeriodDays !== undefined && trialPeriodDays !== null && trialPeriodDays !== '') {
         formData.append('trial_period_days', Number(params.trial_period_days).toString())
       }
       if (params.default_payment_method) {

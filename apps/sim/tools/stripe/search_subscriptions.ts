@@ -1,6 +1,6 @@
 import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SearchSubscriptionsParams, SubscriptionSearchResponse } from '@/tools/stripe/types'
-import { LIST_METADATA_OUTPUT_PROPERTIES, SUBSCRIPTION_OUTPUT } from '@/tools/stripe/types'
+import { SEARCH_METADATA_OUTPUT_PROPERTIES, SUBSCRIPTION_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeSearchSubscriptionsTool: ToolConfig<
@@ -81,15 +81,7 @@ export const stripeSearchSubscriptionsTool: ToolConfig<
     metadata: {
       type: 'json',
       description: 'Search metadata',
-      properties: {
-        ...LIST_METADATA_OUTPUT_PROPERTIES,
-        next_page: {
-          type: 'string',
-          nullable: true,
-          description:
-            'Token for the next page of search results, or null when there are no more results',
-        },
-      },
+      properties: SEARCH_METADATA_OUTPUT_PROPERTIES,
     },
   },
 }

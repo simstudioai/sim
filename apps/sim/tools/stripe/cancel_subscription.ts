@@ -2,6 +2,7 @@ import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CancelSubscriptionParams, SubscriptionResponse } from '@/tools/stripe/types'
 import { SUBSCRIPTION_METADATA_OUTPUT_PROPERTIES, SUBSCRIPTION_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const stripeCancelSubscriptionTool: ToolConfig<
   CancelSubscriptionParams,
@@ -41,7 +42,8 @@ export const stripeCancelSubscriptionTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/subscriptions/${params.id}`,
+    url: (params) =>
+      `https://api.stripe.com/v1/subscriptions/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
