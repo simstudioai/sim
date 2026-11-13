@@ -170,7 +170,24 @@ try:
         # While the sheet is open only the sheet is observed; the step after it must not have run.
         snapshot = mutate('click', snapshot, elementId=find(snapshot, role='AXButton', label='Dismiss')['elementId'])
         assert count(snapshot) == before + 3, 'A batch step ran after a sheet opened'
-        print('PASS: real fixture state, secure suppression, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click, a batch that applies, stops at a failing step, refuses before dispatch and stops when a sheet opens; every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
+        # An editor that ignores Accessibility focus takes focus from a click in a foreground app only.
+        call('activate_app', bundleId=bundle)
+        snapshot = state()
+        click_field = find(snapshot, role='AXTextField', label='Fixture click-focus field')
+        result = call('type_text', bundleId=bundle, snapshotId=snapshot['snapshotId'], elementId=click_field['elementId'], text='clicked')
+        assert result['dispatched'], result
+        assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'clicked', 'Click-to-focus did not reach the editor'
+        # Move focus to the other editor, then put another app in front: the click-only editor cannot take focus.
+        snapshot = state()
+        mutate('click', snapshot, **coordinate(snapshot, find(snapshot, role='AXTextField', label='Fixture editable text')))
+        call('activate_app', bundleId='com.apple.finder')
+        time.sleep(0.5)
+        snapshot = state()
+        error = refused('type_text', snapshot, elementId=find(snapshot, role='AXTextField', label='Fixture click-focus field')['elementId'], text='x')
+        assert error['dispatchState'] == 'not_started', error
+        assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'clicked', 'A background app was clicked or typed into'
+        call('activate_app', bundleId=bundle)
+        print('PASS: real fixture state, secure suppression, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click, a batch that applies, stops at a failing step, refuses before dispatch and stops when a sheet opens, click-to-focus for an editor that ignores Accessibility focus (and none in the background); every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
 finally:
     if fixture:
         fixture.terminate()
