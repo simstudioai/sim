@@ -234,7 +234,7 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
                 description: {
                   type: 'string',
                   description: 'Category description',
-                  optional: true,
+                  nullable: true,
                 },
               },
             },
