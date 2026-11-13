@@ -144,6 +144,7 @@ export class ComputerUseService {
 
   reset(): void {
     this.cancel()
+    this.appNames.clear()
     this.deps.config.set('computerUseEnabled', false)
     this.deps.config.set('computerUseAskForApps', false)
     this.deps.config.set('computerUseAllowedApps', [])
@@ -397,6 +398,8 @@ export class ComputerUseService {
       this.appNames.clear()
       for (const app of apps.apps) this.appNames.set(app.bundleId, app.name)
     }
+    /** An app outside the scanned folders keeps its bundle ID, so it is not rescanned on every action. */
+    if (!this.appNames.has(bundleId)) this.appNames.set(bundleId, bundleId)
     return this.appNames.get(bundleId) ?? bundleId
   }
 }

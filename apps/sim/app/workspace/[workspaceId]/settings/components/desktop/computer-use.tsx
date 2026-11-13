@@ -11,6 +11,11 @@ import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/componen
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { useComputerUseStatus } from '@/hooks/use-computer-use-status'
 
+const ON_OFF_OPTIONS = [
+  { value: 'off', label: 'Off' },
+  { value: 'on', label: 'On' },
+]
+
 /** The activity stays visible so an in-flight action can be stopped; the device controls need the permission group's consent. */
 export function ComputerUseSettings() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
@@ -60,10 +65,6 @@ function ComputerUseSettingsControls() {
       setPending(false)
     }
   }
-  const onOff = [
-    { value: 'off', label: 'Off' },
-    { value: 'on', label: 'On' },
-  ]
   const askForApps = status?.askForApps
   const setAskForApps = bridge.setAskForApps
   return (
@@ -75,7 +76,7 @@ function ComputerUseSettingsControls() {
           </Label>
           <ChipSwitch
             aria-label='Use apps on this Mac'
-            options={onOff}
+            options={ON_OFF_OPTIONS}
             value={status?.enabled ? 'on' : 'off'}
             disabled={pending || !status}
             onChange={(value) =>
@@ -84,11 +85,11 @@ function ComputerUseSettingsControls() {
           />
         </div>
         <p className='text-[var(--text-muted)] text-sm'>
-          Works in any app except password managers and System Settings.
+          Sim can use any app except terminals, password managers, and System Settings.
         </p>
         {error && (
           <div className='flex items-center justify-between text-sm'>
-            <span>Couldn't reach the computer use helper.</span>
+            <span>Could not reach the Computer Use helper.</span>
             <Chip onClick={() => void refresh()}>Retry</Chip>
           </div>
         )}
@@ -124,7 +125,7 @@ function ComputerUseSettingsControls() {
                 </Label>
                 <ChipSwitch
                   aria-label='Ask before using a new app'
-                  options={onOff}
+                  options={ON_OFF_OPTIONS}
                   value={askForApps ? 'on' : 'off'}
                   disabled={pending}
                   onChange={(value) =>

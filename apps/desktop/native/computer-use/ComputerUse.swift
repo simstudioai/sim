@@ -142,15 +142,21 @@ func elementRect(_ element: AXUIElement) -> CGRect? {
           AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &size) else { return nil }
     return CGRect(origin: position, size: size)
 }
-/// Apps computer use never operates: macOS security settings and password managers.
+/// Apps computer use never operates, lowercased: macOS security settings, password managers, and
+/// terminals, whose shell access has its own Terminal control.
 let PROTECTED_APPS: Set<String> = [
-    "com.apple.systempreferences", "com.apple.keychainaccess", "com.apple.Passwords",
-    "com.1password.1password", "com.agilebits.onepassword7", "com.bitwarden.desktop", "org.keepassxc.keepassxc",
+    "com.apple.systempreferences", "com.apple.keychainaccess", "com.apple.passwords",
+    "com.1password.1password", "com.agilebits.onepassword7", "com.agilebits.onepassword-osx", "com.bitwarden.desktop",
+    "org.keepassxc.keepassxc", "com.lastpass.lastpass", "in.sinew.enpass-desktop", "me.proton.pass.electron",
+    "com.markmcguill.strongbox", "com.markmcguill.strongbox.mac",
+    "com.apple.terminal", "com.googlecode.iterm2", "dev.warp.warp-stable", "com.mitchellh.ghostty",
 ]
 func appFor(_ bundleId: String?, launch: Bool = false) async throws -> NSRunningApplication {
     let bundle = try required(bundleId, "bundleId")
-    guard bundle != Bundle.main.bundleIdentifier, !bundle.hasPrefix("com.simstudio."), !bundle.hasPrefix("ai.sim.desktop"), !PROTECTED_APPS.contains(bundle) else {
-        throw ComputerError("protected_app", "Computer use does not operate Sim, System Settings, or password managers.")
+    // Bundle identifiers match case-insensitively in Launch Services.
+    let key = bundle.lowercased()
+    guard key != Bundle.main.bundleIdentifier?.lowercased(), !key.hasPrefix("com.simstudio."), !key.hasPrefix("ai.sim.desktop"), !PROTECTED_APPS.contains(key) else {
+        throw ComputerError("protected_app", "Computer use does not operate Sim, System Settings, password managers, or terminals; use the terminal tool for shell work.")
     }
     var apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).filter { !$0.isTerminated }
     if apps.isEmpty && launch {
