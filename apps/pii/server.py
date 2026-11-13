@@ -243,11 +243,18 @@ def _exceeds_nlp_length(text: str, language: str) -> bool:
     return limit is not None and len(text) > limit
 
 
-def _ner_window_entities(entities: list[str] | None, language: str) -> list[str]:
-    """The requested entities only spaCy NER produces and this language serves, or
-    all of them when `entities` is empty (detect-all)."""
-    ner = NER_ENTITIES & set(analyzer.get_supported_entities(language))
-    return sorted(ner if not entities else ner.intersection(entities))
+def _window_entities(
+    entities: list[str] | None, language: str, score_threshold: float | None
+) -> list[str]:
+    """The requested built-in entities this language serves that windows must find,
+    or all of them when `entities` is empty (detect-all). Without a score_threshold
+    that is only what spaCy NER produces; with one it also includes the pattern
+    entities, whose context-boosted score can decide whether a match clears the
+    threshold and needs the real NLP artifacts only a window has."""
+    served = set(analyzer.get_supported_entities(language))
+    if score_threshold is None or score_threshold <= 0:
+        served &= NER_ENTITIES
+    return sorted(served if not entities else served.intersection(entities))
 
 
 def _analyze_long(
@@ -263,13 +270,14 @@ def _analyze_long(
     Pattern, checksum, and custom recognizers have no length limit, so they run
     once over the whole text (against blank NLP artifacts, as the regex-only path
     does) and no match can straddle a cut. Only NER runs in overlapping windows
-    (see NER_WINDOW_CHARS), asked for just its own entities. A span touching a
+    (see NER_WINDOW_CHARS), asked for just its own entities, plus the pattern
+    entities when a score_threshold makes context scoring matter (see
+    `_window_entities`). A span touching a
     window's far edge may be cut short, so it is left to the next window, which
     sees it whole; a span ending inside the overlap before that edge was already
     found by the previous window and is skipped. The rest are shifted to
-    whole-text offsets, and overlapping spans are left to the anonymizer, which
-    merges them. Context words cannot raise a pattern match's score here, which
-    matters only when a score_threshold is set."""
+    whole-text offsets; a span found by both passes keeps its higher score, and
+    overlapping spans are left to the anonymizer, which merges them."""
     entities = entities or None
     results = analyzer.analyze(
         text=text,
@@ -280,7 +288,7 @@ def _analyze_long(
         nlp_artifacts=_BLANK_ARTIFACTS.get(language),
         ad_hoc_recognizers=ad_hoc_recognizers or None,
     )
-    window_entities = _ner_window_entities(entities, language)
+    window_entities = _window_entities(entities, language, score_threshold)
     if not window_entities:
         return results
     step = NER_WINDOW_CHARS - NER_WINDOW_OVERLAP

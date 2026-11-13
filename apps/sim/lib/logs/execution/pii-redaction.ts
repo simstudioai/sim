@@ -60,7 +60,7 @@ function base64Body(value: string): string | null {
  * masking cannot check such a value for PII, which lives inside the decoded file.
  */
 function isEncodedBinary(value: string): boolean {
-  if (value.startsWith('data:')) {
+  if (/^data:/i.test(value)) {
     const comma = value.indexOf(',')
     return (
       comma !== -1 &&

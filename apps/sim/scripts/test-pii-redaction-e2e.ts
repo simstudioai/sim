@@ -91,9 +91,10 @@ function assertNameMasked(masked: unknown, failedMarker: string): void {
   assert.equal(typeof masked, 'string', 'Expected the long text back as a string')
   const text = masked as string
   assert(!text.includes(failedMarker), 'The long text was scrubbed instead of masked')
-  assert(!text.includes('Ada Lovelace'), 'The name at the end of the long text was not masked')
-  assert(text.endsWith('before Friday.'), 'The end of the long text was lost')
-  assert(text.includes('<PERSON>'), 'Expected a <PERSON> token where the name was')
+  assert(
+    text.endsWith('Please send questions to <PERSON> before Friday.'),
+    'The name at the end of the long text was not masked as one <PERSON> span'
+  )
 }
 
 async function main(): Promise<void> {
@@ -166,8 +167,11 @@ async function main(): Promise<void> {
       `Presidio answered ${response.status}: ${body.slice(0, 200)}`
     )
     const [masked] = (JSON.parse(body) as { texts: string[] }).texts
-    assert(!masked.includes('Grace Hopper'), 'The name across the first NER window edge survived')
-    assert(!masked.includes('Ada Lovelace'), 'The name at the end survived')
+    assert(
+      masked.includes(`${lead}<PERSON> before Friday.`),
+      'The name across the first NER window edge was not masked as one <PERSON> span'
+    )
+    assert(masked.endsWith('to <PERSON> before Friday.'), 'The name at the end survived')
     assert(!masked.includes('EMP 123456'), 'The custom pattern spanning whitespace survived')
     assert(masked.includes('<EMPLOYEE_ID>'), 'Expected the custom replacement')
     return { textChars: text.length }

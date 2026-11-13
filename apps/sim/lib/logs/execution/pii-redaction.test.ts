@@ -170,6 +170,7 @@ describe('encoded binary content', () => {
     ['wrapped at 76 columns', wrapped(76, '\n')],
     ['wrapped at 64 columns with CRLF', `${wrapped(64, '\r\n')}\r\n`],
     ['as a wrapped data URL', `data:application/pdf;base64,${wrapped(76, '\n')}`],
+    ['as a data URL with an uppercase scheme', `DATA:application/pdf;base64,${encodedFile}`],
     [
       'as a data URL with long metadata',
       `data:application/pdf;name=${'quarterly-report-'.repeat(40)}.pdf;base64,${encodedFile}`,
