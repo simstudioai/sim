@@ -764,6 +764,18 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return deps.computerUse?.requestPermission(permission)
       },
     },
+    'computer-use:set-ask-for-apps': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      needsUserActivation: true,
+      denied: null,
+      handler: (ask) => {
+        if (typeof ask !== 'boolean')
+          throw new Error('A boolean Computer Use preference is required.')
+        return deps.computerUse?.setAskForApps(ask)
+      },
+    },
     'computer-use:list-permissions': {
       kind: 'invoke',
       gate: 'app-origin',

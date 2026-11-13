@@ -23,6 +23,10 @@ inputs:
     description: Newline-separated Docker build arguments.
     required: false
     default: ''
+  target:
+    description: Dockerfile stage to build. Empty builds the final stage.
+    required: false
+    default: ''
   max-cache-size-mb:
     description: >-
       Layer cache to retain after this action prunes, in MB. Must stay above one
@@ -77,6 +81,7 @@ runs:
         push: true
         tags: ${{ inputs.tags }}
         build-args: ${{ inputs.build-args }}
+        target: ${{ inputs.target }}
         provenance: false
         sbom: false
 
@@ -183,5 +188,6 @@ runs:
         push: true
         tags: ${{ inputs.tags }}
         build-args: ${{ inputs.build-args }}
+        target: ${{ inputs.target }}
         provenance: false
         sbom: false

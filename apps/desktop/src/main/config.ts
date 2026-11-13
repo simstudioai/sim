@@ -93,6 +93,8 @@ export interface DesktopSettings {
   preventSleepWhileRunning?: boolean
   /** Native app access is opt-in and cleared when the signed-in account changes. */
   computerUseEnabled?: boolean
+  /** Ask before operating an app for the first time; by default every unprotected app is allowed. */
+  computerUseAskForApps?: boolean
   computerUseAllowedApps?: Array<{ bundleId: string; displayName: string }>
   /** Device-wide browser page appearance; `app` follows Sim. */
   browserTheme?: 'app' | 'light' | 'dark'

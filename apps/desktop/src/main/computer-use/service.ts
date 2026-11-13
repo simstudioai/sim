@@ -51,11 +51,17 @@ export class ComputerUseService {
   private snapshots = new Map<string, SnapshotOwnership>()
   private activity: ComputerUseActivity | null = null
   private taskGrants = new Map<string, Map<string, string>>()
+  /** App names from the helper's app list, so an unprompted action can name its app without listing apps again. */
+  private appNames = new Map<string, string>()
 
   constructor(private readonly deps: ComputerUseServiceDeps) {}
 
   isEnabled(): boolean {
     return this.deps.supported && this.deps.config.get('computerUseEnabled') === true
+  }
+
+  private asksForApps(): boolean {
+    return this.deps.config.get('computerUseAskForApps') === true
   }
 
   getActivity(): ComputerUseActivity | null {
@@ -68,6 +74,7 @@ export class ComputerUseService {
       enabled: this.isEnabled(),
       permissions: { accessibility: false, screenCapture: false },
       activeAction: this.activity,
+      askForApps: this.asksForApps(),
     }
     if (!status.enabled) return status
     const native = await this.deps.native.request('status', {})
@@ -91,6 +98,16 @@ export class ComputerUseService {
       throw new Error('Could not save Computer Use settings. Computer Use has been switched off.')
     }
     this.deps.onActivity(this.activity)
+    return this.getStatus()
+  }
+
+  async setAskForApps(ask: boolean): Promise<ComputerUseStatus> {
+    const previous = this.asksForApps()
+    this.deps.config.set('computerUseAskForApps', ask)
+    if (!this.deps.config.flush()) {
+      this.deps.config.set('computerUseAskForApps', previous)
+      throw new Error('Could not save Computer Use settings.')
+    }
     return this.getStatus()
   }
 
@@ -127,7 +144,9 @@ export class ComputerUseService {
 
   reset(): void {
     this.cancel()
+    this.appNames.clear()
     this.deps.config.set('computerUseEnabled', false)
+    this.deps.config.set('computerUseAskForApps', false)
     this.deps.config.set('computerUseAllowedApps', [])
     if (!this.deps.config.flush())
       throw new Error('Could not clear saved Computer Use permissions.')
@@ -338,16 +357,14 @@ export class ComputerUseService {
     })
   }
 
+  /** Every unprotected app is allowed unless the user chose to approve each app's first use. */
   private async authorizeApp(bundleId: string, work: ToolWork): Promise<string> {
     const approved = this.listAppPermissions().find((app) => app.bundleId === bundleId)
     if (approved) return approved.displayName
     const taskName = this.taskGrants.get(work.scopeId)?.get(bundleId)
     if (taskName) return taskName
-    const apps = await this.deps.native.request('list_apps', {})
-    this.check(work)
-    const app =
-      apps.kind === 'apps' ? apps.apps.find((app) => app.bundleId === bundleId) : undefined
-    const target = { bundleId, displayName: app?.name ?? bundleId }
+    const target = { bundleId, displayName: await this.appName(bundleId, work) }
+    if (!this.asksForApps()) return target.displayName
     const answer = await this.deps.approveApp(target, work.controller.signal)
     this.check(work)
     if (answer === 'deny')
@@ -370,5 +387,19 @@ export class ComputerUseService {
       }
     }
     return target.displayName
+  }
+
+  private async appName(bundleId: string, work: ToolWork): Promise<string> {
+    const known = this.appNames.get(bundleId)
+    if (known) return known
+    const apps = await this.deps.native.request('list_apps', {})
+    this.check(work)
+    if (apps.kind === 'apps') {
+      this.appNames.clear()
+      for (const app of apps.apps) this.appNames.set(app.bundleId, app.name)
+    }
+    /** An app outside the scanned folders keeps its bundle ID, so it is not rescanned on every action. */
+    if (!this.appNames.has(bundleId)) this.appNames.set(bundleId, bundleId)
+    return this.appNames.get(bundleId) ?? bundleId
   }
 }

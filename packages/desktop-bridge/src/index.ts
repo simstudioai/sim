@@ -60,6 +60,8 @@ export interface ComputerUseStatus {
   enabled: boolean
   permissions: { accessibility: boolean; screenCapture: boolean }
   activeAction: ComputerUseActivity | null
+  /** Whether a first use of each app needs approval; absent in older shells, which always ask. */
+  askForApps?: boolean
 }
 
 export interface ComputerUseAppPermission {
@@ -88,6 +90,8 @@ interface SimDesktopComputerUseApi {
   getStatus(): Promise<ComputerUseStatus>
   setEnabled(enabled: boolean): Promise<ComputerUseStatus>
   requestPermission(permission: 'accessibility' | 'screenCapture'): Promise<ComputerUseStatus>
+  /** Absent in older shells, which always ask before a first use of each app. */
+  setAskForApps?(ask: boolean): Promise<ComputerUseStatus>
   listAppPermissions(): Promise<ComputerUseAppPermission[]>
   revokeApp(bundleId: string): Promise<void>
   executeTool(

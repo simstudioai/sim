@@ -4,62 +4,68 @@
 FROM oven/bun:1.4.4-alpine AS base
 
 # ========================================
-# Dependencies Stage: Install Dependencies
+# Pruner Stage: Emit the monorepo subset @sim/db needs
 # ========================================
+FROM base AS pruner
+WORKDIR /app
+
+COPY . .
+
+# out/ keeps @sim/db's development toolchain for the dev target's `db:push`;
+# production/ narrows a copy to what `db:migrate` runs (see scripts/prune-production-workspace.ts).
+RUN TURBO_VERSION="$(bun -e "console.log(require('./package.json').devDependencies.turbo)")" && \
+    bunx --bun "turbo@${TURBO_VERSION}" prune @sim/db --docker && \
+    cp -R out production && \
+    bun scripts/prune-production-workspace.ts @sim/db production/full production/json
+
+# ========================================
+# Dependencies Stages
+# ========================================
+# Neither install is --frozen-lockfile: each holds a subset of the workspace, so
+# Bun normalizes the pruned lockfile to it while keeping every locked resolution.
+# Full-repository CI owns frozen-lockfile validation.
+FROM base AS dev-deps
+WORKDIR /app
+
+COPY --from=pruner /app/out/json/ ./
+COPY --from=pruner /app/out/bun.lock ./bun.lock
+
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
+    bun install --linker=hoisted --ignore-scripts
+
 FROM base AS deps
 WORKDIR /app
 
-# Copy only package files needed for migrations (these change less frequently)
-COPY package.json bun.lock turbo.json ./
-COPY patches ./patches
-RUN mkdir -p packages/db packages/logger packages/security packages/tsconfig packages/utils
-COPY packages/db/package.json ./packages/db/package.json
-COPY packages/logger/package.json ./packages/logger/package.json
-COPY packages/security/package.json ./packages/security/package.json
-COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
-COPY packages/utils/package.json ./packages/utils/package.json
+COPY --from=pruner /app/production/json/ ./
+COPY --from=pruner /app/production/bun.lock ./bun.lock
 
-# Install dependencies with cache mount for faster builds. This stage contains
-# only the migration workspace manifests, so Bun must normalize the full root
-# lockfile to that subset; full-repository CI owns frozen-lockfile validation.
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
-    bun install --ignore-scripts
+    bun install --linker=hoisted --omit=dev --ignore-scripts
 
-# ========================================
-# Runner Stage: Production Environment
-# ========================================
-FROM base AS runner
-WORKDIR /app
-
-# Create non-root user and group (cached separately)
+FROM base AS user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
 
-# Copy only the necessary files from deps (cached if dependencies don't change)
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+# ========================================
+# Dev Stage: also runs `db:push`, which needs drizzle-kit
+# ========================================
+FROM user AS dev
+WORKDIR /app
 
-# Copy root package.json for workspace resolution
-COPY --chown=nextjs:nodejs package.json ./package.json
+COPY --from=dev-deps --chown=nextjs:nodejs /app ./
+COPY --from=pruner --chown=nextjs:nodejs /app/out/full/ ./
 
-# Copy package configuration files (needed for migrations)
-COPY --chown=nextjs:nodejs packages/db/drizzle.config.ts ./packages/db/drizzle.config.ts
-
-# Copy tsconfig package (needed for workspace symlink resolution)
-COPY --chown=nextjs:nodejs packages/tsconfig ./packages/tsconfig
-
-# Copy utils package (needed by db scripts that import @sim/utils)
-COPY --chown=nextjs:nodejs packages/utils ./packages/utils
-
-# Copy logger package (needed by @sim/db's tx-tripwire at import time)
-COPY --chown=nextjs:nodejs packages/logger ./packages/logger
-
-# Copy security package (the schema's sealed columns import its encryption)
-COPY --chown=nextjs:nodejs packages/security ./packages/security
-
-# Copy database package source code (changes most frequently - placed last)
-COPY --chown=nextjs:nodejs packages/db ./packages/db
-
-# Switch to non-root user
 USER nextjs
+WORKDIR /app/packages/db
 
+# ========================================
+# Runner Stage (default): runs `db:migrate` with runtime dependencies only
+# ========================================
+FROM user AS runner
+WORKDIR /app
+
+COPY --from=deps --chown=nextjs:nodejs /app ./
+COPY --from=pruner --chown=nextjs:nodejs /app/production/full/ ./
+
+USER nextjs
 WORKDIR /app/packages/db

@@ -614,6 +614,7 @@ describe('registerIpcHandlers', () => {
     computerRoots.push(root)
     const config = createConfigStore(join(root, 'settings.json'))
     config.set('computerUseEnabled', true)
+    config.set('computerUseAskForApps', true)
     const status: ComputerUseResult = {
       kind: 'status',
       platform: 'darwin',
