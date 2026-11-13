@@ -525,6 +525,7 @@ describe('running work before a restart', () => {
         stillRunning: vi.fn(async () => []),
         signal: vi.fn(),
         escalations: [],
+        readBeforeInterrupt: true,
       },
     })
     const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
@@ -558,7 +559,8 @@ describe('running work before a restart', () => {
 describe('stopping a tool call', () => {
   const COMMAND_GROUP = 4242
 
-  function cancellableService() {
+  /** A service on macOS and Linux, unless `platform` says Windows (where lookups wait for need). */
+  function cancellableService(platform: 'posix' | 'windows' = 'posix') {
     /** What holds the terminal's foreground as the OS would report it at each read. */
     let foreground: number[] | null = [COMMAND_GROUP]
     const processGroups = {
@@ -570,6 +572,7 @@ describe('stopping a tool call', () => {
       ),
       signal: vi.fn((_ids: number[], _signal: NodeJS.Signals) => {}),
       escalations: ['SIGTERM', 'SIGKILL'] as NodeJS.Signals[],
+      readBeforeInterrupt: platform === 'posix',
     }
     const terminal = new TerminalService({ loadCwd: () => '/tmp', processGroups })
     const { activeTerminalId } = terminal.start({ cols: 80, rows: 24 })
@@ -597,7 +600,7 @@ describe('stopping a tool call', () => {
   }
 
   it('interrupts the command its run started, and the run reports how it ended', async () => {
-    const { terminal, session, processGroups } = cancellableService()
+    const { terminal, session, processGroups } = cancellableService('windows')
     const { running } = await startRun(terminal, session, 'call-run')
 
     await expect(terminal.cancelTool('call-run')).resolves.toBe(true)
@@ -654,10 +657,25 @@ describe('stopping a tool call', () => {
   it('never signals a different command that took the foreground meanwhile', async () => {
     const { terminal, session, processGroups, setForeground } = cancellableService()
     session.setInterruptible(false)
-    processGroups.signal.mockImplementation(() => setForeground([9999]))
+    // The shell's prompt work (a `git status` for the prompt) takes the tty once Ctrl-C lands.
+    session.kill.mockImplementation(() => setForeground([9999]))
     const { running } = await startRun(terminal, session, 'call-replaced')
 
     await terminal.cancelTool('call-replaced')
+
+    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    expect(processGroups.signal).not.toHaveBeenCalled()
+    session.finishRun(0)
+    await running
+  })
+
+  it('stops escalating once a different command takes the foreground', async () => {
+    const { terminal, session, processGroups, setForeground } = cancellableService()
+    session.setInterruptible(false)
+    processGroups.signal.mockImplementation(() => setForeground([9999]))
+    const { running } = await startRun(terminal, session, 'call-taken-over')
+
+    await terminal.cancelTool('call-taken-over')
 
     expect(processGroups.signal).toHaveBeenCalledTimes(1)
     expect(processGroups.signal).toHaveBeenCalledWith([COMMAND_GROUP], 'SIGTERM')
@@ -723,6 +741,20 @@ describe('stopping a tool call', () => {
 
     expect(session.kill).toHaveBeenCalledWith('SIGINT')
     await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 130 } })
+  })
+
+  it('never signals what took the foreground after Ctrl-C at sign-out', async () => {
+    const { terminal, session, processGroups, setForeground } = cancellableService()
+    session.setInterruptible(false)
+    session.kill.mockImplementation(() => setForeground([9999]))
+    const { running } = await startRun(terminal, session, 'call-sign-out')
+
+    await terminal.stopAgentCommands()
+
+    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    expect(processGroups.signal).not.toHaveBeenCalled()
+    session.finishRun(0)
+    await running
   })
 
   it('stops the command a run handed back as still going, once asked for that call', async () => {

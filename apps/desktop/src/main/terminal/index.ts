@@ -1003,22 +1003,27 @@ export class TerminalService {
   }
 
   /**
-   * Interrupts the command a run started. Escalation is bound to that command's own processes,
-   * read only once Ctrl-C has failed (on Windows the lookup starts PowerShell) and while it still
-   * holds the foreground; each signal goes only to those of them still running while the same call
-   * does, so a command the user starts meanwhile is never hit.
+   * Interrupts the command a run started, then escalates against that command's own processes
+   * only, each signal going to those of them still running while the same call does, so a command
+   * the user starts meanwhile is never hit. Where the OS reads them is the platform's call
+   * ({@link TerminalProcessGroups.readBeforeInterrupt}): before Ctrl-C on macOS and Linux, so the
+   * shell's prompt work that takes the tty once the command ends is never mistaken for it; only
+   * once Ctrl-C has failed on Windows, where the lookup starts PowerShell.
    */
   private async stopCommand(session: TerminalSession, toolCallId: string): Promise<void> {
     const startedAt = session.agentCommandStartedAt
     if (session.agentCommandToolCallId !== toolCallId || startedAt === null) return
     const groups = this.options.processGroups ?? osProcessGroups
+    const readCommand = async () =>
+      (await groups.foreground(session.pid, startedAt, session.shellReadyAt)) ?? []
+    let command = groups.readBeforeInterrupt ? await readCommand() : undefined
+    if (session.agentCommandToolCallId !== toolCallId) return
     session.kill('SIGINT')
-    let command: number[] | undefined
     for (const escalation of groups.escalations) {
       if (await this.commandEnds(session, toolCallId, STOP_ESCALATION_MS)) return
       const remaining =
         command === undefined
-          ? ((await groups.foreground(session.pid, startedAt, session.shellReadyAt)) ?? [])
+          ? await readCommand()
           : await groups.stillRunning(session.pid, command)
       command ??= remaining
       if (remaining.length === 0) return

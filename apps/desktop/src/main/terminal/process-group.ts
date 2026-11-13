@@ -45,6 +45,14 @@ export interface TerminalProcessGroups {
   signal(ids: number[], signal: NodeJS.Signals): void
   /** The signals a command that ignored Ctrl-C is sent, in order, until one ends it. */
   escalations: readonly NodeJS.Signals[]
+  /**
+   * Whether a command's ids are read before it is sent Ctrl-C rather than once Ctrl-C has failed.
+   * The tty's foreground is cheap to read and names the command only while it runs: once Ctrl-C
+   * lands, the shell's own prompt work (a `git status` for the prompt) can take the tty in its
+   * own group. A Windows lookup starts PowerShell and is scoped by creation time instead, so it
+   * waits until an escalation is actually needed.
+   */
+  readBeforeInterrupt: boolean
 }
 
 const POSIX_PROCESS_GROUPS: TerminalProcessGroups = {
@@ -57,6 +65,7 @@ const POSIX_PROCESS_GROUPS: TerminalProcessGroups = {
     for (const pgid of pgids) signalProcessGroup(pgid, signal)
   },
   escalations: ['SIGTERM', 'SIGKILL'],
+  readBeforeInterrupt: true,
 }
 
 /** A Windows process, as the process table reports it. */
@@ -120,6 +129,7 @@ export function windowsProcessGroups(
       for (const pid of pids) killProcessTree(pid)
     },
     escalations: ['SIGTERM'],
+    readBeforeInterrupt: false,
   }
 }
 
