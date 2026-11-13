@@ -264,7 +264,7 @@ function SnowflakeAccountForm({
   }
 
   const createUserStatement =
-    authType === 'workload_identity' && keyless.trust
+    authType === 'workload_identity' && keyless.trust && !keyless.audienceError
       ? buildCreateUserStatement(
           keyless.trust.issuer,
           keyless.trust.subject,

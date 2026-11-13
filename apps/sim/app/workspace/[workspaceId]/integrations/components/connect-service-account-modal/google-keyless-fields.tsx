@@ -132,7 +132,7 @@ export function GoogleKeylessFields({ input, onChange, setup }: GoogleKeylessFie
   const delegated = value.delegatedServices.length > 0
   const providerAudience = trustComplete ? googleWorkloadIdentityAudience(value) : undefined
   const commands =
-    trustComplete && setup.trust
+    trustComplete && setup.trust && !setup.audienceError
       ? googleWorkloadIdentitySetupCommands({
           ref: value,
           serviceAccountEmail: value.serviceAccountEmail,

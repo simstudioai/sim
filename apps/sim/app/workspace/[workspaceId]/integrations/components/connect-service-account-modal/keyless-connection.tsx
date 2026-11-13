@@ -10,6 +10,7 @@ import {
   WORKLOAD_IDENTITY_PROVIDER_AUTH_TYPES,
   type WorkloadIdentityProvider,
   type WorkloadIdentityProviderAuthType,
+  workloadIdentityAudienceSchema,
 } from '@/lib/credentials/workload-identity/audiences'
 import {
   useCreateScopedCredential,
@@ -67,8 +68,13 @@ export function useKeylessSetup<P extends WorkloadIdentityProvider>({
   const audienceValue = audienceInput ?? setup.data?.reconnectAudience ?? ''
   const defaultAudience = setup.data?.available ? setup.data.audience : undefined
   const typedAudience = audienceValue.trim()
-  const customAudience =
-    typedAudience && typedAudience !== defaultAudience ? typedAudience : undefined
+  const typedCustom = typedAudience && typedAudience !== defaultAudience ? typedAudience : undefined
+  const audienceCheck = typedCustom
+    ? workloadIdentityAudienceSchema(provider).safeParse(typedCustom)
+    : undefined
+  const audienceError =
+    audienceCheck && !audienceCheck.success ? audienceCheck.error.issues[0]?.message : undefined
+  const customAudience = audienceError ? undefined : typedCustom
   const storedAuthType = providerAuthType(provider, setup.data?.reconnectAuthType)
   // A keyless credential reopens on keyless only where this deployment can still sign.
   const reconnectAuthType =
@@ -99,12 +105,14 @@ export function useKeylessSetup<P extends WorkloadIdentityProvider>({
     setAudienceInput,
     /** The provider's default audience; undefined for Google, whose default is each credential's provider. */
     defaultAudience,
-    /** The audience typed into the field, unless it is blank or the default. */
+    /** The audience typed into the field, unless it is blank, the default, or invalid. */
     customAudience,
-    /** The audience tokens carry: the custom one, else the default. */
-    audience: customAudience ?? defaultAudience,
+    /** Why the typed audience can't be used; setup snippets stay hidden until it can. */
+    audienceError,
+    /** The audience tokens carry: the custom one, else the default; undefined while invalid. */
+    audience: audienceError ? undefined : (customAudience ?? defaultAudience),
     /** Ready to submit a keyless configuration. */
-    ready: subjectChoice === 'keep' ? Boolean(credentialId) : Boolean(trust),
+    ready: !audienceError && (subjectChoice === 'keep' ? Boolean(credentialId) : Boolean(trust)),
     error: setup.isError ? setup.error : null,
   }
 }
@@ -202,6 +210,7 @@ export function KeylessTrustFields({
           value={setup.audienceInput}
           onChange={setup.setAudienceInput}
           placeholder={defaultAudience ?? 'Default audience'}
+          error={setup.audienceError}
           hint={
             setup.isReconnect && !setup.trust
               ? 'If you change the audience, add the new value to your trust configuration before saving.'

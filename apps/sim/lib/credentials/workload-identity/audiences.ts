@@ -166,13 +166,7 @@ const MAX_WORKLOAD_IDENTITY_AUDIENCE_LENGTH = 255
  */
 const AUDIENCE_PATTERN = /^[A-Za-z0-9._~:/?#@&+=%-]+$/
 
-/**
- * A keyless credential's own `aud` claim, so a customer can pin their trust
- * configuration to an audience no other Sim credential is issued for (their
- * Databricks account ID, say). Another relying party's default is refused: a
- * credential for one cloud never carries a token another cloud would accept.
- */
-export function workloadIdentityAudienceSchema(provider: WorkloadIdentityProvider) {
+function buildAudienceSchema(provider: WorkloadIdentityProvider) {
   const othersDefaults = new Set(
     WORKLOAD_IDENTITY_PROVIDERS.filter((other) => other !== provider).flatMap((other) => {
       const audience = fixedWorkloadIdentityAudience(other)
@@ -197,6 +191,21 @@ export function workloadIdentityAudienceSchema(provider: WorkloadIdentityProvide
     .refine((audience) => provider === 'google' || !isGoogleProviderAudience(audience), {
       message: 'That audience belongs to Google Cloud. Use the default or your own value.',
     })
+}
+
+const AUDIENCE_SCHEMAS = Object.fromEntries(
+  WORKLOAD_IDENTITY_PROVIDERS.map((provider) => [provider, buildAudienceSchema(provider)])
+) as Record<WorkloadIdentityProvider, ReturnType<typeof buildAudienceSchema>>
+
+/**
+ * A keyless credential's own `aud` claim, so a customer can pin their trust
+ * configuration to an audience no other Sim credential is issued for (their
+ * Databricks account ID, say). Another relying party's default is refused: a
+ * credential for one cloud never carries a token another cloud would accept.
+ * Built once per provider, so the connect dialog can check each keystroke.
+ */
+export function workloadIdentityAudienceSchema(provider: WorkloadIdentityProvider) {
+  return AUDIENCE_SCHEMAS[provider]
 }
 
 /** A Google workload identity provider's resource-name audience. */
