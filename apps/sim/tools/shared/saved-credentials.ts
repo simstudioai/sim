@@ -107,22 +107,17 @@ export function savedCredentialTokenParam(serviceLabel: string) {
  * credential field that fills it server-side; the same keys are the params
  * the credential supplies, so the two can never drift apart. Mapped params are
  * always overwritten, so a bound host can never be steered by the caller.
- *
- * `tokenReplacesParams` names inline sign-in alternatives the token makes unused (a username and
- * password the tools read only without a token), so a credential-only block drops them too.
  */
 export function tokenCredentialOAuth(
   provider: OAuthService,
-  credentialParams: Readonly<Record<string, CredentialParamSource>>,
-  tokenReplacesParams: readonly string[] = []
+  credentialParams: Readonly<Record<string, CredentialParamSource>>
 ) {
   return {
     required: false,
     provider,
     credentialKind: 'service-account',
     credentialParams,
-    ...(tokenReplacesParams.length > 0 ? { tokenReplacesParams } : {}),
-    credentialSuppliedParams: [...Object.keys(credentialParams), ...tokenReplacesParams],
+    credentialSuppliedParams: Object.keys(credentialParams),
   } as const satisfies OAuthConfig
 }
 
@@ -150,14 +145,26 @@ function clientCredentialOAuth<const Replaced extends readonly string[]>(
   } as const satisfies OAuthConfig
 }
 
-/** Whether a subblock is the saved-credential picker `withSavedCredential` inserts. */
-export function isSavedCredentialPicker(
-  subBlock: Pick<SubBlockConfig, 'type' | 'credentialKind' | 'canonicalParamId'>
-): boolean {
+type SavedCredentialPickerFields = Pick<
+  SubBlockConfig,
+  'type' | 'credentialKind' | 'canonicalParamId' | 'serviceId'
+>
+
+/**
+ * Whether a subblock is a picker feeding `oauthCredential` a saved credential:
+ * a service-account picker, or a mixed picker for a provider with a saved-credential
+ * policy (the one `withSavedCredential` inserts for Apollo). A mixed picker for an
+ * ordinary OAuth provider (Greenhouse, Help Scout, Ramp) is not one.
+ */
+export function isSavedCredentialPicker(subBlock: SavedCredentialPickerFields): boolean {
+  if (subBlock.type !== 'oauth-input' || subBlock.canonicalParamId !== 'oauthCredential') {
+    return false
+  }
+  if (subBlock.credentialKind === 'service-account') return true
   return (
-    subBlock.type === 'oauth-input' &&
-    (subBlock.credentialKind === 'service-account' || subBlock.credentialKind === 'any') &&
-    subBlock.canonicalParamId === 'oauthCredential'
+    subBlock.credentialKind === 'any' &&
+    subBlock.serviceId !== undefined &&
+    Object.hasOwn(SAVED_CREDENTIAL_OAUTH, subBlock.serviceId)
   )
 }
 
@@ -171,7 +178,7 @@ export function isSavedCredentialPicker(
  */
 export function credentialSuppliedParamsFor(
   oauth: Pick<OAuthConfig, 'credentialSuppliedParams'> | undefined,
-  subBlocks: readonly Pick<SubBlockConfig, 'type' | 'credentialKind' | 'canonicalParamId'>[]
+  subBlocks: readonly SavedCredentialPickerFields[]
 ): ReadonlySet<string> {
   return new Set(subBlocks.some(isSavedCredentialPicker) ? oauth?.credentialSuppliedParams : [])
 }

@@ -7,6 +7,7 @@ import {
 } from '@/lib/core/resource-scope'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { awsCredentialFailureMessage, isTransientAwsFailure } from '@/lib/internal/aws/failure'
+import { awsSigningKeys } from '@/lib/internal/aws/signing-keys'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   getServiceAccountToken,
@@ -116,11 +117,7 @@ async function resolveConnectorAwsToken(
   }
   return {
     accessToken: '',
-    awsSession: {
-      accessKeyId: session.accessKeyId,
-      secretAccessKey: session.secretAccessKey,
-      ...(session.sessionToken ? { sessionToken: session.sessionToken } : {}),
-    },
+    awsSession: awsSigningKeys(session),
     ...(session.expiration ? { expiresAt: session.expiration } : {}),
   }
 }

@@ -56,12 +56,6 @@ const DELEGATION_OPTIONS = GOOGLE_DELEGATION_SERVICES.map((service) => ({
   label: getServiceConfigByServiceId(service)?.name ?? service,
 }))
 
-/** "Gmail, Google Drive, …, and Google Calendar": the services keyless credentials can delegate. */
-export const GOOGLE_DELEGATION_SERVICE_NAMES = new Intl.ListFormat('en', {
-  style: 'long',
-  type: 'conjunction',
-}).format(DELEGATION_OPTIONS.map((option) => option.label))
-
 /** Whether the provider and service account fields have Google's documented format. */
 function isTrustComplete(value: GoogleKeylessInput): boolean {
   return (

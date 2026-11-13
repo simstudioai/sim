@@ -365,7 +365,6 @@ describe('connector access application boundary', () => {
   })
 
   it('refuses moving a key connector that stores its key onto a saved credential', async () => {
-    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
     mocks.meta.mockReturnValue({ name: 'Amazon S3', auth: savedAwsAuth })
     await expect(
       updateKnowledgeConnectorAccess.execute({
@@ -377,7 +376,6 @@ describe('connector access application boundary', () => {
   })
 
   it('lets a connector already on a saved credential move to another one', async () => {
-    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
     mocks.meta.mockReturnValue({ name: 'Amazon S3', auth: savedAwsAuth })
     mocks.connector.mockResolvedValue({
       ...row,

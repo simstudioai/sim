@@ -231,18 +231,41 @@ function isRememberedRefusal(failure: StoredFailure): boolean {
   )
 }
 
-/** The error a remembered failure is replayed as, with how long it is still replayed. */
+/**
+ * The error a remembered failure is replayed as, with how long it is still replayed. A refusal
+ * stored as `provider_unavailable` because the memo cannot hold its own code is replayed as
+ * `invalid_credentials`, so it still asks for the credential to be fixed rather than waited out.
+ */
 function replayedFailure(
   failure: StoredFailure,
   step: string,
   replayMs: number
 ): TokenServiceAccountValidationError {
+  const code =
+    failure.code === 'provider_unavailable' && isRememberedRefusal(failure)
+      ? 'invalid_credentials'
+      : failure.code
   return new TokenServiceAccountValidationError(
-    failure.code,
+    code,
     failure.status,
     { step },
     { replayForMs: Math.max(replayMs, 0) }
   )
+}
+
+/**
+ * A fresh exchange failure as it reaches the caller: the provider's own code, status, detail, and
+ * message, which a stored memo may not be able to hold, with how long it is now replayed.
+ */
+function freshFailure(
+  error: TokenServiceAccountValidationError,
+  replayMs: number
+): TokenServiceAccountValidationError {
+  return new TokenServiceAccountValidationError(error.code, error.status, error.logDetail, {
+    message: error.userMessage,
+    retryAfterMs: error.retryAfterMs,
+    replayForMs: Math.max(replayMs, 0),
+  })
 }
 
 /**
@@ -480,7 +503,7 @@ export async function resolveCoordinatedClientToken(
               .set({ expiresAt: new Date(0), updatedAt: new Date() })
               .where(eq(clientCredentialToken.id, applicationKey))
           }
-          return { failure: replayedFailure(failure, step, replayMs) }
+          return { failure: freshFailure(error, replayMs) }
         }
         const fallback = await fallbackFrom(applicationRow)
         if (fallback) {
@@ -491,7 +514,7 @@ export async function resolveCoordinatedClientToken(
           })
           return fallback
         }
-        return { failure: replayedFailure(failure, step, replayMs) }
+        return { failure: freshFailure(error, replayMs) }
       }
     })
     return settle(outcome)

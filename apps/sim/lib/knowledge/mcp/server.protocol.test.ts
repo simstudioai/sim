@@ -100,7 +100,7 @@ describe('Search MCP protocol', () => {
       expect(read.isError).not.toBe(true)
       expect(mocks.liveRead.mock.lastCall?.[0].input).toMatchObject({
         limit: 8,
-        scaledWindow: { documentsInCall: 1 },
+        scaledWindow: true,
       })
       expect(read.content).toEqual([
         { type: 'text', text: expect.stringContaining('Read evidence') },
@@ -112,7 +112,7 @@ describe('Search MCP protocol', () => {
       expect(batchRead.isError).not.toBe(true)
       expect(mocks.liveRead.mock.lastCall?.[0].input).toMatchObject({
         limit: 8,
-        scaledWindow: { documentsInCall: 2 },
+        scaledWindow: true,
       })
       const offsetless = await client.callTool({
         name: 'search',

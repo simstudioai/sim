@@ -114,6 +114,97 @@ describe('credential connection commands', () => {
     expect(mockRequest).toHaveBeenCalledTimes(1)
   })
 
+  describe('token provider with a client-credentials mode', () => {
+    const servicenow = {
+      type: 'service_account',
+      serviceId: 'servicenow-service-account',
+      providerId: 'servicenow-service-account',
+      available: true,
+      requiresClientGeneratedCredentialId: false,
+      fields: [
+        { id: 'apiToken', required: true, secret: true, requiredForAuthMethods: ['token'] },
+        {
+          id: 'providerWorkspaceId',
+          required: true,
+          secret: false,
+          requiredForAuthMethods: ['token'],
+        },
+        { id: 'domain', required: true, secret: false },
+        {
+          id: 'authMethod',
+          required: false,
+          secret: false,
+          defaultValue: 'token',
+          options: [
+            { value: 'token', label: 'Username and password' },
+            { value: 'client_credentials', label: 'OAuth client credentials' },
+          ],
+        },
+        {
+          id: 'clientId',
+          required: false,
+          secret: false,
+          requiredForAuthMethods: ['client_credentials'],
+        },
+        {
+          id: 'clientSecret',
+          required: false,
+          secret: true,
+          requiredForAuthMethods: ['client_credentials'],
+        },
+      ],
+    }
+    const createWith = (credentials: string) => [
+      'node',
+      'sim',
+      'credentials',
+      'create',
+      'servicenow-service-account',
+      '--name',
+      'ServiceNow',
+      '--credentials',
+      credentials,
+    ]
+
+    it('creates the client-credentials mode without the password sign-in fields', async () => {
+      const credentials =
+        '{"authMethod":"client_credentials","clientId":"client","clientSecret":"secret","domain":"acme.service-now.com"}'
+      mockRequest
+        .mockReset()
+        .mockResolvedValueOnce({ data: [servicenow], nextCursor: null })
+        .mockResolvedValueOnce({ data: { id: 'credential-1' } })
+
+      await program().parseAsync(createWith(credentials))
+
+      const [, createRequest] = mockRequest.mock.calls[1]
+      expect(createRequest.body.credentials).toBe(credentials)
+    })
+
+    it('still names the client credentials a client-credentials create leaves out', async () => {
+      mockRequest.mockReset().mockResolvedValueOnce({ data: [servicenow], nextCursor: null })
+
+      await expect(
+        program().parseAsync(
+          createWith('{"authMethod":"client_credentials","domain":"acme.service-now.com"}')
+        )
+      ).rejects.toThrow(
+        'missing required fields for servicenow-service-account: clientId, clientSecret'
+      )
+      expect(mockRequest).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps requiring the password sign-in fields when no method is chosen', async () => {
+      mockRequest.mockReset().mockResolvedValueOnce({ data: [servicenow], nextCursor: null })
+
+      await expect(
+        program().parseAsync(createWith('{"domain":"acme.service-now.com"}'))
+      ).rejects.toThrow(
+        'missing required fields for servicenow-service-account: apiToken, providerWorkspaceId'
+      )
+      expect(mockRequest).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('native Claude Platform service account', () => {
     const claude = {
       type: 'service_account',

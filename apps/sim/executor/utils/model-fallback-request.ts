@@ -1,27 +1,19 @@
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import { resolveFallbackTuning } from '@/lib/workflows/blocks/fallback-models'
-import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
-import { isRetryableBlockError } from '@/executor/execution/block-retry'
 import type { BlockRetryAttempt, ExecutionContext } from '@/executor/types'
+import type { BlockModelCredentialInputs } from '@/executor/utils/model-credentials'
 import {
-  type BlockModelCredentialInputs,
-  type BlockModelCredentials,
-  resolveBlockModelCredentials,
-} from '@/executor/utils/model-credentials'
-import {
-  assertFallbackFamilyCredentials,
   getModelFallbacks,
   PROVIDER_FAMILY_CREDENTIAL_FIELDS,
-  recordModelFallbacks,
   resolveFallbackApiKey,
+  walkModelCandidates,
 } from '@/executor/utils/model-fallbacks'
 import { executeBlockProviderRequest } from '@/executor/utils/provider-request'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import type { ProviderRequest, ProviderResponse } from '@/providers/types'
-import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('BlockModelFallbacks')
@@ -37,16 +29,18 @@ interface ModelFallbackRequestInput {
   fallbackSystemPrompt: string
   retry?: BlockRetryAttempt
   resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
-  /** The block's saved Vertex or Bedrock credential selection, resolved per attempt. */
+  /**
+   * The block's saved Vertex or Bedrock credential selection, resolved once per call inside the
+   * first attempt on the primary's provider and shared by the fallbacks on that provider.
+   */
   credentials?: { inputs: BlockModelCredentialInputs; callerLabel: string }
 }
 
 /**
- * Shared non-streaming model execution for Router and Evaluator. Block retries
- * exhaust the primary first; the final try walks the ordered fallback models.
- * Saved credentials resolve inside the attempt, so one that cannot be resolved fails
- * that attempt and the fallbacks still run. Only candidates on the primary's provider
- * resolve them, once per call, and they never reach another provider.
+ * Shared non-streaming model execution for Router and Evaluator over
+ * `walkModelCandidates`. Saved credentials resolve inside the attempt, so one that
+ * cannot be resolved fails that attempt and the fallbacks still run; they never
+ * reach another provider.
  * Parsing a successful response remains the handler's job, so a routing decision
  * such as NO_MATCH is never silently replaced by another model's decision.
  */
@@ -62,77 +56,49 @@ export async function executeModelRequestWithFallbacks({
   resolvedSecretTraceRegistry,
   credentials,
 }: ModelFallbackRequestInput): Promise<{ result: ProviderResponse; usedFallback: boolean }> {
-  const fallbacks = getModelFallbacks(ctx, block, fallbackModels, logger)
-  const candidates = [
-    { model: request.model },
-    ...(retry && !retry.isFinalTry
-      ? []
-      : fallbacks.filter(
-          (candidate) => candidate.model.toLowerCase() !== request.model.toLowerCase()
-        )),
-  ]
-  const failedModels: string[] = []
-  let lastError: unknown
-  let savedCredentials: Promise<BlockModelCredentials> | undefined
-
-  for (const [index, candidate] of candidates.entries()) {
-    const isPrimary = index === 0
-    if (!isPrimary && ctx.abortSignal?.aborted) break
-    let candidateProviderId = providerId
-    if (!isPrimary) {
-      try {
-        candidateProviderId = getProviderFromModel(candidate.model)
-        await validateModelProvider(ctx.userId, ctx.workspaceId, candidate.model, ctx)
-        assertFallbackFamilyCredentials(candidateProviderId, providerId)
-      } catch (error) {
-        logger.warn(
-          'Fallback model unusable; skipping',
-          projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry, {
-            blockId: block.id,
-            model: candidate.model,
-          })
-        )
-        continue
-      }
-    }
-
-    let candidateRequest = request
-    if (!isPrimary) {
-      const sameProvider = candidateProviderId === providerId
-      const { adjustments: _adjustments, ...tuning } = resolveFallbackTuning(
-        candidate,
-        configuredModel,
-        request
-      )
-      candidateRequest = {
-        ...(sameProvider
-          ? request
-          : omit(request, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS, 'bedrockSession'])),
-        ...tuning,
-        temperature: tuning.temperature === undefined ? undefined : Number(tuning.temperature),
-        maxTokens: tuning.maxTokens === undefined ? undefined : Number(tuning.maxTokens),
-        model: candidate.model,
-        apiKey: resolveFallbackApiKey({
+  return walkModelCandidates({
+    ctx,
+    block,
+    primary: {
+      model: request.model,
+      ...(isAutoModel(configuredModel) ? { traceName: SIM_AUTO_MODEL_ID } : {}),
+    },
+    primaryProviderId: providerId,
+    fallbacks: getModelFallbacks(ctx, block, fallbackModels, logger),
+    retry,
+    credentials,
+    attempt: async (
+      candidate,
+      { isPrimary, providerId: candidateProviderId, sameProvider, credentials: savedCredentials }
+    ) => {
+      let candidateRequest = request
+      if (!isPrimary) {
+        const { adjustments: _adjustments, ...tuning } = resolveFallbackTuning(
           candidate,
           configuredModel,
-          sameProvider,
-          primaryApiKey: request.apiKey,
-          blockId: block.id,
-          logger,
-        }),
-        systemPrompt: fallbackSystemPrompt,
-      }
-    }
-
-    try {
-      if (credentials && candidateProviderId === providerId) {
-        savedCredentials ??= resolveBlockModelCredentials(
-          ctx,
-          providerId,
-          credentials.inputs,
-          credentials.callerLabel
+          request
         )
-        candidateRequest = { ...candidateRequest, ...(await savedCredentials) }
+        candidateRequest = {
+          ...(sameProvider
+            ? request
+            : omit(request, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS, 'bedrockSession'])),
+          ...tuning,
+          temperature: tuning.temperature === undefined ? undefined : Number(tuning.temperature),
+          maxTokens: tuning.maxTokens === undefined ? undefined : Number(tuning.maxTokens),
+          model: candidate.model,
+          apiKey: resolveFallbackApiKey({
+            candidate,
+            configuredModel,
+            sameProvider,
+            primaryApiKey: request.apiKey,
+            blockId: block.id,
+            logger,
+          }),
+          systemPrompt: fallbackSystemPrompt,
+        }
+      }
+      if (savedCredentials) {
+        candidateRequest = { ...candidateRequest, ...(await savedCredentials()) }
       }
       const result = await executeBlockProviderRequest({
         ctx,
@@ -140,29 +106,23 @@ export async function executeModelRequestWithFallbacks({
         request: candidateRequest,
         resolvedSecretTraceRegistry,
       })
-      recordModelFallbacks(ctx, block, failedModels)
       return { result, usedFallback: !isPrimary }
-    } catch (error) {
-      lastError = error
-      failedModels.push(
-        isPrimary && isAutoModel(configuredModel) ? SIM_AUTO_MODEL_ID : candidate.model
-      )
-      if (
-        index === candidates.length - 1 ||
-        ctx.abortSignal?.aborted ||
-        !isRetryableBlockError(error)
-      )
-        break
+    },
+    onSkip: (model, error) =>
+      logger.warn(
+        'Fallback model unusable; skipping',
+        projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry, {
+          blockId: block.id,
+          model,
+        })
+      ),
+    onFallback: ({ error, failedModel }) =>
       logger.warn(
         'Model request failed; trying fallback',
         projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry, {
           blockId: block.id,
-          failedModel: candidate.model,
+          failedModel,
         })
-      )
-    }
-  }
-
-  recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
-  throw lastError
+      ),
+  })
 }

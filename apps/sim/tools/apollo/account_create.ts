@@ -1,5 +1,5 @@
 import type { ApolloAccountCreateParams, ApolloAccountCreateResponse } from '@/tools/apollo/types'
-import { getApolloAuthHeaders } from '@/tools/apollo/utils'
+import { APOLLO_CREDENTIAL_TYPE_PARAM, getApolloAuthHeaders } from '@/tools/apollo/utils'
 import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -14,12 +14,7 @@ export const apolloAccountCreateTool: ToolConfig<
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
-    credentialType: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'Stored credential type supplied by credential resolution',
-    },
+    ...APOLLO_CREDENTIAL_TYPE_PARAM,
     apiKey: {
       type: 'string',
       required: true,

@@ -91,19 +91,20 @@ By default, local file tools ask for folder access when they need an unapproved 
 
 ### Native Mac-app control
 
-**Computer Use** appears under **Settings → Account → Desktop** only when the deployment and installed app provide it. It requires **macOS 14 or later** and is off by default on each Mac. Browser, Terminal, and local file permissions are separate controls.
+**Computer Use** appears under **Settings → Account → Desktop** when the installed app provides it. It requires **macOS 14 or later** and is off by default on each Mac. Organization admins can withhold it with the **Computer Use** permission-group restriction. Browser, Terminal, and local file permissions are separate controls.
 
 To enable it when available:
 
-1. Open **Computer Use** and turn **Allow Mothership to use Mac apps** to **On** to allow Sim to use native apps.
-2. Use **Open System Settings** to grant **Accessibility** for app interaction and **Screen Recording** for screenshots. Grant these permissions yourself, then return to Sim to refresh their status.
-3. When Sim requests an app, choose **Allow for This Task**, **Always Allow**, or **Cancel**. **Always Allow** saves that app's permission on this Mac.
+1. Turn **Use apps on this Mac** to **On**.
+2. Select **Allow** next to **Accessibility** (app interaction) and **Screen Recording** (screenshots), grant them in System Settings, then return to Sim.
 
-Sim can read approved app windows and interact through clicks, text, keyboard shortcuts, scrolling, and supported accessibility controls. Screenshots and returned app content can be sent to your Sim deployment and model. Some actions require bringing the app to the foreground; app compatibility and macOS permissions can still limit what succeeds.
+Sim can then use any app except terminals and scripting apps (Script Editor, Automator, Shortcuts), password managers, and macOS System Settings (and Sim itself); shell work goes through **Terminal** access instead. To approve each app the first time Sim uses it, turn on **Ask before using a new app**; Sim then offers **Allow for This Task**, **Always Allow**, or **Cancel**.
+
+Sim can read app windows and interact through clicks, text, keyboard shortcuts, scrolling, and supported accessibility controls. Screenshots and returned app content can be sent to your Sim deployment and model. Some actions require bringing the app to the foreground; app compatibility and macOS permissions can still limit what succeeds.
 
 The conversation shows the active app and action. Select **Stop**, or press **Cmd + Shift + Escape** when that shortcut is available, to cancel active and queued computer actions. Stopping cannot undo input already delivered to an app. Verify the app's current state before repeating an interrupted action.
 
-Use **Revoke** under **Approved apps** to remove a saved permission, or switch Computer Use off. Signing out or changing deployments clears the device opt-in and app approvals. Computer Use cannot operate Sim's own permission controls or macOS System Settings.
+With **Ask before using a new app** on, use **Revoke** under **Approved apps** to remove a saved approval. Signing out or changing deployments clears the device opt-in and app approvals. Computer Use never operates Sim, macOS System Settings, password managers, terminals, or scripting apps.
 
 ### Terminal access
 

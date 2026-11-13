@@ -250,14 +250,9 @@ export function savedCredentialContractErrors(
   const takesSavedCredential = (block.tools?.access ?? []).some(
     (toolId) => (tools.metadata(toolId)?.oauth?.credentialSuppliedParams?.length ?? 0) > 0
   )
-  const picker = block.subBlocks.find(
-    (subBlock) =>
-      isSavedCredentialPicker(subBlock) &&
-      (subBlock.credentialKind === 'service-account' || takesSavedCredential)
-  )
+  const picker = block.subBlocks.find(isSavedCredentialPicker)
   // A legacy block shares its successor's tools but takes the secret inline.
-  if (!picker && legacies.length === 0) return errors
-  if (!takesSavedCredential && !picker) return errors
+  if (!picker && (legacies.length === 0 || !takesSavedCredential)) return errors
   if (!picker?.serviceId) {
     errors.push(
       `Block "${block.type}": its tools take a saved credential but it has no service-account picker with a serviceId and canonicalParamId 'oauthCredential'.`
@@ -327,10 +322,10 @@ export function savedCredentialContractErrors(
     if (!OPERATION_RESOLVED_CREDENTIAL_PROVIDERS.has(oauth.provider)) {
       if (
         oauth.tokenReplacesParams?.length &&
-        !Object.values(oauth.credentialParams ?? {}).includes('accessToken')
+        oauth.credentialParams?.accessToken !== 'accessToken'
       ) {
         errors.push(
-          `Block "${block.type}" → tool "${toolId}": tokenReplacesParams needs a credentialParams entry filled with the credential's token.`
+          `Block "${block.type}" → tool "${toolId}": tokenReplacesParams needs credentialParams to fill "accessToken" with the minted token.`
         )
       }
       const replacedByToken = new Set(oauth.tokenReplacesParams ?? [])

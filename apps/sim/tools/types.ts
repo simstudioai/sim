@@ -166,10 +166,10 @@ export interface OAuthConfig {
    */
   optionalCredentialParams?: readonly string[]
   /**
-   * Inline secrets the saved credential's token replaces (the client id and
-   * secret a client-credential account mints with, or a username and password
-   * a tool reads only without a token): the tool authenticates with the token
-   * and never reads them. Listed in `credentialSuppliedParams` too.
+   * Inline secrets a saved client-credential account replaces with the token
+   * it mints (`credentialParams.accessToken`): the tool authenticates with the
+   * token and never reads them. Listed in `credentialSuppliedParams` too.
+   * Built by `clientCredentialOAuth`.
    */
   tokenReplacesParams?: readonly string[]
   /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */

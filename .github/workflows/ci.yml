@@ -209,8 +209,11 @@ jobs:
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
             bs_runner: blacksmith-16vcpu-ubuntu-2404
+          # Dev runs `db:push`, which needs drizzle-kit; every other environment
+          # gets the final stage, which carries runtime dependencies only.
           - id: db
             dockerfile: ./docker/db.Dockerfile
+            target: dev
             ecr_repo_secret: ECR_MIGRATIONS
             gh_runner: ubuntu-latest
             bs_runner: blacksmith-2vcpu-ubuntu-2404
@@ -259,6 +262,7 @@ jobs:
           tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:${{ github.sha }}-dev
           build-args: |
             MSHIP_PLAN_MODE_DEFAULT=true
+          target: ${{ matrix.target }}
           max-cache-size-mb: ${{ matrix.cache_mb }}
 
   # Staging/production coordinate task releases with app traffic cutover.

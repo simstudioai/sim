@@ -12,6 +12,7 @@ import {
   invalidateVantaClientToken,
   resolveVantaClientToken,
 } from '@/lib/credentials/client-credential-accounts/vanta-token'
+import { REJECTED_TOKEN_MINIMUM_AGE_MS } from '@/lib/credentials/token-request-resilience'
 import { fetchVantaWithAuth } from '@/lib/internal/vanta/client'
 
 const READ = 'vanta-api.all:read'
@@ -38,6 +39,17 @@ function fields(suffix: string) {
 
 function sha256Json(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex')
+}
+
+/**
+ * Backdates the row holding this token past {@link REJECTED_TOKEN_MINIMUM_AGE_MS}, so a rejection
+ * of it expires it rather than keeping a token minted within the last minute.
+ */
+async function ageToken(apiDomain: string, accessToken: string) {
+  await db
+    .update(clientCredentialToken)
+    .set({ updatedAt: new Date(Date.now() - REJECTED_TOKEN_MINIMUM_AGE_MS - 1000) })
+    .where(eq(clientCredentialToken.accessTokenDigest, sha256Json([apiDomain, accessToken])))
 }
 
 /** Row ids and digests exactly as the build before the shared resolver derived them. */
@@ -246,6 +258,7 @@ describe('Vanta application token lifecycle against shared storage', () => {
           .set({ expiresAt: new Date(Date.now() - 1000) })
           .where(eq(clientCredentialToken.accessTokenDigest, tokenDigest))
       } else {
+        await ageToken(first.apiDomain, first.accessToken)
         await invalidateVantaClientToken(first.accessToken, first.apiDomain)
       }
       const count = tokenRequests
@@ -276,6 +289,7 @@ describe('Vanta application token lifecycle against shared storage', () => {
   it('changes a revoked token only once when several requests reject the same token', async () => {
     const input = fields('rejected-token')
     const first = await resolveVantaClientToken(input)
+    await ageToken(first.apiDomain, first.accessToken)
     await Promise.all(
       Array.from({ length: 8 }, () =>
         invalidateVantaClientToken(first.accessToken, first.apiDomain)
@@ -315,14 +329,17 @@ describe('Vanta application token lifecycle against shared storage', () => {
     expect(stored).not.toContain(result.accessToken)
   })
 
-  it('recovers on the next authorized resolution after a saved token is rejected', async () => {
+  it('keeps a token minted within the last minute when a request rejects it, and renews an older one', async () => {
     const input = fields('saved-rejected')
     const first = await resolveVantaClientToken(input)
-    const response = await fetchVantaWithAuth(
-      first,
-      async () => new Response(null, { status: 401 })
-    )
-    expect(response.status).toBe(401)
+    const rejected = async () => new Response(null, { status: 401 })
+    expect((await fetchVantaWithAuth(first, rejected)).status).toBe(401)
+    const count = tokenRequests
+    expect((await resolveVantaClientToken(input)).accessToken).toBe(first.accessToken)
+    expect(tokenRequests).toBe(count)
+
+    await ageToken(first.apiDomain, first.accessToken)
+    expect((await fetchVantaWithAuth(first, rejected)).status).toBe(401)
     const next = await resolveVantaClientToken(input)
     expect(next.accessToken).not.toBe(first.accessToken)
     expect(await isActive(next.accessToken)).toBe(true)
@@ -331,10 +348,12 @@ describe('Vanta application token lifecycle against shared storage', () => {
   it('does not invalidate a newer token or another deployment after a stale token rejection', async () => {
     const input = fields('saved-stale-rejected')
     const first = await resolveVantaClientToken(input)
+    await ageToken(first.apiDomain, first.accessToken)
     await invalidateVantaClientToken(first.accessToken, 'https://api.vanta-gov.com')
     expect((await resolveVantaClientToken(input)).accessToken).toBe(first.accessToken)
     await invalidateVantaClientToken(first.accessToken, first.apiDomain)
     const next = await resolveVantaClientToken(input)
+    await ageToken(next.apiDomain, next.accessToken)
     await invalidateVantaClientToken(first.accessToken, first.apiDomain)
     expect((await resolveVantaClientToken(input)).accessToken).toBe(next.accessToken)
     expect(await isActive(next.accessToken)).toBe(true)
@@ -491,6 +510,7 @@ describe('Vanta token rows shared with the previous build during a rolling deplo
     const input = fields('legacy-invalidated')
     const keys = previousBuildKeys(input, READ)
     await storePreviousBuildToken(keys, 'legacy-rejected-token', READ, 3_600_000)
+    await ageToken('https://api.vanta.com', 'legacy-rejected-token')
 
     await invalidateVantaClientToken('legacy-rejected-token', 'https://api.vanta.com')
 

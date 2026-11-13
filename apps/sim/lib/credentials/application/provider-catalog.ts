@@ -7,8 +7,12 @@ import {
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { getDatabaseConnectionDescriptor } from '@/lib/credentials/database-connections/descriptors'
 import {
+  CLIENT_CREDENTIALS_AUTH_METHOD,
+  isTokenServiceAccountFieldRequired,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+  TOKEN_AUTH_METHOD,
   TOKEN_SERVICE_ACCOUNT_DESCRIPTORS,
+  type TokenServiceAccountDescriptor,
   type TokenServiceAccountField,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
@@ -117,15 +121,14 @@ const ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL =
   'https://docs.sim.ai/integrations/atlassian-service-account'
 
 function providerField(
-  field: TokenServiceAccountField | ClientCredentialAccountField
+  field: TokenServiceAccountField | ClientCredentialAccountField,
+  required: boolean
 ): CredentialProviderField {
   return {
     id: field.id,
     label: field.label,
     placeholder: field.placeholder,
-    required:
-      !('optional' in field && field.optional) &&
-      !('defaultValue' in field && field.defaultValue !== undefined),
+    required,
     secret: field.secret,
     multiline: 'multiline' in field && field.multiline === true,
     ...('requiredForAuthMethods' in field && field.requiredForAuthMethods
@@ -141,6 +144,74 @@ function providerField(
         ? { hint: field.hintMessage }
         : {}),
   }
+}
+
+/**
+ * A token provider's fields. One that also offers a client-credentials grant adds `authMethod`,
+ * `clientId`, and `clientSecret`, read the way its create builder reads them: `authMethod:
+ * 'client_credentials'` sends the client ID and secret in place of the token (and of any field
+ * that belongs to the pasted-token sign-in only), and an omitted `authMethod` keeps the token.
+ */
+function tokenProviderFields(descriptor: TokenServiceAccountDescriptor): CredentialProviderField[] {
+  const { clientCredentials } = descriptor
+  const fields = descriptor.fields.map((field) => {
+    const catalogField = providerField(
+      field,
+      isTokenServiceAccountFieldRequired(field, TOKEN_AUTH_METHOD)
+    )
+    return clientCredentials && field.id === 'apiToken'
+      ? { ...catalogField, requiredForAuthMethods: [TOKEN_AUTH_METHOD] }
+      : catalogField
+  })
+  if (!clientCredentials) return fields
+  return [...fields, ...clientCredentialModeFields(clientCredentials)]
+}
+
+/**
+ * The fields a headless caller sends to pick and fill a provider's OAuth client-credentials mode
+ * instead of its pasted token: the mode selector, and the client ID and secret that mode requires.
+ */
+function clientCredentialModeFields(mode: {
+  label: string
+  tokenLabel: string
+  helpText?: string
+}): CredentialProviderField[] {
+  const clientCredentialMethods = [CLIENT_CREDENTIALS_AUTH_METHOD]
+  return [
+    {
+      id: 'authMethod',
+      label: 'Authentication method',
+      placeholder: TOKEN_AUTH_METHOD,
+      required: false,
+      secret: false,
+      multiline: false,
+      options: [
+        { value: TOKEN_AUTH_METHOD, label: mode.tokenLabel },
+        { value: CLIENT_CREDENTIALS_AUTH_METHOD, label: mode.label },
+      ],
+      defaultValue: TOKEN_AUTH_METHOD,
+      hint: `Send ${CLIENT_CREDENTIALS_AUTH_METHOD} with clientId and clientSecret instead of the fields required only for ${TOKEN_AUTH_METHOD}.`,
+    },
+    {
+      id: 'clientId',
+      label: 'Client ID',
+      placeholder: 'Paste the client ID',
+      required: false,
+      secret: false,
+      multiline: false,
+      requiredForAuthMethods: clientCredentialMethods,
+      ...(mode.helpText ? { hint: mode.helpText } : {}),
+    },
+    {
+      id: 'clientSecret',
+      label: 'Client secret',
+      placeholder: 'Paste the client secret',
+      required: false,
+      secret: true,
+      multiline: false,
+      requiredForAuthMethods: clientCredentialMethods,
+    },
+  ]
 }
 
 interface KeylessCatalogMode {
@@ -351,7 +422,8 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
   if (providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
     return {
       name: 'Atlassian service account',
-      description: 'Connect Jira and Confluence with an Atlassian API token.',
+      description:
+        'Connect Jira and Confluence with an Atlassian API token or a service account OAuth 2.0 credential.',
       docsUrl: ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL,
       fields: [
         {
@@ -361,6 +433,7 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           required: true,
           secret: true,
           multiline: false,
+          requiredForAuthMethods: [TOKEN_AUTH_METHOD],
         },
         {
           id: 'domain',
@@ -383,6 +456,11 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           ],
           hint: 'Select the product this token can access. Defaults to Jira.',
         },
+        ...clientCredentialModeFields({
+          label: 'Service account OAuth 2.0',
+          tokenLabel: 'API token',
+          helpText: "The client ID of the service account's OAuth 2.0 credential.",
+        }),
       ],
     }
   }
@@ -484,7 +562,7 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
       docsUrl: tokenDescriptor.docsUrl,
       helpText: tokenDescriptor.helpText,
       fields: [
-        ...tokenDescriptor.fields.map(providerField),
+        ...tokenProviderFields(tokenDescriptor),
         {
           id: 'serviceAccountJson',
           label: 'Connection configuration',
@@ -510,7 +588,7 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
       description: `Connect ${tokenDescriptor.serviceLabel} with a ${tokenDescriptor.tokenNoun}.`,
       docsUrl: tokenDescriptor.docsUrl,
       helpText: tokenDescriptor.helpText,
-      fields: tokenDescriptor.fields.map(providerField),
+      fields: tokenProviderFields(tokenDescriptor),
     }
   }
 
@@ -525,7 +603,7 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
       description: `Connect ${clientDescriptor.serviceLabel} with a ${clientDescriptor.connectNoun}.`,
       docsUrl: clientDescriptor.docsUrl,
       helpText: clientDescriptor.helpText,
-      fields: clientDescriptor.fields.map(providerField),
+      fields: clientDescriptor.fields.map((field) => providerField(field, !field.optional)),
     }
   }
 

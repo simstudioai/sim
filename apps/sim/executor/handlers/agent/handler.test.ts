@@ -42,7 +42,8 @@ import { AGENT, BlockType } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/handler'
 import * as agentMemory from '@/executor/handlers/agent/memory'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
-import type { ExecutionContext, StreamingExecution } from '@/executor/types'
+import type { BlockLog, ExecutionContext, StreamingExecution } from '@/executor/types'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   getEncryptedConversationMessage,
@@ -839,7 +840,7 @@ describe('AgentBlockHandler', () => {
       timing: { total: 1 },
     })
 
-    const openLog = (blockId = mockBlock.id, endedAt = '') => ({
+    const openLog = (blockId = mockBlock.id, endedAt = ''): BlockLog => ({
       blockId,
       startedAt: '2026-01-01T00:00:00.000Z',
       endedAt,
@@ -1228,6 +1229,35 @@ describe('AgentBlockHandler', () => {
       expect(mockResolveBedrockCredentialSession).toHaveBeenCalledTimes(1)
     })
 
+    it('resolves the AWS credential once for a fallback on the same provider', async () => {
+      const session = {
+        credentialId: 'aws-cred',
+        accessKeyId: 'ASIASESSIONKEY000001',
+        secretAccessKey: 'session-secret',
+        sessionToken: 'session-token',
+      }
+      mockResolveBedrockCredentialSession.mockResolvedValueOnce(session)
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('overloaded'))
+        .mockResolvedValueOnce(providerResponse('bedrock/claude-fallback'))
+
+      await handler.execute(mockContext, mockBlock, {
+        ...baseInputs,
+        model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
+        bedrockCredential: 'aws-cred',
+        fallbackModels: [{ model: 'bedrock/claude-fallback' }],
+      })
+
+      expect(mockResolveBedrockCredentialSession).toHaveBeenCalledTimes(1)
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+      const [[primaryProvider, primaryRequest], [fallbackProvider, fallbackRequest]] =
+        mockExecuteProviderRequest.mock.calls
+      expect([primaryProvider, fallbackProvider]).toEqual(['bedrock', 'bedrock'])
+      expect(primaryRequest.bedrockSession).toEqual(session)
+      expect(fallbackRequest.bedrockSession).toEqual(session)
+    })
+
     it('re-resolves tuning for the fallback: row value wins, caps clamp, undeclared values drop', async () => {
       const fallbackCap = getModelCapabilities('gpt-5.4-mini')?.maxOutputTokens
       expect(fallbackCap).toEqual(expect.any(Number))
@@ -1272,6 +1302,111 @@ describe('AgentBlockHandler', () => {
       ).rejects.toBe(last)
       expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
       expect(blockLog).toMatchObject({ modelFallbacks: ['gpt-4o'] })
+    })
+
+    describe('a fallback whose provider cannot take the attached file', () => {
+      const attachment = {
+        id: 'file-1',
+        name: 'example.png',
+        key: 'execution/test-workspace/test-workflow/exec-1/example.png',
+        url: 'https://storage.example.com/expired',
+        size: 8,
+        type: 'image/png',
+        context: 'execution',
+        base64: 'iVBORw0KGgo=',
+      }
+
+      /** A secret only the primary's tool call activates, so only its failed attempt's registries know it. */
+      const contextWithToolSecretCatalog = (blockLog: ReturnType<typeof openLog>) => ({
+        ...mockContext,
+        executionId: 'exec-1',
+        blockLogs: [blockLog],
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([
+          { name: 'TOKEN', plaintext: 'tool-secret', encryptedValue: 'encrypted-tool-secret' },
+        ]),
+      })
+
+      const inputsWithAttachment = (fallbackModels: Array<{ model: string }>) => ({
+        ...baseInputs,
+        files: [attachment],
+        fallbackModels,
+      })
+
+      let hydrate: ReturnType<typeof vi.spyOn>
+      const primaryError = new Error('overloaded after reading tool-secret')
+
+      beforeEach(() => {
+        mockGetProviderFromModel.mockImplementation((model: string) =>
+          model.startsWith('deepseek') ? 'deepseek' : providerFor(model)
+        )
+        hydrate = vi
+          .spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
+          .mockImplementation(async (files) => files)
+        mockExecuteProviderRequest.mockImplementationOnce(async (_provider, _request, options) => {
+          const runtimeRegistry = options.resolvedSecretTraceRegistry as ResolvedSecretTraceRegistry
+          runtimeRegistry.recordResolved('TOKEN', 'tool-secret', { propagated: true })
+          throw primaryError
+        })
+      })
+
+      afterEach(() => {
+        hydrate.mockRestore()
+      })
+
+      it("is skipped, and the primary's error rethrows against its failed attempt's registries", async () => {
+        const blockLog = openLog()
+        blockLog.modelFallbacks = ['stale-from-earlier-run']
+        const ctx = contextWithToolSecretCatalog(blockLog)
+
+        await expect(
+          handler.execute(ctx, mockBlock, inputsWithAttachment([{ model: 'deepseek-chat' }]))
+        ).rejects.toBe(primaryError)
+
+        expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+        /** Only the final error failed, and a skip is not a failed try, so the log records nothing. */
+        expect(blockLog.modelFallbacks).toBeUndefined()
+        for (const registry of [
+          ctx.errorResolvedSecretTraceRegistry,
+          ctx.resolvedSecretTraceRegistry,
+        ]) {
+          expect(projectResolvedSecretDiagnosticError(primaryError, registry)).toMatchObject({
+            error: 'overloaded after reading {{TOKEN}}',
+          })
+        }
+      })
+
+      it('is skipped for a later fallback that starts from the settled registries and answers', async () => {
+        const blockLog = openLog()
+        const ctx = contextWithToolSecretCatalog(blockLog)
+        const fallbackRegistries: Array<ResolvedSecretTraceRegistry | undefined> = []
+        mockExecuteProviderRequest.mockImplementationOnce(async (_provider, _request, options) => {
+          const executionContext = options.executionContext as ExecutionContext
+          fallbackRegistries.push(
+            executionContext.errorResolvedSecretTraceRegistry,
+            executionContext.resolvedSecretTraceRegistry
+          )
+          return providerResponse('claude-sonnet-5', 'from fallback')
+        })
+
+        const result = await handler.execute(
+          ctx,
+          mockBlock,
+          inputsWithAttachment([{ model: 'deepseek-chat' }, { model: 'claude-sonnet-5' }])
+        )
+
+        expect(mockExecuteProviderRequest.mock.calls.map(([provider]) => provider)).toEqual([
+          'openai',
+          'anthropic',
+        ])
+        expect((result as { model: string }).model).toBe('claude-sonnet-5')
+        /** Only the primary's tool call activated the secret, so registries from the settled inputs leave it unredacted. */
+        expect(fallbackRegistries).toHaveLength(2)
+        for (const registry of fallbackRegistries) {
+          expect(projectResolvedSecretDiagnosticError(primaryError, registry)).toMatchObject({
+            error: 'overloaded after reading tool-secret',
+          })
+        }
+      })
     })
 
     it('skips sim-auto, duplicates, the primary itself, and unusable providers', async () => {

@@ -795,7 +795,7 @@
   },
   "apps/sim/executor/handlers/agent/handler.test.ts": {
     "TS18046": 2,
-    "TS2339": 3,
+    "TS2339": 1,
     "TS2345": 1,
     "TS2352": 1,
     "TS7006": 1

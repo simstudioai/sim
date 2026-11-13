@@ -12,11 +12,13 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
-function setup(enabled = true) {
+/** `askForApps` defaults on so the approval tests exercise the prompt; the default device mode asks for nothing. */
+function setup(enabled = true, askForApps = true) {
   const root = mkdtempSync(join(tmpdir(), 'sim-computer-use-test-'))
   roots.push(root)
   const config = createConfigStore(join(root, 'settings.json'))
   config.set('computerUseEnabled', enabled)
+  config.set('computerUseAskForApps', askForApps)
   let sequence = 0
   const request = vi.fn(async (method: string): Promise<ComputerUseResult> => {
     if (method === 'status' || method === 'request_permission')
@@ -410,6 +412,25 @@ describe('native computer use authority and lifecycle', () => {
     await state()
     service.invalidateSnapshots()
     await expect(click('s1')).rejects.toThrow('stale')
+  })
+
+  it('operates any unprotected app without asking or saving an approval by default', async () => {
+    const { state, click, service, native, approveApp, onActivity } = setup(true, false)
+    await state()
+    await click('s1')
+    expect(approveApp).not.toHaveBeenCalled()
+    expect(service.listAppPermissions()).toEqual([])
+    expect(onActivity).toHaveBeenCalledWith(expect.objectContaining({ appName: 'Fixture' }))
+    expect(native.request.mock.calls.filter(([method]) => method === 'list_apps')).toHaveLength(1)
+  })
+
+  it('asks for new apps only once the user turns asking on, and clears that choice on reset', async () => {
+    const { state, service, approveApp } = setup(true, false)
+    await expect(service.setAskForApps(true)).resolves.toMatchObject({ askForApps: true })
+    approveApp.mockResolvedValueOnce('deny')
+    await expect(state()).rejects.toThrow('denied')
+    service.reset()
+    expect((await service.getStatus()).askForApps).toBe(false)
   })
 
   it('clears grants and opt-in on account reset', async () => {

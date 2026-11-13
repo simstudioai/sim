@@ -18,7 +18,11 @@
 
 import { impersonateEmailSchema } from '@/lib/api/contracts/oauth-connections'
 import { storedAudienceField } from '@/lib/credentials/workload-identity/audiences'
-import { getProviderIdFromServiceId, getScopesForService } from '@/lib/oauth/utils'
+import {
+  getProviderIdFromServiceId,
+  getScopesForService,
+  getServiceConfigByServiceId,
+} from '@/lib/oauth/utils'
 
 /**
  * The Google services a keyless credential may mint for as the service account
@@ -43,6 +47,17 @@ export const GOOGLE_DELEGATION_SERVICES = [
 ] as const
 
 export type GoogleDelegationService = (typeof GOOGLE_DELEGATION_SERVICES)[number]
+
+/**
+ * "Gmail, Google Drive, …, and Google Calendar": the services a keyless
+ * credential can delegate, by the names the delegation picker shows.
+ */
+export const GOOGLE_DELEGATION_SERVICE_NAMES = new Intl.ListFormat('en', {
+  style: 'long',
+  type: 'conjunction',
+}).format(
+  GOOGLE_DELEGATION_SERVICES.map((service) => getServiceConfigByServiceId(service)?.name ?? service)
+)
 
 const DELEGATION_SERVICE_SET: ReadonlySet<string> = new Set(GOOGLE_DELEGATION_SERVICES)
 

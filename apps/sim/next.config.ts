@@ -491,7 +491,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/team',
-        destination: 'https://cal.com/team/sim/demo',
+        destination: `${SIM_SITE_URL}/demo`,
         permanent: false,
       },
       {
@@ -738,10 +738,6 @@ const nextConfig: NextConfig = {
         {
           source: '/favicon.ico',
           destination: '/icon.svg',
-        },
-        {
-          source: '/r/:shortCode',
-          destination: 'https://go.trybeluga.ai/:shortCode',
         },
       ],
       /**

@@ -1,14 +1,28 @@
 'use client'
 
-import { type ReactNode, useEffect, useId, useState } from 'react'
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { Chip, ChipDropdown, ChipInput, ChipTextarea, Label } from '@sim/emcn'
+import { toError } from '@sim/utils/errors'
 import {
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
   type DemoRequestBody,
 } from '@/lib/api/contracts/demo-requests'
+import { getEnv } from '@/lib/core/config/env'
 import { isFreeEmailDomain } from '@/lib/messaging/email/free-email'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useSubmitDemoRequest } from '@/hooks/queries/demo-requests'
+
+/** Build-time-inlined Turnstile site key; absent when captcha isn't configured. */
+const TURNSTILE_SITE_KEY = getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY')
+
+/**
+ * How long Continue waits on the invisible challenge before sending the request
+ * without a token. An interactive challenge cannot be shown in the hidden
+ * widget, so waiting longer only delays the calendar; the server then marks the
+ * request unverified and the booking goes to manual review.
+ */
+const CAPTCHA_WAIT_MS = 5_000
 
 /** Options for the "What can we help you with?" select; the first is the default. */
 const TOPIC_OPTIONS = [
@@ -155,17 +169,27 @@ function DemoField({ label, htmlFor, required, error, children }: DemoFieldProps
  * looks like an address attempt, and the primary {@link Chip} stays disabled until
  * every required field is valid.
  *
- * On a valid submit it fires the inbound-demo notification to sales (via
- * {@link useSubmitDemoRequest}, best-effort - never blocking) and composes a
- * {@link DemoLead} (name, email, and a notes summary) handed to `onComplete`,
- * which advances the card to the scheduler.
+ * On a valid submit it sends the demo request (via {@link useSubmitDemoRequest})
+ * with an invisible Turnstile token and a honeypot `website` field, and only
+ * once the server has recorded it hands a {@link DemoLead} (name, email, and a
+ * notes summary) to `onComplete`, which advances the card to the scheduler. The
+ * record decides whether the booking is confirmed automatically or reviewed by
+ * hand, so the calendar never opens before it exists. A failed request keeps the
+ * form open with an inline error.
  */
 export function DemoForm({ onComplete }: DemoFormProps) {
   const submitDemoRequest = useSubmitDemoRequest()
   const [form, setForm] = useState<DemoFormState>(INITIAL_STATE)
+  const [website, setWebsite] = useState('')
+  /** Turnstile mounts on first focus, like the scheduler preload, so its script never competes with page load. */
+  const [captchaArmed, setCaptchaArmed] = useState(false)
+  const turnstileRef = useRef<TurnstileInstance>(null)
+  const widgetLoadedRef = useRef(false)
 
-  const setField = (key: keyof DemoFormState) => (value: string) =>
+  const setField = (key: keyof DemoFormState) => (value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }))
+    if (submitDemoRequest.isError) submitDemoRequest.reset()
+  }
 
   /**
    * Prefill the email from the `?email=` param the landing hero's CTA forwards
@@ -204,24 +228,53 @@ export function DemoForm({ onComplete }: DemoFormProps) {
         ? 'Please use your work email address.'
         : undefined
 
-  const handleSubmit = () => {
-    if (!canSubmit) return
+  /**
+   * Runs the invisible challenge, falling back to no token when the widget never
+   * loaded or does not answer; the server then treats the request as unverified
+   * rather than rejecting it.
+   */
+  const solveCaptcha = async (): Promise<string | undefined> => {
+    const widget = turnstileRef.current
+    if (!TURNSTILE_SITE_KEY || !widgetLoadedRef.current || !widget) return undefined
+    try {
+      widget.reset()
+      widget.execute()
+      return await widget.getResponsePromise(CAPTCHA_WAIT_MS)
+    } catch {
+      return undefined
+    }
+  }
 
-    // Best-effort sales notification — fire-and-forget so it never blocks scheduling.
-    submitDemoRequest.mutate({
+  const [isSolvingCaptcha, setIsSolvingCaptcha] = useState(false)
+  const isSubmitting = isSolvingCaptcha || submitDemoRequest.isPending
+  const submitError = submitDemoRequest.isError
+    ? toError(submitDemoRequest.error).message || 'Something went wrong. Please try again.'
+    : null
+
+  const handleSubmit = async () => {
+    if (!canSubmit || isSubmitting) return
+
+    const request: DemoRequestBody = {
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
       companyEmail: trimmedEmail,
       phoneNumber: form.phone.trim() || undefined,
       companySize: form.companySize as DemoRequestBody['companySize'],
       details: buildDetails(form),
-    })
+      website,
+    }
 
-    onComplete({
+    const lead: DemoLead = {
       name: `${form.firstName} ${form.lastName}`.trim(),
       email: trimmedEmail,
       notes: buildNotes(form),
-    })
+    }
+
+    setIsSolvingCaptcha(true)
+    const captchaToken = await solveCaptcha()
+    setIsSolvingCaptcha(false)
+
+    submitDemoRequest.mutate({ ...request, captchaToken }, { onSuccess: () => onComplete(lead) })
   }
 
   return (
@@ -236,114 +289,158 @@ export function DemoForm({ onComplete }: DemoFormProps) {
       <form
         onSubmit={(event) => {
           event.preventDefault()
-          handleSubmit()
+          void handleSubmit()
         }}
         aria-labelledby='demo-form-heading'
-        className='mt-5 flex flex-col gap-4'
+        className='relative mt-5 flex flex-col gap-4'
         noValidate
+        onFocusCapture={() => setCaptchaArmed(true)}
       >
-        <div className='grid grid-cols-2 gap-3 max-sm:grid-cols-1'>
-          <DemoField label='First name' htmlFor='demo-first-name' required>
-            <ChipInput
-              id='demo-first-name'
-              className={FIELD_HEIGHT}
-              value={form.firstName}
-              onChange={(event) => setField('firstName')(event.target.value)}
-              placeholder='Jane'
-              autoComplete='given-name'
+        {/* Out of flow, so neither control adds a row or a gap to the pinned card height. */}
+        <div
+          aria-hidden='true'
+          className='pointer-events-none absolute left-[-9999px] size-px overflow-hidden opacity-0'
+        >
+          <label htmlFor='demo-website'>Website</label>
+          <input
+            id='demo-website'
+            name='website'
+            type='text'
+            tabIndex={-1}
+            autoComplete='off'
+            value={website}
+            onChange={(event) => setWebsite(event.target.value)}
+            data-lpignore='true'
+            data-1p-ignore='true'
+          />
+          {TURNSTILE_SITE_KEY && captchaArmed ? (
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={TURNSTILE_SITE_KEY}
+              options={{ execution: 'execute', appearance: 'execute', size: 'invisible' }}
+              onWidgetLoad={() => {
+                widgetLoadedRef.current = true
+              }}
+              onError={() => {
+                widgetLoadedRef.current = false
+              }}
+              onUnsupported={() => {
+                widgetLoadedRef.current = false
+              }}
             />
-          </DemoField>
-          <DemoField label='Last name' htmlFor='demo-last-name' required>
-            <ChipInput
-              id='demo-last-name'
-              className={FIELD_HEIGHT}
-              value={form.lastName}
-              onChange={(event) => setField('lastName')(event.target.value)}
-              placeholder='Doe'
-              autoComplete='family-name'
-            />
-          </DemoField>
+          ) : null}
         </div>
+        {/* Locked while submitting, so the request and the scheduler's prefill never go stale mid-wait. */}
+        <fieldset disabled={isSubmitting} className='m-0 flex min-w-0 flex-col gap-4 border-0 p-0'>
+          <div className='grid grid-cols-2 gap-3 max-sm:grid-cols-1'>
+            <DemoField label='First name' htmlFor='demo-first-name' required>
+              <ChipInput
+                id='demo-first-name'
+                className={FIELD_HEIGHT}
+                value={form.firstName}
+                onChange={(event) => setField('firstName')(event.target.value)}
+                placeholder='Jane'
+                autoComplete='given-name'
+              />
+            </DemoField>
+            <DemoField label='Last name' htmlFor='demo-last-name' required>
+              <ChipInput
+                id='demo-last-name'
+                className={FIELD_HEIGHT}
+                value={form.lastName}
+                onChange={(event) => setField('lastName')(event.target.value)}
+                placeholder='Doe'
+                autoComplete='family-name'
+              />
+            </DemoField>
+          </div>
 
-        <DemoField label='Work email' htmlFor='demo-email' required error={emailError}>
-          <ChipInput
-            id='demo-email'
-            type='email'
-            className={FIELD_HEIGHT}
-            value={form.email}
-            onChange={(event) => setField('email')(event.target.value)}
-            error={Boolean(emailError)}
-            placeholder='jane@acme.co'
-            autoComplete='email'
-          />
-        </DemoField>
+          <DemoField label='Work email' htmlFor='demo-email' required error={emailError}>
+            <ChipInput
+              id='demo-email'
+              type='email'
+              className={FIELD_HEIGHT}
+              value={form.email}
+              onChange={(event) => setField('email')(event.target.value)}
+              error={Boolean(emailError)}
+              placeholder='jane@acme.co'
+              autoComplete='email'
+            />
+          </DemoField>
 
-        <DemoField label='Phone number (optional)' htmlFor='demo-phone'>
-          <ChipInput
-            id='demo-phone'
-            type='tel'
-            className={FIELD_HEIGHT}
-            value={form.phone}
-            onChange={(event) => setField('phone')(event.target.value)}
-            placeholder='+1 (555) 000-0000'
-            autoComplete='tel'
-          />
-        </DemoField>
+          <DemoField label='Phone number (optional)' htmlFor='demo-phone'>
+            <ChipInput
+              id='demo-phone'
+              type='tel'
+              className={FIELD_HEIGHT}
+              value={form.phone}
+              onChange={(event) => setField('phone')(event.target.value)}
+              placeholder='+1 (555) 000-0000'
+              autoComplete='tel'
+            />
+          </DemoField>
 
-        <DemoField label='Company' htmlFor='demo-company' required>
-          <ChipInput
-            id='demo-company'
-            className={FIELD_HEIGHT}
-            value={form.company}
-            onChange={(event) => setField('company')(event.target.value)}
-            placeholder='Acme Inc.'
-            autoComplete='organization'
-          />
-        </DemoField>
+          <DemoField label='Company' htmlFor='demo-company' required>
+            <ChipInput
+              id='demo-company'
+              className={FIELD_HEIGHT}
+              value={form.company}
+              onChange={(event) => setField('company')(event.target.value)}
+              placeholder='Acme Inc.'
+              autoComplete='organization'
+            />
+          </DemoField>
 
-        <DemoField label='Company size' required>
-          <ChipDropdown
-            fullWidth
-            className={FIELD_HEIGHT}
-            value={form.companySize || undefined}
-            onChange={setField('companySize')}
-            options={DEMO_REQUEST_COMPANY_SIZE_OPTIONS}
-            placeholder='Select one'
-          />
-        </DemoField>
+          <DemoField label='Company size' required>
+            <ChipDropdown
+              fullWidth
+              className={FIELD_HEIGHT}
+              value={form.companySize || undefined}
+              onChange={setField('companySize')}
+              options={DEMO_REQUEST_COMPANY_SIZE_OPTIONS}
+              placeholder='Select one'
+            />
+          </DemoField>
 
-        <DemoField label='What can we help you with?'>
-          <ChipDropdown
-            fullWidth
-            className={FIELD_HEIGHT}
-            value={form.topic}
-            onChange={setField('topic')}
-            options={TOPIC_OPTIONS}
-          />
-        </DemoField>
+          <DemoField label='What can we help you with?'>
+            <ChipDropdown
+              fullWidth
+              className={FIELD_HEIGHT}
+              value={form.topic}
+              onChange={setField('topic')}
+              options={TOPIC_OPTIONS}
+            />
+          </DemoField>
 
-        <DemoField label='Anything else we should know? (optional)' htmlFor='demo-message'>
-          <ChipTextarea
-            id='demo-message'
-            value={form.message}
-            onChange={(event) => setField('message')(event.target.value)}
-            placeholder='What are you hoping to build with Sim?'
-            rows={3}
-          />
-        </DemoField>
+          <DemoField label='Anything else we should know? (optional)' htmlFor='demo-message'>
+            <ChipTextarea
+              id='demo-message'
+              value={form.message}
+              onChange={(event) => setField('message')(event.target.value)}
+              placeholder='What are you hoping to build with Sim?'
+              rows={3}
+            />
+          </DemoField>
 
-        {/*
-          `Chip` gives its label span `flex-1`; under `fullWidth` that left-aligns the
-          label, so center it with `justify-center` + a `flex-none` span override.
-        */}
+          {/*
+            `Chip` gives its label span `flex-1`; under `fullWidth` that left-aligns the
+            label, so center it with `justify-center` + a `flex-none` span override.
+          */}
+        </fieldset>
+        {submitError ? (
+          <p role='alert' className='text-[var(--text-error)] text-caption'>
+            {submitError}
+          </p>
+        ) : null}
+
         <Chip
           type='submit'
           variant='primary'
           fullWidth
-          disabled={!canSubmit}
+          disabled={!canSubmit || isSubmitting}
           className='mt-1 justify-center [&>span]:flex-none'
         >
-          Continue
+          {isSubmitting ? 'Continuing…' : 'Continue'}
         </Chip>
       </form>
     </>

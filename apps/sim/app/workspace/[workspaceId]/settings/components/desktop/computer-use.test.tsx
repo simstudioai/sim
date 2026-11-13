@@ -110,6 +110,26 @@ function appRow(bundleId: string) {
   return container.querySelector<HTMLElement>(`[title="${bundleId}"]`)?.parentElement
 }
 
+it('lists approved apps only while first use of an app needs approval', async () => {
+  const status = (askForApps: boolean): ComputerUseStatus => ({
+    supported: true,
+    enabled: true,
+    permissions: { accessibility: true, screenCapture: true },
+    activeAction: null,
+    askForApps,
+  })
+  libDesktopMockFns.mockGetDesktopBridge.mockReturnValue({
+    computerUse: { ...native, setAskForApps: vi.fn(async (ask: boolean) => status(ask)) },
+  })
+  native.getStatus.mockResolvedValue(status(false))
+  await act(async () => renderSettings())
+  expect(container.querySelector('[aria-label="Ask before using a new app"]')).not.toBeNull()
+  expect(appRow('com.example.First')).toBeUndefined()
+  native.getStatus.mockResolvedValue(status(true))
+  await act(async () => window.dispatchEvent(new Event('focus')))
+  expect(appRow('com.example.First')).toBeDefined()
+})
+
 it('does not restore a revoked app when an earlier activity refresh settles late', async () => {
   await act(async () => renderSettings())
   const stale = createDeferred<ComputerUseAppPermission[]>()

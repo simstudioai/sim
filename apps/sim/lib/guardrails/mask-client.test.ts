@@ -73,6 +73,14 @@ describe('maskPIIBatchViaHttp', () => {
     expect(mockSleep).toHaveBeenCalledTimes(7)
   })
 
+  it('stops after three attempts on a persistent 500, which can be a deterministic input failure', async () => {
+    fetchMock.mockImplementation(async () => new Response('failed', { status: 500 }))
+
+    await expect(maskPIIBatchViaHttp(['a'], [])).rejects.toThrow(/mask-batch request failed/)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(mockSleep).toHaveBeenCalledTimes(2)
+  })
+
   describe('with a failed-chunk placeholder', () => {
     const PLACEHOLDER = '[FAILED]'
     const CHUNK_SIZE = 2000

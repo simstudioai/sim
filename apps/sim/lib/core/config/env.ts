@@ -144,6 +144,8 @@ export const env = createEnv({
     TRUSTED_ORIGINS:                       z.string().optional(),                  // Comma-separated additional origins to trust for auth (e.g., "https://app.example.com,https://www.example.com"). Merged into Better Auth trustedOrigins.
     BROWSER_EXTENSION_IDS:                 z.string().optional(),
     TURNSTILE_SECRET_KEY:                  z.string().min(1).optional(),           // Cloudflare Turnstile secret key for captcha verification
+    CAL_API_KEY:                           z.string().min(1).optional(),           // Cal.com API key that confirms or declines /demo booking requests (unset leaves every request for manual review)
+    CAL_WEBHOOK_SECRET:                    z.string().min(1).optional(),           // Secret Cal.com signs /demo booking webhooks with (unset disables the webhook)
     ENCRYPTION_KEY:                        z.string().min(32),                     // Key for encrypting sensitive data
     API_ENCRYPTION_KEY:                    z.string().min(32).optional(),          // Dedicated key for encrypting API keys (optional for OSS)
     ENCRYPT_ACCOUNT_TOKENS:                z.boolean().optional(),                 // Opt-out: OAuth access/refresh tokens are sealed on write (read by @sim/db) and backfilled by migrate whenever ENCRYPTION_KEY is 64 hex characters; false or 0 writes plaintext. Sealed tokens need v0.9.33+ on every process that reads them
@@ -322,7 +324,6 @@ export const env = createEnv({
 
     // Monitoring & Analytics
     TELEMETRY_ENDPOINT:                    z.string().url().optional(),            // Custom telemetry/analytics endpoint
-    FREEBUFF_API_KEY:                      z.string().min(1).optional(),           // Freebuff Ads key for server-side conversion postbacks (unset disables them)
     COST_MULTIPLIER:                       z.number().optional(),                  // Multiplier for cost calculations
     LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
     GRAFANA_OTLP_ENDPOINT:                 z.string().url().optional(),            // Grafana Cloud OTLP HTTP gateway base URL (e.g., https://otlp-gateway-prod-us-east-0.grafana.net/otlp). Trigger.dev exporters append /v1/traces, /v1/logs, /v1/metrics.
@@ -666,7 +667,6 @@ export const env = createEnv({
     AGENT_MEMORY_HISTORY:                 z.boolean().optional(),
     CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable Credential Groups on self-hosted (bypasses hosted requirements)
     KNOWLEDGE_MEMBER_ACCESS:              z.boolean().optional(),                 // Enable per-member knowledge connectors and hybrid-by-default retrieval globally
-    KNOWLEDGE_CONNECTOR_SAVED_CREDENTIALS: z.boolean().optional(),               // Fallback for the `knowledge-connector-saved-credentials` feature flag off AppConfig
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)

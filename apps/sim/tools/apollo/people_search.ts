@@ -1,5 +1,9 @@
 import type { ApolloPeopleSearchParams, ApolloPeopleSearchResponse } from '@/tools/apollo/types'
-import { getApolloAuthHeaders, isApolloOAuthCredential } from '@/tools/apollo/utils'
+import {
+  APOLLO_CREDENTIAL_TYPE_PARAM,
+  getApolloAuthHeaders,
+  isApolloOAuthCredential,
+} from '@/tools/apollo/utils'
 import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -21,12 +25,7 @@ export const apolloPeopleSearchTool: ToolConfig<
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
-    credentialType: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'Stored credential type supplied by credential resolution',
-    },
+    ...APOLLO_CREDENTIAL_TYPE_PARAM,
     apiKey: {
       type: 'string',
       required: true,

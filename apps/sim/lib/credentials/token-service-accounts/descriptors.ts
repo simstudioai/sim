@@ -158,8 +158,13 @@ interface TokenServiceAccountClientCredentials {
 /** `authMethod` value selecting the client-credentials mode of a provider whose default is a pasted token (a token provider, or the Atlassian service account). */
 export const CLIENT_CREDENTIALS_AUTH_METHOD = 'client_credentials' as const
 
+/** `authMethod` value selecting a token provider's pasted-token mode, its default. */
+export const TOKEN_AUTH_METHOD = 'token' as const
+
 /** A token provider's sign-in modes: the pasted token (the default) or its client-credentials grant. */
-export type TokenServiceAccountAuthMethod = 'token' | typeof CLIENT_CREDENTIALS_AUTH_METHOD
+export type TokenServiceAccountAuthMethod =
+  | typeof TOKEN_AUTH_METHOD
+  | typeof CLIENT_CREDENTIALS_AUTH_METHOD
 
 /** Whether a descriptor field belongs to the given sign-in mode. */
 export function tokenFieldBelongsToAuthMethod(
@@ -2647,7 +2652,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Username',
         placeholder: 'Enter the ServiceNow username',
         secret: false,
-        requiredForAuthMethods: ['token'],
+        requiredForAuthMethods: [TOKEN_AUTH_METHOD],
       },
       {
         id: 'domain',
@@ -2692,11 +2697,14 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'domain',
         label: 'Data residency',
-        placeholder: 'us or eu',
+        placeholder: 'Select a region',
         secret: false,
+        options: [
+          { value: 'us', label: 'US (app.amplitude.com)' },
+          { value: 'eu', label: 'EU (app.eu.amplitude.com)' },
+        ],
         defaultValue: 'us',
-        hintPattern: /^(us|eu|US|EU)$/,
-        hintMessage: 'Enter us or eu, the region your Amplitude project stores data in.',
+        hintMessage: 'us (default) or eu: the region your Amplitude project stores data in.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/amplitude',
@@ -2806,10 +2814,14 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'domain',
         label: 'Token type',
-        placeholder: 'account, workspace, or project',
+        placeholder: 'Select a token type',
         secret: false,
-        hintPattern: /^(account|workspace|project)$/i,
-        hintMessage: 'Enter account, workspace, or project: the scope you chose for this token.',
+        options: [
+          { value: 'account', label: 'Account token' },
+          { value: 'workspace', label: 'Workspace token' },
+          { value: 'project', label: 'Project token' },
+        ],
+        hintMessage: 'account, workspace, or project: the scope you chose for this token.',
       },
       {
         id: 'providerWorkspaceId',
@@ -2856,9 +2868,13 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
 
 /**
  * Whether a create must give the field: every field is required unless it is optional or has a
- * default.
+ * default. Given a sign-in mode, a field that does not belong to that mode is not required either.
  */
-export function isTokenServiceAccountFieldRequired(field: TokenServiceAccountField): boolean {
+export function isTokenServiceAccountFieldRequired(
+  field: TokenServiceAccountField,
+  authMethod?: TokenServiceAccountAuthMethod
+): boolean {
+  if (authMethod && !tokenFieldBelongsToAuthMethod(field, authMethod)) return false
   return !field.optional && field.defaultValue === undefined
 }
 
@@ -2880,8 +2896,7 @@ export const TOKEN_SERVICE_ACCOUNT_CLIENT_CREDENTIAL_FIELDS: Record<
         'clientSecret',
         ...descriptor.fields.flatMap((field) =>
           field.id === 'apiToken' ||
-          !tokenFieldBelongsToAuthMethod(field, CLIENT_CREDENTIALS_AUTH_METHOD) ||
-          !isTokenServiceAccountFieldRequired(field)
+          !isTokenServiceAccountFieldRequired(field, CLIENT_CREDENTIALS_AUTH_METHOD)
             ? []
             : [field.id]
         ),
@@ -2899,7 +2914,9 @@ export const TOKEN_SERVICE_ACCOUNT_REQUIRED_FIELDS: Record<string, TokenServiceA
   Object.fromEntries(
     Object.values(TOKEN_SERVICE_ACCOUNT_DESCRIPTORS).map((descriptor) => [
       descriptor.providerId,
-      descriptor.fields.filter(isTokenServiceAccountFieldRequired).map((field) => field.id),
+      descriptor.fields
+        .filter((field) => isTokenServiceAccountFieldRequired(field, TOKEN_AUTH_METHOD))
+        .map((field) => field.id),
     ])
   )
 

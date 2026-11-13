@@ -2,6 +2,7 @@ import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { AuthType } from '@/lib/auth/hybrid'
 import { resolveAuthorizedAwsCredential } from '@/lib/internal/aws/credentials'
 import { awsCredentialFailureMessage, isTransientAwsFailure } from '@/lib/internal/aws/failure'
+import { awsSigningKeys } from '@/lib/internal/aws/signing-keys'
 import { recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import type { BedrockCredentialSession } from '@/providers/types'
@@ -108,10 +109,5 @@ export async function resolveBedrockCredentialSession({
     executionId,
   })
 
-  return {
-    credentialId: access.resolvedCredentialId,
-    accessKeyId: session.accessKeyId,
-    secretAccessKey: session.secretAccessKey,
-    ...(session.sessionToken ? { sessionToken: session.sessionToken } : {}),
-  }
+  return { credentialId: access.resolvedCredentialId, ...awsSigningKeys(session) }
 }
