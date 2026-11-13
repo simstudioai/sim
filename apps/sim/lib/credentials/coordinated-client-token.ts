@@ -231,14 +231,22 @@ function isRememberedRefusal(failure: StoredFailure): boolean {
   )
 }
 
-/** The error a remembered failure is replayed as, with how long it is still replayed. */
+/**
+ * The error a remembered failure is replayed as, with how long it is still replayed. A refusal
+ * stored as `provider_unavailable` because the memo cannot hold its own code is replayed as
+ * `invalid_credentials`, so it still asks for the credential to be fixed rather than waited out.
+ */
 function replayedFailure(
   failure: StoredFailure,
   step: string,
   replayMs: number
 ): TokenServiceAccountValidationError {
+  const code =
+    failure.code === 'provider_unavailable' && isRememberedRefusal(failure)
+      ? 'invalid_credentials'
+      : failure.code
   return new TokenServiceAccountValidationError(
-    failure.code,
+    code,
     failure.status,
     { step },
     { replayForMs: Math.max(replayMs, 0) }
