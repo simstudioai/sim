@@ -3,6 +3,32 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { withSavedCredential } from '@/blocks/utils'
 
+/**
+ * Sort fields each list endpoint accepts. The only Sort By field is the List Projects one, so a
+ * value stored there reaches the other list tools raw; one they reject is dropped instead of sent.
+ */
+const HEX_LIST_SORT_FIELDS: Record<string, readonly string[]> = {
+  list_users: ['NAME', 'EMAIL'],
+  list_groups: ['CREATED_AT', 'NAME'],
+  list_collections: ['NAME'],
+  list_data_connections: ['NAME', 'CREATED_AT'],
+}
+
+/** Run statuses Get Project Runs accepts; the List Projects status filter shares its param name. */
+const HEX_RUN_STATUSES: readonly string[] = [
+  'PENDING',
+  'RUNNING',
+  'ERRORED',
+  'COMPLETED',
+  'KILLED',
+  'UNABLE_TO_ALLOCATE_KERNEL',
+]
+
+function emptyToUndefined(value: unknown): unknown {
+  if (typeof value === 'string') return value.trim() === '' ? undefined : value.trim()
+  return value === null ? undefined : value
+}
+
 export const HexBlock: BlockConfig = {
   type: 'hex',
   hideFromToolbar: true,
@@ -59,7 +85,11 @@ export const HexBlock: BlockConfig = {
           { text: 'in group', field: 'groupId' },
           { text: ', up to', field: 'limit' },
         ],
-        list_groups: ['List groups', { text: ', up to', field: 'limit' }],
+        list_groups: [
+          'List groups',
+          { text: 'of user', field: 'groupsUserId' },
+          { text: ', up to', field: 'limit' },
+        ],
         get_group: [{ text: 'Fetch group', field: 'groupIdInput', core: true }],
         list_collections: ['List collections', { text: ', up to', field: 'limit' }],
         get_collection: [{ text: 'Fetch collection', field: 'collectionId', core: true }],
@@ -547,6 +577,30 @@ Do not include any explanations, markdown formatting, or other text outside the 
       mode: 'advanced',
     },
     {
+      id: 'groupsUserId',
+      title: 'Filter by User ID',
+      type: 'short-input',
+      placeholder: 'User UUID whose groups to list (optional)',
+      condition: { field: 'operation', value: 'list_groups' },
+      mode: 'advanced',
+    },
+    {
+      id: 'queriedTablesAfter',
+      title: 'After Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor for the next page',
+      condition: { field: 'operation', value: 'get_queried_tables' },
+      mode: 'advanced',
+    },
+    {
+      id: 'queriedTablesBefore',
+      title: 'Before Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor for the previous page',
+      condition: { field: 'operation', value: 'get_queried_tables' },
+      mode: 'advanced',
+    },
+    {
       id: 'after',
       title: 'After Cursor',
       type: 'short-input',
@@ -655,15 +709,40 @@ Do not include any explanations, markdown formatting, or other text outside the 
             return 'hex_run_project'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
         const op = params.operation
+        /** Only an agent tool call carries a context; its args arrive under the tool param names. */
+        const isAgentCall = context?.operation !== undefined
 
         if (params.limit) result.limit = Number(params.limit)
         if (op === 'get_project_runs' && params.offset) result.offset = Number(params.offset)
         if (op === 'update_project' && params.projectStatus) result.status = params.projectStatus
-        if (op === 'get_project_runs' && params.runStatusFilter)
-          result.statusFilter = params.runStatusFilter
+        if (op === 'get_project_runs') {
+          // An agent passes `statusFilter` directly; on the canvas it is the List Projects status.
+          result.statusFilter =
+            emptyToUndefined(params.runStatusFilter) ??
+            (isAgentCall || HEX_RUN_STATUSES.includes(params.statusFilter)
+              ? emptyToUndefined(params.statusFilter)
+              : undefined)
+        }
+        const sortFields = HEX_LIST_SORT_FIELDS[op]
+        if (sortFields) {
+          result.sortBy = sortFields.includes(params.sortBy) ? params.sortBy : undefined
+        }
+        if (op === 'get_queried_tables') {
+          // On the canvas the shared list cursors can hold another operation's stale value.
+          result.after =
+            emptyToUndefined(params.queriedTablesAfter) ??
+            (isAgentCall ? emptyToUndefined(params.after) : undefined)
+          result.before =
+            emptyToUndefined(params.queriedTablesBefore) ??
+            (isAgentCall ? emptyToUndefined(params.before) : undefined)
+        }
+        if (op === 'list_groups')
+          result.userId =
+            emptyToUndefined(params.groupsUserId) ??
+            (isAgentCall ? emptyToUndefined(params.userId) : undefined)
         if (
           (op === 'get_group' || op === 'update_group' || op === 'delete_group') &&
           params.groupIdInput
@@ -735,6 +814,9 @@ Do not include any explanations, markdown formatting, or other text outside the 
     runTriggerFilter: { type: 'string', description: 'Filter runs by trigger source' },
     groupId: { type: 'string', description: 'Filter users by group UUID' },
     userIds: { type: 'string', description: 'Comma-separated user UUIDs to filter by' },
+    groupsUserId: { type: 'string', description: 'List only the groups this user UUID belongs to' },
+    queriedTablesAfter: { type: 'string', description: 'Queried tables cursor to fetch after' },
+    queriedTablesBefore: { type: 'string', description: 'Queried tables cursor to fetch before' },
     groupIdInput: { type: 'string', description: 'Group UUID for get/update/delete group' },
     groupName: { type: 'string', description: 'Group name' },
     groupMemberUserIds: { type: 'json', description: 'Initial member user UUIDs for new group' },
@@ -753,7 +835,11 @@ Do not include any explanations, markdown formatting, or other text outside the 
     runId: { type: 'string', description: 'Run UUID' },
     runUrl: { type: 'string', description: 'URL to view the run' },
     runStatusUrl: { type: 'string', description: 'URL to check run status' },
-    projectVersion: { type: 'number', description: 'Project version number' },
+    projectVersion: {
+      type: 'number',
+      description:
+        'Project version: a number from Run Project; Get Run Status returns it as a string ("draft" for notebook runs)',
+    },
     // Run status outputs
     status: {
       type: 'json',
@@ -761,7 +847,11 @@ Do not include any explanations, markdown formatting, or other text outside the 
     },
     startTime: { type: 'string', description: 'Run start time' },
     endTime: { type: 'string', description: 'Run end time' },
-    elapsedTime: { type: 'number', description: 'Elapsed time in seconds' },
+    runTrigger: {
+      type: 'string',
+      description: 'How the run was triggered (API, SCHEDULED, APP_REFRESH)',
+    },
+    elapsedTime: { type: 'number', description: 'Elapsed run time in milliseconds' },
     traceId: { type: 'string', description: 'Trace ID for debugging' },
     // Project outputs
     id: { type: 'string', description: 'Resource ID' },
@@ -783,7 +873,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
     runs: {
       type: 'json',
       description:
-        'List of runs with runId, status, runUrl, startTime, endTime, elapsedTime, projectVersion',
+        'List of runs with runId, status, runTrigger, runUrl, startTime, endTime, elapsedTime, projectVersion',
     },
     users: {
       type: 'json',

@@ -2,6 +2,7 @@ import type { HexGetDataConnectionParams, HexGetDataConnectionResponse } from '@
 import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getDataConnectionTool: ToolConfig<
   HexGetDataConnectionParams,
@@ -32,7 +33,7 @@ export const getDataConnectionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${hexApiBase(params.host)}/data-connections/${params.dataConnectionId.trim()}`,
+      `${hexApiBase(params.host)}/data-connections/${safeUrlPathSegment(params.dataConnectionId, 'dataConnectionId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

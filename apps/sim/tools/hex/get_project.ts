@@ -3,6 +3,7 @@ import { HEX_PROJECT_OUTPUT_PROPERTIES } from '@/tools/hex/types'
 import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getProjectTool: ToolConfig<HexGetProjectParams, HexGetProjectResponse> = {
   id: 'hex_get_project',
@@ -28,7 +29,8 @@ export const getProjectTool: ToolConfig<HexGetProjectParams, HexGetProjectRespon
   },
 
   request: {
-    url: (params) => `${hexApiBase(params.host)}/projects/${params.projectId.trim()}`,
+    url: (params) =>
+      `${hexApiBase(params.host)}/projects/${safeUrlPathSegment(params.projectId, 'projectId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

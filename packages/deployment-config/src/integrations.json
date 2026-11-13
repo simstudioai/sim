@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-12",
+  "updatedAt": "2026-11-13",
   "integrations": [
     {
       "type": "onepassword",
@@ -13399,7 +13399,7 @@
         },
         {
           "name": "Get Project Runs",
-          "description": "Retrieve API-triggered runs for a Hex project with optional filtering by status and pagination."
+          "description": "Retrieve runs for a Hex project (API-triggered, scheduled, and app refresh runs) with optional filtering by status and trigger, and offset pagination."
         },
         {
           "name": "Cancel Run",
@@ -13427,7 +13427,7 @@
         },
         {
           "name": "List Groups",
-          "description": "List all groups in the Hex workspace with optional sorting."
+          "description": "List all groups in the Hex workspace with optional sorting, or only the groups a user belongs to."
         },
         {
           "name": "Get Group",
@@ -13482,7 +13482,7 @@
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["data-analytics"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-13"
     },
     {
       "type": "higgsfield",

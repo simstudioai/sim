@@ -1,6 +1,7 @@
 import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ChargeResponse, RetrieveChargeParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const stripeRetrieveChargeTool: ToolConfig<RetrieveChargeParams, ChargeResponse> = {
   id: 'stripe_retrieve_charge',
@@ -25,7 +26,7 @@ export const stripeRetrieveChargeTool: ToolConfig<RetrieveChargeParams, ChargeRe
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/charges/${params.id}`,
+    url: (params) => `https://api.stripe.com/v1/charges/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

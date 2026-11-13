@@ -1,6 +1,6 @@
 import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerListResponse, SearchCustomersParams } from '@/tools/stripe/types'
-import { CUSTOMER_OUTPUT, LIST_METADATA_OUTPUT_PROPERTIES } from '@/tools/stripe/types'
+import { CUSTOMER_OUTPUT, SEARCH_METADATA_OUTPUT_PROPERTIES } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeSearchCustomersTool: ToolConfig<SearchCustomersParams, CustomerListResponse> = {
@@ -29,6 +29,13 @@ export const stripeSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
       visibility: 'user-or-llm',
       description: 'Number of results to return (default 10, max 100)',
     },
+    page: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Pagination token from metadata.next_page of the previous search; omit for the first page',
+    },
   },
 
   request: {
@@ -36,6 +43,7 @@ export const stripeSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
       const url = new URL('https://api.stripe.com/v1/customers/search')
       url.searchParams.append('query', params.query)
       if (params.limit) url.searchParams.append('limit', params.limit.toString())
+      if (params.page) url.searchParams.append('page', params.page)
       return url.toString()
     },
     method: 'GET',
@@ -54,6 +62,7 @@ export const stripeSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
         metadata: {
           count: (data.data || []).length,
           has_more: data.has_more || false,
+          next_page: data.next_page ?? null,
         },
       },
     }
@@ -68,7 +77,7 @@ export const stripeSearchCustomersTool: ToolConfig<SearchCustomersParams, Custom
     metadata: {
       type: 'json',
       description: 'Search metadata',
-      properties: LIST_METADATA_OUTPUT_PROPERTIES,
+      properties: SEARCH_METADATA_OUTPUT_PROPERTIES,
     },
   },
 }

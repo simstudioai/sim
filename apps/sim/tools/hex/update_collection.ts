@@ -2,6 +2,7 @@ import type { HexUpdateCollectionParams, HexUpdateCollectionResponse } from '@/t
 import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateCollectionTool: ToolConfig<
   HexUpdateCollectionParams,
@@ -42,7 +43,8 @@ export const updateCollectionTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${hexApiBase(params.host)}/collections/${params.collectionId.trim()}`,
+    url: (params) =>
+      `${hexApiBase(params.host)}/collections/${safeUrlPathSegment(params.collectionId, 'collectionId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

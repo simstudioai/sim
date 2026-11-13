@@ -10,6 +10,7 @@ import {
   PAYMENT_INTENT_OUTPUT,
 } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_confirm_payment_intent',
@@ -49,7 +50,8 @@ export const stripeConfirmPaymentIntentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/payment_intents/${params.id}/confirm`,
+    url: (params) =>
+      `https://api.stripe.com/v1/payment_intents/${safeUrlPathSegment(params.id, 'id')}/confirm`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one
