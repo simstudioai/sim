@@ -418,7 +418,7 @@ describe('getting a keyless Google Cloud token for a run', () => {
   it.each([
     ['google-drive', 'google_keyless_delegation'],
     ['google-bigquery', 'google_keyless_delegation_unavailable'],
-    ['google-ads', 'google_keyless_delegation_unavailable'],
+    ['google-ads', 'google_keyless_service_unsupported'],
   ])(
     'refuses impersonation for %s before contacting Google, offering delegation only where it exists',
     async (service, step) => {

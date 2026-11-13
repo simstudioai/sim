@@ -943,20 +943,23 @@ export async function resolveGoogleWorkloadIdentityToken(
       )
     }
   } else {
-    if (input.impersonateEmail) {
-      throw delegable
-        ? unsupportedUse(
-            'google_keyless_delegation',
-            'this keyless Google credential has no domain-wide delegation for this service',
-            'This keyless Google credential has no domain-wide delegation for this service, so it cannot act as a Workspace user. Clear the Impersonated Account, reconnect the credential to delegate this service, or use a JSON key credential instead'
-          )
-        : unsupportedUse(
-            'google_keyless_delegation_unavailable',
-            'keyless Google credentials cannot act as a Workspace user for this service',
-            'A keyless Google credential cannot act as a Workspace user for this service. Clear the Impersonated Account, or use a JSON key credential instead'
-          )
+    const cloudService = Boolean(input.service && GOOGLE_KEYLESS_SERVICES.has(input.service))
+    // Clearing the Impersonated Account helps only where keyless works without it.
+    if (input.impersonateEmail && delegable) {
+      throw unsupportedUse(
+        'google_keyless_delegation',
+        'this keyless Google credential has no domain-wide delegation for this service',
+        'This keyless Google credential has no domain-wide delegation for this service, so it cannot act as a Workspace user. Clear the Impersonated Account, reconnect the credential to delegate this service, or use a JSON key credential instead'
+      )
     }
-    if (!input.service || !GOOGLE_KEYLESS_SERVICES.has(input.service)) {
+    if (input.impersonateEmail && cloudService) {
+      throw unsupportedUse(
+        'google_keyless_delegation_unavailable',
+        'keyless Google credentials cannot act as a Workspace user for this service',
+        'A keyless Google credential cannot act as a Workspace user for this service. Clear the Impersonated Account, or use a JSON key credential instead'
+      )
+    }
+    if (!cloudService) {
       throw delegable
         ? unsupportedUse(
             'google_keyless_service',
