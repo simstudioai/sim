@@ -8,7 +8,11 @@ export const SLACK_AGENT_SCOPES = [
   'im:write',
 ] as const
 
-export const SLACK_STREAM_RESPONSE_EVENTS = ['message', 'app_mention']
+/**
+ * Trigger events whose run can stream a reply into the conversation that
+ * started it. A `block_actions` click streams into the clicked message's thread.
+ */
+export const SLACK_STREAM_RESPONSE_EVENTS = ['message', 'app_mention', 'block_actions']
 
 /**
  * Unified Slack trigger output shape, shared by the legacy bring-your-own-app

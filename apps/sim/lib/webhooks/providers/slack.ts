@@ -241,6 +241,9 @@ function formatSlackSlashCommand(b: Record<string, unknown>): SlackTriggerEvent 
  * `trigger_id` which are needed to respond to or follow up on the interaction.
  * `text` prefers the source message text, falling back to the triggering
  * action's value so a blocks-only message still surfaces something useful.
+ * `user_team_id` is the interacting user's own team (`user.team_id`), which a
+ * streamed reply needs as its recipient team; in Slack Connect it can differ
+ * from the installation team, and it is never used for routing.
  */
 function formatSlackInteractive(b: Record<string, unknown>): SlackTriggerEvent {
   const event = createSlackEvent()
@@ -262,6 +265,7 @@ function formatSlackInteractive(b: Record<string, unknown>): SlackTriggerEvent {
 
   const team = b.team as Record<string, unknown> | undefined
   event.team_id = asString(team?.id) || asString(user?.team_id)
+  event.user_team_id = asString(user?.team_id) || event.team_id
 
   const container = b.container as Record<string, unknown> | undefined
   const message = b.message as Record<string, unknown> | undefined
