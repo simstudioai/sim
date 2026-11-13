@@ -6,6 +6,7 @@ import { AttributionCookieGuard } from '@/app/_shell/consent/attribution-cookie-
 import { ConsentBanner } from '@/app/_shell/consent/consent-banner'
 import { ConsentStoreProvider } from '@/app/_shell/consent/consent-store-provider'
 import { GoogleAnalyticsPageViewTracker } from '@/app/_shell/consent/google-analytics-page-view-tracker'
+import { RetiredCookieCleanup } from '@/app/_shell/consent/retired-cookie-cleanup'
 
 interface ConsentProviderProps {
   children: ReactNode
@@ -24,6 +25,7 @@ export function ConsentProvider({ children }: ConsentProviderProps) {
         {children}
         <GoogleAnalyticsPageViewTracker />
         <AttributionCookieGuard />
+        <RetiredCookieCleanup />
         <ConsentBanner />
       </TrackingConsentProvider>
     </ConsentStoreProvider>
