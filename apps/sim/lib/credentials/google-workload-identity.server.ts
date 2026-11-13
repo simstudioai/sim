@@ -381,10 +381,6 @@ async function exchangeSubjectToken(
 }
 
 /**
- * Copy for an IAM Credentials refusal. Signing needs a role the impersonation
- * role lacks, so a refused signature always names the token-creator role.
- */
-/**
  * Whether Google refused the call under a VPC Service Controls perimeter: the
  * error names a `vpcServiceControlsUniqueIdentifier` or a `VPC_SERVICE_CONTROLS`
  * violation. Granting IAM roles cannot fix that, so it gets its own message.
@@ -394,6 +390,10 @@ function isVpcServiceControlsDenial(payload: Record<string, unknown>): boolean {
   return /vpcServiceControlsUniqueIdentifier|VPC_SERVICE_CONTROLS/.test(JSON.stringify(payload))
 }
 
+/**
+ * Copy for an IAM Credentials refusal. Signing needs a role the impersonation
+ * role lacks, so a refused signature always names the token-creator role.
+ */
 function iamFailureMessage(
   status: number,
   payload: Record<string, unknown>,
