@@ -89,7 +89,7 @@ function buildUploadUrl(
   const folderPath = input.folderPath?.trim() || ''
   const normalizedPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`
   const cleanPath = normalizedPath.endsWith('/') ? normalizedPath.slice(0, -1) : normalizedPath
-  // A "." folder segment was collapsed by the URL parser before; keep that, but never allow ".."
+  // Drop "." folder segments (the URL parser would collapse them); ".." is rejected below
   const uploadPath = (folderPath ? `${cleanPath}/${fileName}` : `/${fileName}`)
     .split('/')
     .filter((segment, index, segments) => segment !== '.' || index === segments.length - 1)
