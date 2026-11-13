@@ -56,6 +56,9 @@ declare global {
       observedRoots: WeakSet<ParentNode>
     }>
     __simAgentNextElementId?: number
+    /** When the document last changed structurally (nodes or text), for settling before an observation. */
+    __simAgentDomChangedAt?: number
+    __simAgentDomWatcher?: MutationObserver
     /** Every ref this document issued, resolvable while its element keeps that identity. */
     __simAgentIssuedRefs?: Map<
       number,
@@ -85,12 +88,33 @@ export function serializePageCall(fn: (...args: never[]) => unknown, args: unkno
   return `((${String(installPageHelpers)})(), (${String(fn)}).apply(null, ${JSON.stringify(args)}))`
 }
 
+/** How long the document has gone without a structural change, and whether it is still loading. */
+export function readDomQuiet(): unknown {
+  return {
+    quietMs: performance.now() - (window.__simAgentDomChangedAt ?? 0),
+    loading: document.readyState !== 'complete',
+  }
+}
+
 /**
  * Installs the helpers page functions share. Page functions are serialized and run standalone,
  * so the driver runs this installer before each one instead of inlining shared code into every
  * function.
  */
 export function installPageHelpers(): void {
+  // Structural changes only: attribute churn (animations, hover styles) would keep a page "busy".
+  if (!window.__simAgentDomWatcher && document.documentElement) {
+    window.__simAgentDomChangedAt = performance.now()
+    const watcher = new MutationObserver(() => {
+      window.__simAgentDomChangedAt = performance.now()
+    })
+    watcher.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    })
+    window.__simAgentDomWatcher = watcher
+  }
   /**
    * The open modal each document aria-hid together with everything else. MUI's ModalManager
    * aria-hides every <body> child except the modal's mount node, and a `disablePortal` modal

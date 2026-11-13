@@ -70,6 +70,7 @@ import {
   readActiveElementState,
   readCheckableElementState,
   readChildFrameElementState,
+  readDomQuiet,
   readFormFieldState,
   readPageActionState,
   readPageText,
@@ -2062,6 +2063,9 @@ async function prepareTypingSurface(
 const TRANSIENT_PROBE_ERRORS = new Set(['stale', 'not-visible', 'not-editable'])
 const SETTLE_GRACE_MS = 1_000
 const SETTLE_PROBE_INTERVAL_MS = 250
+/** Structural quiet that counts as settled, and the most an observation waits for it. */
+const DOM_QUIET_MS = 150
+const DOM_SETTLE_MAX_MS = 2_000
 
 /**
  * First-touch page probe with a short settle grace. A live view re-rendering
@@ -2093,6 +2097,25 @@ async function execInPageWithSettleGrace<Args extends unknown[], Result>(
       return result
     }
     await sleep(SETTLE_PROBE_INTERVAL_MS)
+  }
+}
+
+/**
+ * Lets a page finish rendering what an action started (a route change, a fetched list) before it
+ * is observed, so the observation is not a half-rendered page. A page already quiet costs one probe.
+ */
+async function waitForDomQuiet(target: PageExecutionTarget, executionDeadline?: number) {
+  const until = Math.min(
+    Date.now() + DOM_SETTLE_MAX_MS,
+    executionDeadline ?? Number.POSITIVE_INFINITY
+  )
+  for (;;) {
+    const state = toRecord(
+      await execInPage(target, readDomQuiet, [], false, executionDeadline).catch(() => null)
+    )
+    const quietMs = typeof state.quietMs === 'number' ? state.quietMs : DOM_QUIET_MS
+    if ((quietMs >= DOM_QUIET_MS && state.loading !== true) || Date.now() + 25 >= until) return
+    await sleep(Math.min(100, Math.max(25, DOM_QUIET_MS - quietMs)))
   }
 }
 
@@ -5460,15 +5483,20 @@ export async function executeTool(
               }
               return result
             },
-            (query) =>
-              executeToolInner(
+            async (query) => {
+              await waitForDomQuiet(
+                session.requireAutomationTab().view.webContents,
+                executionDeadline
+              )
+              return executeToolInner(
                 query === undefined ? 'browser_snapshot' : 'browser_find',
                 query === undefined ? {} : { query },
                 assertCurrentExecution,
                 executionDeadline,
                 invocationEpoch,
                 executionController.signal
-              ),
+              )
+            },
             assertCurrentExecution
           )
           const cancellableExecution = Promise.race([execution, cancellation])

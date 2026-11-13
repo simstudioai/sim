@@ -3212,6 +3212,55 @@ describe('credential protection', () => {
     })
   })
 
+  it.each([
+    ['still rendering', [0, 40, 90, 200], 4],
+    ['already quiet', [400], 1],
+    ['never settling', Array.from({ length: 200 }, () => 0), undefined],
+  ] as const)(
+    'observes after an action only once a page %s has gone quiet, within the settle cap',
+    async (_label, quietReadings, expectedProbes) => {
+      const contents = await openPage()
+      const calls: string[] = []
+      let probe = 0
+      vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+        if (isPageCall(expression, 'readDomQuiet')) {
+          calls.push('probe')
+          const quietMs = quietReadings[Math.min(probe++, quietReadings.length - 1)]
+          return Promise.resolve({ quietMs, loading: false })
+        }
+        if (isPageCall(expression, 'collectSnapshot')) {
+          calls.push('snapshot')
+          return Promise.resolve({
+            url: 'https://example.com/',
+            title: 'Example',
+            outline: '- heading "Results"',
+            truncated: false,
+            refIds: [],
+            refLineIndexes: {},
+            nextElementId: 1_000,
+          })
+        }
+        if (isPageCall(expression, 'clickElement')) return Promise.resolve(CLICK_TARGET)
+        return Promise.resolve(undefined)
+      })
+      vi.useFakeTimers()
+      try {
+        const clicking = driver.executeTool('chat-test', 'browser_click', {
+          elementId: 0,
+          observe: {},
+        })
+        await vi.advanceTimersByTimeAsync(5_000)
+
+        expect(await clicking).toMatchObject({ ok: true, result: { observation: { ok: true } } })
+        const probesBeforeSnapshot = calls.indexOf('snapshot')
+        expect(probesBeforeSnapshot).toBeGreaterThan(0)
+        if (expectedProbes !== undefined) expect(probesBeforeSnapshot).toBe(expectedProbes)
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
   it('acts on a ref an earlier snapshot of the same page issued', async () => {
     const contents = await openPage()
     respondWith(contents, {
