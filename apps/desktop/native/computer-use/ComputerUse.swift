@@ -600,7 +600,8 @@ func focusByClicking(_ element: AXUIElement, pid: pid_t, snapshot: Snapshot) asy
     // The point must land on the editor or a text control inside it, never a button or row nested in a container.
     guard takesText(element), frame.contains(center), let hit = elementAtPoint(center) else { return }
     let insideEditor = takesText(hit) ? try ancestorPath(hit, to: element) != nil : false
-    guard CFEqual(hit, element) || insideEditor else { return }
+    // Secure inputs stay untargetable, so a password field is never clicked into focus either.
+    guard CFEqual(hit, element) || insideEditor, (try? requireNonSecure(hit)) != nil else { return }
     try await coordinateAction { dispatch in
         try checkCancellation()
         try postMouse(pid: pid, type: .leftMouseDown, point: center, button: .left, windowID: windowID, window: window, frame: frame, dispatch: dispatch)
