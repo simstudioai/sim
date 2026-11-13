@@ -32,6 +32,19 @@ describe('describeRunningCommand', () => {
     expect(describeRunningCommand('& "C:\\Git\\bin\\git.EXE" status', 'pwsh')).toBe('git')
   })
 
+  it('keeps a quoted program path with spaces whole', () => {
+    expect(describeRunningCommand('& "C:\\Program Files\\Git\\bin\\git.exe" status', 'pwsh')).toBe(
+      'git'
+    )
+    expect(describeRunningCommand("& 'C:\\Program Files\\nodejs\\node.exe' x", 'powershell')).toBe(
+      'node'
+    )
+    expect(describeRunningCommand('"C:\\Program Files\\Git\\bin\\git.exe" status', 'cmd')).toBe(
+      'git'
+    )
+    expect(describeRunningCommand("'/opt/my tools/bin/deploy' --prod")).toBe('deploy')
+  })
+
   it('reads a backslash as a path separator in Windows shells, never an escape', () => {
     expect(describeRunningCommand('cd C:\\; npm test', 'powershell')).toBe('npm')
   })

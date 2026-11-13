@@ -380,6 +380,12 @@ function lastCommandSegment(command: string, syntax: ShellSyntax): string {
   return command.slice(start).trim()
 }
 
+/** A segment's words, each quoted run kept whole so `"C:\Program Files\x.exe"` is one word. */
+function shellWords(segment: string, syntax: ShellSyntax): string[] {
+  const quoted = [...syntax.quotes].map((quote) => `${quote}[^${quote}]*${quote}`)
+  return segment.match(new RegExp(`(?:${[...quoted, '\\S'].join('|')})+`, 'g')) ?? []
+}
+
 /**
  * A short name for whatever is holding a terminal's foreground.
  *
@@ -406,19 +412,17 @@ export function describeRunningCommand(running: string, shell?: string): string 
 
   const syntax = (shell && SHELL_SYNTAX.get(shell)) || POSIX_SYNTAX
   const segment = lastCommandSegment(line, syntax) || line
-  const program = segment
-    .split(/\s+/)
-    .filter(Boolean)
-    .find(
-      (word) =>
-        !ENVIRONMENT_ASSIGNMENT.test(word) &&
-        !COMMAND_PREFIX_WORDS.has(word) &&
-        !word.startsWith('-')
-    )
+  const program = shellWords(segment, syntax).find(
+    (word) =>
+      !ENVIRONMENT_ASSIGNMENT.test(word) && !COMMAND_PREFIX_WORDS.has(word) && !word.startsWith('-')
+  )
 
   const label =
     (program
-      ? lastPathSegment(program.replace(/^['"]|['"]$/g, ''), syntax.windowsPaths ? /[\\/]/ : '/')
+      ? lastPathSegment(
+          [...program].filter((char) => !syntax.quotes.has(char)).join(''),
+          syntax.windowsPaths ? /[\\/]/ : '/'
+        )
       : '') || segment
   return truncate(label, MAX_RUNNING_COMMAND_LABEL, '…')
 }
