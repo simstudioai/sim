@@ -1530,7 +1530,7 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
             throw new Error(`Invalid Google Drive operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
           uploadFolderId,
@@ -1685,19 +1685,33 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           includeDeleted === 'true' ? true : includeDeleted === 'false' ? false : undefined
 
         let effectivePageSize: string | undefined = pageSize
-        if (params.operation === 'search') effectivePageSize = searchPageSize
-        else if (params.operation === 'list_revisions') effectivePageSize = revisionsPageSize
-        else if (params.operation === 'list_comments') effectivePageSize = commentsPageSize
-        else if (params.operation === 'list_permissions') effectivePageSize = permissionsPageSize
+        // Basic `pageSize`/`query` and advanced `pageToken` belong to List; only an agent call's value is trusted for other operations
+        const agentPageSize = context?.operation ? pageSize : undefined
+        if (params.operation === 'search') effectivePageSize = searchPageSize || agentPageSize
+        else if (params.operation === 'list_revisions')
+          effectivePageSize = revisionsPageSize || agentPageSize
+        else if (params.operation === 'list_comments')
+          effectivePageSize = commentsPageSize || agentPageSize
+        else if (params.operation === 'list_permissions')
+          effectivePageSize = permissionsPageSize || agentPageSize
 
+        const agentPageToken = context?.operation ? pageToken : undefined
         let effectivePageToken: string | undefined = pageToken
-        if (params.operation === 'search') effectivePageToken = searchPageToken
-        else if (params.operation === 'list_permissions') effectivePageToken = permissionsPageToken
-        else if (params.operation === 'list_revisions') effectivePageToken = revisionsPageToken
-        else if (params.operation === 'list_comments') effectivePageToken = commentsPageToken
+        if (params.operation === 'search') effectivePageToken = searchPageToken || agentPageToken
+        else if (params.operation === 'list_permissions')
+          effectivePageToken = permissionsPageToken || agentPageToken
+        else if (params.operation === 'list_revisions')
+          effectivePageToken = revisionsPageToken || agentPageToken
+        else if (params.operation === 'list_comments')
+          effectivePageToken = commentsPageToken || agentPageToken
         else if (params.operation !== 'list') effectivePageToken = undefined
 
-        const effectiveQuery = params.operation === 'search' ? searchQuery : query
+        const effectiveQuery =
+          params.operation === 'search'
+            ? context?.operation && !searchQuery
+              ? query
+              : searchQuery
+            : query
 
         const effectiveOrderBy =
           params.operation === 'list'

@@ -949,7 +949,7 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
             throw new Error(`Invalid Outlook operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
           folder,
@@ -994,6 +994,9 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
         // Agent calls may deliver booleans as the strings "true"/"false"
         const toBool = (value: unknown): boolean => value === true || value === 'true'
 
+        // Agent calls carry the model's tool-named arg; the canvas may hold a stale one from another operation
+        const agentArg = (value: unknown) => (context?.operation ? value : null) || null
+
         const effectiveFolder = folder ? String(folder).trim() : ''
 
         const normalizedAttachments = normalizeFileInput(attachments)
@@ -1010,13 +1013,13 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
         }
 
         if (['send_outlook', 'draft_outlook'].includes(rest.operation)) {
-          rest.importance = mailImportance || null
+          rest.importance = mailImportance || agentArg(rest.importance)
         }
 
         // Assign explicitly so a cc/bcc/importance stored for another operation never reaches these tools
         if (['reply_outlook', 'reply_all_outlook', 'forward_outlook'].includes(rest.operation)) {
-          rest.cc = rest.operation === 'reply_all_outlook' ? null : replyCc || null
-          rest.bcc = replyBcc || null
+          rest.cc = rest.operation === 'reply_all_outlook' ? null : replyCc || agentArg(rest.cc)
+          rest.bcc = replyBcc || agentArg(rest.bcc)
           rest.importance = undefined
         }
 

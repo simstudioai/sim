@@ -969,8 +969,10 @@ export const GmailV2Block: BlockConfig = {
         suffix: '_v2',
         fallbackToolId: 'gmail_send_v2',
       }),
-      params: (params) => {
-        const mapped = GmailBlock.tools?.config?.params?.(params) ?? params
+      params: (params, context) => {
+        const mapped = GmailBlock.tools?.config?.params?.(params, context) ?? params
+        /** Agent calls carry the model's tool-named args; on the canvas those keys may be stale. */
+        const agentArg = (value: unknown) => (context?.operation ? value : undefined)
         const {
           labelName,
           targetThreadId,
@@ -982,17 +984,18 @@ export const GmailV2Block: BlockConfig = {
           ...rest
         } = mapped
         if (LABEL_WRITE_OPERATIONS.includes(rest.operation)) {
-          rest.name = labelName || undefined
+          rest.name = labelName || agentArg(rest.name) || undefined
           rest.messageListVisibility = messageListVisibility || undefined
           rest.labelListVisibility = labelListVisibility || undefined
         }
         if (THREAD_TARGET_OPERATIONS.includes(rest.operation)) {
-          rest.threadId = targetThreadId
-          rest.format = threadFormat || undefined
+          rest.threadId = context?.operation ? targetThreadId || rest.threadId : targetThreadId
+          rest.format = threadFormat || agentArg(rest.format) || undefined
         }
         if (LIST_OPERATIONS.includes(rest.operation)) {
-          rest.query = listQuery || undefined
-          rest.labelIds = threadLabelIds ? String(threadLabelIds).trim() : undefined
+          rest.query = listQuery || agentArg(rest.query) || undefined
+          const labelIds = threadLabelIds || agentArg(rest.labelIds)
+          rest.labelIds = labelIds ? String(labelIds).trim() : undefined
         }
         return rest
       },
