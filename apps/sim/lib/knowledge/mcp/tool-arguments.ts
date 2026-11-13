@@ -88,8 +88,17 @@ export function repairToolCallMessage(message: Record<string, unknown>) {
 }
 
 /**
+ * Unrecognized field names logged per schema issue, each cut short. The schema caps native queries
+ * at nine, so a rejection's log line stays bounded.
+ */
+const MAX_LOGGED_KEYS = 5
+const MAX_LOGGED_KEY_CHARACTERS = 64
+
+/**
  * Where a tool call's arguments fail its input schema, as field paths and issue codes without
- * values. The SDK rejects such a call before the tool runs, so nothing else records it.
+ * values, plus the names of fields the schema does not know, so a repeated client mistake can be
+ * told apart from a new one. The SDK rejects such a call before the tool runs, so nothing else
+ * records it.
  */
 export function toolCallInputIssues(message: Record<string, unknown>) {
   const call = readToolCall(message)
@@ -99,6 +108,14 @@ export function toolCallInputIssues(message: Record<string, unknown>) {
   if (parsed.success) return undefined
   return {
     toolName: call.name,
-    issues: parsed.error.issues.map(({ code, path }) => ({ code, path: path.join('.') })),
+    issues: parsed.error.issues.map((issue) => ({
+      code: issue.code,
+      path: issue.path.join('.'),
+      ...(issue.code === 'unrecognized_keys' && {
+        keys: issue.keys
+          .slice(0, MAX_LOGGED_KEYS)
+          .map((key) => key.slice(0, MAX_LOGGED_KEY_CHARACTERS)),
+      }),
+    })),
   }
 }
