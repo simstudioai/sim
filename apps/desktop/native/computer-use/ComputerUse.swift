@@ -610,7 +610,7 @@ func postMouse(pid: pid_t, type: CGEventType, point: CGPoint, button: CGMouseBut
 /// Clicks the center of an observed text control so it takes keyboard focus, only when that point lands on
 /// the control (or a text control inside it) within its observed window; otherwise nothing is sent and the focus check decides.
 @MainActor
-func focusByClicking(_ element: AXUIElement, pid: pid_t, snapshot: Snapshot) async throws {
+func focusByClicking(_ element: AXUIElement, pid: pid_t, snapshot: Snapshot, caretIrrelevant: Bool) async throws {
     guard let rect = elementRect(element), let windowID = snapshot.windowId(holding: element),
           let frame = snapshot.windowFrames[windowID], let window = snapshot.windowElements[windowID] else { return }
     let center = CGPoint(x: rect.midX, y: rect.midY)
@@ -634,17 +634,29 @@ func focusByClicking(_ element: AXUIElement, pid: pid_t, snapshot: Snapshot) asy
     for _ in 0..<5 {
         try await Task.sleep(for: .milliseconds(50))
         guard let focused = attribute(root, kAXFocusedUIElementAttribute), holdsFocus(focused, element) else { continue }
-        let editor = unsafeBitCast(focused, to: AXUIElement.self)
-        var settable: DarwinBoolean = false
-        if AXUIElementIsAttributeSettable(editor, kAXSelectedTextRangeAttribute as CFString, &settable) == .success, settable.boolValue,
-           let value = attribute(editor, kAXValueAttribute) as? String {
-            var range = CFRange(location: value.utf16.count, length: 0)
-            guard let end = AXValueCreate(.cfRange, &range), AXUIElementSetAttributeValue(editor, kAXSelectedTextRangeAttribute as CFString, end) == .success else {
-                throw ComputerError("caret_unconfirmed", "The editor was clicked into focus, but its caret could not be moved to the end, so no text was sent. Observe the app, then use set_value or move the caret with press_key.")
-            }
-        }
-        return
+        if caretIrrelevant || caretAtEnd(unsafeBitCast(focused, to: AXUIElement.self)) { return }
+        throw ComputerError("caret_unconfirmed", "The editor was clicked into focus, but its caret could not be confirmed at the end, so no text was sent. Observe the app, then use set_value, or start an input_sequence with Cmd+A.")
     }
+    throw ComputerError("caret_unconfirmed", "The editor was clicked, but it did not take keyboard focus in time, so no text was sent. Observe the app before retrying.")
+}
+/// Whether the caret is at the end of `editor`'s text, moving it there when the editor allows: an empty
+/// editor qualifies, and a move counts only once the selection range reads back at the end.
+func caretAtEnd(_ editor: AXUIElement) -> Bool {
+    guard let length = (attribute(editor, kAXValueAttribute) as? String)?.utf16.count
+        ?? (attribute(editor, kAXNumberOfCharactersAttribute) as? NSNumber)?.intValue else { return false }
+    if length == 0 { return true }
+    func selection() -> CFRange? {
+        guard let raw = attribute(editor, kAXSelectedTextRangeAttribute), CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
+        var range = CFRange(); return AXValueGetValue(unsafeBitCast(raw, to: AXValue.self), .cfRange, &range) ? range : nil
+    }
+    if let range = selection(), range.location == length, range.length == 0 { return true }
+    var settable: DarwinBoolean = false
+    var end = CFRange(location: length, length: 0)
+    guard AXUIElementIsAttributeSettable(editor, kAXSelectedTextRangeAttribute as CFString, &settable) == .success, settable.boolValue,
+          let value = AXValueCreate(.cfRange, &end),
+          AXUIElementSetAttributeValue(editor, kAXSelectedTextRangeAttribute as CFString, value) == .success,
+          let moved = selection() else { return false }
+    return moved.location == length && moved.length == 0
 }
 func discoverApps() throws -> [[String: Any]] {
     var entries: [String: [String: Any]] = [:]
@@ -883,7 +895,9 @@ final class Driver {
                 // Some apps (SwiftUI sheets such as Clock's city search) ignore an Accessibility focus
                 // request; in a foreground app the field is focused the way a user would, by clicking it.
                 if app.isActive, attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) != true {
-                    try await focusByClicking(element, pid: pid, snapshot: snapshot)
+                    // Select-all as the first step replaces the whole value, so where the click put the caret is moot.
+                    let selectsAll = try steps.first.map { $0.action == "press_key" ? try parseKey(required($0.key, "key")) == (0, .maskCommand) : false } ?? false
+                    try await focusByClicking(element, pid: pid, snapshot: snapshot, caretIrrelevant: selectsAll)
                 }
             }
             let observedWindows = snapshot.observedWindows()

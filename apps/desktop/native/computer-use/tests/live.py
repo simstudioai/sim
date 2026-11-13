@@ -183,6 +183,13 @@ try:
         snapshot = state()
         call('type_text', bundleId=bundle, snapshotId=snapshot['snapshotId'], elementId=find(snapshot, role='AXTextField', label='Fixture click-focus field')['elementId'], text=' twice')
         assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'clicked twice', 'Click-to-focus typed at the click point'
+        # Select-all first makes the caret position moot: the click-focused editor's whole value is replaced.
+        snapshot = state()
+        mutate('click', snapshot, **coordinate(snapshot, find(snapshot, role='AXTextField', label='Fixture editable text')))
+        snapshot = state()
+        call('input_sequence', bundleId=bundle, snapshotId=snapshot['snapshotId'], elementId=find(snapshot, role='AXTextField', label='Fixture click-focus field')['elementId'],
+             steps=[{'action': 'press_key', 'key': 'Cmd+A'}, {'action': 'type_text', 'text': 'replaced'}])
+        assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'replaced', 'Select-all sequence did not replace the click-focused editor'
         # Move focus to the other editor, then put another app in front: the click-only editor cannot take focus.
         snapshot = state()
         mutate('click', snapshot, **coordinate(snapshot, find(snapshot, role='AXTextField', label='Fixture editable text')))
@@ -191,7 +198,7 @@ try:
         snapshot = state()
         error = refused('type_text', snapshot, elementId=find(snapshot, role='AXTextField', label='Fixture click-focus field')['elementId'], text='x')
         assert error['dispatchState'] == 'not_started', error
-        assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'clicked twice', 'A background app was clicked or typed into'
+        assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'replaced', 'A background app was clicked or typed into'
         call('activate_app', bundleId=bundle)
         print('PASS: real fixture state, secure suppression, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click, a batch that applies, stops at a failing step, refuses before dispatch and stops when a sheet opens, click-to-focus for an editor that ignores Accessibility focus (and none in the background); every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
 finally:
