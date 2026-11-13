@@ -67,7 +67,7 @@ export type ShellMarker =
  * marker, its output, and its finish marker together; read apart, the output cannot be told from
  * the text either side of it.
  */
-export type ParseSegment = { kind: 'text'; text: string } | ShellMarker
+type ParseSegment = { kind: 'text'; text: string } | ShellMarker
 
 /**
  * Undoes the escaping applied by the shell hooks: `\\` is one backslash and
