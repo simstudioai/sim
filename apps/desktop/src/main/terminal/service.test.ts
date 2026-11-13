@@ -191,7 +191,11 @@ vi.mock('@/main/terminal/session', async () => {
             if (signal === 'SIGINT' && state.interruptible) finishRun(130)
           }),
           waitForShellIntegration: async () => {},
-          waitForPromptDrawn: async () => {},
+          /** A busy shell draws no prompt, so the wait lasts until the call is stopped. */
+          waitForPromptDrawn: (signal?: AbortSignal) =>
+            state.busy
+              ? new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve()))
+              : Promise.resolve(),
           /** Stands in for the user running `exit` or pressing Ctrl-D. */
           exit: () => {
             state.disposed = true
@@ -415,6 +419,26 @@ describe('focus-gated shortcuts', () => {
     terminal.setPanelFocused(false, other.contents)
 
     expect(runShortcut(terminal, 'close-tab', holder.window)).toBe(true)
+  })
+})
+
+describe('running into a busy terminal', () => {
+  it('refuses with BUSY at once rather than first waiting for a prompt', async () => {
+    const terminal = service()
+    const id = terminal.start({ cols: 80, rows: 24 }).activeTerminalId as string
+    stubSessions.get(id)?.setBusy(true)
+    try {
+      let response: unknown
+      void terminal
+        .executeTool('call-busy', 'run', { terminalId: id, command: 'ls' })
+        .then((result) => {
+          response = result
+        })
+
+      await vi.waitFor(() => expect(response).toMatchObject({ ok: false, code: 'BUSY' }))
+    } finally {
+      terminal.dispose()
+    }
   })
 })
 

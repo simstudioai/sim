@@ -213,6 +213,15 @@ const TERMINAL_CHANGING_OPERATIONS: ReadonlySet<TerminalOperation> = new Set([
  */
 const STOP_ESCALATION_MS = 2_000
 
+/** Refuses a run into a terminal whose foreground is still taken. */
+function throwIfBusy(session: TerminalSession): void {
+  if (!session.isBusy) return
+  throw new TerminalError(
+    'BUSY',
+    `"${session.foreground}" is still running in that terminal. Poll it with the read operation, stop it with kill, or open another terminal with new.`
+  )
+}
+
 export class TerminalService {
   /** Insertion-ordered, which is also the tab order the user sees. */
   private readonly sessions = new Map<string, TerminalSession>()
@@ -1428,13 +1437,10 @@ export class TerminalService {
     if (!session.hasShellIntegration) {
       await this.awaitShellStartup(session, latch)
     }
+    // Checked before the wait too: a busy shell draws no prompt, so the wait would only delay BUSY.
+    throwIfBusy(session)
     await session.waitForPromptDrawn(latch.signal)
-    if (session.isBusy) {
-      throw new TerminalError(
-        'BUSY',
-        `"${session.foreground}" is still running in that terminal. Poll it with the read operation, stop it with kill, or open another terminal with new.`
-      )
-    }
+    throwIfBusy(session)
 
     if (latch.signal.aborted) throw stoppedBeforeStart()
     latch.stopRunning = () => this.stopCommand(session, toolCallId)
