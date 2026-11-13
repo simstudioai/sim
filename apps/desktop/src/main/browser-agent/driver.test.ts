@@ -1507,13 +1507,13 @@ describe('browserToolWatchdogMs', () => {
   })
 
   it.each([
-    ['number', 30_000, 35_000],
-    ['numeric string', '30000', 35_000],
-    ['absent', undefined, 15_000],
-    ['non-numeric', 'soon', 15_000],
-    ['zero', 0, 15_000],
-    ['negative', -5_000, 15_000],
-    ['above the wait clamp', 500_000, 125_000],
+    ['number', 30_000, 55_000],
+    ['numeric string', '30000', 55_000],
+    ['absent', undefined, 35_000],
+    ['non-numeric', 'soon', 35_000],
+    ['zero', 0, 35_000],
+    ['negative', -5_000, 35_000],
+    ['above the wait clamp', 500_000, 145_000],
   ])('normalizes browser_wait_for timeout (%s)', (_label, timeoutMs, expected) => {
     const params = timeoutMs === undefined ? {} : { timeoutMs }
 
@@ -3096,6 +3096,40 @@ describe('credential protection', () => {
         truncated: false,
       },
     })
+  })
+
+  it('gives a wait that runs to its timeout a full snapshot budget for its closing observation', async () => {
+    const contents = await openPage()
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (!isPageCall(expression, 'collectSnapshot')) return Promise.resolve(undefined)
+      return new Promise((resolve) =>
+        setTimeout(
+          () =>
+            resolve({
+              url: 'https://example.com/',
+              title: 'Example',
+              outline: '- heading "Order confirmed"',
+              truncated: false,
+              refIds: [],
+              refLineIndexes: {},
+              nextElementId: 1_000,
+            }),
+          8_000
+        )
+      )
+    })
+    vi.useFakeTimers()
+    try {
+      const waiting = driver.executeTool('chat-test', 'browser_wait_for', { timeoutMs: 1_000 })
+      await vi.advanceTimersByTimeAsync(30_000)
+
+      expect(await waiting).toMatchObject({
+        ok: true,
+        result: { observation: { ok: true, result: { outline: '- heading "Order confirmed"' } } },
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('accepts a later snapshot that keeps refs this scope issued for the same page', async () => {
