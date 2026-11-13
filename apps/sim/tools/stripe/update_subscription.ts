@@ -82,7 +82,7 @@ export const stripeUpdateSubscriptionTool: ToolConfig<
         params.items.forEach((item, index) => {
           if (item.id) formData.append(`items[${index}][id]`, item.id)
           if (item.price) formData.append(`items[${index}][price]`, item.price)
-          if (item.quantity) {
+          if (item.quantity != null && String(item.quantity).trim() !== '') {
             formData.append(`items[${index}][quantity]`, String(item.quantity))
           }
           if (item.deleted === true || String(item.deleted) === 'true')

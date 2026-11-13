@@ -103,9 +103,8 @@ export const HEX_RUN_STATUS_OUTPUT_PROPERTIES = {
   elapsedTime: { type: 'number', description: 'Elapsed run time in milliseconds', optional: true },
   traceId: { type: 'string', description: 'Trace ID for debugging', optional: true },
   projectVersion: {
-    type: 'number',
-    description:
-      'Project version that was run (Hex returns it as a string, "draft" for notebook runs)',
+    type: 'string',
+    description: 'Project version that was run ("1", "2", ...; "draft" for notebook runs)',
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -217,7 +216,7 @@ export interface HexGetRunStatusResponse extends ToolResponse {
     endTime: string | null
     elapsedTime: number | null
     traceId: string | null
-    projectVersion: number | null
+    projectVersion: string | null
   }
 }
 
@@ -258,7 +257,7 @@ export interface HexGetProjectRunsResponse extends ToolResponse {
       endTime: string | null
       elapsedTime: number | null
       traceId: string | null
-      projectVersion: number | null
+      projectVersion: string | null
     }>
     total: number
     traceId: string | null

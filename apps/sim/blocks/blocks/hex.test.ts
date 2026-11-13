@@ -89,7 +89,7 @@ describe('Hex block keeps stale subBlock values out of tool requests', () => {
   it('get queried tables keeps a cursor an agent passes directly', () => {
     const args = { operation: 'get_queried_tables', projectId: PROJECT_ID, after: 'tables-cursor' }
     const mapped = HexBlock.tools.config?.params?.(args, { operation: 'get_queried_tables' }) ?? {}
-    const params = { apiKey: 'hex-token', operation: 'get_queried_tables', ...args, ...mapped }
+    const params = { apiKey: 'hex-token', ...args, ...mapped }
     const url = getQueriedTablesTool.request.url
     const built = new URL(typeof url === 'function' ? url(params) : url)
     expect(built.searchParams.get('after')).toBe('tables-cursor')

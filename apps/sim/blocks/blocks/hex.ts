@@ -833,7 +833,11 @@ Do not include any explanations, markdown formatting, or other text outside the 
     runId: { type: 'string', description: 'Run UUID' },
     runUrl: { type: 'string', description: 'URL to view the run' },
     runStatusUrl: { type: 'string', description: 'URL to check run status' },
-    projectVersion: { type: 'number', description: 'Project version number' },
+    projectVersion: {
+      type: 'number',
+      description:
+        'Project version: a number from Run Project; Get Run Status returns it as a string ("draft" for notebook runs)',
+    },
     // Run status outputs
     status: {
       type: 'json',

@@ -210,6 +210,7 @@ export const stripeWebhookTrigger: TriggerConfig = {
     },
     account: {
       type: 'string',
+      nullable: true,
       description:
         'Connected account that originated the event (Connect events only; absent or null otherwise)',
     },
@@ -219,6 +220,7 @@ export const stripeWebhookTrigger: TriggerConfig = {
     },
     context: {
       type: 'string',
+      nullable: true,
       description:
         'Authentication context needed to fetch the event or related object (null when not applicable)',
     },

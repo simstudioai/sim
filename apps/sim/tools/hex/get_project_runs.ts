@@ -87,7 +87,7 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
           endTime: (r.endTime as string) ?? null,
           elapsedTime: (r.elapsedTime as number) ?? null,
           traceId: (r.traceId as string) ?? null,
-          projectVersion: (r.projectVersion as number) ?? null,
+          projectVersion: (r.projectVersion as string | undefined) ?? null,
         })),
         total: runs.length,
         traceId: data.traceId ?? null,
@@ -126,9 +126,8 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
           },
           traceId: { type: 'string', description: 'Trace ID', optional: true },
           projectVersion: {
-            type: 'number',
-            description:
-              'Project version that was run (Hex returns it as a string, "draft" for notebook runs)',
+            type: 'string',
+            description: 'Project version that was run ("1", "2", ...; "draft" for notebook runs)',
             optional: true,
           },
         },
