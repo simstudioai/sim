@@ -63,7 +63,7 @@ function nodeRow(
   if (node.focused) fields.push('focused')
   if (node.editable) fields.push('editable')
   if (node.enabled === false) fields.push('disabled')
-  if (node.actions.length) fields.push(`actions=${node.actions.slice(0, 16).join(',')}`)
+  if (node.actions.length) fields.push(`actions=${JSON.stringify(node.actions.slice(0, 16))}`)
   if (node.windowId && node.windowId !== selectedWindowId) fields.push(`window=${node.windowId}`)
   if (
     node.x !== undefined &&
@@ -98,7 +98,7 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
     windows,
     omittedWindowCount: allWindows.length - windows.length,
     treeFormat:
-      'Rows: elementId role [parent=id] [label|value|placeholder] [focused] [editable] [disabled] [actions=...] [window=id, omitted for windowId] [screenRect=x,y,w,h in global points]. Empty layout groups are folded into their parent.',
+      'Rows: elementId role [parent=id] [label|value|placeholder] [focused] [editable] [disabled] [actions=JSON array of exact names] [window=id, omitted for windowId] [screenRect=x,y,w,h in global points]. Empty layout groups are folded into their parent.',
     accessibilityTree: '',
     omittedNodeCount: nodes.filter((node) => !isWrapper(node)).length,
     nodeTextLimit: 512,
