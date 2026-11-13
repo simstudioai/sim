@@ -106,4 +106,17 @@ describe('GoogleDriveBlock agent tool calls', () => {
   it('drops a list page token left over on the canvas under search', () => {
     expect(buildParams({ operation: 'search', pageToken: 'stale' }).pageToken).toBeUndefined()
   })
+
+  it('drops a list page token left over on the canvas under a non-paginating operation', () => {
+    expect(buildParams({ operation: 'get_file', pageToken: 'stale' }).pageToken).toBeUndefined()
+  })
+
+  /** A stored agent tool keeps its operation on the tool, not in the args the mapper receives. */
+  it.each(['list', 'search', 'list_permissions', 'list_revisions', 'list_comments'])(
+    'keeps the model pageToken on %s when the args carry no operation',
+    (operation) => {
+      const args = { fileId: 'f-1', pageToken: 'next' }
+      expect({ ...args, ...buildParams(args, { operation }) }.pageToken).toBe('next')
+    }
+  )
 })

@@ -1704,7 +1704,8 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           effectivePageToken = revisionsPageToken || agentPageToken
         else if (params.operation === 'list_comments')
           effectivePageToken = commentsPageToken || agentPageToken
-        else if (params.operation !== 'list') effectivePageToken = undefined
+        // The canvas list token is stale for every other operation; an agent's own token is not
+        else if (params.operation !== 'list') effectivePageToken = agentPageToken
 
         const effectiveQuery =
           params.operation === 'search'
