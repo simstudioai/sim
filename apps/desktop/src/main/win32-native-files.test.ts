@@ -135,19 +135,22 @@ describe('the Windows native file backend', () => {
     )
   })
 
-  it('refuses a path opened while its granted folder was replaced', async () => {
+  it('refuses a path opened after its granted folder was replaced', async () => {
     await mkdir(join(root, 'docs'))
-    const openThenReplaceRoot: Win32NativeFileSystem = {
+    // Windows refuses to rename a folder holding an open handle, so the root is swapped before the
+    // open; moving `docs` keeps its identity, leaving the root check as the only one that differs.
+    const replaceRootThenOpen: Win32NativeFileSystem = {
       open: async (path) => {
-        const handle = await open(path, 'r')
+        await rename(join(root, 'docs'), join(base, 'docs-moving'))
         await rename(root, join(base, 'Root-before'))
-        await mkdir(join(root, 'docs'), { recursive: true })
-        return handle
+        await mkdir(root)
+        await rename(join(base, 'docs-moving'), join(root, 'docs'))
+        return open(path, 'r')
       },
       opendir,
     }
 
-    await expect(openBeneath('docs', true, openThenReplaceRoot)).rejects.toThrow(
+    await expect(openBeneath('docs', true, replaceRootThenOpen)).rejects.toThrow(
       'The approved folder changed. Request access again.'
     )
   })
