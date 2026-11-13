@@ -415,27 +415,41 @@ describe('getting a keyless Google Cloud token for a run', () => {
     expect(google.iam[0]?.body).toEqual({ scope: [BIGQUERY], lifetime: '3600s' })
   })
 
-  it('refuses domain-wide delegation before contacting Google', async () => {
-    fakeGoogle(fetch)
+  it.each([
+    ['google-drive', 'google_keyless_delegation'],
+    ['google-bigquery', 'google_keyless_delegation_unavailable'],
+    ['google-ads', 'google_keyless_delegation_unavailable'],
+  ])(
+    'refuses impersonation for %s before contacting Google, offering delegation only where it exists',
+    async (service, step) => {
+      fakeGoogle(fetch)
 
-    await expect(
-      resolve({ credentialId: 'cred-dwd', impersonateEmail: 'alice@example.com' })
-    ).rejects.toMatchObject({
-      code: 'unsupported_use',
-      logDetail: { step: 'google_keyless_delegation' },
-      userMessage: expect.any(String),
-    })
-    expect(fetch).not.toHaveBeenCalled()
-  })
+      await expect(
+        resolve({ credentialId: 'cred-dwd', service, impersonateEmail: 'alice@example.com' })
+      ).rejects.toMatchObject({
+        code: 'unsupported_use',
+        logDetail: { step },
+        userMessage: expect.any(String),
+      })
+      expect(fetch).not.toHaveBeenCalled()
+    }
+  )
 
-  it.each(['google-drive', 'gmail', 'google-sheets', 'google-ads', undefined])(
-    'refuses %s, which keyless credentials do not serve, before contacting Google',
-    async (service) => {
+  it.each([
+    ['google-drive', 'google_keyless_service'],
+    ['gmail', 'google_keyless_service'],
+    ['google-sheets', 'google_keyless_service'],
+    ['google-email', 'google_keyless_service'],
+    ['google-ads', 'google_keyless_service_unsupported'],
+    [undefined, 'google_keyless_service_unsupported'],
+  ])(
+    'refuses %s, which keyless credentials do not serve, offering delegation only where it exists',
+    async (service, step) => {
       fakeGoogle(fetch)
 
       await expect(resolve({ credentialId: 'cred-workspace', service })).rejects.toMatchObject({
         code: 'unsupported_use',
-        logDetail: { step: 'google_keyless_service' },
+        logDetail: { step },
         userMessage: expect.any(String),
       })
       expect(fetch).not.toHaveBeenCalled()
