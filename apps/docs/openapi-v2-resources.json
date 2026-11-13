@@ -4382,7 +4382,7 @@
       "post": {
         "operationId": "createCredentialWorkloadIdentitySubject",
         "summary": "Create workload identity subject",
-        "description": "Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus `keylessConfig`: a prefilled `serviceAccountJson` whose `subjectProof` is valid for 24 hours and only for the requesting user. Add the `requiredConfigFields`, then call Create service-account credential with the same `providerId`; Sim verifies the trust while saving. Google Cloud has no fixed audience: it is the credential's own pool provider. Without keyless support the deployment returns `400` with `details.code` `WORKLOAD_IDENTITY_NOT_CONFIGURED`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Start a keyless credential. Returns the issuer, audience, and a fresh subject to configure in the cloud's trust policy, plus `keylessConfig`: a prefilled `serviceAccountJson` whose `subjectProof` is valid for 24 hours and only for the requesting user. Add the `requiredConfigFields`, then call Create service-account credential with the same `providerId`; Sim verifies the trust while saving. The returned `audience` is the default; set `audience` in `keylessConfig` to have Sim sign tokens for your own value instead, and trust that value in the cloud. Google Cloud has no fixed default: it is the credential's own pool provider. Without keyless support the deployment returns `400` with `details.code` `WORKLOAD_IDENTITY_NOT_CONFIGURED`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "credentials.workload_identity.prepare",
         "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
@@ -4449,7 +4449,7 @@
                           "subjectProof": "<subjectProof from Create workload identity subject>"
                         },
                         "requiredConfigFields": ["roleArn"],
-                        "optionalConfigFields": ["stsRegion", "sessionDurationSeconds"]
+                        "optionalConfigFields": ["stsRegion", "sessionDurationSeconds", "audience"]
                       }
                     }
                   }
@@ -18154,7 +18154,7 @@
                     "items": {
                       "type": "string"
                     },
-                    "description": "Fields `keylessConfig` may also carry."
+                    "description": "Fields `keylessConfig` may also carry. `audience` is a custom `aud` claim Sim signs in place of the default; your trust configuration must then accept it."
                   }
                 },
                 "required": ["authType", "requiredConfigFields", "optionalConfigFields"],
@@ -18633,7 +18633,7 @@
             "description": "OpenID Connect issuer URL to register as the identity provider the cloud trusts."
           },
           "audience": {
-            "description": "The `aud` claim the cloud must accept. Absent for Google Cloud, whose audience is each credential's own workload identity pool provider.",
+            "description": "The default `aud` claim the cloud must accept; a keyless config's optional `audience` replaces it. Absent for Google Cloud, whose default audience is each credential's own workload identity pool provider.",
             "type": "string"
           },
           "subject": {
@@ -18668,7 +18668,7 @@
             },
             "required": ["authType", "subject", "subjectProof"],
             "additionalProperties": false,
-            "description": "Prefilled keyless `serviceAccountJson`: add `requiredConfigFields`, then send it to Create service-account credential."
+            "description": "Prefilled keyless `serviceAccountJson`: add `requiredConfigFields` (and any `optionalConfigFields`, such as a custom `audience`), then send it to Create service-account credential."
           },
           "requiredConfigFields": {
             "type": "array",
@@ -18682,7 +18682,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields `keylessConfig` may also carry."
+            "description": "Fields `keylessConfig` may also carry. `audience` replaces the default `audience` above with your own value, such as one specific to your account; trust that value instead of the default."
           }
         },
         "required": [
@@ -18696,7 +18696,7 @@
         ],
         "additionalProperties": false,
         "title": "Credential workload identity subject",
-        "description": "The issuer, audience, and subject a cloud trust configuration pins, and the proof that attaches the subject to a new keyless credential."
+        "description": "The issuer, default audience, and subject a cloud trust configuration pins, and the proof that attaches the subject to a new keyless credential. A `keylessConfig.audience` overrides the default audience."
       },
       "CreateCredentialWorkloadIdentitySubjectResponse": {
         "type": "object",
@@ -18724,7 +18724,7 @@
                 "subjectProof": "<subjectProof from Create workload identity subject>"
               },
               "requiredConfigFields": ["roleArn"],
-              "optionalConfigFields": ["stsRegion", "sessionDurationSeconds"]
+              "optionalConfigFields": ["stsRegion", "sessionDurationSeconds", "audience"]
             }
           }
         ]

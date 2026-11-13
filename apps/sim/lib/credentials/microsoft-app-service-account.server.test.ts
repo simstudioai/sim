@@ -323,6 +323,61 @@ describe('saving a Microsoft app credential', () => {
         /No federated credential on this app matches/
       )
     })
+
+    const CUSTOM_AUDIENCE = 'api://contoso-sim-exchange'
+    const storedConfig = () =>
+      JSON.parse(String(encryptionMockFns.mockEncryptSecret.mock.calls[0]?.[0])).config
+
+    it('verifies and probes the subject pin with a custom audience, and stores it', async () => {
+      const tokens = fakeMicrosoft(fetch, {
+        acceptAssertion: (assertion) => assertion === `sim-oidc|${CUSTOM_AUDIENCE}|${SUBJECT}`,
+      })
+
+      await save({ authType: 'federated', audience: ` ${CUSTOM_AUDIENCE} ` }, reconnectOwner)
+
+      const assertions = tokens.map((request) => request.form.client_assertion)
+      expect(assertions).toHaveLength(2)
+      for (const assertion of assertions) {
+        expect(assertion.startsWith(`sim-oidc|${CUSTOM_AUDIENCE}|`)).toBe(true)
+      }
+      expect(storedConfig()).toMatchObject({ audience: CUSTOM_AUDIENCE, subject: SUBJECT })
+    })
+
+    it('stores no audience when the default is submitted, so earlier releases still read it', async () => {
+      const tokens = fakeMicrosoft(fetch, {
+        acceptAssertion: (assertion) => assertion.endsWith(`|${SUBJECT}`),
+      })
+
+      await save({ authType: 'federated', audience: 'api://AzureADTokenExchange' }, reconnectOwner)
+
+      expect(tokens.map((request) => request.form.client_assertion)).toContain(
+        `sim-oidc|api://AzureADTokenExchange|${SUBJECT}`
+      )
+      expect(storedConfig()).toEqual({
+        authType: 'federated',
+        tenantId: TENANT,
+        clientId: CLIENT_ID,
+        subject: SUBJECT,
+      })
+    })
+
+    it('refuses another cloud’s default audience without contacting Entra', async () => {
+      fakeMicrosoft(fetch)
+
+      await expect(
+        save({ authType: 'federated', audience: 'sts.amazonaws.com' }, reconnectOwner)
+      ).rejects.toThrow(/belongs to another cloud/)
+      expect(fetch).not.toHaveBeenCalled()
+      expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+    })
+
+    it('names the audience it presented when no federated credential matches', async () => {
+      fakeMicrosoft(fetch, { acceptAssertion: () => false })
+
+      await expect(
+        save({ authType: 'federated', audience: CUSTOM_AUDIENCE }, reconnectOwner)
+      ).rejects.toThrow(CUSTOM_AUDIENCE)
+    })
   })
 
   it('verifies the Dataverse environment with its own token and WhoAmI', async () => {
@@ -779,6 +834,26 @@ describe('getting a Microsoft app token for a run', () => {
     await expect(
       resolveMicrosoftAppCredentialToken('cred-unreachable', 'microsoft-ad')
     ).rejects.toMatchObject({ code: 'provider_unavailable', status: 502 })
+  })
+
+  describe('a keyless credential at run time', () => {
+    const SUBJECT = 'sim:workspace:ws-1:credential:abcdef0123456789'
+
+    it('presents the default audience, then the stored custom one, never a token cached for the old one', async () => {
+      const tokens = fakeMicrosoft(fetch)
+      storeCredential({ authType: 'federated', subject: SUBJECT }, 'ciphertext-aud-before')
+      await resolveMicrosoftAppCredentialToken('cred-aud-change', 'microsoft-ad')
+      storeCredential(
+        { authType: 'federated', subject: SUBJECT, audience: 'api://contoso-sim' },
+        'ciphertext-aud-after'
+      )
+      await resolveMicrosoftAppCredentialToken('cred-aud-change', 'microsoft-ad')
+
+      expect(tokens.map((request) => request.form.client_assertion)).toEqual([
+        `sim-oidc|api://AzureADTokenExchange|${SUBJECT}`,
+        `sim-oidc|api://contoso-sim|${SUBJECT}`,
+      ])
+    })
   })
 
   describe('while a new federated credential propagates', () => {

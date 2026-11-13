@@ -136,6 +136,75 @@ describe('saving a keyless AWS role', () => {
   })
 })
 
+describe('choosing the audience of a keyless AWS role', () => {
+  const CUSTOM_AUDIENCE = 'sim-123456789012'
+
+  beforeEach(() => {
+    hoisted.send.mockReset()
+    hoisted.mint.mockClear()
+    encryptionMockFns.mockEncryptSecret.mockReset()
+    encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'ciphertext', iv: 'iv' })
+    roleTrusting(true)
+  })
+
+  function reconnectWith(audience?: string) {
+    return JSON.stringify({
+      authType: 'oidc_role',
+      roleArn: ROLE_ARN,
+      ...(audience ? { audience } : {}),
+    })
+  }
+
+  function storedConfig() {
+    return JSON.parse(encryptionMockFns.mockEncryptSecret.mock.calls[0][0]).config
+  }
+
+  it('verifies and probes the trust pin with a custom audience, and stores it', async () => {
+    await verifyAndEncryptAwsCredential(reconnectWith(CUSTOM_AUDIENCE), keylessReconnect.owner)
+
+    expect(hoisted.mint.mock.calls.length).toBeGreaterThanOrEqual(2)
+    for (const [input] of hoisted.mint.mock.calls) {
+      expect(input).toMatchObject({ audience: CUSTOM_AUDIENCE })
+    }
+    expect(hoisted.mint).toHaveBeenCalledWith(expect.objectContaining({ subject: SUBJECT }))
+    expect(hoisted.mint).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: expect.not.stringMatching(SUBJECT) })
+    )
+    expect(storedConfig()).toMatchObject({ audience: CUSTOM_AUDIENCE })
+  })
+
+  it.each([undefined, 'sts.amazonaws.com'])(
+    'mints the default audience and stores no audience key when given %s',
+    async (audience) => {
+      await verifyAndEncryptAwsCredential(reconnectWith(audience), keylessReconnect.owner)
+
+      expect(hoisted.mint).toHaveBeenCalled()
+      for (const [input] of hoisted.mint.mock.calls) {
+        expect(input).toMatchObject({ audience: 'sts.amazonaws.com' })
+      }
+      expect(storedConfig()).not.toHaveProperty('audience')
+    }
+  )
+
+  it('refuses another cloud’s default audience before signing anything', async () => {
+    await expect(
+      verifyAndEncryptAwsCredential(
+        reconnectWith('api://AzureADTokenExchange'),
+        keylessReconnect.owner
+      )
+    ).rejects.toThrow(/another cloud/)
+    expect(hoisted.mint).not.toHaveBeenCalled()
+  })
+
+  it('names the custom audience when the role refuses it', async () => {
+    hoisted.send.mockRejectedValue(accessDenied())
+
+    await expect(
+      verifyAndEncryptAwsCredential(reconnectWith(CUSTOM_AUDIENCE), keylessReconnect.owner)
+    ).rejects.toThrow(`audience ${CUSTOM_AUDIENCE}`)
+  })
+})
+
 describe('loading a saved AWS credential for a run', () => {
   beforeEach(() => resetDbChainMock())
 
@@ -194,4 +263,20 @@ describe("resolving a run's AWS session", () => {
       expect(hoisted.send.mock.calls[0][0].input.DurationSeconds).toBe(durationSeconds)
     }
   )
+
+  it.each([
+    { stored: {}, audience: 'sts.amazonaws.com' },
+    { stored: { audience: 'sim-123456789012' }, audience: 'sim-123456789012' },
+  ])('mints a run token for the stored audience $audience', async ({ stored, audience }) => {
+    hoisted.mint.mockClear()
+    hoisted.send.mockResolvedValue({ Credentials: { ...session, Expiration: expiration } })
+
+    await resolveAwsSessionCredentials(
+      { authType: 'oidc_role', roleArn: ROLE_ARN, subject: SUBJECT, ...stored },
+      owner,
+      options
+    )
+
+    expect(hoisted.mint).toHaveBeenCalledWith(expect.objectContaining({ audience }))
+  })
 })

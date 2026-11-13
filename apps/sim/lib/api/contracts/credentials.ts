@@ -580,6 +580,9 @@ const reconnectAuthTypeSchema = z.enum(WORKLOAD_IDENTITY_AUTH_TYPE_LIST).optiona
 /** A reconnected Microsoft app credential's national cloud, absent for the global cloud. */
 const reconnectCloudSchema = z.enum(MICROSOFT_CLOUD_IDS).optional()
 
+/** A reconnected keyless credential's custom audience; absent when it uses the default. */
+const reconnectAudienceSchema = z.string().optional()
+
 /** A reconnected keyless Google credential's domain-wide delegation, so the dialog keeps it. */
 const reconnectDelegationSchema = z
   .object({ user: z.string(), services: z.array(z.string()) })
@@ -595,7 +598,7 @@ export const workloadIdentitySubjectGrantShape = {
     .string()
     .optional()
     .describe(
-      "The `aud` claim the cloud must accept. Absent for Google Cloud, whose audience is each credential's own workload identity pool provider."
+      "The default `aud` claim the cloud must accept; a keyless config's optional `audience` replaces it. Absent for Google Cloud, whose default audience is each credential's own workload identity pool provider."
     ),
   subject: z
     .string()
@@ -630,6 +633,7 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
         reconnectAuthType: reconnectAuthTypeSchema,
         reconnectDelegation: reconnectDelegationSchema,
         reconnectCloud: reconnectCloudSchema,
+        reconnectAudience: reconnectAudienceSchema,
       }),
       z.object({
         available: z.literal(true),
@@ -637,6 +641,7 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
         reconnectAuthType: reconnectAuthTypeSchema,
         reconnectDelegation: reconnectDelegationSchema,
         reconnectCloud: reconnectCloudSchema,
+        reconnectAudience: reconnectAudienceSchema,
       }),
     ]),
   },

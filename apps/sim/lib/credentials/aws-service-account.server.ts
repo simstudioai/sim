@@ -12,7 +12,12 @@ import { z } from 'zod'
 import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { failureClause, parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
-import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
+import {
+  storedAudienceField,
+  storedWorkloadIdentityAudienceSchema,
+  WORKLOAD_IDENTITY_AUDIENCES,
+  workloadIdentityAudienceSchema,
+} from '@/lib/credentials/workload-identity/audiences'
 import {
   isWorkloadIdentityConfigured,
   mintWorkloadIdentityToken,
@@ -43,6 +48,8 @@ import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
  * - `assume_role`: a key pair that assumes a role, optionally with an external ID.
  * - `oidc_role`: no stored key at all — Sim signs a short-lived OIDC token for
  *   this credential's subject and exchanges it with STS for the customer's role.
+ *   Its `aud` is the stored custom `audience`, else `sts.amazonaws.com`; either
+ *   must be a client ID on the customer's IAM OIDC identity provider.
  */
 
 const AWS_WORKLOAD_IDENTITY_AUDIENCE = WORKLOAD_IDENTITY_AUDIENCES.aws
@@ -85,6 +92,8 @@ const oidcRoleShape = {
   authType: z.literal('oidc_role'),
   roleArn: roleArnSchema,
   subject: z.string().min(1).max(512),
+  /** Absent for the default audience, so earlier releases' strict schemas still parse it. */
+  audience: storedWorkloadIdentityAudienceSchema,
   ...commonShape,
 }
 
@@ -108,6 +117,7 @@ const submittedConfigSchema = z.discriminatedUnion('authType', [
       ...oidcRoleShape,
       subject: oidcRoleShape.subject.optional(),
       subjectProof: z.string().min(1).max(512).optional(),
+      audience: workloadIdentityAudienceSchema('aws').optional(),
     })
     .strict(),
 ])
@@ -200,7 +210,7 @@ export async function resolveAwsSessionCredentials(
   }
   const webIdentityToken = await mintWorkloadIdentityToken({
     subject: config.subject,
-    audience: AWS_WORKLOAD_IDENTITY_AUDIENCE,
+    audience: config.audience ?? AWS_WORKLOAD_IDENTITY_AUDIENCE,
     owner,
   })
   /**
@@ -225,13 +235,23 @@ export async function resolveAwsSessionCredentials(
   return toSessionCredentials(response.Credentials, durationSeconds)
 }
 
-/** The auth mode a decrypted AWS secret holds, or undefined when it is not one. */
-export function storedAwsAuthType(decrypted: string): AwsCredentialConfig['authType'] | undefined {
+/**
+ * A decrypted AWS secret's auth mode and, for a keyless role, its custom
+ * audience, for a reconnect to prefill. Empty when the secret is not one.
+ */
+export function storedAwsReconnectFields(decrypted: string): {
+  authType?: AwsCredentialConfig['authType']
+  audience?: string
+} {
   try {
     const parsed = storedSecretSchema.safeParse(JSON.parse(decrypted))
-    return parsed.success ? parsed.data.config.authType : undefined
+    if (!parsed.success) return {}
+    const { config } = parsed.data
+    return config.authType === 'oidc_role'
+      ? { authType: config.authType, audience: config.audience }
+      : { authType: config.authType }
   } catch {
-    return undefined
+    return {}
   }
 }
 
@@ -263,7 +283,7 @@ function verificationFailure(config: AwsCredentialConfig, error: unknown): Error
   const detail = failureClause(error)
   if (config.authType === 'oidc_role') {
     return new AwsCredentialError(
-      `Sim could not assume this role: ${detail}. Check that the role trusts the Sim OIDC provider with this exact subject and audience ${AWS_WORKLOAD_IDENTITY_AUDIENCE}.`
+      `Sim could not assume this role: ${detail}. Check that the role trusts the Sim OIDC provider with this exact subject and audience ${config.audience ?? AWS_WORKLOAD_IDENTITY_AUDIENCE}, and that the IAM identity provider lists that audience.`
     )
   }
   if (config.authType === 'assume_role') {
@@ -292,10 +312,11 @@ export async function verifyAndEncryptAwsCredential(
     if (!(await isWorkloadIdentityConfigured())) {
       throw new WorkloadIdentityNotConfiguredError('Use access keys.')
     }
-    const { subject, subjectProof, ...rest } = submitted
+    const { subject, subjectProof, audience, ...rest } = submitted
     config = {
       ...rest,
       subject: bindSubject(subject, subjectProof, readStoredSubject(owner.storedSecret), owner),
+      ...storedAudienceField(audience, AWS_WORKLOAD_IDENTITY_AUDIENCE),
     }
   } else {
     config = submitted

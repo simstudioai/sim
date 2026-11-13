@@ -94,7 +94,7 @@ describe('POST /api/v2/credentials/workload-identity/subjects', () => {
         subjectProof: data.subjectProof,
       },
       requiredConfigFields: ['roleArn'],
-      optionalConfigFields: ['stsRegion', 'sessionDurationSeconds'],
+      optionalConfigFields: ['stsRegion', 'sessionDurationSeconds', 'audience'],
     })
 
     const owner = { workspaceId: WORKSPACE_ID }

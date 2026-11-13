@@ -20,7 +20,7 @@ import { env } from '@/lib/core/config/env'
 import {
   resolveSnowflakeCredentialToken,
   SnowflakeCredentialError,
-  storedSnowflakeAuthType,
+  storedSnowflakeReconnectFields,
   verifyAndEncryptSnowflakeConnection,
   verifyAndEncryptSnowflakeKeylessCredential,
 } from '@/lib/credentials/snowflake-service-account.server'
@@ -48,7 +48,7 @@ function setEnv(key: string, value: string | undefined) {
  * and the JWT verifies against Sim's published keys with Snowflake's audience,
  * Sim's issuer, an `iat`, and the subject a service user was created with.
  */
-function snowflakeAccountTrusting(trustedSubject: string) {
+function snowflakeAccountTrusting(trustedSubject: string, audience = 'snowflakecomputing.com') {
   secureFetch.mockImplementation(
     async (_url: string, init: { headers: Record<string, string> }) => {
       const authorization = init.headers.Authorization ?? ''
@@ -62,7 +62,7 @@ function snowflakeAccountTrusting(trustedSubject: string) {
           createLocalJWKSet(await getWorkloadIdentityJwks()),
           {
             issuer: getWorkloadIdentityIssuer(),
-            audience: 'snowflakecomputing.com',
+            audience,
             requiredClaims: ['iat'],
           }
         )
@@ -206,6 +206,60 @@ describe('saving a keyless Snowflake connection', () => {
   })
 })
 
+describe('a keyless Snowflake connection with its own audience', () => {
+  it('signs in with a token for the custom audience the user lists in OIDC_AUDIENCE_LIST, and keeps it', async () => {
+    const grant = issueWorkloadIdentitySubject('snowflake', owner, owner.actorUserId)
+    snowflakeAccountTrusting(grant.subject, 'myorg-myaccount')
+
+    await verifyAndEncryptSnowflakeKeylessCredential(
+      keylessConfig({
+        subject: grant.subject,
+        subjectProof: grant.subjectProof,
+        audience: ' myorg-myaccount ',
+      }),
+      owner
+    )
+
+    const stored = JSON.parse(encryptionMockFns.mockEncryptSecret.mock.calls[0][0])
+    expect(stored.config.audience).toBe('myorg-myaccount')
+    expect(storedSnowflakeReconnectFields(JSON.stringify(stored)).audience).toBe('myorg-myaccount')
+  })
+
+  it('stores no audience when the default is submitted, so earlier releases still read the credential', async () => {
+    const grant = issueWorkloadIdentitySubject('snowflake', owner, owner.actorUserId)
+    snowflakeAccountTrusting(grant.subject)
+
+    await verifyAndEncryptSnowflakeKeylessCredential(
+      keylessConfig({
+        subject: grant.subject,
+        subjectProof: grant.subjectProof,
+        audience: 'snowflakecomputing.com',
+      }),
+      owner
+    )
+
+    const stored = JSON.parse(encryptionMockFns.mockEncryptSecret.mock.calls[0][0])
+    expect(Object.keys(stored.config).sort()).toEqual(['authType', 'host', 'subject'])
+    expect(storedSnowflakeReconnectFields(JSON.stringify(stored)).audience).toBeUndefined()
+  })
+
+  it('refuses another cloud’s default audience before sending a token anywhere', async () => {
+    const grant = issueWorkloadIdentitySubject('snowflake', owner, owner.actorUserId)
+
+    await expect(
+      verifyAndEncryptSnowflakeKeylessCredential(
+        keylessConfig({
+          subject: grant.subject,
+          subjectProof: grant.subjectProof,
+          audience: 'sts.amazonaws.com',
+        }),
+        owner
+      )
+    ).rejects.toThrow(/belongs to another cloud/)
+    expect(secureFetch).not.toHaveBeenCalled()
+  })
+})
+
 describe('getting a Snowflake token for a run', () => {
   function storedCredential(secret: Record<string, unknown>) {
     resetDbChainMock()
@@ -231,6 +285,18 @@ describe('getting a Snowflake token for a run', () => {
       { issuer: getWorkloadIdentityIssuer(), audience: 'snowflakecomputing.com' }
     )
     expect(payload.sub).toBe(subject)
+  })
+
+  it('mints a run token for a keyless credential’s custom audience', async () => {
+    const subject = 'sim:workspace:ws-1:credential:abcdef0123456789'
+    storedCredential({
+      type: 'snowflake_workload_identity_v1',
+      config: { authType: 'workload_identity', host: HOST, subject, audience: 'myorg-myaccount' },
+    })
+
+    const resolved = await resolveSnowflakeCredentialToken('cred-1')
+
+    expect(decodeJwt(resolved.accessToken).aud).toBe('myorg-myaccount')
   })
 
   it('resolves a programmatic access token exactly as before, with no token type', async () => {
@@ -413,6 +479,6 @@ describe('a Snowflake key-pair connection', () => {
       iss: `MYORG-MYACCOUNT.SIM_WORKFLOWS.${FINGERPRINT}`,
       sub: 'MYORG-MYACCOUNT.SIM_WORKFLOWS',
     })
-    expect(storedSnowflakeAuthType(JSON.stringify(secret))).toBe('key_pair')
+    expect(storedSnowflakeReconnectFields(JSON.stringify(secret))).toEqual({ authType: 'key_pair' })
   })
 })

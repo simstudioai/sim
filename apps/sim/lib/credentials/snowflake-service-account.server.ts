@@ -16,7 +16,12 @@ import {
   validateSnowflakeKeyPair,
   validateSnowflakeWorkloadIdentity,
 } from '@/lib/credentials/token-service-accounts/validators/snowflake'
-import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
+import {
+  storedAudienceField,
+  storedWorkloadIdentityAudienceSchema,
+  WORKLOAD_IDENTITY_AUDIENCES,
+  workloadIdentityAudienceSchema,
+} from '@/lib/credentials/workload-identity/audiences'
 import {
   isWorkloadIdentityConfigured,
   mintWorkloadIdentityToken,
@@ -48,6 +53,9 @@ import {
  * Key-pair connections store the user's unencrypted private key instead, and
  * Sim signs a short-lived JWT with it for every run
  * (https://docs.snowflake.com/en/developer-guide/sql-api/authenticating).
+ *
+ * The token's `aud` is `snowflakecomputing.com` unless the credential sets its
+ * own `audience`, which the user then lists in `OIDC_AUDIENCE_LIST`.
  *
  * Programmatic-access-token credentials share the provider and keep their
  * token-paste blob; only the blob type tells the three modes apart.
@@ -94,6 +102,7 @@ const submittedConfigSchema = z
     host: hostSchema,
     subject: z.string().min(1).max(512).optional(),
     subjectProof: z.string().min(1).max(512).optional(),
+    audience: workloadIdentityAudienceSchema('snowflake').optional(),
   })
   .strict()
 
@@ -129,6 +138,8 @@ const storedSecretSchema = z
         authType: z.literal('workload_identity'),
         host: z.string().min(1),
         subject: z.string().min(1),
+        /** Absent for the default audience, so earlier releases' strict schema still reads it. */
+        audience: storedWorkloadIdentityAudienceSchema,
       })
       .strict(),
     metadata: z.record(z.string(), z.string()).optional(),
@@ -162,18 +173,27 @@ export class SnowflakeCredentialError extends Error {
   }
 }
 
-/** The auth mode a decrypted Snowflake secret holds: keyless, a key pair, a token, or undefined when none. */
-export function storedSnowflakeAuthType(
-  decrypted: string
-): 'workload_identity' | 'key_pair' | 'programmatic_access_token' | undefined {
+/**
+ * The auth mode and custom keyless audience a decrypted Snowflake secret holds, for a
+ * reconnect to reopen on: empty when it is none of the three modes, and no audience for
+ * one that uses the default.
+ */
+export function storedSnowflakeReconnectFields(decrypted: string): {
+  authType?: 'workload_identity' | 'key_pair' | 'programmatic_access_token'
+  audience?: string
+} {
   try {
     const parsed: unknown = JSON.parse(decrypted)
-    if (storedSecretSchema.safeParse(parsed).success) return 'workload_identity'
-    if (storedKeyPairSecretSchema.safeParse(parsed).success) return 'key_pair'
+    const keyless = storedSecretSchema.safeParse(parsed)
+    if (keyless.success) {
+      const { audience } = keyless.data.config
+      return { authType: 'workload_identity', ...(audience ? { audience } : {}) }
+    }
+    if (storedKeyPairSecretSchema.safeParse(parsed).success) return { authType: 'key_pair' }
     parseTokenServiceAccountSecretBlob(decrypted, SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID)
-    return 'programmatic_access_token'
+    return { authType: 'programmatic_access_token' }
   } catch {
-    return undefined
+    return {}
   }
 }
 
@@ -182,10 +202,13 @@ function readStoredSubject(storedSecret: Record<string, unknown> | null | undefi
   return parsed.success ? parsed.data.config.subject : undefined
 }
 
-function mintSnowflakeToken(subject: string, owner: WorkloadIdentityOwner): Promise<string> {
+function mintSnowflakeToken(
+  config: Pick<StoredConfig, 'subject' | 'audience'>,
+  owner: WorkloadIdentityOwner
+): Promise<string> {
   return mintWorkloadIdentityToken({
-    subject,
-    audience: SNOWFLAKE_WORKLOAD_IDENTITY_AUDIENCE,
+    subject: config.subject,
+    audience: config.audience ?? SNOWFLAKE_WORKLOAD_IDENTITY_AUDIENCE,
     owner,
     ttlSeconds: SNOWFLAKE_TOKEN_TTL_SECONDS,
   })
@@ -278,7 +301,7 @@ export async function verifyAndEncryptSnowflakeKeylessCredential(
   if (!(await isWorkloadIdentityConfigured())) {
     throw new WorkloadIdentityNotConfiguredError('Use a programmatic access token.')
   }
-  const { host, subject: submittedSubject, subjectProof } = parsed.data
+  const { host, subject: submittedSubject, subjectProof, audience } = parsed.data
   const subject = bindWorkloadIdentitySubject({
     provider: 'snowflake',
     owner,
@@ -287,14 +310,16 @@ export async function verifyAndEncryptSnowflakeKeylessCredential(
     subjectProof,
   })
 
+  const audienceField = storedAudienceField(audience, SNOWFLAKE_WORKLOAD_IDENTITY_AUDIENCE)
   const validation = await validateSnowflakeWorkloadIdentity({
     domain: host,
-    subjectToken: await mintSnowflakeToken(subject, owner),
+    subjectToken: await mintSnowflakeToken({ subject, ...audienceField }, owner),
   })
   const config: StoredConfig = {
     authType: 'workload_identity',
     host: validation.normalizedDomain ?? host,
     subject,
+    ...audienceField,
   }
   const principalMetadata = serviceAccountPrincipalMetadata(validation.principal)
   const { encrypted } = await encryptSecret(
@@ -421,13 +446,13 @@ export async function resolveSnowflakeCredentialToken(credentialId: string): Pro
       providerWorkspaceId: secret.providerWorkspaceId,
     }
   }
-  const { host, subject } = keyless.data.config
+  const { config } = keyless.data
   const owner: WorkloadIdentityOwner = row.workspaceId
     ? { workspaceId: row.workspaceId }
     : { organizationId: row.organizationId ?? undefined }
   return {
-    accessToken: await mintSnowflakeToken(subject, owner),
-    domain: host,
+    accessToken: await mintSnowflakeToken(config, owner),
+    domain: config.host,
     authStyle: SNOWFLAKE_WORKLOAD_IDENTITY_AUTH_STYLE,
   }
 }

@@ -67119,6 +67119,13 @@
           "sha256": "b867716c5b178cc345e9ec091ffd5db588c778b02f244e3e51513c9266fbaf8a",
           "bytes": 733,
           "line": 199
+        },
+        {
+          "lang": "bash",
+          "meta": null,
+          "sha256": "9027a7d2a3cca34b202d5fdb0c5166f12a6273f412dfe19b918cdedc9a330c8f",
+          "bytes": 115,
+          "line": 236
         }
       ],
       "links": [
@@ -141593,6 +141600,13 @@
           "sha256": "96716701cef0ce8a3205217105b932f669acc115ec2faed939bf81704eb83ed2",
           "bytes": 169,
           "line": 29
+        },
+        {
+          "lang": "sql",
+          "meta": null,
+          "sha256": "8ba22e026d880965c3aa9a33b6d11244442b5057801b4d08e6d031d5178b950e",
+          "bytes": 86,
+          "line": 42
         },
         {
           "lang": "sql",

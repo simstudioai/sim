@@ -138,4 +138,20 @@ describe('keyless setup commands', () => {
       '--member="principal://iam.googleapis.com/projects/123456789012/locations/global/workloadIdentityPools/sim-pool/subject/sim:workspace:ws-1:credential:abc"'
     )
   })
+
+  it('lists a custom audience in the provider’s allowed audiences', () => {
+    const commands = googleWorkloadIdentitySetupCommands({ ...input, audience: 'acme-prod' })
+    expect(commands).toContain('--allowed-audiences="acme-prod" \\')
+  })
+
+  it.each([
+    undefined,
+    '',
+    'https://iam.googleapis.com/projects/123456789012/locations/global/workloadIdentityPools/sim-pool/providers/sim-oidc',
+    '//iam.googleapis.com/projects/123456789012/locations/global/workloadIdentityPools/sim-pool/providers/sim-oidc',
+  ])('sets no allowed audiences for the default audience (%s)', (audience) => {
+    expect(googleWorkloadIdentitySetupCommands({ ...input, audience })).not.toContain(
+      '--allowed-audiences'
+    )
+  })
 })

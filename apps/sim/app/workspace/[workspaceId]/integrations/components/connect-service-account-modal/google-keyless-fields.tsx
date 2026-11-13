@@ -18,7 +18,7 @@ import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
 import {
   type KeylessSetup,
   KeylessTrustFields,
-  keylessSubjectFields,
+  keylessConfigFields,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/keyless-connection'
 
 /** What the person enters for a keyless Google credential. */
@@ -111,7 +111,7 @@ export function buildGoogleKeylessConfig(input: GoogleKeylessInput, setup: Keyle
     ...(delegatedServices.length > 0
       ? { delegation: { user: delegatedUser, services: delegatedServices } }
       : {}),
-    ...keylessSubjectFields(setup),
+    ...keylessConfigFields(setup),
   }
 }
 
@@ -130,15 +130,16 @@ export function GoogleKeylessFields({ input, onChange, setup }: GoogleKeylessFie
   const value = normalize(input)
   const trustComplete = isTrustComplete(value)
   const delegated = value.delegatedServices.length > 0
-  const audience = trustComplete ? googleWorkloadIdentityAudience(value) : undefined
+  const providerAudience = trustComplete ? googleWorkloadIdentityAudience(value) : undefined
   const commands =
-    trustComplete && setup.trust
+    trustComplete && setup.trust && !setup.audienceError
       ? googleWorkloadIdentitySetupCommands({
           ref: value,
           serviceAccountEmail: value.serviceAccountEmail,
           issuer: setup.trust.issuer,
           subject: setup.trust.subject,
           domainWideDelegation: delegated,
+          audience: setup.customAudience,
         })
       : null
   const edit = (field: Exclude<keyof GoogleKeylessInput, 'delegatedServices'>) => (next: string) =>
@@ -227,7 +228,11 @@ export function GoogleKeylessFields({ input, onChange, setup }: GoogleKeylessFie
           />
         </>
       )}
-      <KeylessTrustFields setup={setup} audience={audience} />
+      <KeylessTrustFields
+        setup={setup}
+        defaultAudience={providerAudience}
+        audienceHint='The default is the provider’s resource name; a custom value must be in the provider’s allowed audiences.'
+      />
       {commands && (
         <ChipModalField
           type='custom'

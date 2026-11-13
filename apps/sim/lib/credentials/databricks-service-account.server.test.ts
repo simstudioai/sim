@@ -175,6 +175,171 @@ describe('saving a keyless Databricks connection', () => {
   })
 })
 
+describe('a keyless Databricks connection with its own audience', () => {
+  const HOST = 'dbc-1234abcd-5678.cloud.databricks.com'
+  const CLIENT_ID = '00000000-0000-0000-0000-000000000000'
+  const SUBJECT = 'sim:workspace:ws-1:credential:abcdef0123456789'
+  const ACCOUNT_ID = '11111111-2222-3333-4444-555555555555'
+  const fetch = vi.fn()
+  const config = { authType: 'oidc_federation', host: HOST, clientId: CLIENT_ID }
+  const reconnectOwner = {
+    ...owner,
+    storedSecret: { type: 'databricks_credential_v1', config: { ...config, subject: SUBJECT } },
+  }
+
+  /** A federation policy that pins {@link SUBJECT} and lists only `audience`. */
+  function policyTrusting(audience: string) {
+    hoisted.mint.mockImplementation(
+      async ({ subject, audience: aud }: { subject: string; audience?: string }) =>
+        `token-for:${subject}:${aud}`
+    )
+    fetch.mockImplementation(async (url: string, init: RequestInit) => {
+      if (url.endsWith('/oidc/v1/token')) {
+        const body = new URLSearchParams(String(init.body))
+        return body.get('subject_token') === `token-for:${SUBJECT}:${audience}`
+          ? jsonResponse({ access_token: 'dbx-token' })
+          : jsonResponse({ error: 'invalid_grant' }, 401)
+      }
+      return jsonResponse({ userName: 'sim-workflows' })
+    })
+  }
+
+  function storedConfig(): Record<string, unknown> {
+    const [plaintext] = encryptionMockFns.mockEncryptSecret.mock.calls[0] as [string]
+    return JSON.parse(plaintext).config
+  }
+
+  function mintedAudiences(): unknown[] {
+    return hoisted.mint.mock.calls.map(([input]) => (input as { audience?: string }).audience)
+  }
+
+  beforeEach(() => {
+    fetch.mockReset()
+    vi.stubGlobal('fetch', fetch)
+    hoisted.mint.mockClear()
+    encryptionMockFns.mockEncryptSecret.mockReset()
+    encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'ciphertext', iv: 'iv' })
+  })
+
+  it('verifies, probes, and stores the custom audience', async () => {
+    policyTrusting(ACCOUNT_ID)
+
+    await expect(
+      verifyAndEncryptDatabricksCredential(
+        JSON.stringify({ ...config, audience: ` ${ACCOUNT_ID} ` }),
+        reconnectOwner
+      )
+    ).resolves.toMatchObject({ identity: 'sim-workflows' })
+    // The verification and the any-subject probe both carry the audience real runs use.
+    expect(hoisted.mint).toHaveBeenCalledTimes(2)
+    expect(mintedAudiences()).toEqual([ACCOUNT_ID, ACCOUNT_ID])
+    expect(storedConfig()).toMatchObject({ audience: ACCOUNT_ID })
+  })
+
+  it.each([
+    ['no audience', {}],
+    ['the default audience', { audience: 'sim-databricks' }],
+  ])('mints the default and stores no audience when given %s', async (_case, audience) => {
+    policyTrusting('sim-databricks')
+
+    await verifyAndEncryptDatabricksCredential(
+      JSON.stringify({ ...config, ...audience }),
+      reconnectOwner
+    )
+    expect(mintedAudiences()).toEqual(['sim-databricks', 'sim-databricks'])
+    expect(storedConfig()).not.toHaveProperty('audience')
+  })
+
+  it('goes back to the default when a reconnect clears a custom audience', async () => {
+    policyTrusting('sim-databricks')
+    const customOwner = {
+      ...owner,
+      storedSecret: {
+        type: 'databricks_credential_v1',
+        config: { ...config, subject: SUBJECT, audience: ACCOUNT_ID },
+      },
+    }
+
+    await verifyAndEncryptDatabricksCredential(JSON.stringify(config), customOwner)
+    expect(mintedAudiences()).toEqual(['sim-databricks', 'sim-databricks'])
+    expect(storedConfig()).not.toHaveProperty('audience')
+  })
+
+  it('refuses another cloud’s default audience before calling Databricks', async () => {
+    await expect(
+      verifyAndEncryptDatabricksCredential(
+        JSON.stringify({ ...config, audience: 'sts.amazonaws.com' }),
+        reconnectOwner
+      )
+    ).rejects.toThrow(/belongs to another cloud/)
+    expect(fetch).not.toHaveBeenCalled()
+    expect(hoisted.mint).not.toHaveBeenCalled()
+  })
+
+  it('names the audience it sent when the policy does not trust it', async () => {
+    policyTrusting('sim-databricks')
+
+    await expect(
+      verifyAndEncryptDatabricksCredential(
+        JSON.stringify({ ...config, audience: ACCOUNT_ID }),
+        reconnectOwner
+      )
+    ).rejects.toThrow(ACCOUNT_ID)
+  })
+})
+
+describe('getting a keyless Databricks token for a run', () => {
+  const fetch = vi.fn()
+
+  function storeKeyless(extra: Record<string, unknown>) {
+    resetDbChainMock()
+    queueTableRows(credential, [
+      {
+        workspaceId: 'ws-1',
+        organizationId: null,
+        type: 'service_account',
+        providerId: DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
+        revokedAt: null,
+        encryptedServiceAccountKey: 'ciphertext',
+      },
+    ])
+    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({
+      decrypted: JSON.stringify({
+        type: 'databricks_credential_v1',
+        config: {
+          authType: 'oidc_federation',
+          host: 'dbc-1234abcd-5678.cloud.databricks.com',
+          clientId: '00000000-0000-0000-0000-000000000000',
+          subject: 'sim:workspace:ws-1:credential:abcdef0123456789',
+          ...extra,
+        },
+      }),
+    })
+  }
+
+  beforeEach(() => {
+    hoisted.mint.mockClear()
+    fetch.mockReset().mockResolvedValue(jsonResponse({ access_token: 'dbx-token' }))
+    vi.stubGlobal('fetch', fetch)
+  })
+
+  it('mints with the stored custom audience', async () => {
+    storeKeyless({ audience: 'acct-1234' })
+
+    await resolveDatabricksCredentialToken('cred-1')
+    expect(hoisted.mint).toHaveBeenCalledWith(expect.objectContaining({ audience: 'acct-1234' }))
+  })
+
+  it('mints exactly the old default for a credential saved before audiences were configurable', async () => {
+    storeKeyless({})
+
+    await resolveDatabricksCredentialToken('cred-1')
+    expect(hoisted.mint).toHaveBeenCalledWith(
+      expect.objectContaining({ audience: 'sim-databricks' })
+    )
+  })
+})
+
 describe('getting a Databricks token for a run', () => {
   const fetch = vi.fn()
 

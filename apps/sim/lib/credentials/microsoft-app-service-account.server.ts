@@ -22,7 +22,12 @@ import {
   providerFailureCode,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
-import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
+import {
+  storedAudienceField,
+  storedWorkloadIdentityAudienceSchema,
+  WORKLOAD_IDENTITY_AUDIENCES,
+  workloadIdentityAudienceSchema,
+} from '@/lib/credentials/workload-identity/audiences'
 import {
   isWorkloadIdentityConfigured,
   mintWorkloadIdentityToken,
@@ -166,6 +171,8 @@ const federatedShape = {
   ...baseShape,
   authType: z.literal('federated'),
   subject: z.string().min(1).max(512),
+  /** The `aud` Sim's token carries; absent for the default, so earlier releases still read it. */
+  audience: storedWorkloadIdentityAudienceSchema,
 }
 
 const storedConfigSchema = z.discriminatedUnion('authType', [
@@ -184,6 +191,7 @@ const submittedConfigSchema = z.discriminatedUnion('authType', [
       ...federatedShape,
       subject: federatedShape.subject.optional(),
       subjectProof: z.string().min(1).max(512).optional(),
+      audience: workloadIdentityAudienceSchema('microsoft').optional(),
     })
     .strict(),
 ])
@@ -210,8 +218,13 @@ export class MicrosoftAppCredentialError extends Error {
   }
 }
 
-const FEDERATION_MISMATCH_MESSAGE =
-  'No federated credential on this app matches the issuer, subject, and audience Sim presents. Add it with the exact values from Sim (the connect dialog or `sim credentials keyless-subject`) (matching is case-sensitive). A new federated credential can take a few minutes to take effect.'
+function federationMismatchMessage(config: MicrosoftAppConfig): string {
+  const audience =
+    config.authType === 'federated'
+      ? ` (${config.audience ?? WORKLOAD_IDENTITY_AUDIENCES.microsoft})`
+      : ''
+  return `No federated credential on this app matches the issuer, subject, and audience${audience} Sim presents. Add it with the exact values from Sim (the connect dialog or \`sim credentials keyless-subject\`) (matching is case-sensitive). A new federated credential can take a few minutes to take effect.`
+}
 
 /**
  * Actionable copy for the Entra errors a person saving the credential can fix.
@@ -243,10 +256,10 @@ function entraFailureMessage(aadsts: number | undefined, config: MicrosoftAppCon
         : 'Microsoft Entra does not recognize the requested resource in this tenant.'
     case 70021:
     case 700213:
-      return FEDERATION_MISMATCH_MESSAGE
+      return federationMismatchMessage(config)
     default:
       return config.authType === 'federated'
-        ? `Microsoft Entra refused the keyless sign-in${aadsts ? ` (AADSTS${aadsts})` : ''}. ${FEDERATION_MISMATCH_MESSAGE}`
+        ? `Microsoft Entra refused the keyless sign-in${aadsts ? ` (AADSTS${aadsts})` : ''}. ${federationMismatchMessage(config)}`
         : `Microsoft Entra refused the token request${aadsts ? ` (AADSTS${aadsts})` : ''}. Check the tenant ID, client ID, and credential.`
   }
 }
@@ -349,10 +362,13 @@ async function signCertificateAssertion(
     .sign(key)
 }
 
-function mintFederatedAssertion(subject: string, owner: WorkloadIdentityOwner): Promise<string> {
+function mintFederatedAssertion(
+  config: Extract<MicrosoftAppConfig, { authType: 'federated' }>,
+  owner: WorkloadIdentityOwner
+): Promise<string> {
   return mintWorkloadIdentityToken({
-    subject,
-    audience: WORKLOAD_IDENTITY_AUDIENCES.microsoft,
+    subject: config.subject,
+    audience: config.audience ?? WORKLOAD_IDENTITY_AUDIENCES.microsoft,
     owner,
   })
 }
@@ -365,7 +381,7 @@ async function clientAuthentication(
   const assertion =
     config.authType === 'certificate'
       ? await signCertificateAssertion(config)
-      : await mintFederatedAssertion(config.subject, owner)
+      : await mintFederatedAssertion(config, owner)
   return { client_assertion_type: CLIENT_ASSERTION_TYPE, client_assertion: assertion }
 }
 
@@ -498,18 +514,24 @@ async function verifyDataverseApplicationUser(environmentUrl: string, token: str
 }
 
 /**
- * The auth mode and national cloud a decrypted Microsoft app credential secret holds, for a
- * reconnect to reopen on: empty when it is not one, and no cloud for a global credential.
+ * The auth mode, national cloud, and custom keyless audience a decrypted Microsoft app credential
+ * secret holds, for a reconnect to reopen on: empty when it is not one, no cloud for a global
+ * credential, and no audience for one that uses the default.
  */
 export function storedMicrosoftAppReconnectFields(decrypted: string): {
   authType?: MicrosoftAppConfig['authType']
   cloud?: MicrosoftCloudId
+  audience?: string
 } {
   try {
     const parsed = storedSecretSchema.safeParse(JSON.parse(decrypted))
     if (!parsed.success) return {}
-    const { authType, cloud } = parsed.data.config
-    return cloud ? { authType, cloud } : { authType }
+    const { config } = parsed.data
+    return {
+      authType: config.authType,
+      ...(config.cloud ? { cloud: config.cloud } : {}),
+      ...(config.authType === 'federated' && config.audience ? { audience: config.audience } : {}),
+    }
   } catch {
     return {}
   }
@@ -605,8 +627,13 @@ export async function verifyAndEncryptMicrosoftAppCredential(
     if (!(await isWorkloadIdentityConfigured())) {
       throw new WorkloadIdentityNotConfiguredError('Use a client secret or certificate.')
     }
-    const { subject, subjectProof, ...rest } = submitted
-    config = { ...rest, ...cloudField, subject: bindSubject(subject, subjectProof, owner) }
+    const { subject, subjectProof, audience: submittedAudience, ...rest } = submitted
+    config = {
+      ...rest,
+      ...cloudField,
+      subject: bindSubject(subject, subjectProof, owner),
+      ...storedAudienceField(submittedAudience, WORKLOAD_IDENTITY_AUDIENCES.microsoft),
+    }
   } else {
     config = { ...submitted, ...cloudField }
   }

@@ -67,6 +67,8 @@ const KEYLESS_FLOW_HELP = [
   '',
   "Step 1: run `sim credentials keyless-subject <providerId> --output json` and configure your cloud to trust the printed issuer, audience, and subject. Its requiredConfigFields lists the values your provider's keylessConfig still needs.",
   '',
+  "The printed audience is the default. To have Sim sign tokens for your own audience instead, set audience in keylessConfig and trust that value. Google Cloud prints no audience: its default is the credential's own workload identity pool provider.",
+  '',
   'Step 2: add those values to keylessConfig and pass it to `sim credentials create <providerId> --credentials @file`.',
   '',
   `The proof expires after 24 hours and works only for the user who requested it, with the same providerId. If creation reports ${[...KEYLESS_RETRY_CODES].join(', ')}, run step 1 again, trust the new subject, and retry.`,
