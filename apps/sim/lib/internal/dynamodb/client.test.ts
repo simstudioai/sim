@@ -44,6 +44,7 @@ describe('DynamoDB item unmarshalling', () => {
           avatar: { B: new Uint8Array([104, 105]) },
           snowflake: { N: '1234567890123456789' },
           age: { N: '42' },
+          ratio: { N: '0.12345678901234567890123' },
         },
       ],
     })
@@ -61,6 +62,7 @@ describe('DynamoDB item unmarshalling', () => {
           avatar: 'aGk=',
           snowflake: '1234567890123456789',
           age: 42,
+          ratio: 0.12345678901234568,
         },
       ],
       count: 1,
@@ -78,6 +80,7 @@ describe('DynamoDB item unmarshalling', () => {
         sk: { N: '1234567890123456789' },
         bin: { B: new Uint8Array([104, 105]) },
         age: { N: '42' },
+        ratio: { N: '0.12345678901234567890123' },
       },
     })
     const firstPage = await queryItems(pageClient, 'Users', 'pk = :pk', {
@@ -89,6 +92,7 @@ describe('DynamoDB item unmarshalling', () => {
       sk: { N: '1234567890123456789' },
       bin: { B: 'aGk=' },
       age: 42,
+      ratio: { N: '0.12345678901234567890123' },
     })
 
     let sentStartKey: unknown
@@ -105,6 +109,7 @@ describe('DynamoDB item unmarshalling', () => {
       sk: { N: '1234567890123456789' },
       bin: { B: new Uint8Array([104, 105]) },
       age: { N: '42' },
+      ratio: { N: '0.12345678901234567890123' },
     })
     pageClient.destroy()
     client.destroy()
