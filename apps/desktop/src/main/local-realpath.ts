@@ -19,7 +19,12 @@ interface LocalRealpathFileSystem {
   realpath: (path: string) => Promise<string>
 }
 
-const NODE_FILE_SYSTEM: LocalRealpathFileSystem = { lstat, readlink, realpath }
+/** Looks each call up on `node:fs/promises` when it runs, as every other caller in the shell does. */
+const NODE_FILE_SYSTEM: LocalRealpathFileSystem = {
+  lstat: (path) => lstat(path),
+  readlink: (path) => readlink(path),
+  realpath: (path) => realpath(path),
+}
 
 /**
  * A UNC share (`\\host\share`), a `\\?\` or `\\.\` device path, or an NT `\??\` path: any of them
