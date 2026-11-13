@@ -1,3 +1,7 @@
+import {
+  DESKTOP_THEME_DEFAULT_ATTRIBUTE,
+  DESKTOP_THEME_STORAGE_KEY_ATTRIBUTE,
+} from '@sim/desktop-bridge'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ShellTheme, ShellThemeApi } from '@/shared/shell'
 
@@ -14,12 +18,19 @@ export function exposeShellTheme(): void {
   contextBridge.exposeInMainWorld('simShellTheme', api)
 }
 
-/** The app's explicit theme choice (the next-themes `sim-theme` key), or `system`. */
+/**
+ * The page's explicit theme choice, or the default it falls back to. The theme provider marks its
+ * script with the storage key the document uses, since landing pages keep their own
+ * (`sim-landing-theme`, light by default); a server too old to mark it uses the app's `sim-theme`.
+ */
 function themePreference(): string {
+  const store = document.querySelector(`script[${DESKTOP_THEME_STORAGE_KEY_ATTRIBUTE}]`)
+  const storageKey = store?.getAttribute(DESKTOP_THEME_STORAGE_KEY_ATTRIBUTE) || 'sim-theme'
+  const fallback = store?.getAttribute(DESKTOP_THEME_DEFAULT_ATTRIBUTE) || 'system'
   try {
-    return localStorage.getItem('sim-theme') ?? 'system'
+    return localStorage.getItem(storageKey) ?? fallback
   } catch {
-    return 'system'
+    return fallback
   }
 }
 
