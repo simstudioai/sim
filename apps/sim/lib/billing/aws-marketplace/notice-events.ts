@@ -28,6 +28,12 @@ export type AwsMarketplaceTeamNotice =
       state: 'issued' | 'resolved'
       detail: string
     }
+  | {
+      kind: 'stripe-cancelled'
+      licenseIds: string[]
+      subscriptionId: string
+      stripeSubscriptionId: string
+    }
 
 export interface AwsMarketplaceBuyerNotice {
   licenseId: string

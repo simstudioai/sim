@@ -13,6 +13,7 @@ import {
   lockLicense,
   organizationExists,
 } from '@/lib/billing/aws-marketplace/repository'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 /** The licenses no organization holds yet, the ones the team's notices ask to link. */
@@ -49,6 +50,7 @@ export async function linkAwsMarketplaceLicenseAsAdmin(
   actor: AdminMutationActor
 ): Promise<{ id: string; organizationId: string }> {
   const { license, newlyLinked } = await db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, input.organizationId)
     const locked = await lockLicense(tx, input.licenseId)
     if (!locked) throw new OrchestrationError('not_found', 'License')
     requireLinkableTo(locked, input.organizationId)

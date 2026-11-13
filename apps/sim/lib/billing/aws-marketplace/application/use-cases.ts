@@ -22,6 +22,7 @@ import {
   recordLicenseVerification,
   saveLicenseContact,
 } from '@/lib/billing/aws-marketplace/repository'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import {
   defineAuthorizedOrganizationUseCase,
   type OrganizationUseCaseContext,
@@ -98,7 +99,9 @@ export function requireLinkableTo(
 
 /**
  * AWS bills a linked organization for the listing, so one already paying Stripe for a plan would
- * pay twice. Its subscription is cancelled first, by its owner or by support.
+ * pay twice. Its subscription is cancelled first, by its owner or by support. The caller holds the
+ * organization mutation lock until commit, which a subscription binding to Stripe also takes (see
+ * `cancelStripeSubscriptionBilledThroughMarketplace`).
  */
 export async function requireNotBilledThroughStripe(
   tx: DbTransaction,
@@ -260,6 +263,8 @@ export const linkAwsMarketplaceLicense = defineAuthorizedOrganizationUseCase({
   }: OrganizationUseCaseContext<LinkLicenseInput>): Promise<LinkedLicense> {
     const { claimHash, verification } = await verifyClaimedLicense(input, input.organizationId)
     return db.transaction(async (tx) => {
+      // Held from the Stripe check to commit; a Stripe subscription binding meanwhile waits for it.
+      await acquireOrganizationMutationLock(tx, input.organizationId)
       const locked = await lockOpenClaim(tx, input, claimHash)
       requireLinkableTo(locked, input.organizationId)
       requireNotOverruled(locked, verification.verifiedAt)

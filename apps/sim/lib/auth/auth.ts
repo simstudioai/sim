@@ -84,6 +84,7 @@ import {
   authorizeSubscriptionReference,
   isPersonalCheckoutRequest,
 } from '@/lib/billing/authorization'
+import { cancelStripeSubscriptionBilledThroughMarketplace } from '@/lib/billing/aws-marketplace/stripe-fence'
 import {
   type CheckoutAdmissionClaim,
   claimCheckoutAdmission,
@@ -1615,6 +1616,11 @@ export const auth = betterAuth({
                 stripeSubscription: Stripe.Subscription
                 subscription: any
               }) => {
+                // A checkout left open across an AWS Marketplace link would bill twice.
+                if (await cancelStripeSubscriptionBilledThroughMarketplace(subscription.id)) {
+                  return
+                }
+
                 const { priceId, planFromStripe, isAnnual } =
                   resolvePlanFromStripeSubscription(stripeSubscription)
 

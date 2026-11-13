@@ -35,13 +35,18 @@ function syncWriteIdempotencyKey(eventId: string): string {
   return `outbox:${eventId}:${generateShortId()}`
 }
 
+/**
+ * An admin's request carries the organization and who asked, and is audited here. A cancellation
+ * Sim queues on its own (an AWS Marketplace customer who also paid Stripe) carries no requester and
+ * is audited where it was decided.
+ */
 interface StripeCancelSubscriptionImmediatelyPayload {
   stripeSubscriptionId: string
   subscriptionId: string
-  organizationId: string
+  organizationId?: string
   operationId: string
   reason?: string
-  requestedBy: { id: string | null; name: string; email: string | null }
+  requestedBy?: { id: string | null; name: string; email: string | null }
 }
 
 async function recordAdminCancellationAudit(params: {

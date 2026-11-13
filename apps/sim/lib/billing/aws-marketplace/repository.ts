@@ -35,6 +35,7 @@ import type {
   AwsMarketplaceProducts,
 } from '@/lib/billing/aws-marketplace/products'
 import { TERMINAL_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbTransaction } from '@/lib/db/types'
 
@@ -60,6 +61,9 @@ interface AgreementObservation {
   agreementId: string | null
   seenAt: Date | null
 }
+
+/** Why the cancellation was queued; the outbox handler logs it. */
+const STRIPE_CANCELLATION_REASON = 'billed-through-aws-marketplace'
 
 function enqueueTeamNotice(tx: DbTransaction, notice: AwsMarketplaceTeamNotice, id?: string) {
   return enqueueOutboxEvent(tx, AWS_MARKETPLACE_TEAM_NOTICE_EVENT, notice, { id })
@@ -675,10 +679,24 @@ export async function listAccountLicenses(userId: string) {
 }
 
 /**
- * Whether AWS Marketplace bills this billing reference: a license of a listing this deployment
- * sells that is not inactive, linked to the organization, or registered to the user's account with
- * no organization yet.
+ * A license of a listing this deployment sells that is not inactive and bills `referenceId`: linked
+ * to the organization, or registered to the user's account with no organization yet.
  */
+function billsReference(products: AwsMarketplaceProducts, referenceId: string) {
+  return and(
+    ofProducts(products),
+    ne(awsMarketplaceLicense.status, 'inactive'),
+    or(
+      eq(awsMarketplaceLicense.organizationId, referenceId),
+      and(
+        isNull(awsMarketplaceLicense.organizationId),
+        eq(awsMarketplaceLicense.linkedByUserId, referenceId)
+      )
+    )
+  )
+}
+
+/** Whether AWS Marketplace bills this billing reference; see {@link billsReference}. */
 export async function holdsMarketplaceLicense(
   products: AwsMarketplaceProducts,
   referenceId: string
@@ -686,21 +704,24 @@ export async function holdsMarketplaceLicense(
   const [row] = await db
     .select({ id: awsMarketplaceLicense.id })
     .from(awsMarketplaceLicense)
-    .where(
-      and(
-        ofProducts(products),
-        ne(awsMarketplaceLicense.status, 'inactive'),
-        or(
-          eq(awsMarketplaceLicense.organizationId, referenceId),
-          and(
-            isNull(awsMarketplaceLicense.organizationId),
-            eq(awsMarketplaceLicense.linkedByUserId, referenceId)
-          )
-        )
-      )
-    )
+    .where(billsReference(products, referenceId))
     .limit(1)
   return Boolean(row)
+}
+
+/** The licenses that bill `referenceId`, read in the caller's transaction. */
+export async function listLicensesBillingReference(
+  tx: DbTransaction,
+  products: AwsMarketplaceProducts,
+  referenceId: string
+): Promise<string[]> {
+  const rows = await tx
+    .select({ id: awsMarketplaceLicense.id })
+    .from(awsMarketplaceLicense)
+    .where(billsReference(products, referenceId))
+    .orderBy(asc(awsMarketplaceLicense.createdAt))
+    .limit(MAX_LICENSES_PER_AGREEMENT)
+  return rows.map((row) => row.id)
 }
 
 /**
@@ -766,6 +787,93 @@ export async function paysForSelfServePlan(
     )
     .limit(1)
   return Boolean(row)
+}
+
+/** The billing reference a subscription row names, read without a lock. */
+export async function findSubscriptionReference(
+  tx: DbTransaction,
+  subscriptionId: string
+): Promise<string | null> {
+  const [row] = await tx
+    .select({ referenceId: subscription.referenceId })
+    .from(subscription)
+    .where(eq(subscription.id, subscriptionId))
+    .limit(1)
+  return row?.referenceId ?? null
+}
+
+/**
+ * Locks a subscription that pays Stripe for a self-serve plan, the kind {@link paysForSelfServePlan}
+ * refuses to link: bound to a Stripe subscription, not finished, and not Enterprise. Null when the
+ * row is not, or no longer, one.
+ */
+export async function lockSelfServeStripeSubscription(tx: DbTransaction, subscriptionId: string) {
+  const [row] = await tx
+    .select({
+      id: subscription.id,
+      referenceId: subscription.referenceId,
+      plan: subscription.plan,
+      stripeSubscriptionId: subscription.stripeSubscriptionId,
+    })
+    .from(subscription)
+    .where(
+      and(
+        eq(subscription.id, subscriptionId),
+        isNotNull(subscription.stripeSubscriptionId),
+        notInArray(subscription.status, [...TERMINAL_SUBSCRIPTION_STATUSES]),
+        ne(subscription.plan, 'enterprise')
+      )
+    )
+    .for('update')
+    .limit(1)
+  if (!row?.stripeSubscriptionId) return null
+  return { ...row, stripeSubscriptionId: row.stripeSubscriptionId }
+}
+
+/**
+ * Queues the immediate Stripe cancellation of a subscription AWS Marketplace also bills, and tells
+ * the team, at most once per subscription: a redelivered webhook finds both already queued. The
+ * caller holds the subscription row lock.
+ */
+export async function enqueueStripeCancellationForMarketplace(
+  tx: DbTransaction,
+  input: {
+    subscriptionId: string
+    stripeSubscriptionId: string
+    organizationId: string | null
+    licenseIds: string[]
+  }
+): Promise<boolean> {
+  const cancellationId = `aws-marketplace-stripe-cancel-${input.subscriptionId}`
+  const [queued] = await tx
+    .select({ id: outboxEvent.id })
+    .from(outboxEvent)
+    .where(eq(outboxEvent.id, cancellationId))
+    .limit(1)
+  if (queued) return false
+  await enqueueOutboxEvent(
+    tx,
+    OUTBOX_EVENT_TYPES.STRIPE_CANCEL_SUBSCRIPTION_IMMEDIATELY,
+    {
+      stripeSubscriptionId: input.stripeSubscriptionId,
+      subscriptionId: input.subscriptionId,
+      ...(input.organizationId && { organizationId: input.organizationId }),
+      operationId: cancellationId,
+      reason: STRIPE_CANCELLATION_REASON,
+    },
+    { id: cancellationId }
+  )
+  await enqueueTeamNotice(
+    tx,
+    {
+      kind: 'stripe-cancelled',
+      licenseIds: input.licenseIds,
+      subscriptionId: input.subscriptionId,
+      stripeSubscriptionId: input.stripeSubscriptionId,
+    },
+    `aws-marketplace-stripe-cancel-notice-${input.subscriptionId}`
+  )
+  return true
 }
 
 export async function organizationExists(tx: DbTransaction, organizationId: string) {

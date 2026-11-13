@@ -184,6 +184,14 @@ New agreement: ${notice.agreementId}`,
 Event detail: ${notice.detail}`,
         next: 'Review the agreement in the AWS Marketplace Management Portal.',
       }
+    case 'stripe-cancelled':
+      return {
+        subject: `Stripe subscription cancelled: ${account}`,
+        opening: `A Stripe checkout completed for a customer AWS Marketplace already bills, so Sim cancelled the Stripe subscription at once.
+Sim subscription: ${notice.subscriptionId}
+Stripe subscription: ${notice.stripeSubscriptionId}`,
+        next: 'Refund the Stripe charge: from the admin dashboard for an organization, in Stripe for a personal plan. Cancelling credits only the unused time to the Stripe balance. Keep the customer on the AWS Marketplace terms below.',
+      }
   }
 }
 
