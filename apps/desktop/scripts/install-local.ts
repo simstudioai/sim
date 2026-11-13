@@ -22,12 +22,13 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { createLogger } from '@sim/logger'
 import { CHANNEL_IDENTITIES, type DesktopChannelIdentity } from '@/shared/channel-identity'
 import { DEV, LOCAL, STAGING } from './channels'
 
 if (process.platform !== 'darwin') {
-  console.error(
-    '✖ install:local installs into /Applications and only runs on macOS. On Windows, run `bun run package:win` and launch release/Sim-<version>-x64.exe.'
+  createLogger('DesktopInstallLocal').error(
+    'install:local installs into /Applications and only runs on macOS. On Windows, run `bun run package:win` and launch release/Sim-<version>-x64.exe.'
   )
   process.exit(1)
 }
