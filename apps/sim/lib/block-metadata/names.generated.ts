@@ -186,6 +186,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   mintlify: 'Mintlify',
   mistral_parse_v3: 'Mistral Parser',
   modal: 'Modal',
+  monaco: 'Monaco',
   monday: 'Monday',
   mongodb: 'MongoDB',
   mothership: 'Sim Chat',

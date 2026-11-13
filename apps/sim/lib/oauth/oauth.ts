@@ -124,6 +124,7 @@ import {
   MicrosoftSqlIcon,
   MicrosoftTeamsIcon,
   MicrosoftWordIcon,
+  MonacoIcon,
   MondayIcon,
   MySQLIcon,
   NetSuiteIcon,
@@ -3865,6 +3866,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'harmonic',
+  },
+  monaco: {
+    name: 'Monaco',
+    icon: MonacoIcon,
+    services: {
+      monaco: {
+        name: 'Monaco',
+        description: 'Manage Monaco contacts, accounts, opportunities, tasks, and outreach.',
+        providerId: 'monaco',
+        serviceAccountProviderId: 'monaco-service-account',
+        icon: MonacoIcon,
+        baseProviderIcon: MonacoIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'monaco',
   },
   linkedin: {
     name: 'LinkedIn',

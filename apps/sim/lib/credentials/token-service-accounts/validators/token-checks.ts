@@ -45,6 +45,7 @@ import {
 } from '@/tools/logfire/utils'
 import type { MailgunRegion } from '@/tools/mailgun/types'
 import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { MONACO_API_BASE, monacoHeaders } from '@/tools/monaco/utils'
 import { getNerdGraphEndpoint, NEW_RELIC_REGIONS, newRelicHeaders } from '@/tools/new_relic/utils'
 import { oktaHeaders } from '@/tools/okta/utils'
 import { planeApiUrl, planeHeaders } from '@/tools/plane/utils'
@@ -1335,6 +1336,24 @@ export const validateMem0ServiceAccount = tokenCheckValidator({
     url: 'https://api.mem0.ai/v1/ping/',
     headers: { Authorization: `Token ${apiToken}`, Accept: 'application/json' },
   }),
+})
+
+/**
+ * Monaco's get-authenticated-user endpoint answers 200 with the key's organization for a valid
+ * `mks_` key, 401 for a malformed bearer token, and 403 for an unknown or deactivated key.
+ */
+export const validateMonacoServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Monaco',
+  request: ({ apiToken }) => ({
+    url: `${MONACO_API_BASE}/v1/me`,
+    headers: monacoHeaders(apiToken),
+  }),
+  acceptsBody: (body) => {
+    const orgName = toRecord(toRecord(body).data).org_name
+    return typeof orgName === 'string' && orgName.trim()
+      ? { displayName: `Monaco (${orgName.trim()})` }
+      : true
+  },
 })
 
 /**

@@ -18427,6 +18427,210 @@
       "updatedAt": "2026-10-14"
     },
     {
+      "type": "monaco",
+      "slug": "monaco",
+      "name": "Monaco",
+      "description": "Manage Monaco CRM records, tasks, meetings, and outreach",
+      "longDescription": "Connect a Monaco API key to read and write contacts, accounts, and opportunities, manage tasks and tags, read meetings, transcripts, and email or LinkedIn conversations, and run outreach by building audiences, enrolling contacts in campaigns, and controlling sequences.",
+      "bgColor": "#000000",
+      "iconName": "MonacoIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/monaco",
+      "operations": [
+        {
+          "name": "List Contacts",
+          "description": "List Monaco contacts with optional filters, sorting, and pagination."
+        },
+        {
+          "name": "Get Contact",
+          "description": "Get one Monaco contact by ID, including scoring, heat score explanations, and custom fields."
+        },
+        {
+          "name": "Create Contact",
+          "description": "Create a Monaco contact from an email or LinkedIn URL. Monaco enriches the contact and resolves or creates its account, which can take several seconds. A duplicate email or LinkedIn URL is rejected; use Upsert Contact to update a match instead."
+        },
+        {
+          "name": "Update Contact",
+          "description": "Update fields on an existing Monaco contact by ID. Only the fields sent change."
+        },
+        {
+          "name": "Upsert Contact",
+          "description": "Create a Monaco contact or update the one matching its email (case-insensitive), then LinkedIn URL. Pass a contact ID instead to update that contact by ID, which is how to change its email. Creating a contact enriches it and can take several seconds."
+        },
+        {
+          "name": "Delete Contact",
+          "description": "Permanently delete a Monaco contact. This cannot be undone."
+        },
+        {
+          "name": "List Accounts",
+          "description": "List Monaco accounts with optional filters, sorting, and pagination."
+        },
+        {
+          "name": "Get Account",
+          "description": "Get one Monaco account by ID, including enriched company information, scoring, heat score explanations, and custom fields."
+        },
+        {
+          "name": "Upsert Account",
+          "description": "Create a Monaco account or update the one whose domain exactly matches the domain lookup. Pass an account ID instead to update that account by ID, or only a name to create an account without a domain where the workspace allows it. Creating an account enriches it with firmographic data and can take several seconds."
+        },
+        {
+          "name": "Update Account",
+          "description": "Update fields on an existing Monaco account by ID. Only the fields sent change. Domains replace the account's whole domain list, and a domain another account already uses fails the request."
+        },
+        {
+          "name": "Delete Account",
+          "description": "Permanently delete a Monaco account. This cannot be undone. Its contacts and opportunities are not deleted but may become unlinked."
+        },
+        {
+          "name": "List Opportunities",
+          "description": "List Monaco opportunities with optional filters, sorting, pagination, and a pipeline scope."
+        },
+        {
+          "name": "Get Opportunity",
+          "description": "Get one Monaco opportunity by ID, including its AI-generated summary, identified risks, stage, pipeline, and custom fields."
+        },
+        {
+          "name": "Create Opportunity",
+          "description": "Create a Monaco opportunity on an existing account, optionally setting its pipeline, stage, owner, estimated value, close date, tags, and custom fields."
+        },
+        {
+          "name": "Update Opportunity",
+          "description": "Update a Monaco opportunity: rename it, change its owner, move it to another stage or pipeline, or set its estimated value, close dates, notes, or tags. Only the fields you set are changed."
+        },
+        {
+          "name": "Delete Opportunity",
+          "description": "Permanently delete a Monaco opportunity. This cannot be undone."
+        },
+        {
+          "name": "List Opportunity Contacts",
+          "description": "List the contacts linked to a Monaco opportunity, with their email, name, title, and how each link was created."
+        },
+        {
+          "name": "Link Contacts to Opportunity",
+          "description": "Link one or more contacts to a Monaco opportunity. Contacts that are already linked are left as they are, and previously unlinked contacts are restored."
+        },
+        {
+          "name": "Unlink Contacts from Opportunity",
+          "description": "Unlink one or more contacts from a Monaco opportunity. Contacts that are not currently linked are recorded as removed so they stay off the opportunity."
+        },
+        {
+          "name": "List Pipelines",
+          "description": "List the organization's Monaco opportunity pipelines, default first, each with its stages in display order. Use the stage keys and IDs to set an opportunity's stage."
+        },
+        {
+          "name": "List Tasks",
+          "description": "List Monaco tasks with optional filters, sorting, and pagination. Email drafts are omitted from list results; use Get Task for them."
+        },
+        {
+          "name": "Get Task",
+          "description": "Get one Monaco task by ID, including the email draft for EMAIL tasks."
+        },
+        {
+          "name": "Create Task",
+          "description": "Create a Monaco task, optionally linked to an account and/or opportunity. Without an assignee, the task is assigned to the API key owner."
+        },
+        {
+          "name": "Update Task",
+          "description": "Update a Monaco task. Only the fields you set are changed; setting status to DONE or CANCELLED marks it completed."
+        },
+        {
+          "name": "List Meetings",
+          "description": "List Monaco meetings with optional filters, sorting, and pagination. Use Get Meeting for the transcript, summary, and recording."
+        },
+        {
+          "name": "Get Meeting",
+          "description": "Get one Monaco meeting by ID, including AI pre-meeting notes, the AI summary, a presigned recording URL, and the full speaker-attributed transcript with word-level timestamps. The transcript is returned untruncated and can be very large for long meetings."
+        },
+        {
+          "name": "List Messages",
+          "description": "List the email and LinkedIn conversation history for a contact or account as one recency-ordered feed, one row per conversation. Pass a row's conversation_id and channel to Get Conversation for the full thread. Paginates with a cursor."
+        },
+        {
+          "name": "Get Conversation",
+          "description": "Get the full ordered thread of one Monaco email or LinkedIn conversation, with participants and paginated messages. Bodies are plain text and truncated past 20,000 characters."
+        },
+        {
+          "name": "List Tags",
+          "description": "List every Monaco tag defined for contacts, accounts, or opportunities."
+        },
+        {
+          "name": "Create Tag",
+          "description": "Create a Monaco tag for contacts, accounts, or opportunities."
+        },
+        {
+          "name": "List Users",
+          "description": "List the users in the Monaco organization, optionally filtered by name or email. Each user's role says whether they are a workspace ADMIN."
+        },
+        {
+          "name": "Get Current User",
+          "description": "Get the Monaco user and organization the API key belongs to."
+        },
+        {
+          "name": "Get Field Schemas",
+          "description": "List the filterable and sortable fields for a Monaco entity, with each field's key, type, allowed filter operators, whether it is updatable, custom-field settings, and allowed enum values. Use it to build list filters and to interpret custom_field_<id> keys."
+        },
+        {
+          "name": "List Sequences",
+          "description": "List Monaco outreach sequences with optional filters, sorting, and pagination."
+        },
+        {
+          "name": "Get Sequence",
+          "description": "Get one Monaco sequence by ID, including its ordered list of tasks."
+        },
+        {
+          "name": "Update Sequence",
+          "description": "Apply a state transition (enqueue, pause, resume, stop, or exclude) to a Monaco sequence and return the refreshed sequence with its tasks. Enqueuing or resuming a sequence lets it send real emails and LinkedIn messages to the contact; stopping ends the sequence as failed."
+        },
+        {
+          "name": "List Audiences",
+          "description": "List Monaco audiences, the reusable contact lists that campaigns enroll. The default page size returns every audience in one page."
+        },
+        {
+          "name": "Get Audience",
+          "description": "Get one Monaco audience by ID."
+        },
+        {
+          "name": "List Audience Contacts",
+          "description": "List the contacts in a Monaco audience, one page at a time."
+        },
+        {
+          "name": "Create Audience",
+          "description": "Create a Monaco audience, optionally seeded with contacts: either an explicit list of contact IDs, or a filters query over the contact field schemas (optionally narrowed by excluded IDs or a source audience). Audiences can be shared across campaigns."
+        },
+        {
+          "name": "Add Contacts to Audience",
+          "description": "Add contacts to a Monaco audience by ID. Audiences can be attached to multiple campaigns, so adding a contact here enrolls them in every campaign that uses this audience, which can start real email and LinkedIn outreach."
+        },
+        {
+          "name": "Remove Contacts from Audience",
+          "description": "Remove contacts from a Monaco audience by ID. Idempotent: IDs not in the audience are ignored. Per-contact failures are returned in failures."
+        },
+        {
+          "name": "List Campaigns",
+          "description": "List Monaco campaigns with optional filters, sorting, and pagination."
+        },
+        {
+          "name": "Get Campaign",
+          "description": "Get one Monaco campaign by ID, including its attached audiences, sender distribution, rules of engagement, and autopilot settings."
+        },
+        {
+          "name": "Enroll Contacts in Campaign",
+          "description": "Enroll contacts in a Monaco campaign. This sends real outreach: enrolled contacts are placed on the campaign sequence, which sends real emails and LinkedIn messages. Monaco always creates a new audience with the given name, attaches it to the campaign, and adds the contacts to it. The campaign must be active or paused. Sequences are created asynchronously, so contacts already enrolled are deduplicated later and still count as successes."
+        },
+        {
+          "name": "Add Audiences to Campaign",
+          "description": "Attach audiences to a Monaco campaign, keeping its existing ones, and return the refreshed campaign. This sends real outreach: every contact in the attached audiences is enrolled asynchronously and the campaign sequence sends them real emails and LinkedIn messages. Audiences already attached are ignored, so retries are safe."
+        }
+      ],
+      "operationCount": 46,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["sales-engagement", "automation", "agentic"],
+      "updatedAt": "2026-11-13"
+    },
+    {
       "type": "monday",
       "slug": "monday",
       "name": "Monday",
