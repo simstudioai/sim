@@ -528,20 +528,25 @@ describe('collectSnapshot', () => {
   })
 
   it('counts changes inside a shadow root the snapshot walked as page activity', async () => {
-    document.body.innerHTML = '<div id="host"></div>'
-    const host = visible(document.querySelector('#host') as HTMLDivElement)
-    const shadow = host.attachShadow({ mode: 'open' })
-    shadow.innerHTML = '<button>Load</button>'
-    visible(shadow.querySelector('button') as HTMLButtonElement)
-    collectSnapshot()
-    await new Promise((resolve) => setTimeout(resolve, 40))
-    const before = (readDomQuiet() as { quietMs: number }).quietMs
+    vi.useFakeTimers({ toFake: ['performance'] })
+    try {
+      document.body.innerHTML = '<div id="host"></div>'
+      const host = visible(document.querySelector('#host') as HTMLDivElement)
+      const shadow = host.attachShadow({ mode: 'open' })
+      shadow.innerHTML = '<button>Load</button>'
+      visible(shadow.querySelector('button') as HTMLButtonElement)
+      collectSnapshot()
+      await Promise.resolve()
+      vi.advanceTimersByTime(500)
+      expect((readDomQuiet() as { quietMs: number }).quietMs).toBeGreaterThanOrEqual(500)
 
-    shadow.append(document.createElement('ul'))
-    await Promise.resolve()
+      shadow.append(document.createElement('ul'))
+      await Promise.resolve()
 
-    expect(before).toBeGreaterThanOrEqual(30)
-    expect((readDomQuiet() as { quietMs: number }).quietMs).toBeLessThan(before)
+      expect((readDomQuiet() as { quietMs: number }).quietMs).toBeLessThan(500)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('marks elements that appeared since the previous snapshot as new', () => {
