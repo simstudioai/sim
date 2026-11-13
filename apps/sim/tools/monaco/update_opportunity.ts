@@ -61,7 +61,7 @@ export const monacoUpdateOpportunityTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Stage ID (from List Pipelines), instead of a stage key. A stage of the opportunity's own pipeline changes its stage; a stage of another pipeline moves the opportunity there.",
+        "Stage ID (from List Pipelines), instead of a stage key; provide either stage or stageId, not both. A stage of the opportunity's own pipeline changes its stage; a stage of another pipeline moves the opportunity there.",
     },
     ownerUserId: {
       type: 'string',

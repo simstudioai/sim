@@ -1,6 +1,7 @@
 /**
  * Request bodies whose shape decides what Monaco changes: an empty filter group seeds an
- * audience with every contact, and an empty tag list on PATCH clears a record's tags.
+ * audience with every contact, an empty tag list on PATCH clears a record's tags, and an
+ * opportunity takes a stage key or a stage ID, never both.
  */
 import { describe, expect, it } from 'vitest'
 import { monacoCreateAudienceTool } from '@/tools/monaco/create_audience'
@@ -48,5 +49,17 @@ describe('Monaco PATCH tags', () => {
     expect(requestBody(monacoUpdateOpportunityTool, { opportunityId: 'o-1', tags: [] })).toEqual({
       tags: [],
     })
+  })
+})
+
+describe('Monaco opportunity stage', () => {
+  it('rejects a stage key and a stage ID together', () => {
+    expect(() =>
+      requestBody(monacoUpdateOpportunityTool, {
+        opportunityId: 'o-1',
+        stage: 'proposal',
+        stageId: 's-1',
+      })
+    ).toThrow('Provide either stage or stageId, not both')
   })
 })

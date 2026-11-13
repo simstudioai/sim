@@ -747,6 +747,9 @@ export function buildMonacoOpportunityWriteBody(params: {
     const trimmed = value?.trim()
     if (trimmed) body[key] = trimmed
   }
+  if (body.stage && body.stage_id) {
+    throw new Error('Provide either stage or stageId, not both')
+  }
   if (params.notes?.trim()) body.notes = params.notes
 
   const currencyCode = params.currencyCode?.trim()

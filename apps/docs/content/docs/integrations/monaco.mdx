@@ -794,7 +794,7 @@ Create a Monaco opportunity on an existing account, optionally setting its pipel
 | `accountId` | string | Yes | ID of the account to associate the opportunity with |
 | `pipelineId` | string | No | Pipeline to create the opportunity in \(see List Pipelines\). If omitted, the organization's default pipeline is used. |
 | `stage` | string | No | Stage key for the opportunity within its pipeline \(up to 64 characters; see List Pipelines\). If omitted, the opportunity is placed in the first stage of that pipeline. |
-| `stageId` | string | No | Stage ID \(from List Pipelines\), instead of a stage key. It names the pipeline too, so a pipeline ID, if given, must be that stage's pipeline. |
+| `stageId` | string | No | Stage ID \(from List Pipelines\), instead of a stage key; provide either stage or stageId, not both. It names the pipeline too, so a pipeline ID, if given, must be that stage's pipeline. |
 | `ownerUserId` | string | No | User ID to assign as the opportunity owner |
 | `amount` | number | No | Estimated value as a decimal amount of the currency \(e.g. 50000.25\). Set together with currencyCode. |
 | `currencyCode` | string | No | ISO 4217 currency code of the estimated value \(e.g. USD\), up to 8 characters. Set together with amount. |
@@ -852,7 +852,7 @@ Update a Monaco opportunity: rename it, change its owner, move it to another sta
 | `name` | string | No | New name of the opportunity |
 | `pipelineId` | string | No | Pipeline to move the opportunity to \(see List Pipelines\). The stage key then names a stage in that pipeline; if no stage is given, an open opportunity lands on the pipeline's first active stage and a closed one on its first closed stage with the same outcome. If omitted, the opportunity stays in its pipeline. |
 | `stage` | string | No | Stage key for the opportunity within its pipeline \(up to 64 characters; see List Pipelines\) |
-| `stageId` | string | No | Stage ID \(from List Pipelines\), instead of a stage key. A stage of the opportunity's own pipeline changes its stage; a stage of another pipeline moves the opportunity there. |
+| `stageId` | string | No | Stage ID \(from List Pipelines\), instead of a stage key; provide either stage or stageId, not both. A stage of the opportunity's own pipeline changes its stage; a stage of another pipeline moves the opportunity there. |
 | `ownerUserId` | string | No | User ID to assign as the opportunity owner |
 | `amount` | number | No | Estimated value as a decimal amount of the currency \(e.g. 50000.25\). Set together with currencyCode. |
 | `currencyCode` | string | No | ISO 4217 currency code of the estimated value \(e.g. USD\), up to 8 characters. Set together with amount. |
