@@ -473,6 +473,8 @@ List all Payment Intents
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `customer` | string | No | Filter by customer ID |
 | `created` | json | No | Filter by creation date \(e.g., \{"gt": 1633024800\}\) |
+| `starting_after` | string | No | Next-page cursor: last Payment Intent ID from the previous page. Do not combine with ending_before. |
+| `ending_before` | string | No | Previous-page cursor: first Payment Intent ID from the current page. Do not combine with starting_after. |
 
 #### Output
 
@@ -543,6 +545,7 @@ Search for Payment Intents using query syntax
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Search query \(e.g., "status:'succeeded' AND currency:'usd'"\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
+| `page` | string | No | Pagination token from metadata.next_page of the previous search; omit for the first page |
 
 #### Output
 
@@ -598,6 +601,7 @@ Search for Payment Intents using query syntax
 | `metadata` | json | Search metadata including count and has_more |
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `next_page` | string | Token for the next page of search results, or null when there are no more results |
 
 </ReferenceDetails>
 
@@ -830,6 +834,8 @@ List all customers
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `email` | string | No | Filter by email address |
 | `created` | json | No | Filter by creation date |
+| `starting_after` | string | No | Next-page cursor: last customer ID from the previous page. Do not combine with ending_before. |
+| `ending_before` | string | No | Previous-page cursor: first customer ID from the current page. Do not combine with starting_after. |
 
 #### Output
 
@@ -891,6 +897,7 @@ Search for customers using query syntax
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Search query \(e.g., "email:'customer@example.com'"\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
+| `page` | string | No | Pagination token from metadata.next_page of the previous search; omit for the first page |
 
 #### Output
 
@@ -937,6 +944,7 @@ Search for customers using query syntax
 | `metadata` | json | Search metadata |
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `next_page` | string | Token for the next page of search results, or null when there are no more results |
 
 </ReferenceDetails>
 
@@ -1116,7 +1124,7 @@ Update an existing subscription
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `id` | string | Yes | Subscription ID \(e.g., sub_1234567890\) |
-| `items` | json | No | Updated array of items with price IDs |
+| `items` | json | No | Subscription items to change, e.g. \[\{"id": "si_123", "price": "price_456"\}\]. Include the existing item "id" to update or delete \(with "deleted": true\) that item; an entry without "id" adds a new item alongside the current ones. |
 | `cancel_at_period_end` | boolean | No | Cancel subscription at period end |
 | `metadata` | json | No | Updated metadata |
 
@@ -2538,6 +2546,8 @@ List all invoices
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `customer` | string | No | Filter by customer ID |
 | `status` | string | No | Filter by invoice status |
+| `starting_after` | string | No | Next-page cursor: last invoice ID from the previous page. Do not combine with ending_before. |
+| `ending_before` | string | No | Previous-page cursor: first invoice ID from the current page. Do not combine with starting_after. |
 
 #### Output
 
@@ -2562,6 +2572,7 @@ Search for invoices using query syntax
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Search query \(e.g., "customer:'cus_1234567890'"\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
+| `page` | string | No | Pagination token from metadata.next_page of the previous search; omit for the first page |
 
 #### Output
 
@@ -2571,6 +2582,7 @@ Search for invoices using query syntax
 | `metadata` | json | Search metadata |
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `next_page` | string | Token for the next page of search results, or null when there are no more results |
 
 </ReferenceDetails>
 
@@ -2700,6 +2712,8 @@ List all charges
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `customer` | string | No | Filter by customer ID |
 | `created` | json | No | Filter by creation date \(e.g., \{"gt": 1633024800\}\) |
+| `starting_after` | string | No | Next-page cursor: last charge ID from the previous page. Do not combine with ending_before. |
+| `ending_before` | string | No | Previous-page cursor: first charge ID from the current page. Do not combine with starting_after. |
 
 #### Output
 
@@ -2724,6 +2738,7 @@ Search for charges using query syntax
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Search query \(e.g., "status:'succeeded' AND currency:'usd'"\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
+| `page` | string | No | Pagination token from metadata.next_page of the previous search; omit for the first page |
 
 #### Output
 
@@ -2733,6 +2748,7 @@ Search for charges using query syntax
 | `metadata` | json | Search metadata including count and has_more |
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `next_page` | string | Token for the next page of search results, or null when there are no more results |
 
 </ReferenceDetails>
 
@@ -2850,6 +2866,8 @@ List all products
 | --------- | ---- | -------- | ----------- |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `active` | boolean | No | Filter by active status |
+| `starting_after` | string | No | Next-page cursor: last product ID from the previous page. Do not combine with ending_before. |
+| `ending_before` | string | No | Previous-page cursor: first product ID from the current page. Do not combine with starting_after. |
 
 #### Output
 
@@ -2874,6 +2892,7 @@ Search for products using query syntax
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Search query \(e.g., "name:'shirt'"\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
+| `page` | string | No | Pagination token from metadata.next_page of the previous search; omit for the first page |
 
 #### Output
 
@@ -2883,6 +2902,7 @@ Search for products using query syntax
 | `metadata` | json | Search metadata |
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `next_page` | string | Token for the next page of search results, or null when there are no more results |
 
 </ReferenceDetails>
 
@@ -2981,6 +3001,8 @@ List all prices
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `product` | string | No | Filter by product ID |
 | `active` | boolean | No | Filter by active status |
+| `starting_after` | string | No | Next-page cursor: last price ID from the previous page. Do not combine with ending_before. |
+| `ending_before` | string | No | Previous-page cursor: first price ID from the current page. Do not combine with starting_after. |
 
 #### Output
 
@@ -3005,6 +3027,7 @@ Search for prices using query syntax
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Search query \(e.g., "active:'true' AND currency:'usd'"\) |
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
+| `page` | string | No | Pagination token from metadata.next_page of the previous search; omit for the first page |
 
 #### Output
 
@@ -3014,6 +3037,7 @@ Search for prices using query syntax
 | `metadata` | json | Search metadata |
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
+|   ↳ `next_page` | string | Token for the next page of search results, or null when there are no more results |
 
 </ReferenceDetails>
 
@@ -3054,6 +3078,8 @@ List all Events
 | `limit` | number | No | Number of results to return \(default 10, max 100\) |
 | `type` | string | No | Filter by event type \(e.g., payment_intent.created\) |
 | `created` | json | No | Filter by creation date \(e.g., \{"gt": 1633024800\}\) |
+| `starting_after` | string | No | Next-page cursor: last event ID from the previous page. Do not combine with ending_before. |
+| `ending_before` | string | No | Previous-page cursor: first event ID from the current page. Do not combine with starting_after. |
 
 #### Output
 
@@ -3092,7 +3118,9 @@ Triggers when Stripe events occur (payments, subscriptions, invoices, etc.)
 | `id` | string | Unique identifier for the event |
 | `type` | string | Event type \(e.g., payment_intent.succeeded, customer.created, invoice.paid\) |
 | `object` | string | Always "event" |
+| `account` | string | Connected account that originated the event \(Connect events only; absent or null otherwise\) |
 | `api_version` | string | Stripe API version used to render the event |
+| `context` | string | Authentication context needed to fetch the event or related object \(null when not applicable\) |
 | `created` | number | Unix timestamp when the event was created |
 | `data` | json | Event data containing the affected Stripe object. Structure varies by event type - access via data.object for the resource \(PaymentIntent, Customer, Invoice, etc.\) |
 | `livemode` | boolean | Whether this event occurred in live mode \(true\) or test mode \(false\) |
