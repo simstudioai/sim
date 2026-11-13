@@ -19,8 +19,9 @@ import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
  *
  * Opt-in: nothing here runs unless {@link PRODUCT_SKU_ENV} is set, which only the Marketplace
  * Helm profile does. Enterprise flags are read once at startup by both the server and the
- * browser, so instead of flipping them live, a re-check that sees the answer change asks the
- * process to shut down and the orchestrator starts it again in the right mode.
+ * browser, so instead of flipping them live, a re-check that sees the answer change (a downgrade
+ * once confirmed) asks the process to shut down and the orchestrator starts it again in the right
+ * mode.
  */
 
 const logger = createLogger('AwsMarketplaceContainerLicense')
@@ -51,6 +52,13 @@ const RECHECK_JITTER_MS = 2 * 60 * 1000
  * or lapse never takes every replica down at once.
  */
 const RESTART_SPREAD_MS = 10 * 60 * 1000
+
+/**
+ * Consecutive "not entitled" re-checks a running Enterprise deployment needs before it switches
+ * Enterprise off, so one spurious answer never restarts a paying customer's replicas. A real lapse
+ * takes effect one re-check later.
+ */
+const DOWNGRADE_CONFIRMATIONS = 2
 
 const ENTERPRISE_FLAGS = ['ENTERPRISE_ENABLED', 'NEXT_PUBLIC_ENTERPRISE_ENABLED'] as const
 
@@ -157,11 +165,14 @@ export async function applyAwsMarketplaceContainerLicense(): Promise<void> {
   const scheduleRecheck = () => {
     setTimeout(recheck, RECHECK_INTERVAL_MS + randomInt(0, RECHECK_JITTER_MS)).unref()
   }
+  let consecutiveNotEntitled = 0
   const recheck = async () => {
     const state = await checkLicense(client, productSku)
-    // A failed check keeps the current mode; only a definite answer that differs restarts.
+    // A failed check keeps the current mode.
+    consecutiveNotEntitled = state === 'not-entitled' ? consecutiveNotEntitled + 1 : 0
     const changed =
-      (state === 'entitled' && !enterpriseAtBoot) || (state === 'not-entitled' && enterpriseAtBoot)
+      (state === 'entitled' && !enterpriseAtBoot) ||
+      (enterpriseAtBoot && consecutiveNotEntitled >= DOWNGRADE_CONFIRMATIONS)
     if (changed) return restartToApply(state)
     scheduleRecheck()
   }

@@ -95,12 +95,30 @@ describe('applyAwsMarketplaceContainerLicense', () => {
   })
 
   it.each<Answer>(['NoEntitlementsAllowedException', 'ResourceNotFoundException'])(
-    'restarts without Enterprise once the license ends (%s)',
+    'restarts without Enterprise once a second re-check confirms the license ended (%s)',
     async (answer) => {
       answers = ['entitled', answer]
       await applyAwsMarketplaceContainerLicense()
       await vi.advanceTimersByTimeAsync(16 * MINUTE)
+      expect(kill).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(16 * MINUTE)
       expect(kill).toHaveBeenCalledWith(process.pid, 'SIGTERM')
+    }
+  )
+
+  it.each<Answer>(['entitled', 'ServerInternalException'])(
+    'keeps Enterprise on when a lone not-entitled answer is followed by %s',
+    async (answer) => {
+      answers = [
+        'entitled',
+        'NoEntitlementsAllowedException',
+        answer,
+        'NoEntitlementsAllowedException',
+        'entitled',
+      ]
+      await applyAwsMarketplaceContainerLicense()
+      await vi.advanceTimersByTimeAsync(80 * MINUTE)
+      expect(kill).not.toHaveBeenCalled()
     }
   )
 
