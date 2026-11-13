@@ -231,7 +231,8 @@ function federationMismatchMessage(config: MicrosoftAppConfig): string {
  * AADSTS70021 (no matching federated identity record) is documented in the
  * workload identity federation considerations, and AADSTS700213 (no matching
  * record for the presented subject, issuer, or audience) in the August 2024
- * breaking-changes entry; any other keyless refusal still names the mismatch.
+ * breaking-changes entry; AADSTS53003 is a Conditional Access block; any other keyless
+ * refusal still names the mismatch.
  * @see https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes
  * @see https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations
  * @see https://learn.microsoft.com/en-us/entra/identity-platform/reference-breaking-changes
@@ -250,6 +251,8 @@ function entraFailureMessage(aadsts: number | undefined, config: MicrosoftAppCon
       return 'Microsoft Entra could not verify the signed assertion. Upload this certificate (the .cer or .pem public part) to the app registration’s Certificates tab.'
     case 7000112:
       return 'This app registration is disabled in the tenant.'
+    case 53003:
+      return 'A Conditional Access policy in this tenant blocked the sign-in. Ask a tenant admin to exclude this app from the policy, such as a location-based policy for workload identities.'
     case 500011:
       return config.environmentUrl
         ? 'Microsoft Entra does not recognize this Dataverse environment in the tenant. Check the environment URL.'

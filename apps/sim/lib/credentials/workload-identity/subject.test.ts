@@ -11,6 +11,7 @@ import {
   assertWorkloadIdentitySubjectUnclaimed,
   bindWorkloadIdentitySubject,
   issueWorkloadIdentitySubject,
+  signWorkloadIdentitySubject,
   verifyWorkloadIdentitySubject,
   WorkloadIdentitySubjectError,
 } from '@/lib/credentials/workload-identity/subject'
@@ -53,6 +54,14 @@ describe('workload identity subjects', () => {
         now
       )
     ).toThrow(WorkloadIdentitySubjectError)
+  })
+
+  it('refuses to sign a proof for another workspace’s subject', () => {
+    const elsewhere = issueWorkloadIdentitySubject('aws', { workspaceId: 'ws-2' }, 'user-1', now)
+
+    expect(() =>
+      signWorkloadIdentitySubject('aws', owner, 'user-1', elsewhere.subject, now)
+    ).toThrow(expect.objectContaining({ detailCode: 'WORKLOAD_IDENTITY_PROOF_INVALID' }))
   })
 
   it('refuses a proof presented in another workspace', () => {

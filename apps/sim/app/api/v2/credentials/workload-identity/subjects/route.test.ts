@@ -26,8 +26,31 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/credentials/workload-identity/pending-subjects', async () => {
+  const { newWorkloadIdentitySubject } = await vi.importActual<
+    typeof import('@/lib/credentials/workload-identity/subject')
+  >('@/lib/credentials/workload-identity/subject')
+  const actual = await vi.importActual<
+    typeof import('@/lib/credentials/workload-identity/pending-subjects')
+  >('@/lib/credentials/workload-identity/pending-subjects')
+  return {
+    ...actual,
+    resolvePendingWorkloadIdentitySubject: vi.fn(
+      async ({ workspaceId }: { workspaceId: string }) => {
+        const issuedAt = new Date()
+        return {
+          subject: newWorkloadIdentitySubject({ workspaceId }),
+          issuedAt,
+          heldUntil: new Date(issuedAt.getTime() + actual.PENDING_SUBJECT_HOLD_MS),
+          reused: false,
+        }
+      }
+    ),
+  }
+})
 
 import { env } from '@/lib/core/config/env'
+import { resolvePendingWorkloadIdentitySubject } from '@/lib/credentials/workload-identity/pending-subjects'
 import { verifyWorkloadIdentitySubject } from '@/lib/credentials/workload-identity/subject'
 import { POST } from '@/app/api/v2/credentials/workload-identity/subjects/route'
 
@@ -88,6 +111,8 @@ describe('POST /api/v2/credentials/workload-identity/subjects', () => {
       subject: expect.stringMatching(`^sim:workspace:${WORKSPACE_ID}:credential:`),
       subjectProof: expect.any(String),
       expiresAt: expect.any(String),
+      subjectIssuedAt: expect.any(String),
+      subjectHeldUntil: expect.any(String),
       keylessConfig: {
         authType: 'oidc_role',
         subject: data.subject,
@@ -107,6 +132,16 @@ describe('POST /api/v2/credentials/workload-identity/subjects', () => {
     expect(() =>
       verifyWorkloadIdentitySubject('databricks', owner, 'user-1', data.subject, data.subjectProof)
     ).toThrow(expect.objectContaining({ detailCode: 'WORKLOAD_IDENTITY_PROOF_INVALID' }))
+  })
+
+  it('issues each call its own subject unless one is named for renewal', async () => {
+    await issue({ workspaceId: WORKSPACE_ID, providerId: 'aws-service-account' })
+    const subject = `sim:workspace:${WORKSPACE_ID}:credential:abcdef0123456789`
+    await issue({ workspaceId: WORKSPACE_ID, providerId: 'aws-service-account', subject })
+
+    expect(
+      vi.mocked(resolvePendingWorkloadIdentitySubject).mock.calls.map((call) => call[1])
+    ).toEqual([{ kind: 'new' }, { kind: 'renew', subject }])
   })
 
   it('leaves the audience out for Google Cloud, whose audience is per credential', async () => {

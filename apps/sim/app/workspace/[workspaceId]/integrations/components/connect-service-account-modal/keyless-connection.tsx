@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ChipModalError, ChipModalField } from '@sim/emcn'
+import { formatDate } from '@sim/utils/formatting'
 import { generateShortId } from '@sim/utils/id'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
@@ -24,6 +25,10 @@ import {
  * Databricks dialogs differ only in their own fields and trust snippet.
  */
 
+/**
+ * `keep`: on reconnect, the subject the credential already uses; on create, the subject
+ * Sim is holding from an earlier visit. `new`: a subject issued for this connection.
+ */
 export type TrustSubjectChoice = 'keep' | 'new'
 
 interface KeylessSetupInput<P extends WorkloadIdentityProvider> {
@@ -41,7 +46,9 @@ interface KeylessSetupInput<P extends WorkloadIdentityProvider> {
  * Keyless subjects bind to a workspace, so organization credentials never
  * offer it, and a deployment without a signing key reports it unavailable. On
  * reconnect the configured trust is kept by default: issuing a new subject
- * would break the role or federation policy the customer already set up.
+ * would break the role or federation policy the customer already set up. A new
+ * credential likewise opens on the subject Sim is holding from an earlier visit,
+ * which the customer may already have trusted, and can ask for a new one instead.
  */
 export function useKeylessSetup<P extends WorkloadIdentityProvider>({
   provider,
@@ -51,9 +58,8 @@ export function useKeylessSetup<P extends WorkloadIdentityProvider>({
   enabled = true,
 }: KeylessSetupInput<P>) {
   const [sessionKey] = useState(() => generateShortId())
-  const [subjectChoice, setSubjectChoice] = useState<TrustSubjectChoice>(
-    credentialId ? 'keep' : 'new'
-  )
+  const isReconnect = Boolean(credentialId)
+  const [subjectChoice, setSubjectChoice] = useState<TrustSubjectChoice>('keep')
   const workspaceScoped = enabled && Boolean(workspaceId) && !organizationId
   const setup = useWorkloadIdentitySetup({
     workspaceId,
@@ -62,7 +68,21 @@ export function useKeylessSetup<P extends WorkloadIdentityProvider>({
     enabled: workspaceScoped,
     credentialId,
   })
-  const trust = setup.data?.available ? setup.data : undefined
+  const heldTrust = setup.data?.available ? setup.data : undefined
+  const heldFromEarlier = !isReconnect && Boolean(heldTrust?.subjectReused)
+  const offersSubjectChoice = isReconnect || heldFromEarlier
+  const choice: TrustSubjectChoice = offersSubjectChoice ? subjectChoice : 'keep'
+  // Its own query, so switching back to `keep` still shows the held subject rather than
+  // refetching the newest one, which this fetch just minted.
+  const freshSetup = useWorkloadIdentitySetup({
+    workspaceId,
+    provider,
+    sessionKey,
+    enabled: workspaceScoped && offersSubjectChoice && choice === 'new',
+    newSubject: true,
+  })
+  const freshTrust = freshSetup.data?.available ? freshSetup.data : undefined
+  const trust = choice === 'new' ? freshTrust : isReconnect ? undefined : heldTrust
   // Undefined until edited, so a reconnect opens on its stored audience once that loads.
   const [audienceInput, setAudienceInput] = useState<string>()
   const audienceValue = audienceInput ?? setup.data?.reconnectAudience ?? ''
@@ -78,7 +98,7 @@ export function useKeylessSetup<P extends WorkloadIdentityProvider>({
   const storedAuthType = providerAuthType(provider, setup.data?.reconnectAuthType)
   // A keyless credential reopens on keyless only where this deployment can still sign.
   const reconnectAuthType =
-    storedAuthType === WORKLOAD_IDENTITY_KEYLESS_CONFIGS[provider].authType && !trust
+    storedAuthType === WORKLOAD_IDENTITY_KEYLESS_CONFIGS[provider].authType && !heldTrust
       ? undefined
       : storedAuthType
   return {
@@ -95,11 +115,15 @@ export function useKeylessSetup<P extends WorkloadIdentityProvider>({
      * lookup, and for an organization credential, whose stored secret this lookup never reads.
      */
     reconnectFieldsLoaded: workspaceScoped && setup.isSuccess,
-    isReconnect: Boolean(credentialId),
-    subjectChoice,
+    isReconnect,
+    /** Whether the dialog offers a choice between the subject in hand and a new one. */
+    offersSubjectChoice,
+    /** When Sim issued the held subject a new credential opened on. */
+    heldSubjectIssuedAt: heldFromEarlier ? heldTrust?.subjectIssuedAt : undefined,
+    subjectChoice: choice,
     setSubjectChoice,
-    /** The new subject to submit, or undefined when keeping the stored one. */
-    trust: subjectChoice === 'new' ? trust : undefined,
+    /** The subject to submit with its proof, or undefined when keeping the stored one. */
+    trust,
     /** The audience field's value; empty keeps the default. */
     audienceInput: audienceValue,
     setAudienceInput,
@@ -112,8 +136,12 @@ export function useKeylessSetup<P extends WorkloadIdentityProvider>({
     /** The audience tokens carry: the custom one, else the default; undefined while invalid. */
     audience: audienceError ? undefined : (customAudience ?? defaultAudience),
     /** Ready to submit a keyless configuration. */
-    ready: !audienceError && (subjectChoice === 'keep' ? Boolean(credentialId) : Boolean(trust)),
-    error: setup.isError ? setup.error : null,
+    ready: !audienceError && ((isReconnect && choice === 'keep') || Boolean(trust)),
+    error: setup.isError
+      ? setup.error
+      : choice === 'new' && freshSetup.isError
+        ? freshSetup.error
+        : null,
   }
 }
 
@@ -161,19 +189,26 @@ export function KeylessTrustFields({
 }: KeylessTrustFieldsProps) {
   return (
     <>
-      {setup.isReconnect && (
+      {setup.offersSubjectChoice && (
         <ChipModalField
           type='dropdown'
           title='Trust setup'
           value={setup.subjectChoice}
           onChange={(value) => setup.setSubjectChoice(value as TrustSubjectChoice)}
           options={[
-            { value: 'keep', label: 'Keep the subject this credential already uses' },
+            {
+              value: 'keep',
+              label: setup.heldSubjectIssuedAt
+                ? `Use the subject issued ${formatDate(new Date(setup.heldSubjectIssuedAt))}`
+                : 'Keep the subject this credential already uses',
+            },
             { value: 'new', label: 'Issue a new subject' },
           ]}
           hint={
             setup.subjectChoice === 'keep'
-              ? 'Your existing trust configuration keeps working.'
+              ? setup.isReconnect
+                ? 'Your existing trust configuration keeps working.'
+                : 'Keep this if your trust configuration already allows it.'
               : 'You must update your trust configuration to the new subject before saving.'
           }
         />
@@ -199,7 +234,7 @@ export function KeylessTrustFields({
             title='Subject'
             value={setup.trust.subject}
             copyLabel='Copy subject'
-            hint='Unique to this credential. Your configuration trusts only this subject.'
+            hint={`Your trust configuration must allow exactly this subject. Sim holds it for you until ${formatDate(new Date(setup.trust.subjectHeldUntil))}.`}
           />
         </>
       )}

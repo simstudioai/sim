@@ -1695,6 +1695,15 @@ export const GENERATED_SCHEMA_TABLES = {
     'createdAt',
     'updatedAt',
   ],
+  workloadIdentityPendingSubject: [
+    'id',
+    'workspaceId',
+    'userId',
+    'provider',
+    'subject',
+    'createdAt',
+    'expiresAt',
+  ],
   credentialGroup: [
     'id',
     'workspaceId',

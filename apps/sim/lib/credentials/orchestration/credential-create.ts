@@ -29,6 +29,7 @@ import {
 } from '@/lib/credentials/service-account-secret'
 import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { releasePendingWorkloadIdentitySubject } from '@/lib/credentials/workload-identity/pending-subjects'
 import {
   assertWorkloadIdentitySubjectUnclaimed,
   KeylessCredentialRefusedError,
@@ -566,6 +567,9 @@ export async function createCredentialRecord(
         createdAt: now,
         updatedAt: now,
       })
+      if (resolvedWorkloadIdentitySubject) {
+        await releasePendingWorkloadIdentitySubject(tx, resolvedWorkloadIdentitySubject)
+      }
 
       if ((type === 'env_workspace' || type === 'service_account') && currentContext.ownerId) {
         for (const memberUserId of currentContext.memberUserIds) {

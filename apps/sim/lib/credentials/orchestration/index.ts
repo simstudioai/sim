@@ -54,6 +54,7 @@ import {
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { releasePendingWorkloadIdentitySubject } from '@/lib/credentials/workload-identity/pending-subjects'
 import {
   assertReconnectedSubjectUnclaimed,
   KeylessCredentialRefusedError,
@@ -560,12 +561,13 @@ export async function updateCredentialRecord(
       const rotatedSecret = rotatedKeylessSecret
       try {
         await db.transaction(async (tx) => {
-          await assertReconnectedSubjectUnclaimed(tx, {
+          const subject = await assertReconnectedSubjectUnclaimed(tx, {
             rotatedSecret,
             scope: resourceScopeFromOwner(params.credential),
             credentialId: params.credentialId,
           })
           await tx.update(credential).set(updates).where(eq(credential.id, params.credentialId))
+          if (subject) await releasePendingWorkloadIdentitySubject(tx, subject)
         })
       } catch (error) {
         if (error instanceof KeylessCredentialRefusedError) return keylessFailure(error)

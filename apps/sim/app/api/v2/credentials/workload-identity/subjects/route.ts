@@ -26,8 +26,9 @@ const workloadIdentitySubjectErrorPolicy = createV2ResourceConcealmentPolicy({
 /**
  * POST /api/v2/credentials/workload-identity/subjects — Issue the subject a
  * cloud trust configuration pins, and the proof that attaches it to a new
- * keyless credential. A deployment that cannot sign is refused exactly as
- * Create service-account credential refuses a keyless configuration there.
+ * keyless credential, or renew the proof for a subject Sim is still holding.
+ * A deployment that cannot sign is refused exactly as Create service-account
+ * credential refuses a keyless configuration there.
  */
 export const POST = defineV2JsonRoute({
   contract: v2CreateCredentialWorkloadIdentitySubjectContract,
@@ -38,6 +39,9 @@ export const POST = defineV2JsonRoute({
   mapInput: ({ body }) => ({
     workspaceId: body.workspaceId,
     provider: workloadIdentityProviderFor(body.providerId),
+    subjectRequest: body.subject
+      ? { kind: 'renew' as const, subject: body.subject }
+      : { kind: 'new' as const },
   }),
   useCase: prepareWorkloadIdentity,
   present: (result, { body }) => {
@@ -53,6 +57,8 @@ export const POST = defineV2JsonRoute({
         subject: result.subject,
         subjectProof: result.subjectProof,
         expiresAt: result.expiresAt,
+        subjectIssuedAt: result.subjectIssuedAt,
+        subjectHeldUntil: result.subjectHeldUntil,
         keylessConfig: { authType, subject: result.subject, subjectProof: result.subjectProof },
         requiredConfigFields: [...requiredFields],
         optionalConfigFields: [...optionalFields],

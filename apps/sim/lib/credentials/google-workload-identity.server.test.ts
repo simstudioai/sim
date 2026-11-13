@@ -383,6 +383,27 @@ describe('saving a keyless Google Cloud credential', () => {
       expect(error.message).not.toContain('fed:')
     }
   })
+
+  it('names a VPC Service Controls perimeter instead of asking for an IAM role it already has', async () => {
+    fakeGoogle(fetch, {
+      iamError: jsonResponse(
+        {
+          error: {
+            code: 403,
+            status: 'PERMISSION_DENIED',
+            message:
+              "Request is prohibited by organization's policy. vpcServiceControlsUniqueIdentifier: abc123",
+          },
+        },
+        403
+      ),
+    })
+
+    const error: Error = await save({}).catch((caught) => caught)
+
+    expect(error.message).toContain('VPC Service Controls perimeter')
+    expect(error.message).not.toContain('Grant')
+  })
 })
 
 describe('getting a keyless Google Cloud token for a run', () => {
