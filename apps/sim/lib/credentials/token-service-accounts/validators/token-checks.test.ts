@@ -734,7 +734,7 @@ describe('Amplitude saved project key verification', () => {
         providerWorkspaceId: ' api-key ',
         domain: 'EU',
       })
-    ).resolves.toMatchObject({ normalizedDomain: 'eu', normalizedWorkspaceId: 'api-key' })
+    ).resolves.toMatchObject({ normalizedDomain: 'eu', displayName: 'Amplitude (eu)' })
     expect(fetch).toHaveBeenCalledWith(
       'https://analytics.eu.amplitude.com/api/2/events/list',
       expect.objectContaining({
@@ -744,6 +744,40 @@ describe('Amplitude saved project key verification', () => {
       })
     )
   })
+
+  it('names a credential in the default US region after the service alone', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ data: [] })))
+
+    await expect(
+      validateAmplitudeServiceAccount({
+        apiToken: 'secret-key',
+        providerWorkspaceId: 'api-key',
+        domain: 'us',
+      })
+    ).resolves.toMatchObject({ normalizedDomain: 'us', displayName: 'Amplitude' })
+  })
+
+  it.each(['us', 'eu'])(
+    'reports an unresolvable %s host as Amplitude being unavailable, not a typo',
+    async (domain) => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockRejectedValue(
+            Object.assign(new Error('getaddrinfo ENOTFOUND amplitude.com'), { code: 'ENOTFOUND' })
+          )
+      )
+
+      await expect(
+        validateAmplitudeServiceAccount({
+          apiToken: 'secret-key',
+          providerWorkspaceId: 'api-key',
+          domain,
+        })
+      ).rejects.toMatchObject({ code: 'provider_unavailable' })
+    }
+  )
 
   it('rejects a key pair Amplitude answers with its invalid-key 403', async () => {
     vi.stubGlobal(
@@ -1186,6 +1220,21 @@ describe('Railway saved token verification', () => {
       validateRailwayServiceAccount({ apiToken: 'token', ...fields })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('reports an unresolvable Railway host as Railway being unavailable, not a typo', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(
+        Object.assign(new Error('getaddrinfo ENOTFOUND backboard.railway.com'), {
+          code: 'ENOTFOUND',
+        })
+      )
+    )
+
+    await expect(
+      validateRailwayServiceAccount({ apiToken: 'acct', domain: 'account' })
+    ).rejects.toMatchObject({ code: 'provider_unavailable' })
   })
 
   it('rejects a token Railway answers with a GraphQL authorization error', async () => {

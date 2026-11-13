@@ -146,11 +146,7 @@ async function credentialValues(
 
   const authMethod = typeof values.authMethod === 'string' ? values.authMethod : undefined
   const missing = provider.fields
-    .filter(
-      (field) =>
-        field.required ||
-        (authMethod !== undefined && field.requiredForAuthMethods?.includes(authMethod))
-    )
+    .filter((field) => isFieldRequired(field, authMethod))
     .filter((field) => values[field.id] === undefined)
     .map((field) => field.id)
   if (missing.length > 0) {
@@ -161,6 +157,20 @@ async function credentialValues(
   }
 
   return values as Record<string, string>
+}
+
+/**
+ * Whether a create must give the field. With an `authMethod` chosen, a field that lists the
+ * methods it belongs to is required exactly for those (a ServiceNow password is not, once
+ * `client_credentials` replaces it); otherwise the catalog's `required` decides, which describes
+ * the provider's default method.
+ */
+function isFieldRequired(
+  field: ServiceAccountProvider['fields'][number],
+  authMethod: string | undefined
+): boolean {
+  if (authMethod === undefined || !field.requiredForAuthMethods) return field.required
+  return field.requiredForAuthMethods.includes(authMethod)
 }
 
 /**

@@ -246,6 +246,21 @@ function replayedFailure(
 }
 
 /**
+ * A fresh exchange failure as it reaches the caller: the provider's own code, status, detail, and
+ * message, which a stored memo may not be able to hold, with how long it is now replayed.
+ */
+function freshFailure(
+  error: TokenServiceAccountValidationError,
+  replayMs: number
+): TokenServiceAccountValidationError {
+  return new TokenServiceAccountValidationError(error.code, error.status, error.logDetail, {
+    message: error.userMessage,
+    retryAfterMs: error.retryAfterMs,
+    replayForMs: Math.max(replayMs, 0),
+  })
+}
+
+/**
  * The outage or throttling streak before this exchange, read from the application's last failure
  * memo for this secret once its replay has ended. A refusal, or anything unreadable, starts a new
  * streak.
@@ -480,7 +495,7 @@ export async function resolveCoordinatedClientToken(
               .set({ expiresAt: new Date(0), updatedAt: new Date() })
               .where(eq(clientCredentialToken.id, applicationKey))
           }
-          return { failure: replayedFailure(failure, step, replayMs) }
+          return { failure: freshFailure(error, replayMs) }
         }
         const fallback = await fallbackFrom(applicationRow)
         if (fallback) {
@@ -491,7 +506,7 @@ export async function resolveCoordinatedClientToken(
           })
           return fallback
         }
-        return { failure: replayedFailure(failure, step, replayMs) }
+        return { failure: freshFailure(error, replayMs) }
       }
     })
     return settle(outcome)

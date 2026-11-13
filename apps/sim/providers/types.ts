@@ -1,6 +1,6 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { UserFailure } from '@/lib/core/errors/user-failure'
-import type { AwsSessionCredentials } from '@/lib/credentials/aws-service-account.server'
+import type { AwsSigningKeys } from '@/lib/internal/aws/signing-keys'
 import type { CustomBlockInputFieldType } from '@/blocks/custom/build-config'
 import type { ProviderTimingSegment, StreamingExecution, UserFile } from '@/executor/types'
 
@@ -196,14 +196,9 @@ export interface EvaluationInput {
 
 /**
  * Signing credentials resolved from a saved AWS credential for one Bedrock
- * request. `sessionToken` is present for STS sessions (assumed and keyless
- * roles) and absent for long-lived keys; `credentialId` names the saved
- * credential the session came from.
+ * request; `credentialId` names the saved credential the session came from.
  */
-export type BedrockCredentialSession = Pick<
-  AwsSessionCredentials,
-  'accessKeyId' | 'secretAccessKey' | 'sessionToken'
-> & { credentialId: string }
+export type BedrockCredentialSession = AwsSigningKeys & { credentialId: string }
 
 export interface ProviderRequest {
   evaluation?: EvaluationInput

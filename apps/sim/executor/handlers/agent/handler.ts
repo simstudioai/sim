@@ -95,6 +95,7 @@ import { collectBlockData } from '@/executor/utils/block-data'
 import { stringifyJSON } from '@/executor/utils/json'
 import {
   BLOCK_MODEL_CREDENTIAL_FIELDS,
+  type BlockModelCredentials,
   resolveBlockModelCredentials,
 } from '@/executor/utils/model-credentials'
 import {
@@ -2610,6 +2611,11 @@ export class AgentBlockHandler implements BlockHandler {
    * blacklisted, not permitted, or cannot take the attachments is skipped
    * rather than counted as a failed try.
    *
+   * The block's saved Vertex or Bedrock credential resolves at most once per
+   * call and is shared by every candidate on the primary's provider; it is
+   * awaited inside the attempt, so a failure fails those attempts and other
+   * providers' fallbacks still run. It never reaches another provider.
+   *
    * A streaming candidate is accepted only once its first chunk has arrived
    * (`primeStreamingExecution`), so a startup failure inside the stream still
    * falls through; that wait is skipped when no candidate follows, which keeps
@@ -2635,6 +2641,7 @@ export class AgentBlockHandler implements BlockHandler {
     let resultRegistry = config.resultRegistry
     const failedModels: string[] = []
     let lastError: unknown
+    let savedCredentials: Promise<BlockModelCredentials> | undefined
     let lastErrorRegistries:
       | {
           error: ResolvedSecretTraceRegistry | undefined
@@ -2754,6 +2761,16 @@ export class AgentBlockHandler implements BlockHandler {
         streaming: config.streaming,
       })
 
+      const onPrimaryProvider = candidateProviderId === config.primaryProviderId
+      if (onPrimaryProvider) {
+        savedCredentials ??= resolveBlockModelCredentials(
+          ctx,
+          config.primaryProviderId,
+          config.modelInputs,
+          'vertex-agent'
+        )
+      }
+
       try {
         let result = await this.executeProviderRequest(
           ctx,
@@ -2762,6 +2779,7 @@ export class AgentBlockHandler implements BlockHandler {
           config.responseFormat,
           resultRegistry,
           config.providerErrorRegistry,
+          onPrimaryProvider ? savedCredentials : undefined,
           config.agentConversation
         )
         if ((hasNext || config.retryPrimaryOnStreamStart) && this.isStreamingExecution(result)) {
@@ -2983,18 +3001,14 @@ export class AgentBlockHandler implements BlockHandler {
     responseFormat: any,
     modelRuntimeRegistry: ResolvedSecretTraceRegistry | undefined,
     providerErrorRegistry: ResolvedSecretTraceRegistry | undefined,
+    savedCredentials: Promise<BlockModelCredentials> | undefined,
     agentConversation?: AgentTurnSession
   ): Promise<BlockOutput | StreamingExecution> {
     const providerId = providerRequest.provider
     const model = providerRequest.model
 
     try {
-      const credentials = await resolveBlockModelCredentials(
-        ctx,
-        providerId,
-        providerRequest,
-        'vertex-agent'
-      )
+      const credentials: BlockModelCredentials = (await savedCredentials) ?? {}
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
       const agentMemoryRetrieval = agentConversation?.memoryId

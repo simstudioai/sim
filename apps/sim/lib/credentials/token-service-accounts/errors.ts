@@ -40,6 +40,8 @@ export type TokenServiceAccountValidationCode =
   | 'grant_not_permitted'
 
 export interface TokenServiceAccountValidationErrorOptions {
+  /** See {@link TokenServiceAccountValidationError.userMessage}. */
+  message?: string
   /** See {@link TokenServiceAccountValidationError.retryAfterMs}. */
   retryAfterMs?: number
   /** See {@link TokenServiceAccountValidationError.replayForMs}. */
@@ -54,12 +56,18 @@ export class TokenServiceAccountValidationError extends Error {
   public readonly retryAfterMs?: number
 
   /**
-   * Set when this is a remembered failure being replayed rather than a fresh provider answer: how
-   * much longer, in milliseconds, it is replayed before the provider is asked again. It says when
-   * the provider will next be asked, not that asking will then succeed (a replayed refusal of the
-   * credentials carries it too).
+   * How much longer, in milliseconds, this failure is replayed to later callers before the provider
+   * is asked again, whether it was just answered or is itself a replay. It says when the provider
+   * will next be asked, not that asking will then succeed (a refusal of the credentials carries it
+   * too).
    */
   public readonly replayForMs?: number
+
+  /**
+   * A message for the user naming what the credential refused and what to change. Absent when the
+   * code alone says enough; the error's `message` is then just its code.
+   */
+  public readonly userMessage?: string
 
   constructor(
     public readonly code: TokenServiceAccountValidationCode,
@@ -67,8 +75,9 @@ export class TokenServiceAccountValidationError extends Error {
     public readonly logDetail?: Record<string, unknown>,
     options: TokenServiceAccountValidationErrorOptions = {}
   ) {
-    super(code)
+    super(options.message ?? code)
     this.name = 'TokenServiceAccountValidationError'
+    if (options.message !== undefined) this.userMessage = options.message
     if (options.retryAfterMs !== undefined) this.retryAfterMs = options.retryAfterMs
     if (options.replayForMs !== undefined) this.replayForMs = options.replayForMs
   }

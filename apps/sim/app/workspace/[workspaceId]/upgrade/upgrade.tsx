@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, Chip, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SIM_SITE_URL } from '@sim/utils/site'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
@@ -38,7 +39,8 @@ import {
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin/store'
 
 /** Enterprise "Talk to sales" books time with the sales team on Cal.com. */
-const SALES_CAL_URL = 'https://cal.com/team/sim/demo' as const
+/** The demo form, so a sales booking passes the same spam checks as every other. */
+const SALES_DEMO_URL = `${SIM_SITE_URL}/demo`
 
 /**
  * Props for {@link Upgrade}.
@@ -155,7 +157,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     const onClick = (): void => {
       switch (cta.intent) {
         case 'sales':
-          window.open(SALES_CAL_URL, '_blank', 'noopener,noreferrer')
+          window.open(SALES_DEMO_URL, '_blank', 'noopener,noreferrer')
           return
         case 'downgrade':
           void state.onUpgradeToOtherTier()

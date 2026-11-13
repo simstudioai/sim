@@ -375,6 +375,22 @@ describe('coordinated token resolution while the provider fails', () => {
     expect(previousBuildDecodesFailure.coordinated(payload)).toBe(true)
   })
 
+  it('reports a fresh refusal under its own code, which the shared row cannot store', async () => {
+    const exchange = issuingOnce('egress-refused', 4 * 60_000, async () => {
+      throw new TokenServiceAccountValidationError('host_not_allowed', 400, { step: 'mint' })
+    })
+    await resolveCoordinatedClientToken(input('egress-refused', exchange))
+
+    await expect(
+      resolveCoordinatedClientToken(input('egress-refused', exchange))
+    ).rejects.toMatchObject({
+      code: 'host_not_allowed',
+      status: 400,
+      replayForMs: expect.any(Number),
+    })
+    expect(exchange).toHaveBeenCalledTimes(2)
+  })
+
   it('never serves a still-valid token to a different secret whose refresh fails', async () => {
     const exchange = issuingOnce('rotated-refresh', 4 * 60_000, failing(429))
     await resolveCoordinatedClientToken(input('rotated-refresh', exchange))

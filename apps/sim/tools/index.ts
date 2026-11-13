@@ -51,6 +51,7 @@ import {
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { collectUserFilesById, isUserFile } from '@/lib/core/utils/user-file'
 import { isSameOrigin } from '@/lib/core/utils/validation'
+import { REJECTED_TOKEN_MINIMUM_AGE_MS } from '@/lib/credentials/token-request-resilience'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import {
   INTERNAL_EXECUTION_DEADLINE_HEADER,
@@ -3065,12 +3066,6 @@ async function executeDeclaredInternalOperation({
  * `Unauthorized; scope does not match` for a valid token, and RFC 6750 names `insufficient_scope`.
  */
 const SCOPE_REFUSAL_PATTERN = /scope does not match|insufficient_scope/i
-/**
- * A tool call's 401 (and an internal operation's 403) can come from the endpoint rather than the
- * token, so a token minted within the last minute is kept: a call that keeps failing re-mints its application's token at most once a
- * minute, instead of once per call.
- */
-const REJECTED_TOKEN_MINIMUM_AGE_MS = 60_000
 
 function reportsScopeRefusal(error: Error): boolean {
   const data = 'data' in error ? error.data : undefined

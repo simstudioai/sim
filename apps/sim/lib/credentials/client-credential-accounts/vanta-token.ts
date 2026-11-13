@@ -5,6 +5,7 @@ import {
   invalidateCoordinatedClientToken,
   resolveCoordinatedClientToken,
 } from '@/lib/credentials/coordinated-client-token'
+import { REJECTED_TOKEN_MINIMUM_AGE_MS } from '@/lib/credentials/token-request-resilience'
 import {
   fetchProvider,
   isTransientProviderStatus,
@@ -39,7 +40,11 @@ export interface VantaClientTokenResult {
   apiDomain: string
 }
 
-/** Expires only the rejected token; a concurrent replacement remains usable. */
+/**
+ * Expires only the rejected token; a concurrent replacement remains usable. A token minted within
+ * {@link REJECTED_TOKEN_MINIMUM_AGE_MS} is kept, since Vanta limits token mints and the 401 may
+ * come from the endpoint rather than the token.
+ */
 export async function invalidateVantaClientToken(
   accessToken: string,
   apiDomain: string
@@ -47,7 +52,10 @@ export async function invalidateVantaClientToken(
   if (apiDomain !== 'https://api.vanta.com' && apiDomain !== 'https://api.vanta-gov.com') {
     throw new Error('Invalid Vanta API domain')
   }
-  await invalidateCoordinatedClientToken(accessToken, { accessTokenDigestTag: apiDomain })
+  await invalidateCoordinatedClientToken(accessToken, {
+    accessTokenDigestTag: apiDomain,
+    minimumAgeMs: REJECTED_TOKEN_MINIMUM_AGE_MS,
+  })
 }
 
 function unavailable(reason: string): TokenServiceAccountValidationError {

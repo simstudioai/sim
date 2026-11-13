@@ -84,7 +84,7 @@ function vendorRegion(regions: CredentialRegions<string>) {
   return {
     domain: allowedDomain(regions),
     defaultDomain: regions.defaultRegion,
-    domainIsVendorRegion: true,
+    domainIsFixedChoice: true,
   }
 }
 
@@ -184,28 +184,28 @@ const AMPLITUDE_SECRET_KEY = /^[\x21-\x7e]{1,256}$/
  * Amplitude's Dashboard REST API lists a project's visible events for the API key and secret key
  * sent as HTTP Basic credentials, on the region's host the tools build with `getDashboardHost`.
  * Amplitude answers 403 when either key is invalid (401 is a malformed header), so the check
- * proves the pair and its region together; it is a read with no billing cost.
+ * proves the pair and its region together; it is a read with no billing cost. The region is one of
+ * Amplitude's own hosts, and the API key reaches only the Basic header, never the host or path, so
+ * it is checked with the secret key rather than as an account id that could steer the request.
  * https://amplitude.com/docs/apis/analytics/dashboard-rest
  */
 export const validateAmplitudeServiceAccount = tokenCheckValidator({
   serviceLabel: 'Amplitude',
   domain: allowedDomain(US_OR_EU),
-  workspaceId: ({ providerWorkspaceId }) => {
+  defaultDomain: 'us',
+  domainIsFixedChoice: true,
+  request: ({ apiToken, providerWorkspaceId, domain }) => {
     const apiKey = (providerWorkspaceId ?? '').trim()
-    if (!AMPLITUDE_API_KEY.test(apiKey)) throw new Error('invalid API key')
-    return apiKey
-  },
-  request: ({ apiToken, providerWorkspaceId = '', domain }) => {
-    if (!AMPLITUDE_SECRET_KEY.test(apiToken)) {
+    if (!AMPLITUDE_API_KEY.test(apiKey) || !AMPLITUDE_SECRET_KEY.test(apiToken)) {
       throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
         step: 'verify',
-        reason: 'invalid Amplitude secret key',
+        reason: 'invalid Amplitude API key or secret key',
       })
     }
     return {
       url: `${getDashboardHost(domain)}/api/2/events/list`,
       headers: {
-        Authorization: `Basic ${Buffer.from(`${providerWorkspaceId}:${apiToken}`).toString('base64')}`,
+        Authorization: `Basic ${Buffer.from(`${apiKey}:${apiToken}`).toString('base64')}`,
         Accept: 'application/json',
       },
     }
@@ -1063,6 +1063,7 @@ const RAILWAY_WORKSPACE_ID = /^[A-Za-z0-9-]{1,64}$/
 export const validateRailwayServiceAccount = tokenCheckValidator({
   serviceLabel: 'Railway',
   domain: allowedDomain(RAILWAY_TOKEN_TYPES),
+  domainIsFixedChoice: true,
   request: ({ apiToken, domain, providerWorkspaceId = '' }) => {
     if (domain === 'workspace' && !RAILWAY_WORKSPACE_ID.test(providerWorkspaceId)) {
       throw new TokenServiceAccountValidationError('invalid_credentials', 400, {

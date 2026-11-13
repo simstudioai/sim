@@ -95,6 +95,7 @@ function compileComputerUse(): void {
     try {
       execFileSync('xcrun', ['lipo', binary, '-verify_arch', 'arm64', 'x86_64'])
       execFileSync('codesign', ['--verify', '--strict', bundle])
+      assertWeakScreenCaptureKit(binary)
       return
     } catch {
       rmSync(bundle, { recursive: true, force: true })
@@ -114,6 +115,11 @@ function compileComputerUse(): void {
         '-O',
         '-target',
         `${arch}-apple-macosx14.0`,
+        // The macOS 26 screenshot classes do not exist on 14/15; a strong reference stops the helper loading there.
+        '-Xlinker',
+        '-weak_framework',
+        '-Xlinker',
+        'ScreenCaptureKit',
         'native/computer-use/ComputerUse.swift',
         '-o',
         output,
@@ -124,9 +130,27 @@ function compileComputerUse(): void {
   }
   execFileSync('xcrun', ['lipo', '-create', ...parts, '-output', binary], { stdio: 'inherit' })
   for (const part of parts) rmSync(part)
+  assertWeakScreenCaptureKit(binary)
   execFileSync('codesign', ['--force', '--sign', '-', bundle], { stdio: 'inherit' })
   recordNativeBuild('computer-use', outputs)
   logger.info('Compiled native macOS Computer Use helper')
+}
+
+/**
+ * The helper targets macOS 14 but uses ScreenCaptureKit classes added later behind `#available`.
+ * Runners build on the newest macOS, where a strong reference still loads, so this is the only
+ * place a helper that dyld would refuse on older macOS is caught before it ships.
+ */
+function assertWeakScreenCaptureKit(binary: string) {
+  const strong = execFileSync('nm', ['-m', binary], { encoding: 'utf8' })
+    .split('\n')
+    .filter(
+      (line) => line.includes('(undefined) external') && line.includes('(from ScreenCaptureKit)')
+    )
+  if (strong.length > 0)
+    throw new Error(
+      `The Computer Use helper links ScreenCaptureKit strongly and would not load on macOS 14/15:\n${strong.join('\n')}`
+    )
 }
 
 if (args.includes('--computer-use')) compileComputerUse()
