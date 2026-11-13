@@ -96,14 +96,14 @@ function classifyFailure(error: unknown): LicenseState {
   }
   if (name && PERMISSION_ERRORS.has(name)) {
     logger.error('AWS License Manager refused the license check', {
-      error: name,
-      message: getErrorMessage(error, 'Unknown error'),
+      errorName: name,
+      error: getErrorMessage(error, 'Unknown error'),
     })
     return 'unknown'
   }
   logger.warn('Could not check the AWS Marketplace Enterprise license', {
-    error: name,
-    message: getErrorMessage(error, 'Unknown error'),
+    errorName: name,
+    error: getErrorMessage(error, 'Unknown error'),
   })
   return 'unknown'
 }
