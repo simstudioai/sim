@@ -391,6 +391,24 @@ describe('coordinated token resolution while the provider fails', () => {
     expect(exchange).toHaveBeenCalledTimes(2)
   })
 
+  it('replays a refusal the shared row cannot store as a credential to fix, never as an outage', async () => {
+    const exchange = vi.fn(async (): Promise<{ accessToken: string; expiresAt: Date }> => {
+      throw new TokenServiceAccountValidationError('consent_required', 400, { step: 'mint' })
+    })
+    await expect(
+      resolveCoordinatedClientToken(input('consent-replayed', exchange))
+    ).rejects.toMatchObject({ code: 'consent_required' })
+
+    await expect(
+      resolveCoordinatedClientToken(input('consent-replayed', exchange))
+    ).rejects.toMatchObject({
+      code: 'invalid_credentials',
+      status: 400,
+      replayForMs: expect.any(Number),
+    })
+    expect(exchange).toHaveBeenCalledOnce()
+  })
+
   it('never serves a still-valid token to a different secret whose refresh fails', async () => {
     const exchange = issuingOnce('rotated-refresh', 4 * 60_000, failing(429))
     await resolveCoordinatedClientToken(input('rotated-refresh', exchange))
@@ -433,7 +451,11 @@ describe('coordinated token resolution while the provider fails', () => {
       ).rejects.toMatchObject({ code: 'provider_unavailable', status: 429 })
       await expect(
         resolveCoordinatedClientToken(input(application, exchange))
-      ).rejects.toMatchObject({ status: 429, replayForMs: expect.any(Number) })
+      ).rejects.toMatchObject({
+        code: 'provider_unavailable',
+        status: 429,
+        replayForMs: expect.any(Number),
+      })
 
       expect(exchange).toHaveBeenCalledOnce()
       const stored = await failureRowOf(application)
@@ -644,7 +666,7 @@ describe('default token rows shared with the previous build during a rolling dep
     const { exchange } = provider(application)
 
     await expect(resolveCoordinatedClientToken(input(application, exchange))).rejects.toMatchObject(
-      { code: 'provider_unavailable', status: 400 }
+      { code: 'invalid_credentials', status: 400 }
     )
     expect(exchange).not.toHaveBeenCalled()
   })

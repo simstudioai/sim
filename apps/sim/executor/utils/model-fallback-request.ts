@@ -29,7 +29,10 @@ interface ModelFallbackRequestInput {
   fallbackSystemPrompt: string
   retry?: BlockRetryAttempt
   resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
-  /** The block's saved Vertex or Bedrock credential selection, resolved per attempt. */
+  /**
+   * The block's saved Vertex or Bedrock credential selection, resolved once per call inside the
+   * first attempt on the primary's provider and shared by the fallbacks on that provider.
+   */
   credentials?: { inputs: BlockModelCredentialInputs; callerLabel: string }
 }
 

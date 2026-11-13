@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
+  GOOGLE_DELEGATION_SERVICE_NAMES,
   GOOGLE_DELEGATION_SERVICES,
   GOOGLE_KEYLESS_SERVICES,
   GOOGLE_WORKLOAD_IDENTITY_SECRET_TYPE,
@@ -964,12 +965,12 @@ export async function resolveGoogleWorkloadIdentityToken(
         ? unsupportedUse(
             'google_keyless_service',
             'this keyless Google credential works only with Google Cloud APIs and the Workspace services it was delegated',
-            'This keyless Google credential works only with Google Cloud tools such as BigQuery and, through domain-wide delegation, with Gmail, Google Drive, Google Docs, Google Sheets, and Google Calendar. Reconnect it to delegate this service, or use a JSON key credential instead'
+            `This keyless Google credential works only with Google Cloud tools such as BigQuery and, through domain-wide delegation, with ${GOOGLE_DELEGATION_SERVICE_NAMES}. Reconnect it to delegate this service, or use a JSON key credential instead`
           )
         : unsupportedUse(
             'google_keyless_service_unsupported',
             'keyless Google credentials cannot serve this service',
-            'Keyless Google credentials work only with Google Cloud tools such as BigQuery and, through domain-wide delegation, with Gmail, Google Drive, Google Docs, Google Sheets, and Google Calendar. Use a JSON key credential for this service'
+            `Keyless Google credentials work only with Google Cloud tools such as BigQuery and, through domain-wide delegation, with ${GOOGLE_DELEGATION_SERVICE_NAMES}. Use a JSON key credential for this service`
           )
     }
   }
