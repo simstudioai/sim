@@ -3100,28 +3100,27 @@ describe('credential protection', () => {
 
   it('gives a wait that runs to its timeout a full snapshot budget for its closing observation', async () => {
     const contents = await openPage()
+    let finishSnapshot: (value: unknown) => void = () => {}
     vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
       if (!isPageCall(expression, 'collectSnapshot')) return Promise.resolve(undefined)
-      return new Promise((resolve) =>
-        setTimeout(
-          () =>
-            resolve({
-              url: 'https://example.com/',
-              title: 'Example',
-              outline: '- heading "Order confirmed"',
-              truncated: false,
-              refIds: [],
-              refLineIndexes: {},
-              nextElementId: 1_000,
-            }),
-          8_000
-        )
-      )
+      return new Promise((resolve) => {
+        finishSnapshot = resolve
+      })
     })
     vi.useFakeTimers()
     try {
       const waiting = driver.executeTool('chat-test', 'browser_wait_for', { timeoutMs: 1_000 })
-      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.advanceTimersByTimeAsync(9_000)
+      finishSnapshot({
+        url: 'https://example.com/',
+        title: 'Example',
+        outline: '- heading "Order confirmed"',
+        truncated: false,
+        refIds: [],
+        refLineIndexes: {},
+        nextElementId: 1_000,
+      })
+      await vi.advanceTimersByTimeAsync(1_000)
 
       expect(await waiting).toMatchObject({
         ok: true,
