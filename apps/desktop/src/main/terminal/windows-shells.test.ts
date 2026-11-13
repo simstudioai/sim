@@ -177,6 +177,8 @@ describe.runIf(process.platform === 'win32')('the agent terminal on Windows', ()
         expect(result).toMatchObject({ status: 'completed', exitCode: 1 })
         const after = await run(terminal, 'call-code', 'Write-Output "code-$LASTEXITCODE"')
         expect(after.output).toContain('code-3')
+        // The same failing code again is still the program's, not a stale one.
+        expect(await run(terminal, 'call-native-again', shell.fail)).toMatchObject({ exitCode: 3 })
       },
       SHELL_TEST_TIMEOUT_MS
     )
