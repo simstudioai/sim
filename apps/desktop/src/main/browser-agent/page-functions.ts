@@ -2041,9 +2041,8 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     }
   }
   // Top-page typing goes through keyboard focus, so a non-modal overlay does not block it. A modal
-  // still does: a dialog, or unmarked fixed layers that catch the pointer at the viewport's corners
-  // and centre, include the field's cover, and do not hold the field (a full-screen app shell
-  // does). Framed fields keep the check for their mapped point.
+  // still does: a dialog, or an unmarked backdrop, which paints above the field and under every
+  // corner of the viewport. Framed fields keep the check for their mapped point.
   const topPageField = view === window && window.top === window
   const insideDialog = (node: Element): boolean => {
     for (let current: Element | null = node; current; current = composedParent(current)) {
@@ -2059,38 +2058,34 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     }
     return false
   }
-  const fixedLayerOf = (node: Element | null): Element | null => {
-    let layer: Element | null = null
-    for (let current = node; current; current = composedParent(current)) {
-      if (view.getComputedStyle(current).position === 'fixed') layer = current
+  const behindBackdrop = (): boolean => {
+    const stackRoot = root as ParentNode & {
+      elementsFromPoint?: (x: number, y: number) => Element[]
     }
-    return layer
-  }
-  const screenBlockedByLayer = (covers: Element[]): boolean => {
-    const documentAt = editable.ownerDocument
-    const width = documentAt.documentElement.clientWidth || view.innerWidth
-    const height = documentAt.documentElement.clientHeight || view.innerHeight
+    if (typeof stackRoot.elementsFromPoint !== 'function') return false
+    const stackAt = stackRoot.elementsFromPoint.bind(stackRoot)
+    const aboveField = new Set<Element>()
+    for (const point of blockedPoints) {
+      for (const element of stackAt(point.x, point.y)) {
+        if (element === editable || editable.contains(element) || element.contains(editable)) break
+        aboveField.add(element)
+      }
+    }
+    if (aboveField.size === 0) return false
+    const width = editable.ownerDocument.documentElement.clientWidth || view.innerWidth
+    const height = editable.ownerDocument.documentElement.clientHeight || view.innerHeight
     const inset = 4
-    const probes: Array<[number, number]> = [
+    for (const [x, y] of [
       [inset, inset],
       [width - inset, inset],
       [inset, height - inset],
       [width - inset, height - inset],
-      [width / 2, height / 2],
-    ]
-    const layers = new Set<Element>()
-    for (const [x, y] of probes) {
-      const layer = fixedLayerOf(documentAt.elementFromPoint(x, y))
-      if (!layer) return false
-      layers.add(layer)
+    ]) {
+      const corner = new Set(stackAt(x, y))
+      for (const element of aboveField) if (!corner.has(element)) aboveField.delete(element)
+      if (aboveField.size === 0) return false
     }
-    for (let current: Element | null = editable; current; current = composedParent(current)) {
-      if (layers.has(current)) return false
-    }
-    return covers.some((cover) => {
-      const layer = fixedLayerOf(cover)
-      return layer !== null && layers.has(layer)
-    })
+    return true
   }
   const hits = Array.from(new Set(blockedPoints.flatMap((point) => (point.hit ? [point.hit] : []))))
   let coveredBy: string | undefined
@@ -2099,7 +2094,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     topPageField &&
     hits.length > 0 &&
     !hits.some(insideDialog) &&
-    !screenBlockedByLayer(hits)
+    !behindBackdrop()
   ) {
     chosenPoint = { x: blockedPoints[0].x, y: blockedPoints[0].y }
     coveredBy = blockerLabel(firstBlocker)
