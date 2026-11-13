@@ -245,8 +245,8 @@ Terminal control),
 which the helper refuses. With **Ask before using a new
 app** on, each app's first use is approved for the task or persistently, and persistent approvals are
 listed in Settings and can be revoked. Sign-out and deployment changes clear opt-in, the ask choice
-and approvals. The conversation shows the
-active app/action and a Stop button; **⌘⇧Esc** also stops active work when the shortcut is available.
+and approvals. Stopping the chat response, or **⌘⇧Esc** when the shortcut is available, stops active
+work; Settings shows the action in progress.
 Stop cancels queued actions, in-flight authorization, approval prompts and the native helper.
 Already completed input cannot be undone.
 
