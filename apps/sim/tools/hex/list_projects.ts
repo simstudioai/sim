@@ -231,7 +231,11 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
               type: 'object',
               properties: {
                 name: { type: 'string', description: 'Category name' },
-                description: { type: 'string', description: 'Category description' },
+                description: {
+                  type: 'string',
+                  description: 'Category description',
+                  nullable: true,
+                },
               },
             },
           },
