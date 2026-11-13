@@ -142,10 +142,15 @@ func elementRect(_ element: AXUIElement) -> CGRect? {
           AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &size) else { return nil }
     return CGRect(origin: position, size: size)
 }
+/// Apps computer use never operates: macOS security settings and password managers.
+let PROTECTED_APPS: Set<String> = [
+    "com.apple.systempreferences", "com.apple.keychainaccess", "com.apple.Passwords",
+    "com.1password.1password", "com.agilebits.onepassword7", "com.bitwarden.desktop", "org.keepassxc.keepassxc",
+]
 func appFor(_ bundleId: String?, launch: Bool = false) async throws -> NSRunningApplication {
     let bundle = try required(bundleId, "bundleId")
-    guard bundle != Bundle.main.bundleIdentifier, !bundle.hasPrefix("com.simstudio."), !bundle.hasPrefix("ai.sim.desktop"), bundle != "com.apple.systempreferences" else {
-        throw ComputerError("protected_app", "Computer use cannot control its own app or macOS security settings.")
+    guard bundle != Bundle.main.bundleIdentifier, !bundle.hasPrefix("com.simstudio."), !bundle.hasPrefix("ai.sim.desktop"), !PROTECTED_APPS.contains(bundle) else {
+        throw ComputerError("protected_app", "Computer use does not operate Sim, System Settings, or password managers.")
     }
     var apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).filter { !$0.isTerminated }
     if apps.isEmpty && launch {
