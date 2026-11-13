@@ -590,6 +590,20 @@ func postMouse(pid: pid_t, type: CGEventType, point: CGPoint, button: CGMouseBut
     event.post(tap: .cghidEventTap)
 }
 
+/// Clicks the center of an observed editor so it takes keyboard focus, only when that point lands on
+/// the editor itself inside its observed window; otherwise nothing is sent and the focus check decides.
+@MainActor
+func focusByClicking(_ element: AXUIElement, pid: pid_t, snapshot: Snapshot) async throws {
+    guard let rect = elementRect(element), let windowID = snapshot.windowId(holding: element),
+          let frame = snapshot.windowFrames[windowID], let window = snapshot.windowElements[windowID] else { return }
+    let center = CGPoint(x: rect.midX, y: rect.midY)
+    guard frame.contains(center), let hit = elementAtPoint(center), try ancestorPath(hit, to: element) != nil else { return }
+    try await coordinateAction { dispatch in
+        try postMouse(pid: pid, type: .leftMouseDown, point: center, button: .left, windowID: windowID, window: window, frame: frame, dispatch: dispatch)
+        try postMouse(pid: pid, type: .leftMouseUp, point: center, button: .left, windowID: windowID, window: window, frame: frame, release: true, dispatch: dispatch)
+    }
+    try await Task.sleep(for: .milliseconds(100))
+}
 func discoverApps() throws -> [[String: Any]] {
     var entries: [String: [String: Any]] = [:]
     let roots = [URL(fileURLWithPath: "/Applications"), URL(fileURLWithPath: "/System/Applications"), FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications")]
@@ -814,6 +828,11 @@ final class Driver {
             if attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) != true {
                 try axCheck(AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue))
                 try await Task.sleep(for: .milliseconds(50))
+                // Some apps (SwiftUI sheets such as Clock's city search) ignore an Accessibility focus
+                // request; in a foreground app the field is focused the way a user would, by clicking it.
+                if app.isActive, attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) != true {
+                    try await focusByClicking(element, pid: pid, snapshot: snapshot)
+                }
             }
             let observedWindows = snapshot.observedWindows()
             // The first editor found holding focus receives the whole input, so text never follows focus elsewhere.
