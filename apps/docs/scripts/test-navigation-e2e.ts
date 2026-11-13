@@ -266,6 +266,7 @@ try {
           const details = summary.locator('..')
           await summary.click()
           await expect(details).toHaveAttribute('open', '')
+          await details.getByRole('link', { name: 'Formatting text', exact: true }).focus()
           await page.keyboard.press('Escape')
           await expect(details).not.toHaveAttribute('open')
           await expect(summary).toBeFocused()
