@@ -42,16 +42,25 @@ export async function recordDemoBooker(email: string, status: DemoBookerStatus):
   }
 }
 
-function parseLookup(value: string | null): DemoBookerLookup | null {
-  return value === 'verified' || value === 'unverified' || value === 'unseen' ? value : null
-}
+/**
+ * Atomically: return the booking's claim if one exists; otherwise consume the
+ * email's record, store the result (`unseen` when there was none) as the
+ * booking's claim, and return it. As one script, two overlapping deliveries for
+ * the same booking can never split the record from the claim.
+ */
+const CLAIM_SCRIPT = `
+local claimed = redis.call('GET', KEYS[1])
+if claimed then return claimed end
+local lookup = redis.call('GETDEL', KEYS[2]) or 'unseen'
+redis.call('SET', KEYS[1], lookup, 'EX', ARGV[1])
+return lookup
+`
 
 /**
  * Claims the email's record for one booking and remembers the result against
  * that booking. One form submission vouches for exactly one booking, and a
  * repeated webhook delivery for the same booking reads back the same lookup
- * instead of finding the record already spent. Of two concurrent deliveries,
- * the first to store its claim wins and the other adopts it.
+ * instead of finding the record already spent.
  */
 export async function claimDemoBooker(
   email: string,
@@ -60,12 +69,12 @@ export async function claimDemoBooker(
   const redis = getRedisClient()
   if (!redis) return 'unavailable'
 
-  const claimKey = `demo-booking:claim:${bookingUid}`
-  const existing = parseLookup(await redis.get(claimKey))
-  if (existing) return existing
-
-  const lookup = parseLookup(await redis.getdel(bookerKey(email))) ?? 'unseen'
-  const stored = await redis.set(claimKey, lookup, 'EX', CLAIM_TTL_SECONDS, 'NX')
-  if (stored === 'OK') return lookup
-  return parseLookup(await redis.get(claimKey)) ?? lookup
+  const lookup = await redis.eval(
+    CLAIM_SCRIPT,
+    2,
+    `demo-booking:claim:${bookingUid}`,
+    bookerKey(email),
+    String(CLAIM_TTL_SECONDS)
+  )
+  return lookup === 'verified' || lookup === 'unverified' ? lookup : 'unseen'
 }

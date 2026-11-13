@@ -330,100 +330,103 @@ export function DemoForm({ onComplete }: DemoFormProps) {
             />
           ) : null}
         </div>
-        <div className='grid grid-cols-2 gap-3 max-sm:grid-cols-1'>
-          <DemoField label='First name' htmlFor='demo-first-name' required>
+        {/* Locked while submitting, so the request and the scheduler's prefill never go stale mid-wait. */}
+        <fieldset disabled={isSubmitting} className='m-0 flex min-w-0 flex-col gap-4 border-0 p-0'>
+          <div className='grid grid-cols-2 gap-3 max-sm:grid-cols-1'>
+            <DemoField label='First name' htmlFor='demo-first-name' required>
+              <ChipInput
+                id='demo-first-name'
+                className={FIELD_HEIGHT}
+                value={form.firstName}
+                onChange={(event) => setField('firstName')(event.target.value)}
+                placeholder='Jane'
+                autoComplete='given-name'
+              />
+            </DemoField>
+            <DemoField label='Last name' htmlFor='demo-last-name' required>
+              <ChipInput
+                id='demo-last-name'
+                className={FIELD_HEIGHT}
+                value={form.lastName}
+                onChange={(event) => setField('lastName')(event.target.value)}
+                placeholder='Doe'
+                autoComplete='family-name'
+              />
+            </DemoField>
+          </div>
+
+          <DemoField label='Work email' htmlFor='demo-email' required error={emailError}>
             <ChipInput
-              id='demo-first-name'
+              id='demo-email'
+              type='email'
               className={FIELD_HEIGHT}
-              value={form.firstName}
-              onChange={(event) => setField('firstName')(event.target.value)}
-              placeholder='Jane'
-              autoComplete='given-name'
+              value={form.email}
+              onChange={(event) => setField('email')(event.target.value)}
+              error={Boolean(emailError)}
+              placeholder='jane@acme.co'
+              autoComplete='email'
             />
           </DemoField>
-          <DemoField label='Last name' htmlFor='demo-last-name' required>
+
+          <DemoField label='Phone number (optional)' htmlFor='demo-phone'>
             <ChipInput
-              id='demo-last-name'
+              id='demo-phone'
+              type='tel'
               className={FIELD_HEIGHT}
-              value={form.lastName}
-              onChange={(event) => setField('lastName')(event.target.value)}
-              placeholder='Doe'
-              autoComplete='family-name'
+              value={form.phone}
+              onChange={(event) => setField('phone')(event.target.value)}
+              placeholder='+1 (555) 000-0000'
+              autoComplete='tel'
             />
           </DemoField>
-        </div>
 
-        <DemoField label='Work email' htmlFor='demo-email' required error={emailError}>
-          <ChipInput
-            id='demo-email'
-            type='email'
-            className={FIELD_HEIGHT}
-            value={form.email}
-            onChange={(event) => setField('email')(event.target.value)}
-            error={Boolean(emailError)}
-            placeholder='jane@acme.co'
-            autoComplete='email'
-          />
-        </DemoField>
+          <DemoField label='Company' htmlFor='demo-company' required>
+            <ChipInput
+              id='demo-company'
+              className={FIELD_HEIGHT}
+              value={form.company}
+              onChange={(event) => setField('company')(event.target.value)}
+              placeholder='Acme Inc.'
+              autoComplete='organization'
+            />
+          </DemoField>
 
-        <DemoField label='Phone number (optional)' htmlFor='demo-phone'>
-          <ChipInput
-            id='demo-phone'
-            type='tel'
-            className={FIELD_HEIGHT}
-            value={form.phone}
-            onChange={(event) => setField('phone')(event.target.value)}
-            placeholder='+1 (555) 000-0000'
-            autoComplete='tel'
-          />
-        </DemoField>
+          <DemoField label='Company size' required>
+            <ChipDropdown
+              fullWidth
+              className={FIELD_HEIGHT}
+              value={form.companySize || undefined}
+              onChange={setField('companySize')}
+              options={DEMO_REQUEST_COMPANY_SIZE_OPTIONS}
+              placeholder='Select one'
+            />
+          </DemoField>
 
-        <DemoField label='Company' htmlFor='demo-company' required>
-          <ChipInput
-            id='demo-company'
-            className={FIELD_HEIGHT}
-            value={form.company}
-            onChange={(event) => setField('company')(event.target.value)}
-            placeholder='Acme Inc.'
-            autoComplete='organization'
-          />
-        </DemoField>
+          <DemoField label='What can we help you with?'>
+            <ChipDropdown
+              fullWidth
+              className={FIELD_HEIGHT}
+              value={form.topic}
+              onChange={setField('topic')}
+              options={TOPIC_OPTIONS}
+            />
+          </DemoField>
 
-        <DemoField label='Company size' required>
-          <ChipDropdown
-            fullWidth
-            className={FIELD_HEIGHT}
-            value={form.companySize || undefined}
-            onChange={setField('companySize')}
-            options={DEMO_REQUEST_COMPANY_SIZE_OPTIONS}
-            placeholder='Select one'
-          />
-        </DemoField>
+          <DemoField label='Anything else we should know? (optional)' htmlFor='demo-message'>
+            <ChipTextarea
+              id='demo-message'
+              value={form.message}
+              onChange={(event) => setField('message')(event.target.value)}
+              placeholder='What are you hoping to build with Sim?'
+              rows={3}
+            />
+          </DemoField>
 
-        <DemoField label='What can we help you with?'>
-          <ChipDropdown
-            fullWidth
-            className={FIELD_HEIGHT}
-            value={form.topic}
-            onChange={setField('topic')}
-            options={TOPIC_OPTIONS}
-          />
-        </DemoField>
-
-        <DemoField label='Anything else we should know? (optional)' htmlFor='demo-message'>
-          <ChipTextarea
-            id='demo-message'
-            value={form.message}
-            onChange={(event) => setField('message')(event.target.value)}
-            placeholder='What are you hoping to build with Sim?'
-            rows={3}
-          />
-        </DemoField>
-
-        {/*
-          `Chip` gives its label span `flex-1`; under `fullWidth` that left-aligns the
-          label, so center it with `justify-center` + a `flex-none` span override.
-        */}
+          {/*
+            `Chip` gives its label span `flex-1`; under `fullWidth` that left-aligns the
+            label, so center it with `justify-center` + a `flex-none` span override.
+          */}
+        </fieldset>
         {submitError ? (
           <p role='alert' className='text-[var(--text-error)] text-caption'>
             {submitError}

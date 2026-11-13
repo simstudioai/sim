@@ -65,7 +65,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
 
     if (!allowed) {
-      logger.warn(`Rate limit exceeded for IP ${ip}`, { remaining, resetAt })
+      logger.warn('Rate limit exceeded', { ip, remaining, resetAt })
       return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, {
         status: 429,
         headers: { 'Retry-After': String(Math.ceil((resetAt.getTime() - Date.now()) / 1000)) },
@@ -117,7 +117,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           { failClosed: true }
         )
         if (!nocaptchaAllowed) {
-          logger.warn(`Rate limit rejected (no-captcha) for IP ${ip}`)
+          logger.warn('Rate limit rejected (no-captcha)', { ip })
           return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, { status: 429 })
         }
       }
