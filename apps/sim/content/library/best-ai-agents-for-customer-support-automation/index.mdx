@@ -106,6 +106,20 @@ faq:
     a: "Sim fits teams prioritizing governed AI-agent workflows and self-hosting, while Gumloop fits teams prioritizing hosted visual automation, company knowledge, and built-in tool approvals."
   - q: "What should a support agent log for each answer?"
     a: "A support agent should log the request, retrieved evidence, model and prompt version, generated draft, control results, approval decision, final action, and execution outcome."
+  - q: "How does human approval work in Sim?"
+    a: "Sim’s Human in the Loop block pauses a run and resumes it with submitted form fields, while a downstream Condition must inspect the approval or rejection field and route the workflow accordingly."
+  - q: "Can a Zendesk AI agent use local models with Sim?"
+    a: "Sim can use Ollama, vLLM, LM Studio, or LiteLLM on any self-hosted Sim deployment without requiring Enterprise solely for local-model support."
+  - q: "Can AI agents work with Zendesk?"
+    a: "AI agents can work with Zendesk by reading authorized ticket context, retrieving supporting information, drafting replies, recommending tags, and writing approved results back to Zendesk."
+  - q: "Can AI agents tag Zendesk tickets?"
+    a: "AI agents can tag Zendesk tickets reliably when they select from a controlled taxonomy and pass uncertain classifications to a person."
+  - q: "Can AI agents work with Intercom?"
+    a: "AI agents can work with Intercom by using authorized conversation context to prepare replies, tags, summaries, handoffs, and follow-up actions."
+  - q: "Do Sim Guardrails automatically stop a support workflow?"
+    a: "Sim Guardrails do not automatically stop a workflow because the block reports passed or failed and a downstream Condition must route the run based on that result."
+  - q: "What metrics should teams track for AI support automation?"
+    a: "Support teams should track draft acceptance, material corrections, unsupported claims, escalation quality, response time, reopen rate, customer satisfaction, review rate, and cost per resolved conversation."
 ---
 
 ## TL;DR
