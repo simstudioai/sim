@@ -239,7 +239,7 @@ Get statistics for a CloudWatch metric over a time range
 | `startTime` | number | Yes | Start time as Unix epoch seconds |
 | `endTime` | number | Yes | End time as Unix epoch seconds |
 | `period` | number | Yes | Granularity in seconds \(e.g., 60, 300, 3600\) |
-| `statistics` | array | Yes | Statistics to retrieve \(Average, Sum, Minimum, Maximum, SampleCount\) |
+| `statistics` | array | No | Statistics to retrieve \(Average, Sum, Minimum, Maximum, SampleCount\). Required unless extendedStatistics is set, which takes precedence |
 | `dimensions` | string | No | Dimensions as JSON \(e.g., \{"InstanceId": "i-1234"\}\) |
 | `extendedStatistics` | array | No | Percentile statistics to retrieve \(e.g., \["p99", "p95"\]\). AWS accepts either Statistics or ExtendedStatistics, so when set these are requested instead of statistics |
 | `unit` | string | No | Only return data reported with this unit \(e.g., Percent, Milliseconds\). Omit to return all units |

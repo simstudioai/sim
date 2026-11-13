@@ -3,34 +3,52 @@ import {
   DeleteCommand,
   DynamoDBDocumentClient,
   GetCommand,
+  NumberValue,
   PutCommand,
   QueryCommand,
   ScanCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb'
+import { isRecordLike } from '@sim/utils/object'
 import { awsClientConfig } from '@/lib/internal/aws/credentials'
 import type { DynamoDBConnectionConfig, DynamoDBTableSchema } from '@/tools/dynamodb/types'
 
 type DynamoDBReturnValues = 'NONE' | 'ALL_OLD' | 'UPDATED_OLD' | 'ALL_NEW' | 'UPDATED_NEW'
 
 /**
- * Keeps integers beyond `Number.MAX_SAFE_INTEGER` (and other values a JS number cannot hold)
- * as their exact DynamoDB string, since the SDK default turns them into a `BigInt` that the
- * JSON response cannot serialize.
+ * Keeps any DynamoDB number a JS number cannot hold exactly (integers beyond
+ * `Number.MAX_SAFE_INTEGER`, high-precision decimals, non-finite values) as a `NumberValue`
+ * with the exact string, so pagination cursors can round-trip it. The SDK default would turn
+ * large integers into a `BigInt` that the JSON response cannot serialize.
  */
-function unwrapNumber(value: string): number | string {
+function unwrapNumber(value: string): number | NumberValue {
   const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return value
-  if (Number.isInteger(parsed) && !Number.isSafeInteger(parsed)) return value
+  const exact = Number.isFinite(parsed) && String(parsed) === value
+  if (exact && (!Number.isInteger(parsed) || Number.isSafeInteger(parsed))) return parsed
+  return NumberValue.from(value)
+}
+
+/**
+ * Item output for a number kept as a `NumberValue`: the exact string for integers beyond
+ * `Number.MAX_SAFE_INTEGER` and non-finite values, otherwise the nearest JS number.
+ */
+function numberValueToJson(value: NumberValue): number | string {
+  const exact = value.toString()
+  const parsed = Number(exact)
+  if (!Number.isFinite(parsed) || (Number.isInteger(parsed) && !Number.isSafeInteger(parsed))) {
+    return exact
+  }
   return parsed
 }
 
 /**
  * Converts unmarshalled DynamoDB values into JSON-serializable shapes: string, number and
- * binary sets become arrays, and binary values become base64 strings. Without this a set
- * serializes as `{}` and a binary value as an object of byte indexes.
+ * binary sets become arrays, binary values become base64 strings, and numbers kept as a
+ * `NumberValue` become a JS number or, when one cannot hold them, their exact string. Without this a set serializes as `{}` and a binary
+ * value as an object of byte indexes.
  */
 function toJsonSafe(value: unknown): unknown {
+  if (value instanceof NumberValue) return numberValueToJson(value)
   if (value instanceof Set) return Array.from(value, toJsonSafe)
   if (value instanceof Uint8Array) return Buffer.from(value).toString('base64')
   if (Array.isArray(value)) return value.map(toJsonSafe)
@@ -44,6 +62,42 @@ function toJsonSafeRecord(
   value: Record<string, unknown> | undefined
 ): Record<string, unknown> | undefined {
   return value ? (toJsonSafe(value) as Record<string, unknown>) : undefined
+}
+
+/**
+ * Encodes a `LastEvaluatedKey` so it can be passed back as `exclusiveStartKey`. Key
+ * attributes are always scalar (S, N or B), so strings and exact numbers stay as-is while a
+ * number a JS number cannot hold exactly becomes `{ N }` and a binary key becomes `{ B }` (base64):
+ * plain strings would otherwise be sent back as S and fail the key type check.
+ */
+function toCursor(key: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!key) return undefined
+  return Object.fromEntries(
+    Object.entries(key).map(([name, value]) => {
+      if (value instanceof NumberValue) return [name, { N: value.toString() }]
+      if (value instanceof Uint8Array) return [name, { B: toJsonSafe(value) }]
+      return [name, value]
+    })
+  )
+}
+
+const DYNAMODB_NUMBER = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/
+
+/** Restores the `{ N }` and `{ B }` cursor values written by {@link toCursor}. */
+function fromCursor(key: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(key).map(([name, value]) => {
+      if (isRecordLike(value) && Object.keys(value).length === 1) {
+        if (typeof value.N === 'string' && DYNAMODB_NUMBER.test(value.N)) {
+          return [name, NumberValue.from(value.N)]
+        }
+        if (typeof value.B === 'string') {
+          return [name, new Uint8Array(Buffer.from(value.B, 'base64'))]
+        }
+      }
+      return [name, value]
+    })
+  )
 }
 
 export function createDynamoDBClient(config: DynamoDBConnectionConfig): DynamoDBDocumentClient {
@@ -152,7 +206,7 @@ export async function queryItems(
     }),
     ...(options?.indexName && { IndexName: options.indexName }),
     ...(options?.limit && { Limit: options.limit }),
-    ...(options?.exclusiveStartKey && { ExclusiveStartKey: options.exclusiveStartKey }),
+    ...(options?.exclusiveStartKey && { ExclusiveStartKey: fromCursor(options.exclusiveStartKey) }),
     ...(options?.scanIndexForward !== undefined && { ScanIndexForward: options.scanIndexForward }),
     ...(options?.projectionExpression && { ProjectionExpression: options.projectionExpression }),
     ...(options?.consistentRead !== undefined && { ConsistentRead: options.consistentRead }),
@@ -163,7 +217,7 @@ export async function queryItems(
     items: (response.Items ?? []).map((item) => toJsonSafeRecord(item) ?? {}),
     count: response.Count || 0,
     scannedCount: response.ScannedCount ?? null,
-    lastEvaluatedKey: toJsonSafeRecord(response.LastEvaluatedKey),
+    lastEvaluatedKey: toCursor(response.LastEvaluatedKey),
   }
 }
 
@@ -200,7 +254,7 @@ export async function scanItems(
       ExpressionAttributeValues: options.expressionAttributeValues,
     }),
     ...(options?.limit && { Limit: options.limit }),
-    ...(options?.exclusiveStartKey && { ExclusiveStartKey: options.exclusiveStartKey }),
+    ...(options?.exclusiveStartKey && { ExclusiveStartKey: fromCursor(options.exclusiveStartKey) }),
     ...(options?.indexName && { IndexName: options.indexName }),
     ...(options?.consistentRead !== undefined && { ConsistentRead: options.consistentRead }),
     ...(options?.segment !== undefined && { Segment: options.segment }),
@@ -212,7 +266,7 @@ export async function scanItems(
     items: (response.Items ?? []).map((item) => toJsonSafeRecord(item) ?? {}),
     count: response.Count || 0,
     scannedCount: response.ScannedCount ?? null,
-    lastEvaluatedKey: toJsonSafeRecord(response.LastEvaluatedKey),
+    lastEvaluatedKey: toCursor(response.LastEvaluatedKey),
   }
 }
 
