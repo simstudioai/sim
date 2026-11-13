@@ -1,10 +1,7 @@
-import {
-  type GrantedLicense,
-  LicenseManagerClient,
-  ListReceivedLicensesCommand,
-} from '@aws-sdk/client-license-manager'
+import { CheckoutLicenseCommand, LicenseManagerClient } from '@aws-sdk/client-license-manager'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 
@@ -12,15 +9,13 @@ import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
  * Enterprise entitlement for Sim installed from the AWS Marketplace container listing.
  *
  * The listing sells an annual contract whose one dimension is `enterprise_license`. AWS Marketplace
- * grants the buyer a license in AWS License Manager, and the running product reads it. While the
- * license is active, the Enterprise suite is on (`ENTERPRISE_ENABLED`). Without one, Sim runs as the
- * open-source core, so a lapsed renewal or an unreachable License Manager never locks a buyer out
- * of their deployment.
- *
- * The check reads the license rather than checking a unit out of it. A contract usually covers the
- * whole deployment with one unit, so checking it out from every replica would make them compete
- * for it, and a unit left checked out (a failed check-in holds it for an hour) would read exactly
- * like an expired license.
+ * grants the buyer a license in AWS License Manager, and the running product checks it the way AWS
+ * documents for a contract that unlocks a tier of features rather than metering a quantity: a
+ * provisional `CheckoutLicense` of the entitlement with unit `None`. Such a checkout is not counted
+ * against the contract, so every replica can check at once, and it needs only the permission AWS's
+ * managed `AWSLicenseManagerConsumptionPolicy` grants. While the license is active, the Enterprise
+ * suite is on (`ENTERPRISE_ENABLED`). Without one, Sim runs as the open-source core, so a lapsed
+ * renewal or an unreachable License Manager never locks a buyer out of their deployment.
  *
  * Opt-in: nothing here runs unless {@link PRODUCT_SKU_ENV} is set, which only the Marketplace
  * Helm profile does. Enterprise flags are read once at startup by both the server and the
@@ -34,8 +29,8 @@ const logger = createLogger('AwsMarketplaceContainerLicense')
 const PRODUCT_SKU_ENV = 'AWS_MARKETPLACE_LICENSE_PRODUCT_SKU'
 
 /**
- * Optional override for where the license is read. License Manager replicates a granted license to
- * other Regions, so the default is the pod's own Region, the same chain AWS's EKS walkthrough uses.
+ * Optional override for where the license is checked. License Manager replicates a granted license
+ * to other Regions, so the default is the pod's own Region, the same chain AWS's EKS walkthrough uses.
  */
 const LICENSE_REGION_ENV = 'AWS_MARKETPLACE_LICENSE_REGION'
 
@@ -48,20 +43,25 @@ const ENTERPRISE_ENTITLEMENT = 'enterprise_license'
 /** AWS recommends re-checking every 15 minutes to pick up renewals, upgrades, and cancellations. */
 const RECHECK_INTERVAL_MS = 15 * 60 * 1000
 
+/** Replicas start together; a random part of this added to each re-check keeps them apart. */
+const RECHECK_JITTER_MS = 2 * 60 * 1000
+
 /**
- * Replicas start together, so their re-checks line up; each waits a random part of this before
- * restarting, so a renewal or lapse never takes every replica down at once.
+ * Replicas see a change together; each waits a random part of this before restarting, so a renewal
+ * or lapse never takes every replica down at once.
  */
 const RESTART_SPREAD_MS = 10 * 60 * 1000
 
-/**
- * How the buyer's account holds the license. A delegate grant only shows licenses distributed to
- * other accounts, and a grant still awaiting acceptance, or rejected, disabled, or deleted by the
- * license administrator, entitles nothing. No status at all is a license the account bought itself.
- */
-const USABLE_RECEIVED_STATUSES = new Set(['ACTIVE', 'WORKFLOW_COMPLETED'])
-
 const ENTERPRISE_FLAGS = ['ENTERPRISE_ENABLED', 'NEXT_PUBLIC_ENTERPRISE_ENABLED'] as const
+
+/** License Manager's answers when the account holds no active license with the entitlement. */
+const NO_ENTITLEMENT_ERRORS = new Set([
+  'NoEntitlementsAllowedException',
+  'ResourceNotFoundException',
+])
+
+/** The ServiceAccount's IAM role does not allow the check: a setup problem, never a verdict. */
+const PERMISSION_ERRORS = new Set(['AccessDeniedException', 'AuthorizationException'])
 
 /** `unknown` is a failed check (network, permissions, throttling), never a verdict on the license. */
 type LicenseState = 'entitled' | 'not-entitled' | 'unknown'
@@ -78,24 +78,24 @@ function createClient(): LicenseManagerClient {
   })
 }
 
-function isUsableGrant({ ReceivedMetadata: received }: GrantedLicense): boolean {
-  if (received?.GrantType === 'DelegateGrant') return false
-  return !received?.ReceivedStatus || USABLE_RECEIVED_STATUSES.has(received.ReceivedStatus)
-}
-
-/**
- * An AWS Marketplace license this product's buyer holds is current when License Manager reports it
- * `AVAILABLE`, its issuer is AWS Marketplace, it carries the Enterprise entitlement, and the account
- * holds it through a grant it may use. License Manager moves an ended, cancelled, or suspended
- * license out of `AVAILABLE` itself.
- */
-function isActiveEnterpriseLicense(license: GrantedLicense): boolean {
-  return (
-    license.Status === 'AVAILABLE' &&
-    isUsableGrant(license) &&
-    license.Issuer?.KeyFingerprint === MARKETPLACE_KEY_FINGERPRINT &&
-    (license.Entitlements ?? []).some((entitlement) => entitlement.Name === ENTERPRISE_ENTITLEMENT)
-  )
+function classifyFailure(error: unknown): LicenseState {
+  const name = error instanceof Error ? error.name : undefined
+  if (name && NO_ENTITLEMENT_ERRORS.has(name)) {
+    logger.info('AWS License Manager reports no active Enterprise entitlement', { error: name })
+    return 'not-entitled'
+  }
+  if (name && PERMISSION_ERRORS.has(name)) {
+    logger.error(
+      'The IAM role cannot check the AWS Marketplace license; allow license-manager:CheckoutLicense',
+      { error: name }
+    )
+    return 'unknown'
+  }
+  logger.warn('Could not check the AWS Marketplace Enterprise license', {
+    error: name,
+    message: getErrorMessage(error, 'Unknown error'),
+  })
+  return 'unknown'
 }
 
 async function checkLicense(
@@ -103,31 +103,35 @@ async function checkLicense(
   productSku: string
 ): Promise<LicenseState> {
   try {
-    let nextToken: string | undefined
-    do {
-      const page = await client.send(
-        new ListReceivedLicensesCommand({
-          Filters: [
-            { Name: 'ProductSKU', Values: [productSku] },
-            { Name: 'Fingerprint', Values: [MARKETPLACE_KEY_FINGERPRINT] },
-          ],
-          NextToken: nextToken,
-        })
-      )
-      if ((page.Licenses ?? []).some(isActiveEnterpriseLicense)) return 'entitled'
-      nextToken = page.NextToken
-    } while (nextToken)
-    return 'not-entitled'
+    const checkout = await client.send(
+      new CheckoutLicenseCommand({
+        ProductSKU: productSku,
+        CheckoutType: 'PROVISIONAL',
+        KeyFingerprint: MARKETPLACE_KEY_FINGERPRINT,
+        Entitlements: [{ Name: ENTERPRISE_ENTITLEMENT, Unit: 'None' }],
+        ClientToken: generateId(),
+      })
+    )
+    const allowed = (checkout.EntitlementsAllowed ?? []).some(
+      (entitlement) => entitlement.Name === ENTERPRISE_ENTITLEMENT
+    )
+    return allowed ? 'entitled' : 'not-entitled'
   } catch (error) {
-    logger.warn('Could not check the AWS Marketplace Enterprise license', {
-      message: getErrorMessage(error, 'Unknown error'),
-    })
-    return 'unknown'
+    return classifyFailure(error)
   }
 }
 
 function setEnterpriseFlags(enabled: boolean): void {
   for (const flag of ENTERPRISE_FLAGS) process.env[flag] = enabled ? 'true' : 'false'
+}
+
+function restartToApply(state: LicenseState): void {
+  const delayMs = randomInt(0, RESTART_SPREAD_MS)
+  logger.info('AWS Marketplace Enterprise license changed; restarting to apply it', {
+    state,
+    delayMs,
+  })
+  setTimeout(() => process.kill(process.pid, 'SIGTERM'), delayMs)
 }
 
 /**
@@ -150,17 +154,16 @@ export async function applyAwsMarketplaceContainerLicense(): Promise<void> {
     { state: bootState }
   )
 
-  const recheck = setInterval(async () => {
+  const scheduleRecheck = () => {
+    setTimeout(recheck, RECHECK_INTERVAL_MS + randomInt(0, RECHECK_JITTER_MS)).unref()
+  }
+  const recheck = async () => {
     const state = await checkLicense(client, productSku)
-    const entitledNow = state === 'entitled'
-    if (state === 'unknown' || entitledNow === enterpriseAtBoot) return
-    clearInterval(recheck)
-    const delayMs = randomInt(0, RESTART_SPREAD_MS)
-    logger.info('AWS Marketplace Enterprise license changed; restarting to apply it', {
-      state,
-      delayMs,
-    })
-    setTimeout(() => process.kill(process.pid, 'SIGTERM'), delayMs)
-  }, RECHECK_INTERVAL_MS)
-  recheck.unref()
+    // A failed check keeps the current mode; only a definite answer that differs restarts.
+    const changed =
+      (state === 'entitled' && !enterpriseAtBoot) || (state === 'not-entitled' && enterpriseAtBoot)
+    if (changed) return restartToApply(state)
+    scheduleRecheck()
+  }
+  scheduleRecheck()
 }
