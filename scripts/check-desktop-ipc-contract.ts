@@ -181,15 +181,25 @@ function channelsFromPreload(
   return found
 }
 
+interface PreloadExposure {
+  /** Channels called inside a `...(features.<name> ? { … } : {})` spread, keyed to that feature. */
+  gated: Map<string, string>
+  /** Channels called anywhere outside such a spread, which every platform exposes. */
+  ungated: Set<string>
+}
+
 /**
- * Channels the preload calls only inside a `...(features.<name> ? { … } : {})`
- * spread, keyed to that feature. The spread's extent is its balanced parens.
+ * Which channels the preload exposes behind a feature spread and which it exposes everywhere. A
+ * spread's extent is its balanced parens; a channel called both inside and outside one is ungated.
  */
-function featureGatedChannels(source: string): Map<string, string> {
+function preloadExposure(source: string): PreloadExposure {
   const constants = channelConstants(source)
   const gated = new Map<string, string>()
+  let ungatedSource = ''
+  let cursor = 0
   for (const match of source.matchAll(/\.\.\.\(features\.(\w+)/g)) {
     const start = match.index + '...'.length
+    if (start < cursor) continue
     let depth = 0
     let end = start
     for (; end < source.length; end++) {
@@ -199,8 +209,11 @@ function featureGatedChannels(source: string): Map<string, string> {
     for (const name of channelsFromPreload(source.slice(start, end), 'invoke|send', constants)) {
       gated.set(name, match[1])
     }
+    ungatedSource += source.slice(cursor, match.index)
+    cursor = end + 1
   }
-  return gated
+  ungatedSource += source.slice(cursor)
+  return { gated, ungated: channelsFromPreload(ungatedSource, 'invoke|send', constants) }
 }
 
 async function main(): Promise<void> {
@@ -241,10 +254,13 @@ async function main(): Promise<void> {
   const called = new Set<string>()
   const subscribed = new Set<string>()
   const gatedByFeature = new Map<string, string>()
+  const ungated = new Set<string>()
   for (const source of preloadSources) {
     for (const name of channelsFromPreload(source, 'invoke|send')) called.add(name)
     for (const name of channelsFromPreload(source, 'on|once')) subscribed.add(name)
-    for (const [name, feature] of featureGatedChannels(source)) gatedByFeature.set(name, feature)
+    const exposure = preloadExposure(source)
+    for (const [name, feature] of exposure.gated) gatedByFeature.set(name, feature)
+    for (const name of exposure.ungated) ungated.add(name)
   }
   const declaredNames = new Set(declared.map((channel) => channel.name))
   const preloadLabel = 'apps/desktop/src/preload'
@@ -269,7 +285,7 @@ async function main(): Promise<void> {
 
   for (const channel of declared) {
     if (!called.has(channel.name)) continue
-    const exposedUnder = gatedByFeature.get(channel.name) ?? ''
+    const exposedUnder = ungated.has(channel.name) ? '' : (gatedByFeature.get(channel.name) ?? '')
     if (channel.platformFeature === exposedUnder) continue
     const shown = (feature: string) => (feature === '' ? 'every platform' : `features.${feature}`)
     failures.push(
