@@ -42,7 +42,6 @@ import {
   sourceIdentityBinding,
 } from '@/lib/knowledge/connectors/member-provisioning'
 import { assertConnectorMirrorsSourceAcls } from '@/lib/knowledge/connectors/mirrored-access'
-import { requireConnectorSavedCredentialSetup } from '@/lib/knowledge/connectors/saved-credential-rollout'
 import {
   type ConnectorAccessTarget,
   performUpdateKnowledgeConnectorAccess,
@@ -434,7 +433,6 @@ async function requireUsableCredential(input: {
       `This ${input.connectorMeta.name} connector signs with its stored key. Create a new connector to use a saved credential.`
     )
   }
-  await requireConnectorSavedCredentialSetup(auth, input.credentialId)
   const service = requireConnectorCredentialService(input.connectorMeta)
   const token = await resolveConnectorCredentialAccessToken({
     principal: input.principal,

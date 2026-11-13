@@ -465,6 +465,16 @@ export async function resolveCredentialToken(
               error: 'Credential host not found — reconnect the credential with a valid host',
             }
           }
+          // The stored host is one Sim's egress policy refuses (a private or
+          // metadata address): a host problem, not a bad secret.
+          if (error.code === 'host_not_allowed') {
+            return {
+              ok: false,
+              status: 400,
+              code: error.code,
+              error: 'Credential host is not allowed — reconnect the credential with a public host',
+            }
+          }
           // A revoked/rotated-away or misconfigured stored secret — surface the
           // code so runtime consumers can prompt to reconnect the credential
           // rather than showing a generic auth failure.

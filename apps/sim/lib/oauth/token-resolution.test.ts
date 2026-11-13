@@ -808,6 +808,19 @@ describe('keyless Google Cloud credential refusals', () => {
       error: 'This credential cannot be used here',
     })
   })
+
+  it('tells the caller to fix the host when egress refuses it, instead of a generic 401', async () => {
+    mockResolveServiceAccountToken.mockRejectedValue(
+      new TokenServiceAccountValidationError('host_not_allowed', 400)
+    )
+    const result = await resolveCredentialAccessToken({
+      requestId: 'servicenow-host',
+      credentialId: 'google-keyless-1',
+      toolId: 'google-drive-tool',
+      authenticate,
+    })
+    expect(result).toMatchObject({ ok: false, status: 400, code: 'host_not_allowed' })
+  })
 })
 
 describe('Microsoft app credential cloud refusals', () => {

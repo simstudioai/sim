@@ -8,7 +8,7 @@ import {
   credentialsAccessMockFns,
 } from '@sim/testing/mocks/credentials-access.mock'
 import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
-import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { featureFlagsMock } from '@sim/testing/mocks/feature-flags.mock'
 import {
   internalAwsCredentialsMock,
   internalAwsCredentialsMockFns,
@@ -359,7 +359,6 @@ describe('knowledge connector application use cases', () => {
   })
 
   it('refuses another service’s credential for an S3 connector before resolving it', async () => {
-    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValueOnce(true)
     mocks.getCredentialActorContext.mockResolvedValueOnce({
       credential: {
         id: 'credential-1',
