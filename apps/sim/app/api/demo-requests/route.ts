@@ -14,6 +14,7 @@ import { getClientIp } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { type DemoBookerStatus, recordDemoBooker } from '@/lib/demo-booking/bookers'
+import { notifyDemoRequest } from '@/lib/demo-booking/notify'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 
@@ -41,8 +42,8 @@ const TOO_MANY_REQUESTS_RESPONSE = { error: 'Too many requests. Please try again
  * their Cal.com booking (see {@link recordDemoBooker} and
  * `lib/demo-booking/review.ts`). The form opens the calendar only after this
  * answers, so a booking can never outrun its record; a failed write answers 503
- * and the visitor retries instead of booking unrecorded. The sales notification
- * goes out after the response.
+ * and the visitor retries instead of booking unrecorded. The sales email and the
+ * sales-channel event ({@link notifyDemoRequest}) go out after the response.
  *
  * The captcha mirrors `/api/contact`: a valid Turnstile token marks the email
  * `verified`; a missing token or a Cloudflare transport error passes through the
@@ -140,8 +141,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       companySize,
     })
 
+    const submittedAt = new Date().toISOString()
     const emailText = `Demo request submitted
-Submitted: ${new Date().toISOString()}
+Submitted: ${submittedAt}
 Name: ${firstName} ${lastName}
 Email: ${companyEmail}
 Phone: ${phoneNumber ?? 'Not provided'}
@@ -165,6 +167,19 @@ ${attribution ? `\nAttribution:\n${attribution}\n` : ''}`
       if (emailResult.success) logger.info('Demo request email sent successfully')
       else logger.error('Error sending demo request email', emailResult.message)
     })
+    after(() =>
+      notifyDemoRequest({
+        type: 'demo_request.submitted',
+        email: companyEmail,
+        name: `${firstName} ${lastName}`,
+        phone: phoneNumber ?? null,
+        companySize: getDemoRequestCompanySizeLabel(companySize),
+        details,
+        attribution: attribution || null,
+        verification: bookerStatus,
+        submittedAt,
+      })
+    )
 
     return NextResponse.json(SUCCESS_RESPONSE, { status: 201 })
   } catch (error) {

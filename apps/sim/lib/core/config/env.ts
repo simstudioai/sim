@@ -146,6 +146,8 @@ export const env = createEnv({
     TURNSTILE_SECRET_KEY:                  z.string().min(1).optional(),           // Cloudflare Turnstile secret key for captcha verification
     CAL_API_KEY:                           z.string().min(1).optional(),           // Cal.com API key that confirms or declines /demo booking requests (unset leaves every request for manual review)
     CAL_WEBHOOK_SECRET:                    z.string().min(1).optional(),           // Secret Cal.com signs /demo booking webhooks with (unset disables the webhook)
+    DEMO_REQUEST_WEBHOOK_URL:              z.string().url().optional(),            // Webhook that receives demo requests and booking decisions for the sales channel (unset sends none)
+    DEMO_REQUEST_WEBHOOK_TOKEN:            z.string().min(1).optional(),           // Bearer token for DEMO_REQUEST_WEBHOOK_URL
     ENCRYPTION_KEY:                        z.string().min(32),                     // Key for encrypting sensitive data
     API_ENCRYPTION_KEY:                    z.string().min(32).optional(),          // Dedicated key for encrypting API keys (optional for OSS)
     ENCRYPT_ACCOUNT_TOKENS:                z.boolean().optional(),                 // Opt-out: OAuth access/refresh tokens are sealed on write (read by @sim/db) and backfilled by migrate whenever ENCRYPTION_KEY is 64 hex characters; false or 0 writes plaintext. Sealed tokens need v0.9.33+ on every process that reads them

@@ -94,10 +94,11 @@ export const calWebhookEnvelopeSchema = z.object({
   payload: z.unknown().optional(),
 })
 
-/** The fields of a requested booking that the demo booking review reads. */
+/** The fields of a requested booking that the review and the sales notification read. */
 export const calBookingRequestSchema = z.object({
   uid: z.string().min(1),
-  attendees: z.array(z.object({ email: z.string().min(1) })).min(1),
+  startTime: z.string().optional(),
+  attendees: z.array(z.object({ email: z.string().min(1), name: z.string().optional() })).min(1),
 })
 
 /**

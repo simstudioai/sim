@@ -18,7 +18,7 @@ const DECLINE_REASON = `Please book your demo through ${SIM_SITE_URL}/demo.`
  * unconfirmed list for the team to review by hand, so it never reaches a
  * calendar unless someone approves it.
  */
-type DemoBookingDecision = 'confirmed' | 'declined' | 'pending'
+export type DemoBookingDecision = 'confirmed' | 'declined' | 'pending'
 
 interface DemoBookingRequest {
   bookingUid: string

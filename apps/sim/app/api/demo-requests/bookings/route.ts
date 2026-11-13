@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
-import { type NextRequest, NextResponse } from 'next/server'
+import { after, type NextRequest, NextResponse } from 'next/server'
 import {
   calBookingRequestSchema,
   type calBookingWebhookContract,
@@ -15,6 +15,7 @@ import {
   readStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { notifyDemoRequest } from '@/lib/demo-booking/notify'
 import { reviewDemoBookingRequest } from '@/lib/demo-booking/review'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 
@@ -44,7 +45,9 @@ async function readBody(request: NextRequest): Promise<string> {
  * Subscribe it to `BOOKING_REQUESTED` on that event type only, signed with
  * `CAL_WEBHOOK_SECRET`. The signature is an HMAC-SHA256 hex digest of the raw
  * body in `x-cal-signature-256`. {@link reviewDemoBookingRequest} confirms,
- * declines, or leaves each request for manual review.
+ * declines, or leaves each request for manual review, and every booking it does
+ * not decline is reported to the sales channel, where a pending one is
+ * confirmed or declined by hand.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const secret = env.CAL_WEBHOOK_SECRET
@@ -86,10 +89,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(ACKNOWLEDGED)
   }
 
+  const { uid, startTime, attendees } = booking.data
+  const attendee = attendees[0]
   const decision = await reviewDemoBookingRequest({
-    bookingUid: booking.data.uid,
-    attendeeEmail: booking.data.attendees[0].email,
+    bookingUid: uid,
+    attendeeEmail: attendee.email,
   })
   logger.info('Demo booking request reviewed', { decision })
+
+  // A declined booking had no form submission behind it, which is what a bot
+  // booking the public link looks like, so the sales channel never hears of it.
+  if (decision !== 'declined') {
+    after(() =>
+      notifyDemoRequest({
+        type: 'demo_request.booking',
+        bookingUid: uid,
+        email: attendee.email,
+        name: attendee.name ?? null,
+        startTime: startTime ?? null,
+        decision,
+      })
+    )
+  }
   return NextResponse.json<WebhookResponse>({ ok: true, decision })
 })
