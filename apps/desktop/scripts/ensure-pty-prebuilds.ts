@@ -14,8 +14,10 @@
  * lipo them together — it sees byte-identical trees in both halves and keeps
  * one. That is why this build needs no `x64ArchFiles` rule.
  *
- * Windows packages are x64-only for now. The Windows prebuild ships ConPTY
- * (`conpty.node` plus its bundled `conpty/` helper) instead of `pty.node`.
+ * Windows packages are x64-only for now. The Windows prebuild ships ConPTY instead of `pty.node`:
+ * `conpty.node`, `conpty_console_list.node` (which lists a console's processes when the pty
+ * exits), and the bundled `conpty/conpty.dll` and `conpty/OpenConsole.exe` that `useConptyDll`
+ * (set in `src/main/terminal/pty.ts`) runs the terminal on.
  */
 import { execFileSync } from 'node:child_process'
 import { createHash, timingSafeEqual } from 'node:crypto'
@@ -37,16 +39,26 @@ const logger = createLogger('DesktopPtyPrebuilds')
 
 interface RequiredPrebuild {
   arch: string
-  /** The binary whose presence proves the package was fully extracted. */
-  binary: string
+  /** Every native file the PTY loads from `prebuilds/<arch>/`; all present proves a full extract. */
+  binaries: readonly string[]
 }
 
 const REQUIRED_PREBUILDS: Partial<Record<NodeJS.Platform, readonly RequiredPrebuild[]>> = {
   darwin: [
-    { arch: 'darwin-arm64', binary: 'pty.node' },
-    { arch: 'darwin-x64', binary: 'pty.node' },
+    { arch: 'darwin-arm64', binaries: ['pty.node'] },
+    { arch: 'darwin-x64', binaries: ['pty.node'] },
   ],
-  win32: [{ arch: 'win32-x64', binary: 'conpty.node' }],
+  win32: [
+    {
+      arch: 'win32-x64',
+      binaries: [
+        'conpty.node',
+        'conpty_console_list.node',
+        'conpty/conpty.dll',
+        'conpty/OpenConsole.exe',
+      ],
+    },
+  ],
 }
 
 const desktopDir = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -144,16 +156,20 @@ async function run(): Promise<void> {
     return
   }
   const version = await pinnedVersion()
-  for (const { arch, binary } of required) {
-    const binaryPath = join(packageDir(arch), 'prebuilds', arch, binary)
-    if (existsSync(binaryPath)) {
+  for (const { arch, binaries } of required) {
+    const missing = () =>
+      binaries.filter((binary) => !existsSync(join(packageDir(arch), 'prebuilds', arch, binary)))
+    if (missing().length === 0) {
       logger.info('node-pty prebuild present', { arch })
       continue
     }
     logger.info('Fetching node-pty prebuild', { arch, version })
     await fetchPrebuild(arch, version)
-    if (!existsSync(binaryPath)) {
-      throw new Error(`Downloaded @lydell/node-pty-${arch} but ${binary} is missing`)
+    const stillMissing = missing()
+    if (stillMissing.length > 0) {
+      throw new Error(
+        `Downloaded @lydell/node-pty-${arch} but ${stillMissing.join(', ')} is missing`
+      )
     }
   }
 }
