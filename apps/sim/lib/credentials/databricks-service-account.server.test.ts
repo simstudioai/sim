@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +17,7 @@ const hoisted = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
   isWorkloadIdentityConfigured: async () => true,
   MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS: 3600,
@@ -19,6 +25,8 @@ vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
 }))
 
 import { credential } from '@sim/db/schema'
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   resolveDatabricksCredentialToken,
   verifyAndEncryptDatabricksCredential,
@@ -27,6 +35,13 @@ import { WorkloadIdentityNotConfiguredError } from '@/lib/credentials/workload-i
 import { DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 const owner = { workspaceId: 'ws-1', actorUserId: 'user-1' }
+const secureFetch = inputValidationMockFns.mockSecureFetchWithValidation
+
+/** A guarded-fetch reply from the workspace's SCIM `Me` endpoint. */
+function scimReply(body: unknown, status = 200) {
+  const text = typeof body === 'string' ? body : JSON.stringify(body)
+  return { ok: status >= 200 && status < 300, status, text: async () => text }
+}
 
 function patConfig(host: string) {
   return JSON.stringify({ authType: 'personal_access_token', host, token: 'dapi-secret' })
@@ -34,38 +49,71 @@ function patConfig(host: string) {
 
 describe('saving a Databricks connection', () => {
   const fetch = vi.fn()
+  const HOST = 'dbc-1234abcd-5678.cloud.databricks.com'
 
   beforeEach(() => {
-    fetch.mockReset().mockResolvedValue(jsonResponse({ userName: 'me@example.com' }))
+    fetch.mockReset()
     vi.stubGlobal('fetch', fetch)
+    secureFetch.mockReset().mockResolvedValue(scimReply({ userName: 'me@example.com' }))
+    encryptionMockFns.mockEncryptSecret.mockReset()
     encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'ciphertext', iv: 'iv' })
   })
 
-  it('verifies a Databricks workspace host by calling only that host', async () => {
+  it('verifies through the egress guard, so the organization’s outbound route carries it', async () => {
     await expect(
-      verifyAndEncryptDatabricksCredential(
-        patConfig('dbc-1234abcd-5678.cloud.databricks.com'),
-        owner
-      )
+      verifyAndEncryptDatabricksCredential(patConfig(HOST), owner)
     ).resolves.toMatchObject({ identity: 'me@example.com' })
-    expect(fetch).toHaveBeenCalledWith(
-      'https://dbc-1234abcd-5678.cloud.databricks.com/api/2.0/preview/scim/v2/Me',
-      expect.objectContaining({ redirect: 'error' })
+    expect(secureFetch).toHaveBeenCalledWith(
+      `https://${HOST}/api/2.0/preview/scim/v2/Me`,
+      expect.objectContaining({ profile: 'configuredEndpoint', maxRedirects: 0 })
     )
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('refuses an identity reply over the size cap instead of saving the host as the identity', async () => {
-    fetch.mockResolvedValue(
-      jsonResponse({ userName: 'me@example.com', groups: 'g'.repeat(1024 * 1024) })
+    secureFetch.mockRejectedValue(
+      new PayloadSizeLimitError({ label: 'response', maxBytes: 1024 * 1024 })
     )
 
-    await expect(
-      verifyAndEncryptDatabricksCredential(
-        patConfig('dbc-1234abcd-5678.cloud.databricks.com'),
-        owner
-      )
-    ).rejects.toThrow(/Could not verify/)
+    await expect(verifyAndEncryptDatabricksCredential(patConfig(HOST), owner)).rejects.toThrow(
+      /Could not verify/
+    )
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'an IP access list',
+      {
+        error_code: '403',
+        message:
+          'Source IP address: 203.0.113.9 is blocked by Databricks IP ACL for workspace: 1234',
+      },
+      'Source IP address: 203.0.113.9 is blocked by Databricks IP ACL for workspace: 1234',
+    ],
+    [
+      'a missing entitlement',
+      { detail: ' User is not entitled to access this workspace ', status: '403' },
+      'User is not entitled to access this workspace',
+    ],
+  ])(
+    'names Databricks’ own reason when %s refuses the identity call',
+    async (_case, body, reason) => {
+      secureFetch.mockResolvedValue(scimReply(body, 403))
+
+      await expect(verifyAndEncryptDatabricksCredential(patConfig(HOST), owner)).rejects.toThrow(
+        `Could not verify the Databricks credential: workspace returned HTTP 403: ${reason}`
+      )
+      expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+    }
+  )
+
+  it('reports a host the egress policy refuses as not allowed', async () => {
+    secureFetch.mockRejectedValue(new EgressRefusedError('url resolves to a private address'))
+
+    await expect(verifyAndEncryptDatabricksCredential(patConfig(HOST), owner)).rejects.toThrow(
+      'Could not verify the Databricks credential: the workspace host is not allowed'
+    )
   })
 
   it.each([
@@ -76,6 +124,7 @@ describe('saving a Databricks connection', () => {
   ])('refuses %s without sending the token anywhere', async (host) => {
     await expect(verifyAndEncryptDatabricksCredential(patConfig(host), owner)).rejects.toThrow()
     expect(fetch).not.toHaveBeenCalled()
+    expect(secureFetch).not.toHaveBeenCalled()
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
 })
@@ -101,13 +150,14 @@ describe('saving a keyless Databricks connection', () => {
           ? jsonResponse({ access_token: 'dbx-token' })
           : jsonResponse({ error: 'invalid_grant' }, probeStatus)
       }
-      return jsonResponse({ userName: 'sim-workflows' })
+      throw new Error(`unexpected fetch ${url}`)
     })
   }
 
   beforeEach(() => {
     fetch.mockReset()
     vi.stubGlobal('fetch', fetch)
+    secureFetch.mockReset().mockResolvedValue(scimReply({ userName: 'sim-workflows' }))
     encryptionMockFns.mockEncryptSecret.mockReset()
     encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'ciphertext', iv: 'iv' })
   })
@@ -200,7 +250,7 @@ describe('a keyless Databricks connection with its own audience', () => {
           ? jsonResponse({ access_token: 'dbx-token' })
           : jsonResponse({ error: 'invalid_grant' }, 401)
       }
-      return jsonResponse({ userName: 'sim-workflows' })
+      throw new Error(`unexpected fetch ${url}`)
     })
   }
 
@@ -216,6 +266,7 @@ describe('a keyless Databricks connection with its own audience', () => {
   beforeEach(() => {
     fetch.mockReset()
     vi.stubGlobal('fetch', fetch)
+    secureFetch.mockReset().mockResolvedValue(scimReply({ userName: 'sim-workflows' }))
     hoisted.mint.mockClear()
     encryptionMockFns.mockEncryptSecret.mockReset()
     encryptionMockFns.mockEncryptSecret.mockResolvedValue({ encrypted: 'ciphertext', iv: 'iv' })

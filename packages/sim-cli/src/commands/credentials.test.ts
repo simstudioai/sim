@@ -584,6 +584,25 @@ describe('keyless credentials', () => {
     })
   })
 
+  it('sends an empty --subject for the API to refuse instead of issuing a new subject', async () => {
+    mockRequest.mockResolvedValue({ data: issued })
+
+    await program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'keyless-subject',
+      'snowflake-service-account',
+      '--subject',
+      '',
+    ])
+
+    expect(mockRequest).toHaveBeenCalledWith('/api/v2/credentials/workload-identity/subjects', {
+      method: 'POST',
+      body: { workspaceId: 'ws_local', providerId: 'snowflake-service-account', subject: '' },
+    })
+  })
+
   it('renews the proof for a held subject instead of issuing a new one', async () => {
     mockRequest.mockResolvedValue({ data: issued })
 

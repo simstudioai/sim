@@ -77,7 +77,7 @@ const KEYLESS_FLOW_HELP = [
   '',
   'Step 2: add those values to keylessConfig and pass it to `sim credentials create <providerId> --credentials @file`.',
   '',
-  'The proof expires after 24 hours and works only for the user who requested it, with the same providerId. Sim holds the subject for you for 30 days until a credential saves it, so a trust configuration that takes longer to apply still works: renew the proof with `sim credentials keyless-subject <providerId> --subject <subject>`. The subject stays the same, and each renewal restarts the 30 days. Sim holds your 20 newest unsaved subjects per provider in a workspace; issuing more drops the oldest.',
+  'The proof expires after 24 hours and works only for the user who requested it, with the same providerId. Sim holds the subject for you for 30 days until a credential saves it, so a trust configuration that takes longer to apply still works: renew the proof with `sim credentials keyless-subject <providerId> --subject <subject>`. The subject stays the same, and each renewal restarts the 30 days. Sim holds up to 20 unsaved subjects per person and provider in a workspace; issuing more drops the one shown least recently.',
   '',
   `If creation reports ${KEYLESS_PROOF_EXPIRED}, renew the proof and retry. If it reports ${[...KEYLESS_RETRY_CODES].join(', ')}, run step 1 again, trust the new subject, and retry.`,
   '',
@@ -253,7 +253,7 @@ async function createKeylessSubject(
         body: {
           workspaceId: client.requireWorkspace(),
           providerId,
-          ...(options.subject ? { subject: options.subject } : {}),
+          ...(options.subject !== undefined ? { subject: options.subject } : {}),
         },
       }
     )

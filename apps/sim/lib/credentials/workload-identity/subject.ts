@@ -299,7 +299,12 @@ async function readStoredSubject(encrypted: string): Promise<string | undefined 
   }
 }
 
-function lockSubject(tx: DbTransaction, subject: string): Promise<void> {
+/**
+ * Holds `subject` for the rest of the transaction. Every write that saves a
+ * subject takes it first, so a reader that takes it too sees a concurrent save
+ * once that save commits.
+ */
+export function lockWorkloadIdentitySubject(tx: DbTransaction, subject: string): Promise<void> {
   return acquireAdvisoryXactLock(
     tx,
     'workload_identity_subject',
@@ -405,7 +410,7 @@ export async function assertWorkloadIdentitySubjectUnclaimed(
   tx: DbTransaction,
   input: { subject: string; scope: ResourceScope }
 ): Promise<void> {
-  await lockSubject(tx, input.subject)
+  await lockWorkloadIdentitySubject(tx, input.subject)
   await assertNoOtherCredentialHolds(tx, input)
 }
 
@@ -428,7 +433,7 @@ export async function assertReconnectedSubjectUnclaimed(
 ): Promise<string | undefined> {
   const subject = await readStoredSubject(input.rotatedSecret)
   if (!subject) return undefined
-  await lockSubject(tx, subject)
+  await lockWorkloadIdentitySubject(tx, subject)
   const [current] = await tx
     .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
     .from(credential)

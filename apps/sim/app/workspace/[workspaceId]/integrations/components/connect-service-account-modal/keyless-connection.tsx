@@ -98,7 +98,7 @@ export function useKeylessSetup<P extends WorkloadIdentityProvider>({
   const storedAuthType = providerAuthType(provider, setup.data?.reconnectAuthType)
   // A keyless credential reopens on keyless only where this deployment can still sign.
   const reconnectAuthType =
-    storedAuthType === WORKLOAD_IDENTITY_KEYLESS_CONFIGS[provider].authType && !trust
+    storedAuthType === WORKLOAD_IDENTITY_KEYLESS_CONFIGS[provider].authType && !heldTrust
       ? undefined
       : storedAuthType
   return {

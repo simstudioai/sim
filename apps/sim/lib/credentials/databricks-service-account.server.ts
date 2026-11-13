@@ -3,8 +3,10 @@ import { credential } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { failureClause, parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
 import {
@@ -284,31 +286,62 @@ function bindSubject(
   })
 }
 
-/** Proves a configuration by calling the workspace's SCIM `Me` with the resolved token. */
+/** Longest Databricks refusal reason carried into a verification error. */
+const MAX_REFUSAL_REASON_LENGTH = 300
+
+/**
+ * Reads the reason from a Databricks error body: REST APIs answer
+ * `{ "error_code", "message" }` and SCIM answers `{ "detail", "status" }`.
+ * Returns `undefined` for a body that is not JSON or names no string reason.
+ */
+function databricksRefusalReason(body: string): string | undefined {
+  let payload: unknown
+  try {
+    payload = JSON.parse(body)
+  } catch {
+    return undefined
+  }
+  if (!payload || typeof payload !== 'object') return undefined
+  const { message, detail } = payload as { message?: unknown; detail?: unknown }
+  const reason = typeof message === 'string' ? message : typeof detail === 'string' ? detail : ''
+  return reason.trim().slice(0, MAX_REFUSAL_REASON_LENGTH) || undefined
+}
+
+/**
+ * Proves a configuration by calling the workspace's SCIM `Me` with the resolved
+ * token. The call goes through the egress guard, which also routes it through
+ * the organization's outbound gateway, so a workspace whose IP access list
+ * allows only the organization's dedicated egress addresses accepts it.
+ */
 async function verifyWorkspaceIdentity(
   config: DatabricksCredentialConfig,
   owner: WorkloadIdentityOwner
 ): Promise<string> {
   try {
     const token = await resolveDatabricksAccessToken(config, owner)
-    const response = await fetch(`${workspaceOrigin(config.host)}/api/2.0/preview/scim/v2/Me`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-      redirect: 'error',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    })
-    if (!response.ok) throw new Error(`workspace returned HTTP ${response.status}`)
-    // A malformed body only loses the display name; an oversized one must fail
-    // verification rather than save the host as the identity.
-    const me = (await readResponseJsonWithLimit(response, {
-      maxBytes: MAX_RESPONSE_BYTES,
-      label: 'Databricks identity response',
-    }).catch((error: unknown) => {
-      if (error instanceof SyntaxError) return {}
-      throw error
-    })) as {
-      userName?: unknown
-      displayName?: unknown
+    const response = await secureFetchWithValidation(
+      `${workspaceOrigin(config.host)}/api/2.0/preview/scim/v2/Me`,
+      {
+        profile: 'configuredEndpoint',
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        timeout: REQUEST_TIMEOUT_MS,
+        maxRedirects: 0,
+        // An oversized body rejects here and fails verification rather than
+        // saving the host as the identity.
+        maxResponseBytes: MAX_RESPONSE_BYTES,
+        logUrlValidationDetails: false,
+      }
+    )
+    const body = await response.text()
+    if (!response.ok) {
+      const reason = databricksRefusalReason(body)
+      throw new Error(`workspace returned HTTP ${response.status}${reason ? `: ${reason}` : ''}`)
     }
+    // A malformed body only loses the display name.
+    let me: { userName?: unknown; displayName?: unknown } = {}
+    try {
+      me = JSON.parse(body) ?? {}
+    } catch {}
     return (
       (typeof me.userName === 'string' && me.userName) ||
       (typeof me.displayName === 'string' && me.displayName) ||
@@ -317,6 +350,11 @@ async function verifyWorkspaceIdentity(
   } catch (error) {
     // A keyless refusal already names its cause and code; wrapping it would lose both.
     if (error instanceof KeylessCredentialRefusedError) throw error
+    if (error instanceof EgressRefusedError) {
+      throw new DatabricksCredentialError(
+        'Could not verify the Databricks credential: the workspace host is not allowed'
+      )
+    }
     throw new DatabricksCredentialError(
       `Could not verify the Databricks credential: ${getErrorMessage(error, 'Unknown error')}`
     )

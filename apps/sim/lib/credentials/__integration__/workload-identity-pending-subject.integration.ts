@@ -26,6 +26,31 @@ vi.mock('@/lib/credentials/workload-identity/issuer', async (importOriginal) => 
   isWorkloadIdentityConfigured: async () => true,
   mintWorkloadIdentityToken: async ({ subject }: { subject: string }) => `token-for:${subject}`,
 }))
+/** The identity check goes through the egress guard, not global fetch; serve its fixture there. */
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()
+  return {
+    ...actual,
+    secureFetchWithValidation: async (
+      ...args: Parameters<typeof actual.secureFetchWithValidation>
+    ) => {
+      if (args[0] !== 'https://dbc-5678abcd-1234.cloud.databricks.com/api/2.0/preview/scim/v2/Me')
+        return actual.secureFetchWithValidation(...args)
+      const body = JSON.stringify({ userName: 'service-principal@example.com' })
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new actual.SecureFetchHeaders({ 'content-type': 'application/json' }),
+        body: null,
+        text: async () => body,
+        json: async () => JSON.parse(body),
+        arrayBuffer: async () => new TextEncoder().encode(body).buffer,
+      }
+    },
+  }
+})
 
 import { updateCredentialRecord } from '@/lib/credentials/orchestration'
 import { createCredentialRecord } from '@/lib/credentials/orchestration/credential-create'
@@ -120,9 +145,6 @@ describe('holding an unsaved keyless subject', () => {
           ? jsonResponse({ access_token: `access-for:${subject}` })
           : jsonResponse({ error: 'invalid_client' }, 401)
       }
-      if (target === `https://${HOST}/api/2.0/preview/scim/v2/Me`) {
-        return jsonResponse({ userName: 'service-principal@example.com' })
-      }
       return originalFetch(input, init)
     })
   }, 60_000)
@@ -194,6 +216,7 @@ describe('holding an unsaved keyless subject', () => {
       userId,
       provider: 'databricks',
       subject: held.subject,
+      createdAt: new Date(),
       expiresAt: new Date(Date.now() + DAY_MS),
     })
 
@@ -264,6 +287,31 @@ describe('holding an unsaved keyless subject', () => {
 
     expect(reopened).toMatchObject({ subject: held.subject, reused: true })
     expect(await heldSubjects()).toContain(held.subject)
+  })
+
+  it('keeps a subject shown recently when the cap drops older ones', async () => {
+    const capped = { ...issuer, provider: 'microsoft' as const }
+    const tenDaysAgo = new Date(Date.now() - 10 * DAY_MS)
+    const underReview = await resolvePendingWorkloadIdentitySubject(
+      capped,
+      { kind: 'new' },
+      tenDaysAgo
+    )
+    for (let index = 0; index < 19; index++) {
+      await resolvePendingWorkloadIdentitySubject(
+        capped,
+        { kind: 'new' },
+        new Date(tenDaysAgo.getTime() + (index + 1) * 60_000)
+      )
+    }
+    await resolvePendingWorkloadIdentitySubject(capped, {
+      kind: 'renew',
+      subject: underReview.subject,
+    })
+
+    await resolvePendingWorkloadIdentitySubject(capped, { kind: 'new' })
+
+    expect(await heldSubjects()).toContain(underReview.subject)
   })
 
   it('keeps one person from piling up held subjects', async () => {

@@ -5,6 +5,7 @@ import { and, desc, eq, gt, inArray, lte } from 'drizzle-orm'
 import type { WorkloadIdentityProvider } from '@/lib/credentials/workload-identity/audiences'
 import {
   isWorkloadIdentitySubjectHeld,
+  lockWorkloadIdentitySubject,
   newWorkloadIdentitySubject,
   WorkloadIdentitySubjectError,
 } from '@/lib/credentials/workload-identity/subject'
@@ -18,7 +19,7 @@ import type { DbTransaction } from '@/lib/db/types'
  */
 export const PENDING_SUBJECT_HOLD_MS = 30 * 24 * 60 * 60 * 1000
 
-/** Most pending subjects one person keeps per workspace and provider; older ones are dropped. */
+/** Most pending subjects one person keeps per workspace and provider; the least recently shown are dropped. */
 const MAX_PENDING_SUBJECTS_PER_ISSUER = 20
 
 /** Who a pending subject is held for. */
@@ -78,7 +79,7 @@ async function mintPendingSubject(
     .select({ id: workloadIdentityPendingSubject.id })
     .from(workloadIdentityPendingSubject)
     .where(issuerCondition(issuer))
-    .orderBy(desc(workloadIdentityPendingSubject.createdAt))
+    .orderBy(desc(workloadIdentityPendingSubject.expiresAt))
     .offset(MAX_PENDING_SUBJECTS_PER_ISSUER)
   if (kept.length > 0) {
     await tx.delete(workloadIdentityPendingSubject).where(
@@ -102,6 +103,8 @@ async function renewIfUnclaimed(
   row: { id: string; subject: string; createdAt: Date },
   now: Date
 ): Promise<PendingSubject | null> {
+  // Waits out a save of this subject still in flight, so the check below sees it.
+  await lockWorkloadIdentitySubject(tx, row.subject)
   const held = await isWorkloadIdentitySubjectHeld(tx, {
     subject: row.subject,
     scope: { kind: 'workspace', workspaceId: issuer.workspaceId },
@@ -113,10 +116,13 @@ async function renewIfUnclaimed(
     return null
   }
   const heldUntil = new Date(now.getTime() + PENDING_SUBJECT_HOLD_MS)
-  await tx
+  // A save that claimed the subject meanwhile has already deleted the row.
+  const renewed = await tx
     .update(workloadIdentityPendingSubject)
     .set({ expiresAt: heldUntil })
     .where(eq(workloadIdentityPendingSubject.id, row.id))
+    .returning({ id: workloadIdentityPendingSubject.id })
+  if (renewed.length === 0) return null
   return { subject: row.subject, issuedAt: row.createdAt, heldUntil, reused: true }
 }
 
