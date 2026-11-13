@@ -75,6 +75,19 @@ Set-Content -LiteralPath $PidFile -Value $PID
 Start-Sleep -Seconds 120
 `
 
+/**
+ * A server left running in the background: up at once, it starts a worker of its own only once
+ * `TriggerFile` appears, so the worker is newer than a command that runs meanwhile.
+ */
+const BACKGROUND_SCRIPT = `param($PidFile, $TriggerFile, $WorkerScript, $WorkerPidFile)
+[Console]::TreatControlCAsInput = $true
+Set-Content -LiteralPath $PidFile -Value $PID
+$deadline = (Get-Date).AddSeconds(60)
+while (-not (Test-Path -LiteralPath $TriggerFile) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
+Start-Process -WindowStyle Hidden -FilePath (Join-Path $PSHOME 'powershell.exe') -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $WorkerScript + '"'), ('"' + $WorkerPidFile + '"')
+Start-Sleep -Seconds 120
+`
+
 /** Enough runs that output lost to a reordering ConPTY (a quarter of runs or more) shows. */
 const OUTPUT_RUNS = 12
 
@@ -154,12 +167,16 @@ describe.runIf(process.platform === 'win32')('the agent terminal on Windows', ()
     )
 
     it.runIf(installed && shell.failingCmdlet !== undefined)(
-      'reports a failing cmdlet as a failure',
+      "reports a failing cmdlet as 1, never an earlier program's code, and keeps that code for the user",
       async () => {
-        const result = await run(open(shell), 'call-cmdlet', shell.failingCmdlet ?? '')
+        const terminal = open(shell)
+        expect(await run(terminal, 'call-native', shell.fail)).toMatchObject({ exitCode: 3 })
 
-        expect(result.status).toBe('completed')
-        expect(result.exitCode).not.toBe(0)
+        const result = await run(terminal, 'call-cmdlet', shell.failingCmdlet ?? '')
+
+        expect(result).toMatchObject({ status: 'completed', exitCode: 1 })
+        const after = await run(terminal, 'call-code', 'Write-Output "code-$LASTEXITCODE"')
+        expect(after.output).toContain('code-3')
       },
       SHELL_TEST_TIMEOUT_MS
     )
@@ -179,13 +196,17 @@ describe.runIf(process.platform === 'win32')('the agent terminal on Windows', ()
     )
 
     it.runIf(installed)(
-      'Stop ends a command that ignores Ctrl-C, spares earlier background work, and leaves the shell usable',
+      'Stop ends a command that ignores Ctrl-C, spares earlier background work and its new workers, and leaves the shell usable',
       async () => {
         const scratch = scratchDirectory()
         const script = join(scratch, 'stubborn.ps1')
+        const backgroundScript = join(scratch, 'background.ps1')
         const backgroundPidFile = join(scratch, 'background-pid')
+        const triggerFile = join(scratch, 'start-worker')
+        const workerPidFile = join(scratch, 'worker-pid')
         const pidFile = join(scratch, 'pid')
         writeFileSync(script, STUBBORN_SCRIPT)
+        writeFileSync(backgroundScript, BACKGROUND_SCRIPT)
         const terminal = open(shell, scratch)
         const stubbornArgs = (pidPath: string) => [
           "'-NoProfile'",
@@ -203,22 +224,39 @@ describe.runIf(process.platform === 'win32')('the agent terminal on Windows', ()
         await run(
           terminal,
           'call-background',
-          shell.background(shell.quote(WINDOWS_POWERSHELL), stubbornArgs(backgroundPidFile))
+          shell.background(shell.quote(WINDOWS_POWERSHELL), [
+            "'-NoProfile'",
+            "'-ExecutionPolicy'",
+            "'Bypass'",
+            "'-File'",
+            shell.quote(backgroundScript),
+            shell.quote(backgroundPidFile),
+            shell.quote(triggerFile),
+            shell.quote(script),
+            shell.quote(workerPidFile),
+          ])
         )
         const backgroundPid = await readPid(backgroundPidFile)
+        let workerPid = 0
         try {
           const running = run(terminal, 'call-stubborn', command)
           const pid = await readPid(pidFile)
+          // The server starts a worker while the agent's command runs.
+          writeFileSync(triggerFile, '')
+          workerPid = await readPid(workerPidFile)
 
           await expect(terminal.cancelTool('call-stubborn')).resolves.toBe(true)
           expect(await running).toMatchObject({ status: 'completed' })
           expect(isAlive(pid)).toBe(false)
           expect(isAlive(backgroundPid)).toBe(true)
+          expect(isAlive(workerPid)).toBe(true)
           expect(await run(terminal, 'call-after', shell.succeed(0))).toMatchObject({
             exitCode: 0,
           })
         } finally {
-          if (isAlive(backgroundPid)) process.kill(backgroundPid)
+          for (const leftover of [workerPid, backgroundPid]) {
+            if (leftover > 0 && isAlive(leftover)) process.kill(leftover)
+          }
         }
       },
       SHELL_TEST_TIMEOUT_MS

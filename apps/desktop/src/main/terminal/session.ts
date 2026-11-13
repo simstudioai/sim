@@ -521,6 +521,11 @@ export class TerminalSession {
   }
 
   /** When the agent's still-running command was typed into the shell, in epoch milliseconds. */
+  /** When the shell began running its startup file, or null before (or for a shell that never says). */
+  get shellReadyAt(): number | null {
+    return this.startupBegunAt
+  }
+
   get agentCommandStartedAt(): number | null {
     return this.agentCommandSentAt
   }

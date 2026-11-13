@@ -313,7 +313,11 @@ export class TerminalService {
         async (session): Promise<{ command: string | null; unchecked: boolean }> => {
           if (session.isBusy) return { command: session.foreground ?? '', unchecked: false }
           if (session.hasShellIntegration) return { command: null, unchecked: false }
-          const foreground = await groups.foreground(session.pid, session.spawnedAt)
+          const foreground = await groups.foreground(
+            session.pid,
+            session.spawnedAt,
+            session.shellReadyAt
+          )
           return {
             command: foreground?.length ? '' : null,
             unchecked: foreground === null,
@@ -1005,7 +1009,7 @@ export class TerminalService {
       if (await this.commandEnds(session, toolCallId, STOP_ESCALATION_MS)) return
       const remaining =
         command === undefined
-          ? ((await groups.foreground(session.pid, startedAt)) ?? [])
+          ? ((await groups.foreground(session.pid, startedAt, session.shellReadyAt)) ?? [])
           : await groups.stillRunning(session.pid, command)
       command ??= remaining
       if (remaining.length === 0) return

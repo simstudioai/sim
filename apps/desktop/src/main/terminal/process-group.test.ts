@@ -9,9 +9,22 @@ import {
 
 const SHELL_PID = 100
 const COMMAND_TYPED_AT = 1_000_000
+/** When the pty's shell started, well before the command. */
+const SHELL_STARTED_AT = COMMAND_TYPED_AT - 600_000
+/** When the shell began running its startup file, after any launcher handed over to it. */
+const SHELL_READY_AT = SHELL_STARTED_AT + 500
 
-async function foreground(table: WindowsProcess[] | null): Promise<number[] | null> {
-  const ids = await windowsProcessGroups(async () => table).foreground(SHELL_PID, COMMAND_TYPED_AT)
+/** Reads the foreground from `processes`, alongside the shell itself. */
+async function foreground(processes: WindowsProcess[] | null): Promise<number[] | null> {
+  const table = processes && [
+    { pid: SHELL_PID, parentPid: 1, createdAt: SHELL_STARTED_AT },
+    ...processes,
+  ]
+  const ids = await windowsProcessGroups(async () => table).foreground(
+    SHELL_PID,
+    COMMAND_TYPED_AT,
+    SHELL_READY_AT
+  )
   return ids && [...ids].sort()
 }
 
@@ -22,7 +35,7 @@ describe.skipIf(process.platform === 'win32')('the POSIX foreground process grou
     const exitedPid = child.pid
     if (exitedPid === undefined) throw new Error('The child never started')
 
-    await expect(osProcessGroups.foreground(exitedPid, 0)).resolves.toEqual([])
+    await expect(osProcessGroups.foreground(exitedPid, 0, null)).resolves.toEqual([])
   })
 })
 
@@ -45,10 +58,31 @@ describe('the Windows foreground command', () => {
     // Git for Windows' bin\bash.exe holds the pty and starts the real usr\bin\bash.exe.
     await expect(
       foreground([
-        { pid: 150, parentPid: SHELL_PID, createdAt: COMMAND_TYPED_AT - 90_000 },
+        { pid: 150, parentPid: SHELL_PID, createdAt: SHELL_STARTED_AT + 30 },
         { pid: 201, parentPid: 150, createdAt: COMMAND_TYPED_AT - 60_000 },
         { pid: 202, parentPid: 150, createdAt: COMMAND_TYPED_AT + 5 },
         { pid: 210, parentPid: 202, createdAt: COMMAND_TYPED_AT + 40 },
+      ])
+    ).resolves.toEqual([202])
+  })
+
+  it('spares a worker that earlier background work starts while the command runs', async () => {
+    // pwsh runs a program as its own child; Git Bash forks itself under the real shell for a job.
+    // Started the moment the shell was ready, the server is still no launcher.
+    await expect(
+      foreground([
+        { pid: 201, parentPid: SHELL_PID, createdAt: SHELL_READY_AT + 100 },
+        { pid: 211, parentPid: 201, createdAt: COMMAND_TYPED_AT + 500 },
+        { pid: 202, parentPid: SHELL_PID, createdAt: COMMAND_TYPED_AT + 5 },
+      ])
+    ).resolves.toEqual([202])
+    await expect(
+      foreground([
+        { pid: 150, parentPid: SHELL_PID, createdAt: SHELL_STARTED_AT + 30 },
+        { pid: 201, parentPid: 150, createdAt: SHELL_READY_AT + 100 },
+        { pid: 205, parentPid: 201, createdAt: SHELL_READY_AT + 100 },
+        { pid: 211, parentPid: 205, createdAt: COMMAND_TYPED_AT + 500 },
+        { pid: 202, parentPid: 150, createdAt: COMMAND_TYPED_AT + 5 },
       ])
     ).resolves.toEqual([202])
   })

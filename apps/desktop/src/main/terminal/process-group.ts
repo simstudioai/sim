@@ -4,12 +4,12 @@
  *
  * On macOS and Linux that is the tty's foreground process group. Windows has no process groups or
  * job control, so there it is the processes the shell started since the command was typed, each
- * ended with its whole tree. They are found among the shell's descendants rather than its
- * children, since a launcher can stand between the pty and the real shell (Git for Windows'
- * `bin\bash.exe` starts `usr\bin\bash.exe`). Processes from before then (a server the user started
- * in the background earlier, the real shell behind a launcher) are someone else's and are left
- * running. Creation times and the command's start come from the same system clock, and the shell
- * only starts a program after it reads the command, so no tolerance is needed.
+ * ended with its whole tree. A launcher can stand between the pty and the real shell (Git for
+ * Windows' `bin\bash.exe` starts `usr\bin\bash.exe`), so the shell is followed down that chain
+ * first. Every other process from before the command (a server the user started in the background
+ * earlier, and anything that server starts later) is someone else's and is left running. Creation
+ * times and the command's start come from the same system clock, and the shell only starts a
+ * program after it reads the command, so no tolerance is needed there.
  */
 import { spawn } from 'node:child_process'
 import { win32 } from 'node:path'
@@ -30,9 +30,15 @@ export interface TerminalProcessGroups {
    * Ids of what runs the foreground command, which was typed into the shell at `startedAt` (epoch
    * ms): process group ids on macOS and Linux, process ids on Windows. Empty when the shell itself
    * holds the foreground (it is sitting at its prompt, or has exited); null when the OS could not
-   * be asked, so anything may be running.
+   * be asked, so anything may be running. `shellReadyAt` is when the shell began running its
+   * startup file, or null when it never announced it: anything it started before then is the
+   * shell itself.
    */
-  foreground(shellPid: number, startedAt: number): Promise<number[] | null>
+  foreground(
+    shellPid: number,
+    startedAt: number,
+    shellReadyAt: number | null
+  ): Promise<number[] | null>
   /** Those of `ids`, from an earlier {@link foreground}, that still run the foreground command. */
   stillRunning(shellPid: number, ids: number[]): Promise<number[]>
   /** Sends `signal` to each id {@link foreground} returned. */
@@ -62,23 +68,36 @@ export interface WindowsProcess {
 }
 
 /**
- * The outermost of the shell's descendants created at or after `startedAt`: the processes a
- * command typed then started, each standing for its whole tree.
+ * The processes a command typed at `startedAt` started, each standing for its whole tree: the
+ * children created since then of the shell and of the real shell behind any launcher. A launcher's
+ * real shell is its first child, created before the shell began running its startup file at
+ * `shellReadyAt`, when no command can have run yet. Other older children are earlier background
+ * work, so nothing beneath them is the command's, even a worker they start while it runs.
  */
-function commandRoots(table: WindowsProcess[], shellPid: number, startedAt: number): number[] {
+function commandRoots(
+  table: WindowsProcess[],
+  shellPid: number,
+  startedAt: number,
+  shellReadyAt: number | null
+): number[] {
+  const byPid = new Map(table.map((entry) => [entry.pid, entry]))
   const children = new Map<number, WindowsProcess[]>()
   for (const entry of table) {
     if (entry.pid === entry.parentPid) continue
     children.set(entry.parentPid, [...(children.get(entry.parentPid) ?? []), entry])
   }
   const roots: number[] = []
-  const visited = new Set<number>([shellPid])
-  const pending = [...(children.get(shellPid) ?? [])]
-  for (let entry = pending.pop(); entry; entry = pending.pop()) {
-    if (visited.has(entry.pid)) continue
-    visited.add(entry.pid)
-    if (entry.createdAt >= startedAt) roots.push(entry.pid)
-    else pending.push(...(children.get(entry.pid) ?? []))
+  const visited = new Set<number>()
+  for (let shell = byPid.get(shellPid); shell && !visited.has(shell.pid); ) {
+    visited.add(shell.pid)
+    const own = children.get(shell.pid) ?? []
+    for (const child of own) if (child.createdAt >= startedAt) roots.push(child.pid)
+    const first = own.reduce<WindowsProcess | undefined>(
+      (oldest, child) => (!oldest || child.createdAt < oldest.createdAt ? child : oldest),
+      undefined
+    )
+    const launched = first && shellReadyAt !== null && first.createdAt <= shellReadyAt
+    shell = launched ? first : undefined
   }
   return roots
 }
@@ -92,9 +111,9 @@ export function windowsProcessGroups(
   readProcesses: () => Promise<WindowsProcess[] | null>
 ): TerminalProcessGroups {
   return {
-    foreground: async (shellPid, startedAt) => {
+    foreground: async (shellPid, startedAt, shellReadyAt) => {
       const table = await readProcesses()
-      return table && commandRoots(table, shellPid, startedAt)
+      return table && commandRoots(table, shellPid, startedAt, shellReadyAt)
     },
     stillRunning: async (_shellPid, pids) => pids.filter(isRunning),
     signal: (pids) => {
@@ -114,8 +133,9 @@ async function readForegroundProcessGroup(shellPid: number): Promise<number[] | 
   const result = await readOutput('ps', ['-o', 'tpgid=', '-p', String(shellPid)], LOOKUP_TIMEOUT_MS)
   if (!result) return null
   const output = result.stdout.trim()
-  // A pid `ps` no longer knows is a shell that has exited, so nothing can be running in it.
-  if (result.code === 1 && !output) return []
+  // `ps` matching nothing is a shell that has exited, so nothing can be running in it; the pid is
+  // confirmed gone so that a probe failing some other way stays unknown.
+  if (result.code === 1 && !output) return isRunning(shellPid) ? null : []
   if (result.code !== 0 || !output) return null
   const pgid = Number.parseInt(output, 10)
   if (!Number.isInteger(pgid)) return null
