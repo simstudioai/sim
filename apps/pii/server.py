@@ -272,12 +272,10 @@ def _analyze_long(
     does) and no match can straddle a cut. Only NER runs in overlapping windows
     (see NER_WINDOW_CHARS), asked for just its own entities, plus the pattern
     entities when a score_threshold makes context scoring matter (see
-    `_window_entities`). A span touching a
-    window's far edge may be cut short, so it is left to the next window, which
-    sees it whole; a span ending inside the overlap before that edge was already
-    found by the previous window and is skipped. The rest are shifted to
-    whole-text offsets; a span found by both passes keeps its higher score, and
-    overlapping spans are left to the anonymizer, which merges them."""
+    `_window_entities`). Every window's spans are kept, shifted to whole-text
+    offsets: NER reads context, so a window can find a name its neighbour missed
+    or cut short. A span found more than once keeps its highest score, and
+    overlapping spans of one type are merged by the anonymizer."""
     entities = entities or None
     results = analyzer.analyze(
         text=text,
@@ -293,18 +291,13 @@ def _analyze_long(
         return results
     step = NER_WINDOW_CHARS - NER_WINDOW_OVERLAP
     for start in range(0, len(text), step):
-        window = text[start : start + NER_WINDOW_CHARS]
-        is_last = start + NER_WINDOW_CHARS >= len(text)
-        seen_through = NER_WINDOW_OVERLAP if start else 0
         for result in analyzer.analyze(
-            text=window,
+            text=text[start : start + NER_WINDOW_CHARS],
             language=language,
             entities=window_entities,
             score_threshold=score_threshold,
             return_decision_process=return_decision_process,
         ):
-            if result.end < seen_through or (not is_last and result.end >= len(window)):
-                continue
             results.append(
                 RecognizerResult(
                     result.entity_type,
@@ -315,7 +308,7 @@ def _analyze_long(
                     result.recognition_metadata,
                 )
             )
-        if is_last:
+        if start + NER_WINDOW_CHARS >= len(text):
             break
     unique: dict[tuple[str, int, int], RecognizerResult] = {}
     for result in results:
