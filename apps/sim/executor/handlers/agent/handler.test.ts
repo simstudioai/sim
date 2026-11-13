@@ -42,7 +42,7 @@ import { AGENT, BlockType } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/handler'
 import * as agentMemory from '@/executor/handlers/agent/memory'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
-import type { ExecutionContext, StreamingExecution } from '@/executor/types'
+import type { BlockLog, ExecutionContext, StreamingExecution } from '@/executor/types'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
@@ -840,7 +840,7 @@ describe('AgentBlockHandler', () => {
       timing: { total: 1 },
     })
 
-    const openLog = (blockId = mockBlock.id, endedAt = '') => ({
+    const openLog = (blockId = mockBlock.id, endedAt = ''): BlockLog => ({
       blockId,
       startedAt: '2026-01-01T00:00:00.000Z',
       endedAt,
