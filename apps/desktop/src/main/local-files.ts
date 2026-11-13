@@ -1,3 +1,4 @@
+import type { BigIntStats } from 'node:fs'
 import { lstat, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type {
@@ -23,8 +24,9 @@ export interface LocalFileAuthorization {
   args: Record<string, unknown>
 }
 
-function revision(info: Awaited<ReturnType<typeof stat>>): string {
-  return `${info.dev}:${info.ino}:${info.size}:${info.mtimeMs}`
+/** Bigint fields, since NTFS file IDs exceed 2^53 and would collide as numbers. */
+function revision(info: BigIntStats): string {
+  return `${info.dev}:${info.ino}:${info.size}:${info.mtimeNs}`
 }
 
 function boundedInteger(value: unknown, fallback: number, max: number): number {
@@ -183,18 +185,19 @@ async function manifest(
       )
     const canonical = await access.resolve(current)
     assertImportPath(root, canonical)
-    const info = await stat(canonical)
+    const info = await stat(canonical, { bigint: true })
+    const size = Number(info.size)
     if (!info.isDirectory() && !info.isFile())
       throw new Error(`Cannot import special filesystem entry: ${current}`)
     if (ancestors.has(canonical)) throw new Error(`Directory link cycle: ${current}`)
-    if (info.isFile() && info.size > MAX_DESKTOP_IMPORT_FILE_BYTES)
+    if (info.isFile() && size > MAX_DESKTOP_IMPORT_FILE_BYTES)
       throw new Error(
         'Desktop imports support files up to 64 MB. Use the file uploader for larger files.'
       )
     entries.push({
       relativePath: relative(path, current).split(sep).join('/'),
       kind: info.isDirectory() ? 'directory' : 'file',
-      size: info.size,
+      size,
       revision: revision(info),
     })
     if (info.isDirectory()) {
@@ -252,15 +255,16 @@ export async function executeLocalFileRequest(
     const offset = boundedInteger(request.offset, 0, Number.MAX_SAFE_INTEGER)
     const file = await access.open(canonical)
     try {
-      const info = await file.stat()
+      const info = await file.statBigint()
+      const size = Number(info.size)
       if (!info.isFile() || revision(info) !== request.revision)
         throw new Error(
           'The source file changed during import. Inspect the partial result before retrying.'
         )
-      if (offset > info.size) throw new Error('The requested offset is outside the file.')
-      const buffer = Buffer.alloc(Math.min(CHUNK_BYTES, info.size - offset))
+      if (offset > size) throw new Error('The requested offset is outside the file.')
+      const buffer = Buffer.alloc(Math.min(CHUNK_BYTES, size - offset))
       const { bytesRead } = await file.read(buffer, 0, buffer.length, offset)
-      if (revision(await file.stat()) !== request.revision)
+      if (revision(await file.statBigint()) !== request.revision)
         throw new Error('The source file changed during import.')
       await access.resolve(child)
       return {
@@ -268,7 +272,7 @@ export async function executeLocalFileRequest(
         data: {
           kind: 'chunk',
           bytes: new Uint8Array(buffer.subarray(0, bytesRead)),
-          eof: offset + bytesRead >= info.size,
+          eof: offset + bytesRead >= size,
         },
       }
     } finally {

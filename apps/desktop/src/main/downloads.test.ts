@@ -42,6 +42,13 @@ describe('sanitizeFilename', () => {
     expect(sanitized).not.toContain('/')
     expect(sanitized.startsWith('.')).toBe(false)
   })
+
+  it('keeps a long reserved Windows device name within the length cap once prefixed', () => {
+    const sanitized = sanitizeFilename(`con.${'a'.repeat(300)}`, 'win32')
+
+    expect(sanitized.startsWith('_con.')).toBe(true)
+    expect(sanitized.length).toBeLessThanOrEqual(200)
+  })
 })
 
 describe('uniqueDownloadPath', () => {
