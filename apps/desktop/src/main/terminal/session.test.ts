@@ -12,9 +12,6 @@ const ptyStub = vi.hoisted(() => ({
   exitHandler: null as (() => void) | null,
   writes: [] as string[],
   args: [] as string[],
-  /** node-pty on Windows throws when `kill` is given a signal. */
-  signalsSupported: true,
-  ended: false,
 }))
 
 vi.mock('@lydell/node-pty', () => ({
@@ -30,11 +27,7 @@ vi.mock('@lydell/node-pty', () => ({
       },
       write: (data: string) => ptyStub.writes.push(data),
       resize: vi.fn(),
-      kill: (signal?: string) => {
-        if (signal && !ptyStub.signalsSupported)
-          throw new Error('Signals not supported on windows.')
-        ptyStub.ended = true
-      },
+      kill: vi.fn(),
       pause: vi.fn(),
       resume: vi.fn(),
     }
@@ -51,8 +44,6 @@ afterEach(() => {
   ptyStub.dataHandler = null
   ptyStub.exitHandler = null
   ptyStub.writes.length = 0
-  ptyStub.signalsSupported = true
-  ptyStub.ended = false
 })
 
 describe('toInputChunks', () => {
@@ -242,7 +233,7 @@ describe('TerminalSession command lifecycle', () => {
     })
 
     it.each([
-      ['Stop', (session: TerminalSession) => session.kill('SIGINT')],
+      ['Stop', (session: TerminalSession) => session.interrupt()],
       ['the agent', (session: TerminalSession) => session.sendKey('ctrl-c')],
       ['the user typing in the panel', (session: TerminalSession) => session.write('\u0003')],
     ])(
@@ -480,17 +471,6 @@ describe('TerminalSession on Windows', () => {
     const session = sessionOn('win32')
     try {
       expect(ptyStub.args).not.toContain('-l')
-    } finally {
-      session.dispose()
-    }
-  })
-
-  it('ends the shell for a terminating signal, which node-pty refuses to send there', () => {
-    ptyStub.signalsSupported = false
-    const session = sessionOn('win32')
-    try {
-      session.kill('SIGTERM')
-      expect(ptyStub.ended).toBe(true)
     } finally {
       session.dispose()
     }

@@ -166,10 +166,18 @@ export interface TerminalServiceOptions {
   runLedger?: RunLedger
 }
 
+/** A command holding a terminal's foreground. */
+export interface RunningTerminalCommand {
+  /** Its command line, `''` when the shell did not announce it. */
+  command: string
+  /** The program name of the shell it was typed into (`zsh`, `pwsh`), whose syntax names its program. */
+  shell: string
+}
+
 /** The terminal work a restart would cut off. */
 export interface TerminalWork {
-  /** The command line holding each busy terminal's foreground, `''` when unannounced. */
-  commands: string[]
+  /** The command holding each busy terminal's foreground. */
+  commands: RunningTerminalCommand[]
   /** Terminals whose foreground could not be read, which may be running anything. */
   uncheckedCount: number
 }
@@ -319,8 +327,12 @@ export class TerminalService {
     const groups = this.options.processGroups ?? osProcessGroups
     const perSession = await Promise.all(
       [...this.sessions.values()].map(
-        async (session): Promise<{ command: string | null; unchecked: boolean }> => {
-          if (session.isBusy) return { command: session.foreground ?? '', unchecked: false }
+        async (
+          session
+        ): Promise<{ command: RunningTerminalCommand | null; unchecked: boolean }> => {
+          const running = (command: string) => ({ command, shell: session.shellProgram })
+          if (session.isBusy)
+            return { command: running(session.foreground ?? ''), unchecked: false }
           if (session.hasShellIntegration) return { command: null, unchecked: false }
           const foreground = await groups.foreground(
             session.pid,
@@ -328,7 +340,7 @@ export class TerminalService {
             session.shellReadyAt
           )
           return {
-            command: foreground?.length ? '' : null,
+            command: foreground?.length ? running('') : null,
             unchecked: foreground === null,
           }
         }
@@ -1018,7 +1030,7 @@ export class TerminalService {
       (await groups.foreground(session.pid, startedAt, session.shellReadyAt)) ?? []
     let command = groups.readBeforeInterrupt ? await readCommand() : undefined
     if (session.agentCommandToolCallId !== toolCallId) return
-    session.kill('SIGINT')
+    session.interrupt()
     for (const escalation of groups.escalations) {
       if (await this.commandEnds(session, toolCallId, STOP_ESCALATION_MS)) return
       const remaining =
@@ -1034,6 +1046,30 @@ export class TerminalService {
       })
       groups.signal(remaining, escalation)
     }
+  }
+
+  /**
+   * Sends a terminating signal to the command holding a plain shell's foreground, never the shell:
+   * the tool stops what is running, and the shell is the user's tab. On macOS and Linux that is
+   * the tty's foreground process group; on Windows, which has no signals, each process the shell
+   * started since the command began is ended with its tree. `signalled` is false when nothing but
+   * the shell held the foreground, or the OS could not say what did.
+   */
+  private async terminateForeground(
+    session: TerminalSession,
+    signal: 'SIGTERM' | 'SIGKILL',
+    stopped: AbortSignal
+  ): Promise<{ signal: string; terminalId: string; signalled: boolean }> {
+    const groups = this.options.processGroups ?? osProcessGroups
+    const command =
+      (await groups.foreground(
+        session.pid,
+        session.foregroundStartedAt ?? session.spawnedAt,
+        session.shellReadyAt
+      )) ?? []
+    if (stopped.aborted) throw stoppedBeforeStart()
+    if (command.length > 0) groups.signal(command, signal)
+    return { signal, terminalId: session.terminalId, signalled: command.length > 0 }
   }
 
   private async dispatch(
@@ -1159,8 +1195,11 @@ export class TerminalService {
           await sendKey(target, signal === 'SIGKILL' ? 'C-\\' : 'C-c', session.env)
           return { signal, terminalId: session.terminalId, pane: target }
         }
-        session.kill(signal)
-        return { signal, terminalId: session.terminalId }
+        if (signal === 'SIGINT') {
+          session.interrupt()
+          return { signal, terminalId: session.terminalId }
+        }
+        return await this.terminateForeground(session, signal, latch.signal)
       }
       default:
         throw new TerminalError('INVALID_REQUEST', `Unknown terminal operation: ${operation}`)

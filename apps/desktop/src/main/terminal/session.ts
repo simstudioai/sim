@@ -263,8 +263,11 @@ interface PendingCommand {
   overflow: string
   capturing: boolean
   /**
-   * Set once Ctrl-C was sent, by Stop, the agent, or the user. Whatever it leaves on screen (the tty's `^C` echo) is the
-   * interrupt landing, not a prompt, so the command is waited on to end, or for Stop to end it.
+   * Set once Ctrl-C was sent, by Stop, the agent, or the user. Whatever it leaves on screen (the
+   * tty's `^C` echo) is the interrupt landing, not a prompt, so the command is waited on to end, or
+   * for Stop to end it. The trade-off: a program that catches Ctrl-C and goes back to reading input
+   * (a REPL, a confirmation) is no longer recognised as waiting at a prompt, so the run waits out
+   * its full wait instead of returning early.
    */
   interrupted: boolean
   timer: NodeJS.Timeout
@@ -376,6 +379,11 @@ export class TerminalSession {
   private agentToolCallId: string | null = null
   /** When that command was typed into the shell; anything it started began after this. */
   private agentCommandSentAt: number | null = null
+  /**
+   * When the shell last began its prompt (`A`), or null before it first does. A command the user
+   * types is started after that prompt reached the screen, so after this.
+   */
+  private promptStartedAt: number | null = null
   private pendingCommand: PendingCommand | null = null
   /** Command line reported by the shell but not yet bracketed by output-start. */
   private announcedCommand: string | null = null
@@ -520,14 +528,23 @@ export class TerminalSession {
     return this.agentToolCallId
   }
 
-  /** When the agent's still-running command was typed into the shell, in epoch milliseconds. */
   /** When the shell began running its startup file, or null before (or for a shell that never says). */
   get shellReadyAt(): number | null {
     return this.startupBegunAt
   }
 
+  /** When the agent's still-running command was typed into the shell, in epoch milliseconds. */
   get agentCommandStartedAt(): number | null {
     return this.agentCommandSentAt
+  }
+
+  /**
+   * The earliest the command holding the foreground can have started, in epoch milliseconds: when
+   * the agent typed it, else when the shell last began its prompt; null for a shell that announces
+   * neither.
+   */
+  get foregroundStartedAt(): number | null {
+    return this.agentCommandSentAt ?? this.promptStartedAt
   }
 
   /**
@@ -713,19 +730,13 @@ export class TerminalSession {
     this.emitState()
   }
 
-  kill(signal: 'SIGINT' | 'SIGTERM' | 'SIGKILL'): void {
+  /**
+   * Sends Ctrl-C as a keystroke, so the foreground command gets it the way the user's own would,
+   * rather than only the shell.
+   */
+  interrupt(): void {
     if (this.disposed) return
-    // SIGINT is delivered as a keystroke so the foreground process group gets
-    // it the way Ctrl-C would, rather than only the shell.
-    if (signal === 'SIGINT') {
-      this.write('\u0003')
-      return
-    }
-    try {
-      this.pty.kill(signal)
-    } catch (error) {
-      logger.warn('Failed to signal pty', { signal, error: (error as Error).message })
-    }
+    this.write('\u0003')
   }
 
   /**
@@ -948,6 +959,7 @@ export class TerminalSession {
         break
       case 'prompt-start':
         this.promptDrawn = false
+        this.promptStartedAt = Date.now()
         if (!this.shellIntegration) {
           this.shellIntegration = true
           this.emitState()

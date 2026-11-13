@@ -263,5 +263,51 @@ describe.runIf(process.platform === 'win32')('the agent terminal on Windows', ()
       },
       SHELL_TEST_TIMEOUT_MS
     )
+
+    it.runIf(installed)(
+      "a terminating kill ends the agent's command, never the shell",
+      async () => {
+        const scratch = scratchDirectory()
+        const script = join(scratch, 'stubborn.ps1')
+        const pidFile = join(scratch, 'pid')
+        writeFileSync(script, STUBBORN_SCRIPT)
+        const terminal = open(shell, scratch)
+        const command = [
+          shell.call,
+          shell.quote(WINDOWS_POWERSHELL),
+          "'-NoProfile'",
+          "'-ExecutionPolicy'",
+          "'Bypass'",
+          "'-File'",
+          shell.quote(script),
+          shell.quote(pidFile),
+        ]
+          .filter(Boolean)
+          .join(' ')
+
+        const handedBack = await terminal.executeTool('call-stubborn', 'run', {
+          command,
+          waitSeconds: 1,
+        })
+        expect(handedBack).toMatchObject({ ok: true, result: { status: 'running' } })
+        const pid = await readPid(pidFile)
+
+        const killed = await terminal.executeTool('call-kill', 'kill', { signal: 'SIGTERM' })
+
+        expect(killed).toMatchObject({ ok: true, result: { signalled: true } })
+        await vi.waitFor(() => expect(isAlive(pid)).toBe(false), { timeout: 15_000 })
+        await vi.waitFor(
+          async () => {
+            const after = await terminal.executeTool('call-after', 'run', {
+              command: shell.succeed(0),
+              waitSeconds: 30,
+            })
+            expect(after).toMatchObject({ ok: true, result: { exitCode: 0 } })
+          },
+          { timeout: 30_000, interval: 500 }
+        )
+      },
+      SHELL_TEST_TIMEOUT_MS
+    )
   })
 })

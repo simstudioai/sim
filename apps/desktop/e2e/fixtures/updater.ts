@@ -101,7 +101,7 @@ void app.whenReady().then(async () => {
     installStatePath: join(directory, 'update-install.json'),
     describeInFlightWork: async () =>
       describeInFlightWork({
-        terminalCommands,
+        terminalCommands: terminalCommands.map((command) => ({ command, shell: 'zsh' })),
         uncheckedTerminalCount: 0,
         computerUseApp: null,
         browserToolRunning,

@@ -30,6 +30,7 @@ describe('countWindowsWithUnsavedChanges', () => {
 })
 
 describe('describeInFlightWork', () => {
+  const zsh = (command: string) => ({ command, shell: 'zsh' })
   const IDLE: InFlightWork = {
     terminalCommands: [],
     uncheckedTerminalCount: 0,
@@ -51,23 +52,35 @@ describe('describeInFlightWork', () => {
   })
 
   it('starts the sentence for an unannounced command with a capital', () => {
-    expect(describeInFlightWork({ ...IDLE, terminalCommands: [''] })).toEqual([
+    expect(describeInFlightWork({ ...IDLE, terminalCommands: [zsh('')] })).toEqual([
       'A command is still running in a terminal.',
     ])
-    expect(describeInFlightWork({ ...IDLE, terminalCommands: ['npm run dev'] })).toEqual([
+    expect(describeInFlightWork({ ...IDLE, terminalCommands: [zsh('npm run dev')] })).toEqual([
       'npm is still running in a terminal.',
     ])
   })
 
   it('counts unannounced commands rather than naming "a command" twice', () => {
-    expect(describeInFlightWork({ ...IDLE, terminalCommands: ['', ''] })).toEqual([
+    expect(describeInFlightWork({ ...IDLE, terminalCommands: [zsh(''), zsh('')] })).toEqual([
       '2 terminal commands are still running.',
     ])
-    expect(describeInFlightWork({ ...IDLE, terminalCommands: ['', 'npm run dev'] })).toEqual([
-      'npm and a command are still running in terminals.',
-    ])
     expect(
-      describeInFlightWork({ ...IDLE, terminalCommands: ['', 'npm run dev', 'claude'] })
+      describeInFlightWork({ ...IDLE, terminalCommands: [zsh(''), zsh('npm run dev')] })
+    ).toEqual(['npm and a command are still running in terminals.'])
+    expect(
+      describeInFlightWork({
+        ...IDLE,
+        terminalCommands: [zsh(''), zsh('npm run dev'), zsh('claude')],
+      })
     ).toEqual(['3 terminal commands are still running.'])
+  })
+
+  it("names a Windows command by its program, read in its own shell's syntax", () => {
+    expect(
+      describeInFlightWork({
+        ...IDLE,
+        terminalCommands: [{ command: 'C:\\tools\\node.exe server.js', shell: 'pwsh' }],
+      })
+    ).toEqual(['node is still running in a terminal.'])
   })
 })

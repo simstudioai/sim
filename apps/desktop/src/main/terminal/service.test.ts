@@ -94,6 +94,9 @@ vi.mock('@/main/terminal/tmux', async () => {
   }
 })
 
+/** When a stub session's agent command was typed, as the session reports it. */
+const AGENT_COMMAND_STARTED_AT = vi.hoisted(() => 5_000)
+
 /** Stub sessions by terminal id, populated by the mock below. */
 const { stubSessions } = vi.hoisted(() => ({
   stubSessions: new Map<
@@ -111,7 +114,7 @@ const { stubSessions } = vi.hoisted(() => ({
       finishRun(exitCode: number): void
       /** Returns the run as still going, its command left running, as a wait that ran out does. */
       handBack(): void
-      kill: ReturnType<typeof vi.fn>
+      interrupt: ReturnType<typeof vi.fn>
       readonly runningToolCallId: string | null
     }
   >(),
@@ -185,10 +188,13 @@ vi.mock('@/main/terminal/session', async () => {
             return state.toolCallId
           },
           get agentCommandStartedAt() {
-            return state.toolCallId === null ? null : 0
+            return state.toolCallId === null ? null : AGENT_COMMAND_STARTED_AT
           },
-          kill: vi.fn((signal: string) => {
-            if (signal === 'SIGINT' && state.interruptible) finishRun(130)
+          get foregroundStartedAt() {
+            return state.toolCallId === null ? null : AGENT_COMMAND_STARTED_AT
+          },
+          interrupt: vi.fn(() => {
+            if (state.interruptible) finishRun(130)
           }),
           waitForShellIntegration: async () => {},
           /** A busy shell draws no prompt, so the wait lasts until the call is stopped. */
@@ -206,6 +212,7 @@ vi.mock('@/main/terminal/session', async () => {
           rows,
           pid: nextPid++,
           spawnedAt: 0,
+          shellReadyAt: null,
           env: {},
           get alive() {
             return !state.disposed
@@ -537,7 +544,10 @@ describe('running work before a restart', () => {
   it('asks the OS about a shell that announces nothing, and trusts one that does', async () => {
     const { terminal, session } = serviceWithForeground([4242])
     session.setShellIntegration(false)
-    await expect(terminal.runningWork()).resolves.toEqual({ commands: [''], uncheckedCount: 0 })
+    await expect(terminal.runningWork()).resolves.toEqual({
+      commands: [{ command: '', shell: 'zsh' }],
+      uncheckedCount: 0,
+    })
 
     session.setShellIntegration(true)
     await expect(terminal.runningWork()).resolves.toEqual({ commands: [], uncheckedCount: 0 })
@@ -605,7 +615,7 @@ describe('stopping a tool call', () => {
 
     await expect(terminal.cancelTool('call-run')).resolves.toBe(true)
 
-    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    expect(session.interrupt).toHaveBeenCalled()
     await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 130 } })
     expect(processGroups.foreground).not.toHaveBeenCalled()
     expect(processGroups.signal).not.toHaveBeenCalled()
@@ -631,7 +641,7 @@ describe('stopping a tool call', () => {
 
     await terminal.cancelTool('call-unreadable')
 
-    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    expect(session.interrupt).toHaveBeenCalled()
     expect(processGroups.signal).not.toHaveBeenCalled()
     session.finishRun(0)
     await running
@@ -658,12 +668,12 @@ describe('stopping a tool call', () => {
     const { terminal, session, processGroups, setForeground } = cancellableService()
     session.setInterruptible(false)
     // The shell's prompt work (a `git status` for the prompt) takes the tty once Ctrl-C lands.
-    session.kill.mockImplementation(() => setForeground([9999]))
+    session.interrupt.mockImplementation(() => setForeground([9999]))
     const { running } = await startRun(terminal, session, 'call-replaced')
 
     await terminal.cancelTool('call-replaced')
 
-    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    expect(session.interrupt).toHaveBeenCalled()
     expect(processGroups.signal).not.toHaveBeenCalled()
     session.finishRun(0)
     await running
@@ -712,6 +722,40 @@ describe('stopping a tool call', () => {
     await running
   })
 
+  it("ends a terminating kill's command, never the shell, on every platform", async () => {
+    for (const platform of ['posix', 'windows'] as const) {
+      const { terminal, session, processGroups } = cancellableService(platform)
+      session.setInterruptible(false)
+      const { running } = await startRun(terminal, session, `call-${platform}`)
+
+      await expect(
+        terminal.executeTool(`kill-${platform}`, 'kill', { signal: 'SIGTERM' })
+      ).resolves.toMatchObject({ ok: true, result: { signal: 'SIGTERM', signalled: true } })
+
+      expect(processGroups.foreground).toHaveBeenCalledWith(
+        session.pid,
+        AGENT_COMMAND_STARTED_AT,
+        null
+      )
+      expect(processGroups.signal).toHaveBeenCalledWith([COMMAND_GROUP], 'SIGTERM')
+      expect(session.interrupt).not.toHaveBeenCalled()
+      expect(terminal.getTabs().tabs).toHaveLength(1)
+      session.finishRun(143)
+      await running
+    }
+  })
+
+  it('signals nothing for a terminating kill when only the shell holds the foreground', async () => {
+    const { terminal, session, processGroups, setForeground } = cancellableService()
+    session.setBusy(true)
+    setForeground([])
+
+    await expect(
+      terminal.executeTool('kill-idle', 'kill', { signal: 'SIGKILL' })
+    ).resolves.toMatchObject({ ok: true, result: { signalled: false } })
+    expect(processGroups.signal).not.toHaveBeenCalled()
+  })
+
   it('runs nothing when the Stop arrives before the command starts', async () => {
     const { terminal, session } = cancellableService()
     const running = terminal.executeTool('call-early', 'run', { command: 'rm -rf build' })
@@ -730,7 +774,7 @@ describe('stopping a tool call', () => {
 
     await expect(killing).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
     await expect(typing).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
-    expect(session.kill).not.toHaveBeenCalled()
+    expect(session.interrupt).not.toHaveBeenCalled()
   })
 
   it("stops the agent's running command at sign-out", async () => {
@@ -739,19 +783,19 @@ describe('stopping a tool call', () => {
 
     await terminal.stopAgentCommands()
 
-    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    expect(session.interrupt).toHaveBeenCalled()
     await expect(running).resolves.toMatchObject({ ok: true, result: { exitCode: 130 } })
   })
 
   it('never signals what took the foreground after Ctrl-C at sign-out', async () => {
     const { terminal, session, processGroups, setForeground } = cancellableService()
     session.setInterruptible(false)
-    session.kill.mockImplementation(() => setForeground([9999]))
+    session.interrupt.mockImplementation(() => setForeground([9999]))
     const { running } = await startRun(terminal, session, 'call-sign-out')
 
     await terminal.stopAgentCommands()
 
-    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    expect(session.interrupt).toHaveBeenCalled()
     expect(processGroups.signal).not.toHaveBeenCalled()
     session.finishRun(0)
     await running
@@ -766,10 +810,10 @@ describe('stopping a tool call', () => {
     await expect(terminal.cancelTool('call-handed-back')).resolves.toBe(false)
 
     await terminal.stopAgentCommand('call-other')
-    expect(session.kill).not.toHaveBeenCalled()
+    expect(session.interrupt).not.toHaveBeenCalled()
 
     await terminal.stopAgentCommand('call-handed-back')
-    expect(session.kill).toHaveBeenCalledWith('SIGINT')
+    expect(session.interrupt).toHaveBeenCalled()
     expect(session.runningToolCallId).toBeNull()
   })
 
@@ -779,7 +823,7 @@ describe('stopping a tool call', () => {
 
     await terminal.stopAgentCommands()
 
-    expect(session.kill).not.toHaveBeenCalled()
+    expect(session.interrupt).not.toHaveBeenCalled()
     expect(processGroups.signal).not.toHaveBeenCalled()
   })
 
@@ -788,7 +832,7 @@ describe('stopping a tool call', () => {
     const { running } = await startRun(terminal, session, 'call-other')
 
     await expect(terminal.cancelTool('call-unknown')).resolves.toBe(false)
-    expect(session.kill).not.toHaveBeenCalled()
+    expect(session.interrupt).not.toHaveBeenCalled()
     expect(processGroups.signal).not.toHaveBeenCalled()
     session.finishRun(0)
     await running

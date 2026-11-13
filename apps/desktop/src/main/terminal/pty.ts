@@ -7,8 +7,7 @@
  * marker. That build asks for the terminal's device attributes as it starts and holds the shell's
  * first output until it hears back, three seconds when nothing answers, so the pty answers that
  * one query itself, as xterm.js would, and keeps it from the output so the reply is never sent
- * twice; an agent's shell has no panel to answer it at all. node-pty there cannot send a signal
- * either, only end the shell.
+ * twice; an agent's shell has no panel to answer it at all.
  */
 import { spawn } from '@lydell/node-pty'
 
@@ -48,8 +47,8 @@ export interface TerminalPty {
   resize(cols: number, rows: number): void
   pause(): void
   resume(): void
-  /** Sends `signal` to the shell; on Windows, which has no signals, ends it. */
-  kill(signal?: NodeJS.Signals): void
+  /** Ends the shell. */
+  kill(): void
 }
 
 /** Spawns `options.shellPath` in a pseudo-terminal, set up for the platform it runs on. */
@@ -95,6 +94,6 @@ export function spawnTerminalPty(options: TerminalPtyOptions): TerminalPty {
     resize: (cols, rows) => pty.resize(cols, rows),
     pause: () => pty.pause(),
     resume: () => pty.resume(),
-    kill: (signal) => (windows ? pty.kill() : pty.kill(signal)),
+    kill: () => pty.kill(),
   }
 }

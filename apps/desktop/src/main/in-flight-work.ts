@@ -3,6 +3,7 @@ import { describeRunningCommand } from '@sim/terminal-protocol'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import type { WebContents } from 'electron'
+import type { RunningTerminalCommand } from '@/main/terminal'
 
 const logger = createLogger('DesktopInFlightWork')
 
@@ -60,8 +61,8 @@ export async function countWindowsWithUnsavedChanges(
 }
 
 export interface InFlightWork {
-  /** The command line holding each busy terminal's foreground (`''` when unannounced). */
-  terminalCommands: readonly string[]
+  /** The command holding each busy terminal's foreground. */
+  terminalCommands: readonly RunningTerminalCommand[]
   /** Terminals whose foreground could not be read, which may be running a command. */
   uncheckedTerminalCount: number
   /** The app a computer-use action is driving, `''` when it has no name, or null when idle. */
@@ -80,11 +81,11 @@ export interface InFlightWork {
  * One sentence for the busy terminals. Commands are named while at most two are running and
  * at most one is unannounced; past that, two "a command"s would say nothing, so they are counted.
  */
-function describeTerminalCommands(commands: readonly string[]): string | null {
+function describeTerminalCommands(commands: readonly RunningTerminalCommand[]): string | null {
   if (commands.length === 0) return null
   const named = commands
-    .filter((command) => command.trim())
-    .map((command) => describeRunningCommand(command))
+    .filter(({ command }) => command.trim())
+    .map(({ command, shell }) => describeRunningCommand(command, shell))
   const unnamed = commands.length - named.length
   if (unnamed > 1 || commands.length > MAX_NAMED_TERMINAL_COMMANDS) {
     return `${commands.length} terminal commands are still running.`
