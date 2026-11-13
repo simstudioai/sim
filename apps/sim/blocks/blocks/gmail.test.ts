@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { GmailV2Block } from '@/blocks/blocks/gmail'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockToolParamsContext } from '@/blocks/types'
 
-/** The block's `tools.config.params` mapper, which every block under test defines. */
-function requireParamsMapper(block: BlockConfig) {
-  const mapper = block.tools.config?.params
-  if (!mapper) throw new Error(`${block.type} has no params mapper`)
-  return mapper
-}
+/** The block's `tools.config.params` mapper; `context` is set on a tool call, absent on the canvas. */
+const buildParams = (
+  inputs: Record<string, unknown>,
+  context?: BlockToolParamsContext
+): Record<string, unknown> => GmailV2Block.tools.config?.params?.(inputs, context) ?? {}
 
 /**
  * On an agent call the model supplies `threadId`/`format`/`name`/`query`/`labelIds` under the
@@ -15,7 +14,6 @@ function requireParamsMapper(block: BlockConfig) {
  * `listQuery`, `threadLabelIds`) are never rendered in the agent tool input.
  */
 describe('GmailV2Block agent tool calls', () => {
-  const buildParams = requireParamsMapper(GmailV2Block)
   const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
     const inputs = { ...args, operation }
     return { ...inputs, ...buildParams(inputs, { operation }) }

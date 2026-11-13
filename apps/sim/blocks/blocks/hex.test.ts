@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { HexBlock } from '@/blocks/blocks/hex'
+import type { BlockToolParamsContext } from '@/blocks/types'
 import { getProjectRunsTool } from '@/tools/hex/get_project_runs'
 import { getQueriedTablesTool } from '@/tools/hex/get_queried_tables'
 import { listGroupsTool } from '@/tools/hex/list_groups'
@@ -13,8 +14,12 @@ import type { ToolConfig } from '@/tools/types'
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111'
 
-function requestUrl(tool: ToolConfig, inputs: Record<string, unknown>): URL {
-  const mapped = HexBlock.tools.config?.params?.(inputs) ?? {}
+function requestUrl(
+  tool: ToolConfig,
+  inputs: Record<string, unknown>,
+  context?: BlockToolParamsContext
+): URL {
+  const mapped = HexBlock.tools.config?.params?.(inputs, context) ?? {}
   const params = { apiKey: 'hex-token', ...inputs, ...mapped }
   const url = tool.request.url
   return new URL(typeof url === 'function' ? url(params) : url)
@@ -73,21 +78,13 @@ describe('Hex block keeps stale subBlock values out of tool requests', () => {
 
   it('get project runs keeps a run status an agent passes directly', () => {
     const args = { operation: 'get_project_runs', projectId: PROJECT_ID, statusFilter: 'errored' }
-    const mapped = HexBlock.tools.config?.params?.(args, { operation: 'get_project_runs' }) ?? {}
-    const url = getProjectRunsTool.request.url
-    const built = new URL(
-      typeof url === 'function' ? url({ apiKey: 'hex-token', ...args, ...mapped }) : url
-    )
+    const built = requestUrl(getProjectRunsTool, args, { operation: 'get_project_runs' })
     expect(built.searchParams.get('statusFilter')).toBe('errored')
   })
 
   it('list groups keeps a user id an agent passes directly', () => {
     const args = { operation: 'list_groups', userId: PROJECT_ID }
-    const mapped = HexBlock.tools.config?.params?.(args, { operation: 'list_groups' }) ?? {}
-    const url = listGroupsTool.request.url
-    const built = new URL(
-      typeof url === 'function' ? url({ apiKey: 'hex-token', ...args, ...mapped }) : url
-    )
+    const built = requestUrl(listGroupsTool, args, { operation: 'list_groups' })
     expect(built.searchParams.get('userId')).toBe(PROJECT_ID)
   })
 
@@ -98,10 +95,7 @@ describe('Hex block keeps stale subBlock values out of tool requests', () => {
 
   it('get queried tables keeps a cursor an agent passes directly', () => {
     const args = { operation: 'get_queried_tables', projectId: PROJECT_ID, after: 'tables-cursor' }
-    const mapped = HexBlock.tools.config?.params?.(args, { operation: 'get_queried_tables' }) ?? {}
-    const params = { apiKey: 'hex-token', ...args, ...mapped }
-    const url = getQueriedTablesTool.request.url
-    const built = new URL(typeof url === 'function' ? url(params) : url)
+    const built = requestUrl(getQueriedTablesTool, args, { operation: 'get_queried_tables' })
     expect(built.searchParams.get('after')).toBe('tables-cursor')
   })
 })

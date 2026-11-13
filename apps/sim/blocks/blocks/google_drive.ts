@@ -3,7 +3,12 @@ import { GoogleDriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import {
+  isToolCall,
+  normalizeFileInput,
+  SERVICE_ACCOUNT_SUBBLOCKS,
+  toolCallArg,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -1685,8 +1690,8 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           includeDeleted === 'true' ? true : includeDeleted === 'false' ? false : undefined
 
         let effectivePageSize: string | undefined = pageSize
-        // Basic `pageSize`/`query` and advanced `pageToken` belong to List; only an agent call's value is trusted for other operations
-        const agentPageSize = context?.operation ? pageSize : undefined
+        // `pageSize`, `pageToken` and `query` are List's fields; other operations trust them only from a tool call
+        const agentPageSize = toolCallArg(context, pageSize)
         if (params.operation === 'search') effectivePageSize = searchPageSize || agentPageSize
         else if (params.operation === 'list_revisions')
           effectivePageSize = revisionsPageSize || agentPageSize
@@ -1695,7 +1700,7 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
         else if (params.operation === 'list_permissions')
           effectivePageSize = permissionsPageSize || agentPageSize
 
-        const agentPageToken = context?.operation ? pageToken : undefined
+        const agentPageToken = toolCallArg(context, pageToken)
         let effectivePageToken: string | undefined = pageToken
         if (params.operation === 'search') effectivePageToken = searchPageToken || agentPageToken
         else if (params.operation === 'list_permissions')
@@ -1704,12 +1709,11 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           effectivePageToken = revisionsPageToken || agentPageToken
         else if (params.operation === 'list_comments')
           effectivePageToken = commentsPageToken || agentPageToken
-        // The canvas list token is stale for every other operation; an agent's own token is not
         else if (params.operation !== 'list') effectivePageToken = agentPageToken
 
         const effectiveQuery =
           params.operation === 'search'
-            ? context?.operation && !searchQuery
+            ? isToolCall(context) && !searchQuery
               ? query
               : searchQuery
             : query

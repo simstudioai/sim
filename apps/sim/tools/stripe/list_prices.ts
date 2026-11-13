@@ -1,5 +1,6 @@
 import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ListPricesParams, PriceListResponse } from '@/tools/stripe/types'
+import { appendListCursors, listCursorParams } from '@/tools/stripe/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeListPricesTool: ToolConfig<ListPricesParams, PriceListResponse> = {
@@ -34,31 +35,14 @@ export const stripeListPricesTool: ToolConfig<ListPricesParams, PriceListRespons
       visibility: 'user-or-llm',
       description: 'Filter by active status',
     },
-    starting_after: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Next-page cursor: last price ID from the previous page. Do not combine with ending_before.',
-    },
-    ending_before: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Previous-page cursor: first price ID from the current page. Do not combine with starting_after.',
-    },
+    ...listCursorParams('price'),
   },
 
   request: {
     url: (params) => {
-      if (params.starting_after && params.ending_before) {
-        throw new Error('Provide either starting_after or ending_before, not both')
-      }
       const url = new URL('https://api.stripe.com/v1/prices')
       if (params.limit) url.searchParams.append('limit', params.limit.toString())
-      if (params.starting_after) url.searchParams.append('starting_after', params.starting_after)
-      if (params.ending_before) url.searchParams.append('ending_before', params.ending_before)
+      appendListCursors(url, params)
       if (params.product) url.searchParams.append('product', params.product)
       if (params.active !== undefined) url.searchParams.append('active', params.active.toString())
       return url.toString()

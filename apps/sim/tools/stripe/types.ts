@@ -1191,8 +1191,7 @@ export const LIST_METADATA_OUTPUT_PROPERTIES = {
  * search endpoints return instead of accepting `starting_after`.
  */
 export const SEARCH_METADATA_OUTPUT_PROPERTIES = {
-  count: { type: 'number', description: 'Number of items returned' },
-  has_more: { type: 'boolean', description: 'Whether more items exist beyond this page' },
+  ...LIST_METADATA_OUTPUT_PROPERTIES,
   next_page: {
     type: 'string',
     nullable: true,

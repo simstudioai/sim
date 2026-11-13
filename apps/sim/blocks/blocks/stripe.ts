@@ -1,7 +1,7 @@
 import { StripeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { isToolCall, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -11,9 +11,9 @@ import { getTrigger } from '@/triggers'
 const CAPTURE_AMOUNT_FIELD = ['amount_to_capture', 'amount'] as const
 
 /**
- * Reads a Yes/No/Default dropdown. `''` is the "Default" option and is never
- * sent, so Stripe applies its own default. `null` keeps its historical meaning
- * (`false`) for saved blocks that stored no value, so those requests are unchanged.
+ * Reads a Yes/No/Default dropdown. Default (`''`) and an absent value are never sent, so Stripe
+ * applies its own default; `null`, which saved blocks hold when they stored no value, reads as
+ * `false`.
  */
 function parseOptionalBoolean(value: unknown): boolean | undefined {
   if (value === undefined || value === '') return undefined
@@ -968,11 +968,8 @@ export const StripeBlock: BlockConfig = {
           throw new Error(`Invalid JSON input: ${error.message}`)
         }
 
-        /**
-         * Every key is assigned, unset ones as `undefined`: the executor merges
-         * these over the raw inputs, so an omitted key would let the raw `''`
-         * through to the tool.
-         */
+        // Every key is assigned, unset ones as `undefined`: the executor merges these over the raw
+        // inputs, so an omitted key would let the raw `''` through to the tool
         const parsedBooleans: Record<string, boolean | undefined> = {
           cancel_at_period_end: parseOptionalBoolean(cancel_at_period_end),
           auto_advance: parseOptionalBoolean(auto_advance),
@@ -983,21 +980,17 @@ export const StripeBlock: BlockConfig = {
           paid_out_of_band: parseOptionalBoolean(paid_out_of_band),
         }
 
-        /**
-         * An agent tool call (the only caller passing a context) sends cursors under the tool param
-         * names. On the canvas the subscription cursor fields can hold a value stored for another
-         * operation, so the other list and search operations read their own fields.
-         */
-        const isAgentCall = context?.operation !== undefined
-        const op = context?.operation ?? operation
-        const pagination = isAgentCall
+        // A tool call sends cursors under the tool param names. On the canvas the subscription
+        // cursor fields can hold a value stored for another operation, so the other list and
+        // search operations read their own fields
+        const pagination = isToolCall(context)
           ? { starting_after, ending_before, page }
           : {
               starting_after:
-                op === SUBSCRIPTION_LIST_OPERATION ? starting_after : list_starting_after,
+                operation === SUBSCRIPTION_LIST_OPERATION ? starting_after : list_starting_after,
               ending_before:
-                op === SUBSCRIPTION_LIST_OPERATION ? ending_before : list_ending_before,
-              page: op === SUBSCRIPTION_SEARCH_OPERATION ? page : search_page,
+                operation === SUBSCRIPTION_LIST_OPERATION ? ending_before : list_ending_before,
+              page: operation === SUBSCRIPTION_SEARCH_OPERATION ? page : search_page,
             }
 
         return {
