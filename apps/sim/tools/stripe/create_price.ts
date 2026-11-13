@@ -90,7 +90,7 @@ export const stripeCreatePriceTool: ToolConfig<
       formData.append('currency', params.currency)
 
       const unitAmount: unknown = params.unit_amount
-      if (unitAmount !== undefined && unitAmount !== null && unitAmount !== '') {
+      if (unitAmount != null && String(unitAmount).trim() !== '') {
         formData.append('unit_amount', Number(unitAmount).toString())
       }
       if (params.billing_scheme) formData.append('billing_scheme', params.billing_scheme)

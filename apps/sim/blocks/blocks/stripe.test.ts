@@ -17,6 +17,16 @@ function executorParams(block: BlockConfig, inputs: Record<string, unknown>) {
   return { ...inputs, ...mapped } as Record<string, unknown>
 }
 
+/** An agent tool call: no `operation` in the args, the selected one in the context. */
+function agentToolParams(
+  block: BlockConfig,
+  operation: string,
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const mapped = block.tools.config?.params?.(args, { operation }) ?? {}
+  return { ...args, ...mapped }
+}
+
 function formBody(tool: ToolConfig, params: Record<string, unknown>): URLSearchParams {
   const built = tool.request.body?.(params as never) as { body: string }
   return new URLSearchParams(built.body)
@@ -83,5 +93,15 @@ describe('Stripe block keeps unset fields out of requests', () => {
     expect(() =>
       requestUrl(stripeRetrieveCustomerTool, { apiKey: 'sk_test', id: '../charges' })
     ).toThrow(/path separator/)
+  })
+
+  it('an agent paginates list charges with the cursor it passes', () => {
+    const params = agentToolParams(StripeBlock, 'list_charges', {
+      apiKey: 'sk_test',
+      starting_after: 'ch_9',
+    })
+    expect(requestUrl(stripeListChargesTool, params).searchParams.get('starting_after')).toBe(
+      'ch_9'
+    )
   })
 })

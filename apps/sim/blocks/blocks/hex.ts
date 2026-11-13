@@ -14,8 +14,19 @@ const HEX_LIST_SORT_FIELDS: Record<string, readonly string[]> = {
   list_data_connections: ['NAME', 'CREATED_AT'],
 }
 
+/** Run statuses Get Project Runs accepts; the List Projects status filter shares its param name. */
+const HEX_RUN_STATUSES: readonly string[] = [
+  'PENDING',
+  'RUNNING',
+  'ERRORED',
+  'COMPLETED',
+  'KILLED',
+  'UNABLE_TO_ALLOCATE_KERNEL',
+]
+
 function emptyToUndefined(value: unknown): unknown {
-  return value === '' || value === null ? undefined : value
+  if (typeof value === 'string') return value.trim() === '' ? undefined : value.trim()
+  return value === null ? undefined : value
 }
 
 export const HexBlock: BlockConfig = {
@@ -698,24 +709,38 @@ Do not include any explanations, markdown formatting, or other text outside the 
             return 'hex_run_project'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
         const op = params.operation
+        /** Only an agent tool call carries a context; its args arrive under the tool param names. */
+        const isAgentCall = context?.operation !== undefined
 
         if (params.limit) result.limit = Number(params.limit)
         if (op === 'get_project_runs' && params.offset) result.offset = Number(params.offset)
         if (op === 'update_project' && params.projectStatus) result.status = params.projectStatus
-        if (op === 'get_project_runs')
-          result.statusFilter = emptyToUndefined(params.runStatusFilter)
+        if (op === 'get_project_runs') {
+          // An agent passes `statusFilter` directly; a stored List Projects status is not a run status.
+          result.statusFilter =
+            emptyToUndefined(params.runStatusFilter) ??
+            (HEX_RUN_STATUSES.includes(params.statusFilter) ? params.statusFilter : undefined)
+        }
         const sortFields = HEX_LIST_SORT_FIELDS[op]
         if (sortFields) {
           result.sortBy = sortFields.includes(params.sortBy) ? params.sortBy : undefined
         }
         if (op === 'get_queried_tables') {
-          result.after = emptyToUndefined(params.queriedTablesAfter)
-          result.before = emptyToUndefined(params.queriedTablesBefore)
+          // On the canvas the shared list cursors can hold another operation's stale value.
+          result.after =
+            emptyToUndefined(params.queriedTablesAfter) ??
+            (isAgentCall ? emptyToUndefined(params.after) : undefined)
+          result.before =
+            emptyToUndefined(params.queriedTablesBefore) ??
+            (isAgentCall ? emptyToUndefined(params.before) : undefined)
         }
-        if (op === 'list_groups') result.userId = emptyToUndefined(params.groupsUserId)
+        // The only other `userId` subBlock is basic and scoped to Deactivate User, so a raw value
+        // here comes from an agent.
+        if (op === 'list_groups')
+          result.userId = emptyToUndefined(params.groupsUserId) ?? emptyToUndefined(params.userId)
         if (
           (op === 'get_group' || op === 'update_group' || op === 'delete_group') &&
           params.groupIdInput

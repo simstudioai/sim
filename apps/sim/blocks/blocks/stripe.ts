@@ -927,7 +927,7 @@ export const StripeBlock: BlockConfig = {
       tool: (params) => {
         return `stripe_${params.operation}`
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           operation,
           apiKey,
@@ -983,13 +983,22 @@ export const StripeBlock: BlockConfig = {
           paid_out_of_band: parseOptionalBoolean(paid_out_of_band),
         }
 
-        const pagination = {
-          starting_after:
-            operation === SUBSCRIPTION_LIST_OPERATION ? starting_after : list_starting_after,
-          ending_before:
-            operation === SUBSCRIPTION_LIST_OPERATION ? ending_before : list_ending_before,
-          page: operation === SUBSCRIPTION_SEARCH_OPERATION ? page : search_page,
-        }
+        /**
+         * An agent tool call (the only caller passing a context) sends cursors under the tool param
+         * names. On the canvas the subscription cursor fields can hold a value stored for another
+         * operation, so the other list and search operations read their own fields.
+         */
+        const isAgentCall = context?.operation !== undefined
+        const op = context?.operation ?? operation
+        const pagination = isAgentCall
+          ? { starting_after, ending_before, page }
+          : {
+              starting_after:
+                op === SUBSCRIPTION_LIST_OPERATION ? starting_after : list_starting_after,
+              ending_before:
+                op === SUBSCRIPTION_LIST_OPERATION ? ending_before : list_ending_before,
+              page: op === SUBSCRIPTION_SEARCH_OPERATION ? page : search_page,
+            }
 
         return {
           apiKey,
