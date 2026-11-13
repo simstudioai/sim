@@ -600,8 +600,9 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # forceCodeSigning fails the build if any file that should be signed is
-      # not. publisherName also lands in resources/app-update.yml, where the
+      # forceCodeSigning fails the build when no signing configuration is
+      # found (electron-builder 26 checks for one, not each file's signature),
+      # so a missing Azure setup cannot produce an unsigned installer. publisherName also lands in resources/app-update.yml, where the
       # installed app's updater checks each downloaded installer against it.
       - name: Package and sign
         if: ${{ inputs.sign }}

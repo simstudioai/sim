@@ -109,8 +109,9 @@ win:
     - target: nsis
       arch: [x64]
   icon: build/generated-icon.ico
-  # .exe files are always signed; also sign the native addons (node-pty) so
-  # every binary Sim loads carries the publisher's Authenticode signature.
+  # .exe files are always signed; this also signs the native addons (node-pty).
+  # DLLs are not in signExts, so conpty.dll and Electron's own DLLs ship as
+  # their upstream builds left them, not with Sim's signature.
   signExts: [".node"]
   files:
     - "!**/node_modules/@lydell/node-pty-darwin-*/**"
