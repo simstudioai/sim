@@ -6933,7 +6933,7 @@
                 "type": "null"
               }
             ],
-            "description": "OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for API-key and unauthenticated sources."
+            "description": "OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for unauthenticated sources and for `apiKey` sources that use an inline API key."
           },
           "sourceConfig": {
             "type": "object",
@@ -7331,7 +7331,7 @@
                 "type": "null"
               }
             ],
-            "description": "OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for API-key and unauthenticated sources."
+            "description": "OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for unauthenticated sources and for `apiKey` sources that use an inline API key."
           },
           "sourceConfig": {
             "type": "object",
