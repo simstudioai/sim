@@ -16,12 +16,16 @@ import { APP_URL } from './urls'
  */
 const DESKTOP_PLATFORMS = {
   mac: {
+    label: 'macOS',
+    installerExtensions: ['.dmg', '.zip'],
     downloadPath: '/api/desktop/update/download',
     feedPath: '/api/desktop/update/latest-mac.yml',
     serverCommand: 'Sim → Server…',
     serverCommandWhere: 'in the menu bar',
   },
   windows: {
+    label: 'Windows',
+    installerExtensions: ['.exe'],
     downloadPath: '/api/desktop/update/download?platform=windows',
     feedPath: '/api/desktop/update/latest.yml',
     serverCommand: 'File → Server…',
@@ -29,8 +33,10 @@ const DESKTOP_PLATFORMS = {
   },
 } as const
 
+type DesktopPlatform = (typeof DESKTOP_PLATFORMS)[keyof typeof DESKTOP_PLATFORMS]
+
 /** The desktop build for the machine running the CLI; macOS unless it is Windows. */
-function desktopPlatformForHost(): (typeof DESKTOP_PLATFORMS)[keyof typeof DESKTOP_PLATFORMS] {
+function desktopPlatformForHost(): DesktopPlatform {
   return process.platform === 'win32' ? DESKTOP_PLATFORMS.windows : DESKTOP_PLATFORMS.mac
 }
 
@@ -151,6 +157,7 @@ export function resolveDeploymentUrl(
 
 export type DesktopProbe =
   | { status: 'ok'; installerUrl: string; installerName: string }
+  | { status: 'wrong-platform'; platform: string; installerName: string }
   | { status: 'no-release' }
   | { status: 'feed-unavailable' }
   | { status: 'unreachable'; error: string }
@@ -160,9 +167,15 @@ export type DesktopProbe =
  * Asks the deployment to resolve its own installer, following no redirects:
  * the redirect's Location IS the answer, and downloading the artifact here
  * would pull hundreds of megabytes to check a link.
+ *
+ * The resolved name must carry one of the platform's installer extensions. A
+ * deployment older than Windows support ignores `?platform=windows` and
+ * redirects to the macOS DMG, which must not be reported as a Windows
+ * installer.
  */
 export async function probeDownload(
   downloadUrl: string,
+  platform: { label: string; installerExtensions: readonly string[] },
   fetchImpl: typeof fetch = fetch
 ): Promise<DesktopProbe> {
   let response: Response
@@ -183,7 +196,11 @@ export async function probeDownload(
     } catch {
       // Keep the raw Location; it is still the most useful thing to print.
     }
-    return { status: 'ok', installerUrl: location, installerName: sanitizeForTerminal(name) }
+    const installerName = sanitizeForTerminal(name)
+    const lowerName = name.toLowerCase()
+    if (!platform.installerExtensions.some((extension) => lowerName.endsWith(extension)))
+      return { status: 'wrong-platform', platform: platform.label, installerName }
+    return { status: 'ok', installerUrl: location, installerName }
   }
   if (response.status === 404) return { status: 'no-release' }
   if (response.status === 502) return { status: 'feed-unavailable' }
@@ -202,6 +219,13 @@ export function describeProbe(
   switch (probe.status) {
     case 'ok':
       return { headline: `${glyph.pass} Installer resolved: ${probe.installerName}`, hints: [] }
+    case 'wrong-platform':
+      return {
+        headline: `${glyph.fail} This deployment does not offer a ${probe.platform} desktop build (it resolved ${probe.installerName}).`,
+        hints: [
+          `Upgrade the Sim deployment to a release that publishes ${probe.platform} builds, or use the web app at ${appUrl}.`,
+        ],
+      }
     case 'no-release':
       return {
         headline: `${glyph.fail} This deployment reports no desktop release for its channel.`,
@@ -244,7 +268,7 @@ export async function runDesktop(flags: DesktopFlags): Promise<number> {
   const spin = p.spinner()
   spin.start('Resolving the desktop installer…')
   const [probe, feedOk] = await Promise.all([
-    probeDownload(downloadUrl),
+    probeDownload(downloadUrl, platform),
     httpHealth(`${appUrl}${platform.feedPath}`, PROBE_TIMEOUT_MS),
   ])
   const { headline, hints } = describeProbe(probe, appUrl)
