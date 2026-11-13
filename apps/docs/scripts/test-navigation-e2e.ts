@@ -178,6 +178,118 @@ try {
       ? await (engine === 'webkit' ? webkit : chromium).launch()
       : await webkit.connect(webkitEndpoint, { timeout: 180_000 })
   const feedbackBrowser = browser
+  await check(
+    'Section permalinks copy the full URL and preserve native link navigation',
+    async () => {
+      const context = await feedbackBrowser.newContext({
+        permissions: ['clipboard-read', 'clipboard-write'],
+        viewport: { width: 1440, height: 900 },
+      })
+      try {
+        const page = await context.newPage()
+        await open(page, '/files/editor?view=reference')
+        const formatting = page.locator('#formatting-text').getByRole('link')
+        await formatting.click()
+        const first = new URL('/files/editor?view=reference#formatting-text', target).href
+        await expect(page).toHaveURL(first)
+        await expect(formatting).toHaveAccessibleName('Link copied')
+        await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(first)
+
+        const tables = page.locator('#tables').getByRole('link')
+        await tables.focus()
+        await page.keyboard.press('Enter')
+        const second = new URL('/files/editor?view=reference#tables', target).href
+        await expect(page).toHaveURL(second)
+        await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(second)
+        const [newTab] = await Promise.all([
+          context.waitForEvent('page', { timeout: 10_000 }),
+          page
+            .locator('#code-blocks')
+            .getByRole('link')
+            .click({ modifiers: ['ControlOrMeta'] }),
+        ])
+        await newTab.waitForLoadState('domcontentloaded')
+        await expect(newTab).toHaveURL(
+          new URL('/files/editor?view=reference#code-blocks', target).href
+        )
+        await newTab.close()
+        await page.bringToFront()
+        await expect(page).toHaveURL(second)
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(second)
+        await page.screenshot({ path: join(directory, 'section-permalink.png') })
+      } finally {
+        await context.close()
+      }
+    },
+    engine === 'webkit'
+      ? 'Playwright WebKit cannot grant clipboard read/write permissions; Chromium verifies native clipboard contents.'
+      : undefined
+  )
+  await check('Section permalink navigation survives an unavailable clipboard', async () => {
+    const context = await feedbackBrowser.newContext()
+    try {
+      await context.addInitScript(() => {
+        Object.defineProperty(navigator, 'clipboard', { value: undefined })
+      })
+      const page = await context.newPage()
+      await open(page, '/files/editor')
+      const link = page.locator('#formatting-text').getByRole('link')
+      await link.click()
+      await expect(page).toHaveURL(new URL('/files/editor#formatting-text', target).href)
+      await expect(link).toHaveAccessibleName('Could not copy. Copy the link from the address bar.')
+      await expect(page.getByRole('status').filter({ hasText: 'Could not copy.' })).toBeVisible()
+      await page.screenshot({ path: join(directory, 'section-permalink-copy-unavailable.png') })
+      await page
+        .getByRole('navigation', { name: 'Page navigation', exact: true })
+        .getByRole('link', { name: 'Previous Files', exact: true })
+        .click()
+      await expect(page).toHaveURL(new URL('/files', target).href)
+      await expect(
+        page.getByRole('link', { name: 'Could not copy. Copy the link from the address bar.' })
+      ).toHaveCount(0)
+    } finally {
+      await context.close()
+    }
+  })
+  await check(
+    'Compact page outline dismisses with Escape and preserves new-tab clicks',
+    async () => {
+      for (const width of [390, 1100]) {
+        const context = await feedbackBrowser.newContext({ viewport: { width, height: 900 } })
+        try {
+          const page = await context.newPage()
+          await open(page, '/files/editor')
+          const summary = page
+            .locator('summary')
+            .filter({ hasText: 'On this page' })
+            .filter({ visible: true })
+          const details = summary.locator('..')
+          await summary.click()
+          await expect(details).toHaveAttribute('open', '')
+          await page.keyboard.press('Escape')
+          await expect(details).not.toHaveAttribute('open')
+          await expect(summary).toBeFocused()
+
+          await summary.click()
+          const link = details.getByRole('link', { name: 'Formatting text', exact: true })
+          const [newTab] = await Promise.all([
+            context.waitForEvent('page', { timeout: 10_000 }),
+            link.click({ modifiers: ['ControlOrMeta'] }),
+          ])
+          await newTab.waitForLoadState('domcontentloaded')
+          await expect(newTab).toHaveURL(new URL('/files/editor#formatting-text', target).href)
+          await expect(details).toHaveAttribute('open', '')
+          await newTab.close()
+          await link.click()
+          await expect(page).toHaveURL(new URL('/files/editor#formatting-text', target).href)
+          await expect(details).not.toHaveAttribute('open')
+          await page.screenshot({ path: join(directory, `section-outline-${width}.png`) })
+        } finally {
+          await context.close()
+        }
+      }
+    }
+  )
   await check('Feedback forwards votes and preserves unchanged retry identity', async () => {
     const cert = process.env.DOCS_FEEDBACK_TEST_CERT
     const key = process.env.DOCS_FEEDBACK_TEST_KEY
