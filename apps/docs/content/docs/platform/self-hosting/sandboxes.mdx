@@ -23,7 +23,7 @@ Selecting a sandbox without a configured provider is refused with 503. File-path
 
 Run these repository scripts from a checkout with dependencies installed (`bun install` at the repository root). Supply provider credentials to the build environment. Custom workspace sandboxes layer their packages on this base.
 
-<Tabs items={['E2B', 'Daytona']}>
+<Tabs items={['E2B', 'Daytona', 'boxd']}>
   <Tab value="E2B">
 
 ```bash
@@ -73,17 +73,43 @@ SANDBOX_PARITY_MANIFEST_BASELINE=/tmp/function-sandbox-manifest.json \
 Replace the placeholders before running.
 
   </Tab>
+  <Tab value="boxd">
+
+[boxd](https://boxd.sh?ref=sim) runs each sandbox as an isolated microVM restored from a snapshot. Like Daytona, the builder reconstructs packages from an accepted E2B manifest, so complete the E2B build and verification first. It boots a build machine in the region you pick, installs the Function surface, saves the snapshot, and deletes the build machine. Snapshots stay in their region, so build in the region you will run in.
+
+```bash
+BOXD_API_KEY=... \
+BOXD_REGION=nyc \
+  bun run apps/sim/scripts/build-function-boxd-snapshot.ts \
+  --name "sim-function-<release>" \
+  --parity-manifest /tmp/function-sandbox-manifest.json
+```
+
+The builder prints a version-pinned `<snapshot-id>@<version>` reference. Verify it against the accepted E2B baseline:
+
+```bash
+SANDBOX_PROVIDER=boxd \
+BOXD_API_KEY=... \
+BOXD_REGION=nyc \
+BOXD_FUNCTION_SNAPSHOT='<snapshot>@<version>' \
+SANDBOX_PARITY_MANIFEST_BASELINE=/tmp/function-sandbox-manifest.json \
+  bun run apps/sim/scripts/verify-sandbox-parity.ts
+```
+
+Replace the placeholders before running.
+
+  </Tab>
 </Tabs>
 
 <Callout type="warn">
-  Function images must be immutable. `E2B_FUNCTION_TEMPLATE_ID` requires an exact `<template>:<build-id>` reference with a UUID build ID, plus the positive `E2B_FUNCTION_TEMPLATE_GENERATION` printed by that build. `DAYTONA_FUNCTION_SNAPSHOT_ID` requires a snapshot UUID, not a mutable name. Missing or invalid values do not fall back to a shell image.
+  Function images must be immutable. `E2B_FUNCTION_TEMPLATE_ID` requires an exact `<template>:<build-id>` reference with a UUID build ID, plus the positive `E2B_FUNCTION_TEMPLATE_GENERATION` printed by that build. `DAYTONA_FUNCTION_SNAPSHOT_ID` requires a snapshot UUID, not a mutable name. `BOXD_FUNCTION_SNAPSHOT` requires a `<snapshot>@<version>` pin: re-saving a boxd snapshot under the same name creates a new version, and Sim refuses to run on a machine restored from any other version. Missing or invalid values do not fall back to a shell image.
 </Callout>
 
 ## Configure the deployment
 
 Apply the verified runtime values through the deployment's environment or secret mechanism:
 
-<Tabs items={['E2B', 'Daytona']}>
+<Tabs items={['E2B', 'Daytona', 'boxd']}>
   <Tab value="E2B">
 
 ```dotenv
@@ -101,6 +127,16 @@ E2B_FUNCTION_TEMPLATE_GENERATION=<release-epoch-ms>
 SANDBOX_PROVIDER=daytona
 DAYTONA_API_KEY=...
 DAYTONA_FUNCTION_SNAPSHOT_ID=<snapshot-uuid>
+```
+
+  </Tab>
+  <Tab value="boxd">
+
+```dotenv
+SANDBOX_PROVIDER=boxd
+BOXD_API_KEY=...
+BOXD_REGION=<region-of-the-snapshot>
+BOXD_FUNCTION_SNAPSHOT=<snapshot>@<version>
 ```
 
   </Tab>
@@ -135,9 +171,12 @@ MOTHERSHIP_E2B_TEMPLATE_ID=<shell-template-ref>
 
 # Daytona shell image
 DAYTONA_SHELL_SNAPSHOT_ID=<shell-snapshot-ref>
+
+# boxd shell snapshot
+BOXD_SHELL_SNAPSHOT=<shell-snapshot>
 ```
 
-These values do not replace `E2B_FUNCTION_TEMPLATE_ID` or `DAYTONA_FUNCTION_SNAPSHOT_ID`. Shell, Function, document, and Pi images have separate package contracts and release cadences. Pi also needs `E2B_PI_TEMPLATE_ID` or `DAYTONA_PI_SNAPSHOT_ID`; revealing a Pi mode with `NEXT_PUBLIC_E2B_ENABLED` does not supply that image.
+These values do not replace `E2B_FUNCTION_TEMPLATE_ID`, `DAYTONA_FUNCTION_SNAPSHOT_ID`, or `BOXD_FUNCTION_SNAPSHOT`. Shell, Function, document, and Pi images have separate package contracts and release cadences. Pi also needs `E2B_PI_TEMPLATE_ID`, `DAYTONA_PI_SNAPSHOT_ID`, or `BOXD_PI_SNAPSHOT`; revealing a Pi mode with `NEXT_PUBLIC_E2B_ENABLED` does not supply that image.
 
 ## Related docs
 

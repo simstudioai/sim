@@ -3,8 +3,8 @@ import {
   SANDBOX_CLI_TOOLS,
   type SandboxCliToolId,
 } from '@/lib/execution/remote-sandbox/cli-tools'
+import type { SandboxProviderId as SandboxProvider } from '@/lib/execution/remote-sandbox/types'
 
-type SandboxProvider = 'e2b' | 'daytona'
 type SandboxProviderCompatibility = readonly [SandboxProvider, ...SandboxProvider[]]
 
 interface SandboxCliToolRecipe<Id extends SandboxCliToolId = SandboxCliToolId> {
@@ -53,7 +53,7 @@ export const SANDBOX_SYSTEM_PATH =
   '/usr/local/sbin:/usr/local/bin:/usr/local/games:/usr/sbin:/usr/bin:/usr/games:/sbin:/bin:/root/.local/bin'
 
 const SIM_CLI_ROOT = '/opt/sim-cli'
-const DEFAULT_SUPPORTED_PROVIDERS = ['e2b', 'daytona'] as const
+const DEFAULT_SUPPORTED_PROVIDERS = ['e2b', 'daytona', 'boxd'] as const
 
 function defineVerifiedRecipe<const Id extends SandboxCliToolId>(
   id: Id,

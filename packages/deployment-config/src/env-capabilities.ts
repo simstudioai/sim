@@ -5,8 +5,10 @@
  * @packageDocumentation
  */
 import {
+  IMMUTABLE_BOXD_SNAPSHOT_REF_ERROR,
   IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR,
   IMMUTABLE_E2B_TEMPLATE_REF_ERROR,
+  isImmutableBoxdSnapshotRef,
   isImmutableDaytonaSnapshotRef,
   isImmutableE2BTemplateRef,
   isValidSandboxReleaseGeneration,
@@ -51,6 +53,10 @@ type EnvValueValidation =
     }
   | {
       kind: 'immutable-daytona-snapshot-ref'
+      message: string
+    }
+  | {
+      kind: 'immutable-boxd-snapshot-ref'
       message: string
     }
   | {
@@ -394,6 +400,9 @@ function isValidEnvCapabilityFieldValue(
   }
   if (validation.kind === 'immutable-daytona-snapshot-ref') {
     return isImmutableDaytonaSnapshotRef(serialized)
+  }
+  if (validation.kind === 'immutable-boxd-snapshot-ref') {
+    return isImmutableBoxdSnapshotRef(serialized)
   }
   if (validation.kind === 'sandbox-release-generation') {
     return isValidSandboxReleaseGeneration(serialized)
@@ -1116,6 +1125,27 @@ export const SANDBOX_CAPABILITY = defineCapability({
           validation: {
             kind: 'immutable-daytona-snapshot-ref',
             message: IMMUTABLE_DAYTONA_SNAPSHOT_REF_ERROR,
+          },
+        })
+      ),
+      optionalFields: [
+        envField('NEXT_PUBLIC_E2B_ENABLED'),
+        envField('NEXT_PUBLIC_SANDBOXES_ENABLED'),
+      ],
+    },
+    {
+      id: 'boxd',
+      label: 'boxd',
+      activation: {
+        mode: 'any-present',
+        keys: ['BOXD_API_KEY', 'BOXD_FUNCTION_SNAPSHOT'],
+      },
+      requires: allOf(
+        envField('BOXD_API_KEY'),
+        envField('BOXD_FUNCTION_SNAPSHOT', {
+          validation: {
+            kind: 'immutable-boxd-snapshot-ref',
+            message: IMMUTABLE_BOXD_SNAPSHOT_REF_ERROR,
           },
         })
       ),

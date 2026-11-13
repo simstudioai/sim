@@ -16,6 +16,8 @@ describe('server environment capabilities', () => {
       SANDBOX_PROVIDER: undefined,
       DAYTONA_API_KEY: undefined,
       DAYTONA_FUNCTION_SNAPSHOT_ID: undefined,
+      BOXD_API_KEY: undefined,
+      BOXD_FUNCTION_SNAPSHOT: undefined,
     })
   })
 
@@ -72,11 +74,17 @@ describe('server environment capabilities', () => {
     expect(getSelectedSandboxProviderId()).toBe('daytona')
   })
 
+  it('selects the boxd adapter without requiring a Function base', () => {
+    setEnv({ SANDBOX_PROVIDER: 'boxd', BOXD_API_KEY: 'boxd-key' })
+
+    expect(getSelectedSandboxProviderId()).toBe('boxd')
+  })
+
   it('rejects an unknown sandbox provider during selection', () => {
     setEnv({ SANDBOX_PROVIDER: 'modal' })
 
     expect(() => getSelectedSandboxProviderId()).toThrow(
-      'Unknown SANDBOX_PROVIDER "modal". Expected one of: e2b, daytona'
+      'Unknown SANDBOX_PROVIDER "modal". Expected one of: e2b, daytona, boxd'
     )
   })
 })

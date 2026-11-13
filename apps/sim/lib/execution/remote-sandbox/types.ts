@@ -12,7 +12,7 @@ import type { SandboxSpec } from '@/lib/execution/remote-sandbox/spec'
  */
 export type SandboxKind = 'code' | 'shell' | 'mothership' | 'doc' | 'pi'
 
-export type SandboxProviderId = 'e2b' | 'daytona'
+export type SandboxProviderId = 'e2b' | 'daytona' | 'boxd'
 
 /**
  * A sandbox input file. `content` entries are written inline; `url` entries are fetched from inside
@@ -396,7 +396,8 @@ export interface CreateSandboxOptions {
   /**
    * How long the provider may keep the sandbox alive before reaping it. E2B
    * accepts milliseconds directly; Daytona receives a rounded-up wall-clock TTL
-   * and creates the sandbox as ephemeral.
+   * and creates the sandbox as ephemeral; boxd deletes the machine after the
+   * lifetime rounded up to a whole second.
    */
   lifetimeMs?: number
   /**
@@ -414,7 +415,7 @@ export interface CreateSandboxOptions {
  * `prebuilt` bakes it into a reusable image ahead of time (E2B, whose templates
  * have no count limit and layer cheaply). `runtime` installs it inside the
  * sandbox before user code runs (Daytona, whose 30-snapshot organization quota
- * does not scale with tier and so cannot hold per-workspace images).
+ * does not scale with tier and so cannot hold per-workspace images, and boxd).
  */
 export type SandboxDependencyStrategy = 'prebuilt' | 'runtime'
 
