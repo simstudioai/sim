@@ -325,9 +325,10 @@ async function verifyWorkspaceIdentity(
 
 /**
  * Sim signs tokens for any service principal a member names, and every Sim
- * tenant shares the issuer and audience, so a federation policy that matches on
- * a claim other than `sub` (a `subject_claim` of `sim_workspace_id`, say) would
- * let other Sim credentials act as the principal. Exchanging a subject no
+ * tenant shares the issuer and can claim any audience (by default the same one),
+ * so a federation policy that matches on a claim other than `sub` (a
+ * `subject_claim` of `sim_workspace_id`, say) would let other Sim credentials act
+ * as the principal. Exchanging a subject no
  * credential holds must be refused before the credential is saved.
  */
 async function assertPolicyPinsSubject(
