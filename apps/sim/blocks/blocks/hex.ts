@@ -719,10 +719,12 @@ Do not include any explanations, markdown formatting, or other text outside the 
         if (op === 'get_project_runs' && params.offset) result.offset = Number(params.offset)
         if (op === 'update_project' && params.projectStatus) result.status = params.projectStatus
         if (op === 'get_project_runs') {
-          // An agent passes `statusFilter` directly; a stored List Projects status is not a run status.
+          // An agent passes `statusFilter` directly; on the canvas it is the List Projects status.
           result.statusFilter =
             emptyToUndefined(params.runStatusFilter) ??
-            (HEX_RUN_STATUSES.includes(params.statusFilter) ? params.statusFilter : undefined)
+            (isAgentCall || HEX_RUN_STATUSES.includes(params.statusFilter)
+              ? emptyToUndefined(params.statusFilter)
+              : undefined)
         }
         const sortFields = HEX_LIST_SORT_FIELDS[op]
         if (sortFields) {
@@ -737,10 +739,10 @@ Do not include any explanations, markdown formatting, or other text outside the 
             emptyToUndefined(params.queriedTablesBefore) ??
             (isAgentCall ? emptyToUndefined(params.before) : undefined)
         }
-        // The only other `userId` subBlock is basic and scoped to Deactivate User, so a raw value
-        // here comes from an agent.
         if (op === 'list_groups')
-          result.userId = emptyToUndefined(params.groupsUserId) ?? emptyToUndefined(params.userId)
+          result.userId =
+            emptyToUndefined(params.groupsUserId) ??
+            (isAgentCall ? emptyToUndefined(params.userId) : undefined)
         if (
           (op === 'get_group' || op === 'update_group' || op === 'delete_group') &&
           params.groupIdInput

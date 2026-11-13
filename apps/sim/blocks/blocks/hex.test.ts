@@ -72,18 +72,28 @@ describe('Hex block keeps stale subBlock values out of tool requests', () => {
   })
 
   it('get project runs keeps a run status an agent passes directly', () => {
-    const url = requestUrl(getProjectRunsTool, {
-      operation: 'get_project_runs',
-      projectId: PROJECT_ID,
-      statusFilter: 'ERRORED',
-      runStatusFilter: '',
-    })
-    expect(url.searchParams.get('statusFilter')).toBe('ERRORED')
+    const args = { operation: 'get_project_runs', projectId: PROJECT_ID, statusFilter: 'errored' }
+    const mapped = HexBlock.tools.config?.params?.(args, { operation: 'get_project_runs' }) ?? {}
+    const url = getProjectRunsTool.request.url
+    const built = new URL(
+      typeof url === 'function' ? url({ apiKey: 'hex-token', ...args, ...mapped }) : url
+    )
+    expect(built.searchParams.get('statusFilter')).toBe('errored')
   })
 
   it('list groups keeps a user id an agent passes directly', () => {
+    const args = { operation: 'list_groups', userId: PROJECT_ID }
+    const mapped = HexBlock.tools.config?.params?.(args, { operation: 'list_groups' }) ?? {}
+    const url = listGroupsTool.request.url
+    const built = new URL(
+      typeof url === 'function' ? url({ apiKey: 'hex-token', ...args, ...mapped }) : url
+    )
+    expect(built.searchParams.get('userId')).toBe(PROJECT_ID)
+  })
+
+  it('list groups ignores a Deactivate User id left on the canvas', () => {
     const url = requestUrl(listGroupsTool, { operation: 'list_groups', userId: PROJECT_ID })
-    expect(url.searchParams.get('userId')).toBe(PROJECT_ID)
+    expect(url.searchParams.has('userId')).toBe(false)
   })
 
   it('get queried tables keeps a cursor an agent passes directly', () => {
