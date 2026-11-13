@@ -3265,12 +3265,10 @@ describe('credential protection', () => {
   it('keeps settling through failed quiet probes, and never observes once cancelled', async () => {
     const contents = await openPage()
     const calls: string[] = []
-    let probes = 0
     let failing = 2
     vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
       if (isPageCall(expression, 'readDomQuiet')) {
         calls.push('probe')
-        probes++
         if (failing > 0) {
           failing--
           vi.mocked(contents.isLoading).mockReturnValue(true)
