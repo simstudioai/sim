@@ -227,6 +227,24 @@ describe('native computer model projection', () => {
     expect(result.omittedNodeCount).toBe(0)
   })
 
+  it('never names a node as its own parent through a wrapper cycle', () => {
+    const state = snapshot()
+    state.nodes = [
+      {
+        elementId: 'button',
+        parentId: 'wrap',
+        role: 'AXButton',
+        label: 'Go',
+        actions: ['AXPress'],
+      },
+      { elementId: 'wrap', parentId: 'button', role: 'AXGroup', actions: [] },
+    ]
+    const result = computerToolResultForModel(state)
+    if (!('accessibilityTree' in result)) throw new Error('Missing projected tree')
+    expect(result.accessibilityTree).toContain('button AXButton')
+    expect(result.accessibilityTree).not.toContain('parent=button')
+  })
+
   it('keeps an empty layout group that reports itself disabled', () => {
     const state = snapshot()
     state.nodes = [

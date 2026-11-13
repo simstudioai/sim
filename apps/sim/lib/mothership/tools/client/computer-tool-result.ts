@@ -98,7 +98,7 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
     windows,
     omittedWindowCount: allWindows.length - windows.length,
     treeFormat:
-      'Rows: elementId role [parent=id] [label|value|placeholder] [focused] [editable] [disabled] [actions=JSON array of exact names] [window=id, omitted for windowId] [screenRect=x,y,w,h in global points]. Empty layout groups are folded into their parent.',
+      'Rows: elementId role [parent=id, omitted when the parent is not shown] [label=] [value=] [placeholder=] (JSON strings) [focused] [editable] [disabled] [actions=JSON array of exact names] [window=id, omitted for windowId] [screenRect=x,y,w,h in global points]. Empty layout groups are folded into their parent.',
     accessibilityTree: '',
     omittedNodeCount: nodes.filter((node) => !isWrapper(node)).length,
     nodeTextLimit: 512,
@@ -126,7 +126,12 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
       seen.add(parent.elementId)
       parent = parent.parentId ? byId.get(parent.parentId) : undefined
     }
-    shownParent.set(node.elementId, parent && !isWrapper(parent) ? parent.elementId : undefined)
+    shownParent.set(
+      node.elementId,
+      parent && !isWrapper(parent) && parent.elementId !== node.elementId
+        ? parent.elementId
+        : undefined
+    )
   }
   const rows = new Map(
     shown.map((node) => [
@@ -173,7 +178,8 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
   let bytes = jsonBytes(model) + envelopeBytes
   const add = (ids: string[]) => {
     const additional = ids.filter((id) => !selected.has(id))
-    const cost = additional.reduce((total, id) => total + jsonBytes(rows.get(id)) - 2 + 2, 0)
+    /** A row's JSON length: its two quotes come off, and the escaped joining newline (`\\n`) adds two bytes back. */
+    const cost = additional.reduce((total, id) => total + jsonBytes(rows.get(id)), 0)
     if (bytes + cost > MAX_STATE_BYTES) return false
     for (const id of additional) selected.add(id)
     bytes += cost

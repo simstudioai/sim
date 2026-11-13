@@ -233,6 +233,47 @@ describe('native computer use authority and lifecycle', () => {
     await expect(click('s2', 'chat', 'next')).resolves.toMatchObject({ dispatched: true })
   })
 
+  it.each([
+    {
+      steps: [
+        { action: 'click', elementId: 'e1' },
+        { action: 'set_value', elementId: 'e1', value: 'x' },
+      ],
+      windowId: '1',
+    },
+    {
+      steps: [
+        { action: 'click', elementId: 'e1' },
+        { action: 'press_key', key: 'Enter' },
+      ],
+      windowId: undefined,
+    },
+  ])(
+    'observes the one window a batch targets, else the focused window ($windowId)',
+    async ({ steps, windowId }) => {
+      const { state, service, native } = setup()
+      await state()
+      native.request.mockResolvedValueOnce({
+        kind: 'action',
+        action: 'batch',
+        bundleId: 'com.example.Fixture',
+        dispatched: true,
+        verified: false,
+        sequence: { completedSteps: 2, totalSteps: 2 },
+      })
+      await service.execute('batch', 'chat', {
+        action: 'batch',
+        bundleId: 'com.example.Fixture',
+        snapshotId: 's1',
+        steps,
+      })
+      expect(native.request).toHaveBeenLastCalledWith('get_app_state', {
+        bundleId: 'com.example.Fixture',
+        ...(windowId ? { windowId } : {}),
+      })
+    }
+  )
+
   it('observes a partial sequence without retrying any input', async () => {
     const { state, service, native } = setup()
     await state()
