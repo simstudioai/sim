@@ -228,30 +228,93 @@ def _regex_only(entities: list[str] | None, score_threshold: float | None) -> bo
     )
 
 
-def _require_nlp_length(
-    texts: list[str],
+# spaCy refuses (error E088) any text longer than its model's `max_length`, so a
+# longer text runs NER in windows of this many characters, following spaCy's
+# guidance to segment long documents (it sizes NER memory at roughly 1GB per
+# 100,000 characters of one text).
+NER_WINDOW_CHARS = 100_000
+# How much of the previous window each window repeats. Far longer than any entity
+# spaCy tags, so an entity cut by one window's edge lies whole inside the next.
+NER_WINDOW_OVERLAP = 1_000
+
+
+def _exceeds_nlp_length(text: str, language: str) -> bool:
+    limit = _NLP_MAX_LENGTH.get(language)
+    return limit is not None and len(text) > limit
+
+
+def _ner_window_entities(entities: list[str] | None, language: str) -> list[str]:
+    """The requested entities only spaCy NER produces and this language serves, or
+    all of them when `entities` is empty (detect-all)."""
+    ner = NER_ENTITIES & set(analyzer.get_supported_entities(language))
+    return sorted(ner if not entities else ner.intersection(entities))
+
+
+def _analyze_long(
+    text: str,
     language: str,
     entities: list[str] | None,
     score_threshold: float | None,
-) -> None:
-    """Refuse, as a 422, any text longer than the language model's spaCy
-    `max_length` when the request runs the NLP pass. spaCy raises ValueError E088
-    for such a text, which FastAPI answers as an opaque 500 that callers retry as
-    a transient failure; the same text fails the same way every time, so callers
-    must split it rather than resend it. Regex-only requests skip spaCy and are
-    not limited."""
-    if _regex_only(entities, score_threshold):
-        return
-    limit = _NLP_MAX_LENGTH.get(language)
-    if limit is None:
-        return
-    for index, text in enumerate(texts):
-        if len(text) > limit:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Text {index} has {len(text)} characters; NER accepts at most "
-                f"{limit} per text. Split it before sending.",
+    return_decision_process: bool = False,
+    ad_hoc_recognizers: list[PatternRecognizer] | None = None,
+) -> list[RecognizerResult]:
+    """Analyze a text longer than spaCy's `max_length`.
+
+    Pattern, checksum, and custom recognizers have no length limit, so they run
+    once over the whole text (against blank NLP artifacts, as the regex-only path
+    does) and no match can straddle a cut. Only NER runs in overlapping windows
+    (see NER_WINDOW_CHARS), asked for just its own entities. A span touching a
+    window's far edge may be cut short, so it is left to the next window, which
+    sees it whole; a span ending inside the overlap before that edge was already
+    found by the previous window and is skipped. The rest are shifted to
+    whole-text offsets, and overlapping spans are left to the anonymizer, which
+    merges them. Context words cannot raise a pattern match's score here, which
+    matters only when a score_threshold is set."""
+    entities = entities or None
+    results = analyzer.analyze(
+        text=text,
+        language=language,
+        entities=entities,
+        score_threshold=score_threshold,
+        return_decision_process=return_decision_process,
+        nlp_artifacts=_BLANK_ARTIFACTS.get(language),
+        ad_hoc_recognizers=ad_hoc_recognizers or None,
+    )
+    window_entities = _ner_window_entities(entities, language)
+    if not window_entities:
+        return results
+    step = NER_WINDOW_CHARS - NER_WINDOW_OVERLAP
+    for start in range(0, len(text), step):
+        window = text[start : start + NER_WINDOW_CHARS]
+        is_last = start + NER_WINDOW_CHARS >= len(text)
+        seen_through = NER_WINDOW_OVERLAP if start else 0
+        for result in analyzer.analyze(
+            text=window,
+            language=language,
+            entities=window_entities,
+            score_threshold=score_threshold,
+            return_decision_process=return_decision_process,
+        ):
+            if result.end < seen_through or (not is_last and result.end >= len(window)):
+                continue
+            results.append(
+                RecognizerResult(
+                    result.entity_type,
+                    result.start + start,
+                    result.end + start,
+                    result.score,
+                    result.analysis_explanation,
+                    result.recognition_metadata,
+                )
             )
+        if is_last:
+            break
+    unique: dict[tuple[str, int, int], RecognizerResult] = {}
+    for result in results:
+        key = (result.entity_type, result.start, result.end)
+        if key not in unique or result.score > unique[key].score:
+            unique[key] = result
+    return list(unique.values())
 
 
 def _analyze_one(
@@ -262,13 +325,15 @@ def _analyze_one(
     return_decision_process: bool = False,
     ad_hoc_recognizers: list[PatternRecognizer] | None = None,
 ):
-    _require_nlp_length([text], language, entities, score_threshold)
+    regex_only = _regex_only(entities, score_threshold)
+    if not regex_only and _exceeds_nlp_length(text, language):
+        return _analyze_long(
+            text, language, entities, score_threshold, return_decision_process, ad_hoc_recognizers
+        )
     # Regex-only requests reuse a blank NlpArtifacts to skip the spaCy NLP pass;
     # otherwise analyze() computes artifacts (runs spaCy) as usual. Custom-pattern
     # recognizers are regex-based, so they run fine against the blank artifacts.
-    nlp_artifacts = (
-        _BLANK_ARTIFACTS.get(language) if _regex_only(entities, score_threshold) else None
-    )
+    nlp_artifacts = _BLANK_ARTIFACTS.get(language) if regex_only else None
     return analyzer.analyze(
         text=text,
         language=language,
@@ -292,8 +357,9 @@ def _analyze_many(
     score_threshold: float | None,
     ad_hoc_recognizers: list[PatternRecognizer] | None = None,
 ):
-    """Analyze many texts, skipping the spaCy pass for regex-only requests."""
-    _require_nlp_length(texts, language, entities, score_threshold)
+    """Analyze many texts, skipping the spaCy pass for regex-only requests and
+    analyzing any text longer than spaCy's `max_length` on its own (see
+    `_analyze_long`)."""
     if _regex_only(entities, score_threshold):
         blank = _BLANK_ARTIFACTS.get(language)
         return [
@@ -307,16 +373,24 @@ def _analyze_many(
             )
             for text in texts
         ]
-    return list(
-        batch_analyzer.analyze_iterator(
-            texts=texts,
-            language=language,
-            batch_size=NLP_BATCH_SIZE,
-            entities=entities or None,
-            score_threshold=score_threshold,
-            ad_hoc_recognizers=ad_hoc_recognizers or None,
-        )
+    long_indices = {i for i, text in enumerate(texts) if _exceeds_nlp_length(text, language)}
+    short_indices = [i for i in range(len(texts)) if i not in long_indices]
+    results: list[list[RecognizerResult]] = [[] for _ in texts]
+    short_results = batch_analyzer.analyze_iterator(
+        texts=[texts[i] for i in short_indices],
+        language=language,
+        batch_size=NLP_BATCH_SIZE,
+        entities=entities or None,
+        score_threshold=score_threshold,
+        ad_hoc_recognizers=ad_hoc_recognizers or None,
     )
+    for i, per_text in zip(short_indices, short_results):
+        results[i] = list(per_text)
+    for i in sorted(long_indices):
+        results[i] = _analyze_long(
+            texts[i], language, entities, score_threshold, ad_hoc_recognizers=ad_hoc_recognizers
+        )
+    return results
 
 
 @asynccontextmanager

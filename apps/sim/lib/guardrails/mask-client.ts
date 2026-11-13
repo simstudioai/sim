@@ -8,7 +8,7 @@ import { generateInternalToken } from '@/lib/auth/internal'
 import { env } from '@/lib/core/config/env'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { chunkIndicesByBudget, joinSegments, segmentTexts } from '@/lib/guardrails/pii-batching'
+import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 
 const logger = createLogger('PiiMaskClient')
@@ -106,9 +106,9 @@ function isOutageError(error: unknown): boolean {
 
 interface MaskPIIBatchOptions {
   /**
-   * When set, a chunk that cannot be masked has every string with a piece in it
-   * replaced with this value instead of rejecting the call, so one bad chunk costs
-   * only its own strings. After an outage (see {@link OUTAGE_STATUSES}) exhausts a chunk's
+   * When set, a chunk that cannot be masked has each of its strings replaced with
+   * this value instead of rejecting the call, so one bad chunk costs only its own
+   * strings. After an outage (see {@link OUTAGE_STATUSES}) exhausts a chunk's
    * retries, chunks not yet sent are replaced the same way.
    */
   failedChunkPlaceholder?: string
@@ -127,9 +127,7 @@ interface MaskPIIBatchResult {
  * Only the app task reaches the Presidio service (it holds `PII_URL`), but the
  * log-redaction persist path also runs inside the trigger.dev runtime — so
  * redaction always routes through HTTP, the same way the guardrails tool does.
- * A string too long for one NER pass is cut into pieces first (see
- * {@link segmentTexts}), so no request carries a text Presidio would refuse.
- * Pieces are grouped into byte/count-budgeted chunks (keeping each request far
+ * Strings are grouped into byte/count-budgeted chunks (keeping each request far
  * under the 10MB Next body limit) and the chunks are sent with bounded
  * concurrency, so a large payload fans out rather than serializing; order is
  * preserved, so the returned `masked` array matches `texts` length.
@@ -152,46 +150,37 @@ export async function maskPIIBatchViaHttp(
 
   const url = `${getInternalApiBaseUrl()}/api/guardrails/mask-batch`
   const placeholder = options.failedChunkPlaceholder
-  const { segments, owners } = segmentTexts(texts)
-  const maskedSegments = new Array<string>(segments.length)
-  const scrubbedTexts = new Set<number>()
+  const masked = new Array<string>(texts.length)
   let serviceUnavailable = false
+  let scrubbedCount = 0
   let firstFailure: unknown
 
-  const scrubChunk = (indices: number[]) => {
-    for (const k of indices) scrubbedTexts.add(owners[k])
+  const scrubChunk = (indices: number[], value: string) => {
+    for (const i of indices) masked[i] = value
+    scrubbedCount += indices.length
   }
 
-  await mapWithConcurrency(chunkIndicesByBudget(segments), CHUNK_CONCURRENCY, async (indices) => {
+  await mapWithConcurrency(chunkIndicesByBudget(texts), CHUNK_CONCURRENCY, async (indices) => {
     if (serviceUnavailable && placeholder !== undefined) {
-      scrubChunk(indices)
+      scrubChunk(indices, placeholder)
       return
     }
     try {
-      const chunk = indices.map((k) => segments[k])
+      const chunk = indices.map((i) => texts[i])
       const out = await postChunk(url, chunk, entityTypes, language, customPatterns)
       if (out.length !== chunk.length) {
         throw new Error('PII mask-batch returned an unexpected result')
       }
-      indices.forEach((segmentIndex, k) => {
-        maskedSegments[segmentIndex] = out[k]
+      indices.forEach((originalIndex, k) => {
+        masked[originalIndex] = out[k]
       })
     } catch (error) {
       if (placeholder === undefined) throw error
       if (isOutageError(error)) serviceUnavailable = true
       firstFailure ??= error
-      scrubChunk(indices)
+      scrubChunk(indices, placeholder)
     }
   })
-
-  const joined = joinSegments(maskedSegments, owners, texts.length)
-  // A text with any unmasked piece is replaced whole: its other pieces are masked,
-  // but keeping them would persist a fragment around the hole.
-  const masked =
-    placeholder === undefined
-      ? joined
-      : joined.map((text, i) => (scrubbedTexts.has(i) ? placeholder : text))
-  const scrubbedCount = scrubbedTexts.size
 
   if (scrubbedCount > 0) {
     logger.error('PII masking failed for some chunks; replaced their strings', {

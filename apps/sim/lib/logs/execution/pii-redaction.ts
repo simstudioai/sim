@@ -10,7 +10,7 @@ const logger = createLogger('PiiRedaction')
 /** Replaces text we could not safely mask, so PII is never persisted on failure. */
 export const REDACTION_FAILED_MARKER = '[REDACTION_FAILED]'
 
-/** Replaces an encoded file body in a persisted record (see {@link isEncodedBinary}). */
+/** Replaces an encoded file body in the execution log (see {@link isEncodedBinary}). */
 export const BINARY_CONTENT_REDACTED_MARKER = '[BINARY_CONTENT_REDACTED]'
 
 /**
@@ -21,7 +21,8 @@ const MIN_ENCODED_BINARY_CHARS = 1024
 
 const STANDARD_BASE64 = /^[A-Za-z0-9+/]+={0,2}$/
 const URL_SAFE_BASE64 = /^[A-Za-z0-9_-]+={0,2}$/
-const BASE64_DATA_URL = /^data:(?:[\w.+-]+\/[\w.+-]+)?(?:;[\w.+-]+=[^;,]*)*;base64,/i
+/** A `data:` URL's header through its comma, declaring base64 (RFC 2397). */
+const BASE64_DATA_URL_HEADER = /^data:(?:[\w.+-]+\/[\w.+-]+)?(?:;[\w.+-]+=[^;,]*)*;base64,$/i
 
 /** Narrowest and widest lines encoders wrap base64 at: 60 (common), 64 (PEM), 76 (MIME). */
 const MIN_WRAP_WIDTH = 60
@@ -32,67 +33,53 @@ function isBase64(value: string): boolean {
 }
 
 /**
- * `value` with trailing whitespace dropped and, when it is wrapped the way base64
- * encoders wrap (every line but the last one fixed width, a multiple of 4 between
- * {@link MIN_WRAP_WIDTH} and {@link MAX_WRAP_WIDTH}), its line breaks removed.
- * Returns `null` for multi-line text without that shape, which is never base64.
+ * The base64 in `value` with trailing whitespace dropped and, when it is wrapped
+ * the way encoders wrap it (every line but the last a fixed width, a multiple of 4
+ * between {@link MIN_WRAP_WIDTH} and {@link MAX_WRAP_WIDTH}), its line breaks
+ * removed. Returns `null` when `value` is not base64.
  */
-function unwrapBase64(value: string): string | null {
+function base64Body(value: string): string | null {
   const body = value.trimEnd()
   const firstBreak = body.indexOf('\n')
-  if (firstBreak === -1) return body
+  if (firstBreak === -1) return isBase64(body) ? body : null
   const width = body[firstBreak - 1] === '\r' ? firstBreak - 1 : firstBreak
   if (width < MIN_WRAP_WIDTH || width > MAX_WRAP_WIDTH || width % 4 !== 0) return null
+  if (!isBase64(body.slice(0, width))) return null
   const lines = body.split(/\r?\n/)
   const last = lines[lines.length - 1]
-  const fixedWidth = lines.slice(0, -1).every((line) => line.length === width)
-  return fixedWidth && last.length > 0 && last.length <= width ? lines.join('') : null
+  const fixedWidth = lines.every((line, i) => i === lines.length - 1 || line.length === width)
+  if (!fixedWidth || last.length === 0 || last.length > width) return null
+  const joined = lines.join('')
+  return isBase64(joined) ? joined : null
 }
 
 /**
  * Whether `value` is an encoded file body: a `data:` URL declaring base64, or a
  * bare base64 string at least {@link MIN_ENCODED_BINARY_CHARS} long, either one
- * optionally wrapped the way encoders wrap it (see {@link unwrapBase64}). A bare
- * string must also mix upper case, lower case, and digits, as encoded bytes always
- * do, so a run of digits, lowercase hex, or a list of codes is still masked as text.
- *
- * Presidio cannot redact such a value: spaCy reads base64 as one token, and the
- * pattern recognizers only ever match it by coincidence at a `+` or `/`, where a
- * replacement would corrupt the bytes rather than remove anything readable. Any
- * PII is inside the decoded file, which text masking never sees.
+ * optionally wrapped the way encoders wrap it (see {@link base64Body}). Text
+ * masking cannot check such a value for PII, which lives inside the decoded file.
  */
 function isEncodedBinary(value: string): boolean {
   if (value.startsWith('data:')) {
-    const prefix = BASE64_DATA_URL.exec(value.slice(0, 512))
-    if (prefix === null) return false
-    const payload = unwrapBase64(value.slice(prefix[0].length))
-    return payload !== null && isBase64(payload)
+    const comma = value.indexOf(',')
+    return (
+      comma !== -1 &&
+      BASE64_DATA_URL_HEADER.test(value.slice(0, comma + 1)) &&
+      base64Body(value.slice(comma + 1)) !== null
+    )
   }
   if (value.length < MIN_ENCODED_BINARY_CHARS) return false
-  const body = unwrapBase64(value)
-  return (
-    body !== null &&
-    body.length >= MIN_ENCODED_BINARY_CHARS &&
-    isBase64(body) &&
-    /[A-Z]/.test(body) &&
-    /[a-z]/.test(body) &&
-    /\d/.test(body)
-  )
+  const body = base64Body(value)
+  return body !== null && body.length >= MIN_ENCODED_BINARY_CHARS
 }
 
 /**
- * Whether a redaction pass is producing the execution record or data a later step
- * reads, which decides both how a masking failure is handled and what becomes of
- * an encoded file body Presidio cannot mask:
- * - `'scrub'` (default), the execution log: a failure replaces the affected strings
- *   with {@link REDACTION_FAILED_MARKER}, and an encoded file body is replaced with
- *   {@link BINARY_CONTENT_REDACTED_MARKER}, since the log must not keep content
- *   that cannot be checked for PII. Safe because execution already succeeded.
- * - `'throw'`, data a later step reads: workflow input, block outputs, and agent
- *   memory stored for later turns. A failure throws {@link PiiRedactionError} and
- *   aborts the run, since a marker would corrupt that data and fail-open would
- *   leak. An encoded file body passes through unchanged, since the step that
- *   reads it needs its bytes and masking could only corrupt them.
+ * How to handle a masking failure (Presidio error or over-ceiling payload):
+ * - `'scrub'` (default): replace eligible strings with {@link REDACTION_FAILED_MARKER}.
+ *   Safe for the log stage — execution already succeeded.
+ * - `'throw'`: throw {@link PiiRedactionError}. Used for the execution-altering
+ *   stages (input/block outputs) where a marker would corrupt computed data and
+ *   fail-open would leak — so the run aborts instead.
  */
 export type PiiRedactionFailureMode = 'scrub' | 'throw'
 
@@ -104,6 +91,16 @@ export interface PiiRedactionOptions {
   customPatterns?: CustomPiiPattern[]
   /** Failure handling. Defaults to `'scrub'`. */
   onFailure?: PiiRedactionFailureMode
+  /**
+   * Replace encoded file bodies (see {@link isEncodedBinary}) with
+   * {@link BINARY_CONTENT_REDACTED_MARKER} instead of masking them as text. Only
+   * for the execution log: masking cannot see PII inside a file, so the log drops
+   * the file rather than keep content it never checked. Replacing can only remove
+   * content, so a string misread as a file costs log detail, never PII. Live data
+   * leaves this off, keeping every string on the masking path so none can skip
+   * redaction by its shape, and keeping file bytes the next block reads.
+   */
+  replaceEncodedBinary?: boolean
 }
 
 /** Thrown when in-flight redaction (`onFailure: 'throw'`) cannot mask safely. */
@@ -156,11 +153,12 @@ function isEligibleString(value: string): boolean {
 
 /**
  * What one pass does with each string leaf: `text` for a string Presidio masks,
- * `encodedBinary` for an encoded file body it never sees (see {@link isEncodedBinary}).
+ * and, when set, `encodedBinary` for an encoded file body it never sees (see
+ * {@link isEncodedBinary}). Without `encodedBinary` every string is text.
  */
 interface StringVisitor {
   text: (s: string) => string
-  encodedBinary: (s: string) => string
+  encodedBinary?: (s: string) => string
 }
 
 /**
@@ -172,7 +170,9 @@ interface StringVisitor {
 function transformStrings(value: unknown, visit: StringVisitor): unknown {
   if (typeof value === 'string') {
     if (!isEligibleString(value)) return value
-    return isEncodedBinary(value) ? visit.encodedBinary(value) : visit.text(value)
+    return visit.encodedBinary && isEncodedBinary(value)
+      ? visit.encodedBinary(value)
+      : visit.text(value)
   }
   // Treat offloaded large-value refs as opaque: masking their internal `key`/`id`
   // strings would corrupt the reference. Their content is handled separately
@@ -224,26 +224,48 @@ function transformUnit(
   return transformStrings(value, visit)
 }
 
-/** What an encoded file body becomes under `onFailure` (see {@link PiiRedactionFailureMode}). */
-function encodedBinaryReplacement(onFailure: PiiRedactionFailureMode): (s: string) => string {
-  return onFailure === 'scrub' ? () => BINARY_CONTENT_REDACTED_MARKER : (s) => s
+/** What a collection pass found: the strings to mask and how many encoded file bodies. */
+interface CollectedStrings {
+  collected: string[]
+  encodedBinaryCount: number
 }
 
-/** A collection pass: records every string to mask and counts encoded file bodies. */
-function collectStrings() {
+function collectStrings(
+  walk: (visit: StringVisitor) => void,
+  replaceEncodedBinary: boolean
+): CollectedStrings {
   const collected: string[] = []
   let encodedBinaryCount = 0
-  const visit: StringVisitor = {
+  walk({
     text: (s) => {
       collected.push(s)
       return s
     },
-    encodedBinary: (s) => {
-      encodedBinaryCount++
-      return s
+    encodedBinary: replaceEncodedBinary
+      ? (s) => {
+          encodedBinaryCount++
+          return s
+        }
+      : undefined,
+  })
+  return { collected, encodedBinaryCount }
+}
+
+/** Mask the collected strings and return the substitution pass's visitor. */
+async function substitutionVisitor(
+  collected: string[],
+  options: PiiRedactionOptions,
+  replaceEncodedBinary: boolean
+): Promise<{ visit: StringVisitor; scrubbedCount: number }> {
+  const { masked, scrubbedCount } = await maskCollected(collected, options)
+  let index = 0
+  return {
+    visit: {
+      text: () => masked[index++],
+      encodedBinary: replaceEncodedBinary ? () => BINARY_CONTENT_REDACTED_MARKER : undefined,
     },
+    scrubbedCount,
   }
-  return { collected, visit, encodedBinaryCount: () => encodedBinaryCount }
 }
 
 /**
@@ -302,19 +324,12 @@ async function maskCollected(
  * block-output stages, so it defaults callers toward `onFailure: 'throw'`.
  */
 export async function redactObjectStrings<T>(value: T, options: PiiRedactionOptions): Promise<T> {
-  const collection = collectStrings()
-  transformStrings(value, collection.visit)
-  const { collected } = collection
+  const replaceEncodedBinary = options.replaceEncodedBinary ?? false
+  const found = collectStrings((visit) => transformStrings(value, visit), replaceEncodedBinary)
+  if (found.collected.length === 0 && found.encodedBinaryCount === 0) return value
 
-  if (collected.length === 0 && collection.encodedBinaryCount() === 0) return value
-
-  const { masked } =
-    collected.length === 0 ? { masked: [] } : await maskCollected(collected, options)
-  let index = 0
-  return transformStrings(value, {
-    text: () => masked[index++],
-    encodedBinary: encodedBinaryReplacement(options.onFailure ?? 'scrub'),
-  }) as T
+  const { visit } = await substitutionVisitor(found.collected, options, replaceEncodedBinary)
+  return transformStrings(value, visit) as T
 }
 
 /**
@@ -327,7 +342,9 @@ export async function redactObjectStrings<T>(value: T, options: PiiRedactionOpti
  * envelope). On a hard masking failure, the eligible strings of every request
  * chunk that failed are replaced with {@link REDACTION_FAILED_MARKER} (the default
  * `onFailure: 'scrub'`) rather than left unredacted — PII is never persisted on
- * the failure path.
+ * the failure path. This payload is the execution log, so encoded file bodies are
+ * always replaced with {@link BINARY_CONTENT_REDACTED_MARKER} (see
+ * {@link PiiRedactionOptions.replaceEncodedBinary}).
  */
 export async function redactPIIFromExecution(
   payload: RedactablePayload,
@@ -340,32 +357,21 @@ export async function redactPIIFromExecution(
     value: payload[key],
   }))
 
-  const collection = collectStrings()
-  for (const unit of units) transformUnit(unit.key, unit.value, collection.visit)
-  const { collected } = collection
-  const encodedBinaryCount = collection.encodedBinaryCount()
+  const found = collectStrings((visit) => {
+    for (const unit of units) transformUnit(unit.key, unit.value, visit)
+  }, true)
+  if (found.collected.length === 0 && found.encodedBinaryCount === 0) return payload
 
-  if (collected.length === 0 && encodedBinaryCount === 0) return payload
-
-  const { masked, scrubbedCount } =
-    collected.length === 0
-      ? { masked: [], scrubbedCount: 0 }
-      : await maskCollected(collected, options)
-
-  let index = 0
-  const visit: StringVisitor = {
-    text: () => masked[index++],
-    encodedBinary: encodedBinaryReplacement(options.onFailure ?? 'scrub'),
-  }
+  const { visit, scrubbedCount } = await substitutionVisitor(found.collected, options, true)
   const result: RedactablePayload = { ...payload }
   for (const unit of units) {
     result[unit.key] = transformUnit(unit.key, unit.value, visit)
   }
 
   logger.info('PII redaction completed', {
-    stringCount: collected.length,
-    totalBytes: collected.reduce((sum, s) => sum + Buffer.byteLength(s, 'utf8'), 0),
-    encodedBinaryCount,
+    stringCount: found.collected.length,
+    totalBytes: found.collected.reduce((sum, s) => sum + Buffer.byteLength(s, 'utf8'), 0),
+    encodedBinaryCount: found.encodedBinaryCount,
     durationMs: Math.round(performance.now() - startedAt),
     scrubbedCount,
   })

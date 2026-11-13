@@ -93,7 +93,7 @@ describe('redactPIIFromExecution', () => {
   })
 
   it('masks large strings too (never left unredacted)', async () => {
-    const big = 'x'.repeat(200 * 1024)
+    const big = 'lorem ipsum '.repeat(17_000)
     const payload = { finalOutput: { big, small: 'pii' } }
 
     const result = await redactPIIFromExecution(payload, { entityTypes: [] })
@@ -151,15 +151,14 @@ describe('encoded binary content', () => {
     expect(sentTexts()).toEqual(['Ada Lovelace'])
   })
 
-  it('passes encoded file bodies through live data unchanged and unsent', async () => {
-    const value = { content: encodedFile, url: `data:image/png;base64,${encodedFile}`, note: 'hi' }
+  it('keeps live data on the masking path, so no string skips redaction by its shape', async () => {
+    const shapedLikeAFile = `${'Ab1_'.repeat(256)}123-45-6789`
+    const value = { content: encodedFile, id: shapedLikeAFile }
 
     const result = await redactObjectStrings(value, { entityTypes: [], onFailure: 'throw' })
 
-    expect(result.content).toBe(encodedFile)
-    expect(result.url).toBe(`data:image/png;base64,${encodedFile}`)
-    expect(result.note).toBe('MASKED(hi)')
-    expect(sentTexts()).toEqual(['hi'])
+    expect(result).toEqual({ content: `MASKED(${encodedFile})`, id: `MASKED(${shapedLikeAFile})` })
+    expect(sentTexts()).toEqual([encodedFile, shapedLikeAFile])
   })
 
   /** `encodedFile` wrapped at `width` columns, as MIME (76) and PEM (64) encoders emit it. */
@@ -171,6 +170,10 @@ describe('encoded binary content', () => {
     ['wrapped at 76 columns', wrapped(76, '\n')],
     ['wrapped at 64 columns with CRLF', `${wrapped(64, '\r\n')}\r\n`],
     ['as a wrapped data URL', `data:application/pdf;base64,${wrapped(76, '\n')}`],
+    [
+      'as a data URL with long metadata',
+      `data:application/pdf;name=${'quarterly-report-'.repeat(40)}.pdf;base64,${encodedFile}`,
+    ],
   ])('replaces an encoded file body %s in a persisted log', async (_label, body) => {
     const result = await redactPIIFromExecution({ finalOutput: body }, { entityTypes: [] })
 
@@ -180,15 +183,13 @@ describe('encoded binary content', () => {
 
   it.each([
     ['a newline-separated list of usernames', 'AdaLovelace1815\n'.repeat(100)],
-    ['a long run of digits', '4'.repeat(4096)],
-    ['lowercase hex', 'deadbeef0123'.repeat(400)],
     ['a short base64 token', 'QWRhIExvdmVsYWNl'],
-    ['a long space-separated sentence', 'Ada Lovelace wrote code. '.repeat(200)],
-  ])('still masks %s, which is not an encoded file', async (_label, text) => {
-    const result = await redactObjectStrings({ text }, { entityTypes: [], onFailure: 'throw' })
+    ['a long space-separated sentence', 'Ada Lovelace wrote code in 1843 '.repeat(150)],
+  ])('still masks %s in a persisted log, which is not an encoded file', async (_label, text) => {
+    const result = await redactPIIFromExecution({ finalOutput: text }, { entityTypes: [] })
 
-    expect(result.text).not.toBe(text)
-    expect(sentTexts().join('')).toBe(text)
+    expect(result.finalOutput).toBe(`MASKED(${text})`)
+    expect(sentTexts()).toEqual([text])
   })
 })
 

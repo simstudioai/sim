@@ -1,7 +1,6 @@
 import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { PII_MAX_TEXT_CHARS } from '@/lib/guardrails/pii-batching'
 import { POST } from '@/app/api/guardrails/mask-batch/route'
 
 const mockCheckInternalAuth = hybridAuthMockFns.mockCheckInternalAuth
@@ -51,21 +50,5 @@ describe('POST /api/guardrails/mask-batch', () => {
     const res = await POST(createMockRequest('POST', { texts: ['a'], entityTypes: [] }))
 
     expect(res.status).toBe(status)
-  })
-
-  it('splits a text too long for one NER pass before calling Presidio, then rejoins it', async () => {
-    presidioFetch.mockImplementation(async (_url: string, init: { body: string }) => {
-      const { texts } = JSON.parse(init.body) as { texts: string[] }
-      return Response.json({ texts: texts.map((t) => t.replaceAll('Ada', '<PERSON>')) })
-    })
-    const text = 'Ada wrote this line.\n'.repeat(60_000)
-
-    const res = await POST(createMockRequest('POST', { texts: [text], entityTypes: ['PERSON'] }))
-
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ masked: [text.replaceAll('Ada', '<PERSON>')] })
-    const sent = presidioFetch.mock.calls.flatMap(([, init]) => JSON.parse(init.body).texts)
-    expect(sent.length).toBeGreaterThan(1)
-    for (const piece of sent) expect(piece.length).toBeLessThanOrEqual(PII_MAX_TEXT_CHARS)
   })
 })
