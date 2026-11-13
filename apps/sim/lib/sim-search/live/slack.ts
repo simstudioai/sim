@@ -1,6 +1,7 @@
 import { dateSortDirection, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
 import { joinMessages } from '@/lib/sim-search/live/pages'
+import { permitsResources } from '@/lib/sim-search/live/policy'
 import {
   slackConversationName,
   slackConversationUrl,
@@ -34,6 +35,79 @@ function slackResult(value: unknown) {
     )
   }
   return data
+}
+
+/** Channels a search names in its status, so the client can filter on one with `in:<#ID>`. */
+const MAX_LISTED_CHANNELS = 5
+
+interface SlackChannel {
+  id: string
+  name: string
+  archived: boolean
+}
+
+/**
+ * Channels from an RTS response that the account's source settings let it search. The ID comes
+ * from the permalink, as RTS channel results carry no ID field.
+ */
+function searchableChannels(data: Record<string, unknown>, input: NativeSearchInput) {
+  return array(object(data.results).channels).flatMap((channel): SlackChannel[] => {
+    const id = string(channel.permalink).match(/\/archives\/([CG][A-Z0-9]+)$/)?.[1]
+    const name = string(channel.name)
+    const archived = channel.is_archived === true
+    if (!id || !name) return []
+    if (input.policy && !permitsResources(input.policy, [id])) return []
+    if (archived && input.policy?.includeArchived === false) return []
+    return [{ id, name, archived }]
+  })
+}
+
+const channelLabel = ({ id, name, archived }: SlackChannel) =>
+  `#${name} (in:<#${id}>${archived ? ', archived' : ''})`
+
+/** The channel name an `in:#name` filter in the query or modifiers names, if any. */
+function filteredChannelName(input: NativeSearchInput): string | undefined {
+  return [nativeText(input), input.native?.modifiers]
+    .join(' ')
+    .match(/(?:^|\s)in:#([\w.-]+)/i)?.[1]
+    ?.toLowerCase()
+}
+
+/**
+ * Whether the channel a query filtered to exists, said when the query found nothing, since RTS
+ * returns the same empty page for a quiet channel and a name that matches no channel. A lookup
+ * that fails says nothing rather than failing the search.
+ */
+async function channelFilterNote(
+  client: NativeClient,
+  input: NativeSearchInput,
+  name: string,
+  channelTypes: string[]
+): Promise<string | undefined> {
+  const data = await client
+    .json('/api/assistant.search.context', {
+      body: {
+        query: name,
+        channel_types: channelTypes,
+        include_archived_channels: input.policy?.includeArchived ?? true,
+        content_types: ['channels'],
+        limit: MAX_LISTED_CHANNELS,
+      },
+    })
+    .then(slackResult)
+    .catch((error: unknown) => {
+      if (input.signal?.aborted) throw error
+      return undefined
+    })
+  if (!data) return undefined
+  const channels = searchableChannels(data, input)
+  const named = channels.find((channel) => channel.name.toLowerCase() === name)
+  if (named)
+    return `${channelLabel(named)} exists; none of its messages matched this query and date window.`
+  return joinMessages([
+    `No channel named #${name} is visible to this account.`,
+    channels.length ? `Channels with similar names: ${channels.map(channelLabel).join(', ')}.` : '',
+  ])
 }
 
 /** Results one Real-time Search call returns at most. */
@@ -117,6 +191,8 @@ async function searchSlackPage(
     .filter(Boolean)
     .join(' ')
   const modifiers = [input.native?.modifiers, dateModifiers].filter(Boolean).join(' ')
+  /** Channels match on name, topic and purpose, so only a query with text lists them, once. */
+  const listChannels = Boolean(nativeText(input)) && !cursor
   const data = slackResult(
     await client.json('/api/assistant.search.context', {
       body: {
@@ -125,9 +201,11 @@ async function searchSlackPage(
           .join(' '),
         channel_types: channels,
         include_archived_channels: input.policy?.includeArchived ?? true,
-        content_types: input.scopes.includes('search:read.files')
-          ? ['messages', 'files']
-          : ['messages'],
+        content_types: [
+          'messages',
+          ...(input.scopes.includes('search:read.files') ? ['files'] : []),
+          ...(listChannels ? ['channels'] : []),
+        ],
         include_context_messages: true,
         limit: Math.min(limit, SLACK_PAGE_SIZE),
         ...(dates.start ? { after: Math.floor(Date.parse(dates.start) / 1000) - 1 } : {}),
@@ -216,10 +294,16 @@ async function searchSlackPage(
         : {}),
     })
   }
+  const listed = listChannels ? searchableChannels(data, input).slice(0, MAX_LISTED_CHANNELS) : []
+  const filtered = !documents.length && !cursor ? filteredChannelName(input) : undefined
   return {
     documents,
     nextCursor: string(object(data.response_metadata).next_cursor) || undefined,
-    message: `Slack RTS searches ${channels.join(', ')} with your user token. Semantic matching depends on your Slack plan; date ordering uses keyword retrieval. Message timestamps are posting dates; edits may not be reflected in date filtering.`,
+    message: joinMessages([
+      `Slack RTS searches ${channels.join(', ')} with your user token. Semantic matching depends on your Slack plan; date ordering uses keyword retrieval. Message timestamps are posting dates; edits may not be reflected in date filtering.`,
+      listed.length ? `Channels matching the query: ${listed.map(channelLabel).join(', ')}.` : '',
+      filtered ? await channelFilterNote(client, input, filtered, channels) : '',
+    ]),
   }
 }
 
