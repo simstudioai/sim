@@ -2104,18 +2104,26 @@ async function execInPageWithSettleGrace<Args extends unknown[], Result>(
  * Lets a page finish rendering what an action started (a route change, a fetched list) before it
  * is observed, so the observation is not a half-rendered page. A page already quiet costs one probe.
  */
-async function waitForDomQuiet(target: PageExecutionTarget, executionDeadline?: number) {
+async function waitForDomQuiet(
+  target: PageExecutionTarget,
+  signal: AbortSignal,
+  executionDeadline?: number
+) {
   const until = Math.min(
     Date.now() + DOM_SETTLE_MAX_MS,
     executionDeadline ?? Number.POSITIVE_INFINITY
   )
-  for (;;) {
-    const state = toRecord(
-      await execInPage(target, readDomQuiet, [], false, executionDeadline).catch(() => null)
+  while (!signal.aborted && Date.now() + 25 < until) {
+    const probe = await execInPage(target, readDomQuiet, [], false, executionDeadline).catch(
+      () => null
     )
-    const quietMs = typeof state.quietMs === 'number' ? state.quietMs : DOM_QUIET_MS
-    if ((quietMs >= DOM_QUIET_MS && state.loading !== true) || Date.now() + 25 >= until) return
-    await sleep(Math.min(100, Math.max(25, DOM_QUIET_MS - quietMs)))
+    // A failed probe while the tab loads is a document swapping mid-navigation, so keep waiting;
+    // one that fails on a loaded tab (a page that cannot be scripted) has nothing to settle.
+    if (probe === null && !('isLoading' in target && target.isLoading())) return
+    const state = toRecord(probe)
+    const quietMs = typeof state.quietMs === 'number' ? state.quietMs : 0
+    if (quietMs >= DOM_QUIET_MS && state.loading === false) return
+    await interruptibleSleep(Math.min(100, Math.max(25, DOM_QUIET_MS - quietMs)), signal)
   }
 }
 
@@ -5486,8 +5494,15 @@ export async function executeTool(
             async (query) => {
               await waitForDomQuiet(
                 session.requireAutomationTab().view.webContents,
+                executionController.signal,
                 executionDeadline
               )
+              assertCurrentExecution()
+              if (executionController.signal.aborted) {
+                throw new ToolError(
+                  'This browser action was cancelled before it could observe the page.'
+                )
+              }
               return executeToolInner(
                 query === undefined ? 'browser_snapshot' : 'browser_find',
                 query === undefined ? {} : { query },

@@ -1894,6 +1894,7 @@ describe('credential protection', () => {
         activeElementSecrecy: 'safe',
         readActiveElementState: {},
         readPageActionState: {},
+        readDomQuiet: { quietMs: 1_000, loading: false },
       })
       const pageCall = vi.mocked(contents.executeJavaScript).getMockImplementation()
       let releaseObservation: (value: unknown) => void = () => {}
@@ -3260,6 +3261,66 @@ describe('credential protection', () => {
       }
     }
   )
+
+  it('keeps settling through failed quiet probes, and never observes once cancelled', async () => {
+    const contents = await openPage()
+    const calls: string[] = []
+    let probes = 0
+    let failing = 2
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'readDomQuiet')) {
+        calls.push('probe')
+        probes++
+        if (failing > 0) {
+          failing--
+          vi.mocked(contents.isLoading).mockReturnValue(true)
+          return Promise.reject(new Error('Execution context was destroyed'))
+        }
+        vi.mocked(contents.isLoading).mockReturnValue(false)
+        return Promise.resolve({ quietMs: failing === -1 ? 0 : 400, loading: false })
+      }
+      if (isPageCall(expression, 'collectSnapshot')) {
+        calls.push('snapshot')
+        return Promise.resolve({
+          url: 'https://example.com/',
+          title: 'Example',
+          outline: '- heading "Results"',
+          truncated: false,
+          refIds: [],
+          refLineIndexes: {},
+          nextElementId: 1_000,
+        })
+      }
+      if (isPageCall(expression, 'clickElement')) return Promise.resolve(CLICK_TARGET)
+      return Promise.resolve(undefined)
+    })
+    vi.useFakeTimers()
+    try {
+      const settled = driver.executeTool('chat-test', 'browser_click', {
+        elementId: 0,
+        observe: {},
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(await settled).toMatchObject({ ok: true, result: { observation: { ok: true } } })
+      expect(calls.indexOf('snapshot')).toBe(3)
+
+      calls.length = 0
+      failing = -1
+      const cancelled = driver.executeTool(
+        'chat-test',
+        'browser_click',
+        { elementId: 0, observe: { query: 'Results' } },
+        'click-cancelled'
+      )
+      await vi.advanceTimersByTimeAsync(300)
+      expect(driver.cancelTool('chat-test', 'click-cancelled')).toBe(true)
+      await vi.advanceTimersByTimeAsync(5_000)
+      await cancelled
+      expect(calls).not.toContain('snapshot')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 
   it('acts on a ref an earlier snapshot of the same page issued', async () => {
     const contents = await openPage()

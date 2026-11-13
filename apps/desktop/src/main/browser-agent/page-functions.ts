@@ -59,6 +59,8 @@ declare global {
     /** When the document last changed structurally (nodes or text), for settling before an observation. */
     __simAgentDomChangedAt?: number
     __simAgentDomWatcher?: MutationObserver
+    /** Adds a document or open shadow root to the settle watcher, once. */
+    __simAgentWatchDom: (root: Node) => void
     /** Every ref this document issued, resolvable while its element keeps that identity. */
     __simAgentIssuedRefs?: Map<
       number,
@@ -103,18 +105,22 @@ export function readDomQuiet(): unknown {
  */
 export function installPageHelpers(): void {
   // Structural changes only: attribute churn (animations, hover styles) would keep a page "busy".
-  if (!window.__simAgentDomWatcher && document.documentElement) {
+  // Snapshots add the same-origin frames and open shadow roots they walk, which a document-level
+  // observer cannot see into.
+  if (!window.__simAgentDomWatcher) {
     window.__simAgentDomChangedAt = performance.now()
-    const watcher = new MutationObserver(() => {
+    window.__simAgentDomWatcher = new MutationObserver(() => {
       window.__simAgentDomChangedAt = performance.now()
     })
-    watcher.observe(document.documentElement, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-    })
-    window.__simAgentDomWatcher = watcher
   }
+  const watcher = window.__simAgentDomWatcher
+  const watched = new WeakSet<Node>()
+  window.__simAgentWatchDom = (root: Node): void => {
+    if (watched.has(root)) return
+    watched.add(root)
+    watcher.observe(root, { subtree: true, childList: true, characterData: true })
+  }
+  if (document.documentElement) window.__simAgentWatchDom(document.documentElement)
   /**
    * The open modal each document aria-hid together with everything else. MUI's ModalManager
    * aria-hides every <body> child except the modal's mount node, and a `disablePortal` modal
@@ -913,6 +919,7 @@ export function collectSnapshot(
         try {
           const innerDoc = (el as HTMLIFrameElement).contentDocument
           if (innerDoc?.body && isVisible(el)) {
+            window.__simAgentWatchDom(innerDoc.documentElement)
             if (!push(`${indent}- iframe:`)) return
             walk(innerDoc.body.childNodes, childDepth + 1, coveredText)
           } else if (scopedRoot && !innerDoc && visible) {
@@ -925,7 +932,10 @@ export function collectSnapshot(
       }
 
       const shadow = (el as HTMLElement).shadowRoot
-      if (shadow) walk(shadow.childNodes, childDepth, coveredText)
+      if (shadow) {
+        window.__simAgentWatchDom(shadow)
+        walk(shadow.childNodes, childDepth, coveredText)
+      }
       walk(el.childNodes, childDepth, coveredText)
     }
   }

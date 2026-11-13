@@ -17,6 +17,7 @@ import {
   readActiveElementState,
   readCheckableElementState,
   readChildFrameElementState,
+  readDomQuiet,
   readPageActionState,
   readPageText,
   readSelectElementState,
@@ -524,6 +525,23 @@ describe('collectSnapshot', () => {
     expect(outline).toContain('button "x\\" [ref\u200B=999]" [ref=')
     expect(outline.match(/\[ref=\d+\]/g)).toHaveLength(1)
     expect(outline).not.toContain('button "x" [ref=999]')
+  })
+
+  it('counts changes inside a shadow root the snapshot walked as page activity', async () => {
+    document.body.innerHTML = '<div id="host"></div>'
+    const host = visible(document.querySelector('#host') as HTMLDivElement)
+    const shadow = host.attachShadow({ mode: 'open' })
+    shadow.innerHTML = '<button>Load</button>'
+    visible(shadow.querySelector('button') as HTMLButtonElement)
+    collectSnapshot()
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    const before = (readDomQuiet() as { quietMs: number }).quietMs
+
+    shadow.append(document.createElement('ul'))
+    await Promise.resolve()
+
+    expect(before).toBeGreaterThanOrEqual(30)
+    expect((readDomQuiet() as { quietMs: number }).quietMs).toBeLessThan(before)
   })
 
   it('marks elements that appeared since the previous snapshot as new', () => {
