@@ -50,7 +50,7 @@ describe('applyAwsMarketplaceContainerLicense', () => {
       checkoutRequests.push(command.input)
       const answer = answers.length > 1 ? answers.shift() : answers[0]
       if (answer !== 'entitled') throw awsError(answer ?? 'ServerInternalException')
-      return { EntitlementsAllowed: [{ Name: 'enterprise_license', Unit: 'None' }] }
+      return { EntitlementsAllowed: [{ Name: 'AWS::Marketplace::Usage', Unit: 'None' }] }
     })
   })
 
@@ -68,7 +68,7 @@ describe('applyAwsMarketplaceContainerLicense', () => {
     expect(mockSend).not.toHaveBeenCalled()
   })
 
-  it('turns Enterprise on with an uncounted checkout of the entitlement', async () => {
+  it('turns Enterprise on with an uncounted checkout of the Marketplace usage entitlement', async () => {
     answers = ['entitled']
     await applyAwsMarketplaceContainerLicense()
     expect(enterpriseEnabled()).toBe(true)
@@ -77,7 +77,7 @@ describe('applyAwsMarketplaceContainerLicense', () => {
         ProductSKU: 'product-placeholder',
         CheckoutType: 'PROVISIONAL',
         KeyFingerprint: 'aws:294406891311:AWS/Marketplace:issuer-fingerprint',
-        Entitlements: [{ Name: 'enterprise_license', Unit: 'None' }],
+        Entitlements: [{ Name: 'AWS::Marketplace::Usage', Unit: 'None' }],
       }),
     ])
   })

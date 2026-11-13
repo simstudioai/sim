@@ -8,14 +8,13 @@ import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 /**
  * Enterprise entitlement for Sim installed from the AWS Marketplace container listing.
  *
- * The listing sells an annual contract whose one dimension is `enterprise_license`. AWS Marketplace
- * grants the buyer a license in AWS License Manager, and the running product checks it the way AWS
- * documents for a contract that unlocks a tier of features rather than metering a quantity: a
- * provisional `CheckoutLicense` of the entitlement with unit `None`. Such a checkout is not counted
- * against the contract, so every replica can check at once, and it needs only the permission AWS's
- * managed `AWSLicenseManagerConsumptionPolicy` grants. While the license is active, the Enterprise
- * suite is on (`ENTERPRISE_ENABLED`). Without one, Sim runs as the open-source core, so a lapsed
- * renewal or an unreachable License Manager never locks a buyer out of their deployment.
+ * The listing sells an annual contract. The buyer's AWS License Manager license carries the
+ * contract's counted dimensions plus an uncounted `AWS::Marketplace::Usage` entitlement held while
+ * the agreement is active. Sim checks the uncounted one with a provisional `CheckoutLicense`, so
+ * every replica can check at once (a counted unit would go to one replica only), using only the
+ * permission in AWS's managed `AWSLicenseManagerConsumptionPolicy`. While the license is active, the
+ * Enterprise suite is on (`ENTERPRISE_ENABLED`). Without one, Sim runs as the open-source core, so a lapsed renewal or
+ * an unreachable License Manager never locks a buyer out of their deployment.
  *
  * Opt-in: nothing here runs unless {@link PRODUCT_SKU_ENV} is set, which only the Marketplace
  * Helm profile does. Enterprise flags are read once at startup by both the server and the
@@ -38,8 +37,8 @@ const LICENSE_REGION_ENV = 'AWS_MARKETPLACE_LICENSE_REGION'
 /** The issuer every AWS Marketplace license is signed by (a fixed value, not a placeholder). */
 const MARKETPLACE_KEY_FINGERPRINT = 'aws:294406891311:AWS/Marketplace:issuer-fingerprint'
 
-/** The listing's contract dimension API name. */
-const ENTERPRISE_ENTITLEMENT = 'enterprise_license'
+/** The uncounted entitlement every AWS Marketplace license holds while its agreement is active. */
+const MARKETPLACE_USAGE_ENTITLEMENT = 'AWS::Marketplace::Usage'
 
 /** AWS recommends re-checking every 15 minutes to pick up renewals, upgrades, and cancellations. */
 const RECHECK_INTERVAL_MS = 15 * 60 * 1000
@@ -68,7 +67,10 @@ const NO_ENTITLEMENT_ERRORS = new Set([
   'ResourceNotFoundException',
 ])
 
-/** The ServiceAccount's IAM role does not allow the check: a setup problem, never a verdict. */
+/**
+ * The check was refused: the ServiceAccount's IAM role lacks the permission, or License Manager's
+ * service-linked role is missing from the account. A setup problem, never a verdict.
+ */
 const PERMISSION_ERRORS = new Set(['AccessDeniedException', 'AuthorizationException'])
 
 /** `unknown` is a failed check (network, permissions, throttling), never a verdict on the license. */
@@ -93,10 +95,10 @@ function classifyFailure(error: unknown): LicenseState {
     return 'not-entitled'
   }
   if (name && PERMISSION_ERRORS.has(name)) {
-    logger.error(
-      'The IAM role cannot check the AWS Marketplace license; allow license-manager:CheckoutLicense',
-      { error: name }
-    )
+    logger.error('AWS License Manager refused the license check', {
+      error: name,
+      message: getErrorMessage(error, 'Unknown error'),
+    })
     return 'unknown'
   }
   logger.warn('Could not check the AWS Marketplace Enterprise license', {
@@ -116,12 +118,12 @@ async function checkLicense(
         ProductSKU: productSku,
         CheckoutType: 'PROVISIONAL',
         KeyFingerprint: MARKETPLACE_KEY_FINGERPRINT,
-        Entitlements: [{ Name: ENTERPRISE_ENTITLEMENT, Unit: 'None' }],
+        Entitlements: [{ Name: MARKETPLACE_USAGE_ENTITLEMENT, Unit: 'None' }],
         ClientToken: generateId(),
       })
     )
     const allowed = (checkout.EntitlementsAllowed ?? []).some(
-      (entitlement) => entitlement.Name === ENTERPRISE_ENTITLEMENT
+      (entitlement) => entitlement.Name === MARKETPLACE_USAGE_ENTITLEMENT
     )
     return allowed ? 'entitled' : 'not-entitled'
   } catch (error) {
