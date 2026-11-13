@@ -187,7 +187,7 @@ export const ComputerUseSchema = z.union([
       .boolean()
       .optional()
       .describe(
-        "Explicitly bring this app to the foreground before the batch. Defaults to false; leave omitted for background input. An inactive app alone does not require activation. Do not set true when the user requires background operation. Editor, window, and geometry checks still apply.",
+        "Explicitly bring this app to the foreground before the sequence. Defaults to false; leave omitted for background input. An inactive app alone does not require activation. Do not set true when the user requires background operation. Editor, window, and geometry checks still apply.",
       ),
     steps: z
       .array(InputSequenceStep)

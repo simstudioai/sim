@@ -91,8 +91,11 @@ func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
 /// the element lacks or fails to return is omitted, as `attribute` would return nil for it.
 func attributes(_ element: AXUIElement, _ names: [String]) -> [String: CFTypeRef] {
     var raw: CFArray?
-    guard AXUIElementCopyMultipleAttributeValues(element, names as CFArray, AXCopyMultipleAttributeOptions(rawValue: 0), &raw) == .success,
-          let values = raw as [AnyObject]?, values.count == names.count else {
+    let status = AXUIElementCopyMultipleAttributeValues(element, names as CFArray, AXCopyMultipleAttributeOptions(rawValue: 0), &raw)
+    guard status == .success, let values = raw as [AnyObject]?, values.count == names.count else {
+        // Only an element that cannot answer a batched read is asked one attribute at a time; a
+        // timeout or failure would only repeat once per attribute.
+        guard [.attributeUnsupported, .illegalArgument, .notImplemented].contains(status) else { return [:] }
         return names.reduce(into: [:]) { result, name in result[name] = attribute(element, name) }
     }
     var result: [String: CFTypeRef] = [:]
@@ -467,8 +470,18 @@ func validateBatchSteps(_ steps: [Parameters]) throws {
     guard (2...8).contains(steps.count) else { throw ComputerError("invalid_arguments", "A batch requires 2 to 8 steps.") }
     var units = 0
     for step in steps {
-        guard let action = step.action, BATCH_ACTIONS.contains(action), step.bundleId == nil, step.snapshotId == nil, step.steps == nil else {
+        guard let action = step.action, BATCH_ACTIONS.contains(action), step.bundleId == nil, step.snapshotId == nil else {
             throw ComputerError("invalid_arguments", "Batch steps are click, type_text, set_value, press_key, scroll or perform_action, without their own app or snapshot.")
+        }
+        // Malformed steps are refused before step 1 runs, so a typo never leaves a half-applied batch.
+        switch action {
+        case "type_text": _ = try required(step.elementId, "elementId"); _ = try required(step.text, "text")
+        case "set_value": _ = try required(step.elementId, "elementId"); _ = try required(step.value, "value")
+        case "perform_action": _ = try required(step.elementId, "elementId"); _ = try required(step.accessibilityAction, "accessibilityAction")
+        case "press_key": _ = try parseKey(required(step.key, "key"))
+        case "click":
+            guard ["left", "right"].contains(step.button ?? "left"), (1...3).contains(step.clickCount ?? 1) else { throw ComputerError("invalid_arguments", "Invalid button or clickCount.") }
+        default: break
         }
         units += (step.text?.utf16.count ?? 0) + (step.value?.utf16.count ?? 0)
     }
@@ -599,15 +612,33 @@ func focusByClicking(_ element: AXUIElement, pid: pid_t, snapshot: Snapshot) asy
     let center = CGPoint(x: rect.midX, y: rect.midY)
     // The point must land on the editor or a text control inside it, never a button or row nested in a container.
     guard takesText(element), frame.contains(center), let hit = elementAtPoint(center) else { return }
-    let insideEditor = takesText(hit) ? try ancestorPath(hit, to: element) != nil : false
+    let insideEditor = try takesText(hit) && ancestorPath(hit, to: element) != nil
     // Secure inputs stay untargetable, so a password field is never clicked into focus either.
     guard CFEqual(hit, element) || insideEditor, (try? requireNonSecure(hit)) != nil else { return }
-    try await coordinateAction { dispatch in
-        try checkCancellation()
-        try postMouse(pid: pid, type: .leftMouseDown, point: center, button: .left, windowID: windowID, window: window, frame: frame, dispatch: dispatch)
-        try postMouse(pid: pid, type: .leftMouseUp, point: center, button: .left, windowID: windowID, window: window, frame: frame, release: true, dispatch: dispatch)
+    do {
+        try await coordinateAction { dispatch in
+            try checkCancellation()
+            try postMouse(pid: pid, type: .leftMouseDown, point: center, button: .left, windowID: windowID, window: window, frame: frame, dispatch: dispatch)
+            try postMouse(pid: pid, type: .leftMouseUp, point: center, button: .left, windowID: windowID, window: window, frame: frame, release: true, dispatch: dispatch)
+        }
+    } catch let error as ComputerError where error.dispatchState == "not_started" {
+        // A mouse guard refused the point before anything was sent; the focus check reports the outcome.
+        return
     }
-    try await Task.sleep(for: .milliseconds(100))
+    // A click leaves the caret where it landed; typing inserts at the end, as after an Accessibility focus.
+    let root = AXUIElementCreateApplication(pid)
+    for _ in 0..<5 {
+        try await Task.sleep(for: .milliseconds(50))
+        guard let focused = attribute(root, kAXFocusedUIElementAttribute), holdsFocus(focused, element) else { continue }
+        let editor = unsafeBitCast(focused, to: AXUIElement.self)
+        var settable: DarwinBoolean = false
+        if AXUIElementIsAttributeSettable(editor, kAXSelectedTextRangeAttribute as CFString, &settable) == .success, settable.boolValue,
+           let value = attribute(editor, kAXValueAttribute) as? String {
+            var range = CFRange(location: value.utf16.count, length: 0)
+            if let end = AXValueCreate(.cfRange, &range) { _ = AXUIElementSetAttributeValue(editor, kAXSelectedTextRangeAttribute as CFString, end) }
+        }
+        return
+    }
 }
 func discoverApps() throws -> [[String: Any]] {
     var entries: [String: [String: Any]] = [:]
@@ -767,14 +798,16 @@ final class Driver {
                  "sequence": ["completedSteps": completed, "totalSteps": steps.count, "error": String((message + " The remaining steps were not run; observe the app before continuing, and do not retry the batch.").prefix(2000))]]
             }
             for (index, step) in steps.enumerated() {
-                // Stop can arrive during the previous step's settle; no later step may start after it.
-                do { try checkCancellation() } catch { if completed == 0 { throw error }; return stopped("Stopped before step \(index + 1).") }
-                var params = step; params.bundleId = p.bundleId; params.snapshotId = p.snapshotId
+                // Stop can arrive during the previous step's render wait; no later step may start after it.
+                if index > 0 { do { try checkCancellation() } catch { return stopped("Stopped before step \(index + 1).") } }
                 let before = uiStructure(pid: pid)
-                do { _ = try await act(Request(id: request.id, method: try required(step.action, "action"), params: params), app: app, bundle: bundle, snapshot: snapshot) }
+                do { _ = try await act(Request(id: request.id, method: try required(step.action, "action"), params: step), app: app, bundle: bundle, snapshot: snapshot) }
                 catch {
                     // A first step that sent nothing fails like the single action, keeping the snapshot valid.
-                    if !inputDispatched { throw error }
+                    if completed == 0 && !inputDispatched {
+                        guard let error = error as? ComputerError else { throw error }
+                        throw ComputerError(error.code, "Batch step 1 failed: " + error.message, dispatchState: error.dispatchState)
+                    }
                     return stopped("Step \(index + 1) failed: " + ((error as? ComputerError)?.message ?? "its outcome is unknown."))
                 }
                 completed += 1
@@ -832,7 +865,11 @@ final class Driver {
             // Activation can move focus, so whether the editor holds it is read after activating.
             if attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) != true {
                 try axCheck(AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue))
-                try await Task.sleep(for: .milliseconds(50))
+                // Focus can settle asynchronously; slow apps get 250 ms before any click is considered.
+                for _ in 0..<5 {
+                    try await Task.sleep(for: .milliseconds(50))
+                    if attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) == true { break }
+                }
                 // Some apps (SwiftUI sheets such as Clock's city search) ignore an Accessibility focus
                 // request; in a foreground app the field is focused the way a user would, by clicking it.
                 if app.isActive, attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) != true {
@@ -861,7 +898,7 @@ final class Driver {
                 do { try validateFocus(); break }
                 catch let error as ComputerError where error.code == "focus_changed" {
                     if attempt < 9 { try await Task.sleep(for: .milliseconds(50)) }
-                    else if !app.isActive { throw ComputerError("activation_required", "No input was dispatched. This background app does not expose the exact keyboard focus target. Call activate_app for this bundle, then get_app_state and retry using the fresh editor reference.", dispatchState: "not_started") }
+                    else if !app.isActive && !inputDispatched { throw ComputerError("activation_required", "No input was dispatched. This background app does not expose the exact keyboard focus target. Call activate_app for this bundle, then get_app_state and retry using the fresh editor reference.", dispatchState: "not_started") }
                     else { throw error }
                 }
             }

@@ -258,18 +258,29 @@ export class ComputerUseService {
       }
       this.check(work)
       const owner = 'snapshotId' in input ? this.snapshots.get(input.snapshotId) : undefined
-      const elementId = 'elementId' in input ? input.elementId : undefined
       /**
        * Element and coordinate calls observe the window they acted on. An untargeted key keeps the
        * focused-window default, so a key that closes the window still returns fresh state.
        */
-      const windowId =
-        ('windowId' in input ? input.windowId : undefined) ??
-        (elementId
-          ? (owner?.elementWindows.get(elementId) ?? owner?.windowId)
-          : 'x' in input
+      const targetWindow = (target: { windowId?: string; elementId?: string; x?: number }) =>
+        target.windowId ??
+        (target.elementId
+          ? (owner?.elementWindows.get(target.elementId) ?? owner?.windowId)
+          : target.x !== undefined
             ? owner?.windowId
             : undefined)
+      /** A batch observes the one window all of its steps target; any untargeted step keeps the focused default. */
+      const batchWindows =
+        input.action === 'batch' ? new Set(input.steps.map(targetWindow)) : undefined
+      const windowId = batchWindows
+        ? batchWindows.size === 1
+          ? [...batchWindows][0]
+          : undefined
+        : targetWindow({
+            windowId: 'windowId' in input ? input.windowId : undefined,
+            elementId: 'elementId' in input ? input.elementId : undefined,
+            x: 'x' in input ? input.x : undefined,
+          })
       if ('snapshotId' in input) this.snapshots.delete(input.snapshotId)
       /** Mutations accept includeScreenshot as shorthand for observeAfter.includeScreenshot. */
       const isMutation = input.action !== 'get_app_state'
