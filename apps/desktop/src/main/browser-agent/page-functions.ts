@@ -2041,22 +2041,23 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     }
   }
   // Top-page typing goes through keyboard focus, so a non-modal overlay does not block it. A modal
-  // still refuses: one marked as a dialog, or an unmarked fixed layer spanning the viewport that
-  // does not also hold the field (a full-screen app shell does). Framed fields keep the check for
-  // their mapped point, and a field no sampled point reaches refuses.
+  // still does: a dialog, or an unmarked fixed layer spanning the viewport that does not hold the
+  // field (a full-screen app shell does). Framed fields keep the check for their mapped point.
   const topPageField = view === window && window.top === window
-  const holdsField = (node: Element): boolean => {
-    for (let current: Element | null = editable; current; current = composedParent(current)) {
-      if (current === node) return true
-    }
-    return false
+  const MODAL_VIEWPORT_COVERAGE = 0.9
+  const fieldAncestors = new Set<Element>()
+  for (let current: Element | null = editable; current; current = composedParent(current)) {
+    fieldAncestors.add(current)
   }
   const spansViewport = (node: Element): boolean => {
     if (view.getComputedStyle(node).position !== 'fixed') return false
     const box = node.getBoundingClientRect()
     const width = Math.min(box.right, view.innerWidth) - Math.max(box.left, 0)
     const height = Math.min(box.bottom, view.innerHeight) - Math.max(box.top, 0)
-    return width >= view.innerWidth * 0.9 && height >= view.innerHeight * 0.9
+    return (
+      width >= view.innerWidth * MODAL_VIEWPORT_COVERAGE &&
+      height >= view.innerHeight * MODAL_VIEWPORT_COVERAGE
+    )
   }
   const insideModal = (node: Element): boolean => {
     for (let current: Element | null = node; current; current = composedParent(current)) {
@@ -2069,11 +2070,11 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
       ) {
         return true
       }
-      if (!holdsField(current) && spansViewport(current)) return true
+      if (!fieldAncestors.has(current) && spansViewport(current)) return true
     }
     return false
   }
-  const hits = blockedPoints.flatMap((point) => (point.hit ? [point.hit] : []))
+  const hits = Array.from(new Set(blockedPoints.flatMap((point) => (point.hit ? [point.hit] : []))))
   let coveredBy: string | undefined
   if (!chosenPoint && topPageField && hits.length > 0 && !hits.some(insideModal)) {
     chosenPoint = { x: blockedPoints[0].x, y: blockedPoints[0].y }

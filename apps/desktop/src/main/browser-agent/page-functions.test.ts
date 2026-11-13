@@ -66,18 +66,9 @@ function runSerialized(fn: (...args: never[]) => unknown, args: unknown[]): unkn
   return new Function(`return ${serializePageCall(fn, args)}`)()
 }
 
-function visible<T extends Element>(el: T): T {
+function visible<T extends Element>(el: T, width = 100, height = 20): T {
   el.getBoundingClientRect = () =>
-    ({
-      x: 0,
-      y: 0,
-      width: 100,
-      height: 20,
-      top: 0,
-      left: 0,
-      right: 100,
-      bottom: 20,
-    }) as DOMRect
+    ({ x: 0, y: 0, width, height, top: 0, left: 0, right: width, bottom: height }) as DOMRect
   return el
 }
 
@@ -381,20 +372,8 @@ describe('combobox typing surfaces', () => {
     expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
   })
 
-  function coverViewport<T extends Element>(el: T): T {
-    el.getBoundingClientRect = () =>
-      ({
-        x: 0,
-        y: 0,
-        width: window.innerWidth,
-        height: window.innerHeight,
-        top: 0,
-        left: 0,
-        right: window.innerWidth,
-        bottom: window.innerHeight,
-      }) as DOMRect
-    return el
-  }
+  const coverViewport = <T extends Element>(el: T): T =>
+    visible(el, window.innerWidth, window.innerHeight)
 
   it('refuses a top-page field behind an unmarked full-screen modal layer', () => {
     document.body.innerHTML = `
