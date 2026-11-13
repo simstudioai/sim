@@ -4,8 +4,10 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   calBookingRequestSchema,
+  type calBookingWebhookContract,
   calWebhookEnvelopeSchema,
 } from '@/lib/api/contracts/demo-requests'
+import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 import { env } from '@/lib/core/config/env'
 import {
   assertContentLengthWithinLimit,
@@ -22,6 +24,10 @@ const BODY_LABEL = 'Cal.com booking webhook body'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+type WebhookResponse = ContractJsonResponse<typeof calBookingWebhookContract>
+
+const ACKNOWLEDGED: WebhookResponse = { ok: true }
 
 async function readBody(request: NextRequest): Promise<string> {
   assertContentLengthWithinLimit(request.headers, WEBHOOK_MAX_BODY_BYTES, BODY_LABEL)
@@ -71,13 +77,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   const envelope = calWebhookEnvelopeSchema.safeParse(json)
   if (!envelope.success || envelope.data.triggerEvent !== 'BOOKING_REQUESTED') {
-    return NextResponse.json({ ok: true })
+    return NextResponse.json(ACKNOWLEDGED)
   }
 
   const booking = calBookingRequestSchema.safeParse(envelope.data.payload)
   if (!booking.success) {
     logger.warn('Demo booking request is missing its uid or attendee')
-    return NextResponse.json({ ok: true })
+    return NextResponse.json(ACKNOWLEDGED)
   }
 
   const decision = await reviewDemoBookingRequest({
@@ -85,5 +91,5 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     attendeeEmail: booking.data.attendees[0].email,
   })
   logger.info('Demo booking request reviewed', { decision })
-  return NextResponse.json({ ok: true, decision })
+  return NextResponse.json<WebhookResponse>({ ok: true, decision })
 })

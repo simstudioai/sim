@@ -4,6 +4,9 @@ import { getRedisClient } from '@/lib/core/config/redis'
 /** How long a submitted demo form vouches for a booking made with the same email. */
 const BOOKER_TTL_SECONDS = 24 * 60 * 60
 
+/** How long a booking keeps the lookup it claimed, which covers Cal.com's repeat deliveries. */
+const CLAIM_TTL_SECONDS = 7 * 24 * 60 * 60
+
 /**
  * How far the demo form vouched for an email. `verified` passed Turnstile.
  * `unverified` reached the server without a Turnstile pass the server could
@@ -39,13 +42,30 @@ export async function recordDemoBooker(email: string, status: DemoBookerStatus):
   }
 }
 
+function parseLookup(value: string | null): DemoBookerLookup | null {
+  return value === 'verified' || value === 'unverified' || value === 'unseen' ? value : null
+}
+
 /**
- * Reads and removes the record for an email, so one form submission vouches for
- * exactly one booking.
+ * Claims the email's record for one booking and remembers the result against
+ * that booking. One form submission vouches for exactly one booking, and a
+ * repeated webhook delivery for the same booking reads back the same lookup
+ * instead of finding the record already spent. Of two concurrent deliveries,
+ * the first to store its claim wins and the other adopts it.
  */
-export async function takeDemoBooker(email: string): Promise<DemoBookerLookup> {
+export async function claimDemoBooker(
+  email: string,
+  bookingUid: string
+): Promise<DemoBookerLookup> {
   const redis = getRedisClient()
   if (!redis) return 'unavailable'
-  const status = await redis.getdel(bookerKey(email))
-  return status === 'verified' || status === 'unverified' ? status : 'unseen'
+
+  const claimKey = `demo-booking:claim:${bookingUid}`
+  const existing = parseLookup(await redis.get(claimKey))
+  if (existing) return existing
+
+  const lookup = parseLookup(await redis.getdel(bookerKey(email))) ?? 'unseen'
+  const stored = await redis.set(claimKey, lookup, 'EX', CLAIM_TTL_SECONDS, 'NX')
+  if (stored === 'OK') return lookup
+  return parseLookup(await redis.get(claimKey)) ?? lookup
 }

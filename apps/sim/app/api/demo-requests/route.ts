@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
+import { after, type NextRequest, NextResponse } from 'next/server'
 import { formatAttributionForNotification } from '@/lib/analytics/attribution'
 import {
   getDemoRequestCompanySizeLabel,
@@ -36,10 +36,13 @@ const SUCCESS_RESPONSE = { success: true, message: 'Thanks! Our team will reach 
 const TOO_MANY_REQUESTS_RESPONSE = { error: 'Too many requests. Please try again later.' }
 
 /**
- * Public demo-form endpoint: per-IP rate limit, honeypot drop, captcha, then
- * the sales notification. It also records how far the form vouched for the
- * visitor's email, which decides their Cal.com booking (see
- * {@link recordDemoBooker} and `lib/demo-booking/review.ts`).
+ * Public demo-form endpoint: per-IP rate limit, honeypot drop, captcha, then a
+ * record of how far the form vouched for the visitor's email, which decides
+ * their Cal.com booking (see {@link recordDemoBooker} and
+ * `lib/demo-booking/review.ts`). The form opens the calendar only after this
+ * answers, so a booking can never outrun its record; a failed write answers 503
+ * and the visitor retries instead of booking unrecorded. The sales notification
+ * goes out after the response.
  *
  * The captcha mirrors `/api/contact`: a valid Turnstile token marks the email
  * `verified`; a missing token or a Cloudflare transport error passes through the
@@ -123,8 +126,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     try {
       await recordDemoBooker(companyEmail, bookerStatus)
     } catch (error) {
-      logger.warn('Could not record the demo booker', { error })
+      logger.error('Could not record the demo booker', { error })
+      return NextResponse.json(
+        { error: 'We could not save your request. Please try again.' },
+        { status: 503 }
+      )
     }
+
     const attribution = formatAttributionForNotification((name) => req.cookies.get(name)?.value)
 
     logger.info('Processing demo request', {
@@ -143,21 +151,20 @@ Details:
 ${details}
 ${attribution ? `\nAttribution:\n${attribution}\n` : ''}`
 
-    const emailResult = await sendEmail({
-      to: [`enterprise@${env.EMAIL_DOMAIN || getEmailDomain()}`],
-      subject: `[DEMO REQUEST] ${firstName} ${lastName}`,
-      text: emailText,
-      from: getFromEmailAddress(),
-      replyTo: companyEmail,
-      emailType: 'transactional',
+    // The visitor waits on this response before the calendar opens; the sales
+    // notification does not need to hold it up.
+    after(async () => {
+      const emailResult = await sendEmail({
+        to: [`enterprise@${env.EMAIL_DOMAIN || getEmailDomain()}`],
+        subject: `[DEMO REQUEST] ${firstName} ${lastName}`,
+        text: emailText,
+        from: getFromEmailAddress(),
+        replyTo: companyEmail,
+        emailType: 'transactional',
+      })
+      if (emailResult.success) logger.info('Demo request email sent successfully')
+      else logger.error('Error sending demo request email', emailResult.message)
     })
-
-    if (!emailResult.success) {
-      logger.error('Error sending demo request email', emailResult.message)
-      return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 })
-    }
-
-    logger.info('Demo request email sent successfully')
 
     return NextResponse.json(SUCCESS_RESPONSE, { status: 201 })
   } catch (error) {

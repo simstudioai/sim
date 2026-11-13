@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { Chip, ChipDropdown, ChipInput, ChipTextarea, Label } from '@sim/emcn'
+import { toError } from '@sim/utils/errors'
 import {
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
   type DemoRequestBody,
@@ -14,6 +15,14 @@ import { useSubmitDemoRequest } from '@/hooks/queries/demo-requests'
 
 /** Build-time-inlined Turnstile site key; absent when captcha isn't configured. */
 const TURNSTILE_SITE_KEY = getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY')
+
+/**
+ * How long Continue waits on the invisible challenge before sending the request
+ * without a token. An interactive challenge cannot be shown in the hidden
+ * widget, so waiting longer only delays the calendar; the server then marks the
+ * request unverified and the booking goes to manual review.
+ */
+const CAPTCHA_WAIT_MS = 5_000
 
 /** Options for the "What can we help you with?" select; the first is the default. */
 const TOPIC_OPTIONS = [
@@ -160,12 +169,13 @@ function DemoField({ label, htmlFor, required, error, children }: DemoFieldProps
  * looks like an address attempt, and the primary {@link Chip} stays disabled until
  * every required field is valid.
  *
- * On a valid submit it hands a {@link DemoLead} (name, email, and a notes
- * summary) to `onComplete`, which advances the card to the scheduler at once,
- * and then sends the demo request (via {@link useSubmitDemoRequest}) in the
- * background with an invisible Turnstile token and a honeypot `website` field.
- * Nothing about the request delays the calendar: its outcome only decides
- * whether the visitor's booking is confirmed automatically or reviewed by hand.
+ * On a valid submit it sends the demo request (via {@link useSubmitDemoRequest})
+ * with an invisible Turnstile token and a honeypot `website` field, and only
+ * once the server has recorded it hands a {@link DemoLead} (name, email, and a
+ * notes summary) to `onComplete`, which advances the card to the scheduler. The
+ * record decides whether the booking is confirmed automatically or reviewed by
+ * hand, so the calendar never opens before it exists. A failed request keeps the
+ * form open with an inline error.
  */
 export function DemoForm({ onComplete }: DemoFormProps) {
   const submitDemoRequest = useSubmitDemoRequest()
@@ -176,8 +186,10 @@ export function DemoForm({ onComplete }: DemoFormProps) {
   const turnstileRef = useRef<TurnstileInstance>(null)
   const widgetLoadedRef = useRef(false)
 
-  const setField = (key: keyof DemoFormState) => (value: string) =>
+  const setField = (key: keyof DemoFormState) => (value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }))
+    if (submitDemoRequest.isError) submitDemoRequest.reset()
+  }
 
   /**
    * Prefill the email from the `?email=` param the landing hero's CTA forwards
@@ -227,14 +239,20 @@ export function DemoForm({ onComplete }: DemoFormProps) {
     try {
       widget.reset()
       widget.execute()
-      return await widget.getResponsePromise(30_000)
+      return await widget.getResponsePromise(CAPTCHA_WAIT_MS)
     } catch {
       return undefined
     }
   }
 
-  const handleSubmit = () => {
-    if (!canSubmit) return
+  const [isSolvingCaptcha, setIsSolvingCaptcha] = useState(false)
+  const isSubmitting = isSolvingCaptcha || submitDemoRequest.isPending
+  const submitError = submitDemoRequest.isError
+    ? toError(submitDemoRequest.error).message || 'Something went wrong. Please try again.'
+    : null
+
+  const handleSubmit = async () => {
+    if (!canSubmit || isSubmitting) return
 
     const request: DemoRequestBody = {
       firstName: form.firstName.trim(),
@@ -246,15 +264,17 @@ export function DemoForm({ onComplete }: DemoFormProps) {
       website,
     }
 
-    onComplete({
+    const lead: DemoLead = {
       name: `${form.firstName} ${form.lastName}`.trim(),
       email: trimmedEmail,
       notes: buildNotes(form),
-    })
+    }
 
-    void solveCaptcha().then((captchaToken) =>
-      submitDemoRequest.mutate({ ...request, captchaToken })
-    )
+    setIsSolvingCaptcha(true)
+    const captchaToken = await solveCaptcha()
+    setIsSolvingCaptcha(false)
+
+    submitDemoRequest.mutate({ ...request, captchaToken }, { onSuccess: () => onComplete(lead) })
   }
 
   return (
@@ -269,7 +289,7 @@ export function DemoForm({ onComplete }: DemoFormProps) {
       <form
         onSubmit={(event) => {
           event.preventDefault()
-          handleSubmit()
+          void handleSubmit()
         }}
         aria-labelledby='demo-form-heading'
         className='relative mt-5 flex flex-col gap-4'
@@ -404,14 +424,20 @@ export function DemoForm({ onComplete }: DemoFormProps) {
           `Chip` gives its label span `flex-1`; under `fullWidth` that left-aligns the
           label, so center it with `justify-center` + a `flex-none` span override.
         */}
+        {submitError ? (
+          <p role='alert' className='text-[var(--text-error)] text-caption'>
+            {submitError}
+          </p>
+        ) : null}
+
         <Chip
           type='submit'
           variant='primary'
           fullWidth
-          disabled={!canSubmit}
+          disabled={!canSubmit || isSubmitting}
           className='mt-1 justify-center [&>span]:flex-none'
         >
-          Continue
+          {isSubmitting ? 'Continuing…' : 'Continue'}
         </Chip>
       </form>
     </>

@@ -3,7 +3,7 @@ import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { SIM_SITE_URL } from '@sim/utils/site'
 import { env } from '@/lib/core/config/env'
-import { type DemoBookerLookup, takeDemoBooker } from '@/lib/demo-booking/bookers'
+import { claimDemoBooker, type DemoBookerLookup } from '@/lib/demo-booking/bookers'
 
 const logger = createLogger('DemoBookingReview')
 
@@ -85,7 +85,7 @@ export async function reviewDemoBookingRequest({
 
   let booker: DemoBookerLookup
   try {
-    booker = await takeDemoBooker(attendeeEmail)
+    booker = await claimDemoBooker(attendeeEmail, bookingUid)
   } catch (error) {
     logger.warn('Could not read the demo booker record', { error })
     return 'pending'

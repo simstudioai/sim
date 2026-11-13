@@ -99,3 +99,22 @@ export const calBookingRequestSchema = z.object({
   uid: z.string().min(1),
   attendees: z.array(z.object({ email: z.string().min(1) })).min(1),
 })
+
+/**
+ * The Cal.com webhook for the demo event. Cal.com is the only caller, so no
+ * client reads this contract; it declares the shapes the route accepts and
+ * answers. The route reads the raw body itself, because the signature covers
+ * the exact bytes Cal.com sent.
+ */
+export const calBookingWebhookContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/demo-requests/bookings',
+  body: calWebhookEnvelopeSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      ok: z.literal(true),
+      decision: z.enum(['confirmed', 'declined', 'pending']).optional(),
+    }),
+  },
+})
