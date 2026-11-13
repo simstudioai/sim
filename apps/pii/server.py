@@ -184,6 +184,7 @@ batch_analyzer: BatchAnalyzerEngine
 anonymizer: AnonymizerEngine
 NER_ENTITIES: frozenset
 _BLANK_ARTIFACTS: dict
+_NLP_MAX_LENGTH: dict
 
 # Every entity the spaCy NER recognizers can actually produce. A request touching
 # any of these must run spaCy; a request naming only non-NER (regex/checksum)
@@ -227,6 +228,32 @@ def _regex_only(entities: list[str] | None, score_threshold: float | None) -> bo
     )
 
 
+def _require_nlp_length(
+    texts: list[str],
+    language: str,
+    entities: list[str] | None,
+    score_threshold: float | None,
+) -> None:
+    """Refuse, as a 422, any text longer than the language model's spaCy
+    `max_length` when the request runs the NLP pass. spaCy raises ValueError E088
+    for such a text, which FastAPI answers as an opaque 500 that callers retry as
+    a transient failure; the same text fails the same way every time, so callers
+    must split it rather than resend it. Regex-only requests skip spaCy and are
+    not limited."""
+    if _regex_only(entities, score_threshold):
+        return
+    limit = _NLP_MAX_LENGTH.get(language)
+    if limit is None:
+        return
+    for index, text in enumerate(texts):
+        if len(text) > limit:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Text {index} has {len(text)} characters; NER accepts at most "
+                f"{limit} per text. Split it before sending.",
+            )
+
+
 def _analyze_one(
     text: str,
     language: str,
@@ -235,6 +262,7 @@ def _analyze_one(
     return_decision_process: bool = False,
     ad_hoc_recognizers: list[PatternRecognizer] | None = None,
 ):
+    _require_nlp_length([text], language, entities, score_threshold)
     # Regex-only requests reuse a blank NlpArtifacts to skip the spaCy NLP pass;
     # otherwise analyze() computes artifacts (runs spaCy) as usual. Custom-pattern
     # recognizers are regex-based, so they run fine against the blank artifacts.
@@ -265,6 +293,7 @@ def _analyze_many(
     ad_hoc_recognizers: list[PatternRecognizer] | None = None,
 ):
     """Analyze many texts, skipping the spaCy pass for regex-only requests."""
+    _require_nlp_length(texts, language, entities, score_threshold)
     if _regex_only(entities, score_threshold):
         blank = _BLANK_ARTIFACTS.get(language)
         return [
@@ -292,7 +321,7 @@ def _analyze_many(
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    global analyzer, batch_analyzer, anonymizer, NER_ENTITIES, _BLANK_ARTIFACTS
+    global analyzer, batch_analyzer, anonymizer, NER_ENTITIES, _BLANK_ARTIFACTS, _NLP_MAX_LENGTH
     logger.info("building analyzer (spacy)")
     analyzer = build_analyzer()
     batch_analyzer = BatchAnalyzerEngine(analyzer_engine=analyzer)
@@ -318,6 +347,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     _BLANK_ARTIFACTS = {
         language: analyzer.nlp_engine.process_text("", language)
         for language in SUPPORTED_LANGUAGES
+    }
+    _NLP_MAX_LENGTH = {
+        language: nlp.max_length
+        for language, nlp in getattr(analyzer.nlp_engine, "nlp", {}).items()
     }
     yield
 

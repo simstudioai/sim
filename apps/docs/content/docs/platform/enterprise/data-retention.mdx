@@ -118,6 +118,8 @@ Redaction applies to text strings at the configured workflow stages. It does not
 
 If log redaction fails, affected strings are replaced with `[REDACTION_FAILED]` rather than stored unmasked. Failure at Workflow input or Block outputs stops the run instead of passing unredacted values downstream.
 
+Base64-encoded file content, such as a `data:` URL or a long base64 string, can't be checked for PII as text. In stored logs it is replaced with `[BINARY_CONTENT_REDACTED]`. At Workflow input and Block outputs it passes through unchanged, so later blocks can still read the file. **Run from block** and re-running with a previous run's input read that run's log, so they see the marker in place of that content, the same way they see masked PII.
+
 ## Self-hosted setup
 
 ### Enable cleanup and schedule it

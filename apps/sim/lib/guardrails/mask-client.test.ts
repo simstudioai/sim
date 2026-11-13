@@ -16,6 +16,7 @@ vi.mock('@/lib/auth/internal', () => authInternalMock)
 vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 import { maskPIIBatchViaHttp } from '@/lib/guardrails/mask-client'
+import { PII_MAX_TEXT_CHARS } from '@/lib/guardrails/pii-batching'
 import { POST as maskBatchRoute } from '@/app/api/guardrails/mask-batch/route'
 
 const mockSleep = utilsHelpersMockFns.mockSleep
@@ -71,6 +72,87 @@ describe('maskPIIBatchViaHttp', () => {
     await expect(maskPIIBatchViaHttp(['a'], [])).rejects.toThrow(/mask-batch request failed/)
     expect(fetchMock).toHaveBeenCalledTimes(8)
     expect(mockSleep).toHaveBeenCalledTimes(7)
+  })
+
+  it('stops after three attempts on a persistent 500, which can be a deterministic input failure', async () => {
+    fetchMock.mockImplementation(async () => new Response('failed', { status: 500 }))
+
+    await expect(maskPIIBatchViaHttp(['a'], [])).rejects.toThrow(/mask-batch request failed/)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(mockSleep).toHaveBeenCalledTimes(2)
+  })
+
+  describe('with a text longer than one Presidio pass allows', () => {
+    /** Each request masks `Ada` to `<PERSON>`, so pieces rejoin to the masked whole. */
+    const maskingAda = () =>
+      fetchMock.mockImplementation(async (_url: string, init: { body: string }) => {
+        const { texts } = JSON.parse(init.body) as { texts: string[] }
+        return Response.json({ masked: texts.map((t) => t.replaceAll('Ada', '<PERSON>')) })
+      })
+    const sentPieces = () =>
+      fetchMock.mock.calls.flatMap(([, init]) => JSON.parse(init.body).texts as string[])
+
+    it('sends newline-aligned pieces within the limit and rejoins the masked result', async () => {
+      maskingAda()
+      const text = Array.from({ length: 60_000 }, (_, i) => `row ${i} owner Ada\n`).join('')
+
+      const { masked } = await maskPIIBatchViaHttp([text, 'short Ada'], ['PERSON'])
+
+      expect(masked).toEqual([text.replaceAll('Ada', '<PERSON>'), 'short <PERSON>'])
+      const pieces = sentPieces().filter((p) => p !== 'short Ada')
+      expect(pieces.length).toBeGreaterThan(1)
+      expect(pieces.join('')).toBe(text)
+      for (const piece of pieces) expect(piece.length).toBeLessThanOrEqual(PII_MAX_TEXT_CHARS)
+      for (const piece of pieces.slice(0, -1)) expect(piece.endsWith('\n')).toBe(true)
+    })
+
+    it('cuts minified JSON at punctuation so no email is split across pieces', async () => {
+      maskingAda()
+      const record = '{"email":"ada.lovelace@example.com","id":1234}'
+      const text = `[${Array.from({ length: 25_000 }, () => record).join(',')}]`
+
+      await maskPIIBatchViaHttp([text], ['EMAIL_ADDRESS'])
+
+      const pieces = sentPieces()
+      expect(pieces.length).toBeGreaterThan(1)
+      const emailsSent = pieces.reduce(
+        (count, piece) => count + piece.split('ada.lovelace@example.com').length - 1,
+        0
+      )
+      expect(emailsSent).toBe(25_000)
+    })
+
+    it('never splits a surrogate pair when the text has nothing to cut at', async () => {
+      // One leading unit puts a high surrogate exactly where a hard cut would land.
+      const text = `a${'\u{1F600}'.repeat(PII_MAX_TEXT_CHARS)}`
+
+      const { masked } = await maskPIIBatchViaHttp([text], [])
+
+      const pieces = sentPieces()
+      expect(pieces.length).toBeGreaterThan(1)
+      expect(pieces.join('')).toBe(text)
+      expect(masked).toEqual([`M(${pieces.join(')M(')})`])
+    })
+
+    it('replaces the whole text when any one of its pieces fails', async () => {
+      const text = `${'safe line\n'.repeat(120_000)}poison`
+      fetchMock.mockImplementation(async (_url: string, init: { body: string }) => {
+        const { texts } = JSON.parse(init.body) as { texts: string[] }
+        if (texts.some((t) => t.endsWith('poison'))) return new Response('no', { status: 422 })
+        return Response.json({ masked: texts })
+      })
+
+      const { masked, scrubbedCount } = await maskPIIBatchViaHttp(
+        [text],
+        [],
+        undefined,
+        undefined,
+        { failedChunkPlaceholder: '[FAILED]' }
+      )
+
+      expect(masked).toEqual(['[FAILED]'])
+      expect(scrubbedCount).toBe(1)
+    })
   })
 
   describe('with a failed-chunk placeholder', () => {

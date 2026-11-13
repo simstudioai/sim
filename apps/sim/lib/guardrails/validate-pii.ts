@@ -8,7 +8,7 @@ import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
+import { chunkIndicesByBudget, joinSegments, segmentTexts } from '@/lib/guardrails/pii-batching'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import {
   MAX_PII_VALIDATION_DETECTED_ENTITIES,
@@ -501,9 +501,11 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
 /**
  * Mask PII across many strings via the Presidio service, preserving input order.
  *
- * Strings are grouped into byte/count-budgeted chunks (see {@link chunkIndicesByBudget}),
- * and each chunk is masked via the combined `/redact_batch` endpoint (one analyze +
- * anonymize round-trip). Against an older Presidio without that endpoint, it falls
+ * A string too long for one NER pass is cut into pieces (see {@link segmentTexts})
+ * that are masked separately and rejoined, since Presidio refuses any text over
+ * spaCy's length limit. Pieces are grouped into byte/count-budgeted chunks (see
+ * {@link chunkIndicesByBudget}), and each chunk is masked via the combined
+ * `/redact_batch` endpoint (one analyze + anonymize round-trip). Against an older Presidio without that endpoint, it falls
  * back to the legacy `analyze_batch` + `anonymize_batch` pair — so the app is safe
  * to deploy before or after the service. Chunks run with bounded concurrency.
  * Strings with no detected PII pass through unchanged, except that unpaired
@@ -520,10 +522,11 @@ export async function maskPIIBatch(
 ): Promise<string[]> {
   if (texts.length === 0) return []
 
-  const result = new Array<string>(texts.length)
+  const { segments, owners } = segmentTexts(texts)
+  const result = new Array<string>(segments.length)
 
-  await mapWithConcurrency(chunkIndicesByBudget(texts), CHUNK_CONCURRENCY, async (indices) => {
-    const chunkTexts = indices.map((i) => texts[i])
+  await mapWithConcurrency(chunkIndicesByBudget(segments), CHUNK_CONCURRENCY, async (indices) => {
+    const chunkTexts = indices.map((i) => segments[i])
 
     if (combinedRedactAvailable) {
       const masked = await redactBatch(chunkTexts, entityTypes, language, customPatterns)
@@ -571,7 +574,7 @@ export async function maskPIIBatch(
     })
   })
 
-  return result
+  return joinSegments(result, owners, texts.length)
 }
 
 export { type PIIEntityType, SUPPORTED_PII_ENTITIES } from '@/lib/guardrails/pii-entities'

@@ -5,6 +5,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/auth/internal', () => authInternalMock)
 
 import {
+  BINARY_CONTENT_REDACTED_MARKER,
   PiiRedactionError,
   REDACTION_FAILED_MARKER,
   redactObjectStrings,
@@ -126,6 +127,68 @@ describe('redactPIIFromExecution', () => {
     expect((result.executionState as any).note).toBe('MASKED(state for e@f.com)')
     expect((result.environment as any).variables.CONTACT).toBe('MASKED(admin@x.com)')
     expect((result.correlation as any).source).toBe('MASKED(corr@x.com)')
+  })
+})
+
+/** Base64 of 48KB of non-text bytes, the shape a file body takes in a payload. */
+const encodedFile = Buffer.from(
+  Array.from({ length: 48 * 1024 }, (_, i) => (i * 7919 + 13) % 256)
+).toString('base64')
+
+describe('encoded binary content', () => {
+  it('replaces encoded file bodies in a persisted log without sending them to Presidio', async () => {
+    const payload = {
+      traceSpans: [{ blockId: 'write', input: { content: encodedFile, name: 'Ada Lovelace' } }],
+      workflowInput: { file: `data:application/pdf;base64,${encodedFile}` },
+    }
+
+    const result = await redactPIIFromExecution(payload, { entityTypes: ['PERSON'] })
+
+    const [span] = result.traceSpans as { input: { content: string; name: string } }[]
+    expect(span.input.content).toBe(BINARY_CONTENT_REDACTED_MARKER)
+    expect((result.workflowInput as { file: string }).file).toBe(BINARY_CONTENT_REDACTED_MARKER)
+    expect(span.input.name).toBe('MASKED(Ada Lovelace)')
+    expect(sentTexts()).toEqual(['Ada Lovelace'])
+  })
+
+  it('passes encoded file bodies through live data unchanged and unsent', async () => {
+    const value = { content: encodedFile, url: `data:image/png;base64,${encodedFile}`, note: 'hi' }
+
+    const result = await redactObjectStrings(value, { entityTypes: [], onFailure: 'throw' })
+
+    expect(result.content).toBe(encodedFile)
+    expect(result.url).toBe(`data:image/png;base64,${encodedFile}`)
+    expect(result.note).toBe('MASKED(hi)')
+    expect(sentTexts()).toEqual(['hi'])
+  })
+
+  /** `encodedFile` wrapped at `width` columns, as MIME (76) and PEM (64) encoders emit it. */
+  const wrapped = (width: number, newline: string) =>
+    (encodedFile.match(new RegExp(`.{1,${width}}`, 'g')) ?? []).join(newline)
+
+  it.each([
+    ['with a trailing newline', `${encodedFile}\n`],
+    ['wrapped at 76 columns', wrapped(76, '\n')],
+    ['wrapped at 64 columns with CRLF', `${wrapped(64, '\r\n')}\r\n`],
+    ['as a wrapped data URL', `data:application/pdf;base64,${wrapped(76, '\n')}`],
+  ])('replaces an encoded file body %s in a persisted log', async (_label, body) => {
+    const result = await redactPIIFromExecution({ finalOutput: body }, { entityTypes: [] })
+
+    expect(result.finalOutput).toBe(BINARY_CONTENT_REDACTED_MARKER)
+    expect(sentTexts()).toEqual([])
+  })
+
+  it.each([
+    ['a newline-separated list of usernames', 'AdaLovelace1815\n'.repeat(100)],
+    ['a long run of digits', '4'.repeat(4096)],
+    ['lowercase hex', 'deadbeef0123'.repeat(400)],
+    ['a short base64 token', 'QWRhIExvdmVsYWNl'],
+    ['a long space-separated sentence', 'Ada Lovelace wrote code. '.repeat(200)],
+  ])('still masks %s, which is not an encoded file', async (_label, text) => {
+    const result = await redactObjectStrings({ text }, { entityTypes: [], onFailure: 'throw' })
+
+    expect(result.text).not.toBe(text)
+    expect(sentTexts().join('')).toBe(text)
   })
 })
 
