@@ -324,7 +324,9 @@ async function verifyWorkspaceIdentity(
       {
         profile: 'configuredEndpoint',
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        // `timeout` resets on activity; the signal caps the whole call, DNS included.
         timeout: REQUEST_TIMEOUT_MS,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         maxRedirects: 0,
         // An oversized body rejects here and fails verification rather than
         // saving the host as the identity.

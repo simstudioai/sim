@@ -646,8 +646,11 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
       z.object({
         available: z.literal(true),
         ...workloadIdentitySubjectGrantShape,
+        /** Absent when Sim does not hold the subject: a reconnect that keeps its own. */
+        subjectIssuedAt: workloadIdentitySubjectGrantShape.subjectIssuedAt.optional(),
+        subjectHeldUntil: workloadIdentitySubjectGrantShape.subjectHeldUntil.optional(),
         /** Whether `subject` was issued earlier, so a trust configuration may already allow it. */
-        subjectReused: z.boolean(),
+        subjectReused: z.boolean().optional(),
         reconnectAuthType: reconnectAuthTypeSchema,
         reconnectDelegation: reconnectDelegationSchema,
         reconnectCloud: reconnectCloudSchema,

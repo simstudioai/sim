@@ -198,7 +198,7 @@ describe('holding an unsaved keyless subject', () => {
 
     expect(renewed.subject).toBe(held.subject)
     expect(renewed.subjectIssuedAt).toBe(tenDaysAgo.toISOString())
-    expect(Date.parse(renewed.subjectHeldUntil)).toBeGreaterThan(
+    expect(Date.parse(renewed.subjectHeldUntil ?? '')).toBeGreaterThan(
       Date.now() + PENDING_SUBJECT_HOLD_MS - DAY_MS
     )
     expect(saved.success).toBe(true)

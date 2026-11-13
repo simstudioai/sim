@@ -71,12 +71,12 @@ export type PrepareWorkloadIdentityResult =
       subject: string
       subjectProof: string
       expiresAt: string
-      /** When Sim first issued `subject`. */
-      subjectIssuedAt: string
+      /** When Sim first issued `subject`; absent when Sim does not hold it (an `unheld` request). */
+      subjectIssuedAt?: string
       /** Until when Sim keeps holding `subject` for this person if no credential saves it. */
-      subjectHeldUntil: string
+      subjectHeldUntil?: string
       /** Whether `subject` was issued earlier, so a trust configuration may already allow it. */
-      subjectReused: boolean
+      subjectReused?: boolean
     } & ReconnectFields)
 
 /** What a provider's stored-secret reader returns: the non-secret fields a reconnect keeps. */
@@ -147,27 +147,14 @@ async function storedReconnectFields(
   return STORED_RECONNECT[provider](decrypted)
 }
 
-/**
- * Starts a keyless cloud connection (an AWS role, a Databricks service
- * principal, a Snowflake service user, a Microsoft app, or a Google service account): the subject the customer's trust
- * configuration will pin, signed for this person and workspace so only they can attach it to the credential
- * they are about to create. Sim holds the subject for them until a credential saves it, so a trust
- * configuration applied days later still matches. Reports `available: false` when this deployment
- * cannot sign tokens, so the connect dialog offers only key-based modes. On a
- * reconnect it also reports the credential's stored mode, signing or not.
- */
+/** The signed subject to hand out, and Sim's hold on it; no hold for an `unheld` request. */
 async function subjectGrant(
   input: PrepareWorkloadIdentityInput,
   owner: { workspaceId: string },
   userId: string
 ) {
   if (input.subjectRequest.kind === 'unheld') {
-    const grant = issueWorkloadIdentitySubject(input.provider, owner, userId)
-    const now = new Date()
-    return {
-      grant,
-      pending: { issuedAt: now, heldUntil: new Date(grant.expiresAt), reused: false },
-    }
+    return { grant: issueWorkloadIdentitySubject(input.provider, owner, userId), pending: null }
   }
   const pending = await resolvePendingWorkloadIdentitySubject(
     { provider: input.provider, workspaceId: input.workspaceId, userId },
@@ -179,6 +166,15 @@ async function subjectGrant(
   }
 }
 
+/**
+ * Starts a keyless cloud connection (an AWS role, a Databricks service
+ * principal, a Snowflake service user, a Microsoft app, or a Google service account): the subject the customer's trust
+ * configuration will pin, signed for this person and workspace so only they can attach it to the credential
+ * they are about to create. Sim holds the subject for them until a credential saves it, so a trust
+ * configuration applied days later still matches. Reports `available: false` when this deployment
+ * cannot sign tokens, so the connect dialog offers only key-based modes. On a
+ * reconnect it also reports the credential's stored mode, signing or not.
+ */
 export const prepareWorkloadIdentity = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.prepareWorkloadIdentity,
   resolveContext: async ({ input }: { input: PrepareWorkloadIdentityInput }) => {
@@ -207,9 +203,13 @@ export const prepareWorkloadIdentity = defineAuthorizedWorkspaceUseCase({
       issuer: getWorkloadIdentityIssuer(),
       ...(audience ? { audience } : {}),
       ...grant,
-      subjectIssuedAt: pending.issuedAt.toISOString(),
-      subjectHeldUntil: pending.heldUntil.toISOString(),
-      subjectReused: pending.reused,
+      ...(pending
+        ? {
+            subjectIssuedAt: pending.issuedAt.toISOString(),
+            subjectHeldUntil: pending.heldUntil.toISOString(),
+            subjectReused: pending.reused,
+          }
+        : {}),
       ...reconnect,
     }
   },
