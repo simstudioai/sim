@@ -241,22 +241,29 @@ describe('TerminalSession command lifecycle', () => {
       }
     })
 
-    it("never reads an interrupted command's ^C echo as a prompt", async () => {
-      vi.useFakeTimers()
-      const session = promptSession()
-      try {
-        const result = session.runCommand('stubborn', 'tool-call-stop', 60_000)
-        ptyStub.dataHandler?.('\u001b]633;C;test-nonce\u0007working\r\n')
-        session.kill('SIGINT')
-        ptyStub.dataHandler?.('^C')
+    it.each([
+      ['Stop', (session: TerminalSession) => session.kill('SIGINT')],
+      ['the agent', (session: TerminalSession) => session.sendKey('ctrl-c')],
+      ['the user typing in the panel', (session: TerminalSession) => session.write('\u0003')],
+    ])(
+      "never reads an interrupted command's ^C echo as a prompt, sent by %s",
+      async (_by, interrupt) => {
+        vi.useFakeTimers()
+        const session = promptSession()
+        try {
+          const result = session.runCommand('stubborn', 'tool-call-stop', 60_000)
+          ptyStub.dataHandler?.('\u001b]633;C;test-nonce\u0007working\r\n')
+          interrupt(session)
+          ptyStub.dataHandler?.('^C')
 
-        expect(await settledAfter(result, 5_000)).toBe(false)
-        ptyStub.dataHandler?.('\u001b]633;D;143;test-nonce\u0007')
-        await expect(result).resolves.toMatchObject({ status: 'completed', exitCode: 143 })
-      } finally {
-        session.dispose()
+          expect(await settledAfter(result, 5_000)).toBe(false)
+          ptyStub.dataHandler?.('\u001b]633;D;143;test-nonce\u0007')
+          await expect(result).resolves.toMatchObject({ status: 'completed', exitCode: 143 })
+        } finally {
+          session.dispose()
+        }
       }
-    })
+    )
   })
 
   it('stops pressing a batch of keys once the call is stopped', async () => {

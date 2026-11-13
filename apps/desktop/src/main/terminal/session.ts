@@ -263,7 +263,7 @@ interface PendingCommand {
   overflow: string
   capturing: boolean
   /**
-   * Set once Ctrl-C was sent. Whatever it leaves on screen (the tty's `^C` echo) is the
+   * Set once Ctrl-C was sent, by Stop, the agent, or the user. Whatever it leaves on screen (the tty's `^C` echo) is the
    * interrupt landing, not a prompt, so the command is waited on to end, or for Stop to end it.
    */
   interrupted: boolean
@@ -645,6 +645,7 @@ export class TerminalSession {
 
   write(data: string): void {
     if (this.disposed) return
+    if (this.pendingCommand && data.includes('\u0003')) this.pendingCommand.interrupted = true
     this.pty.write(data)
   }
 
@@ -717,7 +718,6 @@ export class TerminalSession {
     // SIGINT is delivered as a keystroke so the foreground process group gets
     // it the way Ctrl-C would, rather than only the shell.
     if (signal === 'SIGINT') {
-      if (this.pendingCommand) this.pendingCommand.interrupted = true
       this.write('\u0003')
       return
     }
