@@ -178,6 +178,32 @@ describe('TerminalSession command lifecycle', () => {
     }
   })
 
+  it('returns the output that arrives in one chunk with its start and finish markers', async () => {
+    const session = TerminalSession.create({
+      terminalId: 'terminal-batched',
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+      callbacks: { onData: () => {}, onState: () => {}, onCommand: () => {}, onExit: () => {} },
+    })
+    try {
+      const result = session.runCommand('echo sim-ok', 'tool-call-batched', 60_000)
+      // A fast command on a ConPTY: the echoed line, both markers, the output, and the next prompt
+      // flushed together.
+      ptyStub.dataHandler?.(
+        'echo sim-ok\r\n\u001b]633;C;test-nonce\u0007sim-ok\r\n\u001b]633;D;0;test-nonce\u0007\u001b]633;A;test-nonce\u0007$ '
+      )
+
+      await expect(result).resolves.toMatchObject({
+        status: 'completed',
+        exitCode: 0,
+        output: 'sim-ok',
+      })
+    } finally {
+      session.dispose()
+    }
+  })
+
   describe('handing back a command that looks stuck on a prompt', () => {
     function promptSession(): TerminalSession {
       return TerminalSession.create({

@@ -35,6 +35,7 @@ import {
   createNonce,
   detectShell,
   ShellIntegrationParser,
+  type ShellMarker,
   shellKind,
 } from '@/main/terminal/shell-integration'
 import { resolveShellPath } from '@/main/terminal/shell-path'
@@ -898,35 +899,36 @@ export class TerminalSession {
     }
   }
 
+  /**
+   * Applies the chunk's text and markers in the order the shell wrote them, so output between a
+   * command's start and finish markers is captured even when all three arrive in one chunk.
+   */
   private handleData(chunk: string): void {
-    const { text, markers } = this.parser.parse(chunk)
-
-    for (const marker of markers) {
-      this.applyMarker(marker)
-    }
-
-    if (text) {
-      this.lastOutputAt = Date.now()
-      this.trackAltScreen(text)
-      this.scrollback += text
-      if (this.scrollback.length > MAX_SCROLLBACK_CHARS + TRIM_SLACK_CHARS) {
-        this.scrollback = this.scrollback.slice(-MAX_SCROLLBACK_CHARS)
-      }
-      if (this.pendingCommand?.capturing) {
-        this.pendingCommand.lastActivityAt = Date.now()
-        this.captureOutput(this.pendingCommand, text)
-        if (text.includes(ALT_SCREEN_ENTER)) {
-          this.resolveInteractiveCommand()
-        }
-      }
-      this.pendingOutput += text
-      this.scheduleFlush()
+    for (const segment of this.parser.parse(chunk)) {
+      if (segment.kind === 'text') this.handleText(segment.text)
+      else this.applyMarker(segment)
     }
   }
 
-  private applyMarker(
-    marker: ReturnType<ShellIntegrationParser['parse']>['markers'][number]
-  ): void {
+  private handleText(text: string): void {
+    this.lastOutputAt = Date.now()
+    this.trackAltScreen(text)
+    this.scrollback += text
+    if (this.scrollback.length > MAX_SCROLLBACK_CHARS + TRIM_SLACK_CHARS) {
+      this.scrollback = this.scrollback.slice(-MAX_SCROLLBACK_CHARS)
+    }
+    if (this.pendingCommand?.capturing) {
+      this.pendingCommand.lastActivityAt = Date.now()
+      this.captureOutput(this.pendingCommand, text)
+      if (text.includes(ALT_SCREEN_ENTER)) {
+        this.resolveInteractiveCommand()
+      }
+    }
+    this.pendingOutput += text
+    this.scheduleFlush()
+  }
+
+  private applyMarker(marker: ShellMarker): void {
     switch (marker.kind) {
       case 'startup':
         if (this.startupBegunAt === null) {
