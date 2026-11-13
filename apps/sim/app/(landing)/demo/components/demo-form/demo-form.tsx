@@ -1,14 +1,19 @@
 'use client'
 
-import { type ReactNode, useEffect, useId, useState } from 'react'
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { Chip, ChipDropdown, ChipInput, ChipTextarea, Label } from '@sim/emcn'
 import {
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
   type DemoRequestBody,
 } from '@/lib/api/contracts/demo-requests'
+import { getEnv } from '@/lib/core/config/env'
 import { isFreeEmailDomain } from '@/lib/messaging/email/free-email'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useSubmitDemoRequest } from '@/hooks/queries/demo-requests'
+
+/** Build-time-inlined Turnstile site key; absent when captcha isn't configured. */
+const TURNSTILE_SITE_KEY = getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY')
 
 /** Options for the "What can we help you with?" select; the first is the default. */
 const TOPIC_OPTIONS = [
@@ -155,14 +160,21 @@ function DemoField({ label, htmlFor, required, error, children }: DemoFieldProps
  * looks like an address attempt, and the primary {@link Chip} stays disabled until
  * every required field is valid.
  *
- * On a valid submit it fires the inbound-demo notification to sales (via
- * {@link useSubmitDemoRequest}, best-effort - never blocking) and composes a
- * {@link DemoLead} (name, email, and a notes summary) handed to `onComplete`,
- * which advances the card to the scheduler.
+ * On a valid submit it hands a {@link DemoLead} (name, email, and a notes
+ * summary) to `onComplete`, which advances the card to the scheduler at once,
+ * and then sends the demo request (via {@link useSubmitDemoRequest}) in the
+ * background with an invisible Turnstile token and a honeypot `website` field.
+ * Nothing about the request delays the calendar: its outcome only decides
+ * whether the visitor's booking is confirmed automatically or reviewed by hand.
  */
 export function DemoForm({ onComplete }: DemoFormProps) {
   const submitDemoRequest = useSubmitDemoRequest()
   const [form, setForm] = useState<DemoFormState>(INITIAL_STATE)
+  const [website, setWebsite] = useState('')
+  /** Turnstile mounts on first focus, like the scheduler preload, so its script never competes with page load. */
+  const [captchaArmed, setCaptchaArmed] = useState(false)
+  const turnstileRef = useRef<TurnstileInstance>(null)
+  const widgetLoadedRef = useRef(false)
 
   const setField = (key: keyof DemoFormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -204,24 +216,45 @@ export function DemoForm({ onComplete }: DemoFormProps) {
         ? 'Please use your work email address.'
         : undefined
 
+  /**
+   * Runs the invisible challenge, falling back to no token when the widget never
+   * loaded or does not answer; the server then treats the request as unverified
+   * rather than rejecting it.
+   */
+  const solveCaptcha = async (): Promise<string | undefined> => {
+    const widget = turnstileRef.current
+    if (!TURNSTILE_SITE_KEY || !widgetLoadedRef.current || !widget) return undefined
+    try {
+      widget.reset()
+      widget.execute()
+      return await widget.getResponsePromise(30_000)
+    } catch {
+      return undefined
+    }
+  }
+
   const handleSubmit = () => {
     if (!canSubmit) return
 
-    // Best-effort sales notification — fire-and-forget so it never blocks scheduling.
-    submitDemoRequest.mutate({
+    const request: DemoRequestBody = {
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
       companyEmail: trimmedEmail,
       phoneNumber: form.phone.trim() || undefined,
       companySize: form.companySize as DemoRequestBody['companySize'],
       details: buildDetails(form),
-    })
+      website,
+    }
 
     onComplete({
       name: `${form.firstName} ${form.lastName}`.trim(),
       email: trimmedEmail,
       notes: buildNotes(form),
     })
+
+    void solveCaptcha().then((captchaToken) =>
+      submitDemoRequest.mutate({ ...request, captchaToken })
+    )
   }
 
   return (
@@ -239,9 +272,44 @@ export function DemoForm({ onComplete }: DemoFormProps) {
           handleSubmit()
         }}
         aria-labelledby='demo-form-heading'
-        className='mt-5 flex flex-col gap-4'
+        className='relative mt-5 flex flex-col gap-4'
         noValidate
+        onFocusCapture={() => setCaptchaArmed(true)}
       >
+        {/* Out of flow, so neither control adds a row or a gap to the pinned card height. */}
+        <div
+          aria-hidden='true'
+          className='pointer-events-none absolute left-[-9999px] size-px overflow-hidden opacity-0'
+        >
+          <label htmlFor='demo-website'>Website</label>
+          <input
+            id='demo-website'
+            name='website'
+            type='text'
+            tabIndex={-1}
+            autoComplete='off'
+            value={website}
+            onChange={(event) => setWebsite(event.target.value)}
+            data-lpignore='true'
+            data-1p-ignore='true'
+          />
+          {TURNSTILE_SITE_KEY && captchaArmed ? (
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={TURNSTILE_SITE_KEY}
+              options={{ execution: 'execute', appearance: 'execute', size: 'invisible' }}
+              onWidgetLoad={() => {
+                widgetLoadedRef.current = true
+              }}
+              onError={() => {
+                widgetLoadedRef.current = false
+              }}
+              onUnsupported={() => {
+                widgetLoadedRef.current = false
+              }}
+            />
+          ) : null}
+        </div>
         <div className='grid grid-cols-2 gap-3 max-sm:grid-cols-1'>
           <DemoField label='First name' htmlFor='demo-first-name' required>
             <ChipInput

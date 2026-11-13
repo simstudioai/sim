@@ -55,6 +55,9 @@ export const demoRequestSchema = z.object({
     error: 'Please select company size',
   }),
   details: z.string().trim().min(1, 'Details are required').max(2000),
+  /** Honeypot: hidden from people, so any value marks the submission as automated. */
+  website: z.string().optional(),
+  captchaToken: z.string().optional(),
 })
 
 export type DemoRequestPayload = z.infer<typeof demoRequestSchema>
@@ -79,4 +82,20 @@ export const submitDemoRequestContract = defineRouteContract({
     mode: 'json',
     schema: demoRequestResponseSchema,
   },
+})
+
+/**
+ * The envelope of a Cal.com webhook delivery. Only `BOOKING_REQUESTED` carries a
+ * booking to review; every other trigger, including the dashboard's test ping,
+ * is acknowledged and ignored.
+ */
+export const calWebhookEnvelopeSchema = z.object({
+  triggerEvent: z.string(),
+  payload: z.unknown().optional(),
+})
+
+/** The fields of a requested booking that the demo booking review reads. */
+export const calBookingRequestSchema = z.object({
+  uid: z.string().min(1),
+  attendees: z.array(z.object({ email: z.string().min(1) })).min(1),
 })

@@ -491,7 +491,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/team',
-        destination: 'https://cal.com/team/sim/demo',
+        destination: `${SIM_SITE_URL}/demo`,
         permanent: false,
       },
       {
