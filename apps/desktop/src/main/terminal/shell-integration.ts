@@ -240,6 +240,7 @@ __sim_preexec() {
 
 __sim_precmd() {
   local st=$?
+  __sim_at_prompt=1
   # Cwd is reported before the finish marker so a \`cd\` is already visible by
   # the time the command's result is resolved.
   builtin printf '\\e]633;P;Cwd=%s;%s\\a' "$(__sim_esc "$PWD")" "$__sim_nonce"
@@ -264,7 +265,11 @@ add-zsh-hook precmd __sim_precmd
 /**
  * bash has no preexec hook, so command start is detected with a DEBUG trap and
  * command end from PROMPT_COMMAND. The trap fires once per command in a
- * pipeline, hence the in-command latch.
+ * pipeline, hence the in-command latch, and for every command PROMPT_COMMAND
+ * runs, hence the at-prompt latch: set by `__sim_precmd` and cleared only by
+ * `__sim_prompt_end`, so the user's own PROMPT_COMMAND never counts as a command.
+ * The parts of PROMPT_COMMAND are joined by newlines, which parse after any user
+ * value, including one ending in `;` (`history -a; `) or a newline.
  */
 function writeBashFile(dir: string, nonce: string): string {
   const rcPath = join(dir, 'sim-bash-rc.sh')
@@ -289,6 +294,7 @@ fi
 
 __sim_nonce='${nonce}'
 __sim_in_cmd=''
+__sim_at_prompt=1
 
 # Sets __sim_escaped rather than printing it, so no subshell is forked to read it.
 __sim_esc() {
@@ -299,6 +305,7 @@ __sim_esc() {
 
 __sim_preexec() {
   case "$BASH_COMMAND" in __sim_*) return ;; esac
+  [ -n "$__sim_at_prompt" ] && return
   [ -n "$__sim_in_cmd" ] && return
   __sim_in_cmd=1
   __sim_esc "$BASH_COMMAND"
@@ -308,6 +315,7 @@ __sim_preexec() {
 
 __sim_precmd() {
   local st=$?
+  __sim_at_prompt=1
   # Cwd is reported before the finish marker so a \`cd\` is already visible by
   # the time the command's result is resolved.
   __sim_cwd
@@ -326,11 +334,14 @@ __sim_precmd() {
 __sim_prompt_end() {
   local st=$? marker="\\[\\e]633;B;\${__sim_nonce}\\a\\]"
   case "$PS1" in *"$marker") ;; *) PS1="$PS1$marker" ;; esac
+  __sim_at_prompt=''
   return $st
 }
 
 # Set before the trap, so assigning it is not reported as a command.
-PROMPT_COMMAND="__sim_precmd\${PROMPT_COMMAND:+; $PROMPT_COMMAND}; __sim_prompt_end"
+PROMPT_COMMAND="__sim_precmd
+$PROMPT_COMMAND
+__sim_prompt_end"
 trap '__sim_preexec' DEBUG
 `
   )

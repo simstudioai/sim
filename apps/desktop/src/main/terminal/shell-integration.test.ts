@@ -195,3 +195,40 @@ describe('startup marker', () => {
     expect(output.indexOf(STARTUP)).toBeLessThan(output.indexOf('user-startup'))
   })
 })
+
+/**
+ * The user's PROMPT_COMMAND runs inside ours, in a real bash, with a typed command and `exit`
+ * fed on stdin. Whatever the user's value, each typed command must be reported exactly once,
+ * framed by its own markers, and nothing the user's PROMPT_COMMAND runs may read as a command.
+ */
+describe.skipIf(!existsSync('/bin/bash'))("bash with the user's PROMPT_COMMAND", () => {
+  const MARKER = new RegExp(`\u001b\\]633;([^\u0007]*);${NONCE}\u0007`, 'g')
+
+  function markersFor(promptCommand: string): string[] {
+    const home = mkdtempSync(join(tmpdir(), 'sim-shell-home-'))
+    writeFileSync(
+      join(home, '.bashrc'),
+      `PROMPT_COMMAND=$'${promptCommand.replace(/\n/g, '\\n')}'\n`
+    )
+    const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home }
+    const launch = buildShellLaunch('bash', mkdtempSync(join(tmpdir(), 'sim-bash-')), NONCE, env)
+    const { stdout } = spawnSync('/bin/bash', launch.args, {
+      env: { ...env, ...launch.env },
+      input: 'echo hi\nexit\n',
+      encoding: 'utf8',
+    })
+    return [...stdout.matchAll(MARKER)]
+      .map((match) => match[1])
+      .filter((body) => body !== 'SimStartup' && !body.startsWith('P;'))
+  }
+
+  it.each([
+    ['ends in a semicolon', 'history -a; '],
+    ['ends in a newline', 'true\n'],
+    ['holds several commands', 'a=1;b=2'],
+    ['is empty', ''],
+    ['is a single command', 'true'],
+  ])('reports only the typed commands when it %s', (_case, promptCommand) => {
+    expect(markersFor(promptCommand)).toEqual(['A', 'E;echo hi', 'C', 'D;0', 'A', 'E;exit', 'C'])
+  })
+})
