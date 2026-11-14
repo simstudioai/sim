@@ -199,7 +199,7 @@ describe('scoped Slack setup', () => {
     )
   })
 
-  it("verifies the custom bot through the owning organization's egress route", async () => {
+  it("starts the Slack attempt inside the owning organization's egress scope", async () => {
     networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
     queueTableRows(credentialGroup, [group])
     mocks.create.mockImplementation(async () => {

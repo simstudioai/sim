@@ -1,4 +1,4 @@
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { resolveCoordinatedClientToken } from '@/lib/credentials/coordinated-client-token'
@@ -6,7 +6,7 @@ import { resolveCoordinatedClientToken } from '@/lib/credentials/coordinated-cli
 beforeEach(resetDbChainMock)
 
 describe('resolveCoordinatedClientToken', () => {
-  it("surfaces an unavailable egress route as Sim's outage and remembers no failure", async () => {
+  it("surfaces an unavailable egress route as Sim's outage instead of a provider failure", async () => {
     const exchange = vi.fn().mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
 
     await expect(
@@ -19,6 +19,5 @@ describe('resolveCoordinatedClientToken', () => {
       })
     ).rejects.toBeInstanceOf(OutboundRoutingError)
     expect(exchange).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })

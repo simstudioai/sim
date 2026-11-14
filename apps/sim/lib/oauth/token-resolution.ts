@@ -625,7 +625,7 @@ export async function resolveCredentialAccessToken(
       workflowId: input.workflowId,
       executionId: input.executionId,
       scopes: input.scopes,
-      /** The executor forwards raw subblock state, where an untouched field is '': treated as absent. */
+      // The executor forwards raw subblock state, where an untouched field is '': treated as absent.
       impersonateEmail: input.impersonateEmail || undefined,
       callerUserId: input.callerUserId,
       userId: input.userId,

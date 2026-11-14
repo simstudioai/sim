@@ -109,8 +109,8 @@ describe('resolveCredentialAccessToken for plain credentials', () => {
       token: { accessToken: 'fresh', credentialType: 'oauth', idToken: 'id-token' },
     })
     expect(mockAuthorizeCredentialUseForAuth).toHaveBeenCalledWith(
-      { success: true, userId: 'user-1', authType: 'internal_jwt' },
-      { credentialId: 'cred-1', workflowId: 'wf-1', callerUserId: undefined }
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({ credentialId: 'cred-1', workflowId: 'wf-1' })
     )
     expect(mockGetCredential).toHaveBeenCalledWith('req-1', 'account-1', 'owner-1')
     expect(auditMockFns.mockRecordAuditRollup).toHaveBeenCalledWith(

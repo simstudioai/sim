@@ -22,6 +22,7 @@ vi.mock('@/lib/credentials/connect-draft', () => ({
 vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   resolveConnectDraftOutboundScope,
   withConnectDraftOutboundScope,
@@ -88,7 +89,20 @@ describe('withConnectDraftOutboundScope', () => {
   })
 
   afterEach(() => {
-    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockImplementation(() => false)
+  })
+
+  it('keeps the connector wrapped instead of failing the auth module when the routing configuration cannot load', () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockImplementation(() => {
+      throw new OutboundRoutingError('INVALID_CONFIGURATION')
+    })
+    const config: GenericOAuthConfig = {
+      providerId: 'idp',
+      clientId: 'client-1',
+      tokenUrl: 'https://idp.test/token',
+    }
+
+    expect(withConnectDraftOutboundScope(config)).not.toBe(config)
   })
 
   it('keeps a connector exactly as configured when the deployment has no outbound routing', () => {

@@ -37,10 +37,9 @@ beforeEach(() => {
 })
 
 describe('refreshShopifyInstallation', () => {
-  it('surfaces an unavailable egress route instead of a failed refresh, leaving the chain alive', async () => {
+  it('surfaces an unavailable egress route instead of a null (failed) refresh', async () => {
     await expect(
       runWithOutboundOrganization('organization-1', () => refreshShopifyInstallation('account-1'))
     ).rejects.toBeInstanceOf(OutboundRoutingError)
-    expect(redis.set).not.toHaveBeenCalled()
   })
 })

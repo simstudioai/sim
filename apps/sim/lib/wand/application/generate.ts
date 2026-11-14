@@ -76,19 +76,12 @@ interface WandChatMessage {
   content: string
 }
 
-/**
- * Wand enricher function type.
- * Enrichers add context to the system prompt based on generationType.
- */
 type WandEnricher = (
   workspaceId: string | null,
   context: Record<string, unknown>
 ) => Promise<string | null>
 
-/**
- * Registry of wand enrichers by generationType.
- * Each enricher returns additional context to append to the system prompt.
- */
+/** Context each generationType appends to the system prompt. */
 const wandEnrichers: Partial<Record<string, WandEnricher>> = {
   timestamp: async () => {
     const now = new Date()
@@ -175,7 +168,6 @@ async function updateUserStatsForWand(
   }
 }
 
-/** The workflow a wand request names does not exist. */
 export class WandWorkflowNotFoundError extends OrchestrationError {
   constructor() {
     super('not_found', 'Workflow not found')
@@ -213,7 +205,6 @@ export class WandBillingRefusedError extends Error {
   }
 }
 
-/** The model answered without any text. */
 export class WandEmptyResponseError extends Error {
   constructor() {
     super('Wand response was empty or invalid')
@@ -232,7 +223,6 @@ class WandUpstreamError extends Error {
   }
 }
 
-/** The streaming request could not be opened. */
 export class WandStreamStartError extends Error {
   constructor(cause: unknown) {
     super('Failed to create wand stream', { cause })
@@ -484,10 +474,8 @@ async function executeWandGeneration<I extends GenerateWandInput>({
     throw new WandNotConfiguredError()
   }
 
-  /**
-   * BYOK skips metered caps but still checks the actor and exact workspace
-   * payer. Non-BYOK applies the complete attributed gate.
-   */
+  // BYOK skips metered caps but still checks the actor and exact workspace
+  // payer; non-BYOK applies the complete attributed gate.
   if (isBYOK) {
     const blocked = await checkAttributedBillingBlocks(billingAttribution)
     if (blocked.blocked) {
@@ -634,7 +622,6 @@ async function executeWandGeneration<I extends GenerateWandInput>({
   return { kind: 'content', content: generatedContent }
 }
 
-/** Generates for a workflow's editor, which requires write access to the workflow's workspace. */
 export const generateWandForWorkflow = defineAuthorizedWorkspaceUseCase({
   operation: wandOperations.generateForWorkflow,
   resolveContext: async ({ input }: { input: GenerateWandInput & { workflowId: string } }) =>

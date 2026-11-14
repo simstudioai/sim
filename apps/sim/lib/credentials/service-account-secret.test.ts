@@ -115,7 +115,7 @@ describe('verifyAndBuildServiceAccountSecret', () => {
   })
 
   it('surfaces an unavailable egress route while verifying a Slack bot token', async () => {
-    mockFetchSlackTeamId.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+    mockFetchSlackTeamId.mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
 
     await expect(
       verifyAndBuildServiceAccountSecret(SLACK_CUSTOM_BOT_PROVIDER_ID, {

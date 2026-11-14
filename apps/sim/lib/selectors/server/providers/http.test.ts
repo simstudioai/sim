@@ -70,9 +70,7 @@ describe('provider HTTP selector boundary', () => {
     mockFetch.mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
 
     await expect(
-      fetchProviderJsonWithStatus('https://provider.example/item', undefined, {
-        passthroughNetworkErrors: true,
-      })
+      fetchProviderJsonWithStatus('https://provider.example/item')
     ).rejects.toBeInstanceOf(OutboundRoutingError)
   })
 

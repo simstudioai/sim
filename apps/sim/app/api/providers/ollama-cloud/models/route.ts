@@ -9,7 +9,6 @@ import { isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('OllamaCloudModelsAPI')
 
-/** Get available Ollama Cloud models. */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   if (isProviderBlacklisted('ollama-cloud')) {
     logger.info('Ollama Cloud provider is blacklisted, returning empty models')

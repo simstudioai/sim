@@ -32,6 +32,30 @@ import { slackCredentialGroupProviderAdapter as adapter } from '@/lib/credential
 urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.fixture.test')
 afterAll(resetUrlsMock)
 
+function attemptFor(
+  current: CredentialGroupOAuthContext,
+  policy: Awaited<ReturnType<typeof adapter.getPolicy>>,
+  workspaceId: string | undefined = 'workspace-1'
+) {
+  return {
+    state: 'state',
+    provider: 'slack' as const,
+    workspaceId,
+    email: current.email,
+    nonceHash: 'nonce-hash',
+    enrollmentId: current.enrollmentId,
+    credentialGroupId: current.credentialGroupId,
+    optionId: current.option.id,
+    authorizationAppId: policy.authorizationAppId,
+    scopeVersion: policy.scopeVersion,
+    requiredScopes: policy.requiredScopes,
+    redirectUri: 'https://sim.fixture.test/api/credential-groups/oauth/slack/callback',
+    invitationToken: 'invitation',
+    userId: 'user-1',
+    createdAt: Date.now(),
+  }
+}
+
 describe('Slack member scope policy', () => {
   beforeEach(() => {
     mocks.configuration.mockResolvedValue({
@@ -108,23 +132,7 @@ describe('Slack member scope policy', () => {
         context: current,
         policy,
         code: 'code',
-        attempt: {
-          state: 'state',
-          provider: 'slack',
-          workspaceId: 'workspace-1',
-          email: current.email,
-          nonceHash: 'nonce-hash',
-          enrollmentId: current.enrollmentId,
-          credentialGroupId: current.credentialGroupId,
-          optionId: current.option.id,
-          authorizationAppId: policy.authorizationAppId,
-          scopeVersion: policy.scopeVersion,
-          requiredScopes: policy.requiredScopes,
-          redirectUri: 'https://sim.fixture.test/api/credential-groups/oauth/slack/callback',
-          invitationToken: 'invitation',
-          userId: 'user-1',
-          createdAt: Date.now(),
-        },
+        attempt: attemptFor(current, policy),
       })
     ).rejects.toBeInstanceOf(OutboundRoutingError)
   })
@@ -148,23 +156,7 @@ describe('Slack member scope policy', () => {
       context: current,
       policy,
       code: 'code',
-      attempt: {
-        state: 'state',
-        provider: 'slack',
-        workspaceId: 'workspace-1',
-        email: current.email,
-        nonceHash: 'nonce-hash',
-        enrollmentId: current.enrollmentId,
-        credentialGroupId: current.credentialGroupId,
-        optionId: current.option.id,
-        authorizationAppId: policy.authorizationAppId,
-        scopeVersion: policy.scopeVersion,
-        requiredScopes: policy.requiredScopes,
-        redirectUri: 'https://sim.fixture.test/api/credential-groups/oauth/slack/callback',
-        invitationToken: 'invitation',
-        userId: 'user-1',
-        createdAt: Date.now(),
-      },
+      attempt: attemptFor(current, policy),
     })
     await expect(result).resolves.toMatchObject({
       providerSubjectId: 'U1',
@@ -200,23 +192,7 @@ describe('Slack member scope policy', () => {
         context: current,
         policy,
         code: 'code',
-        attempt: {
-          state: 'state',
-          provider: 'slack',
-          workspaceId: current.workspaceId,
-          email: current.email,
-          nonceHash: 'nonce-hash',
-          enrollmentId: current.enrollmentId,
-          credentialGroupId: current.credentialGroupId,
-          optionId: current.option.id,
-          authorizationAppId: policy.authorizationAppId,
-          scopeVersion: policy.scopeVersion,
-          requiredScopes: policy.requiredScopes,
-          redirectUri: 'https://sim.fixture.test/api/credential-groups/oauth/slack/callback',
-          invitationToken: 'invitation',
-          userId: 'user-1',
-          createdAt: Date.now(),
-        },
+        attempt: attemptFor(current, policy, current.workspaceId),
       })
     ).rejects.toMatchObject({ statusCode: 403 })
     expect(mocks.revoke).toHaveBeenCalledExactlyOnceWith('fixture-token')
