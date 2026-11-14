@@ -1069,8 +1069,8 @@ Return ONLY the JSON array - no explanations, no extra text.`,
         }
         const listFields = {
           filter: params.filter || undefined,
-          top: params.top ? Number(params.top) : undefined,
-          skip: params.skip ? Number(params.skip) : undefined,
+          top: params.top != null && params.top !== '' ? Number(params.top) : undefined,
+          skip: params.skip != null && params.skip !== '' ? Number(params.skip) : undefined,
           orderBy: params.orderBy || undefined,
           select: params.select || undefined,
           expand: params.expand || undefined,

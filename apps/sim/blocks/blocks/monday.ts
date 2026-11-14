@@ -577,7 +577,7 @@ export const MondayBlock: BlockConfig = {
               boardId: params.boardId,
               itemId: params.itemId,
               columnId: params.columnId,
-              value: params.columnValue ?? toolCallArg(context, params.value),
+              value: params.columnValue || toolCallArg(context, params.value),
               createLabelsIfMissing: Boolean(params.createLabelsIfMissing),
             }
           case 'duplicate_item':
