@@ -14,7 +14,10 @@ const { mockGetActiveConnectDraft, mockGetOAuthState } = vi.hoisted(() => ({
 }))
 const { mockLoadWorkspaceApplicationContext } = workspaceContextMockFns
 
-vi.mock('better-auth/api', () => ({ getOAuthState: mockGetOAuthState }))
+vi.mock('better-auth/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('better-auth/api')>()),
+  getOAuthState: mockGetOAuthState,
+}))
 vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 vi.mock('@/lib/credentials/connect-draft', () => ({
   getActiveConnectDraft: mockGetActiveConnectDraft,
@@ -114,6 +117,24 @@ describe('withConnectDraftOutboundScope', () => {
     }
 
     expect(withConnectDraftOutboundScope(config)).toBe(config)
+  })
+
+  it("answers a connector's identity lookup outage as a 503 with the fixed message", async () => {
+    mockGetOAuthState.mockResolvedValue(null)
+    const connector = withConnectDraftOutboundScope({
+      providerId: 'jira',
+      clientId: 'client',
+      getUserInfo: async () => {
+        throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+      },
+    })
+
+    const failure = await connector.getUserInfo?.({ accessToken: 'token' }).catch((e) => e)
+
+    expect(failure).toMatchObject({
+      statusCode: 503,
+      message: "The organization's egress route is unavailable",
+    })
   })
 
   it("runs a generic connector's code exchange in its connect draft's organization", async () => {

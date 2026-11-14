@@ -115,7 +115,10 @@ export const EGRESS_UNAVAILABLE_MESSAGE = "The organization's egress route is un
  *
  * An {@link OutboundRoutingError} anywhere in the chain is the organization's
  * egress route failing, so it classifies as `unavailable` with a fixed message:
- * its routing code stays in server logs.
+ * its routing code stays in server logs. `MISSING_SCOPE` is the exception: a
+ * request issued without a workspace scope (or for a workspace that no longer
+ * exists) is a programming or missing-resource error, not a retryable outage,
+ * so it stays unclassified.
  */
 export function asOrchestrationError(error: unknown): OrchestrationError | null {
   let current: unknown = error
@@ -123,7 +126,7 @@ export function asOrchestrationError(error: unknown): OrchestrationError | null 
     if (current instanceof OrchestrationError) return current
     if (isPayloadSizeLimitError(current))
       return new OrchestrationError('payload_too_large', current.message)
-    if (current instanceof OutboundRoutingError)
+    if (current instanceof OutboundRoutingError && current.code !== 'MISSING_SCOPE')
       return new OrchestrationError('unavailable', EGRESS_UNAVAILABLE_MESSAGE)
     current = current.cause
   }

@@ -16,13 +16,15 @@ class PollAdmissionRefusedError extends Error {
 
 /**
  * Faithful copy of the production egress-outage test (`asOrchestrationError(error)?.code ===
- * 'unavailable'`): an `OutboundRoutingError`, or an `OrchestrationError` coded `unavailable`,
- * anywhere in the cause chain.
+ * 'unavailable'`): an `OutboundRoutingError` other than `MISSING_SCOPE`, or an
+ * `OrchestrationError` coded `unavailable`, anywhere in the cause chain.
  */
 function isSimOutage(error: unknown): boolean {
   let current: unknown = error
   while (current instanceof Error) {
-    if (current.name === 'OutboundRoutingError') return true
+    if (current.name === 'OutboundRoutingError') {
+      if ((current as Error & { code?: string }).code !== 'MISSING_SCOPE') return true
+    }
     if (current.name === 'OrchestrationError') {
       return (current as Error & { code?: string }).code === 'unavailable'
     }

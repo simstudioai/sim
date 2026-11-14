@@ -9,7 +9,7 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { isUnavailableFailure, OrchestrationError } from '@/lib/core/orchestration/types'
 import { type CredentialAuditRequest, recordCredentialAccess } from '@/lib/oauth/token-resolution'
 import {
   SELECTOR_DELEGATION_AUDIENCE,
@@ -290,7 +290,9 @@ async function executeAuthorizedSelector(args: {
       // A refusal, not a provider failure: it reaches the caller as its own 403
       // rather than being folded into "Options unavailable".
       error instanceof IntegrationNotAllowedError ||
-      error instanceof OrchestrationError
+      error instanceof OrchestrationError ||
+      // Sim's own egress outage, which the route answers as 503, not a provider failure.
+      isUnavailableFailure(error)
     ) {
       throw error
     }

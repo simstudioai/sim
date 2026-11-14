@@ -651,4 +651,19 @@ describe('POST /api/webhooks egress outage', () => {
     expect(response.status).toBe(503)
     expect(await response.json()).toEqual({ error: EGRESS_UNAVAILABLE_MESSAGE })
   })
+
+  it('reports an outage while activating the saved subscription as unavailable', async () => {
+    queueCreatePathRows()
+    dbChainMockFns.returning.mockImplementationOnce(async () => [
+      { id: 'webhook-1', workflowId: 'workflow-1', path: 'inbound-orders', isActive: true },
+    ])
+    mocks.activateExternalWebhookSubscription.mockRejectedValue(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    const response = await POST(upsertRequest(), {})
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: EGRESS_UNAVAILABLE_MESSAGE })
+  })
 })

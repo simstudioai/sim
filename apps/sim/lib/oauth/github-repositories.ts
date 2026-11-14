@@ -3,6 +3,7 @@ import { getOAuth2Tokens, type OAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { z } from 'zod'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   OAuthIdentityVerificationError,
@@ -66,7 +67,8 @@ export async function verifyGitHubRepositoriesIdentity(accessToken: string) {
         signal,
         redirect: 'error',
       })
-    } catch {
+    } catch (error) {
+      if (isUnavailableFailure(error)) throw error
       throw new OAuthIdentityVerificationError('provider_unavailable', stage)
     }
     if (!response.ok) {

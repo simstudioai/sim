@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   asOrchestrationError,
+  isUnavailableFailure,
   messageForOrchestrationError,
   OrchestrationError,
   statusForOrchestrationError,
@@ -84,5 +85,12 @@ describe('asOrchestrationError', () => {
     expect(statusForOrchestrationError(classified?.code)).toBe(503)
     expect(classified?.message).toBe("The organization's egress route is unavailable")
     expect(classified?.message).not.toContain('GATEWAY_UNAVAILABLE')
+  })
+
+  it('leaves a missing outbound scope unclassified rather than a retryable outage', () => {
+    const wrapped = new Error('sync failed', { cause: new OutboundRoutingError('MISSING_SCOPE') })
+
+    expect(asOrchestrationError(wrapped)).toBeNull()
+    expect(isUnavailableFailure(wrapped)).toBe(false)
   })
 })

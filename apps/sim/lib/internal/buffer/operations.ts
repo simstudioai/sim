@@ -94,6 +94,7 @@ async function resolveMediaKind(args: {
     }
   } catch (error) {
     context.signal?.throwIfAborted()
+    if (isUnavailableFailure(error)) throw error
     logger.warn('Media content-type probe was inconclusive', {
       requestId: context.requestId,
       error: getErrorMessage(error, 'probe failed'),

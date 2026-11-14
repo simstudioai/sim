@@ -218,4 +218,62 @@ describe('gmailPollingHandler egress outage', () => {
     expect(mockMarkWebhookFailed).not.toHaveBeenCalled()
     expect(mockUpdateConfig).not.toHaveBeenCalled()
   })
+
+  it('keeps the history cursor when the route drops while fetching message details', async () => {
+    mockResolveOAuthCredential.mockResolvedValue('access-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(typeof input === 'string' ? input : input.toString())
+        if (url.pathname.endsWith('/users/me/history')) {
+          return jsonResponse({
+            historyId: '40100',
+            history: [{ messagesAdded: [{ message: { id: 'm-new' } }] }],
+          })
+        }
+        throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+      })
+    )
+
+    await expect(
+      gmailPollingHandler.pollWebhook(context({ historyId: EXPIRED_HISTORY_ID }))
+    ).resolves.toBe('skipped')
+
+    expect(mockProcessEvent).not.toHaveBeenCalled()
+    expect(mockMarkWebhookFailed).not.toHaveBeenCalled()
+    expect(mockUpdateConfig).not.toHaveBeenCalled()
+  })
+
+  it('leaves mail for a later poll instead of emitting it without attachments when the route drops', async () => {
+    mockResolveOAuthCredential.mockResolvedValue('access-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(typeof input === 'string' ? input : input.toString())
+        if (url.pathname.includes('/attachments/')) {
+          throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+        }
+        if (url.pathname.endsWith('/users/me/messages')) {
+          return jsonResponse({ messages: [{ id: 'm-new', threadId: 'm-new' }] })
+        }
+        return jsonResponse({
+          id: 'm-new',
+          threadId: 'm-new',
+          historyId: '40050',
+          labelIds: ['INBOX'],
+          payload: {
+            headers: [{ name: 'Subject', value: 'invoice' }],
+            parts: [{ filename: 'invoice.pdf', body: { attachmentId: 'att-1', size: 10 } }],
+          },
+        })
+      })
+    )
+
+    await expect(
+      gmailPollingHandler.pollWebhook(context({ includeAttachments: true }))
+    ).resolves.toBe('skipped')
+
+    expect(mockProcessEvent).not.toHaveBeenCalled()
+    expect(mockUpdateConfig).not.toHaveBeenCalled()
+  })
 })

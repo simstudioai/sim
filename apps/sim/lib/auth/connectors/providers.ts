@@ -10,6 +10,7 @@ import { syntheticConnectorEmail } from '@/lib/auth/connector-email'
 import { env } from '@/lib/core/config/env'
 import { inspectConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -173,6 +174,7 @@ function salesforceConnector(providerId: string, loginHost: string): GenericOAut
         }
       } catch (error) {
         logger.error('Error creating Salesforce user profile:', { error, providerId })
+        if (isUnavailableFailure(error)) throw error
         return null
       }
     },
@@ -1039,6 +1041,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           logger.error('Error creating Wealthbox user profile:', {
             error: toError(error).message,
           })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -1094,6 +1097,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error creating Pipedrive user profile:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -1165,6 +1169,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error creating HubSpot user profile:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -1315,6 +1320,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Zoho Desk getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -1451,6 +1457,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in ManageEngine ServiceDesk Plus getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -1510,6 +1517,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in X getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -1613,6 +1621,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in TikTok getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -1674,6 +1683,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Confluence getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -1735,6 +1745,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Jira getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -1784,6 +1795,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Airtable getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -1890,6 +1902,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Bitbucket getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -1952,6 +1965,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Notion getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2041,6 +2055,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Monday.com getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2092,6 +2107,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Reddit getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2141,6 +2157,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in ClickUp getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2309,9 +2326,11 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
            * Return null rather than rethrowing: Better Auth's `handleUserInfo`
            * does not wrap `getUserInfo`, so a throw escapes the callback route
            * as a raw 500 with no way back into the app, while null redirects
-           * with `user_info_is_missing`.
+           * with `user_info_is_missing`. An egress outage is the exception: it
+           * is Sim's failure, which `withConnectDraftOutboundScope` answers as 503.
            */
           logger.error('Error in Attio getUserInfo:', error)
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2464,6 +2483,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Asana getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2543,6 +2563,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error creating Slack bot profile:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2593,6 +2614,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Webflow getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2641,6 +2663,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in LinkedIn getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2691,6 +2714,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Zoom getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2739,6 +2763,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Spotify getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2789,6 +2814,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in WordPress.com getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2847,6 +2873,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in DocuSign getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2906,6 +2933,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Failed to fetch Ramp business info', { errorType: toError(error).name })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -2966,6 +2994,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Failed to fetch Help Scout user info', { errorType: toError(error).name })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },
@@ -3016,6 +3045,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Cal.com getUserInfo:', { error })
+          if (isUnavailableFailure(error)) throw error
           return null
         }
       },

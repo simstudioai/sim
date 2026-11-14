@@ -1,11 +1,16 @@
-import { getOAuthState } from 'better-auth/api'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { APIError, getOAuthState } from 'better-auth/api'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { isOutboundRoutingEnabled } from '@/lib/core/network/config.server'
 import { captureOutboundScope } from '@/lib/core/network/context.server'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { EGRESS_UNAVAILABLE_MESSAGE, isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { getActiveConnectDraft } from '@/lib/credentials/connect-draft'
 import { parseCredentialDraftIdFromCallbackUrl } from '@/lib/credentials/draft-processor'
 import { createOutboundCodeExchange } from '@/lib/oauth/authorization-code.server'
+
+const logger = createLogger('OAuthConnectScope')
 
 type OutboundScopeRunner = <T>(run: () => Promise<T>) => Promise<T>
 
@@ -90,6 +95,22 @@ export function withConnectDraftOutboundScope(config: GenericOAuthConfig): Gener
       getToken && ((data) => runInOAuthCallbackDraftScope(providerId, () => getToken(data))),
     getUserInfo:
       getUserInfo &&
-      ((tokens) => runInOAuthCallbackDraftScope(providerId, () => getUserInfo(tokens))),
+      ((tokens) =>
+        runInOAuthCallbackDraftScope(providerId, () => getUserInfo(tokens)).catch(
+          rethrowEgressOutageAsServiceUnavailable
+        )),
   }
+}
+
+/**
+ * Better Auth does not catch an identity lookup's throw, so an egress outage would leave the
+ * callback as a bare 500. Re-raised as its own `APIError`, it answers 503 with the fixed outage
+ * message; the routing code stays in server logs.
+ */
+function rethrowEgressOutageAsServiceUnavailable(error: unknown): never {
+  if (!isUnavailableFailure(error)) throw error
+  logger.warn('Connector identity lookup stopped by an egress outage', {
+    error: getErrorMessage(error, 'Unknown error'),
+  })
+  throw new APIError('SERVICE_UNAVAILABLE', { message: EGRESS_UNAVAILABLE_MESSAGE })
 }

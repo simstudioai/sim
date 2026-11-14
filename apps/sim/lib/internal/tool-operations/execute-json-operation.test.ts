@@ -1,3 +1,4 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -26,5 +27,8 @@ describe('executeInternalJsonToolOperation', () => {
     await expect(response.json()).resolves.toEqual({
       error: "The organization's egress route is unavailable",
     })
+    expect(JSON.stringify(getMockLogger('InternalJsonToolOperation').error.mock.calls)).toContain(
+      'GATEWAY_UNAVAILABLE'
+    )
   })
 })

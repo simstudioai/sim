@@ -28,14 +28,14 @@ export async function executeInternalJsonToolOperation<C extends AnyApiRouteCont
     return Response.json(result)
   } catch (error) {
     signal?.throwIfAborted()
+    /** The response carries only a message; the cause (a routing or database code, a stack) lives here. */
+    logFailureOnce(logger, errorMessage, error, { metadata: { cause: describeError(error) } })
     if (isUnavailableFailure(error)) {
       return Response.json(
         { error: EGRESS_UNAVAILABLE_MESSAGE },
         { status: statusForOrchestrationError('unavailable') }
       )
     }
-    /** The 500 below carries only the message; the cause (a database code, a stack) lives here. */
-    logFailureOnce(logger, errorMessage, error, { metadata: { cause: describeError(error) } })
     return Response.json({ error: `${errorMessage}: ${toError(error).message}` }, { status: 500 })
   }
 }

@@ -20,6 +20,8 @@ import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/env-flags
 import { scopedOutboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enrichSandboxCapabilities } from '@/lib/execution/remote-sandbox/wand-enricher'
+import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/capabilities'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { enrichTableSchema } from '@/lib/table/llm/wand'
 import { wandOperations } from '@/lib/wand/application/operations'
 import {
@@ -101,6 +103,14 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
   'table-schema': enrichTableSchema,
   /** JavaScript, Python, and Shell swap prompt text while retaining sandbox enrichment. */
   'javascript-function-body': enrichSandboxCapabilities,
+}
+
+/**
+ * The permission-group capability that governs the resource an enricher reads. A member whose
+ * group withholds it generates without that context rather than reading it through wand.
+ */
+const wandEnricherCapabilities: Partial<Record<string, StaticPermissionGroupCapability>> = {
+  'table-schema': 'tables.use',
 }
 
 interface WandUsage {
@@ -499,7 +509,16 @@ async function executeWandGeneration<I extends GenerateWandInput>({
 
   if (generationType) {
     const enricher = wandEnrichers[generationType]
-    if (enricher) {
+    const capability = wandEnricherCapabilities[generationType]
+    const withheld =
+      capability !== undefined &&
+      (await isWorkspaceCapabilityWithheld(
+        principal.userId,
+        workspaceId,
+        capability,
+        context.workspaceOrganizationId
+      ))
+    if (enricher && !withheld) {
       const enrichment = await enricher(workspaceId, wandContext)
       if (enrichment) {
         finalSystemPrompt += `\n\n${enrichment}`

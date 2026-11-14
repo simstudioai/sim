@@ -816,6 +816,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (error instanceof WorkflowLockedError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
+    const unavailable = unavailableFailureResponse(error)
+    if (unavailable) {
+      logger.warn('Webhook save stopped by an egress outage', {
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+      return unavailable
+    }
 
     logger.error('Error creating/updating webhook', {
       message: error.message,

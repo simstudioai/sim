@@ -2,6 +2,7 @@ import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   getProviderConfig,
   type PollingProviderHandler,
@@ -211,15 +212,7 @@ async function fetchNewEmails(accessToken: string, config: GmailWebhookConfig, l
       const emailResults = await Promise.allSettled(
         idsToFetch.map((messageId) => getEmailDetails(accessToken, messageId))
       )
-      const rejected = emailResults.filter((r) => r.status === 'rejected')
-      if (rejected.length > 0) {
-        logger.warn(`Failed to fetch ${rejected.length} email details`)
-      }
-      emails = emailResults
-        .filter(
-          (result): result is PromiseFulfilledResult<GmailEmail> => result.status === 'fulfilled'
-        )
-        .map((result) => result.value)
+      emails = fetchedEmails(emailResults, logger)
 
       emails = filterEmailsByLabels(emails, config)
     } else {
@@ -337,15 +330,7 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, log
     const emailResults = await Promise.allSettled(
       idsToFetch.map((message: { id: string }) => getEmailDetails(accessToken, message.id))
     )
-    const rejected = emailResults.filter((r) => r.status === 'rejected')
-    if (rejected.length > 0) {
-      logger.warn(`Failed to fetch ${rejected.length} email details`)
-    }
-    const emails = emailResults
-      .filter(
-        (result): result is PromiseFulfilledResult<GmailEmail> => result.status === 'fulfilled'
-      )
-      .map((result) => result.value)
+    const emails = fetchedEmails(emailResults, logger)
 
     if (emails.length > 0 && emails[0].historyId) {
       latestHistoryId = emails[0].historyId
@@ -399,6 +384,25 @@ async function getGmailProfileHistoryId(
     logger.warn('Error fetching Gmail profile:', error)
     return null
   }
+}
+
+/**
+ * The emails a detail batch fetched. An egress outage on any of them is rethrown rather than
+ * dropped, so the poll is skipped with its cursor unchanged instead of advancing past the mail.
+ */
+function fetchedEmails(results: PromiseSettledResult<GmailEmail>[], logger: Logger): GmailEmail[] {
+  const emails: GmailEmail[] = []
+  let failed = 0
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      emails.push(result.value)
+      continue
+    }
+    if (isUnavailableFailure(result.reason)) throw result.reason
+    failed++
+  }
+  if (failed > 0) logger.warn(`Failed to fetch ${failed} email details`)
+  return emails
 }
 
 async function getEmailDetails(accessToken: string, messageId: string): Promise<GmailEmail> {
@@ -504,6 +508,7 @@ async function processEmails(
               const attachmentInfo = extractAttachmentInfo(payload)
               attachments = await downloadAttachments(email.id, attachmentInfo, accessToken)
             } catch (error) {
+              if (isUnavailableFailure(error)) throw error
               logger.error(`Error downloading attachments for email ${email.id}:`, error)
             }
           }

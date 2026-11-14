@@ -4,6 +4,7 @@ import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { z } from 'zod'
 import { syntheticConnectorEmail } from '@/lib/auth/connector-email'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -102,7 +103,8 @@ export function createGreenhouseProvider({
         signal,
         redirect: 'error',
       })
-    } catch {
+    } catch (error) {
+      if (isUnavailableFailure(error)) throw error
       throw new Error(`Greenhouse ${label} request failed`)
     }
     if (!response.ok) {

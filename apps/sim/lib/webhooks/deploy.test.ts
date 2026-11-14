@@ -10,7 +10,13 @@ import {
   setEnvFlags,
 } from '@sim/testing'
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { triggersMock, triggersMockFns } from '@sim/testing/mocks/triggers.mock'
+import {
+  createMockWorkspaceApplicationContext,
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { toRecord } from '@sim/utils/object'
 import { eq, ne } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -26,6 +32,8 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
  */
 vi.mock('@/blocks', async () => ({ getBlock: (await import('@/blocks/registry')).getBlock }))
 vi.mock('@/triggers', () => triggersMock)
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/webhooks/providers', () => ({ getProviderHandler: vi.fn() }))
 vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
   activateExternalWebhookSubscription: vi.fn(),
@@ -67,7 +75,9 @@ vi.mock('@/lib/webhooks/quickbooks-credentials', () => ({
   getQuickBooksWebhookClientConfigByCredentialId: mockGetQuickBooksWebhookCredential,
 }))
 
+import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { EGRESS_UNAVAILABLE_MESSAGE } from '@/lib/core/orchestration/types'
 import {
   buildProviderConfig,
   cleanupInactiveDeploymentWebhooks,
@@ -353,6 +363,60 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     expect(result.config.routingKey).toBe('cred_bot_1')
     expect(result.config.providerConfig.bot_user_id).toBeUndefined()
     expect(mockFetchSlackTeamId).not.toHaveBeenCalled()
+  })
+
+  it("verifies a custom bot's identity through the workflow organization's egress route", async () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    workspaceContextMockFns.mockLoadWorkspaceApplicationContext.mockResolvedValue(
+      createMockWorkspaceApplicationContext({
+        workspaceId: 'ws-1',
+        workspaceOrganizationId: 'org-1',
+      })
+    )
+    let routedOrganizationId: string | null | undefined
+    networkConfigMockFns.mockResolveOutboundRoute.mockImplementation(async (id) => {
+      routedOrganizationId = id
+      return { kind: 'direct' }
+    })
+    mockFetchSlackTeamId.mockImplementation(async () => {
+      await resolveCurrentOutboundRoute()
+      return { teamId: 'T123', userId: 'BUSER', teamName: undefined }
+    })
+    mockGetSlackBotCredential.mockResolvedValue({
+      workspaceId: 'ws-1',
+      botToken: 'xoxb-token',
+      signingSecret: 'secret',
+    })
+
+    try {
+      const result = await resolveSlack({
+        eventType: 'reaction_added',
+        customBotCredential: 'cred_bot_1',
+      })
+
+      expect(result?.success).toBe(true)
+      expect(routedOrganizationId).toBe('org-1')
+    } finally {
+      networkConfigMockFns.mockIsOutboundRoutingEnabled.mockImplementation(() => false)
+    }
+  })
+
+  it("reports an egress outage during a custom bot's identity check as unavailable", async () => {
+    mockFetchSlackTeamId.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+    mockGetSlackBotCredential.mockResolvedValue({
+      workspaceId: 'ws-1',
+      botToken: 'xoxb-token',
+      signingSecret: 'secret',
+    })
+
+    const result = await resolveSlack({
+      eventType: 'reaction_added',
+      customBotCredential: 'cred_bot_1',
+    })
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error).toEqual({ message: EGRESS_UNAVAILABLE_MESSAGE, status: 503 })
   })
 
   it('rejects a Sim-app credential when extended scopes are disabled', async () => {
@@ -785,6 +849,6 @@ describe('prepareStableTriggerWebhooksForDeploy failure status', () => {
   it('reports an egress outage as unavailable', async () => {
     const outage = new OutboundRoutingError('GATEWAY_UNAVAILABLE')
     const result = await prepare(new AggregateError([rejected, outage]))
-    expect(result.error?.status).toBe(503)
+    expect(result.error).toEqual({ message: EGRESS_UNAVAILABLE_MESSAGE, status: 503 })
   })
 })
