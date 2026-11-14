@@ -77,6 +77,7 @@ vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
 
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { createStandardOAuthCredentialGroupProviderAdapter } from '@/lib/credential-groups/standard-oauth-provider'
 
 urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example.com')
@@ -244,6 +245,12 @@ describe('standard OAuth Credential Group provider', () => {
     })
   })
 
+  it('classifies an egress outage during identity verification as unavailable, not an invalid identity', async () => {
+    mockVerifyIdentity.mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+    const failure = await exchange().catch((error: unknown) => error)
+    expect(statusForOrchestrationError(asOrchestrationError(failure)?.code)).toBe(503)
+  })
+
   it('uses the existing Atlassian callback and state-bound identity verification', async () => {
     const requiredScopes = ['read:me', 'read:jira-work', 'offline_access']
     const context: CredentialGroupOAuthContext = {
@@ -336,9 +343,10 @@ describe('standard OAuth Credential Group provider', () => {
       new OutboundRoutingError('GATEWAY_UNAVAILABLE')
     )
 
-    await expect(runWithOutboundOrganization('org-1', exchange)).rejects.toMatchObject({
-      statusCode: 503,
-    })
+    const failure = await runWithOutboundOrganization('org-1', exchange).catch(
+      (error: unknown) => error
+    )
+    expect(statusForOrchestrationError(asOrchestrationError(failure)?.code)).toBe(503)
     expect(networkConfigMockFns.mockResolveOutboundRoute).toHaveBeenCalledWith('org-1')
     expect(sharedIpFetch).not.toHaveBeenCalled()
   })

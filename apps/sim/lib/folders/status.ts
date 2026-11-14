@@ -24,5 +24,6 @@ export function folderMutationStatus(errorCode: FolderMutationErrorCode | undefi
   // A folder collection too large to materialize reaches these routes as a classified
   // failure too; without this arm it rendered as an unexplained 500.
   if (errorCode === 'payload_too_large') return 413
+  if (errorCode === 'unavailable') return 503
   return 500
 }

@@ -316,12 +316,8 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
           tokenEndpoint: endpoints.tokenEndpoint,
         })
       } catch (error) {
-        if (error instanceof OutboundRoutingError) {
-          throw new CredentialGroupOAuthError(
-            `${service.name} authorization is temporarily unavailable.`,
-            503
-          )
-        }
+        // An egress outage is classified once, by asOrchestrationError, not as a provider failure.
+        if (error instanceof OutboundRoutingError) throw error
         throw new CredentialGroupOAuthError(
           `${service.name} could not complete authorization. Please try again.`,
           502
@@ -340,6 +336,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
           clientId: current.connector.clientId,
         })
       } catch (error) {
+        if (error instanceof OutboundRoutingError) throw error
         throw new CredentialGroupOAuthError(
           `${service.name} returned an invalid identity token.`,
           502,

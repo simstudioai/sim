@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
+  asOrchestrationError,
   messageForOrchestrationError,
   OrchestrationError,
+  statusForOrchestrationError,
   throwOrchestrationFailure,
 } from '@/lib/core/orchestration/types'
 
@@ -64,5 +67,22 @@ describe('throwOrchestrationFailure', () => {
       expect((error as OrchestrationError).code).toBe('not_found')
       expect((error as OrchestrationError).message).toBe('No such workflow')
     }
+  })
+})
+
+describe('asOrchestrationError', () => {
+  it('classifies an egress routing failure deep in a cause chain as a 503 without its routing code', () => {
+    const wrapped = new Error('Failed query: select ...', {
+      cause: new Error('token exchange failed', {
+        cause: new OutboundRoutingError('GATEWAY_UNAVAILABLE'),
+      }),
+    })
+
+    const classified = asOrchestrationError(wrapped)
+
+    expect(classified?.code).toBe('unavailable')
+    expect(statusForOrchestrationError(classified?.code)).toBe(503)
+    expect(classified?.message).toBe("The organization's egress route is unavailable")
+    expect(classified?.message).not.toContain('GATEWAY_UNAVAILABLE')
   })
 })

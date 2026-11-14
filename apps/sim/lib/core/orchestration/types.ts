@@ -1,3 +1,4 @@
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 export type OrchestrationErrorCode =
@@ -13,6 +14,12 @@ export type OrchestrationErrorCode =
   | 'conflict'
   | 'locked'
   | 'payload_too_large'
+  /**
+   * A dependency Sim reaches on the caller's behalf is temporarily unreachable —
+   * the organization's egress gateway, say. Retryable; nothing about the caller
+   * or its credentials is wrong.
+   */
+  | 'unavailable'
   | 'internal'
 
 /**
@@ -28,6 +35,7 @@ export function statusForOrchestrationError(code: OrchestrationErrorCode | undef
   if (code === 'conflict') return 409
   if (code === 'locked') return 423
   if (code === 'payload_too_large') return 413
+  if (code === 'unavailable') return 503
   return 500
 }
 
@@ -93,6 +101,8 @@ export function throwOrchestrationFailure(
   )
 }
 
+const EGRESS_UNAVAILABLE_MESSAGE = "The organization's egress route is unavailable"
+
 /**
  * The {@link OrchestrationError} in `error`'s cause chain, or `null` when the
  * failure is not a classified one.
@@ -101,6 +111,10 @@ export function throwOrchestrationFailure(
  * raised inside a transaction callback in a `DrizzleQueryError` whose own
  * message is the failed SQL — the same reason the message-matching this
  * replaced had to dig for a root cause before it could classify anything.
+ *
+ * An {@link OutboundRoutingError} anywhere in the chain is the organization's
+ * egress route failing, so it classifies as `unavailable` with a fixed message:
+ * its routing code stays in server logs.
  */
 export function asOrchestrationError(error: unknown): OrchestrationError | null {
   let current: unknown = error
@@ -108,6 +122,8 @@ export function asOrchestrationError(error: unknown): OrchestrationError | null 
     if (current instanceof OrchestrationError) return current
     if (isPayloadSizeLimitError(current))
       return new OrchestrationError('payload_too_large', current.message)
+    if (current instanceof OutboundRoutingError)
+      return new OrchestrationError('unavailable', EGRESS_UNAVAILABLE_MESSAGE)
     current = current.cause
   }
   return null

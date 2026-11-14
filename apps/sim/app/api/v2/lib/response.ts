@@ -545,6 +545,7 @@ const V2_CODE_BY_ORCHESTRATION_ERROR: Record<OrchestrationErrorCode, V2ErrorCode
   conflict: 'CONFLICT',
   locked: 'LOCKED',
   payload_too_large: 'PAYLOAD_TOO_LARGE',
+  unavailable: 'SERVICE_UNAVAILABLE',
   internal: 'INTERNAL_ERROR',
 }
 
