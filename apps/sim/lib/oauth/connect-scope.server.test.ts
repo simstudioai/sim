@@ -1,5 +1,6 @@
 import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import {
+  createMockWorkspaceApplicationContext,
   workspaceContextMock,
   workspaceContextMockFns,
 } from '@sim/testing/mocks/workspace-context.mock'
@@ -52,10 +53,12 @@ async function organizationSeenByVendorCall(
 describe('resolveConnectDraftOutboundScope', () => {
   beforeEach(() => {
     networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
-    mockLoadWorkspaceApplicationContext.mockResolvedValue({
-      workspaceId: 'workspace-1',
-      workspaceOrganizationId: 'org-1',
-    })
+    mockLoadWorkspaceApplicationContext.mockResolvedValue(
+      createMockWorkspaceApplicationContext({
+        workspaceId: 'workspace-1',
+        workspaceOrganizationId: 'org-1',
+      })
+    )
   })
 
   afterEach(() => {

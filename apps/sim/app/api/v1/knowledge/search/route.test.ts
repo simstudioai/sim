@@ -33,6 +33,7 @@ import {
 import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
 import {
+  createMockWorkspaceApplicationContext,
   workspaceContextMock,
   workspaceContextMockFns,
 } from '@sim/testing/mocks/workspace-context.mock'
@@ -264,10 +265,12 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
 
   it("embeds the query through the workspace organization's outbound route", async () => {
     networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
-    workspaceContextMockFns.mockLoadWorkspaceApplicationContext.mockResolvedValueOnce({
-      workspaceId: 'ws-1',
-      workspaceOrganizationId: 'org-1',
-    })
+    workspaceContextMockFns.mockLoadWorkspaceApplicationContext.mockResolvedValueOnce(
+      createMockWorkspaceApplicationContext({
+        workspaceId: 'ws-1',
+        workspaceOrganizationId: 'org-1',
+      })
+    )
     mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
       hasAccess: true,
       knowledgeBase: baseKb('kb-1', 'text-embedding-3-small'),
@@ -278,7 +281,8 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     })
 
     const res = await POST(
-      createMockRequest('POST', { workspaceId: 'ws-1', knowledgeBaseIds: 'kb-1', query: 'hello' })
+      createMockRequest('POST', { workspaceId: 'ws-1', knowledgeBaseIds: 'kb-1', query: 'hello' }),
+      { params: Promise.resolve({}) }
     )
 
     expect(res.status).toBe(200)

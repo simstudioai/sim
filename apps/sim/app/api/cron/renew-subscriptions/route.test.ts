@@ -14,6 +14,7 @@ import {
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
 import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import {
+  createMockWorkspaceApplicationContext,
   workspaceContextMock,
   workspaceContextMockFns,
 } from '@sim/testing/mocks/workspace-context.mock'
@@ -77,10 +78,12 @@ describe('Teams subscription renewal route (fire-and-forget)', () => {
         routeOrganizationId = organizationId
         return { kind: 'direct' }
       })
-      mockLoadWorkspaceApplicationContext.mockResolvedValue({
-        workspaceId: 'workspace-1',
-        workspaceOrganizationId: 'org-1',
-      })
+      mockLoadWorkspaceApplicationContext.mockResolvedValue(
+        createMockWorkspaceApplicationContext({
+          workspaceId: 'workspace-1',
+          workspaceOrganizationId: 'org-1',
+        })
+      )
       mockGetCredentialOwner.mockResolvedValue({ accountId: 'account-1', userId: 'user-1' })
       authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded.mockResolvedValue('graph-token')
       vi.stubGlobal(
@@ -112,7 +115,7 @@ describe('Teams subscription renewal route (fire-and-forget)', () => {
         },
       ])
 
-      const response = await GET(createRequest())
+      const response = await GET(createRequest(), { params: Promise.resolve({}) })
       expect(response.status).toBe(202)
 
       await vi.waitFor(() => expect(graphCalls).toHaveLength(1))
