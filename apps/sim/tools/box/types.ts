@@ -251,6 +251,7 @@ export const FOLDER_ITEMS_OUTPUT_PROPERTIES = {
     type: 'string',
     description: 'Marker for the next page when using marker-based pagination',
     optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
