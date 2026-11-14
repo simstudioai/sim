@@ -107,6 +107,12 @@ export const SSO_REQUIRED_MESSAGE =
   'Your organization requires single sign-on. Sign in through your identity provider.'
 
 /**
+ * How an SSO sign-in refused before any session exists identifies itself in the callback's error
+ * redirect, which the SSO sign-in page explains.
+ */
+export const SSO_PROVISIONING_FAILED_ERROR_CODE = 'sso_provisioning_failed'
+
+/**
  * How an account creation refused for a disposable email domain identifies itself, so the OAuth
  * error page can name the way forward instead of telling the person to try again.
  */

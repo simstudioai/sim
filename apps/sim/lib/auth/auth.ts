@@ -75,6 +75,7 @@ import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
+import { refuseSsoCallbackEmailOutsideProviderDomain } from '@/lib/auth/sso/callback-email-domain'
 import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
 import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
 import {
@@ -386,6 +387,7 @@ export const auth = betterAuth({
             throw new Error('Sign-ups from this email are not allowed.')
           }
           if (isHosted) await refuseDisposableAccountEmail(user.email, context?.path)
+          await refuseSsoCallbackEmailOutsideProviderDomain(user.email, context)
           return { data: user }
         },
         after: async (user, context) => {
@@ -482,6 +484,10 @@ export const auth = betterAuth({
         },
       },
       update: {
+        before: async (user, context) => {
+          if (user.email) await refuseSsoCallbackEmailOutsideProviderDomain(user.email, context)
+          return { data: user }
+        },
         after: async (user) => {
           if (user.banned) {
             await disableUserResources(user.id)

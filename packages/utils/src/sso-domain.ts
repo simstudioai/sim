@@ -31,3 +31,13 @@ export function normalizeSSODomain(input: string): string | null {
 
   return value
 }
+
+/**
+ * Whether an email address belongs to an SSO provider's domain, compared on the
+ * same canonical form {@link normalizeSSODomain} keys domain ownership on. An
+ * unparseable address or domain never matches.
+ */
+export function isEmailInSSODomain(email: string, domain: string): boolean {
+  const emailDomain = normalizeSSODomain(email)
+  return emailDomain !== null && emailDomain === normalizeSSODomain(domain)
+}
