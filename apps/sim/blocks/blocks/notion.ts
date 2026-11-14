@@ -622,10 +622,10 @@ export const NotionBlock: BlockConfig = {
             return 'notion_read'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
-          operation,
+          operation: storedOperation,
           properties,
           filter,
           sorts,
@@ -637,6 +637,7 @@ export const NotionBlock: BlockConfig = {
           commentContent,
           ...rest
         } = params
+        const operation = storedOperation ?? context?.operation
 
         // Parse properties from JSON string for create/add operations
         let parsedProperties
@@ -661,20 +662,28 @@ export const NotionBlock: BlockConfig = {
         // Parse filter for query database operations
         let parsedFilter
         if (operation === 'notion_query_database' && filter) {
-          try {
-            parsedFilter = JSON.parse(filter)
-          } catch (error) {
-            throw new Error(`Invalid JSON for filter: ${toError(error).message}`)
+          if (typeof filter === 'string') {
+            try {
+              parsedFilter = JSON.parse(filter)
+            } catch (error) {
+              throw new Error(`Invalid JSON for filter: ${toError(error).message}`)
+            }
+          } else {
+            parsedFilter = filter
           }
         }
 
         // Parse sorts for query database operations
         let parsedSorts
         if (operation === 'notion_query_database' && sorts) {
-          try {
-            parsedSorts = JSON.parse(sorts)
-          } catch (error) {
-            throw new Error(`Invalid JSON for sorts: ${toError(error).message}`)
+          if (typeof sorts === 'string') {
+            try {
+              parsedSorts = JSON.parse(sorts)
+            } catch (error) {
+              throw new Error(`Invalid JSON for sorts: ${toError(error).message}`)
+            }
+          } else {
+            parsedSorts = sorts
           }
         }
 

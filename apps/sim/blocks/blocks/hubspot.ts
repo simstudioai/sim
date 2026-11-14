@@ -1635,7 +1635,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
       params: (params, context) => {
         const {
           oauthCredential,
-          operation,
+          operation: storedOperation,
           propertiesToSet,
           properties,
           searchProperties,
@@ -1647,6 +1647,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
           archived,
           ...rest
         } = params
+        const operation = storedOperation ?? context?.operation
 
         const cleanParams: Record<string, any> = {
           oauthCredential,

@@ -328,3 +328,35 @@ describe('QuickBooks block agent tool calls', () => {
     ).toBeUndefined()
   })
 })
+
+/**
+ * Runs the mapper exactly as an agent tool call does: the operation lives on the stored tool
+ * and arrives only in the context, never as a key of the args.
+ */
+function agentToolCall(operation: string, args: Record<string, unknown>): Record<string, unknown> {
+  const params = QuickBooksBlock.tools?.config?.params
+  if (!params) throw new Error('QuickBooks block does not define a params mapper')
+  return { ...args, ...params(args, { operation }) }
+}
+
+describe('QuickBooks block agent operation resolution', () => {
+  it('coerces a yes confirmation from the tool row on a void', () => {
+    const mapped = agentToolCall('quickbooks_void_invoice', {
+      transactionId: '130',
+      syncToken: '2',
+      confirmVoid: 'yes',
+    })
+    expect(mapped.confirmVoid).toBe(true)
+  })
+
+  it('keeps the attachment file set in the tool row', () => {
+    const file = { id: 'file-1', name: 'receipt.pdf', url: 'https://example.com/receipt.pdf' }
+    const mapped = agentToolCall('quickbooks_add_attachment', {
+      attachmentKind: 'file',
+      targetType: 'Invoice',
+      targetId: '130',
+      file,
+    })
+    expect(mapped.file).toMatchObject({ id: 'file-1' })
+  })
+})

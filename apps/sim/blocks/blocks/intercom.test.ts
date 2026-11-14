@@ -30,3 +30,17 @@ describe('Intercom snooze timestamps', () => {
     ).toThrow('positive whole Unix timestamp')
   })
 })
+
+describe('Intercom agent operation resolution', () => {
+  it('keeps a boolean disable_notifications when the operation arrives only in the context', () => {
+    const mapper = IntercomV2Block.tools.config?.params
+    if (!mapper) throw new Error('Intercom block has no params mapper')
+
+    const mapped = mapper(
+      { ticket_type_id: 't1', disable_notifications: true },
+      { operation: 'create_ticket' }
+    )
+
+    expect(mapped.disable_notifications).toBe(true)
+  })
+})

@@ -2526,7 +2526,7 @@ export const QuickBooksBlock: BlockConfig = {
         return operation
       },
       params: (params, context) => {
-        const operation = String(params.operation)
+        const operation = String(params.operation ?? context?.operation)
         const oauthCredentialValue = params.oauthCredential
         /**
          * Resolves a tool param filled by a differently-named subBlock. On an agent tool call
@@ -2582,7 +2582,9 @@ export const QuickBooksBlock: BlockConfig = {
             targetId: pick(params.attachmentTargetId, 'targetId'),
             file:
               attachmentKind === 'file'
-                ? normalizeFileInput(params.attachmentFile, { single: true })
+                ? normalizeFileInput(params.attachmentFile ?? toolCallArg(context, params.file), {
+                    single: true,
+                  })
                 : undefined,
             fileName:
               attachmentKind === 'file' ? pick(params.attachmentFileName, 'fileName') : undefined,

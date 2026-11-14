@@ -1357,9 +1357,9 @@ Return ONLY the numeric timestamp.`,
             throw new Error(`Unknown operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
-          operation,
+          operation: storedOperation,
           message_type_msg,
           company_name,
           contact_company_id,
@@ -1389,6 +1389,7 @@ Return ONLY the numeric timestamp.`,
           event_created_at,
           ...rest
         } = params
+        const operation = storedOperation ?? context?.operation
         const cleanParams: Record<string, any> = {}
 
         if (operation === 'create_message' && message_type_msg) {
@@ -1414,7 +1415,8 @@ Return ONLY the numeric timestamp.`,
           if (ticket_company_id) cleanParams.company_id = ticket_company_id
           if (ticket_created_at) cleanParams.created_at = Number(ticket_created_at)
           if (disable_notifications !== undefined && disable_notifications !== '') {
-            cleanParams.disable_notifications = disable_notifications === 'true'
+            cleanParams.disable_notifications =
+              disable_notifications === true || disable_notifications === 'true'
           }
         }
 
@@ -1427,7 +1429,8 @@ Return ONLY the numeric timestamp.`,
           include_translations !== undefined &&
           include_translations !== ''
         ) {
-          cleanParams.include_translations = include_translations === 'true'
+          cleanParams.include_translations =
+            include_translations === true || include_translations === 'true'
         }
 
         if (operation === 'snooze_conversation' && snoozed_until) {
@@ -1648,9 +1651,9 @@ export const IntercomV2Block: BlockConfig = {
         suffix: '_v2',
         fallbackToolId: 'intercom_create_contact_v2',
       }),
-      params: (params) => {
+      params: (params, context) => {
         const {
-          operation,
+          operation: storedOperation,
           message_type_msg,
           company_name,
           contact_company_id,
@@ -1680,6 +1683,7 @@ export const IntercomV2Block: BlockConfig = {
           event_created_at,
           ...rest
         } = params
+        const operation = storedOperation ?? context?.operation
         const cleanParams: Record<string, any> = {}
 
         if (operation === 'create_message' && message_type_msg) {
@@ -1705,7 +1709,8 @@ export const IntercomV2Block: BlockConfig = {
           if (ticket_company_id) cleanParams.company_id = ticket_company_id
           if (ticket_created_at) cleanParams.created_at = Number(ticket_created_at)
           if (disable_notifications !== undefined && disable_notifications !== '') {
-            cleanParams.disable_notifications = disable_notifications === 'true'
+            cleanParams.disable_notifications =
+              disable_notifications === true || disable_notifications === 'true'
           }
         }
 
@@ -1718,7 +1723,8 @@ export const IntercomV2Block: BlockConfig = {
           include_translations !== undefined &&
           include_translations !== ''
         ) {
-          cleanParams.include_translations = include_translations === 'true'
+          cleanParams.include_translations =
+            include_translations === true || include_translations === 'true'
         }
 
         if (operation === 'snooze_conversation' && snoozed_until) {
