@@ -8,9 +8,9 @@ const DYNAMIC_SSO_CALLBACK_PATHS = new Set([
  * Provider IDs travel unescaped in callback URLs (`/sso/callback/{providerId}`),
  * so they are limited to characters that survive a URL path unchanged. A
  * percent-escape would let the plugin and the admission hook disagree on which
- * provider a sign-in came from.
+ * provider a sign-in came from, and `.`/`..` are dot-segments a URL collapses.
  */
-export const SSO_PROVIDER_ID_PATTERN = /^[a-zA-Z0-9_.:-]{1,128}$/
+export const SSO_PROVIDER_ID_PATTERN = /^(?!\.{1,2}$)[a-zA-Z0-9_.:-]{1,128}$/
 
 const CONCRETE_SSO_CALLBACK_PATH = /^\/sso\/(?:callback|saml2\/callback|saml2\/sp\/acs)\/([^/]+)$/
 
