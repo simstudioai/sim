@@ -1,6 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { BoxFileInfoResponse, BoxUpdateFileParams } from './types'
-import { FILE_OUTPUT_PROPERTIES } from './types'
+import { BOX_FILE_FIELDS, FILE_OUTPUT_PROPERTIES } from './types'
 
 export const boxUpdateFileTool: ToolConfig<BoxUpdateFileParams, BoxFileInfoResponse> = {
   id: 'box_update_file',
@@ -53,7 +54,8 @@ export const boxUpdateFileTool: ToolConfig<BoxUpdateFileParams, BoxFileInfoRespo
   },
 
   request: {
-    url: (params) => `https://api.box.com/2.0/files/${params.fileId.trim()}`,
+    url: (params) =>
+      `https://api.box.com/2.0/files/${safeUrlPathSegment(params.fileId, 'fileId')}?fields=${BOX_FILE_FIELDS}`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

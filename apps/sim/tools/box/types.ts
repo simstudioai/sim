@@ -26,6 +26,8 @@ export interface BoxListFolderItemsParams {
   offset?: number
   sort?: string
   direction?: string
+  usemarker?: boolean
+  marker?: string
 }
 
 export interface BoxCreateFolderParams {
@@ -128,6 +130,7 @@ export interface BoxFolderItemsResponse extends ToolResponse {
     totalCount: number
     offset: number
     limit: number
+    nextMarker: string | null
   }
 }
 
@@ -148,6 +151,33 @@ export interface BoxSearchResponse extends ToolResponse {
     totalCount: number
   }
 }
+
+/**
+ * `fields` value for file reads and updates. Box returns the standard representation by
+ * default, which omits `tags` and `comment_count`; naming any field replaces the standard
+ * set, so every field the file mappers read is listed.
+ */
+export const BOX_FILE_FIELDS = [
+  'name',
+  'description',
+  'size',
+  'sha1',
+  'created_at',
+  'modified_at',
+  'created_by',
+  'modified_by',
+  'owned_by',
+  'parent',
+  'shared_link',
+  'tags',
+  'comment_count',
+].join(',')
+
+/**
+ * `fields` value for folder listings. Folder items come back in their mini representation
+ * (no size or timestamps) unless these are requested; `type` and `id` are always returned.
+ */
+export const BOX_FOLDER_ITEM_FIELDS = ['name', 'size', 'created_at', 'modified_at'].join(',')
 
 const USER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'User ID' },
@@ -209,9 +239,17 @@ export const FOLDER_ITEMS_OUTPUT_PROPERTIES = {
       },
     },
   },
-  totalCount: { type: 'number', description: 'Total number of items in the folder' },
+  totalCount: {
+    type: 'number',
+    description: 'Total number of items in the folder (omitted by Box for marker pagination)',
+  },
   offset: { type: 'number', description: 'Current pagination offset' },
   limit: { type: 'number', description: 'Current pagination limit' },
+  nextMarker: {
+    type: 'string',
+    description: 'Marker for the next page when using marker-based pagination',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 export const FOLDER_OUTPUT_PROPERTIES = {
