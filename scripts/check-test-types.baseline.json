@@ -1166,9 +1166,6 @@
   "apps/sim/lib/credential-groups/slack-managed-users.test.ts": {
     "TS2339": 1
   },
-  "apps/sim/lib/credential-groups/slack-provider.test.ts": {
-    "TS2741": 2
-  },
   "apps/sim/lib/credential-groups/standard-oauth-provider.test.ts": {
     "TS2739": 1,
     "TS2741": 1

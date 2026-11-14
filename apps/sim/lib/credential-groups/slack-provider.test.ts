@@ -122,6 +122,7 @@ describe('Slack member scope policy', () => {
           requiredScopes: policy.requiredScopes,
           redirectUri: 'https://sim.fixture.test/api/credential-groups/oauth/slack/callback',
           invitationToken: 'invitation',
+          userId: 'user-1',
           createdAt: Date.now(),
         },
       })
@@ -161,6 +162,7 @@ describe('Slack member scope policy', () => {
         requiredScopes: policy.requiredScopes,
         redirectUri: 'https://sim.fixture.test/api/credential-groups/oauth/slack/callback',
         invitationToken: 'invitation',
+        userId: 'user-1',
         createdAt: Date.now(),
       },
     })
@@ -212,6 +214,7 @@ describe('Slack member scope policy', () => {
           requiredScopes: policy.requiredScopes,
           redirectUri: 'https://sim.fixture.test/api/credential-groups/oauth/slack/callback',
           invitationToken: 'invitation',
+          userId: 'user-1',
           createdAt: Date.now(),
         },
       })
