@@ -72,7 +72,8 @@ export const docusignSendEnvelopeTool: InternalToolConfig<
       type: 'file',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Document file to send for signature',
+      description:
+        'Document file to send for signature. Text "/sig1/" and "/date1/" in the document anchor the signature and date fields; without them the signer places fields freely, unless the DocuSign account disables freeform signing',
     },
     status: {
       type: 'string',

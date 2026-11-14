@@ -15,9 +15,9 @@ export const dropboxSearchTool: ToolConfig<DropboxSearchParams, DropboxSearchRes
   params: {
     query: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The search query',
+      description: 'The search query. Required unless cursor is set',
     },
     path: {
       type: 'string',
@@ -37,10 +37,20 @@ export const dropboxSearchTool: ToolConfig<DropboxSearchParams, DropboxSearchRes
       visibility: 'user-or-llm',
       description: 'Maximum number of results to return (default: 100)',
     },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Cursor from a previous Search call to fetch the next page via search/continue_v2 (other options are ignored when set)',
+    },
   },
 
   request: {
-    url: 'https://api.dropboxapi.com/2/files/search_v2',
+    url: (params) =>
+      params.cursor?.trim()
+        ? 'https://api.dropboxapi.com/2/files/search/continue_v2'
+        : 'https://api.dropboxapi.com/2/files/search_v2',
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {
@@ -52,6 +62,12 @@ export const dropboxSearchTool: ToolConfig<DropboxSearchParams, DropboxSearchRes
       }
     },
     body: (params) => {
+      const cursor = params.cursor?.trim()
+      if (cursor) return { cursor }
+      if (!params.query?.trim()) {
+        throw new Error('query is required unless cursor is set')
+      }
+
       const body: Record<string, any> = {
         query: params.query,
       }
@@ -130,7 +146,8 @@ export const dropboxSearchTool: ToolConfig<DropboxSearchParams, DropboxSearchRes
     },
     cursor: {
       type: 'string',
-      description: 'Cursor for pagination',
+      description: 'Cursor to pass back as the cursor input to fetch the next page',
+      optional: true,
     },
   },
 }

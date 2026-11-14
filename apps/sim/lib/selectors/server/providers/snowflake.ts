@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import {
@@ -91,7 +92,7 @@ function requireStatementHandle(value: string): string {
 }
 
 async function fetchSnowflakeResponse(url: string, init: RequestInit): Promise<Response> {
-  const response = await fetch(url, { ...init, redirect: 'error' })
+  const response = await outboundFetch(url, { ...init, redirect: 'error' })
   if (!response.ok) {
     await response.body?.cancel().catch(() => undefined)
     throw selectorProviderStatusError(response.status)

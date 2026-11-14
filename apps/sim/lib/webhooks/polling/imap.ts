@@ -17,10 +17,10 @@ import {
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
+  isUncountedPollFailure,
   markWebhookFailed,
   markWebhookSuccess,
-  PollAdmissionRefusedError,
-  skipAdmissionRefusedPoll,
+  skipUncountedPollFailure,
   throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
@@ -203,9 +203,8 @@ export const imapPollingHandler: PollingProviderHandler = {
         throw innerError
       }
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError) {
-        return skipAdmissionRefusedPoll(logger, webhookId)
-      }
+      const skipped = skipUncountedPollFailure(error, logger, webhookId)
+      if (skipped) return skipped
       logger.error(`Error processing IMAP webhook ${webhookId}`)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
@@ -608,7 +607,7 @@ async function processEmails(
         )
         processedCount++
       } catch (error) {
-        if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
+        if (isUncountedPollFailure(error) && processedCount === 0) throw error
         logger.error(`Error processing email ${email.uid}`)
         failedCount++
       }

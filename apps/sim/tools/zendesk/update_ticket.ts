@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   buildZendeskUrl,
   handleZendeskError,
@@ -18,6 +19,7 @@ export interface ZendeskUpdateTicketParams {
   ticketId: string
   subject?: string
   comment?: string
+  commentPublic?: boolean
   priority?: string
   status?: string
   type?: string
@@ -85,6 +87,13 @@ export const zendeskUpdateTicketTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Comment text to add to the ticket',
     },
+    commentPublic: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether the comment is a public reply (true) or an internal note (false). Omit to keep the ticket default',
+    },
     priority: {
       type: 'string',
       required: false,
@@ -130,7 +139,11 @@ export const zendeskUpdateTicketTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildZendeskUrl(params.subdomain, `/tickets/${params.ticketId}`),
+    url: (params) =>
+      buildZendeskUrl(
+        params.subdomain,
+        `/tickets/${safeUrlPathSegment(params.ticketId, 'ticketId')}`
+      ),
     method: 'PUT',
     headers: (params) => ({
       Authorization: zendeskAuthorization(params),
@@ -146,7 +159,10 @@ export const zendeskUpdateTicketTool: ToolConfig<
       if (params.assigneeId) ticket.assignee_id = params.assigneeId
       if (params.groupId) ticket.group_id = params.groupId
       if (params.tags) ticket.tags = params.tags.split(',').map((t) => t.trim())
-      if (params.comment) ticket.comment = { body: params.comment }
+      if (params.comment) {
+        ticket.comment = { body: params.comment }
+        if (typeof params.commentPublic === 'boolean') ticket.comment.public = params.commentPublic
+      }
 
       if (params.customFields) {
         try {

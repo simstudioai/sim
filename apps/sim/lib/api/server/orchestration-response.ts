@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import {
   asOrchestrationError,
   messageForOrchestrationError,
+  type OrchestrationError,
   statusForOrchestrationError,
 } from '@/lib/core/orchestration/types'
 
@@ -15,7 +16,21 @@ export function orchestrationFailureResponse(
   fallback = 'Internal server error'
 ): NextResponse | null {
   const classified = asOrchestrationError(error)
-  if (!classified) return null
+  return classified ? classifiedResponse(classified, fallback) : null
+}
+
+/**
+ * The 503 for an `unavailable` failure (the organization's egress route down, say); `null` for
+ * any other error, which keeps the route's own handling.
+ */
+export function unavailableFailureResponse(error: unknown): NextResponse | null {
+  const classified = asOrchestrationError(error)
+  return classified?.code === 'unavailable'
+    ? classifiedResponse(classified, 'Internal server error')
+    : null
+}
+
+function classifiedResponse(classified: OrchestrationError, fallback: string): NextResponse {
   return NextResponse.json(
     {
       error: messageForOrchestrationError(

@@ -1,6 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { BoxFileInfoResponse, BoxGetFileInfoParams } from './types'
-import { FILE_OUTPUT_PROPERTIES } from './types'
+import { BOX_FILE_FIELDS, FILE_OUTPUT_PROPERTIES } from './types'
 
 export const boxGetFileInfoTool: ToolConfig<BoxGetFileInfoParams, BoxFileInfoResponse> = {
   id: 'box_get_file_info',
@@ -29,7 +30,8 @@ export const boxGetFileInfoTool: ToolConfig<BoxGetFileInfoParams, BoxFileInfoRes
   },
 
   request: {
-    url: (params) => `https://api.box.com/2.0/files/${params.fileId.trim()}`,
+    url: (params) =>
+      `https://api.box.com/2.0/files/${safeUrlPathSegment(params.fileId, 'fileId')}?fields=${BOX_FILE_FIELDS}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

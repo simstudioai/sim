@@ -1,5 +1,6 @@
 import { generateRandomString } from '@sim/utils/random'
 import { convert } from 'html-to-text'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -32,7 +33,7 @@ export async function fetchThreadingHeaders(
   subject?: string
 }> {
   try {
-    const messageResponse = await fetch(
+    const messageResponse = await outboundFetch(
       `${GMAIL_API_BASE}/messages/${safeUrlPathSegment(messageId, 'messageId')}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Subject`,
       {
         headers: {
@@ -276,7 +277,7 @@ export async function downloadAttachments(
   for (const attachment of attachmentInfo) {
     try {
       budget.assertSize(attachment.size, 'Gmail attachments')
-      const response = await fetch(
+      const response = await outboundFetch(
         `${GMAIL_API_BASE}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.attachmentId)}`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },

@@ -56,6 +56,7 @@ vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScop
 const mockResolvePermissionGroupConfig =
   permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { executeSelector } from '@/lib/selectors/application/execute-selector'
 import { getSelectorManifestEntry } from '@/lib/selectors/manifest'
@@ -432,6 +433,12 @@ describe('executeSelector', () => {
       expect(mocks.logger.warn).not.toHaveBeenCalled()
     }
   )
+
+  it("keeps an egress outage as Sim's outage instead of folding it into options unavailable", async () => {
+    mocks.executeAttachment.mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(execute()).rejects.toBeInstanceOf(OutboundRoutingError)
+  })
 
   it('projects provider failures to a safe error and never logs request context', async () => {
     mocks.executeAttachment.mockRejectedValueOnce(

@@ -86,6 +86,7 @@ export const vllmProvider: ProviderConfig = {
         headers.Authorization = `Bearer ${env.VLLM_API_KEY}`
       }
 
+      // egress-direct: operator's own vLLM server named by the deployment
       const response = await fetch(`${apiBaseUrl}/models`, { headers })
       if (!response.ok) {
         await response.text().catch(() => {})

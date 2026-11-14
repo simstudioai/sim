@@ -67,12 +67,37 @@ export const ZENDESK_CREDENTIAL_PARAMS = {
   },
 } satisfies ToolConfig['params']
 
-// Helper function for consistent error handling
-export function handleZendeskError(data: any, status: number, operation: string): never {
+/**
+ * Throws the most specific message a Zendesk error body carries. Zendesk returns either
+ * `{ error, description, details }` (where `error` is a code such as `RecordInvalid`, or an
+ * object with `title`/`message`) or `{ errors: [{ title, detail }] }`.
+ * @see https://developer.zendesk.com/api-reference/introduction/requests/#400-range
+ */
+export function handleZendeskError(data: unknown, status: number, operation: string): never {
   logger.error(`Zendesk API request failed for ${operation}`, { data, status })
 
-  const errorMessage = data.error || data.description || data.message || 'Unknown error'
-  throw new Error(`Zendesk ${operation} failed: ${errorMessage}`)
+  const body = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>
+  const text = (value: unknown): string | undefined =>
+    typeof value === 'string' && value ? value : undefined
+  const error = body.error
+  const errorObject =
+    error && typeof error === 'object' ? (error as Record<string, unknown>) : undefined
+  const firstError = Array.isArray(body.errors)
+    ? (body.errors[0] as Record<string, unknown> | undefined)
+    : undefined
+  const summary =
+    text(body.description) ??
+    text(errorObject?.message) ??
+    text(errorObject?.title) ??
+    text(firstError?.detail) ??
+    text(firstError?.title) ??
+    text(error) ??
+    text(body.message) ??
+    `HTTP ${status}`
+  const code = text(error)
+  const details = body.details ? ` ${JSON.stringify(body.details)}` : ''
+  const prefix = code && code !== summary ? `${code}: ` : ''
+  throw new Error(`Zendesk ${operation} failed: ${prefix}${summary}${details}`)
 }
 
 /**

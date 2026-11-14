@@ -17,6 +17,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { getAwsCredentials } from '@/lib/core/config/aws'
+import { organizationAwsRequestHandler } from '@/lib/core/network/organization-aws-handler.server'
 import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
@@ -69,6 +70,9 @@ import {
 } from '@/providers/utils'
 
 const logger = createLogger('BedrockProvider')
+
+/** Bedrock Runtime defaults to HTTP/2, which a customer's direct requests keep. */
+const customerRequestHandler = () => organizationAwsRequestHandler({ http2: true })
 
 function enrichLastModelSegmentFromBedrockResponse(
   timeSegments: TimeSegment[],
@@ -137,12 +141,17 @@ function enrichLastModelSegmentFromBedrockResponse(
 function resolveBedrockClientCredentials(request: ProviderRequest): {
   credentials: BedrockRuntimeClientConfig['credentials']
   credentialKey: string | null
+  createRequestHandler: () => BedrockRuntimeClientConfig['requestHandler']
 } {
   const session = request.bedrockSession
   if (session) {
     const { accessKeyId, secretAccessKey, sessionToken } = session
     if (sessionToken) {
-      return { credentials: { accessKeyId, secretAccessKey, sessionToken }, credentialKey: null }
+      return {
+        credentials: { accessKeyId, secretAccessKey, sessionToken },
+        credentialKey: null,
+        createRequestHandler: customerRequestHandler,
+      }
     }
     return {
       credentials: { accessKeyId, secretAccessKey },
@@ -151,6 +160,7 @@ function resolveBedrockClientCredentials(request: ProviderRequest): {
         session.credentialId,
         sha256Hex([accessKeyId, secretAccessKey].join('\0')),
       ].join(':'),
+      createRequestHandler: customerRequestHandler,
     }
   }
 
@@ -172,9 +182,15 @@ function resolveBedrockClientCredentials(request: ProviderRequest): {
         secretAccessKey: request.bedrockSecretKey,
       },
       credentialKey: `${request.bedrockAccessKeyId}:${request.bedrockSecretKey}`,
+      createRequestHandler: customerRequestHandler,
     }
   }
-  return { credentials: getAwsCredentials(), credentialKey: 'default-chain' }
+  // The deployment's own credentials stay on Sim's network, never an organization's route.
+  return {
+    credentials: getAwsCredentials(),
+    credentialKey: 'default-chain',
+    createRequestHandler: awsRequestHandler,
+  }
 }
 
 export const bedrockProvider: ProviderConfig = {
@@ -206,9 +222,10 @@ export const bedrockProvider: ProviderConfig = {
       region,
     })
 
-    const { credentials, credentialKey } = resolveBedrockClientCredentials(request)
+    const { credentials, credentialKey, createRequestHandler } =
+      resolveBedrockClientCredentials(request)
     const buildClient = () =>
-      new BedrockRuntimeClient({ region, credentials, requestHandler: awsRequestHandler() })
+      new BedrockRuntimeClient({ region, credentials, requestHandler: createRequestHandler() })
     const client =
       credentialKey === null
         ? buildClient()

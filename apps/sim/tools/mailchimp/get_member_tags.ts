@@ -1,6 +1,12 @@
-import { buildMailchimpUrl, handleMailchimpError, type MailchimpTag } from '@/tools/mailchimp/types'
+import {
+  buildMailchimpUrl,
+  handleMailchimpError,
+  type MailchimpTag,
+  mailchimpMemberSegment,
+} from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpGetMemberTagsParams {
   apiKey: string
@@ -52,7 +58,7 @@ export const mailchimpGetMemberTagsTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/members/${params.subscriberEmail}/tags`
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/members/${mailchimpMemberSegment(params.subscriberEmail)}/tags`
       ),
     method: 'GET',
     headers: (params) => ({

@@ -3,6 +3,7 @@ import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,9 +29,12 @@ const { attempts, redis } = vi.hoisted(() => {
 })
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import {
   SLACK_MANAGED_USER_SCOPES,
@@ -42,6 +46,7 @@ import {
   exchangeAndConfigureSlackManagedUsers,
   exchangeSlackUserAuthorization,
   loadSlackManagedUsersAttempt,
+  verifySlackCustomBotAppIdentity,
 } from '@/lib/credential-groups/slack-managed-users'
 
 const shared = { flag: featureFlagsMockFns.mockIsFeatureEnabled }
@@ -84,6 +89,7 @@ function slackResponse(value: Record<string, unknown>): Response {
 
 describe('Slack managed-user authorization', () => {
   beforeEach(() => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
     resetDbChainMock()
     attempts.clear()
     setEnv({ SLACK_SEARCH_APP_ID: '' })
@@ -575,6 +581,37 @@ describe('Slack managed-user authorization', () => {
       expect.anything()
     )
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an unavailable egress route instead of blaming Slack', async () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    networkConfigMockFns.mockResolveOutboundRoute.mockRejectedValueOnce(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    await expect(
+      runWithOutboundOrganization('organization-1', () =>
+        exchangeSlackUserAuthorization({
+          clientId: 'client-id',
+          clientSecret: 'client-secret',
+          code: 'single-use-code',
+          redirectUri: 'https://sim.ai/callback',
+        })
+      )
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+  })
+
+  it('surfaces an unavailable egress route while verifying a custom bot instead of blaming Slack', async () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    networkConfigMockFns.mockResolveOutboundRoute.mockRejectedValueOnce(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    await expect(
+      runWithOutboundOrganization('organization-1', () =>
+        verifySlackCustomBotAppIdentity('xoxb-token')
+      )
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
   })
 
   it('fails closed when Slack omits the user token type', async () => {

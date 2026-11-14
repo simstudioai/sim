@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraDeleteAttachmentParams, JiraDeleteAttachmentResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
@@ -67,7 +68,7 @@ export const jiraDeleteAttachmentTool: ToolConfig<
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
       // Make the actual request with the resolved cloudId
       const attachmentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/attachment/${safeUrlPathSegment(params?.attachmentId ?? '', 'attachmentId')}`
-      const attachmentResponse = await fetch(attachmentUrl, {
+      const attachmentResponse = await outboundFetch(attachmentUrl, {
         method: 'DELETE',
         headers: {
           Accept: 'application/json',

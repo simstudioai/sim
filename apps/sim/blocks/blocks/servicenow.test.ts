@@ -159,3 +159,75 @@ describe('ServiceNow state written after the split is never re-migrated', () => 
     expect(second.blocks['block-1'].subBlocks.readFields?.value).toBe('number,state')
   })
 })
+
+/**
+ * A tool call (agent, Pi, Human v2) passes the model's args under the tool param
+ * names. Operations whose value has a dedicated, differently-named subblock must
+ * fall back to the model's arg instead of overwriting it with the blank subblock.
+ */
+describe('ServiceNow tool-call args reach the tool', () => {
+  function mapToolCall(operation: string, args: Record<string, unknown>): Record<string, unknown> {
+    const transform = ServiceNowBlock.tools.config?.params
+    if (!transform) throw new Error('ServiceNow block has no params transform')
+    const params = { ...CREDENTIALS, ...args }
+    return { ...params, ...transform(params, { operation }) }
+  }
+
+  it('keeps the model close code and notes on Resolve Incident', () => {
+    const mapped = mapToolCall('servicenow_resolve_incident', {
+      sysId: 'abc',
+      closeCode: 'Solution provided',
+      closeNotes: 'Restarted the service',
+    })
+
+    expect(mapped.closeCode).toBe('Solution provided')
+    expect(mapped.closeNotes).toBe('Restarted the service')
+  })
+
+  it('keeps the model state filter, projection, and display mode on List Incidents', () => {
+    const mapped = mapToolCall('servicenow_list_incidents', {
+      state: '2',
+      fields: 'number,state',
+      displayValue: 'false',
+    })
+
+    expect(mapped.state).toBe('2')
+    expect(mapped.fields).toBe('number,state')
+    expect(mapped.displayValue).toBe('false')
+  })
+
+  it('does not send a stored Create/Update JSON body as the List Incidents projection', () => {
+    const mapped = mapToolCall('servicenow_list_incidents', {
+      fields: '{"short_description":"Printer down"}',
+    })
+
+    expect(mapped.fields).toBeUndefined()
+  })
+
+  it('keeps the model comment on Update Approval and the search text on Search Knowledge', () => {
+    expect(
+      mapToolCall('servicenow_update_approval', {
+        approvalSysId: 'abc',
+        decision: 'approved',
+        comments: 'Looks good',
+      }).comments
+    ).toBe('Looks good')
+    expect(mapToolCall('servicenow_search_knowledge', { query: 'vpn' }).query).toBe('vpn')
+  })
+
+  it('keeps the model limit on List Attachments', () => {
+    const mapped = mapToolCall('servicenow_list_attachments', {
+      tableName: 'incident',
+      recordSysId: 'abc',
+      limit: 5,
+    })
+
+    expect(mapped.limit).toBe(5)
+  })
+
+  it('prefers a configured subblock value over the model arg', () => {
+    const mapped = mapToolCall('servicenow_list_incidents', { incidentState: '6', state: '2' })
+
+    expect(mapped.state).toBe('6')
+  })
+})

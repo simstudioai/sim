@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { TWILIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { twilioAuthorization } from '@/tools/twilio/utils'
@@ -161,7 +162,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
         const recordingsUrl = twilioApiUrl(call.subresource_uris?.recordings)
         if (recordingsUrl) {
           try {
-            const recordingsResponse = await fetch(recordingsUrl, {
+            const recordingsResponse = await outboundFetch(recordingsUrl, {
               method: 'GET',
               headers: { Authorization: authorization },
               signal: context?.signal,

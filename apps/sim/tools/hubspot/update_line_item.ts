@@ -5,6 +5,7 @@ import type {
 } from '@/tools/hubspot/types'
 import { LINE_ITEM_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotUpdateLineItem')
 
@@ -52,7 +53,7 @@ export const hubspotUpdateLineItemTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.hubapi.com/crm/v3/objects/line_items/${params.lineItemId.trim()}`
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/line_items/${safeUrlPathSegment(params.lineItemId, 'lineItemId')}`
       const queryParams = new URLSearchParams()
       if (params.idProperty) queryParams.append('idProperty', params.idProperty)
       const queryString = queryParams.toString()

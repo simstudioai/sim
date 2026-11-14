@@ -22,6 +22,7 @@ import {
   type OrchestrationErrorCode,
 } from '@/lib/core/orchestration/types'
 import type { HttpError } from '@/lib/core/utils/http-error'
+import { describeResponseError } from '@/lib/core/utils/response-error'
 import type { RateLimitResult } from '@/app/api/v1/middleware'
 
 /**
@@ -217,7 +218,7 @@ export function v2Error(
   const retryAfterSeconds = options.omitRetryAfter
     ? undefined
     : RETRY_AFTER_SECONDS_BY_STATUS[status]
-  return NextResponse.json(
+  const response = NextResponse.json(
     { error },
     {
       status,
@@ -229,6 +230,15 @@ export function v2Error(
       },
     }
   )
+  const reason = detailCode(options.details)
+  describeResponseError(response, { errorCode: code, ...(reason ? { errorReason: reason } : {}) })
+  return response
+}
+
+/** The cause a refusal names in `details.code`, a closed vocabulary safe to log. */
+function detailCode(details: unknown): string | undefined {
+  if (typeof details !== 'object' || details === null || !('code' in details)) return undefined
+  return typeof details.code === 'string' ? details.code : undefined
 }
 
 /** Renders a trusted typed HTTP error without changing the v2 envelope. */
@@ -267,9 +277,17 @@ export function v2ValidationError(error: ZodError, slice?: RequestSlice): NextRe
       ? issueMessage.slice(fieldLabel.length)
       : issueMessage
   const location = [slice, ...path].filter((part) => part !== undefined && part !== '').join('.')
-  return v2Error('BAD_REQUEST', location ? `${location}: ${message}` : message, {
+  const response = v2Error('BAD_REQUEST', location ? `${location}: ${message}` : message, {
     details: serializeZodIssues(error),
   })
+  // Deeper segments can be record keys the caller wrote (an import's CSV headers); no slice is itself a record.
+  const field = [slice, path[0]].filter((part) => part !== undefined && part !== '').join('.')
+  describeResponseError(response, {
+    errorCode: 'BAD_REQUEST',
+    ...(field ? { errorField: field } : {}),
+    ...(error.issues[0] ? { errorReason: error.issues[0].code } : {}),
+  })
+  return response
 }
 
 /**
@@ -527,6 +545,7 @@ const V2_CODE_BY_ORCHESTRATION_ERROR: Record<OrchestrationErrorCode, V2ErrorCode
   conflict: 'CONFLICT',
   locked: 'LOCKED',
   payload_too_large: 'PAYLOAD_TOO_LARGE',
+  unavailable: 'SERVICE_UNAVAILABLE',
   internal: 'INTERNAL_ERROR',
 }
 

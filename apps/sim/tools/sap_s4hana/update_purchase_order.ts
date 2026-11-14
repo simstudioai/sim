@@ -115,38 +115,30 @@ export const updatePurchaseOrderTool: InternalToolConfig<
     data: {
       type: 'json',
       description:
-        'Null on 204 success, or OData v2 envelope with updated A_PurchaseOrder at output.data.d',
+        'Null on 204 No Content (the usual response), or the updated A_PurchaseOrder entity when SAP returns one',
       properties: {
-        d: {
-          type: 'json',
-          description: 'Updated A_PurchaseOrder entity (if returned)',
+        PurchaseOrder: {
+          type: 'string',
+          description: 'Purchase order number',
           optional: true,
-          properties: {
-            PurchaseOrder: {
-              type: 'string',
-              description: 'Purchase order number',
-              optional: true,
-            },
-            PurchaseOrderType: {
-              type: 'string',
-              description: 'PO document type',
-              optional: true,
-            },
-            CompanyCode: { type: 'string', description: 'Company code', optional: true },
-            PurchasingGroup: { type: 'string', description: 'Purchasing group', optional: true },
-            Supplier: { type: 'string', description: 'Supplier key', optional: true },
-            NetAmount: { type: 'string', description: 'Net amount', optional: true },
-            DocumentCurrency: {
-              type: 'string',
-              description: 'Document currency',
-              optional: true,
-            },
-            LastChangeDateTime: {
-              type: 'string',
-              description: 'Last change timestamp',
-              optional: true,
-            },
-          },
+        },
+        PurchaseOrderType: {
+          type: 'string',
+          description: 'PO document type',
+          optional: true,
+        },
+        CompanyCode: { type: 'string', description: 'Company code', optional: true },
+        PurchasingGroup: { type: 'string', description: 'Purchasing group', optional: true },
+        Supplier: { type: 'string', description: 'Supplier key', optional: true },
+        DocumentCurrency: {
+          type: 'string',
+          description: 'Document currency',
+          optional: true,
+        },
+        LastChangeDateTime: {
+          type: 'string',
+          description: 'Last change timestamp',
+          optional: true,
         },
       },
     },

@@ -9,6 +9,8 @@ import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { env } from '@/lib/core/config/env'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { waitWithAbort } from '@/lib/core/utils/concurrency'
 import { mintAtlassianServiceAccountToken } from '@/lib/credentials/atlassian-client-credentials'
@@ -65,8 +67,9 @@ import {
   isMicrosoftProvider,
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
 } from '@/lib/oauth/microsoft'
-import { refreshOAuthToken, TOKEN_REFRESH_TIMEOUT_MS } from '@/lib/oauth/oauth'
+import { TOKEN_REFRESH_TIMEOUT_MS } from '@/lib/oauth/oauth'
 import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
+import { refreshOAuthToken } from '@/lib/oauth/refresh.server'
 import {
   clearOAuthRefreshDeadFlag,
   getOAuthRefreshCoordinationIdentity,
@@ -834,6 +837,8 @@ async function resolveMintedServiceAccountToken(
       return { ...minted.token }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') throw error
+      // Sim's egress route is down: nothing is known about the credential, so nothing is recorded.
+      if (isUnavailableFailure(error)) throw error
       if (sharedToken && !isCoordinatedReplay(error)) {
         clientCredentialMintFailureCache.delete(cacheIdentity)
         throw error
@@ -1086,8 +1091,8 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
 
 /**
  * Single dispatch point for turning a `service_account` credential into an
- * access token, keyed on `providerId`. Both `refreshAccessTokenIfNeeded` and the
- * `POST /api/auth/oauth/token` route go through here, so a new service-account
+ * access token, keyed on `providerId`. Both `refreshAccessTokenIfNeeded` and
+ * `resolveCredentialAccessToken` go through here, so a new service-account
  * provider is one registry entry and an unknown provider fails loudly instead
  * of silently attempting a Google JWT.
  */
@@ -1260,6 +1265,7 @@ function isRevocationReprobeDue(chain: RevocableChain | null | undefined): boole
 type RefreshOutcome =
   | { kind: 'token'; accessToken: string }
   | { kind: 'revoked'; errorCode: string }
+  | { kind: 'egress_unavailable'; error: OutboundRoutingError }
 
 function tokenOutcome(accessToken: string | null): RefreshOutcome | null {
   return accessToken ? { kind: 'token', accessToken } : null
@@ -1850,6 +1856,13 @@ async function performCoalescedRefresh({
             logger.info('Successfully refreshed access token', logContext)
             return { kind: 'token', accessToken: result.accessToken }
           } catch (error) {
+            if (error instanceof OutboundRoutingError) {
+              logger.warn('Egress route unavailable for token refresh', {
+                ...logContext,
+                code: error.code,
+              })
+              return { kind: 'egress_unavailable', error }
+            }
             logger.error('Refresh failed inside leader path', {
               ...logContext,
               ...(privacyMode === 'selector' ? {} : { error: toError(error).message }),
@@ -1959,6 +1972,8 @@ async function resolveStoredAccessToken(
     })
     return { kind: 'token', accessToken: stored.accessToken, refreshed: false }
   }
+  // Sim's egress route is down: every caller surfaces it, never a missing or revoked token.
+  if (fresh?.kind === 'egress_unavailable') throw fresh.error
   return { kind: 'failed', outcome: fresh }
 }
 

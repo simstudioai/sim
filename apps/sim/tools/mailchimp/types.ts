@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('Mailchimp')
 
@@ -371,6 +373,65 @@ export function extractServerPrefix(apiKey: string): string {
 export function buildMailchimpUrl(apiKey: string, path: string): string {
   const serverPrefix = extractServerPrefix(apiKey)
   return `https://${serverPrefix}.api.mailchimp.com/3.0${path}`
+}
+
+/**
+ * Path segment for a list member. Mailchimp identifies a member by the MD5 hash of the
+ * lowercase email address, so an email is hashed; a hash or contact ID passes through encoded.
+ */
+export function mailchimpMemberSegment(value: string): string {
+  const trimmed = String(value ?? '').trim()
+  if (trimmed.includes('@')) {
+    return createHash('md5').update(trimmed.toLowerCase()).digest('hex')
+  }
+  return safeUrlPathSegment(trimmed, 'subscriberEmail')
+}
+
+/**
+ * Normalizes the tags input for the member tags endpoint, which requires `{ name, status }`
+ * objects. Accepts a JSON array (or object) of tag objects or names, or a comma-separated list of
+ * names kept as text; a tag without a status gets `defaultStatus`.
+ */
+export function buildMemberTags(
+  raw: unknown,
+  defaultStatus: 'active' | 'inactive'
+): Array<{ name: string; status: string }> {
+  let parsed: unknown = raw
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        parsed = JSON.parse(trimmed)
+      } catch {
+        throw new Error('Tags look like JSON but could not be parsed')
+      }
+    } else {
+      parsed = trimmed.split(',')
+    }
+  }
+  const items = Array.isArray(parsed) ? parsed : [parsed]
+  const tags = items.flatMap((item) => {
+    if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') {
+      const name = String(item).trim()
+      return name ? [{ name, status: defaultStatus }] : []
+    }
+    if (item && typeof item === 'object' && 'name' in item) {
+      const tag = item as { name: unknown; status?: unknown }
+      const name =
+        typeof tag.name === 'string' || typeof tag.name === 'number' ? String(tag.name).trim() : ''
+      if (!name) return []
+      const status = tag.status === undefined || tag.status === '' ? defaultStatus : tag.status
+      if (status !== 'active' && status !== 'inactive') {
+        throw new Error(`Tag status must be "active" or "inactive", got ${JSON.stringify(status)}`)
+      }
+      return [{ name, status }]
+    }
+    return []
+  })
+  if (tags.length === 0) {
+    throw new Error('Tags must include at least one tag name')
+  }
+  return tags
 }
 
 // Helper function for consistent error handling

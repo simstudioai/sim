@@ -1,6 +1,7 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpStartAutomationParams {
   apiKey: string
@@ -43,7 +44,7 @@ export const mailchimpStartAutomationTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/automations/${params.workflowId}/actions/start-all-emails`
+        `/automations/${safeUrlPathSegment(params.workflowId, 'workflowId')}/actions/start-all-emails`
       ),
     method: 'POST',
     headers: (params) => ({

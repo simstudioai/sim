@@ -7,6 +7,12 @@ import { omit, toRecord } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import {
+  EGRESS_UNAVAILABLE_MESSAGE,
+  isUnavailableFailure,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import {
   getSlackBotCredential,
@@ -362,6 +368,15 @@ export async function resolveWebhookConfigForBlock(input: {
   const triggerDef = getTrigger(triggerId)
   const { providerConfig, missingFields, credentialReference, credentialServiceId, triggerPath } =
     buildProviderConfig(input.block, triggerId, triggerDef)
+  /** Deploys also run from the outbox with no request scope, so `auth.test` takes the workflow's own. */
+  const workflowWorkspaceId =
+    typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : null
+  const verifySlackBotToken = (botToken: string) =>
+    workflowWorkspaceId
+      ? withResourceOutboundScope({ workspaceId: workflowWorkspaceId }, () =>
+          fetchSlackTeamId(botToken)
+        )
+      : fetchSlackTeamId(botToken)
 
   if (missingFields.length > 0) {
     return {
@@ -494,12 +509,13 @@ export async function resolveWebhookConfigForBlock(input: {
         providerConfig.eventType === 'reaction_removed'
       ) {
         try {
-          const { userId: botUserId } = await fetchSlackTeamId(botCredential.botToken)
+          const { userId: botUserId } = await verifySlackBotToken(botCredential.botToken)
           if (botUserId) providerConfig.bot_user_id = botUserId
         } catch (error: unknown) {
           logger.error(`Slack custom bot identity resolution failed for ${input.block.id}`, error, {
             requestId: input.requestId,
           })
+          if (isUnavailableFailure(error)) return egressUnavailableResult()
           return {
             success: false,
             error: {
@@ -613,13 +629,14 @@ export async function resolveWebhookConfigForBlock(input: {
         }
       }
       try {
-        const { teamId, userId: botUserId } = await fetchSlackTeamId(botToken)
+        const { teamId, userId: botUserId } = await verifySlackBotToken(botToken)
         routingKey = teamId
         if (botUserId) providerConfig.bot_user_id = botUserId
       } catch (error: unknown) {
         logger.error(`Slack team_id resolution failed for ${input.block.id}`, error, {
           requestId: input.requestId,
         })
+        if (isUnavailableFailure(error)) return egressUnavailableResult()
         return {
           success: false,
           error: {
@@ -723,7 +740,10 @@ export async function resolveWebhookConfigForBlock(input: {
       return {
         success: false,
         error: {
-          message: getErrorMessage(error, `Could not prepare ${triggerDef.name || triggerId}.`),
+          message: deployFailureMessage(
+            error,
+            getErrorMessage(error, `Could not prepare ${triggerDef.name || triggerId}.`)
+          ),
           status: webhookConfigFailureStatus(error),
         },
       }
@@ -764,6 +784,26 @@ async function configurePollingIfNeeded(
   return null
 }
 
+/** A trigger that could not be resolved because the organization's egress route is down. */
+function egressUnavailableResult(): ResolveWebhookConfigResult {
+  return {
+    success: false,
+    error: {
+      message: EGRESS_UNAVAILABLE_MESSAGE,
+      status: statusForOrchestrationError('unavailable'),
+    },
+  }
+}
+
+/**
+ * The caller-facing text for a deploy failure: the fixed outage message when the organization's
+ * egress route failed (its routing code stays in logs), `message` otherwise.
+ */
+function deployFailureMessage(error: unknown, message: string): string {
+  const failures = error instanceof AggregateError ? error.errors : [error]
+  return failures.some(isUnavailableFailure) ? EGRESS_UNAVAILABLE_MESSAGE : message
+}
+
 /**
  * 400 when the provider rejected the trigger's configuration, so the deploy
  * fails terminally instead of retrying a create that cannot succeed. Stable
@@ -772,6 +812,7 @@ async function configurePollingIfNeeded(
  */
 function webhookConfigFailureStatus(error: unknown): number {
   const failures = error instanceof AggregateError ? error.errors : [error]
+  if (failures.some(isUnavailableFailure)) return statusForOrchestrationError('unavailable')
   const permanent =
     failures.length > 0 &&
     failures.every((failure) => failure instanceof WebhookDeploymentConfigurationError)
@@ -861,7 +902,10 @@ export async function prepareStableTriggerWebhooksForDeploy({
     return {
       success: false,
       error: {
-        message: getErrorMessage(error, 'Failed to prepare webhook registrations'),
+        message: deployFailureMessage(
+          error,
+          getErrorMessage(error, 'Failed to prepare webhook registrations')
+        ),
         status: webhookConfigFailureStatus(error),
       },
     }
@@ -1011,8 +1055,13 @@ export async function saveTriggerWebhooksForDeploy({
           return {
             success: false,
             error: {
-              message: getErrorMessage(error, 'Failed to activate webhook subscription'),
-              status: 500,
+              message: deployFailureMessage(
+                error,
+                getErrorMessage(error, 'Failed to activate webhook subscription')
+              ),
+              status: isUnavailableFailure(error)
+                ? statusForOrchestrationError('unavailable')
+                : 500,
             },
           }
         }
@@ -1149,10 +1198,12 @@ export async function saveTriggerWebhooksForDeploy({
       return {
         success: false,
         error: {
-          message:
+          message: deployFailureMessage(
+            error,
             (cleanupFailure as Error)?.message ||
-            (error as Error)?.message ||
-            'Failed to create external subscription',
+              (error as Error)?.message ||
+              'Failed to create external subscription'
+          ),
           // cleanupFailure never overrides the root cause's status.
           status: webhookConfigFailureStatus(error),
         },
@@ -1298,11 +1349,13 @@ export async function saveTriggerWebhooksForDeploy({
     return {
       success: false,
       error: {
-        message:
+        message: deployFailureMessage(
+          error,
           (cleanupFailure as Error)?.message ||
-          (error as Error)?.message ||
-          'Failed to save webhook records',
-        status: 500,
+            (error as Error)?.message ||
+            'Failed to save webhook records'
+        ),
+        status: isUnavailableFailure(error) ? statusForOrchestrationError('unavailable') : 500,
       },
     }
   }

@@ -4,6 +4,7 @@ import { clientCredentialToken } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   assessTokenRequestFailure,
@@ -521,6 +522,7 @@ export async function resolveCoordinatedClientToken(
   } catch (error) {
     signal?.throwIfAborted()
     if (error instanceof TokenServiceAccountValidationError) throw error
+    if (isUnavailableFailure(error)) throw error
     throw unavailable(step, 'token coordination or exchange failed')
   }
 }

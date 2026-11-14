@@ -4,6 +4,7 @@ import type {
   QuickBooksAddAttachmentBody,
   QuickBooksDownloadDocumentBody,
 } from '@/lib/api/contracts/tools/quickbooks'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { createSsrfGuardedFetchWithDispatcher } from '@/lib/core/security/input-validation.server'
 import {
   assertContentLengthWithinLimit,
@@ -93,7 +94,7 @@ async function downloadQuickBooksAttachment(
     body.quickBooksEnvironment
   )
   const metadataSignal = quickBooksDocumentSignal(signal, QUICKBOOKS_DOCUMENT_METADATA_TIMEOUT_MS)
-  const downloadUrlResponse = await fetch(downloadUrl, {
+  const downloadUrlResponse = await outboundFetch(downloadUrl, {
     method: 'GET',
     headers: { ...buildQuickBooksHeaders(body.accessToken), Accept: '*/*' },
     signal: metadataSignal,
@@ -183,7 +184,7 @@ async function downloadQuickBooksTransactionPdf(
     body.quickBooksEnvironment
   )
   const transferSignal = quickBooksDocumentSignal(signal, QUICKBOOKS_DOCUMENT_TRANSFER_TIMEOUT_MS)
-  const response = await fetch(url, {
+  const response = await outboundFetch(url, {
     method: 'GET',
     headers: { ...buildQuickBooksHeaders(body.accessToken), Accept: 'application/pdf' },
     signal: transferSignal,
@@ -221,7 +222,7 @@ export async function executeQuickBooksAddAttachment(
     const metadata = buildQuickBooksAttachableMetadata(data.targetType, data.targetId, {
       note: data.note!,
     })
-    response = await fetch(url, {
+    response = await outboundFetch(url, {
       method: 'POST',
       headers: {
         ...buildQuickBooksHeaders(data.accessToken),
@@ -301,7 +302,7 @@ export async function executeQuickBooksAddAttachment(
       ),
       resolvedName
     )
-    response = await fetch(url, {
+    response = await outboundFetch(url, {
       method: 'POST',
       headers: buildQuickBooksHeaders(data.accessToken),
       body: formData,

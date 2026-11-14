@@ -12,6 +12,7 @@ import {
 } from '@/tools/servicenow/utils'
 import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listChangeTasksTool: ToolConfig<
   ServiceNowListChangeTasksParams,
@@ -77,7 +78,10 @@ export const listChangeTasksTool: ToolConfig<
         searchParams.append('sysparm_offset', String(params.offset))
       }
 
-      return withQueryString(`${baseUrl}/api/sn_chg_rest/change/${changeSysId}/task`, searchParams)
+      return withQueryString(
+        `${baseUrl}/api/sn_chg_rest/change/${safeUrlPathSegment(changeSysId, 'changeSysId')}/task`,
+        searchParams
+      )
     },
     method: 'GET',
     headers: (params) => buildServiceNowHeaders(params),

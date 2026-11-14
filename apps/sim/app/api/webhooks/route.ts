@@ -14,6 +14,7 @@ import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWebhooksContract, upsertWebhookContract } from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
+import { unavailableFailureResponse } from '@/lib/api/server/orchestration-response'
 import { getSession } from '@/lib/auth'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { AuthType } from '@/lib/auth/hybrid'
@@ -569,6 +570,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           }
         }
       } catch (err) {
+        const unavailable = unavailableFailureResponse(err)
+        if (unavailable) {
+          logger.warn('External webhook subscription unavailable during an egress outage')
+          return unavailable
+        }
         const isConfigurationError = err instanceof WebhookDeploymentConfigurationError
         if (isConfigurationError) {
           logger.warn('Rejected webhook trigger configuration', {
@@ -746,6 +752,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             err
           )
           await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
+          const unavailable = unavailableFailureResponse(err)
+          if (unavailable) return unavailable
           return NextResponse.json(
             {
               error: `Failed to configure ${provider} webhook`,
@@ -807,6 +815,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error: any) {
     if (error instanceof WorkflowLockedError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    const unavailable = unavailableFailureResponse(error)
+    if (unavailable) {
+      logger.warn('Webhook save stopped by an egress outage', {
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+      return unavailable
     }
 
     logger.error('Error creating/updating webhook', {

@@ -67,6 +67,9 @@ export const cerebrasProvider: ProviderConfig = {
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
+      // Not routed through the organization gateway: this SDK's default transport is node-fetch
+      // on a keep-alive agent it stretches to the 600s header budget, and any custom `fetch`
+      // replaces both with the global fetch, cutting that budget for every organization.
       const client = new Cerebras({
         apiKey: request.apiKey,
         ...openAICompatTransport(),

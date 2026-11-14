@@ -61,7 +61,8 @@ export const createPrehireTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Address of the pre-hire',
+      description:
+        'Street address of the pre-hire, sent as address line 1. City, region, and postal code are not sent, so tenants whose country address rules require them will reject it',
     },
     countryCode: {
       type: 'string',

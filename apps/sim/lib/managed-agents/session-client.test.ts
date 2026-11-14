@@ -131,6 +131,7 @@ describe('managedAgentsList — selector collection bounds', () => {
     global.fetch = vi.fn(
       (_url: string, init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
+          if (init?.signal?.aborted) reject(cancelled)
           init?.signal?.addEventListener('abort', () => reject(cancelled), { once: true })
         })
     ) as unknown as typeof fetch

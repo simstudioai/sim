@@ -5,6 +5,7 @@ import type {
 } from '@/tools/pipedrive/types'
 import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('PipedriveUpdateActivity')
 
@@ -81,8 +82,9 @@ export const pipedriveUpdateActivityTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.pipedrive.com/v1/activities/${params.activity_id}`,
-    method: 'PUT',
+    url: (params) =>
+      `https://api.pipedrive.com/api/v2/activities/${safeUrlPathSegment(params.activity_id, 'activity_id')}`,
+    method: 'PATCH',
     headers: (params) => ({
       ...getPipedriveAuthHeaders(params),
       'Content-Type': 'application/json',
@@ -94,7 +96,9 @@ export const pipedriveUpdateActivityTool: ToolConfig<
       if (params.due_date) body.due_date = params.due_date
       if (params.due_time) body.due_time = params.due_time
       if (params.duration) body.duration = params.duration
-      if (params.done !== undefined) body.done = params.done === '1' ? 1 : 0
+      if (params.done !== undefined && params.done !== null && params.done !== '') {
+        body.done = [true, 1, '1', 'true'].includes(params.done)
+      }
       if (params.note) body.note = params.note
 
       return body

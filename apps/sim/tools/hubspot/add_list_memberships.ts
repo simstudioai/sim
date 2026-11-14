@@ -4,6 +4,7 @@ import type {
   HubSpotAddListMembershipsResponse,
 } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotAddListMemberships')
 
@@ -44,7 +45,8 @@ export const hubspotAddListMembershipsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.hubapi.com/crm/v3/lists/${params.listId.trim()}/memberships/add`,
+    url: (params) =>
+      `https://api.hubapi.com/crm/v3/lists/${safeUrlPathSegment(params.listId, 'listId')}/memberships/add`,
     method: 'PUT',
     headers: (params) => {
       if (!params.accessToken) {
@@ -89,7 +91,7 @@ export const hubspotAddListMembershipsTool: ToolConfig<
     return {
       success: true,
       output: {
-        recordIdsAdded: data.recordIdsAdded ?? [],
+        recordIdsAdded: data.recordsIdsAdded ?? data.recordIdsAdded ?? [],
         recordIdsMissing: data.recordIdsMissing ?? [],
         success: true,
       },

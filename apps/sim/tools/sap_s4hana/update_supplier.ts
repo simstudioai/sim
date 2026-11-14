@@ -112,50 +112,38 @@ export const updateSupplierTool: InternalToolConfig<UpdateSupplierParams, SapS4H
     data: {
       type: 'json',
       description:
-        'Null on 204 success, or OData v2 envelope with updated entity at output.data.d when SAP returns a representation',
+        'Null on 204 No Content (the usual response), or the updated A_Supplier entity when SAP returns one',
       properties: {
-        d: {
-          type: 'json',
-          description: 'A_Supplier entity (when SAP returns a representation)',
+        Supplier: {
+          type: 'string',
+          description: 'Supplier key (up to 10 characters)',
           optional: true,
-          properties: {
-            Supplier: {
-              type: 'string',
-              description: 'Supplier key (up to 10 characters)',
-              optional: true,
-            },
-            SupplierName: { type: 'string', description: 'Supplier name', optional: true },
-            SupplierAccountGroup: {
-              type: 'string',
-              description: 'Supplier account group',
-              optional: true,
-            },
-            BusinessPartner: {
-              type: 'string',
-              description: 'Linked BusinessPartner key',
-              optional: true,
-            },
-            PaymentIsBlockedForSupplier: {
-              type: 'boolean',
-              description: 'Payment block flag',
-              optional: true,
-            },
-            PostingIsBlocked: {
-              type: 'boolean',
-              description: 'Posting block flag',
-              optional: true,
-            },
-            PurchasingIsBlocked: {
-              type: 'boolean',
-              description: 'Purchasing block flag',
-              optional: true,
-            },
-            DeletionIndicator: {
-              type: 'boolean',
-              description: 'Central deletion flag',
-              optional: true,
-            },
-          },
+        },
+        SupplierName: { type: 'string', description: 'Supplier name', optional: true },
+        SupplierAccountGroup: {
+          type: 'string',
+          description: 'Supplier account group',
+          optional: true,
+        },
+        PaymentIsBlockedForSupplier: {
+          type: 'boolean',
+          description: 'Payment block flag',
+          optional: true,
+        },
+        PostingIsBlocked: {
+          type: 'boolean',
+          description: 'Posting block flag',
+          optional: true,
+        },
+        PurchasingIsBlocked: {
+          type: 'boolean',
+          description: 'Purchasing block flag',
+          optional: true,
+        },
+        DeletionIndicator: {
+          type: 'boolean',
+          description: 'Central deletion flag',
+          optional: true,
         },
       },
     },

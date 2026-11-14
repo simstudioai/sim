@@ -3,6 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -71,6 +72,7 @@ export const sakanaProvider: ProviderConfig = {
     try {
       const sakana = new OpenAI({
         ...openAICompatTransport(),
+        fetch: outboundFetch,
         apiKey: request.apiKey,
         baseURL: SAKANA_BASE_URL,
       })

@@ -128,7 +128,8 @@ export const userProfileTool: ToolConfig<AmplitudeUserProfileParams, AmplitudeUs
       },
       computations: {
         type: 'json',
-        description: 'Computed user properties',
+        description:
+          'Computed user properties when Amplitude returns them under a computations key; computed values are otherwise returned within ampProps',
         optional: true,
       },
     },

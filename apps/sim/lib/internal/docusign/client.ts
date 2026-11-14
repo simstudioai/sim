@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -35,7 +36,7 @@ async function fetchDocusign(
   const abort = () => controller.abort(parentSignal?.reason ?? new Error('Request aborted'))
   parentSignal?.addEventListener('abort', abort, { once: true })
   try {
-    return await fetch(input, { ...init, signal: controller.signal })
+    return await outboundFetch(input, { ...init, signal: controller.signal })
   } finally {
     clearTimeout(timeout)
     parentSignal?.removeEventListener('abort', abort)

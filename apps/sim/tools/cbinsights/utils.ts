@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { toArray } from '@sim/utils/object'
 import { LRUCache } from 'lru-cache'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -125,7 +126,7 @@ async function authorize(
   clientSecret: string,
   signal?: AbortSignal
 ): Promise<string> {
-  const response = await fetch(`${CBINSIGHTS_API_BASE}/v2/authorize`, {
+  const response = await outboundFetch(`${CBINSIGHTS_API_BASE}/v2/authorize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ clientId, clientSecret }),
@@ -203,7 +204,7 @@ export async function cbInsightsRequest<T>(
   const effectiveSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
 
   const send = async (token: string) =>
-    fetch(`${CBINSIGHTS_API_BASE}${spec.path}`, {
+    outboundFetch(`${CBINSIGHTS_API_BASE}${spec.path}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,

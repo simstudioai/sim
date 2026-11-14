@@ -45,7 +45,11 @@ export function TableBubbleMenu({ editor, scrollContainerRef }: TableBubbleMenuP
     }),
   })
 
-  const { resolveAnchor, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
+  const { resolveAnchor, appendTo, menuRef } = useBubbleMenuFloating(
+    editor,
+    scrollContainerRef,
+    menuKey
+  )
   const canFocus = useCallback(
     () =>
       shouldShowTableMenu({ editor }) &&
@@ -62,6 +66,7 @@ export function TableBubbleMenu({ editor, scrollContainerRef }: TableBubbleMenuP
 
   return (
     <BubbleMenu
+      ref={menuRef}
       editor={editor}
       pluginKey={menuKey}
       getReferencedVirtualElement={resolveAnchor}

@@ -1,6 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomCreateNoteParams {
   accessToken: string
@@ -51,7 +52,7 @@ const createNoteBase = {
 
   request: {
     url: (params: IntercomCreateNoteParams) =>
-      buildIntercomUrl(`/contacts/${params.contactId}/notes`),
+      buildIntercomUrl(`/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}/notes`),
     method: 'POST',
     headers: (params: IntercomCreateNoteParams) => ({
       Authorization: `Bearer ${params.accessToken}`,

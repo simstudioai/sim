@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { toList } from '@/tools/parallel/search'
 import type { ParallelDeepResearchParams } from '@/tools/parallel/types'
@@ -199,7 +200,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
     logger.info(`Parallel AI deep research task ${runId} created, fetching results...`)
 
     try {
-      const resultResponse = await fetch(
+      const resultResponse = await outboundFetch(
         `https://api.parallel.ai/v1/tasks/runs/${String(runId).trim()}/result?timeout=${RESULT_TIMEOUT_SECONDS}`,
         {
           method: 'GET',

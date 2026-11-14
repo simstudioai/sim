@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { and, eq, isNull, ne } from 'drizzle-orm'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -68,7 +69,7 @@ async function listWebhookIdForUrl(
   credentials: JotformSubscriptionCredentials,
   notificationUrl: string
 ): Promise<string | null> {
-  const response = await fetch(
+  const response = await outboundFetch(
     buildJotformUrl(
       credentials,
       `form/${encodeURIComponent(credentials.formId)}/webhooks`
@@ -186,7 +187,7 @@ export const jotformHandler: WebhookProviderHandler = {
         return {}
       }
 
-      const response = await fetch(
+      const response = await outboundFetch(
         buildJotformUrl(
           credentials,
           `form/${encodeURIComponent(credentials.formId)}/webhooks`
@@ -260,7 +261,7 @@ export const jotformHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(
+      const response = await outboundFetch(
         buildJotformUrl(
           credentials,
           `form/${encodeURIComponent(credentials.formId)}/webhooks/${encodeURIComponent(webhookId)}`

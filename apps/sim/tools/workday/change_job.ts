@@ -37,7 +37,7 @@ export const changeJobTool: InternalToolConfig<WorkdayChangeJobParams, WorkdayCh
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Worker ID for the job change',
+      description: 'Employee ID of the worker for the job change',
     },
     effectiveDate: {
       type: 'string',

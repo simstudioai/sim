@@ -142,6 +142,30 @@ export const clickupSearchTasksTool: ToolConfig<ClickUpSearchTasksParams, ClickU
         visibility: 'user-or-llm',
         description: 'Only tasks due before this Unix timestamp in milliseconds',
       },
+      dateCreatedGt: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Only tasks created after this Unix timestamp in milliseconds',
+      },
+      dateCreatedLt: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Only tasks created before this Unix timestamp in milliseconds',
+      },
+      dateUpdatedGt: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Only tasks updated after this Unix timestamp in milliseconds',
+      },
+      dateUpdatedLt: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Only tasks updated before this Unix timestamp in milliseconds',
+      },
     },
 
     request: {
@@ -187,6 +211,18 @@ export const clickupSearchTasksTool: ToolConfig<ClickUpSearchTasksParams, ClickU
         }
         if (params.dueDateLt !== undefined) {
           url.searchParams.set('due_date_lt', String(params.dueDateLt))
+        }
+        if (params.dateCreatedGt !== undefined) {
+          url.searchParams.set('date_created_gt', String(params.dateCreatedGt))
+        }
+        if (params.dateCreatedLt !== undefined) {
+          url.searchParams.set('date_created_lt', String(params.dateCreatedLt))
+        }
+        if (params.dateUpdatedGt !== undefined) {
+          url.searchParams.set('date_updated_gt', String(params.dateUpdatedGt))
+        }
+        if (params.dateUpdatedLt !== undefined) {
+          url.searchParams.set('date_updated_lt', String(params.dateUpdatedLt))
         }
         return url.toString()
       },

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-13",
+  "updatedAt": "2026-11-14",
   "integrations": [
     {
       "type": "onepassword",
@@ -5394,7 +5394,7 @@
         },
         {
           "name": "Get Tasks",
-          "description": "List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)"
+          "description": "List the tasks in a ClickUp list (100 tasks per page; increment page until lastPage is true to paginate)"
         },
         {
           "name": "Search Tasks",
@@ -5683,7 +5683,7 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "ticketing", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-14"
     },
     {
       "type": "cloudflare_v2",
@@ -17118,8 +17118,12 @@
           "description": "Archive a member from a Mailchimp audience without permanently deleting their data."
         },
         {
+          "name": "Permanently Delete Member",
+          "description": "Permanently delete a member and their personally identifiable data from a Mailchimp audience. This cannot be undone, and the address cannot be re-imported."
+        },
+        {
           "name": "Archive Member",
-          "description": "Request permanent deletion of a member and their identifying data. This targets delete-permanent, despite the Archive Member label; provider acceptance of the current HTTP method is unverified."
+          "description": "Archive a member in a Mailchimp audience. Archived contacts keep their data and can be restored with Unarchive Member."
         },
         {
           "name": "Unarchive Member",
@@ -17366,7 +17370,7 @@
           "description": "Delete a batch operation from Mailchimp"
         }
       ],
-      "operationCount": 73,
+      "operationCount": 74,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -17374,7 +17378,7 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["email-marketing", "marketing", "automation"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-14"
     },
     {
       "type": "mailgun_v2",
@@ -19506,7 +19510,7 @@
       "name": "Oracle Fusion Financials",
       "description": "Manage receivables and expenses, and report on payables and ledgers",
       "longDescription": "Connect your Oracle Fusion Applications integration user through a reusable saved credential. Read payables invoices and payments; create and update receivables invoices, read their lines and installments, create credit memos, and create and apply receipts. Create, update, and submit expense reports and their expense lines. Read ledgers, journal batches, and ledger balances. Lists return one bounded page at a time. Oracle roles, business-unit access, and business validation still apply.",
-      "bgColor": "#C74634",
+      "bgColor": "#FFFFFF",
       "iconName": "OracleIcon",
       "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_financials",
       "operations": [
@@ -28605,7 +28609,7 @@
         },
         {
           "name": "Introspect Schema",
-          "description": "Introspect Supabase database schema from its OpenAPI spec to get table and column structures (best-effort primary/foreign key detection)"
+          "description": "Introspect Supabase database schema from its OpenAPI spec to get table and column structures, primary keys, and foreign keys"
         },
         {
           "name": "Storage: Upload File",
@@ -28672,7 +28676,7 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["cloud", "data-warehouse", "vector-search"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-14"
     },
     {
       "type": "tailscale_v2",

@@ -1,6 +1,7 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpPauseAutomationParams {
   apiKey: string
@@ -43,7 +44,7 @@ export const mailchimpPauseAutomationTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/automations/${params.workflowId}/actions/pause-all-emails`
+        `/automations/${safeUrlPathSegment(params.workflowId, 'workflowId')}/actions/pause-all-emails`
       ),
     method: 'POST',
     headers: (params) => ({

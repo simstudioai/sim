@@ -1,6 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomDeleteContactParams {
   accessToken: string
@@ -36,7 +37,8 @@ const intercomDeleteContactBase = {
   },
 
   request: {
-    url: (params: IntercomDeleteContactParams) => buildIntercomUrl(`/contacts/${params.contactId}`),
+    url: (params: IntercomDeleteContactParams) =>
+      buildIntercomUrl(`/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}`),
     method: 'DELETE',
     headers: (params: IntercomDeleteContactParams) => ({
       Authorization: `Bearer ${params.accessToken}`,

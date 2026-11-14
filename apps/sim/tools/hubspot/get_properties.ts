@@ -5,6 +5,7 @@ import type {
 } from '@/tools/hubspot/types'
 import { PROPERTIES_ARRAY_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotGetProperties')
 
@@ -54,10 +55,10 @@ export const hubspotGetPropertiesTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const objectType = params.objectType.trim()
+      const objectType = safeUrlPathSegment(params.objectType, 'objectType')
       const baseUrl = params.propertyName
-        ? `https://api.hubapi.com/crm/v3/properties/${encodeURIComponent(objectType)}/${encodeURIComponent(params.propertyName.trim())}`
-        : `https://api.hubapi.com/crm/v3/properties/${encodeURIComponent(objectType)}`
+        ? `https://api.hubapi.com/crm/v3/properties/${objectType}/${safeUrlPathSegment(params.propertyName, 'propertyName')}`
+        : `https://api.hubapi.com/crm/v3/properties/${objectType}`
 
       const queryParams = new URLSearchParams()
       if (params.archived !== undefined) {

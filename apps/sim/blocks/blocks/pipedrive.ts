@@ -282,12 +282,22 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'status',
       title: 'Status',
       type: 'dropdown',
-      options: [
+      dependsOn: ['operation'],
+      /**
+       * Every context except a known Create Deal leads with "No change" so an update does not
+       * reopen deals; that includes agent tool rows, whose values carry no operation. `dependsOn`
+       * clears the value on an operation switch so it reseeds. Without block values (Copilot
+       * validation, catalogs) every option is listed, with "No change" last so the default stays Open.
+       */
+      options: (params) => [
+        ...(params && params.values.operation !== 'create_deal'
+          ? [{ label: 'No change', id: '' }]
+          : []),
         { label: 'Open', id: 'open' },
         { label: 'Won', id: 'won' },
         { label: 'Lost', id: 'lost' },
+        ...(params ? [] : [{ label: 'No change', id: '' }]),
       ],
-      value: () => 'open',
       condition: { field: 'operation', value: ['create_deal', 'update_deal'] },
     },
     {
@@ -399,7 +409,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Pagination cursor from previous response',
       condition: {
         field: 'operation',
-        value: ['get_all_deals', 'get_projects'],
+        value: ['get_all_deals', 'get_projects', 'get_pipelines'],
       },
     },
     {
@@ -415,7 +425,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
           'get_files',
           'get_pipeline_deals',
           'get_mail_messages',
-          'get_pipelines',
         ],
       },
     },
@@ -448,6 +457,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         { label: 'All', id: '' },
         { label: 'Open', id: 'open' },
         { label: 'Completed', id: 'completed' },
+        { label: 'Canceled', id: 'canceled' },
+        { label: 'Deleted', id: 'deleted' },
       ],
       value: () => '',
       condition: { field: 'operation', value: ['get_projects'] },
@@ -580,7 +591,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Subject',
       type: 'short-input',
       placeholder: 'Activity subject/title',
-      required: true,
+      required: { field: 'operation', value: 'create_activity' },
       condition: { field: 'operation', value: ['create_activity', 'update_activity'] },
     },
     {
@@ -604,7 +615,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Due Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD',
-      required: true,
+      required: { field: 'operation', value: 'create_activity' },
       condition: { field: 'operation', value: ['create_activity', 'update_activity'] },
       wandConfig: {
         enabled: true,
@@ -666,10 +677,11 @@ Return ONLY the time string in HH:MM format - no explanations, no quotes, no ext
       title: 'Mark as Done',
       type: 'dropdown',
       options: [
+        { label: 'No change', id: '' },
         { label: 'Not Done', id: '0' },
         { label: 'Done', id: '1' },
       ],
-      value: () => '0',
+      value: () => '',
       condition: { field: 'operation', value: ['update_activity'] },
     },
     {
@@ -764,10 +776,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Archive Lead',
       type: 'dropdown',
       options: [
+        { label: 'No change', id: '' },
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
-      value: () => 'false',
+      value: () => '',
       condition: { field: 'operation', value: ['update_lead'] },
     },
     {

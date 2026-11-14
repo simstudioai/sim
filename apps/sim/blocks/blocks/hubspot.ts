@@ -2,6 +2,7 @@ import { HubspotIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const HubSpotBlock: BlockConfig = {
@@ -1631,10 +1632,10 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
             throw new Error(`Unknown operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
-          operation,
+          operation: storedOperation,
           propertiesToSet,
           properties,
           searchProperties,
@@ -1646,6 +1647,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
           archived,
           ...rest
         } = params
+        const operation = storedOperation ?? context?.operation
 
         const cleanParams: Record<string, any> = {
           oauthCredential,
@@ -1698,8 +1700,8 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
           'search_line_items',
           'search_quotes',
         ]
-        if (searchProperties && searchOps.includes(operation as string)) {
-          cleanParams.properties = searchProperties
+        if (searchOps.includes(operation as string)) {
+          cleanParams.properties = searchProperties || toolCallArg(context, properties)
         }
 
         if (filterGroups && searchOps.includes(operation as string)) {

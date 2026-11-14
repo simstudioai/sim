@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import type { MailchimpAudience } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MailchimpUpdateAudience')
 
@@ -12,7 +14,7 @@ export interface MailchimpUpdateAudienceParams {
   audienceName?: string
   permissionReminder?: string
   campaignDefaults?: string
-  emailTypeOption?: string
+  emailTypeOption?: string | boolean | null
 }
 
 export interface MailchimpUpdateAudienceResponse {
@@ -71,12 +73,14 @@ export const mailchimpUpdateAudienceTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Support multiple email formats: "true" or "false"',
+      description:
+        'Whether the audience supports multiple email formats ("true" or "false"). Leave unset to keep the current setting',
     },
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/lists/${params.listId}`),
+    url: (params) =>
+      buildMailchimpUrl(params.apiKey, `/lists/${safeUrlPathSegment(params.listId, 'listId')}`),
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -87,8 +91,13 @@ export const mailchimpUpdateAudienceTool: ToolConfig<
 
       if (params.audienceName) body.name = params.audienceName
       if (params.permissionReminder) body.permission_reminder = params.permissionReminder
-      if (params.emailTypeOption !== undefined)
-        body.email_type_option = params.emailTypeOption === 'true'
+      if (params.emailTypeOption != null && String(params.emailTypeOption).trim() !== '') {
+        const emailTypeOption = toBooleanFromInput(params.emailTypeOption)
+        if (emailTypeOption === undefined) {
+          throw new Error('emailTypeOption must be "true" or "false"')
+        }
+        body.email_type_option = emailTypeOption
+      }
 
       if (params.campaignDefaults) {
         try {

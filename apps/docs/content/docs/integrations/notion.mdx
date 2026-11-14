@@ -46,6 +46,7 @@ Read content from a Notion page
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `truncated` | boolean | True when the page has more than 1000 top-level blocks and content stops there |
 | `url` | string | Notion page URL |
 | `created_time` | string | ISO 8601 creation timestamp |
 | `last_edited_time` | string | ISO 8601 last edit timestamp |
@@ -338,6 +339,7 @@ Append new block children (content) to a Notion page or block
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Page content in markdown format, or comment text for create comment |
+| `truncated` | boolean | True when the page has more than 1000 top-level blocks and content stops there |
 | `title` | string | Page or database title |
 | `url` | string | Notion URL |
 | `id` | string | Page, database, block, comment, or user ID |
@@ -377,6 +379,7 @@ Retrieve a single Notion block by its UUID, including its type-specific content
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Page content in markdown format, or comment text for create comment |
+| `truncated` | boolean | True when the page has more than 1000 top-level blocks and content stops there |
 | `title` | string | Page or database title |
 | `url` | string | Notion URL |
 | `id` | string | Page, database, block, comment, or user ID |
@@ -418,6 +421,7 @@ Retrieve the block children (content) of a Notion page or block
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Page content in markdown format, or comment text for create comment |
+| `truncated` | boolean | True when the page has more than 1000 top-level blocks and content stops there |
 | `title` | string | Page or database title |
 | `url` | string | Notion URL |
 | `id` | string | Page, database, block, comment, or user ID |
@@ -459,6 +463,7 @@ Update the content or archived state of a single Notion block
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Page content in markdown format, or comment text for create comment |
+| `truncated` | boolean | True when the page has more than 1000 top-level blocks and content stops there |
 | `title` | string | Page or database title |
 | `url` | string | Notion URL |
 | `id` | string | Page, database, block, comment, or user ID |
@@ -498,6 +503,7 @@ Delete (move to trash) a single Notion block
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Page content in markdown format, or comment text for create comment |
+| `truncated` | boolean | True when the page has more than 1000 top-level blocks and content stops there |
 | `title` | string | Page or database title |
 | `url` | string | Notion URL |
 | `id` | string | Page, database, block, comment, or user ID |
@@ -539,6 +545,7 @@ Create a comment on a Notion page or within an existing discussion thread
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Page content in markdown format, or comment text for create comment |
+| `truncated` | boolean | True when the page has more than 1000 top-level blocks and content stops there |
 | `title` | string | Page or database title |
 | `url` | string | Notion URL |
 | `id` | string | Page, database, block, comment, or user ID |
@@ -580,6 +587,7 @@ List unresolved comments on a Notion page or block
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Page content in markdown format, or comment text for create comment |
+| `truncated` | boolean | True when the page has more than 1000 top-level blocks and content stops there |
 | `title` | string | Page or database title |
 | `url` | string | Notion URL |
 | `id` | string | Page, database, block, comment, or user ID |
@@ -620,6 +628,7 @@ List all users (members and bots) in the Notion workspace
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Page content in markdown format, or comment text for create comment |
+| `truncated` | boolean | True when the page has more than 1000 top-level blocks and content stops there |
 | `title` | string | Page or database title |
 | `url` | string | Notion URL |
 | `id` | string | Page, database, block, comment, or user ID |
@@ -659,6 +668,7 @@ Retrieve a single Notion user by their UUID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Page content in markdown format, or comment text for create comment |
+| `truncated` | boolean | True when the page has more than 1000 top-level blocks and content stops there |
 | `title` | string | Page or database title |
 | `url` | string | Notion URL |
 | `id` | string | Page, database, block, comment, or user ID |

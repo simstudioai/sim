@@ -4,7 +4,7 @@ import type {
   SalesforceGetContactsResponse,
 } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, idPathSegment } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceContacts')
@@ -60,7 +60,7 @@ export const salesforceGetContactsTool: ToolConfig<
 
       // Single contact by ID
       if (params.contactId) {
-        const contactId = requireId(params.contactId, 'Contact ID')
+        const contactId = idPathSegment(params.contactId, 'Contact ID')
         const fields =
           params.fields || 'Id,FirstName,LastName,Email,Phone,AccountId,Title,Department'
         return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${contactId}?fields=${encodeURIComponent(fields)}`

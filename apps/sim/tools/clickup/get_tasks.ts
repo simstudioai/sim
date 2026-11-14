@@ -12,7 +12,7 @@ export const clickupGetTasksTool: ToolConfig<ClickUpGetTasksParams, ClickUpTaskL
   id: 'clickup_get_tasks',
   name: 'ClickUp Get Tasks',
   description:
-    'List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)',
+    'List the tasks in a ClickUp list (100 tasks per page; increment page until lastPage is true to paginate)',
   version: '1.0.0',
 
   oauth: {
@@ -117,6 +117,30 @@ export const clickupGetTasksTool: ToolConfig<ClickUpGetTasksParams, ClickUpTaskL
       visibility: 'user-or-llm',
       description: 'Only tasks due before this Unix timestamp in milliseconds',
     },
+    dateCreatedGt: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only tasks created after this Unix timestamp in milliseconds',
+    },
+    dateCreatedLt: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only tasks created before this Unix timestamp in milliseconds',
+    },
+    dateUpdatedGt: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only tasks updated after this Unix timestamp in milliseconds',
+    },
+    dateUpdatedLt: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only tasks updated before this Unix timestamp in milliseconds',
+    },
   },
 
   request: {
@@ -151,6 +175,18 @@ export const clickupGetTasksTool: ToolConfig<ClickUpGetTasksParams, ClickUpTaskL
       if (params.dueDateLt !== undefined) {
         url.searchParams.set('due_date_lt', String(params.dueDateLt))
       }
+      if (params.dateCreatedGt !== undefined) {
+        url.searchParams.set('date_created_gt', String(params.dateCreatedGt))
+      }
+      if (params.dateCreatedLt !== undefined) {
+        url.searchParams.set('date_created_lt', String(params.dateCreatedLt))
+      }
+      if (params.dateUpdatedGt !== undefined) {
+        url.searchParams.set('date_updated_gt', String(params.dateUpdatedGt))
+      }
+      if (params.dateUpdatedLt !== undefined) {
+        url.searchParams.set('date_updated_lt', String(params.dateUpdatedLt))
+      }
       return url.toString()
     },
     method: 'GET',
@@ -172,7 +208,10 @@ export const clickupGetTasksTool: ToolConfig<ClickUpGetTasksParams, ClickUpTaskL
 
     return {
       success: true,
-      output: { tasks: rawTasks.map((task: unknown) => mapClickUpTask(task)) },
+      output: {
+        tasks: rawTasks.map((task: unknown) => mapClickUpTask(task)),
+        lastPage: typeof data?.last_page === 'boolean' ? data.last_page : null,
+      },
     }
   },
 
@@ -185,6 +224,12 @@ export const clickupGetTasksTool: ToolConfig<ClickUpGetTasksParams, ClickUpTaskL
         type: 'object',
         properties: CLICKUP_TASK_OUTPUT_PROPERTIES,
       },
+    },
+    lastPage: {
+      type: 'boolean',
+      description: 'Whether this is the last page of results',
+      optional: true,
+      nullable: true,
     },
   },
 }

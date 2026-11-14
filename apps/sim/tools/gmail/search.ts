@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { GmailMessage, GmailSearchParams, GmailToolResponse } from '@/tools/gmail/types'
 import {
   createMessagesSummary,
@@ -97,7 +98,7 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
         context?.signal?.throwIfAborted()
         const batch = await Promise.all(
           listed.slice(i, i + MESSAGE_FETCH_CONCURRENCY).map(async (msg) => {
-            const messageResponse = await fetch(
+            const messageResponse = await outboundFetch(
               `${GMAIL_API_BASE}/messages/${safeUrlPathSegment(msg.id, 'messageId')}?format=full`,
               {
                 headers: {

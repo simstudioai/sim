@@ -12,6 +12,7 @@ import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env, envNumber } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { isQuotaExhaustionBody } from '@/lib/core/errors/provider-quota'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   ProviderQuotaExhaustedError,
   recordProviderCooldown,
@@ -543,6 +544,9 @@ async function callEmbeddingAPI(
 ): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> {
   const admissionWaitMs = bulk ? KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS : EMBEDDING_RETRY_BUDGET_MS
   const admissionIdentity = embeddingAdmissionIdentity({ providerId, quotaCircuitIdentity, isBYOK })
+  const operatorOwned = providerId === 'ollama' || providerId === 'azure-openai'
+  // egress-direct: Ollama and the Azure OpenAI override are the operator's own deployments
+  const requestFetch = operatorOwned ? fetch : outboundFetch
   return retryWithExponentialBackoff(
     async (operationSignal, deadlineAt) => {
       if (await isEmbeddingQuotaCircuitOpen(admissionIdentity)) {
@@ -581,7 +585,7 @@ async function callEmbeddingAPI(
       const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
 
       try {
-        const response = await fetch(request.apiUrl, {
+        const response = await requestFetch(request.apiUrl, {
           method: 'POST',
           headers: request.headers,
           body: JSON.stringify(request.body),

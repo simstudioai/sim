@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import { mapZoneSetting, zoneSettingUrl } from '@/tools/cloudflare/get_zone_settings'
@@ -32,7 +33,7 @@ export const executeGetZoneSettingsOperation: InternalToolOperationImplementatio
   const reads = await Promise.all(
     settingIds.map(async (settingId) => {
       try {
-        const response = await fetch(zoneSettingUrl(zoneId, settingId), {
+        const response = await outboundFetch(zoneSettingUrl(zoneId, settingId), {
           method: 'GET',
           headers,
           signal,

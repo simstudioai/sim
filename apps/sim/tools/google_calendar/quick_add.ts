@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   CALENDAR_API_BASE,
   type GoogleCalendarApiEventResponse,
@@ -113,7 +114,7 @@ export const quickAddTool: ToolConfig<
 
           const updateUrl = `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(eventId, 'eventId')}${updateQueryParams.toString() ? `?${updateQueryParams.toString()}` : ''}`
 
-          const updateResponse = await fetch(updateUrl, {
+          const updateResponse = await outboundFetch(updateUrl, {
             method: 'PATCH',
             headers: {
               Authorization: `Bearer ${params.accessToken}`,
@@ -244,7 +245,7 @@ export const quickAddV2Tool: ToolConfig<
 
           const updateUrl = `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(eventId, 'eventId')}${updateQueryParams.toString() ? `?${updateQueryParams.toString()}` : ''}`
 
-          const updateResponse = await fetch(updateUrl, {
+          const updateResponse = await outboundFetch(updateUrl, {
             method: 'PATCH',
             headers: {
               Authorization: `Bearer ${params.accessToken}`,

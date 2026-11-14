@@ -8,7 +8,9 @@ import {
   type DesktopZoomPercent,
   isDesktopAppearanceTheme,
   isDesktopZoomPercent,
+  isQuickChatShortcut,
   isTerminalAppearanceTheme,
+  type QuickChatShortcut,
   type TerminalThemeProfile,
 } from '@sim/desktop-bridge'
 import type { BrowserWindow } from 'electron'
@@ -39,6 +41,7 @@ export interface DesktopSettingsService {
   setBrowserSearchSuggestionsEnabled(enabled: boolean): DesktopPreferences
   setFullFileAccess(enabled: boolean): DesktopPreferences
   setPreventSleepWhileRunning(enabled: boolean): DesktopPreferences
+  setQuickChatShortcut(shortcut: QuickChatShortcut | null): DesktopPreferences
   setAppearancePreference(
     key: DesktopAppearanceSettingKey,
     value: DesktopAppearanceTheme
@@ -65,6 +68,9 @@ interface DesktopSettingsServiceDeps {
   setTerminalEnabled: (enabled: boolean) => void
   /** Starts or stops keeping the machine awake for background work already running. */
   setPreventSleepWhileRunning: (enabled: boolean) => void
+  setQuickChatShortcut: (shortcut: QuickChatShortcut | null) => void
+  /** False while another app holds the quick chat shortcut. */
+  isQuickChatShortcutAvailable: () => boolean
   /** Repaints current browser tabs when their persisted appearance changes. */
   setBrowserTheme: (theme: DesktopAppearanceTheme) => void
   /** Applies a new default zoom to current and future browser tabs. */
@@ -77,6 +83,21 @@ interface DesktopSettingsServiceDeps {
   getDefaultBrowserDownloadDirectory: () => string
   /** Shows the OS folder picker, initially focused on the current location. */
   chooseBrowserDownloadDirectory: (defaultPath: string) => Promise<string | null>
+}
+
+/**
+ * ⌥Space is the macOS convention for an assistant launcher. On Windows and Linux every preset is
+ * already a common chord (the window menu, browser DevTools, editor hints), so the shortcut starts
+ * off there rather than silently taking one system-wide; the menu and tray still open quick chat.
+ */
+const DEFAULT_QUICK_CHAT_SHORTCUT: QuickChatShortcut | null =
+  process.platform === 'darwin' ? 'Alt+Space' : null
+
+/** The stored quick chat shortcut: null when turned off, the platform default when never chosen. */
+function readQuickChatShortcut(config: ConfigStore): QuickChatShortcut | null {
+  const stored = config.get('quickChatShortcut')
+  if (stored === null) return null
+  return isQuickChatShortcut(stored) ? stored : DEFAULT_QUICK_CHAT_SHORTCUT
 }
 
 function readPreferences(
@@ -100,6 +121,7 @@ function readPreferences(
     terminalEnabled: config.get('terminalEnabled') ?? true,
     fullFileAccess: config.get('fullFileAccess') === true,
     preventSleepWhileRunning: config.get('preventSleepWhileRunning') ?? true,
+    quickChatShortcut: readQuickChatShortcut(config),
     browserTheme: isDesktopAppearanceTheme(browserTheme) ? browserTheme : 'app',
     browserDefaultZoom: isDesktopZoomPercent(browserDefaultZoom) ? browserDefaultZoom : 100,
     browserDownloadDirectory:
@@ -135,7 +157,10 @@ function showsRoute(window: BrowserWindow, route: string | undefined): boolean {
 export function createDesktopSettingsService(
   deps: DesktopSettingsServiceDeps
 ): DesktopSettingsService {
-  const read = () => readPreferences(deps.config, deps.getDefaultBrowserDownloadDirectory())
+  const read = (): DesktopPreferences => ({
+    ...readPreferences(deps.config, deps.getDefaultBrowserDownloadDirectory()),
+    quickChatShortcutAvailable: deps.isQuickChatShortcutAvailable(),
+  })
 
   const applyLaunchAtLogin = (enabled: boolean) => {
     // Registering an unpackaged Electron binary at login is surprising and
@@ -199,6 +224,12 @@ export function createDesktopSettingsService(
       deps.config.set('preventSleepWhileRunning', enabled)
       deps.config.flush()
       deps.setPreventSleepWhileRunning(enabled)
+      return read()
+    },
+    setQuickChatShortcut(shortcut) {
+      deps.config.set('quickChatShortcut', shortcut)
+      deps.config.flush()
+      deps.setQuickChatShortcut(shortcut)
       return read()
     },
     setAppearancePreference(key, value) {

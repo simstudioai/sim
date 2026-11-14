@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsanaOperationError } from '@/lib/internal/asana/errors'
-import { executeAsanaAddFollowers, executeAsanaGetTask } from '@/lib/internal/asana/operations'
+import {
+  executeAsanaAddFollowers,
+  executeAsanaGetTask,
+  executeAsanaSearchTasks,
+} from '@/lib/internal/asana/operations'
 
 const AUTH = { accessToken: 'access-token' }
 
@@ -66,5 +70,42 @@ describe('Asana operations', () => {
       body: { error: 'Either taskGid or workspace/project must be provided' },
     })
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('sends the assignee and offset Asana requires for a workspace task list', async () => {
+    await executeAsanaGetTask({ ...AUTH, workspace: 'workspace1', assignee: 'me', offset: 'tok' })
+
+    const parsedUrl = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(parsedUrl.searchParams.get('workspace')).toBe('workspace1')
+    expect(parsedUrl.searchParams.get('assignee')).toBe('me')
+    expect(parsedUrl.searchParams.get('offset')).toBe('tok')
+  })
+
+  it('rejects a workspace task list without an assignee and out-of-range page sizes', async () => {
+    await expect(executeAsanaGetTask({ ...AUTH, workspace: 'workspace1' })).rejects.toMatchObject({
+      status: 400,
+      body: { error: 'assignee is required when listing tasks by workspace' },
+    })
+    await expect(
+      executeAsanaSearchTasks({ ...AUTH, workspace: 'workspace1', limit: 500 })
+    ).rejects.toMatchObject({ status: 400 })
+    await expect(
+      executeAsanaGetTask({ ...AUTH, project: 'project1', limit: '2.5' })
+    ).rejects.toMatchObject({ status: 400 })
+    await expect(
+      executeAsanaGetTask({ ...AUTH, project: 'project1', limit: 0 })
+    ).rejects.toMatchObject({ status: 400 })
+    await expect(
+      executeAsanaSearchTasks({ ...AUTH, workspace: 'workspace1', limit: 0 })
+    ).rejects.toMatchObject({ status: 400 })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('sends the search page size', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: [] })))
+    await executeAsanaSearchTasks({ ...AUTH, workspace: 'workspace1', limit: 25 })
+
+    const parsedUrl = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(parsedUrl.searchParams.get('limit')).toBe('25')
   })
 })

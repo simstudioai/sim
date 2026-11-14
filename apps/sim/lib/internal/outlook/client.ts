@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -36,7 +37,7 @@ export class OutlookClient {
     signal?: AbortSignal
   ): Promise<OutlookJsonObject> {
     signal?.throwIfAborted()
-    const response = await fetch(this.url(path), {
+    const response = await outboundFetch(this.url(path), {
       ...init,
       headers: {
         'Content-Type': 'application/json',
@@ -72,7 +73,7 @@ export class OutlookClient {
     signal?: AbortSignal
   ): Promise<void> {
     signal?.throwIfAborted()
-    const response = await fetch(this.url(path), {
+    const response = await outboundFetch(this.url(path), {
       ...init,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
@@ -105,7 +106,7 @@ export class OutlookClient {
     signal?: AbortSignal
   ): Promise<{ buffer: Buffer; contentType: string | null }> {
     signal?.throwIfAborted()
-    const response = await fetch(this.url(path), {
+    const response = await outboundFetch(this.url(path), {
       method: 'GET',
       headers: { Authorization: `Bearer ${this.accessToken}` },
       signal,

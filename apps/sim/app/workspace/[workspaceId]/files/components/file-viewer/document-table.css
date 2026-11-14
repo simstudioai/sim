@@ -2,9 +2,8 @@
  * Canonical table chrome for the file viewer. Both surfaces that render a table for a file — the
  * rich markdown editor (`.rich-markdown-prose table`) and the tabular previews CSV/XLSX render
  * through `DataTable` (`.document-table`) — share this one definition so a table looks the same
- * whichever file it came from. Chrome is shared; *sizing* is not — prose fits the document width
- * while a preview sizes to its data and scrolls (see the two rules below). Editor-only concerns
- * (prose block margin, fixed layout for column resizing, cell paragraph reset) stay in
+ * whichever file it came from. Both size to their content inside a scrolling viewport.
+ * Editor-only concerns (scroll wrappers, prose block margin, cell paragraph reset) stay in
  * rich-markdown-editor.css.
  */
 
@@ -19,10 +18,6 @@
 .document-table table {
   border-collapse: collapse;
   overflow: hidden;
-}
-
-.rich-markdown-prose table {
-  width: 100%;
 }
 
 /* A preview table is data, not prose. A CSV can carry dozens of columns, so sizing the table to the

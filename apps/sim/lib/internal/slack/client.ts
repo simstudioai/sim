@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 
 const MAX_SLACK_JSON_BYTES = 2 * 1024 * 1024
@@ -72,7 +73,7 @@ export async function requestSlackApi({
   }
 
   const isForm = body instanceof URLSearchParams
-  const response = await fetch(url, {
+  const response = await outboundFetch(url, {
     method: httpMethod,
     headers: {
       Authorization: `Bearer ${accessToken}`,

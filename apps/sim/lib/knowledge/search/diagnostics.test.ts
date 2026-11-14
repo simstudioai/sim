@@ -1,13 +1,17 @@
 import { createDeferred } from '@sim/testing/helpers'
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  describeSearchRequest,
+  documentKindLabel,
   measureSearchStage,
   recordSearchProviderResult,
   withSearchDiagnostics,
   withSearchProviderDiagnostics,
   withSearchRequestDiagnostics,
 } from '@/lib/knowledge/search/diagnostics'
+import { LiveReadError } from '@/lib/sim-search/live/read-error'
 
 const logs = getMockLogger('KnowledgeSearchDiagnostics')
 
@@ -170,5 +174,113 @@ describe('search pipeline diagnostics', () => {
       })
     )
     expect(JSON.stringify(logs.info.mock.calls)).not.toContain('private preview content')
+  })
+
+  it('describes a search request without its text, modifiers, cursor, or account', () => {
+    const shape = describeSearchRequest({
+      query: '  private launch   plan ',
+      filters: {
+        startDate: '2026-10-30T00:00:00Z',
+        endDate: '2026-11-13T12:00:00Z',
+        sortBy: 'newest',
+      },
+      nativeQueries: [
+        {
+          provider: 'slack',
+          query: 'private decision',
+          modifiers: 'in:#private-channel',
+          cursor: 'private-cursor',
+          accountId: 'private-account',
+          termClauses: ['private term'],
+        },
+        { provider: 'jira', query: '', kind: 'issues' },
+      ],
+    })
+    expect(shape).toEqual({
+      queryTermCount: 3,
+      sortBy: 'newest',
+      dateWindowDays: 14.5,
+      nativeQueries: [
+        {
+          provider: 'slack',
+          hasText: true,
+          hasModifiers: true,
+          hasCursor: true,
+          hasProject: false,
+          targetsAccount: true,
+          keywordOnly: false,
+          termClauseCount: 1,
+        },
+        {
+          provider: 'jira',
+          kind: 'issues',
+          hasText: false,
+          hasModifiers: false,
+          hasCursor: false,
+          hasProject: false,
+          targetsAccount: false,
+          keywordOnly: false,
+          termClauseCount: 0,
+        },
+      ],
+    })
+    expect(JSON.stringify(shape)).not.toContain('private')
+  })
+
+  it('keeps a document kind only when it is a bounded token', () => {
+    expect(documentKindLabel('file')).toBe('file')
+    expect(documentKindLabel('application/vnd.google-apps.document')).toBe(
+      'application/vnd.google-apps.document'
+    )
+    expect(documentKindLabel('Quarterly plan for a private customer')).toBe('other')
+    expect(documentKindLabel('ProjectAtlas_Q3')).toBe('other')
+    expect(documentKindLabel('atlas-launch-notes')).toBe('other')
+    expect(documentKindLabel('notes/atlas')).toBe('other')
+    expect(documentKindLabel(undefined)).toBeUndefined()
+  })
+
+  it('names the class of a failure that ends a trace, never its message', async () => {
+    const failures = [
+      new OrchestrationError('not_found', 'private document title is gone'),
+      new LiveReadError('private provider text', true),
+      new Error('private unexpected text'),
+    ]
+    for (const error of failures)
+      await expect(
+        withSearchDiagnostics({ operation: 'read_document' }, async () => {
+          throw error
+        })
+      ).rejects.toBe(error)
+    const summaries = logs.info.mock.calls
+      .filter(([message]) => message === 'Knowledge search completed')
+      .slice(-3)
+      .map(([, fields]) => fields?.failure)
+    expect(summaries).toEqual([
+      { reason: 'not_found' },
+      { reason: 'provider_retryable' },
+      { reason: 'unexpected_error' },
+    ])
+    const logged = JSON.stringify(logs.info.mock.calls)
+    for (const error of failures) expect(logged).not.toContain(error.message)
+  })
+
+  it('keeps the failure class when an outer tool call turns the error into a result', async () => {
+    await withSearchDiagnostics({ surface: 'copilot' }, async () => {
+      try {
+        await withSearchDiagnostics({ operation: 'read_document' }, async () => {
+          throw new OrchestrationError('not_found', 'private document title is gone')
+        })
+      } catch {
+        return { success: false }
+      }
+    })
+    expect(logs.info).toHaveBeenLastCalledWith(
+      'Knowledge search completed',
+      expect.objectContaining({
+        surface: 'copilot',
+        outcome: 'error',
+        failure: { reason: 'not_found' },
+      })
+    )
   })
 })

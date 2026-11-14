@@ -1,11 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { DesktopPreferenceKey, DesktopPreferences } from '@sim/desktop-bridge'
+import type {
+  DesktopPreferenceKey,
+  DesktopPreferences,
+  QuickChatShortcut,
+} from '@sim/desktop-bridge'
 import { Label, Switch, toast } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
 import { getDesktopBridge, getDesktopShellVersion } from '@/lib/desktop'
 import { ComputerUseSettings } from '@/app/workspace/[workspaceId]/settings/components/desktop/computer-use'
+import { QuickChatShortcutSelect } from '@/app/workspace/[workspaceId]/settings/components/desktop/quick-chat-shortcut-select'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
@@ -82,6 +87,14 @@ export function Desktop() {
       setPreferences
     )
 
+  const { pending: quickChatShortcutPending, mutate: setQuickChatShortcut } =
+    useDesktopPreferenceMutation(
+      async (bridge, shortcut: QuickChatShortcut | null) =>
+        bridge.settings.setQuickChatShortcut?.(shortcut),
+      'Could not update the quick chat shortcut',
+      setPreferences
+    )
+
   if (!preferences) {
     return null
   }
@@ -131,6 +144,24 @@ export function Desktop() {
             disabled={pendingPreference !== null}
             onCheckedChange={(checked) => void updatePreference('trayEnabled', checked)}
           />
+          {preferences.quickChatShortcut !== undefined && (
+            <div className='flex items-center justify-between gap-4'>
+              <div className='flex min-w-0 flex-col gap-1'>
+                <Label>Quick chat shortcut</Label>
+                {preferences.quickChatShortcut &&
+                  preferences.quickChatShortcutAvailable === false && (
+                    <p className='text-[var(--text-muted)] text-caption'>
+                      Another app is using this shortcut
+                    </p>
+                  )}
+              </div>
+              <QuickChatShortcutSelect
+                value={preferences.quickChatShortcut}
+                disabled={quickChatShortcutPending}
+                onChange={(shortcut) => void setQuickChatShortcut(shortcut)}
+              />
+            </div>
+          )}
           <PreferenceRow
             id='desktop-auto-download-updates'
             label='Automatically download updates'

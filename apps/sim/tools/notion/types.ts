@@ -243,6 +243,16 @@ export const COVER_OUTPUT: OutputProperty = {
  * Common page object properties from Notion API.
  * @see https://developers.notion.com/reference/page
  */
+/** Block-children pages a page read fetches: 10 pages of 100 top-level blocks. */
+export const NOTION_READ_MAX_BLOCK_PAGES = 10
+
+/** Output flag set when a page read stops at {@link NOTION_READ_MAX_BLOCK_PAGES} pages. */
+export const NOTION_READ_TRUNCATED_OUTPUT = {
+  type: 'boolean',
+  description: 'True when the page has more than 1000 top-level blocks and content stops there',
+  optional: true,
+} as const
+
 export const PAGE_OUTPUT_PROPERTIES = {
   object: { type: 'string', description: 'Always "page"' },
   id: { type: 'string', description: 'Page UUID' },
@@ -436,6 +446,8 @@ export interface NotionReadParams {
 export interface NotionResponse extends ToolResponse {
   output: {
     content: string
+    /** Set by the page reader when content stops at its block cap. */
+    truncated?: boolean
     metadata?: {
       title?: string
       lastEditedTime?: string

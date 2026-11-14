@@ -2,6 +2,7 @@ import type { MailchimpAutomation } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpGetAutomationParams {
   apiKey: string
@@ -42,7 +43,11 @@ export const mailchimpGetAutomationTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/automations/${params.workflowId}`),
+    url: (params) =>
+      buildMailchimpUrl(
+        params.apiKey,
+        `/automations/${safeUrlPathSegment(params.workflowId, 'workflowId')}`
+      ),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

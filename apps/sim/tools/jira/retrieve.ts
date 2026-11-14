@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -86,7 +87,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
 
     const fetchIssue = async (cloudId: string) => {
       const issueUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations`
-      const issueResponse = await fetch(issueUrl, {
+      const issueResponse = await outboundFetch(issueUrl, {
         method: 'GET',
         signal: context?.signal,
         headers: {
@@ -120,15 +121,15 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     const fetchSupplementary = async (cloudId: string, data: any) => {
       const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}`
       const [commentsResp, worklogResp, watchersResp] = await Promise.all([
-        fetch(`${base}/comment?maxResults=100&orderBy=-created`, {
+        outboundFetch(`${base}/comment?maxResults=100&orderBy=-created`, {
           headers: { Accept: 'application/json', Authorization: `Bearer ${params.accessToken}` },
           signal: context?.signal,
         }),
-        fetch(`${base}/worklog?maxResults=100`, {
+        outboundFetch(`${base}/worklog?maxResults=100`, {
           headers: { Accept: 'application/json', Authorization: `Bearer ${params.accessToken}` },
           signal: context?.signal,
         }),
-        fetch(`${base}/watchers`, {
+        outboundFetch(`${base}/watchers`, {
           headers: { Accept: 'application/json', Authorization: `Bearer ${params.accessToken}` },
           signal: context?.signal,
         }),

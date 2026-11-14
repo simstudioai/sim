@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { HubSpotGetEmailParams, HubSpotGetEmailResponse } from '@/tools/hubspot/types'
 import { EMAIL_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotGetEmail')
 
@@ -48,7 +49,7 @@ export const hubspotGetEmailTool: ToolConfig<HubSpotGetEmailParams, HubSpotGetEm
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.hubapi.com/crm/v3/objects/emails/${params.emailId.trim()}`
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/emails/${safeUrlPathSegment(params.emailId, 'emailId')}`
       const queryParams = new URLSearchParams()
 
       if (params.properties) {

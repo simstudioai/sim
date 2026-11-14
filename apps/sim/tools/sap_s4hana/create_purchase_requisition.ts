@@ -120,36 +120,31 @@ export const createPurchaseRequisitionTool: InternalToolConfig<
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {
       type: 'json',
-      description: 'OData v2 response envelope; created entity at output.data.d',
+      description:
+        'Created A_PurchaseRequisitionHeader entity (the integration unwraps the OData v2 `d` envelope)',
       properties: {
-        d: {
+        PurchaseRequisition: {
+          type: 'string',
+          description: 'Auto-assigned purchase requisition number',
+        },
+        PurchaseRequisitionType: {
+          type: 'string',
+          description: 'PR document type (e.g., NB)',
+        },
+        PurReqnDescription: {
+          type: 'string',
+          description: 'Purchase requisition description',
+          optional: true,
+        },
+        SourceDetermination: {
+          type: 'boolean',
+          description: 'Source-of-supply determination flag',
+          optional: true,
+        },
+        to_PurchaseReqnItem: {
           type: 'json',
-          description: 'Created A_PurchaseRequisitionHeader entity',
-          properties: {
-            PurchaseRequisition: {
-              type: 'string',
-              description: 'Auto-assigned purchase requisition number',
-            },
-            PurchaseRequisitionType: {
-              type: 'string',
-              description: 'PR document type (e.g., NB)',
-            },
-            PurReqnDescription: {
-              type: 'string',
-              description: 'Purchase requisition description',
-              optional: true,
-            },
-            SourceDetermination: {
-              type: 'string',
-              description: 'Source-of-supply determination flag',
-              optional: true,
-            },
-            to_PurchaseReqnItem: {
-              type: 'json',
-              description: 'Created PR items returned in deep insert',
-              optional: true,
-            },
-          },
+          description: 'Created PR items returned in deep insert',
+          optional: true,
         },
       },
     },

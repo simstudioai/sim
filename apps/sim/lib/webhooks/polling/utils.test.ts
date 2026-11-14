@@ -6,11 +6,13 @@ vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/triggers/constants', () => ({ MAX_CONSECUTIVE_FAILURES: 5 }))
 
 import { sql } from 'drizzle-orm'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   isPollBackedOff,
   PollFetchError,
   readPollRetryAfterMs,
   recordPollSourceFailure,
+  skipUncountedPollFailure,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
 
@@ -113,6 +115,26 @@ describe('poll source backoff', () => {
     expect(Date.parse(String(stored.pollBackoffUntil))).toBe(Date.now() + minutes(10))
   })
 
+  /** Whether any write in this test incremented the webhook's consecutive-failure count. */
+  function countedAFailure(): boolean {
+    return dbChainMockFns.set.mock.calls.some(([values]) => 'failedCount' in Object(values))
+  }
+
+  it('counts an ordinary source failure toward the auto-disable', async () => {
+    await failOnce(0)
+    expect(countedAFailure()).toBe(true)
+  })
+
+  it('backs off an egress outage without counting it against the webhook', async () => {
+    const outage = new Error('feed fetch failed', {
+      cause: new OutboundRoutingError('GATEWAY_UNAVAILABLE'),
+    })
+    const stored = await failOnce(0, outage)
+
+    expect(stored.pollSourceFailures).toBe(1)
+    expect(countedAFailure()).toBe(false)
+  })
+
   it('ignores a missing or malformed window', () => {
     for (const config of [{}, { pollBackoffUntil: 'not-a-date' }, { pollBackoffUntil: 42 }, null]) {
       expect(isPollBackedOff(config, pollStartedAt)).toBe(false)
@@ -129,5 +151,18 @@ describe('readPollRetryAfterMs', () => {
     { header: null, body: 'rate limited', expected: null },
   ])('reads $header / $body', ({ header, body, expected }) => {
     expect(readPollRetryAfterMs(header, body)).toBe(expected)
+  })
+})
+
+describe('skipUncountedPollFailure', () => {
+  it('skips a poll stopped by an egress outage anywhere in the cause chain', () => {
+    const outage = new Error('token refresh failed', {
+      cause: new OutboundRoutingError('ROUTE_BLOCKED'),
+    })
+    expect(skipUncountedPollFailure(outage, logger, 'wh-1')).toBe('skipped')
+  })
+
+  it('leaves any other failure to be counted', () => {
+    expect(skipUncountedPollFailure(new Error('invalid_grant'), logger, 'wh-1')).toBeNull()
   })
 })

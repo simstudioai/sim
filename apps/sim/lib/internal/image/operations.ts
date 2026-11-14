@@ -4,6 +4,7 @@ import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike, omit } from '@sim/utils/object'
 import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -264,7 +265,7 @@ async function generateWithOpenAI(
   const requestBody = prepared.body
   const outputFormat =
     typeof requestBody.output_format === 'string' ? requestBody.output_format : 'png'
-  const openaiResponse = await fetch(prepared.endpoint, {
+  const openaiResponse = await outboundFetch(prepared.endpoint, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -331,7 +332,7 @@ async function generateWithGemini(
 ): Promise<GeneratedImageResult> {
   const model = prepared.model.id
   const requestBody = prepared.body
-  const geminiResponse = await fetch(prepared.endpoint, {
+  const geminiResponse = await outboundFetch(prepared.endpoint, {
     method: 'POST',
     headers: {
       'x-goog-api-key': apiKey,
@@ -437,7 +438,7 @@ async function generateWithFalAI(
   const endpoint = prepared.model.endpoint
   if (!endpoint) throw new Error('Missing Fal.ai image endpoint')
   const requestBody = prepared.body
-  const createResponse = await fetch(prepared.endpoint, {
+  const createResponse = await outboundFetch(prepared.endpoint, {
     redirect: 'error',
     method: 'POST',
     headers: {
@@ -648,7 +649,7 @@ async function generateWithHiggsfield(
   const model = prepared.model.id
   const headers = higgsfieldAuthHeaders(apiKey)
   let data = await readHiggsfieldRequest(
-    await fetch(prepared.endpoint, {
+    await outboundFetch(prepared.endpoint, {
       method: 'POST',
       redirect: 'error',
       headers: { ...headers, 'Content-Type': 'application/json' },
@@ -687,7 +688,7 @@ async function generateWithHiggsfield(
     await interruptibleSleep(pollIntervalMs, signal)
     signal?.throwIfAborted()
     data = await readHiggsfieldRequest(
-      await fetch(higgsfieldStatusUrl(higgsfieldRequestId), {
+      await outboundFetch(higgsfieldStatusUrl(higgsfieldRequestId), {
         redirect: 'error',
         headers,
         signal,

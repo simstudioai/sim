@@ -3,6 +3,8 @@ import type { db } from '@sim/db'
 /** One node of an `EXPLAIN (FORMAT JSON)` plan, with the fields plan assertions read. */
 export interface PlanNode {
   'Node Type': string
+  /** The table a scan reads. */
+  'Relation Name'?: string
   'Index Name'?: string
   /** The scan's index search condition, as PostgreSQL prints it. */
   'Index Cond'?: string

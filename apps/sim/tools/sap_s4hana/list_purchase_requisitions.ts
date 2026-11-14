@@ -123,44 +123,28 @@ export const listPurchaseRequisitionsTool: InternalToolConfig<
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {
       type: 'json',
-      description: 'OData v2 response envelope; collection at output.data.d.results',
-      properties: {
-        d: {
-          type: 'json',
-          description: 'OData v2 envelope',
-          properties: {
-            results: {
-              type: 'array',
-              description: 'A_PurchaseRequisitionHeader entities',
-              items: {
-                type: 'object',
-                properties: {
-                  PurchaseRequisition: {
-                    type: 'string',
-                    description: 'Purchase requisition number',
-                  },
-                  PurchaseRequisitionType: {
-                    type: 'string',
-                    description: 'Purchase requisition document type (e.g., NB)',
-                  },
-                  PurReqnDescription: {
-                    type: 'string',
-                    description: 'Purchase requisition description',
-                    optional: true,
-                  },
-                  SourceDetermination: {
-                    type: 'string',
-                    description: 'Source-of-supply determination flag',
-                    optional: true,
-                  },
-                },
-              },
-            },
-            __next: {
-              type: 'string',
-              description: 'OData skiptoken URL for next page',
-              optional: true,
-            },
+      description:
+        'Array of A_PurchaseRequisitionHeader entities, or `{ results, __count?, __next? }` when pagination metadata is present (the integration unwraps the OData v2 `d` envelope). Properties below describe each item.',
+      items: {
+        type: 'object',
+        properties: {
+          PurchaseRequisition: {
+            type: 'string',
+            description: 'Purchase requisition number',
+          },
+          PurchaseRequisitionType: {
+            type: 'string',
+            description: 'Purchase requisition document type (e.g., NB)',
+          },
+          PurReqnDescription: {
+            type: 'string',
+            description: 'Purchase requisition description',
+            optional: true,
+          },
+          SourceDetermination: {
+            type: 'boolean',
+            description: 'Source-of-supply determination flag',
+            optional: true,
           },
         },
       },

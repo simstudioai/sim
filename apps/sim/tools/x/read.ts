@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { ToolConfig } from '@/tools/types'
 import type { XReadParams, XReadResponse, XTweet } from '@/tools/x/types'
 import { transformTweet } from '@/tools/x/types'
@@ -134,7 +135,7 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
           max_results: '100', // Max allowed
         })
 
-        const repliesResponse = await fetch(
+        const repliesResponse = await outboundFetch(
           `https://api.twitter.com/2/tweets/search/recent?${searchParams.toString()}`,
           {
             method: 'GET',

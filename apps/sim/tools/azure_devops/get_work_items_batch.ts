@@ -6,12 +6,11 @@ import type {
 import type { AzureDevOpsRawWorkItem } from '@/tools/azure_devops/utils'
 import {
   azureDevOpsProjectUrl,
-  fetchWorkItemsChunk,
   formatWorkItem,
   mapWorkItem,
   WORK_ITEM_LIST_DETAIL_OUTPUT_PROPERTIES,
-  WORK_ITEMS_BATCH_SIZE,
 } from '@/tools/azure_devops/utils'
+import { fetchWorkItemsChunk, WORK_ITEMS_BATCH_SIZE } from '@/tools/azure_devops/work-items.server'
 import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 

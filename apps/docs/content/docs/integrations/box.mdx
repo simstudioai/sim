@@ -139,7 +139,9 @@ List files and folders in a Box folder
 | --------- | ---- | -------- | ----------- |
 | `folderId` | string | Yes | The ID of the folder to list items from \(use "0" for root\) |
 | `limit` | number | No | Maximum number of items to return per page |
-| `offset` | number | No | The offset for pagination |
+| `offset` | number | No | The offset for pagination \(ignored when using marker-based pagination\) |
+| `usemarker` | boolean | No | Use marker-based pagination instead of offsets \(recommended for large folders\); returns nextMarker |
+| `marker` | string | No | Marker from a previous response to fetch the next page \(implies usemarker\) |
 | `sort` | string | No | Sort field: id, name, date, or size |
 | `direction` | string | No | Sort direction: ASC or DESC |
 
@@ -154,9 +156,10 @@ List files and folders in a Box folder
 |   ↳ `size` | number | Item size in bytes |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `modifiedAt` | string | Last modified timestamp |
-| `totalCount` | number | Total number of items in the folder |
+| `totalCount` | number | Total number of items in the folder; null with marker pagination, where Box omits it |
 | `offset` | number | Current pagination offset |
 | `limit` | number | Current pagination limit |
+| `nextMarker` | string | Marker for the next page when using marker-based pagination |
 
 </ReferenceDetails>
 
@@ -371,7 +374,7 @@ Create a new Box Sign request to send documents for e-signature
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Sign request ID |
-| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing\) |
 | `name` | string | Sign request name |
 | `shortId` | string | Human-readable short ID |
 | `signers` | array | List of signers |
@@ -384,7 +387,7 @@ Create a new Box Sign request to send documents for e-signature
 | `sourceFiles` | array | Source files for signing |
 |   ↳ `id` | string | File ID |
 |   ↳ `type` | string | File type |
-|   ↳ `name` | string | File name |
+|   ↳ `name` | string | File name \(Box Sign returns source files without a name, so this is usually empty\) |
 | `emailSubject` | string | Custom email subject line |
 | `emailMessage` | string | Custom email message body |
 | `daysValid` | number | Number of days the request is valid |
@@ -412,7 +415,7 @@ Get the details and status of a Box Sign request
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Sign request ID |
-| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing\) |
 | `name` | string | Sign request name |
 | `shortId` | string | Human-readable short ID |
 | `signers` | array | List of signers |
@@ -425,7 +428,7 @@ Get the details and status of a Box Sign request
 | `sourceFiles` | array | Source files for signing |
 |   ↳ `id` | string | File ID |
 |   ↳ `type` | string | File type |
-|   ↳ `name` | string | File name |
+|   ↳ `name` | string | File name \(Box Sign returns source files without a name, so this is usually empty\) |
 | `emailSubject` | string | Custom email subject line |
 | `emailMessage` | string | Custom email message body |
 | `daysValid` | number | Number of days the request is valid |
@@ -455,7 +458,7 @@ List all Box Sign requests
 | --------- | ---- | ----------- |
 | `signRequests` | array | List of sign requests |
 |   ↳ `id` | string | Sign request ID |
-|   ↳ `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+|   ↳ `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing\) |
 |   ↳ `name` | string | Sign request name |
 |   ↳ `shortId` | string | Human-readable short ID |
 |   ↳ `signers` | array | List of signers |
@@ -468,7 +471,7 @@ List all Box Sign requests
 |   ↳ `sourceFiles` | array | Source files for signing |
 |     ↳ `id` | string | File ID |
 |     ↳ `type` | string | File type |
-|     ↳ `name` | string | File name |
+|     ↳ `name` | string | File name \(Box Sign returns source files without a name, so this is usually empty\) |
 |   ↳ `emailSubject` | string | Custom email subject line |
 |   ↳ `emailMessage` | string | Custom email message body |
 |   ↳ `daysValid` | number | Number of days the request is valid |
@@ -498,7 +501,7 @@ Cancel a pending Box Sign request
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Sign request ID |
-| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing\) |
 | `name` | string | Sign request name |
 | `shortId` | string | Human-readable short ID |
 | `signers` | array | List of signers |
@@ -511,7 +514,7 @@ Cancel a pending Box Sign request
 | `sourceFiles` | array | Source files for signing |
 |   ↳ `id` | string | File ID |
 |   ↳ `type` | string | File type |
-|   ↳ `name` | string | File name |
+|   ↳ `name` | string | File name \(Box Sign returns source files without a name, so this is usually empty\) |
 | `emailSubject` | string | Custom email subject line |
 | `emailMessage` | string | Custom email message body |
 | `daysValid` | number | Number of days the request is valid |

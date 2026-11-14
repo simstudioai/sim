@@ -82,7 +82,8 @@ export const pipedriveCreateLeadTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Visibility: 1 (Owner & followers), 3 (Entire company)',
+      description:
+        "Visibility group; meanings depend on the Pipedrive plan. Light, Growth, and Professional: 1 = owner & followers, 3 = entire company. Premium and Ultimate: 1 = owner only, 3 = owner's visibility group, 5 = owner's visibility group and sub-groups, 7 = entire company",
     },
   },
 
@@ -115,7 +116,7 @@ export const pipedriveCreateLeadTool: ToolConfig<
       }
 
       if (params.expected_close_date) body.expected_close_date = params.expected_close_date
-      if (params.visible_to) body.visible_to = Number(params.visible_to)
+      if (params.visible_to) body.visible_to = String(params.visible_to)
 
       return body
     },

@@ -1,4 +1,5 @@
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { JsmOperationError } from '@/lib/internal/jsm/errors'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
@@ -67,7 +68,7 @@ export class JsmClient {
 
   async fetch(path: string, init: RequestInit = {}, signal?: AbortSignal): Promise<Response> {
     signal?.throwIfAborted()
-    return fetch(path, {
+    return outboundFetch(path, {
       ...init,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,

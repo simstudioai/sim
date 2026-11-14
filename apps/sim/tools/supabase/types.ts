@@ -86,8 +86,16 @@ export const STORAGE_UPLOAD_OUTPUT_PROPERTIES = {
  */
 export const STORAGE_MOVE_OUTPUT_PROPERTIES = {
   message: { type: 'string', description: 'Operation status message' },
-  Id: { type: 'string', description: 'Identifier of the destination object', optional: true },
-  Key: { type: 'string', description: 'Full object key of the destination', optional: true },
+  Id: {
+    type: 'string',
+    description: 'Not returned by the move endpoint, which responds with only a message',
+    optional: true,
+  },
+  Key: {
+    type: 'string',
+    description: 'Not returned by the move endpoint, which responds with only a message',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -163,16 +171,15 @@ export const INTROSPECT_COLUMN_OUTPUT_PROPERTIES = {
   default: { type: 'string', description: 'Default value for the column', optional: true },
   isPrimaryKey: {
     type: 'boolean',
-    description: 'Best-effort guess based on the column being named "id" (not authoritative)',
+    description: 'Whether the column is part of the table primary key',
   },
   isForeignKey: {
     type: 'boolean',
-    description:
-      'True only if the column has a "references table.column" SQL comment; most databases will show false even for real foreign keys',
+    description: 'Whether the column is a foreign key to another table',
   },
   references: {
     type: 'object',
-    description: 'Foreign key reference details, when detected via SQL comment',
+    description: 'Foreign key reference details',
     optional: true,
     properties: INTROSPECT_REFERENCE_OUTPUT_PROPERTIES,
   },

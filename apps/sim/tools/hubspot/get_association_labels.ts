@@ -4,6 +4,7 @@ import type {
   HubSpotGetAssociationLabelsResponse,
 } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotGetAssociationLabels')
 
@@ -45,8 +46,8 @@ export const hubspotGetAssociationLabelsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const from = encodeURIComponent(params.objectType.trim())
-      const to = encodeURIComponent(params.toObjectType.trim())
+      const from = safeUrlPathSegment(params.objectType, 'objectType')
+      const to = safeUrlPathSegment(params.toObjectType, 'toObjectType')
       return `https://api.hubapi.com/crm/v4/associations/${from}/${to}/labels`
     },
     method: 'GET',

@@ -90,10 +90,10 @@ export const dropboxCreateSharedLinkTool: ToolConfig<
     if (!response.ok) {
       // A link may already exist for this path - Dropbox includes its metadata in the error
       // when the requested settings match the existing link, so surface it as a success.
-      // Per Stone's JSON rules, a union member whose payload is a struct (SharedLinkMetadata)
-      // flattens that struct's fields alongside ".tag" - there is no nested "metadata" key.
-      const existingLink = data.error?.shared_link_already_exists
-      if (existingLink) {
+      // SharedLinkMetadata has enumerated subtypes (file/folder), so Stone nests it under the
+      // union tag: error.shared_link_already_exists = { ".tag": "metadata", metadata: {...} }.
+      const existingLink = data.error?.shared_link_already_exists?.metadata
+      if (existingLink?.url) {
         return {
           success: true,
           output: {

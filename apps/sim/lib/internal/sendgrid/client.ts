@@ -1,4 +1,5 @@
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { SendGridOperationError } from '@/lib/internal/sendgrid/errors'
 import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
@@ -26,7 +27,7 @@ export async function sendSendGridMail(
   signal?: AbortSignal
 ): Promise<string | undefined> {
   signal?.throwIfAborted()
-  const response = await fetch(`${SENDGRID_REGIONS.apiBase(region)}/mail/send`, {
+  const response = await outboundFetch(`${SENDGRID_REGIONS.apiBase(region)}/mail/send`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,

@@ -6,6 +6,7 @@ import {
   resolveSystemBillingAttribution,
 } from '@/lib/billing/core/attribution'
 import { checkSearchUsageLimits } from '@/lib/billing/core/usage-gate-cache'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
@@ -253,10 +254,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         structuredFilters,
       })
     } else if (hasQuery) {
-      const queryEmbeddingResult = await generateSearchEmbedding(
-        query!,
-        queryEmbeddingTarget!,
-        workspaceId
+      const queryEmbeddingResult = await withResourceOutboundScope({ workspaceId }, () =>
+        generateSearchEmbedding(query!, queryEmbeddingTarget!, workspaceId)
       )
       queryEmbeddingIsBYOK = queryEmbeddingResult.isBYOK
       retrieved = await retrieveKnowledgeSearch({

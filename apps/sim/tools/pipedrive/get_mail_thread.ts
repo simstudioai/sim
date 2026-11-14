@@ -5,6 +5,7 @@ import type {
 } from '@/tools/pipedrive/types'
 import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('PipedriveGetMailThread')
 
@@ -46,7 +47,7 @@ export const pipedriveGetMailThreadTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.pipedrive.com/v1/mailbox/mailThreads/${params.thread_id}/mailMessages`,
+      `https://api.pipedrive.com/v1/mailbox/mailThreads/${safeUrlPathSegment(params.thread_id, 'thread_id')}/mailMessages`,
     method: 'GET',
     headers: (params) => getPipedriveAuthHeaders(params),
   },

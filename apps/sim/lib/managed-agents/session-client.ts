@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 /**
  * Provider-neutral HTTP client for the Claude Platform Managed Agents API.
  *
@@ -203,7 +204,7 @@ export function buildSessionCreatePayload(input: CreateSessionInput): Record<str
  * subsequent `sendUserMessage` is what causes the agent to run.
  */
 export async function createSession(input: CreateSessionInput): Promise<CreateSessionResult> {
-  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions`, {
+  const resp = await outboundFetch(`${ANTHROPIC_API_BASE}/v1/sessions`, {
     method: 'POST',
     headers: managedAgentsHeaders(input.apiKey, { json: true }),
     body: JSON.stringify(buildSessionCreatePayload(input)),
@@ -278,7 +279,7 @@ export async function sendSessionEvents(
   input: SessionAuth & { sessionId: string; events: OutboundSessionEvent[] }
 ): Promise<void> {
   if (input.events.length === 0) return
-  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}/events`, {
+  const resp = await outboundFetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}/events`, {
     method: 'POST',
     headers: managedAgentsHeaders(input.apiKey, { json: true }),
     body: JSON.stringify({ events: input.events }),
@@ -467,11 +468,14 @@ export async function sendCustomToolResults(
 export async function openSessionStream(
   input: SessionAuth & { sessionId: string }
 ): Promise<Response> {
-  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}/events/stream`, {
-    method: 'GET',
-    headers: managedAgentsHeaders(input.apiKey, { accept: 'text/event-stream' }),
-    signal: input.signal,
-  })
+  const resp = await outboundFetch(
+    `${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}/events/stream`,
+    {
+      method: 'GET',
+      headers: managedAgentsHeaders(input.apiKey, { accept: 'text/event-stream' }),
+      signal: input.signal,
+    }
+  )
   if (!resp.ok) {
     const detail = await resp.text().catch(() => '')
     throw new Error(`Anthropic events.stream failed (${resp.status}): ${detail.slice(0, 400)}`)
@@ -559,7 +563,7 @@ async function fetchSelectorListPage<T>(
 
   let response: Response
   try {
-    response = await fetch(url.toString(), {
+    response = await outboundFetch(url.toString(), {
       method: 'GET',
       headers: managedAgentsHeaders(input.apiKey, { beta: input.beta }),
       redirect: 'error',
@@ -621,7 +625,7 @@ async function listPaginated<T>(
     // `append`, not `set` — `types[]` is repeatable and each value must survive.
     for (const [key, value] of input.searchParams ?? []) url.searchParams.append(key, value)
     if (page) url.searchParams.set('page', page)
-    const resp = await fetch(url.toString(), {
+    const resp = await outboundFetch(url.toString(), {
       method: 'GET',
       headers: managedAgentsHeaders(input.apiKey, { beta: input.beta }),
       redirect: 'error',
@@ -779,11 +783,14 @@ export async function getEnvironmentType(
   input: SessionAuth & { environmentId: string }
 ): Promise<EnvironmentType | undefined> {
   try {
-    const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/environments/${input.environmentId}`, {
-      method: 'GET',
-      headers: managedAgentsHeaders(input.apiKey),
-      signal: input.signal,
-    })
+    const resp = await outboundFetch(
+      `${ANTHROPIC_API_BASE}/v1/environments/${input.environmentId}`,
+      {
+        method: 'GET',
+        headers: managedAgentsHeaders(input.apiKey),
+        signal: input.signal,
+      }
+    )
     if (!resp.ok) return undefined
     const body = (await resp.json()) as { config?: { type?: unknown } }
     const type = body.config?.type
@@ -803,7 +810,7 @@ export async function getSession(
   input: SessionAuth & { sessionId: string }
 ): Promise<SessionSnapshot | null> {
   try {
-    const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
+    const resp = await outboundFetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
       method: 'GET',
       headers: managedAgentsHeaders(input.apiKey),
       signal: input.signal,
@@ -878,7 +885,7 @@ export function parseSessionSnapshot(raw: unknown): SessionSnapshot {
 export async function retrieveSession(
   input: SessionAuth & { sessionId: string }
 ): Promise<SessionSnapshot> {
-  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
+  const resp = await outboundFetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
     method: 'GET',
     headers: managedAgentsHeaders(input.apiKey),
     signal: input.signal,
@@ -912,7 +919,7 @@ export async function updateSession(
   if (Object.keys(payload).length === 0) {
     throw new Error('Update session requires a title or metadata to change.')
   }
-  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
+  const resp = await outboundFetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
     method: 'POST',
     headers: managedAgentsHeaders(input.apiKey, { json: true }),
     body: JSON.stringify(payload),
@@ -931,7 +938,7 @@ export async function updateSession(
  * it first), and archiving is NOT reversible.
  */
 export async function archiveSession(input: SessionAuth & { sessionId: string }): Promise<void> {
-  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}/archive`, {
+  const resp = await outboundFetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}/archive`, {
     method: 'POST',
     headers: managedAgentsHeaders(input.apiKey),
     signal: input.signal,
@@ -949,7 +956,7 @@ export async function archiveSession(input: SessionAuth & { sessionId: string })
  * independent resources and are NOT affected.
  */
 export async function deleteSession(input: SessionAuth & { sessionId: string }): Promise<void> {
-  const resp = await fetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
+  const resp = await outboundFetch(`${ANTHROPIC_API_BASE}/v1/sessions/${input.sessionId}`, {
     method: 'DELETE',
     headers: managedAgentsHeaders(input.apiKey),
     signal: input.signal,

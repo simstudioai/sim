@@ -78,7 +78,7 @@ export const funnelsTool: ToolConfig<AmplitudeFunnelsParams, AmplitudeFunnelsRes
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of group-by values (default: 100, max: 1000)',
+      description: 'Maximum number of group-by values (default and max: 1000)',
     },
     segment: {
       type: 'string',
@@ -168,12 +168,15 @@ export const funnelsTool: ToolConfig<AmplitudeFunnelsParams, AmplitudeFunnelsRes
       items: {
         type: 'object',
         properties: {
-          stepByStep: { type: 'json', description: 'Conversion count at each step' },
+          stepByStep: {
+            type: 'json',
+            description: 'Fraction of users from the previous step who completed each step',
+          },
           cumulative: {
             type: 'json',
-            description: 'Cumulative conversion percentage at each step',
+            description: 'Fraction of total users who completed each step',
           },
-          cumulativeRaw: { type: 'json', description: 'Cumulative conversion count at each step' },
+          cumulativeRaw: { type: 'json', description: 'Number of users who completed each step' },
           medianTransTimes: {
             type: 'json',
             description: 'Median transition time between steps (ms)',

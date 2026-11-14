@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
 import { getCachedProviderClient } from '@/providers/client-cache'
@@ -16,7 +17,7 @@ import { PROVIDER_MAX_RETRIES } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 
 const logger = createLogger('KieProvider')
-const kieFetch = createKieFetch()
+const kieFetch = createKieFetch(outboundFetch)
 
 export const kieProvider: ProviderConfig = {
   id: 'kie',

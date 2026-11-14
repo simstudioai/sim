@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -109,7 +110,7 @@ export const revenueCatHandler: WebhookProviderHandler = {
       requestBody.environment = environment
     }
 
-    const response = await fetch(
+    const response = await outboundFetch(
       `${REVENUECAT_API_BASE}/projects/${encodeURIComponent(projectId)}/integrations/webhooks`,
       {
         method: 'POST',
@@ -187,7 +188,7 @@ export const revenueCatHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(
+      const response = await outboundFetch(
         `${REVENUECAT_API_BASE}/projects/${encodeURIComponent(projectId)}/integrations/webhooks/${encodeURIComponent(externalId)}`,
         {
           method: 'DELETE',

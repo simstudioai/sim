@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { AuthType } from '@/lib/auth/hybrid'
 import { createCopilotManagedOAuthPrincipal } from '@/lib/credentials/application/copilot-managed-oauth-delegation'
 import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
 import { authorizePersonalCredential } from '@/lib/credentials/application/personal-credentials'
@@ -42,10 +41,9 @@ export interface ResolveExecutorCredentialTokenParams {
 
 /**
  * Resolves a credential's access token in-process for server-side workflow
- * execution, through the same authorized application dispatch as
- * `POST /api/auth/oauth/token` (`resolveCredentialAccessToken`). Both runtimes
- * hold the OAuth client config the refresh branch needs, so authorization,
- * refresh, and audit run identically to the route.
+ * execution through the authorized application dispatch
+ * (`resolveCredentialAccessToken`), so authorization, refresh, and audit run
+ * identically to every other server surface.
  */
 export async function resolveExecutorCredentialToken(
   params: ResolveExecutorCredentialTokenParams
@@ -119,11 +117,7 @@ export async function resolveExecutorCredentialToken(
     scopes: params.scopes,
     impersonateEmail: params.impersonateEmail,
     callerUserId: userId && params.enforceCredentialAccess ? userId : undefined,
-    authenticate: () => ({
-      success: true,
-      userId,
-      authType: AuthType.INTERNAL_JWT,
-    }),
+    userId,
     resolveManagedPrincipal,
   })
 

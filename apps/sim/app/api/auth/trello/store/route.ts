@@ -7,8 +7,10 @@ import { storeTrelloTokenContract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import { resolveConnectDraftOutboundScope } from '@/lib/oauth/connect-scope.server'
 import { safeAccountInsert } from '@/lib/oauth/credential-service'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
@@ -64,9 +66,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const scope = getCanonicalScopesForProvider('trello').join(',')
 
     const validationUrl = `https://api.trello.com/1/members/me?key=${apiKey}&token=${token}&fields=id,username,fullName`
-    const userResponse = await fetch(validationUrl, {
-      headers: { Accept: 'application/json' },
+    const inDraftScope = await resolveConnectDraftOutboundScope({
+      draftId,
+      userId: session.user.id,
+      providerId: 'trello',
     })
+    const userResponse = await inDraftScope(() =>
+      outboundFetch(validationUrl, { headers: { Accept: 'application/json' } })
+    )
 
     if (!userResponse.ok) {
       const errorText = await userResponse.text()

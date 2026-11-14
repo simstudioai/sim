@@ -1,10 +1,12 @@
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
 import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({ installation: vi.fn(), publish: vi.fn() }))
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 vi.mock('@/lib/internal/slack/client', () => ({ requestSlackApi: hoisted.publish }))
 vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
@@ -13,6 +15,7 @@ vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
 }))
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 
+import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import {
   publishSlackSearchHome,
   receiveSlackSearchHome,
@@ -66,6 +69,7 @@ function publish(signal = new AbortController().signal) {
   })
 }
 beforeEach(() => {
+  networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
   mocks.installation.mockResolvedValue(installation)
   mocks.publish.mockResolvedValue({ status: 200, data: { ok: true } })
 })
@@ -130,6 +134,15 @@ describe('static Home delivery', () => {
     const { view } = mocks.publish.mock.calls[0][0].body
     expect(view.blocks).toHaveLength(3)
     expect(view.blocks[2].elements[0].url).toBe('https://sim.test/o/org1/integrations')
+  })
+  it("calls Slack from the installation's organization outbound scope", async () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    mocks.publish.mockImplementationOnce(async () => {
+      await resolveCurrentOutboundRoute()
+      return { status: 200, data: { ok: true } }
+    })
+    await publish()
+    expect(networkConfigMockFns.mockResolveOutboundRoute).toHaveBeenCalledWith('org1')
   })
   it.each([
     { enabled: false },

@@ -4,6 +4,27 @@ import type { SupabaseQueryParams, SupabaseQueryResponse } from '@/tools/supabas
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Converts an order-by input into PostgREST's `order` value. Accepts a
+ * comma-separated list where each term is `column`, `column ASC|DESC`, or
+ * already in PostgREST form (`column.desc`, `column.desc.nullslast`).
+ * @see https://docs.postgrest.org/en/stable/references/api/tables_views.html#ordering
+ */
+function toPostgrestOrder(orderBy: string): string {
+  return orderBy
+    .split(',')
+    .map((term) => term.trim())
+    .filter(Boolean)
+    .map((term) => {
+      const spaced = term.match(/^(.+?)\s+(asc|desc)$/i)
+      if (spaced) return `${spaced[1].trim()}.${spaced[2].toLowerCase()}`
+      const dotted = term.match(/^(.+?)((?:\.(?:asc|desc|nullsfirst|nullslast))+)$/i)
+      if (dotted) return `${dotted[1]}${dotted[2].toLowerCase()}`
+      return `${term}.asc`
+    })
+    .join(',')
+}
+
 export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> = {
   id: 'supabase_query',
   name: 'Supabase Query',
@@ -47,7 +68,8 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Column to order by (add DESC for descending)',
+      description:
+        'Column(s) to order by, comma-separated (e.g., "created_at DESC" or "created_at.desc,name.asc")',
     },
     limit: {
       type: 'number',
@@ -81,23 +103,8 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
         url += `&${params.filter.trim()}`
       }
 
-      // Add order by if provided
-      if (params.orderBy) {
-        let orderParam = params.orderBy.trim()
-
-        // Check if DESC is specified (case-insensitive)
-        if (/\s+DESC$/i.test(orderParam)) {
-          orderParam = `${orderParam.replace(/\s+DESC$/i, '').trim()}.desc`
-        }
-        // Check if ASC is specified (case-insensitive)
-        else if (/\s+ASC$/i.test(orderParam)) {
-          orderParam = `${orderParam.replace(/\s+ASC$/i, '').trim()}.asc`
-        }
-        // Default to ascending if no direction specified
-        else {
-          orderParam = `${orderParam}.asc`
-        }
-
+      const orderParam = params.orderBy ? toPostgrestOrder(params.orderBy) : ''
+      if (orderParam) {
         url += `&order=${orderParam}`
       }
 

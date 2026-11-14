@@ -23,6 +23,7 @@ const MODEL_CAPABILITIES_TIMEOUT_MS = 5000
 
 async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities> | undefined> {
   try {
+    // egress-direct: public model catalog, read without a workspace
     const response = await fetch('https://openrouter.ai/api/v1/models', {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(MODEL_CAPABILITIES_TIMEOUT_MS),

@@ -36,8 +36,10 @@ beforeAll(() => {
 afterAll(resetEnvMock)
 
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
-import { getPerRequestOAuthLinkScopes, OAUTH_PROVIDERS, refreshOAuthToken } from '@/lib/oauth'
+import { getPerRequestOAuthLinkScopes, OAUTH_PROVIDERS } from '@/lib/oauth'
+import { refreshOAuthToken } from '@/lib/oauth/refresh.server'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { PowerBIBlock } from '@/blocks/blocks/powerbi'
 
@@ -286,7 +288,7 @@ describe('Bitbucket OAuth Connector', () => {
 
 describe('OAuth Token Refresh', () => {
   describe('Basic Auth Providers', () => {
-    it.concurrent('sends Basic Auth credentials and keeps them out of the body', async () => {
+    it('sends Basic Auth credentials and keeps them out of the body', async () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
       const refreshToken = 'test_refresh_token'
 
@@ -418,7 +420,7 @@ describe('OAuth Token Refresh', () => {
       }
     )
 
-    it.concurrent('should refresh TikTok with client_key instead of client_id', async () => {
+    it('should refresh TikTok with client_key instead of client_id', async () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
       const refreshToken = 'test_refresh_token'
 
@@ -434,7 +436,7 @@ describe('OAuth Token Refresh', () => {
       expect(bodyParams.get('client_id')).toBeNull()
     })
 
-    it.concurrent('should preserve Cal.com bearer refresh authentication', async () => {
+    it('should preserve Cal.com bearer refresh authentication', async () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
       const refreshToken = 'test_refresh_token'
 
@@ -454,7 +456,7 @@ describe('OAuth Token Refresh', () => {
       expect(bodyParams.get('refresh_token')).toBeNull()
     })
 
-    it.concurrent('should send Notion request with Basic Auth header and JSON body', async () => {
+    it('should send Notion request with Basic Auth header and JSON body', async () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
       const refreshToken = 'test_refresh_token'
 
@@ -494,7 +496,7 @@ describe('OAuth Token Refresh', () => {
   })
 
   describe('Error Handling', () => {
-    it.concurrent('should return the canonical error for partial OAuth configuration', async () => {
+    it('should return the canonical error for partial OAuth configuration', async () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
 
       const result = await withMockFetch(mockFetch, () =>
@@ -508,7 +510,14 @@ describe('OAuth Token Refresh', () => {
       })
       expect(mockFetch).not.toHaveBeenCalled()
     })
-    it.concurrent('should return failure with errorCode for HTTP error responses', async () => {
+    it('throws an unavailable egress route instead of reporting a failed refresh', async () => {
+      const mockFetch = vi.fn().mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+      await expect(
+        withMockFetch(mockFetch, () => refreshOAuthToken('google', 'test_refresh_token'))
+      ).rejects.toBeInstanceOf(OutboundRoutingError)
+    })
+    it('should return failure with errorCode for HTTP error responses', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 400,
@@ -528,7 +537,7 @@ describe('OAuth Token Refresh', () => {
       }
     })
 
-    it.concurrent('should return failure for Slack-style body errors', async () => {
+    it('should return failure for Slack-style body errors', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -545,37 +554,32 @@ describe('OAuth Token Refresh', () => {
       }
     })
 
-    it.concurrent(
-      'should redact literal and encoded credentials echoed by a provider',
-      async () => {
-        const refreshToken = 'refresh/with space'
-        const formEncodedRefreshToken = new URLSearchParams({ value: refreshToken })
-          .toString()
-          .slice('value='.length)
-        const mockFetch = vi
-          .fn()
-          .mockResolvedValue(
-            new Response(
-              `provider echo: ${refreshToken}, ${encodeURIComponent(refreshToken)}, ${formEncodedRefreshToken}, and google_client_secret`,
-              { status: 400 }
-            )
+    it('should redact literal and encoded credentials echoed by a provider', async () => {
+      const refreshToken = 'refresh/with space'
+      const formEncodedRefreshToken = new URLSearchParams({ value: refreshToken })
+        .toString()
+        .slice('value='.length)
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            `provider echo: ${refreshToken}, ${encodeURIComponent(refreshToken)}, ${formEncodedRefreshToken}, and google_client_secret`,
+            { status: 400 }
           )
-
-        const result = await withMockFetch(mockFetch, () =>
-          refreshOAuthToken('google', refreshToken)
         )
 
-        expect(result.ok).toBe(false)
-        if (!result.ok) {
-          expect(result.message).not.toContain(refreshToken)
-          expect(result.message).not.toContain(encodeURIComponent(refreshToken))
-          expect(result.message).not.toContain(formEncodedRefreshToken)
-          expect(result.message).not.toContain('google_client_secret')
-        }
-      }
-    )
+      const result = await withMockFetch(mockFetch, () => refreshOAuthToken('google', refreshToken))
 
-    it.concurrent('should redact a secret from a successful HTTP body error', async () => {
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.message).not.toContain(refreshToken)
+        expect(result.message).not.toContain(encodeURIComponent(refreshToken))
+        expect(result.message).not.toContain(formEncodedRefreshToken)
+        expect(result.message).not.toContain('google_client_secret')
+      }
+    })
+
+    it('should redact a secret from a successful HTTP body error', async () => {
       const refreshToken = 'slack-refresh-secret'
       const mockFetch = vi
         .fn()
@@ -590,7 +594,7 @@ describe('OAuth Token Refresh', () => {
       }
     })
 
-    it.concurrent('uses canonical endpoints without following credential redirects', async () => {
+    it('uses canonical endpoints without following credential redirects', async () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
 
       await withMockFetch(mockFetch, () => refreshOAuthToken('google', 'test_refresh_token'))
@@ -601,23 +605,20 @@ describe('OAuth Token Refresh', () => {
       )
     })
 
-    it.concurrent(
-      'should reject oversized OAuth error responses without materializing them',
-      async () => {
-        const mockFetch = vi
-          .fn()
-          .mockResolvedValue(
-            new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1), { status: 400 })
-          )
-
-        const result = await withMockFetch(mockFetch, () =>
-          refreshOAuthToken('google', 'test_refresh_token')
+    it('should reject oversized OAuth error responses without materializing them', async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(
+          new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1), { status: 400 })
         )
 
-        expect(result.ok).toBe(false)
-        if (!result.ok) expect(result.message).toContain('exceeds maximum size')
-      }
-    )
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('google', 'test_refresh_token')
+      )
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.message).toContain('exceeds maximum size')
+    })
   })
 
   describe('Token Response Handling', () => {
@@ -647,7 +648,7 @@ describe('OAuth Token Refresh', () => {
       })
     })
 
-    it.concurrent('should bound successful token responses before parsing them', async () => {
+    it('should bound successful token responses before parsing them', async () => {
       const mockFetch = vi
         .fn()
         .mockResolvedValue(new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1)))
@@ -660,7 +661,7 @@ describe('OAuth Token Refresh', () => {
       if (!result.ok) expect(result.message).toContain('exceeds maximum size')
     })
 
-    it.concurrent('refreshes Monday with JSON body credentials and rotates its token', async () => {
+    it('refreshes Monday with JSON body credentials and rotates its token', async () => {
       const expiresAtSeconds = Math.floor(Date.now() / 1000) + 2700
       const mockFetch = createMockFetch({
         json: {
@@ -695,7 +696,7 @@ describe('OAuth Token Refresh', () => {
       })
     })
 
-    it.concurrent('rejects a Monday refresh response that omits token rotation', async () => {
+    it('rejects a Monday refresh response that omits token rotation', async () => {
       const mockFetch = createMockFetch({
         json: {
           access_token: oauthTestJwt({ exp: Math.floor(Date.now() / 1000) + 3600 }),
@@ -713,7 +714,7 @@ describe('OAuth Token Refresh', () => {
       })
     })
 
-    it.concurrent('should use original refresh token when new one is not provided', async () => {
+    it('should use original refresh token when new one is not provided', async () => {
       const refreshToken = 'original_refresh_token'
 
       const mockFetch = vi.fn().mockResolvedValue({
@@ -734,7 +735,7 @@ describe('OAuth Token Refresh', () => {
       })
     })
 
-    it.concurrent('should return failure when access token is missing', async () => {
+    it('should return failure when access token is missing', async () => {
       const refreshToken = 'test_refresh_token'
 
       const mockFetch = vi.fn().mockResolvedValue({
@@ -751,7 +752,7 @@ describe('OAuth Token Refresh', () => {
   })
 
   describe('Instagram Token Refresh', () => {
-    it.concurrent('validates and rotates the long-lived token response', async () => {
+    it('validates and rotates the long-lived token response', async () => {
       const mockFetch = vi.fn().mockResolvedValue(
         Response.json({
           access_token: 'new_instagram_access_token',
@@ -776,7 +777,7 @@ describe('OAuth Token Refresh', () => {
       )
     })
 
-    it.concurrent('rejects malformed long-lived token response fields', async () => {
+    it('rejects malformed long-lived token response fields', async () => {
       const mockFetch = vi.fn().mockResolvedValue(
         Response.json({
           access_token: 'new_instagram_access_token',
@@ -794,7 +795,7 @@ describe('OAuth Token Refresh', () => {
       })
     })
 
-    it.concurrent('extracts nested Meta error codes from a bounded response', async () => {
+    it('extracts nested Meta error codes from a bounded response', async () => {
       const mockFetch = vi
         .fn()
         .mockResolvedValue(

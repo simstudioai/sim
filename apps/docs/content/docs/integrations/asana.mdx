@@ -45,9 +45,11 @@ Retrieve a single task by GID or get multiple tasks with filters
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `taskGid` | string | No | The globally unique identifier \(GID\) of the task. If not provided, will get multiple tasks. |
-| `workspace` | string | No | Asana workspace GID \(numeric string\) to filter tasks \(required when not using taskGid\) |
+| `workspace` | string | No | Asana workspace GID \(numeric string\) to filter tasks. Asana requires an assignee alongside a workspace filter; use project instead to list a project |
+| `assignee` | string | No | Assignee to filter tasks on \(user GID, email, or "me"\). Required by Asana when filtering by workspace; ignored when filtering by project |
 | `project` | string | No | Asana project GID \(numeric string\) to filter tasks |
-| `limit` | number | No | Maximum number of tasks to return \(default: 50\) |
+| `limit` | number | No | Maximum number of tasks to return, 1-100 \(default: 50\) |
+| `offset` | string | No | Pagination offset token from a previous response next_page.offset |
 
 #### Output
 
@@ -74,6 +76,10 @@ Retrieve a single task by GID or get multiple tasks with filters
 |   ↳ `gid` | string | Task GID |
 |   ↳ `name` | string | Task name |
 |   ↳ `completed` | boolean | Completion status |
+| `next_page` | object | Pagination info when fetching multiple tasks; null on the last page |
+|   ↳ `offset` | string | Offset token for the next page |
+|   ↳ `path` | string | API path |
+|   ↳ `uri` | string | Full URI |
 
 </ReferenceDetails>
 
@@ -175,10 +181,11 @@ Search for tasks in an Asana workspace
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `workspace` | string | Yes | Asana workspace GID \(numeric string\) to search tasks in |
-| `text` | string | No | Text to search for in task names |
+| `text` | string | No | Full-text search on task names and descriptions |
 | `assignee` | string | No | Filter tasks by assignee user GID |
 | `projects` | array | No | Array of Asana project GIDs \(numeric strings\) to filter tasks by |
 | `completed` | boolean | No | Filter by completion status |
+| `limit` | number | No | Maximum number of tasks to return, 1-100 |
 
 #### Output
 
@@ -199,7 +206,7 @@ Search for tasks in an Asana workspace
 |   ↳ `due_on` | string | Due date |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `modified_at` | string | Modified timestamp |
-| `next_page` | object | Pagination info |
+| `next_page` | object | Not returned by Asana search, which has no pagination; sort by created_at and filter to page manually |
 |   ↳ `offset` | string | Offset token |
 |   ↳ `path` | string | API path |
 |   ↳ `uri` | string | Full URI |

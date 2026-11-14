@@ -104,11 +104,12 @@ List the contents of a folder in Dropbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `path` | string | Yes | The path of the folder to list \(use "" for root\) |
+| `path` | string | No | The path of the folder to list \(use "" for root\). Required unless cursor is set |
 | `recursive` | boolean | No | If true, list contents recursively |
 | `includeDeleted` | boolean | No | If true, include deleted files/folders |
 | `includeMediaInfo` | boolean | No | If true, include media info for photos/videos |
-| `limit` | number | No | Maximum number of results to return \(default: 500\) |
+| `limit` | number | No | Approximate maximum number of entries to return per page \(1-2000\) |
+| `cursor` | string | No | Cursor from a previous List Folder call to fetch the next page via list_folder/continue \(other options are ignored when set\) |
 
 #### Output
 
@@ -119,7 +120,7 @@ List the contents of a folder in Dropbox
 |   ↳ `name` | string | Name of the file/folder |
 |   ↳ `path_display` | string | Display path |
 |   ↳ `size` | number | Size in bytes \(files only\) |
-| `cursor` | string | Cursor for pagination |
+| `cursor` | string | Cursor to pass back as the cursor input to fetch the next page |
 | `hasMore` | boolean | Whether there are more results |
 
 </ReferenceDetails>
@@ -321,10 +322,11 @@ Search for files and folders in Dropbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | The search query |
+| `query` | string | No | The search query. Required unless cursor is set |
 | `path` | string | No | Dropbox folder path to limit search scope \(e.g., /folder/subfolder\) |
 | `fileExtensions` | string | No | Comma-separated list of file extensions to filter by \(e.g., pdf,xlsx\) |
 | `maxResults` | number | No | Maximum number of results to return \(default: 100\) |
+| `cursor` | string | No | Cursor from a previous Search call to fetch the next page via search/continue_v2 \(other options are ignored when set\) |
 
 #### Output
 
@@ -334,7 +336,7 @@ Search for files and folders in Dropbox
 |   ↳ `match_type` | object | Type of match: filename, content, or both |
 |   ↳ `metadata` | object | File or folder metadata |
 | `hasMore` | boolean | Whether there are more results |
-| `cursor` | string | Cursor for pagination |
+| `cursor` | string | Cursor to pass back as the cursor input to fetch the next page |
 
 </ReferenceDetails>
 
