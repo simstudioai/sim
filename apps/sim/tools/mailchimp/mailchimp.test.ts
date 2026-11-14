@@ -101,6 +101,9 @@ describe('Mailchimp request bodies', () => {
       bodyOf(mailchimpAddMemberTagsTool, { ...params, tags: '[{"name":"VIP"}' })
     ).toThrow()
     expect(() => bodyOf(mailchimpAddMemberTagsTool, { ...params, tags: '[]' })).toThrow()
+    expect(() =>
+      bodyOf(mailchimpAddMemberTagsTool, { ...params, tags: '[{"name":"VIP","status":"paused"}]' })
+    ).toThrow()
   })
 
   it('accepts an already-parsed operations array and rejects unparseable operations', () => {

@@ -420,7 +420,10 @@ export function buildMemberTags(
       const name =
         typeof tag.name === 'string' || typeof tag.name === 'number' ? String(tag.name).trim() : ''
       if (!name) return []
-      const status = typeof tag.status === 'string' && tag.status ? tag.status : defaultStatus
+      const status = tag.status === undefined || tag.status === '' ? defaultStatus : tag.status
+      if (status !== 'active' && status !== 'inactive') {
+        throw new Error(`Tag status must be "active" or "inactive", got ${JSON.stringify(status)}`)
+      }
       return [{ name, status }]
     }
     return []
