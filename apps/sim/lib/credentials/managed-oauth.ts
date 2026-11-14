@@ -6,6 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   type ResourceOwner,
   resourceScopeFields,
@@ -25,6 +26,7 @@ import {
 import { getCredentialGroupProviderAdapterByProviderId } from '@/lib/credential-groups/provider-registry'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { RefreshTokenResult } from '@/lib/oauth'
 import { isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
 import { fetchSalesforceInstanceUrl } from '@/lib/oauth/salesforce-instance.server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
@@ -524,7 +526,19 @@ async function resolveManagedOAuthAccessToken(
       }
     }
 
-    const refreshed = await adapter.refreshToken(currentTokenSet.refreshToken)
+    let refreshed: RefreshTokenResult
+    try {
+      refreshed = await adapter.refreshToken(currentTokenSet.refreshToken)
+    } catch (error) {
+      if (!(error instanceof OutboundRoutingError)) throw error
+      return {
+        error: new ManagedOAuthCredentialError(
+          'MANAGED_CREDENTIAL_REFRESH_FAILED',
+          'Managed credential refresh is temporarily unavailable',
+          503
+        ),
+      }
+    }
     if (!refreshed.ok) {
       const terminal = adapter.isTerminalRefreshError(refreshed.errorCode)
       if (terminal) {

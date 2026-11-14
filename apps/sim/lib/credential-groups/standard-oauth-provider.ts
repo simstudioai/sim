@@ -4,7 +4,6 @@ import {
   applyDefaultAccessTokenExpiry,
   createAuthorizationURL,
   type OAuth2Tokens,
-  validateAuthorizationCode,
 } from 'better-auth/oauth2'
 import {
   type ConnectorProviderConfig,
@@ -13,6 +12,7 @@ import {
   type ManagedOAuthConnectorConfig,
 } from '@/lib/auth/connectors/managed-oauth'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { credentialGroupOAuthNonceMatches } from '@/lib/credential-groups/oauth-state'
 import type {
@@ -26,6 +26,7 @@ import {
 } from '@/lib/credential-groups/provider-adapter'
 import type { CredentialGroupStandardOAuthProvider } from '@/lib/credential-groups/providers'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
+import { exchangeAuthorizationCode } from '@/lib/oauth/authorization-code.server'
 import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
 import { refreshOAuthToken } from '@/lib/oauth/refresh.server'
 
@@ -207,7 +208,7 @@ function generatePkceVerifier(): string {
   return randomBytes(64).toString('base64url')
 }
 
-async function exchangeAuthorizationCode(params: {
+async function exchangeConnectorCode(params: {
   connector: ConnectorProviderConfig
   code: string
   codeVerifier?: string
@@ -217,7 +218,7 @@ async function exchangeAuthorizationCode(params: {
   const { connector, code, codeVerifier, redirectUri, tokenEndpoint } = params
   const tokens = connector.getToken
     ? await connector.getToken({ code, redirectURI: redirectUri, codeVerifier })
-    : await validateAuthorizationCode({
+    : await exchangeAuthorizationCode({
         headers: connector.authorizationHeaders,
         code,
         codeVerifier,
@@ -307,14 +308,20 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
       const endpoints = await resolveOAuthEndpoints(current.connector, service.name)
       let tokens: OAuth2Tokens
       try {
-        tokens = await exchangeAuthorizationCode({
+        tokens = await exchangeConnectorCode({
           connector: current.connector,
           code,
           ...(attempt.codeVerifier ? { codeVerifier: attempt.codeVerifier } : {}),
           redirectUri: attempt.redirectUri,
           tokenEndpoint: endpoints.tokenEndpoint,
         })
-      } catch {
+      } catch (error) {
+        if (error instanceof OutboundRoutingError) {
+          throw new CredentialGroupOAuthError(
+            `${service.name} authorization is temporarily unavailable.`,
+            503
+          )
+        }
         throw new CredentialGroupOAuthError(
           `${service.name} could not complete authorization. Please try again.`,
           502

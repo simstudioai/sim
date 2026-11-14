@@ -5,6 +5,7 @@ import { captureOutboundScope } from '@/lib/core/network/context.server'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { getActiveConnectDraft } from '@/lib/credentials/connect-draft'
 import { parseCredentialDraftIdFromCallbackUrl } from '@/lib/credentials/draft-processor'
+import { createOutboundCodeExchange } from '@/lib/oauth/authorization-code.server'
 
 type OutboundScopeRunner = <T>(run: () => Promise<T>) => Promise<T>
 
@@ -59,12 +60,15 @@ async function runInOAuthCallbackDraftScope<T>(
 }
 
 /**
- * Wraps a generic OAuth connector's custom code exchange and identity lookup so their vendor
- * calls leave through the connecting organization's egress gateway. Better Auth's built-in
- * exchange (providers without `getToken`) uses its own fetch and is not routed.
+ * Wraps a generic OAuth connector's code exchange and identity lookup so their vendor calls
+ * leave through the connecting organization's egress gateway. A connector without its own
+ * `getToken` gets Better Auth's exchange sent through `outboundFetch`, since the plugin's
+ * built-in exchange uses its own fetch. Better Auth still fetches a `discoveryUrl` document and
+ * a default `userInfoUrl` itself, unrouted.
  */
 export function withConnectDraftOutboundScope(config: GenericOAuthConfig): GenericOAuthConfig {
-  const { providerId, getToken, getUserInfo } = config
+  const { providerId, getUserInfo } = config
+  const getToken = config.getToken ?? createOutboundCodeExchange(config)
   return {
     ...config,
     getToken:
