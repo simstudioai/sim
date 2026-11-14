@@ -162,6 +162,25 @@ describe('Notion read page content pagination', () => {
     ).rejects.toThrow('503')
   })
 
+  it('retries a rate-limited later page after Retry-After', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ results: [], has_more: true, next_cursor: 'c2' }))
+      .mockResolvedValueOnce(
+        new Response('slow down', { status: 429, headers: { 'Retry-After': '0' } })
+      )
+      .mockResolvedValueOnce(Response.json({ results: [], has_more: false, next_cursor: null }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await defined(notionReadV2Tool.transformResponse)(pageResponse(), {
+      accessToken: 't',
+      pageId: 'page-1',
+    })
+
+    expect(result.output.truncated).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
   it('flags content that stops at the block cap', async () => {
     vi.stubGlobal(
       'fetch',

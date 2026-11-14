@@ -1,11 +1,20 @@
+import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { parseRetryAfter } from '@sim/utils/retry'
 import type { NotionReadParams, NotionResponse } from '@/tools/notion/types'
-import { PAGE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
+import {
+  NOTION_READ_MAX_BLOCK_PAGES,
+  NOTION_READ_TRUNCATED_OUTPUT,
+  PAGE_OUTPUT_PROPERTIES,
+} from '@/tools/notion/types'
 import { extractTitle } from '@/tools/notion/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 /** Children pages fetched per read: 10 pages of 100 top-level blocks. */
-const MAX_BLOCK_CHILDREN_PAGES = 10
+const MAX_BLOCK_CHILDREN_PAGES = NOTION_READ_MAX_BLOCK_PAGES
+
+/** Retries for a rate-limited (429) continuation page before the read fails. */
+const MAX_RATE_LIMIT_RETRIES = 2
 
 interface PageBlocks {
   blocks: unknown[]
@@ -31,15 +40,26 @@ async function fetchPageBlocks(
     url.searchParams.set('page_size', '100')
     if (cursor) url.searchParams.set('start_cursor', cursor)
 
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json',
-      },
-      signal,
-    })
+    const request = () =>
+      fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Notion-Version': '2022-06-28',
+          'Content-Type': 'application/json',
+        },
+        signal,
+      })
+    let response = await request()
+    for (
+      let attempt = 0;
+      page > 0 && response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES;
+      attempt++
+    ) {
+      await sleep(parseRetryAfter(response.headers.get('retry-after')) ?? 1000)
+      signal?.throwIfAborted()
+      response = await request()
+    }
     if (!response.ok) {
       if (page === 0) return null
       throw new Error(
@@ -54,12 +74,6 @@ async function fetchPageBlocks(
   }
   return { blocks, truncated: true }
 }
-
-const TRUNCATED_OUTPUT = {
-  type: 'boolean',
-  description: `True when the page has more than ${MAX_BLOCK_CHILDREN_PAGES * 100} top-level blocks and content stops there`,
-  optional: true,
-} as const
 
 const MARKDOWN_PREFIX: Record<string, string> = {
   paragraph: '',
@@ -199,7 +213,7 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       type: 'string',
       description: 'Page content in markdown format with headers, paragraphs, lists, and todos',
     },
-    truncated: TRUNCATED_OUTPUT,
+    truncated: NOTION_READ_TRUNCATED_OUTPUT,
     metadata: {
       type: 'object',
       description: 'Page metadata including title, URL, and timestamps',
@@ -290,7 +304,7 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
 
   outputs: {
     content: { type: 'string', description: 'Page content in markdown format' },
-    truncated: TRUNCATED_OUTPUT,
+    truncated: NOTION_READ_TRUNCATED_OUTPUT,
     title: { type: 'string', description: 'Page title' },
     url: PAGE_OUTPUT_PROPERTIES.url,
     created_time: PAGE_OUTPUT_PROPERTIES.created_time,

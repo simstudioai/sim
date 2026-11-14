@@ -1028,6 +1028,11 @@ export const NotionV2Block: BlockConfig = {
       description: 'Page content in markdown format, or comment text for create comment',
       condition: { field: 'operation', value: ['notion_read', 'notion_create_comment'] },
     },
+    truncated: {
+      type: 'boolean',
+      description: 'True when the page has more than 1000 top-level blocks and content stops there',
+      condition: { field: 'operation', value: 'notion_read' },
+    },
     title: {
       type: 'string',
       description: 'Page or database title',

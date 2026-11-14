@@ -40,6 +40,31 @@ describe('Pipedrive server selector adapter', () => {
 
   afterAll(() => vi.unstubAllGlobals())
 
+  it('lists pipelines from API v2 and follows next_cursor', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          data: [{ id: 1, name: 'Sales' }],
+          additional_data: { next_cursor: 'cursor-2' },
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          data: [{ id: 2, name: 'Partners' }],
+          additional_data: { next_cursor: null },
+        })
+      )
+
+    const result = await pipedriveSelectorAttachments['pipedrive.pipelines'].execute(args())
+
+    expect(JSON.stringify(result)).toContain('Partners')
+    const urls = mockFetch.mock.calls.map(([url]) => String(url))
+    expect(urls[0]).toContain('https://api.pipedrive.com/api/v2/pipelines')
+    expect(urls[1]).toContain('cursor=cursor-2')
+  })
+
   it('rejects a semantic failure instead of returning an empty pipeline list', async () => {
     mockFetch.mockResolvedValueOnce(
       new Response(

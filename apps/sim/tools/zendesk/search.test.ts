@@ -17,6 +17,7 @@ const sentQuery = (query: string) => {
 describe('Zendesk search export query', () => {
   it('drops a standalone type filter, which the export endpoint rejects', () => {
     expect(sentQuery('type:ticket status:open')).toBe('status:open')
+    expect(sentQuery('-type:user status:open')).toBe('status:open')
   })
 
   it('keeps type: text inside a quoted phrase', () => {

@@ -145,7 +145,7 @@ Update fields on an existing worker record in Workday.
 | `username` | string | Yes | Integration System User username |
 | `password` | string | Yes | Integration System User password |
 | `workerId` | string | Yes | Employee ID of the worker to update |
-| `fields` | json | Yes | Fields to update as JSON \(e.g., \{"businessTitle": "Senior Engineer", "primaryWorkEmail": "new@company.com"\}\) |
+| `fields` | json | Yes | Personal information fields to update as JSON, using Change_Personal_Information_Data element names in schema order \(e.g., \{"Marital_Status_Reference": \{"ID": \{"type": "Marital_Status_ID", "_value": "Married"\}\}\}\) |
 
 #### Output
 

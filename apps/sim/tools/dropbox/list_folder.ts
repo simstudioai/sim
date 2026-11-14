@@ -72,10 +72,7 @@ export const dropboxListFolderTool: ToolConfig<DropboxListFolderParams, DropboxL
       body: (params) => {
         const cursor = params.cursor?.trim()
         if (cursor) return { cursor }
-        if (typeof params.path !== 'string') {
-          throw new Error('path is required unless cursor is set')
-        }
-        const path = params.path.trim()
+        const path = typeof params.path === 'string' ? params.path.trim() : ''
         return {
           path: path === '/' ? '' : path,
           recursive: params.recursive ?? false,

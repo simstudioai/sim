@@ -39,7 +39,7 @@ export interface ZendeskSearchResponse {
 
 /**
  * The export endpoint takes the object type only from `filter[type]` and rejects a query that
- * also names one, so a `type:` keyword is removed (`ticket_type:` and other keywords are kept).
+ * also names one, so a `type:` or `-type:` keyword is removed (`ticket_type:` and other keywords are kept).
  * @see https://developer.zendesk.com/api-reference/ticketing/ticket-management/search/#export-search-results
  */
 function withoutTypeKeyword(query: string): string {
@@ -56,7 +56,7 @@ function withoutTypeKeyword(query: string): string {
     term += char
   }
   if (term) terms.push(term)
-  return terms.filter((t) => !/^type:/i.test(t)).join(' ')
+  return terms.filter((t) => !/^-?type:/i.test(t)).join(' ')
 }
 
 export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchResponse> = {
