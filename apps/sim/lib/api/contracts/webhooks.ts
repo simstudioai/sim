@@ -110,6 +110,16 @@ const agentMailAttachmentSchema = z
   })
   .passthrough()
 
+/** Verdicts stay free-form so a result outside RFC 8601's vocabulary cannot fail the message. */
+const agentMailAuthenticationResultsSchema = z
+  .object({
+    spf: z.string().optional(),
+    dkim: z.string().optional(),
+    dmarc: z.string().optional(),
+    dkim_domain: z.string().optional(),
+  })
+  .passthrough()
+
 export const agentMailMessageSchema = z
   .object({
     message_id: z.string(),
@@ -129,6 +139,7 @@ export const agentMailMessageSchema = z
     in_reply_to: z.string().optional(),
     references: z.array(z.string()).optional(),
     labels: z.array(z.string()).optional(),
+    authentication_results: agentMailAuthenticationResultsSchema.optional(),
     sort_key: z.string().optional(),
     updated_at: z.string().optional(),
     created_at: z.string(),
