@@ -233,6 +233,9 @@ describe('search pipeline diagnostics', () => {
       'application/vnd.google-apps.document'
     )
     expect(documentKindLabel('Quarterly plan for a private customer')).toBe('other')
+    expect(documentKindLabel('ProjectAtlas_Q3')).toBe('other')
+    expect(documentKindLabel('atlas-launch-notes')).toBe('other')
+    expect(documentKindLabel('notes/atlas')).toBe('other')
     expect(documentKindLabel(undefined)).toBeUndefined()
   })
 

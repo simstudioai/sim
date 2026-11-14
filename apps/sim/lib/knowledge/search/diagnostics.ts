@@ -182,13 +182,18 @@ export function describeSearchRequest(input: {
   }
 }
 
+/** Lowercase type names such as `message` or `merge_requests`, as provider adapters define them. */
+const DOCUMENT_KIND = /^[a-z][a-z0-9_]{0,31}$/
+/** A registered MIME type, which Drive reports as a file's kind. */
+const MIME_TYPE = /^(application|audio|font|image|model|text|video)\/[a-z0-9][a-z0-9.+-]{0,79}$/
+
 /**
- * A provider's document type reduced to a bounded token. Kinds are code-defined except a few
- * passed through from a provider, such as a Drive MIME type, so anything else becomes `other`.
+ * A provider's document type when it is a type name or MIME type. A kind passed through from a
+ * provider in any other form, which could carry free text, becomes `other`.
  */
 export function documentKindLabel(kind: string | undefined): string | undefined {
   if (!kind) return undefined
-  return /^[\w.+/-]{1,80}$/.test(kind) ? kind : 'other'
+  return DOCUMENT_KIND.test(kind) || MIME_TYPE.test(kind) ? kind : 'other'
 }
 
 interface StageTiming {
