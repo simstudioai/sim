@@ -582,8 +582,9 @@ async function callEmbeddingAPI(
       const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
 
       try {
-        // Ollama is the deployment's own server, never an organization's vendor.
-        const requestFetch = providerId === 'ollama' ? fetch : outboundFetch
+        const operatorOwned = providerId === 'ollama' || providerId === 'azure-openai'
+        // egress-direct: Ollama and the Azure OpenAI override are the operator's own deployments
+        const requestFetch = operatorOwned ? fetch : outboundFetch
         const response = await requestFetch(request.apiUrl, {
           method: 'POST',
           headers: request.headers,

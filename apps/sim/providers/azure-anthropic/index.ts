@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
-import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
@@ -82,7 +81,7 @@ export const azureAnthropicProvider: ProviderConfig = {
               baseURL,
               apiKey,
               maxRetries: PROVIDER_MAX_RETRIES,
-              fetch: pinnedFetch ?? outboundFetch,
+              ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
               defaultHeaders: {
                 'anthropic-version': anthropicVersion,
               },

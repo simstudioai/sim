@@ -1,4 +1,4 @@
-import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { scopedOutboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   type SecureFetchOptions,
   type SecureFetchResponse,
@@ -84,8 +84,8 @@ export async function fetchWithRetry(
       ])
       const init = { ...options, signal: requestSignal }
       const response = retryOptions.fetcher
-        ? await retryOptions.fetcher(url, init, outboundFetch)
-        : await outboundFetch(url, init)
+        ? await retryOptions.fetcher(url, init, scopedOutboundFetch)
+        : await scopedOutboundFetch(url, init)
 
       if (
         !response.ok &&

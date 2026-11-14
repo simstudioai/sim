@@ -5,7 +5,6 @@ import {
 } from '@sim/testing/mocks/input-validation.mock'
 import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { ProviderRequest } from '@/providers/types'
 
 const { mockAnthropic, anthropicArgs, mockExecuteAnthropic, sentinelFetch } = vi.hoisted(() => {
@@ -75,14 +74,14 @@ describe('azureAnthropicProvider — SSRF pinning', () => {
     expect(buildClientOptions()).toMatchObject({ fetch: sentinelFetch })
   })
 
-  it('sends a trusted server env endpoint through the unpinned outbound fetch', async () => {
+  it('does not pin when the endpoint comes from trusted server env', async () => {
     setEnv({ AZURE_ANTHROPIC_ENDPOINT: 'https://trusted.services.ai.azure.com' })
 
     await azureAnthropicProvider.executeRequest(request({ azureEndpoint: undefined }))
 
     expect(mockValidate).not.toHaveBeenCalled()
     expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-    expect(buildClientOptions().fetch).toBe(outboundFetch)
+    expect(buildClientOptions()).not.toHaveProperty('fetch')
   })
 
   it('keeps the registry model in core and resolves a separate Azure wire model', async () => {

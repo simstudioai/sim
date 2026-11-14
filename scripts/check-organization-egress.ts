@@ -48,7 +48,15 @@ const SCAN_DIRS = [
   'apps/sim/lib/webhooks',
 ]
 
-const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage', 'client'])
+const SKIP_DIRS = new Set([
+  'node_modules',
+  'dist',
+  '.next',
+  '.turbo',
+  'coverage',
+  'client',
+  '__fixtures__',
+])
 const ANNOTATION = '// egress-direct:'
 const ANNOTATION_REACH = 2
 
@@ -116,9 +124,46 @@ function shadowsGlobal(node: ts.Node, name: string): boolean {
   return false
 }
 
+const GLOBAL_OBJECTS = new Set(['globalThis', 'window', 'self', 'global'])
+
 /**
- * Every call to the global `fetch` (`fetch(…)`, `globalThis.fetch(…)`) without an
- * `egress-direct` annotation on one of the two lines above it.
+ * Whether this `fetch` identifier is a value reference to the global: a call, but also an alias
+ * (`const f = fetch`), a fallback (`custom ?? fetch`), a shorthand property (`{ fetch }`) or a
+ * default parameter. Names in declarations, property keys, member names and type positions are
+ * not references.
+ */
+function refersToGlobalFetch(node: ts.Identifier): boolean {
+  const parent = node.parent
+  if (ts.isPropertyAccessExpression(parent) && parent.name === node) return false
+  if (
+    (ts.isPropertyAssignment(parent) ||
+      ts.isMethodDeclaration(parent) ||
+      ts.isPropertyDeclaration(parent) ||
+      ts.isPropertySignature(parent) ||
+      ts.isMethodSignature(parent) ||
+      ts.isGetAccessorDeclaration(parent) ||
+      ts.isSetAccessorDeclaration(parent) ||
+      ts.isParameter(parent) ||
+      ts.isVariableDeclaration(parent) ||
+      ts.isBindingElement(parent) ||
+      ts.isFunctionDeclaration(parent) ||
+      ts.isImportSpecifier(parent) ||
+      ts.isExportSpecifier(parent) ||
+      ts.isImportClause(parent)) &&
+    parent.name === node
+  ) {
+    return false
+  }
+  if (ts.isQualifiedName(parent) && parent.right === node) return false
+  if (ts.isBindingElement(parent) && parent.propertyName === node) return false
+  if (ts.isImportSpecifier(parent) || ts.isExportSpecifier(parent)) return false
+  if (ts.isTypeQueryNode(parent) || ts.isTypeReferenceNode(parent)) return false
+  return !shadowsGlobal(node, 'fetch')
+}
+
+/**
+ * Every reference to the global `fetch` (a call, an alias, `globalThis.fetch`, `window['fetch']`)
+ * without an `egress-direct` annotation on one of the two lines above it.
  */
 export function findDirectFetches(file: string, source: string): DirectFetch[] {
   if (!source.includes('fetch')) return []
@@ -126,21 +171,24 @@ export function findDirectFetches(file: string, source: string): DirectFetch[] {
   const lines = source.split('\n')
   const found: DirectFetch[] = []
 
+  const report = (node: ts.Node) => {
+    const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line
+    const annotated = lines
+      .slice(Math.max(0, line - ANNOTATION_REACH), line)
+      .some((text) => text.trim().startsWith(ANNOTATION))
+    if (!annotated) found.push({ line: line + 1, text: lines[line].trim() })
+  }
+
   const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node)) {
-      const callee = node.expression
-      const isGlobalFetch =
-        (ts.isIdentifier(callee) && callee.text === 'fetch' && !shadowsGlobal(callee, 'fetch')) ||
-        (ts.isPropertyAccessExpression(callee) &&
-          callee.name.text === 'fetch' &&
-          ts.isIdentifier(callee.expression) &&
-          callee.expression.text === 'globalThis')
-      if (isGlobalFetch) {
-        const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line
-        const annotated = lines
-          .slice(Math.max(0, line - ANNOTATION_REACH), line)
-          .some((text) => text.trim().startsWith(ANNOTATION))
-        if (!annotated) found.push({ line: line + 1, text: lines[line].trim() })
+    if (ts.isIdentifier(node) && node.text === 'fetch' && refersToGlobalFetch(node)) report(node)
+    else if (
+      (ts.isPropertyAccessExpression(node) && node.name.text === 'fetch') ||
+      (ts.isElementAccessExpression(node) &&
+        ts.isStringLiteralLike(node.argumentExpression) &&
+        node.argumentExpression.text === 'fetch')
+    ) {
+      if (ts.isIdentifier(node.expression) && GLOBAL_OBJECTS.has(node.expression.text)) {
+        report(node)
       }
     }
     ts.forEachChild(node, visit)

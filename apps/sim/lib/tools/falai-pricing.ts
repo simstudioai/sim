@@ -6,7 +6,6 @@ import { isRecordLike } from '@sim/utils/object'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { LRUCache } from 'lru-cache'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
-import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { DeadlineExceededError, withinDeadline } from '@/lib/core/utils/deadline'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 
@@ -152,7 +151,8 @@ async function fetchFalAIBillingEvent(
 
   let response: Response
   try {
-    response = await outboundFetch(url, {
+    // egress-direct: Sim's own fal billing account, not a request for the workspace
+    response = await fetch(url, {
       headers: {
         Authorization: `Key ${apiKey}`,
       },
@@ -200,7 +200,8 @@ async function estimateFalAICallCost(
 ): Promise<{ costDollars?: number; error?: string }> {
   let response: Response
   try {
-    response = await outboundFetch('https://api.fal.ai/v1/models/pricing/estimate', {
+    // egress-direct: Sim's own fal billing account, not a request for the workspace
+    response = await fetch('https://api.fal.ai/v1/models/pricing/estimate', {
       method: 'POST',
       headers: {
         Authorization: `Key ${apiKey}`,

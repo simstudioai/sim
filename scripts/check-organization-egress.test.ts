@@ -11,6 +11,25 @@ const b = await globalThis.fetch(url)`)
     ).toEqual([1, 2])
   })
 
+  it('reports an alias, a fallback, a shorthand property and another global object', () => {
+    expect(
+      lines(`const f = fetch
+const g = custom ?? fetch
+new OpenAI({ fetch })
+function run(transport = fetch) {}
+await window.fetch(url)
+await self['fetch'](url)`)
+    ).toEqual([1, 2, 3, 4, 5, 6])
+  })
+
+  it('ignores fetch in type positions and as a property key', () => {
+    expect(
+      lines(`type Fetch = typeof fetch
+const transport: typeof globalThis.fetch = outboundFetch
+new Anthropic({ fetch: outboundFetch })`)
+    ).toEqual([])
+  })
+
   it('ignores a client method or a local binding named fetch', () => {
     expect(
       lines(`class Client { async fetch(path: string) { return this.fetch(path) } }
