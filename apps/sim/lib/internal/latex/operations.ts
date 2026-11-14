@@ -1,4 +1,5 @@
 import { truncate } from '@sim/utils/string'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   readResponseJsonWithLimit,
   readResponseToBufferWithLimit,
@@ -80,7 +81,7 @@ export async function compileLatexDocument(
   const signal = context.signal ? AbortSignal.any([context.signal, timeoutSignal]) : timeoutSignal
   let response: Response
   try {
-    response = await fetch(LATEX_COMPILE_URL, {
+    response = await outboundFetch(LATEX_COMPILE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

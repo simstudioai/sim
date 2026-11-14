@@ -1,4 +1,5 @@
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import {
@@ -46,7 +47,7 @@ export class ConfluenceClient {
 
   async fetch(path: string, init: RequestInit = {}, signal?: AbortSignal): Promise<Response> {
     signal?.throwIfAborted()
-    return fetch(path, {
+    return outboundFetch(path, {
       ...init,
       headers: {
         Accept: 'application/json',

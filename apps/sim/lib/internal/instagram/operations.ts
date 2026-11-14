@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   createMediaContainer,
@@ -123,7 +124,7 @@ async function fetchMediaMetadata({
   fields: string
   signal?: AbortSignal
 }): Promise<InstagramMediaMetadataResult> {
-  const response = await fetch(graphUrl(`/${encodeURIComponent(mediaId)}`, { fields }), {
+  const response = await outboundFetch(graphUrl(`/${encodeURIComponent(mediaId)}`, { fields }), {
     headers: bearerHeaders(accessToken),
     signal,
   })

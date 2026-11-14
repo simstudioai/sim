@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   secureFetchWithPinnedIP,
@@ -160,7 +161,7 @@ async function executePostMutation(args: {
   const { apiKey, mutation, input, context } = args
   let result: Record<string, unknown>
   try {
-    const response = await fetch(BUFFER_API_URL, {
+    const response = await outboundFetch(BUFFER_API_URL, {
       method: 'POST',
       headers: bufferHeaders(apiKey),
       body: JSON.stringify({ query: mutation, variables: { input } }),
