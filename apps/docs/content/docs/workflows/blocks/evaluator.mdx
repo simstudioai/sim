@@ -35,7 +35,7 @@ The range guides the model, but Sim does not clamp every returned score to it. V
 
 **Content** is the text to score, usually `<agent.content>`. Structured data is formatted as text. Images and audio are not scored directly.
 
-**Model** defaults to `claude-sonnet-5-5`. Select a supported model and evaluate its scores on representative content. **Temperature** and **System Prompt** are available in advanced fields. Sim Cloud supplies credentials for supported hosted models; other models and self-hosted deployments can require your own credentials.
+**Model** defaults to `claude-sonnet-5-5`. Select a supported model and evaluate its scores on representative content. Temperature and the system prompt aren't configurable: scoring runs at temperature 0.1, and the system prompt is generated from your metrics. Put scoring guidance in the metric descriptions or the content. Sim Cloud supplies credentials for supported hosted models; other models and self-hosted deployments can require your own credentials.
 
 ### Fallback models
 
