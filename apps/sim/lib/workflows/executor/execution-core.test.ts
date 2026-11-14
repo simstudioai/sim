@@ -910,6 +910,17 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(loadWorkflowDeploymentVersionStateMock).not.toHaveBeenCalled()
   })
 
+  function createDraftResumeSnapshot(workflow: unknown) {
+    const base = createSnapshot()
+    return new ExecutionSnapshot(
+      { ...base.metadata, resumeFromSnapshot: true, resumeTerminalNoop: true },
+      workflow,
+      {},
+      {},
+      []
+    )
+  }
+
   it('runs a draft resume on the graph it paused on, never the live draft', async () => {
     const pausedWorkflow = {
       version: '1.0',
@@ -925,18 +936,11 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       logs: [],
       metadata: { duration: 1, startTime: 'start', endTime: 'end' },
     })
-    const resumedSnapshot = createSnapshot()
-    resumedSnapshot.metadata = {
-      ...resumedSnapshot.metadata,
-      resumeFromSnapshot: true,
-      resumeTerminalNoop: true,
-    } as any
-    ;(resumedSnapshot as any).workflow = pausedWorkflow
 
     await executeWorkflowCore({
-      snapshot: resumedSnapshot as any,
+      snapshot: createDraftResumeSnapshot(pausedWorkflow),
       callbacks: {},
-      loggingSession: loggingSession as any,
+      loggingSession: loggingSession as unknown as LoggingSession,
       skipLogCreation: true,
     })
 
@@ -947,18 +951,11 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
   })
 
   it('fails a draft resume whose snapshot lost its paused graph', async () => {
-    const resumedSnapshot = createSnapshot()
-    resumedSnapshot.metadata = {
-      ...resumedSnapshot.metadata,
-      resumeFromSnapshot: true,
-    } as any
-    ;(resumedSnapshot as any).workflow = undefined
-
     await expect(
       executeWorkflowCore({
-        snapshot: resumedSnapshot as any,
+        snapshot: createDraftResumeSnapshot(undefined),
         callbacks: {},
-        loggingSession: loggingSession as any,
+        loggingSession: loggingSession as unknown as LoggingSession,
         skipLogCreation: true,
       })
     ).rejects.toThrow('Draft resume is missing the workflow graph it paused on')
