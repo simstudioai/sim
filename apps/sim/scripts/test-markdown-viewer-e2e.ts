@@ -693,11 +693,15 @@ try {
 } finally {
   await check('No uncaught browser errors', async () => assert.deepEqual(errors, []))
   await check('Fixture cleanup', async () => {
-    if (fileId) await request(`/api/workspaces/${workspaceId}/files/${fileId}`, undefined, 'DELETE')
-    await sql`delete from public_share where id=${shareId}`
-    await sql`delete from workspace where id=${workspaceId}`
-    await sql`delete from project where id=${workspaceId}`
-    await sql`delete from "user" where id=${userId}`
+    try {
+      if (fileId)
+        await request(`/api/workspaces/${workspaceId}/files/${fileId}`, undefined, 'DELETE')
+    } finally {
+      await sql`delete from public_share where id=${shareId}`
+      await sql`delete from workspace where id=${workspaceId}`
+      await sql`delete from project where id=${workspaceId}`
+      await sql`delete from "user" where id=${userId}`
+    }
   })
   await sql.end()
   await mkdir(dirname(reportPath), { recursive: true })
