@@ -16,6 +16,13 @@ class ClickFocusField: NSTextField {
 final class FixedCaretField: ClickFocusField {
     override func setAccessibilitySelectedTextRange(_ accessibilitySelectedTextRange: NSRange) {}
 }
+/// An element that reports its frame at infinity, as some apps (Maps) report hidden elements.
+final class InfiniteFrameView: NSView {
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityRole() -> NSAccessibility.Role? { .group }
+    override func accessibilityLabel() -> String? { "Fixture infinite frame" }
+    override func accessibilityFrame() -> NSRect { NSRect(x: CGFloat.infinity, y: -CGFloat.infinity, width: 0, height: 0) }
+}
 final class FixtureDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     var count = 0
@@ -45,6 +52,7 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         let slider = NSSlider(value: 25, minValue: 0, maxValue: 100, target: nil, action: nil); slider.setAccessibilityLabel("Fixture slider")
         let time = NSDatePicker(); time.datePickerStyle = .textField; time.datePickerElements = .hourMinute; time.setAccessibilityLabel("Fixture time")
         time.dateValue = Calendar.current.date(bySettingHour: 10, minute: 15, second: 0, of: Date()) ?? Date(); time.target = self; time.action = #selector(timeChanged(_:))
+        let infinite = InfiniteFrameView()
         let marker = MarkerView(); marker.setAccessibilityElement(false)
         marker.translatesAutoresizingMaskIntoConstraints = false
         let scroll = NSScrollView(); scroll.hasVerticalScroller = true
@@ -54,7 +62,7 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         scroll.documentView = document
         scroll.contentView.postsBoundsChangedNotifications = true
         NotificationCenter.default.addObserver(self, selector: #selector(scrolled(_:)), name: NSView.boundsDidChangeNotification, object: scroll.contentView)
-        for view in [field, secure, button, counter, clickField, caretField, sheetButton, slider, time, timeLabel, marker, scrollCounter, scroll] { stack.addArrangedSubview(view) }
+        for view in [field, secure, button, counter, clickField, caretField, sheetButton, slider, time, timeLabel, marker, infinite, scrollCounter, scroll] { stack.addArrangedSubview(view) }
         window.contentView!.addSubview(stack)
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 30), stack.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor, constant: -30), stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 30), field.widthAnchor.constraint(equalTo: stack.widthAnchor), secure.widthAnchor.constraint(equalTo: stack.widthAnchor), clickField.widthAnchor.constraint(equalTo: stack.widthAnchor), caretField.widthAnchor.constraint(equalTo: stack.widthAnchor), slider.widthAnchor.constraint(equalTo: stack.widthAnchor), scroll.widthAnchor.constraint(equalTo: stack.widthAnchor), scroll.heightAnchor.constraint(equalToConstant: 230), marker.widthAnchor.constraint(equalToConstant: 100), marker.heightAnchor.constraint(equalToConstant: 70)])
         window.makeKeyAndOrderFront(nil)

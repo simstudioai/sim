@@ -170,7 +170,9 @@ func axRect(position rawPosition: CFTypeRef?, size rawSize: CFTypeRef?) -> CGRec
           let rawSize, CFGetTypeID(rawSize) == AXValueGetTypeID() else { return nil }
     var position = CGPoint.zero; var size = CGSize.zero
     guard AXValueGetValue(unsafeBitCast(rawPosition, to: AXValue.self), .cgPoint, &position),
-          AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &size) else { return nil }
+          AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &size),
+          // Some apps report hidden elements at infinity (Maps does once its search field has focus); such an element has no usable frame.
+          [position.x, position.y, size.width, size.height].allSatisfy(\.isFinite) else { return nil }
     return CGRect(origin: position, size: size)
 }
 /// Apps computer use never operates, lowercased: macOS security settings, password managers, and apps
@@ -1067,7 +1069,11 @@ func nextLine() throws -> String? {
 func encodeReply(_ response: [String: Any]) throws -> Data {
     let limit = 16 * 1024 * 1024
     func encode(_ value: [String: Any]) throws -> Data {
-        try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+        // JSONSerialization raises an Objective-C exception, which Swift cannot catch, on a NaN or infinite number.
+        guard JSONSerialization.isValidJSONObject(value) else {
+            throw ComputerError("reply_unencodable", "The reply held a value JSON cannot represent.")
+        }
+        return try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
     }
     let original = try encode(response)
     if original.count <= limit { return original }
@@ -1138,9 +1144,11 @@ struct Main {
                 response = ["id": id, "error": details]
             }
             catch { response = ["id": id, "error": ["code": "request_failed", "message": String(String(describing: error).prefix(2000))]] }
-            if let data = try? encodeReply(response) {
-                FileHandle.standardOutput.write(data); FileHandle.standardOutput.write(Data([10]))
-            }
+            let data: Data?
+            do { data = try encodeReply(response) } catch let error as ComputerError {
+                data = try? encodeReply(["id": id, "error": ["code": error.code, "message": error.message]])
+            } catch { data = nil }
+            if let data { FileHandle.standardOutput.write(data); FileHandle.standardOutput.write(Data([10])) }
         }
     }
 }
