@@ -298,6 +298,15 @@ interface DbBlockRef {
   data: unknown
 }
 
+/** Every block of the workflow with the fields the lock checks read, keyed by id. */
+async function loadLockBlocks(tx: DbOrTx, workflowId: string): Promise<Record<string, DbBlockRef>> {
+  const rows = await tx
+    .select({ id: workflowBlocks.id, locked: workflowBlocks.locked, data: workflowBlocks.data })
+    .from(workflowBlocks)
+    .where(eq(workflowBlocks.workflowId, workflowId))
+  return Object.fromEntries(rows.map((row) => [row.id, row]))
+}
+
 /**
  * Finds all descendant block IDs of a container (recursive).
  * Works with raw DB block arrays.
@@ -413,8 +422,21 @@ export async function getWorkflowState(workflowId: string) {
   }
 }
 
-export async function persistWorkflowOperation(workflowId: string, operation: any) {
+/** What a persisted operation means for the clients that applied its payload optimistically. */
+export interface PersistedWorkflowOperation {
+  /**
+   * True when the stored graph kept lock-protected state the payload tried to change, so the
+   * payload no longer describes what was saved and every client must re-sync from the server.
+   */
+  reconcile: boolean
+}
+
+export async function persistWorkflowOperation(
+  workflowId: string,
+  operation: any
+): Promise<PersistedWorkflowOperation> {
   const startTime = Date.now()
+  let reconcile = false
   try {
     const { operation: op, target, payload, timestamp, userId } = operation
 
@@ -451,7 +473,7 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
           await handleBlockOperationTx(tx, workflowId, op, payload)
           break
         case OPERATION_TARGETS.BLOCKS:
-          await handleBlocksOperationTx(tx, workflowId, op, payload)
+          reconcile = (await handleBlocksOperationTx(tx, workflowId, op, payload)) === true
           break
         case OPERATION_TARGETS.EDGE:
           await handleEdgeOperationTx(tx, workflowId, op, payload)
@@ -469,7 +491,7 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
           await handleVariableOperationTx(tx, workflowId, op, payload)
           break
         case OPERATION_TARGETS.WORKFLOW:
-          await handleWorkflowOperationTx(tx, workflowId, op, payload)
+          reconcile = await handleWorkflowOperationTx(tx, workflowId, op, payload)
           break
         default:
           throw new Error(`Unknown operation target: ${target}`)
@@ -495,6 +517,7 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
         workflowId: `${workflowId.substring(0, 8)}...`,
       })
     }
+    return { reconcile }
   } catch (error) {
     const duration = Date.now() - startTime
     logger.error(
@@ -949,36 +972,31 @@ async function handleBlocksOperationTx(
         parallelCount: Object.keys(parallels || {}).length,
       })
 
-      if (blocks && blocks.length > 0) {
-        const existingBlocks: DbBlockRef[] = await tx
-          .select({
-            id: workflowBlocks.id,
-            locked: workflowBlocks.locked,
-            data: workflowBlocks.data,
-          })
-          .from(workflowBlocks)
-          .where(eq(workflowBlocks.workflowId, workflowId))
-        const blocksById = Object.fromEntries(existingBlocks.map((b) => [b.id, b]))
+      const lockBlocks = await loadLockBlocks(tx, workflowId)
+      const isProtected = (id: string) => isWorkflowBlockProtected(id, lockBlocks)
 
-        // Lock state is admin-only, so an add never overwrites a protected block
-        // nor places one inside a locked container.
+      // Lock state is admin-only, so an add never writes the lock flag, overwrites a protected
+      // block or its loop/parallel config, nor places a block inside a locked container.
+      let reconcile = false
+
+      if (blocks && blocks.length > 0) {
         const allowedBlocks = (blocks as Array<Record<string, unknown>>).filter((block) => {
           const parentId = (block.data as Record<string, unknown> | null)?.parentId as
             | string
             | undefined
-          if (
-            isWorkflowBlockProtected(block.id as string, blocksById) ||
-            (parentId && isWorkflowBlockProtected(parentId, blocksById))
-          ) {
+          if (isProtected(block.id as string) || (parentId && isProtected(parentId))) {
             logger.info(`Skipping block ${block.id} - it or its parent is locked`)
             return false
           }
           return true
         })
+        reconcile =
+          allowedBlocks.length < blocks.length ||
+          (blocks as Array<Record<string, unknown>>).some((block) => block.locked)
 
         if (allowedBlocks.length === 0) {
           logger.info('All blocks filtered out due to locks, skipping add')
-          break
+          return reconcile
         }
 
         const blockValues = allowedBlocks.map((block: Record<string, unknown>) => {
@@ -1115,36 +1133,37 @@ async function handleBlocksOperationTx(
         }
       }
 
-      if (loops && Object.keys(loops).length > 0) {
-        const loopValues = Object.entries(loops).map(([id, loop]) => ({
+      const subflowEntries = [
+        ...Object.entries(loops || {}).map(([id, config]) => ({ id, type: 'loop', config })),
+        ...Object.entries(parallels || {}).map(([id, config]) => ({
           id,
-          workflowId,
-          type: 'loop',
-          config: loop as Record<string, unknown>,
-        }))
-
-        await upsertWorkflowRows(tx, workflowSubflows, workflowId, loopValues, SUBFLOW_UPSERT_SET)
-      }
-
-      if (parallels && Object.keys(parallels).length > 0) {
-        const parallelValues = Object.entries(parallels).map(([id, parallel]) => ({
-          id,
-          workflowId,
           type: 'parallel',
-          config: parallel as Record<string, unknown>,
+          config,
+        })),
+      ]
+      const subflowValues = subflowEntries
+        .filter((subflow) => !isProtected(subflow.id))
+        .map((subflow) => ({
+          ...subflow,
+          workflowId,
+          config: subflow.config as Record<string, unknown>,
         }))
-
+      if (subflowValues.length < subflowEntries.length) {
+        logger.info('Skipping loop/parallel config of locked containers')
+        reconcile = true
+      }
+      if (subflowValues.length > 0) {
         await upsertWorkflowRows(
           tx,
           workflowSubflows,
           workflowId,
-          parallelValues,
+          subflowValues,
           SUBFLOW_UPSERT_SET
         )
       }
 
       logger.info(`Successfully batch added blocks to workflow ${workflowId}`)
-      break
+      return reconcile
     }
 
     case BLOCKS_OPERATIONS.BATCH_REMOVE_BLOCKS: {
@@ -1816,6 +1835,13 @@ async function handleSubflowOperationTx(
         throw new Error('Missing required fields for update subflow operation')
       }
 
+      if (isWorkflowBlockProtected(payload.id, await loadLockBlocks(tx, workflowId))) {
+        logger.info(
+          `Skipping update of subflow ${payload.id} - it is locked or in a locked container`
+        )
+        break
+      }
+
       logger.debug(`Updating subflow ${payload.id} with config:`, payload.config)
 
       // Read-modify-write merge so partial config payloads never wipe other fields
@@ -2128,13 +2154,13 @@ async function handleVariableOperationTx(
   }
 }
 
-/** Replaces the complete workflow state. */
+/** Replaces the complete workflow state; resolves whether clients must re-sync from the server. */
 async function handleWorkflowOperationTx(
   tx: any,
   workflowId: string,
   operation: string,
   payload: any
-) {
+): Promise<boolean> {
   switch (operation) {
     case WORKFLOW_OPERATIONS.REPLACE_STATE: {
       if (!payload.state) {
@@ -2261,7 +2287,14 @@ async function handleWorkflowOperationTx(
       }
 
       logger.info(`Successfully replaced workflow state for ${workflowId}`)
-      break
+      // A graph holding protected blocks may have been kept over the payload; comparing the
+      // stored rows against it field by field is not worth the precision, so re-sync.
+      return (
+        merged.protectedBlockIds.size > 0 ||
+        Object.values((blocks || {}) as Record<string, { locked?: unknown }>).some(
+          (block) => block.locked
+        )
+      )
     }
 
     default:

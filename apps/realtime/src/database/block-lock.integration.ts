@@ -1,4 +1,4 @@
-/** Real PostgreSQL coverage: realtime batch-add and replace-state never change what a block lock protects. */
+/** Real PostgreSQL coverage: realtime batch-add, subflow updates and replace-state never change what a block lock protects. */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { db } from '@sim/db'
@@ -14,6 +14,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import {
   BLOCKS_OPERATIONS,
   OPERATION_TARGETS,
+  SUBFLOW_OPERATIONS,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -93,6 +94,13 @@ async function readBlocks() {
   return Object.fromEntries(rows.map((row) => [row.id, row]))
 }
 
+async function readSubflows() {
+  return db
+    .select({ id: workflowSubflows.id, config: workflowSubflows.config })
+    .from(workflowSubflows)
+    .where(eq(workflowSubflows.workflowId, workflowId))
+}
+
 describe('block locks against PostgreSQL', () => {
   beforeAll(async () => {
     const now = new Date()
@@ -157,7 +165,7 @@ describe('block locks against PostgreSQL', () => {
   })
 
   check('batch-add-blocks cannot unlock or overwrite a locked block', async () => {
-    await persist(OPERATION_TARGETS.BLOCKS, BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS, {
+    const result = await persist(OPERATION_TARGETS.BLOCKS, BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS, {
       blocks: [
         payloadBlock(ids.locked, 'Hijacked', { locked: false }),
         payloadBlock(ids.child, 'Hijacked child'),
@@ -170,6 +178,35 @@ describe('block locks against PostgreSQL', () => {
     const blocks = await readBlocks()
     expect(blocks[ids.locked]).toMatchObject({ locked: true, name: 'Locked' })
     expect(blocks[ids.child]).toMatchObject({ name: 'Child' })
+    expect(result).toEqual({ reconcile: true })
+  })
+
+  check('batch-add-blocks and subflow updates cannot rewrite a locked loop config', async () => {
+    const result = await persist(OPERATION_TARGETS.BLOCKS, BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS, {
+      blocks: [payloadBlock(generateId(), 'Throwaway')],
+      edges: [],
+      loops: { [ids.container]: { ...lockedLoopConfig, iterations: 99 } },
+      parallels: {},
+    })
+    await persist(OPERATION_TARGETS.SUBFLOW, SUBFLOW_OPERATIONS.UPDATE, {
+      id: ids.container,
+      type: 'loop',
+      config: { iterations: 42 },
+    })
+
+    expect(await readSubflows()).toEqual([{ id: ids.container, config: lockedLoopConfig }])
+    expect(result).toEqual({ reconcile: true })
+  })
+
+  check('an add that touches no lock keeps collaborators on the payload', async () => {
+    const result = await persist(OPERATION_TARGETS.BLOCKS, BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS, {
+      blocks: [payloadBlock(generateId(), 'Plain')],
+      edges: [],
+      loops: {},
+      parallels: {},
+    })
+
+    expect(result).toEqual({ reconcile: false })
   })
 
   check(
@@ -198,7 +235,7 @@ describe('block locks against PostgreSQL', () => {
     async () => {
       const added = generateId()
       const nestedNew = generateId()
-      await persist(OPERATION_TARGETS.WORKFLOW, WORKFLOW_OPERATIONS.REPLACE_STATE, {
+      const result = await persist(OPERATION_TARGETS.WORKFLOW, WORKFLOW_OPERATIONS.REPLACE_STATE, {
         state: {
           blocks: {
             [ids.locked]: payloadBlock(ids.locked, 'Hijacked', { locked: false }),
@@ -228,11 +265,8 @@ describe('block locks against PostgreSQL', () => {
         .where(eq(workflowEdges.workflowId, workflowId))
       expect(edges.map((edge) => edge.id)).toEqual([ids.edgeIntoLocked])
 
-      const subflows = await db
-        .select({ id: workflowSubflows.id, config: workflowSubflows.config })
-        .from(workflowSubflows)
-        .where(eq(workflowSubflows.workflowId, workflowId))
-      expect(subflows).toEqual([{ id: ids.container, config: lockedLoopConfig }])
+      expect(await readSubflows()).toEqual([{ id: ids.container, config: lockedLoopConfig }])
+      expect(result).toEqual({ reconcile: true })
     }
   )
 })

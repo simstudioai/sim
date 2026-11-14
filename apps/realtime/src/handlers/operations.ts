@@ -9,6 +9,7 @@ import {
   type VariableOperation,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
+import type { WorkflowUpdatedBroadcast } from '@sim/realtime-protocol/events'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { WorkflowOperationSchema } from '@sim/realtime-protocol/schemas'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -20,6 +21,18 @@ import { checkWorkflowOperationPermission } from '@/middleware/permissions'
 import { type IRoomManager, type UserSession, workflowRoom as wf } from '@/rooms'
 
 const logger = createLogger('OperationsHandlers')
+
+/**
+ * Tells every client in the room, the sender included, to reload the stored graph: persistence
+ * kept lock-protected state over the payload they applied optimistically.
+ */
+function emitLockReconciliation(roomManager: IRoomManager, workflowId: string) {
+  roomManager.emitToRoom<WorkflowUpdatedBroadcast>(wf(workflowId), 'workflow-updated', {
+    workflowId,
+    message: 'Locked blocks were kept as stored',
+    timestamp: Date.now(),
+  })
+}
 
 export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('workflow-operation', async (data) => {
@@ -314,7 +327,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
         target === OPERATION_TARGETS.WORKFLOW &&
         operation === WORKFLOW_OPERATIONS.REPLACE_STATE
       ) {
-        await persistWorkflowOperation(workflowId, {
+        const { reconcile } = await persistWorkflowOperation(workflowId, {
           operation,
           target,
           payload,
@@ -324,21 +337,20 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
 
         await roomManager.updateRoomLastModified(wf(workflowId))
 
-        const broadcastData = {
-          operation,
-          target,
-          payload,
-          timestamp: operationTimestamp,
-          senderId: socket.id,
-          userId: session.userId,
-          userName: session.userName,
-          metadata: {
-            workflowId,
-            operationId: generateId(),
-          },
+        if (reconcile) {
+          emitLockReconciliation(roomManager, workflowId)
+        } else {
+          socket.to(workflowId).emit('workflow-operation', {
+            operation,
+            target,
+            payload,
+            timestamp: operationTimestamp,
+            senderId: socket.id,
+            userId: session.userId,
+            userName: session.userName,
+            metadata: { workflowId, operationId: generateId() },
+          })
         }
-
-        socket.to(workflowId).emit('workflow-operation', broadcastData)
 
         if (operationId) {
           socket.emit('operation-confirmed', {
@@ -351,7 +363,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
       }
 
       if (target === OPERATION_TARGETS.BLOCKS && operation === BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS) {
-        await persistWorkflowOperation(workflowId, {
+        const { reconcile } = await persistWorkflowOperation(workflowId, {
           operation,
           target,
           payload,
@@ -361,16 +373,20 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
 
         await roomManager.updateRoomLastModified(wf(workflowId))
 
-        socket.to(workflowId).emit('workflow-operation', {
-          operation,
-          target,
-          payload,
-          timestamp: operationTimestamp,
-          senderId: socket.id,
-          userId: session.userId,
-          userName: session.userName,
-          metadata: { workflowId, operationId: generateId() },
-        })
+        if (reconcile) {
+          emitLockReconciliation(roomManager, workflowId)
+        } else {
+          socket.to(workflowId).emit('workflow-operation', {
+            operation,
+            target,
+            payload,
+            timestamp: operationTimestamp,
+            senderId: socket.id,
+            userId: session.userId,
+            userName: session.userName,
+            metadata: { workflowId, operationId: generateId() },
+          })
+        }
 
         if (operationId) {
           socket.emit('operation-confirmed', { operationId, serverTimestamp: Date.now() })

@@ -84,7 +84,7 @@ describe('search replacement persistence', () => {
       },
     ]
 
-    await expect(replaceTools(stored)).resolves.toBeUndefined()
+    await expect(replaceTools(stored)).resolves.toEqual({ reconcile: false })
     expect(mockSet).toHaveBeenLastCalledWith(
       expect.objectContaining({
         subBlocks: { tools: { id: 'tools', type: 'tool-input', value: replacement } },
@@ -138,7 +138,7 @@ describe('subblock update with canonical modes persistence', () => {
   }
 
   it('writes the subblock value and replaces canonical modes in one block update', async () => {
-    await expect(updateTools({})).resolves.toBeUndefined()
+    await expect(updateTools({})).resolves.toEqual({ reconcile: false })
 
     expect(mockSet).toHaveBeenCalledTimes(2)
     expect(mockSet).toHaveBeenLastCalledWith(
