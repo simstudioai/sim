@@ -42,12 +42,22 @@ export const dropboxListFolderTool: ToolConfig<DropboxListFolderParams, DropboxL
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Maximum number of results to return (default: 500)',
+        description: 'Approximate maximum number of entries to return per page (1-2000)',
+      },
+      cursor: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Cursor from a previous List Folder call to fetch the next page via list_folder/continue (other options are ignored when set)',
       },
     },
 
     request: {
-      url: 'https://api.dropboxapi.com/2/files/list_folder',
+      url: (params) =>
+        params.cursor?.trim()
+          ? 'https://api.dropboxapi.com/2/files/list_folder/continue'
+          : 'https://api.dropboxapi.com/2/files/list_folder',
       method: 'POST',
       headers: (params) => {
         if (!params.accessToken) {
@@ -58,13 +68,17 @@ export const dropboxListFolderTool: ToolConfig<DropboxListFolderParams, DropboxL
           'Content-Type': 'application/json',
         }
       },
-      body: (params) => ({
-        path: params.path.trim() === '/' ? '' : params.path.trim(),
-        recursive: params.recursive ?? false,
-        include_deleted: params.includeDeleted ?? false,
-        include_media_info: params.includeMediaInfo ?? false,
-        limit: params.limit,
-      }),
+      body: (params) => {
+        const cursor = params.cursor?.trim()
+        if (cursor) return { cursor }
+        return {
+          path: params.path.trim() === '/' ? '' : params.path.trim(),
+          recursive: params.recursive ?? false,
+          include_deleted: params.includeDeleted ?? false,
+          include_media_info: params.includeMediaInfo ?? false,
+          limit: params.limit,
+        }
+      },
     },
 
     transformResponse: async (response) => {
@@ -105,7 +119,7 @@ export const dropboxListFolderTool: ToolConfig<DropboxListFolderParams, DropboxL
       },
       cursor: {
         type: 'string',
-        description: 'Cursor for pagination',
+        description: 'Cursor to pass back as the cursor input to fetch the next page',
       },
       hasMore: {
         type: 'boolean',

@@ -106,6 +106,7 @@ export interface DropboxListFolderParams extends DropboxBaseParams {
   includeDeleted?: boolean
   includeMediaInfo?: boolean
   limit?: number
+  cursor?: string
 }
 
 export interface DropboxListFolderResponse extends ToolResponse {
@@ -192,6 +193,7 @@ export interface DropboxSearchParams extends DropboxBaseParams {
   path?: string
   fileExtensions?: string
   maxResults?: number
+  cursor?: string
 }
 
 export interface DropboxSearchResponse extends ToolResponse {
