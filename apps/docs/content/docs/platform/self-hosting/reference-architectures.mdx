@@ -174,7 +174,7 @@ resource "helm_release" "sim" {
 ```
 
 <Callout type="warn">
-  The example values files ship literal placeholders such as `your-secure-production-auth-secret-here`. That includes `postgresql.auth.password`. The chart only rejects empty values and its own `CHANGE-ME` strings, so a deployment that inherits those placeholders installs cleanly with a publicly known session-signing secret and database password. Override every secret, or use External Secrets and set none of them inline.
+  The example values files leave every secret empty, and the chart refuses to install while a required secret is empty or still holds a placeholder such as `your-...` or `CHANGE-ME-...`. Examples from chart versions before `1.11.20` shipped literal placeholders that passed this check, so if you installed from one of them, rotate any secret you did not override.
 </Callout>
 
 Pin `version` above. Empty image tags use the selected chart's `appVersion`, so a pinned chart also selects that default app version. Explicit image tags or digests override it; pin them separately when you need that control, and keep app, realtime, and migrations aligned. Chart `1.11.8` was published with app version `v0.9.17`; local checkout metadata can differ. See [Upgrades](/platform/self-hosting/upgrades).

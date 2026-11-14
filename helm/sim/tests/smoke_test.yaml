@@ -43,3 +43,11 @@ tests:
           path: metadata.name
           pattern: "^acme-sim"
         template: deployment-app.yaml
+
+  - it: ignores a realtime placeholder secret when realtime is disabled
+    template: deployment-app.yaml
+    set:
+      realtime.enabled: false
+      realtime.env.BETTER_AUTH_SECRET: your-secure-production-auth-secret-here
+    asserts:
+      - isKind: { of: Deployment }

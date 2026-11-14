@@ -49,24 +49,24 @@ app:
     BETTER_AUTH_URL: "https://sim.acme.ai"
     NEXT_PUBLIC_SOCKET_URL: "https://sim-ws.acme.ai"
     
-    # Security settings (REQUIRED - replace with your own secure secrets)
-    # Generate using: openssl rand -hex 32
-    BETTER_AUTH_SECRET: "your-production-auth-secret-here"
-    ENCRYPTION_KEY: "your-production-encryption-key-here"
-    INTERNAL_API_SECRET: "your-production-internal-api-secret-here"
-    CRON_SECRET: "your-production-cron-secret-here"
+    # Security settings (REQUIRED - pass with --set or an external secret manager;
+    # the install fails while any is empty). Generate using: openssl rand -hex 32
+    BETTER_AUTH_SECRET: ""
+    ENCRYPTION_KEY: ""
+    INTERNAL_API_SECRET: ""
+    CRON_SECRET: ""
 
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate 64-character hex string using: openssl rand -hex 32
-    API_ENCRYPTION_KEY: "your-64-char-hex-api-encryption-key-here"  # Optional but recommended
+    API_ENCRYPTION_KEY: ""  # Optional but recommended
     
     # Email verification (set to true if you want to require email verification)
     EMAIL_VERIFICATION_ENABLED: "false"
     
     # Optional third-party service integrations (configure as needed)
-    RESEND_API_KEY: "your-resend-api-key"
-    GOOGLE_CLIENT_ID: "your-google-client-id"
-    GOOGLE_CLIENT_SECRET: "your-google-client-secret"
+    RESEND_API_KEY: ""
+    GOOGLE_CLIENT_ID: ""
+    GOOGLE_CLIENT_SECRET: ""
     # DISABLE_GOOGLE_AUTH: "true"                      # Uncomment to hide Google OAuth login
     # DISABLE_GITHUB_AUTH: "true"                      # Uncomment to hide GitHub OAuth login
 
@@ -91,7 +91,7 @@ realtime:
   env:
     NEXT_PUBLIC_APP_URL: "https://sim.acme.ai"
     BETTER_AUTH_URL: "https://sim.acme.ai"
-    BETTER_AUTH_SECRET: "your-production-auth-secret-here"
+    BETTER_AUTH_SECRET: ""  # Inherits app.env.BETTER_AUTH_SECRET when empty
     ALLOWED_ORIGINS: "https://sim.acme.ai"
 
 # Database migrations
@@ -112,7 +112,7 @@ postgresql:
   # Database authentication (REQUIRED - set secure credentials)
   auth:
     username: postgres
-    password: "your-secure-postgres-password"
+    password: ""  # Set via --set flag or external secret manager
     database: simstudio
   
   # Resource allocation for production workloads

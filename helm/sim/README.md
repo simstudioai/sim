@@ -283,6 +283,7 @@ helm install sim oci://ghcr.io/simstudioai/charts/sim \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.CRON_SECRET="$CRON_SECRET" \
   --set postgresql.auth.password="$POSTGRES_PASSWORD"
 ```
 
