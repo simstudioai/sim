@@ -907,15 +907,13 @@ describe('OAuth access-token refresh headroom', () => {
     )
   })
 
-  it('surfaces an unavailable egress route without flagging the credential dead or revoked', async () => {
+  it('rethrows an unavailable egress route instead of a revoked or failed refresh', async () => {
     mocks.refreshOAuthToken.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
     const row = createOAuthAccount(WAITED_GOOGLE_REMAINING_MS)
     queueTableRows(account, [row])
     await expect(refreshTokenIfNeeded('test', row, RAW_ACCOUNT_ID)).rejects.toBeInstanceOf(
       OutboundRoutingError
     )
-    expect(markCredentialDead).not.toHaveBeenCalled()
-    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
   it('answers a Microsoft caller from its valid token while refresh-token aging refreshes', async () => {

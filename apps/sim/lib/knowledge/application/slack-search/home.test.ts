@@ -69,6 +69,7 @@ function publish(signal = new AbortController().signal) {
   })
 }
 beforeEach(() => {
+  networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
   mocks.installation.mockResolvedValue(installation)
   mocks.publish.mockResolvedValue({ status: 200, data: { ok: true } })
 })
@@ -136,16 +137,12 @@ describe('static Home delivery', () => {
   })
   it("calls Slack from the installation's organization outbound scope", async () => {
     networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
-    networkConfigMockFns.mockResolveOutboundRoute.mockImplementation(async (organizationId) => ({
-      organizationId,
-    }))
-    const routes: unknown[] = []
     mocks.publish.mockImplementationOnce(async () => {
-      routes.push(await resolveCurrentOutboundRoute())
+      await resolveCurrentOutboundRoute()
       return { status: 200, data: { ok: true } }
     })
     await publish()
-    expect(routes).toEqual([{ organizationId: 'org1' }])
+    expect(networkConfigMockFns.mockResolveOutboundRoute).toHaveBeenCalledWith('org1')
   })
   it.each([
     { enabled: false },

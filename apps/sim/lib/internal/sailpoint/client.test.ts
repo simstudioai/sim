@@ -61,6 +61,7 @@ describe('SailPoint client', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1))
     release?.(tokenResponse('shared'))
     await expect(Promise.all([first, second])).resolves.toEqual(['shared', 'shared'])
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
   it('lets one token waiter abort without cancelling the shared exchange', async () => {

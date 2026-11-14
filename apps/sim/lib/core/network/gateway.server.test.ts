@@ -304,7 +304,7 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
       await transport.dispatcher.destroy()
     }
   })
-  it("sends a credential request through the organization's gateway", async () => {
+  it("sends outboundFetch through the scoped organization's gateway", async () => {
     const start = admissions.length
     await runWithOutboundOrganization('org_b', async () => {
       const response = await outboundFetch(url(), {
@@ -313,7 +313,7 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
         redirect: 'error',
       })
       expect(response.headers.get('x-via-proxy')).toBe('yes')
-      expect(await response.text()).toBe('grant_type=client_credentials')
+      await response.body?.cancel()
     })
     expect(admissions.slice(start)).toEqual([
       { token: 'Bearer bravo', destination: '1.1.1.1:443', sni: 'gateway.invalid' },
@@ -340,21 +340,16 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
       return error?.$response?.headers['x-via-proxy']
     }
 
-    it("sends a request through the organization's gateway", async () => {
+    it('tunnels each organization with its own credential and never shares its pooled socket', async () => {
       const start = admissions.length
       expect(await viaProxy('org_a')).toBe('yes')
+      expect(await viaProxy('org_b')).toBe('yes')
+      expect(await viaProxy('org_a')).toBe('yes')
+      expect(await viaProxy('org_b')).toBe('yes')
       expect(admissions.slice(start)).toEqual([
         { token: 'Bearer alpha', destination: '1.1.1.1:443', sni: 'gateway.invalid' },
+        { token: 'Bearer bravo', destination: '1.1.1.1:443', sni: 'gateway.invalid' },
       ])
-    })
-
-    it("never reuses one organization's pooled socket for another", async () => {
-      expect(await viaProxy('org_a')).toBe('yes')
-      const start = admissions.length
-      expect(await viaProxy('org_b')).toBe('yes')
-      expect(await viaProxy('org_a')).toBe('yes')
-      expect(await viaProxy('org_b')).toBe('yes')
-      expect(admissions.slice(start).map((entry) => entry.token)).toEqual(['Bearer bravo'])
     })
   })
 

@@ -325,7 +325,7 @@ describe('standard OAuth Credential Group provider', () => {
     await expect(exchange()).rejects.toMatchObject({ statusCode: 502 })
   })
 
-  it("sends a connector's built-in code exchange through its organization's egress route", async () => {
+  it("fails a connector's built-in code exchange closed with 503 when its organization's gateway is unavailable", async () => {
     connectorState.builtInExchange = true
     const sharedIpFetch = vi.fn(async () =>
       Response.json({ token_type: 'Bearer', access_token: 'access-1' })

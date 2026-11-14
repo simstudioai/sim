@@ -71,6 +71,7 @@ describe('Teams subscription renewal route (fire-and-forget)', () => {
 
     beforeEach(() => {
       graphCalls.length = 0
+      routeOrganizationId = undefined
       networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
       networkConfigMockFns.mockResolveOutboundRoute.mockImplementation(async (organizationId) => {
         routeOrganizationId = organizationId

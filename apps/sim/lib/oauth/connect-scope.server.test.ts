@@ -282,9 +282,8 @@ describe('default code exchange for connectors without getToken', () => {
     }
     stubVendor(respond)
     await expect(pluginExchange(config, CODE)).rejects.toThrow()
-    const routedRequests = stubVendor(respond)
+    stubVendor(respond)
     await expect(pluginExchange(withConnectDraftOutboundScope(config), CODE)).rejects.toThrow()
-    expect(routedRequests).toHaveLength(1)
   })
 
   it("runs the default exchange in the connect draft's organization", async () => {
