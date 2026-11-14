@@ -1,9 +1,14 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { notionCreateCommentTool } from '@/tools/notion/create_comment'
 import { notionCreatePageTool, notionCreatePageV2Tool } from '@/tools/notion/create_page'
 import { notionReadTool, notionReadV2Tool } from '@/tools/notion/read'
 import { notionUpdatePageTool, notionUpdatePageV2Tool } from '@/tools/notion/update_page'
 import { notionWriteTool } from '@/tools/notion/write'
+
+function defined<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error('Expected the tool to define this handler')
+  return value
+}
 
 const PAGE_TITLE = 'Project Apollo'
 
@@ -75,14 +80,18 @@ describe('Notion rich text length limit', () => {
       id: notionWriteTool.id,
       richText: () =>
         paragraphRichText(
-          notionWriteTool.request.body!({ accessToken: 't', pageId: 'p', content: longText })
+          defined(notionWriteTool.request.body)({
+            accessToken: 't',
+            pageId: 'p',
+            content: longText,
+          })
         ),
     },
     {
       id: notionCreatePageTool.id,
       richText: () =>
         paragraphRichText(
-          notionCreatePageTool.request.body!({
+          defined(notionCreatePageTool.request.body)({
             accessToken: 't',
             parentId: 'p',
             content: longText,
@@ -93,7 +102,7 @@ describe('Notion rich text length limit', () => {
       id: notionCreateCommentTool.id,
       richText: () =>
         (
-          notionCreateCommentTool.request.body!({
+          defined(notionCreateCommentTool.request.body)({
             accessToken: 't',
             pageId: 'p',
             content: longText,
@@ -111,10 +120,6 @@ describe('Notion rich text length limit', () => {
 })
 
 describe('Notion read page content pagination', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('follows next_cursor past the first 100 blocks', async () => {
     const paragraph = (text: string) => ({
       type: 'paragraph',
@@ -130,7 +135,7 @@ describe('Notion read page content pagination', () => {
       )
     vi.stubGlobal('fetch', fetchMock)
 
-    const result = await notionReadV2Tool.transformResponse!(pageResponse(), {
+    const result = await defined(notionReadV2Tool.transformResponse)(pageResponse(), {
       accessToken: 't',
       pageId: 'page-1',
     })
