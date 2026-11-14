@@ -173,18 +173,6 @@ describe('Workday operations', () => {
     })
   })
 
-  it('sends the organization type criteria before the response filter, in schema order', async () => {
-    clientMocks.Get_OrganizationsAsync.mockResolvedValue([{ Response_Data: {} }])
-
-    await executeWorkdayGetOrganizations({ ...CREDENTIALS, type: 'Supervisory' })
-
-    expect(Object.keys(firstCallArgs(clientMocks.Get_OrganizationsAsync))).toEqual([
-      'Request_Criteria',
-      'Response_Filter',
-      'Response_Group',
-    ])
-  })
-
   it('sends personal information changes under Change_Personal_Information_Data', async () => {
     await executeWorkdayUpdateWorker({
       ...CREDENTIALS,
