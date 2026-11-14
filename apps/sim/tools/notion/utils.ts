@@ -76,8 +76,14 @@ const NOTION_MAX_ARRAY_ELEMENTS = 100
  * surrogate pair is never split across two objects.
  */
 export function toNotionRichText(
-  content: string
+  value: unknown
 ): Array<{ type: 'text'; text: { content: string } }> {
+  const content =
+    typeof value === 'string'
+      ? value
+      : value !== null && typeof value === 'object'
+        ? JSON.stringify(value)
+        : String(value ?? '')
   const chunks: string[] = []
   let index = 0
   while (index < content.length) {

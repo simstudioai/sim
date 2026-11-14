@@ -2,7 +2,12 @@ import { ClickUpIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, parseOptionalBooleanInput, toolCallArg } from '@/blocks/utils'
+import {
+  isToolCall,
+  normalizeFileInput,
+  parseOptionalBooleanInput,
+  toolCallArg,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const TIMESTAMP_WAND_PROMPT = `Generate a Unix timestamp in milliseconds based on the user's description.
@@ -1730,9 +1735,9 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
               taskId: params.taskId,
               fieldId: params.fieldId,
               value:
-                params.fieldValue !== undefined && params.fieldValue !== ''
-                  ? parseCustomFieldValue(params.fieldValue)
-                  : toolCallArg(context, params.value),
+                isToolCall(context) && (params.fieldValue === undefined || params.fieldValue === '')
+                  ? params.value
+                  : parseCustomFieldValue(params.fieldValue),
             }
           case 'remove_custom_field_value':
             return {

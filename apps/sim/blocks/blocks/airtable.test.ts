@@ -105,3 +105,21 @@ describe('AirtableBlock typecast', () => {
     ).toMatchObject({ recordIds: ['rec123'] })
   })
 })
+
+describe('Airtable pagination offsets', () => {
+  const mapParams = AirtableBlock.tools.config?.params
+  if (!mapParams) throw new Error('Airtable block is missing its params mapper')
+
+  it('does not send a List Bases offset to List Records on the canvas', () => {
+    const mapped = mapParams({ ...baseParams, operation: 'list', basesOffset: 'itrBases' })
+    expect(mapped.offset).toBeUndefined()
+  })
+
+  it('keeps the model offset on a List Records tool call', () => {
+    const mapped = mapParams(
+      { ...baseParams, operation: 'list', offset: 'itrModel' },
+      { operation: 'list' }
+    )
+    expect(mapped.offset).toBe('itrModel')
+  })
+})

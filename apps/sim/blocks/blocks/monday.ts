@@ -2,6 +2,7 @@ import { MondayIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const BOARD_OPS = [
@@ -469,12 +470,20 @@ export const MondayBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_boards' },
     },
     {
+      id: 'getItemsCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Pagination cursor from previous response',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_items' },
+    },
+    {
       id: 'cursor',
       title: 'Cursor',
       type: 'short-input',
       placeholder: 'Pagination cursor from previous response',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['get_items', 'search_items'] },
+      condition: { field: 'operation', value: 'search_items' },
     },
     ...getTrigger('monday_item_created').subBlocks,
     ...getTrigger('monday_column_changed').subBlocks,
@@ -512,7 +521,7 @@ export const MondayBlock: BlockConfig = {
         const op = typeof params.operation === 'string' ? params.operation.trim() : 'list_boards'
         return `monday_${op}`
       },
-      params: (params) => {
+      params: (params, context) => {
         const baseParams: Record<string, unknown> = {
           oauthCredential: params.oauthCredential,
         }
@@ -535,7 +544,7 @@ export const MondayBlock: BlockConfig = {
               boardId: params.boardId,
               groupId: params.groupId || undefined,
               limit: params.limit ? Number(params.limit) : undefined,
-              cursor: params.cursor || undefined,
+              cursor: params.getItemsCursor || toolCallArg(context, params.cursor) || undefined,
             }
           case 'search_items':
             return {
@@ -663,7 +672,8 @@ export const MondayBlock: BlockConfig = {
     groupColor: { type: 'string', description: 'Group color hex code' },
     limit: { type: 'number', description: 'Maximum number of results' },
     page: { type: 'number', description: 'Page number for pagination' },
-    cursor: { type: 'string', description: 'Pagination cursor for get items or search' },
+    getItemsCursor: { type: 'string', description: 'Pagination cursor for get items' },
+    cursor: { type: 'string', description: 'Pagination cursor for search items' },
   },
   outputs: {
     boards: {

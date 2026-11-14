@@ -3,6 +3,7 @@ import { AirtableIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** Canonical account pair — an advanced-mode card only fills `manualCredential`. */
@@ -187,11 +188,19 @@ export const AirtableBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'offset',
+      id: 'recordsOffset',
       title: 'Offset',
       type: 'short-input',
       placeholder: 'Pagination offset from a previous response',
-      condition: { field: 'operation', value: ['listBases', 'list'] },
+      condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'basesOffset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: 'Pagination offset from a previous response',
+      condition: { field: 'operation', value: 'listBases' },
       mode: 'advanced',
     },
     {
@@ -407,9 +416,18 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
             throw new Error(`Invalid Airtable operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { oauthCredential, records, fields, fieldsToMergeOn, recordIds, typecast, ...rest } =
-          params
+      params: (params, context) => {
+        const {
+          oauthCredential,
+          records,
+          fields,
+          fieldsToMergeOn,
+          recordIds,
+          typecast,
+          recordsOffset,
+          basesOffset,
+          ...rest
+        } = params
         let parsedRecords: unknown
         let parsedFields: unknown
         let parsedFieldsToMergeOn: unknown
@@ -452,6 +470,16 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
           typecast != null ? { typecast: typecast === true || typecast === 'true' } : {}
 
         switch (params.operation) {
+          case 'list':
+            return {
+              ...baseParams,
+              offset: recordsOffset || toolCallArg(context, rest.offset) || undefined,
+            }
+          case 'listBases':
+            return {
+              ...baseParams,
+              offset: basesOffset || toolCallArg(context, rest.offset) || undefined,
+            }
           case 'create':
           case 'updateMultiple':
             return { ...baseParams, records: parsedRecords, ...typecastParams }
@@ -483,7 +511,14 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
     filterFormula: { type: 'string', description: 'Filter formula expression' }, // Optional for list
     view: { type: 'string', description: 'View name or ID to list records from' },
     pageSize: { type: 'number', description: 'Records per page (max 100)' },
-    offset: { type: 'string', description: 'Pagination offset from a previous response' },
+    recordsOffset: {
+      type: 'string',
+      description: 'Pagination offset from a previous List Records response',
+    },
+    basesOffset: {
+      type: 'string',
+      description: 'Pagination offset from a previous List Bases response',
+    },
     records: { type: 'json', description: 'Record data array' }, // Required for create/updateMultiple/upsert
     fields: { type: 'json', description: 'Field data object' }, // Required for update single
     fieldsToMergeOn: { type: 'json', description: 'Field names to match records on' }, // Required for upsert
