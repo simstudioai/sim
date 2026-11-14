@@ -18,7 +18,8 @@ function toPostgrestOrder(orderBy: string): string {
     .map((term) => {
       const spaced = term.match(/^(.+?)\s+(asc|desc)$/i)
       if (spaced) return `${spaced[1].trim()}.${spaced[2].toLowerCase()}`
-      if (/\.(asc|desc|nullsfirst|nullslast)$/i.test(term)) return term
+      const dotted = term.match(/^(.+?)((?:\.(?:asc|desc|nullsfirst|nullslast))+)$/i)
+      if (dotted) return `${dotted[1]}${dotted[2].toLowerCase()}`
       return `${term}.asc`
     })
     .join(',')

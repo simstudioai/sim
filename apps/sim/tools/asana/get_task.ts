@@ -134,6 +134,7 @@ export const asanaGetTaskTool: InternalToolConfig<AsanaGetTaskParams, AsanaGetTa
     },
     next_page: {
       type: 'object',
+      nullable: true,
       description: 'Pagination info when fetching multiple tasks; null on the last page',
       optional: true,
       properties: {

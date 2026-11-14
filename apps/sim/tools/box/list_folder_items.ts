@@ -106,7 +106,7 @@ export const boxListFolderItemsTool: ToolConfig<BoxListFolderItemsParams, BoxFol
             createdAt: item.created_at ?? null,
             modifiedAt: item.modified_at ?? null,
           })),
-          totalCount: data.total_count ?? 0,
+          totalCount: data.total_count ?? null,
           offset: data.offset ?? 0,
           limit: data.limit ?? 0,
           nextMarker: data.next_marker ?? null,

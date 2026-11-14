@@ -15,9 +15,9 @@ export const dropboxSearchTool: ToolConfig<DropboxSearchParams, DropboxSearchRes
   params: {
     query: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The search query',
+      description: 'The search query. Required unless cursor is set',
     },
     path: {
       type: 'string',
@@ -64,6 +64,9 @@ export const dropboxSearchTool: ToolConfig<DropboxSearchParams, DropboxSearchRes
     body: (params) => {
       const cursor = params.cursor?.trim()
       if (cursor) return { cursor }
+      if (!params.query?.trim()) {
+        throw new Error('query is required unless cursor is set')
+      }
 
       const body: Record<string, any> = {
         query: params.query,

@@ -81,6 +81,20 @@ describe('Asana operations', () => {
     expect(parsedUrl.searchParams.get('offset')).toBe('tok')
   })
 
+  it('rejects a workspace task list without an assignee and out-of-range page sizes', async () => {
+    await expect(executeAsanaGetTask({ ...AUTH, workspace: 'workspace1' })).rejects.toMatchObject({
+      status: 400,
+      body: { error: 'assignee is required when listing tasks by workspace' },
+    })
+    await expect(
+      executeAsanaSearchTasks({ ...AUTH, workspace: 'workspace1', limit: 500 })
+    ).rejects.toMatchObject({ status: 400 })
+    await expect(
+      executeAsanaGetTask({ ...AUTH, project: 'project1', limit: '2.5' })
+    ).rejects.toMatchObject({ status: 400 })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('sends the search page size', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: [] })))
     await executeAsanaSearchTasks({ ...AUTH, workspace: 'workspace1', limit: 25 })

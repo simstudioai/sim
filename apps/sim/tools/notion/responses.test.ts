@@ -141,6 +141,38 @@ describe('Notion read page content pagination', () => {
     })
 
     expect(result.output.content).toBe('first\n\nsecond')
+    expect(result.output.truncated).toBe(false)
     expect(String(fetchMock.mock.calls[1][0])).toContain('start_cursor=cursor-2')
+  })
+
+  it('throws when a later page fails instead of returning partial content', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(Response.json({ results: [], has_more: true, next_cursor: 'c2' }))
+        .mockResolvedValueOnce(new Response('busy', { status: 503 }))
+    )
+
+    await expect(
+      defined(notionReadV2Tool.transformResponse)(pageResponse(), {
+        accessToken: 't',
+        pageId: 'page-1',
+      })
+    ).rejects.toThrow('503')
+  })
+
+  it('flags content that stops at the block cap', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ results: [], has_more: true, next_cursor: 'next' }))
+    )
+
+    const result = await defined(notionReadTool.transformResponse)(pageResponse(), {
+      accessToken: 't',
+      pageId: 'page-1',
+    })
+
+    expect(result.output.truncated).toBe(true)
   })
 })

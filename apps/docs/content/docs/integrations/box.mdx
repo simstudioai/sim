@@ -156,7 +156,7 @@ List files and folders in a Box folder
 |   ↳ `size` | number | Item size in bytes |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `modifiedAt` | string | Last modified timestamp |
-| `totalCount` | number | Total number of items in the folder \(omitted by Box for marker pagination\) |
+| `totalCount` | number | Total number of items in the folder; null with marker pagination, where Box omits it |
 | `offset` | number | Current pagination offset |
 | `limit` | number | Current pagination limit |
 | `nextMarker` | string | Marker for the next page when using marker-based pagination |

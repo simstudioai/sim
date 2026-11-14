@@ -101,7 +101,7 @@ export interface DropboxDownloadV2Response<File = UserFile> extends ToolResponse
 }
 
 export interface DropboxListFolderParams extends DropboxBaseParams {
-  path: string
+  path?: string
   recursive?: boolean
   includeDeleted?: boolean
   includeMediaInfo?: boolean
@@ -189,7 +189,7 @@ export interface DropboxCreateSharedLinkResponse extends ToolResponse {
 }
 
 export interface DropboxSearchParams extends DropboxBaseParams {
-  query: string
+  query?: string
   path?: string
   fileExtensions?: string
   maxResults?: number

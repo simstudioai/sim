@@ -7,16 +7,23 @@ import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 /** Children pages fetched per read: 10 pages of 100 top-level blocks. */
 const MAX_BLOCK_CHILDREN_PAGES = 10
 
+interface PageBlocks {
+  blocks: unknown[]
+  /** True when the page has more top-level blocks than {@link MAX_BLOCK_CHILDREN_PAGES} pages hold. */
+  truncated: boolean
+}
+
 /**
  * Fetch a page's top-level blocks, following `has_more`/`next_cursor` up to
- * {@link MAX_BLOCK_CHILDREN_PAGES} pages. Returns null when the first page fails;
- * a later failure keeps the blocks already read.
+ * {@link MAX_BLOCK_CHILDREN_PAGES} pages. Returns null when the first page fails, so the
+ * read still returns the page metadata as it always has. A failure on a later page
+ * throws rather than returning partial content that would look complete.
  */
 async function fetchPageBlocks(
   pageId: string,
   accessToken: string,
   signal?: AbortSignal
-): Promise<unknown[] | null> {
+): Promise<PageBlocks | null> {
   const blocks: unknown[] = []
   let cursor: string | undefined
   for (let page = 0; page < MAX_BLOCK_CHILDREN_PAGES; page++) {
@@ -33,15 +40,26 @@ async function fetchPageBlocks(
       },
       signal,
     })
-    if (!response.ok) return page === 0 ? null : blocks
+    if (!response.ok) {
+      if (page === 0) return null
+      throw new Error(
+        `Failed to read page content after ${blocks.length} blocks: Notion returned ${response.status}`
+      )
+    }
 
     const data = await response.json()
     blocks.push(...(data.results ?? []))
-    if (!data.has_more || !data.next_cursor) break
+    if (!data.has_more || !data.next_cursor) return { blocks, truncated: false }
     cursor = data.next_cursor
   }
-  return blocks
+  return { blocks, truncated: true }
 }
+
+const TRUNCATED_OUTPUT = {
+  type: 'boolean',
+  description: `True when the page has more than ${MAX_BLOCK_CHILDREN_PAGES * 100} top-level blocks and content stops there`,
+  optional: true,
+} as const
 
 const MARKDOWN_PREFIX: Record<string, string> = {
   paragraph: '',
@@ -142,8 +160,8 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       }
     }
 
-    const blocks = await fetchPageBlocks(pageId, accessToken, context?.signal)
-    if (!blocks) {
+    const pageBlocks = await fetchPageBlocks(pageId, accessToken, context?.signal)
+    if (!pageBlocks) {
       // If we can't get blocks, still return the page metadata
       return {
         success: true,
@@ -159,12 +177,13 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       }
     }
 
-    const content = blocksToMarkdown(blocks)
+    const content = blocksToMarkdown(pageBlocks.blocks)
 
     return {
       success: true,
       output: {
         content: content,
+        truncated: pageBlocks.truncated,
         metadata: {
           title: pageTitle,
           lastEditedTime: data.last_edited_time,
@@ -180,6 +199,7 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       type: 'string',
       description: 'Page content in markdown format with headers, paragraphs, lists, and todos',
     },
+    truncated: TRUNCATED_OUTPUT,
     metadata: {
       type: 'object',
       description: 'Page metadata including title, URL, and timestamps',
@@ -198,6 +218,7 @@ interface NotionReadV2Response {
   success: boolean
   output: {
     content: string
+    truncated?: boolean
     title: string
     url: string
     created_time: string
@@ -238,8 +259,8 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
       }
     }
 
-    const blocks = await fetchPageBlocks(pageId, accessToken, context?.signal)
-    if (!blocks) {
+    const pageBlocks = await fetchPageBlocks(pageId, accessToken, context?.signal)
+    if (!pageBlocks) {
       return {
         success: true,
         output: {
@@ -252,12 +273,13 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
       }
     }
 
-    const content = blocksToMarkdown(blocks)
+    const content = blocksToMarkdown(pageBlocks.blocks)
 
     return {
       success: true,
       output: {
         content,
+        truncated: pageBlocks.truncated,
         title: pageTitle,
         url: data.url,
         created_time: data.created_time,
@@ -268,6 +290,7 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
 
   outputs: {
     content: { type: 'string', description: 'Page content in markdown format' },
+    truncated: TRUNCATED_OUTPUT,
     title: { type: 'string', description: 'Page title' },
     url: PAGE_OUTPUT_PROPERTIES.url,
     created_time: PAGE_OUTPUT_PROPERTIES.created_time,

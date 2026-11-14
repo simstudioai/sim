@@ -127,7 +127,7 @@ export interface BoxFileInfoResponse extends ToolResponse {
 export interface BoxFolderItemsResponse extends ToolResponse {
   output: {
     entries: Array<Record<string, unknown>>
-    totalCount: number
+    totalCount: number | null
     offset: number
     limit: number
     nextMarker: string | null
@@ -241,7 +241,9 @@ export const FOLDER_ITEMS_OUTPUT_PROPERTIES = {
   },
   totalCount: {
     type: 'number',
-    description: 'Total number of items in the folder (omitted by Box for marker pagination)',
+    description:
+      'Total number of items in the folder; null with marker pagination, where Box omits it',
+    nullable: true,
   },
   offset: { type: 'number', description: 'Current pagination offset' },
   limit: { type: 'number', description: 'Current pagination limit' },

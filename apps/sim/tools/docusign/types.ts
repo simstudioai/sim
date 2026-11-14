@@ -58,16 +58,19 @@ export const LIST_PAGINATION_OUTPUTS = {
     type: 'number',
     description: 'Zero-based index of the first result in this page',
     optional: true,
+    nullable: true,
   },
   endPosition: {
     type: 'number',
     description: 'Zero-based index of the last result in this page',
     optional: true,
+    nullable: true,
   },
   nextUri: {
     type: 'string',
     description: 'URI of the next page of results; null on the last page',
     optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, OutputProperty>
 

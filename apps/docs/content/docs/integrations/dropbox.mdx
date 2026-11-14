@@ -104,7 +104,7 @@ List the contents of a folder in Dropbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `path` | string | Yes | The path of the folder to list \(use "" for root\) |
+| `path` | string | No | The path of the folder to list \(use "" for root\). Required unless cursor is set |
 | `recursive` | boolean | No | If true, list contents recursively |
 | `includeDeleted` | boolean | No | If true, include deleted files/folders |
 | `includeMediaInfo` | boolean | No | If true, include media info for photos/videos |
@@ -322,7 +322,7 @@ Search for files and folders in Dropbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | The search query |
+| `query` | string | No | The search query. Required unless cursor is set |
 | `path` | string | No | Dropbox folder path to limit search scope \(e.g., /folder/subfolder\) |
 | `fileExtensions` | string | No | Comma-separated list of file extensions to filter by \(e.g., pdf,xlsx\) |
 | `maxResults` | number | No | Maximum number of results to return \(default: 100\) |

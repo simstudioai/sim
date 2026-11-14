@@ -16,9 +16,10 @@ export const dropboxListFolderTool: ToolConfig<DropboxListFolderParams, DropboxL
     params: {
       path: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-or-llm',
-        description: 'The path of the folder to list (use "" for root)',
+        description:
+          'The path of the folder to list (use "" for root). Required unless cursor is set',
       },
       recursive: {
         type: 'boolean',
@@ -71,8 +72,12 @@ export const dropboxListFolderTool: ToolConfig<DropboxListFolderParams, DropboxL
       body: (params) => {
         const cursor = params.cursor?.trim()
         if (cursor) return { cursor }
+        if (typeof params.path !== 'string') {
+          throw new Error('path is required unless cursor is set')
+        }
+        const path = params.path.trim()
         return {
-          path: params.path.trim() === '/' ? '' : params.path.trim(),
+          path: path === '/' ? '' : path,
           recursive: params.recursive ?? false,
           include_deleted: params.includeDeleted ?? false,
           include_media_info: params.includeMediaInfo ?? false,

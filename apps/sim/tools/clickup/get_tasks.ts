@@ -229,6 +229,7 @@ export const clickupGetTasksTool: ToolConfig<ClickUpGetTasksParams, ClickUpTaskL
       type: 'boolean',
       description: 'Whether this is the last page of results',
       optional: true,
+      nullable: true,
     },
   },
 }

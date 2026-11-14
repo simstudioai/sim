@@ -10,7 +10,14 @@ interface AirtableRecord {
 interface AirtableBase {
   id: string
   name: string
-  permissionLevel: 'none' | 'read' | 'comment' | 'edit' | 'create'
+  permissionLevel:
+    | 'none'
+    | 'read'
+    | 'comment'
+    | 'edit'
+    | 'create'
+    | 'interfaceOnly'
+    | 'permissionSetOnly'
 }
 
 interface AirtableFieldOption {
