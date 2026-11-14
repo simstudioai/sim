@@ -374,7 +374,7 @@ Create a new Box Sign request to send documents for e-signature
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Sign request ID |
-| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing\) |
 | `name` | string | Sign request name |
 | `shortId` | string | Human-readable short ID |
 | `signers` | array | List of signers |
@@ -387,7 +387,7 @@ Create a new Box Sign request to send documents for e-signature
 | `sourceFiles` | array | Source files for signing |
 |   ↳ `id` | string | File ID |
 |   ↳ `type` | string | File type |
-|   ↳ `name` | string | File name |
+|   ↳ `name` | string | File name \(Box Sign returns source files without a name, so this is usually empty\) |
 | `emailSubject` | string | Custom email subject line |
 | `emailMessage` | string | Custom email message body |
 | `daysValid` | number | Number of days the request is valid |
@@ -415,7 +415,7 @@ Get the details and status of a Box Sign request
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Sign request ID |
-| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing\) |
 | `name` | string | Sign request name |
 | `shortId` | string | Human-readable short ID |
 | `signers` | array | List of signers |
@@ -428,7 +428,7 @@ Get the details and status of a Box Sign request
 | `sourceFiles` | array | Source files for signing |
 |   ↳ `id` | string | File ID |
 |   ↳ `type` | string | File type |
-|   ↳ `name` | string | File name |
+|   ↳ `name` | string | File name \(Box Sign returns source files without a name, so this is usually empty\) |
 | `emailSubject` | string | Custom email subject line |
 | `emailMessage` | string | Custom email message body |
 | `daysValid` | number | Number of days the request is valid |
@@ -458,7 +458,7 @@ List all Box Sign requests
 | --------- | ---- | ----------- |
 | `signRequests` | array | List of sign requests |
 |   ↳ `id` | string | Sign request ID |
-|   ↳ `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+|   ↳ `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing\) |
 |   ↳ `name` | string | Sign request name |
 |   ↳ `shortId` | string | Human-readable short ID |
 |   ↳ `signers` | array | List of signers |
@@ -471,7 +471,7 @@ List all Box Sign requests
 |   ↳ `sourceFiles` | array | Source files for signing |
 |     ↳ `id` | string | File ID |
 |     ↳ `type` | string | File type |
-|     ↳ `name` | string | File name |
+|     ↳ `name` | string | File name \(Box Sign returns source files without a name, so this is usually empty\) |
 |   ↳ `emailSubject` | string | Custom email subject line |
 |   ↳ `emailMessage` | string | Custom email message body |
 |   ↳ `daysValid` | number | Number of days the request is valid |
@@ -501,7 +501,7 @@ Cancel a pending Box Sign request
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Sign request ID |
-| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, error, error_converting, error_sending, expired, finalizing, error_finalizing\) |
 | `name` | string | Sign request name |
 | `shortId` | string | Human-readable short ID |
 | `signers` | array | List of signers |
@@ -514,7 +514,7 @@ Cancel a pending Box Sign request
 | `sourceFiles` | array | Source files for signing |
 |   ↳ `id` | string | File ID |
 |   ↳ `type` | string | File type |
-|   ↳ `name` | string | File name |
+|   ↳ `name` | string | File name \(Box Sign returns source files without a name, so this is usually empty\) |
 | `emailSubject` | string | Custom email subject line |
 | `emailMessage` | string | Custom email message body |
 | `daysValid` | number | Number of days the request is valid |

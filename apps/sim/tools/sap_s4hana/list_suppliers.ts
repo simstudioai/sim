@@ -194,7 +194,7 @@ export const listSuppliersTool: InternalToolConfig<ListSuppliersParams, SapS4Han
             optional: true,
           },
           IsNaturalPerson: {
-            type: 'boolean',
+            type: 'string',
             description: 'Indicates whether the supplier is a natural person',
             optional: true,
           },

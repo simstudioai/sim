@@ -45,7 +45,7 @@ export const squareGetCatalogObjectTool: ToolConfig<GetCatalogObjectParams, Cata
         const url = new URL(
           `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/catalog/object/${encodeURIComponent(params.objectId)}`
         )
-        if (params.includeRelatedObjects !== undefined) {
+        if (params.includeRelatedObjects != null) {
           url.searchParams.append('include_related_objects', String(params.includeRelatedObjects))
         }
         return url.toString()

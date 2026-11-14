@@ -584,7 +584,7 @@ export const BoxBlock = {
           case 'update_file':
             baseParams.fileId = rest.fileId
             if (rest.newName) baseParams.name = rest.newName
-            if (rest.description !== undefined) baseParams.description = rest.description
+            if (typeof rest.description === 'string') baseParams.description = rest.description
             if (rest.moveToFolderId) baseParams.parentFolderId = rest.moveToFolderId
             if (rest.tags) baseParams.tags = rest.tags
             break

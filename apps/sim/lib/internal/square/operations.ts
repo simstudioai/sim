@@ -64,7 +64,7 @@ export async function executeSquareCreateCatalogImage(
     const formData = new FormData()
     formData.append('request', JSON.stringify(imageRequest))
     formData.append(
-      'file',
+      'image_file',
       new Blob([new Uint8Array(fileBuffer)], {
         type: userFile.type || 'application/octet-stream',
       }),

@@ -188,7 +188,8 @@ export const IntercomBlock: BlockConfig = {
       id: 'role',
       title: 'Role',
       type: 'dropdown',
-      options: [
+      options: (params) => [
+        ...(params?.values.operation === 'update_contact' ? [{ label: 'No change', id: '' }] : []),
         { label: 'Lead', id: 'lead' },
         { label: 'User', id: 'user' },
       ],
