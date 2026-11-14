@@ -9,8 +9,12 @@ final class MarkerView: NSView {
 }
 
 /// A field that ignores Accessibility focus requests but takes focus from a click, as SwiftUI sheets do.
-final class ClickFocusField: NSTextField {
+class ClickFocusField: NSTextField {
     override func setAccessibilityFocused(_ accessibilityFocused: Bool) {}
+}
+/// A click-only editor that also ignores Accessibility caret moves, so its caret cannot be confirmed.
+final class FixedCaretField: ClickFocusField {
+    override func setAccessibilitySelectedTextRange(_ accessibilitySelectedTextRange: NSRange) {}
 }
 final class FixtureDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
@@ -36,6 +40,7 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         let secure = NSSecureTextField(string: "fixture-only-secret"); secure.setAccessibilityIdentifier("fixture-password"); secure.setAccessibilityLabel("Fixture password")
         let button = NSButton(title: "Increment", target: self, action: #selector(increment)); button.setAccessibilityIdentifier("fixture-increment")
         let clickField = ClickFocusField(string: ""); clickField.setAccessibilityLabel("Fixture click-focus field")
+        let caretField = FixedCaretField(string: String(repeating: "keep ", count: 40)); caretField.setAccessibilityLabel("Fixture fixed-caret field")
         let sheetButton = NSButton(title: "Show sheet", target: self, action: #selector(showSheet)); sheetButton.setAccessibilityIdentifier("fixture-show-sheet")
         let slider = NSSlider(value: 25, minValue: 0, maxValue: 100, target: nil, action: nil); slider.setAccessibilityLabel("Fixture slider")
         let time = NSDatePicker(); time.datePickerStyle = .textField; time.datePickerElements = .hourMinute; time.setAccessibilityLabel("Fixture time")
@@ -49,9 +54,9 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         scroll.documentView = document
         scroll.contentView.postsBoundsChangedNotifications = true
         NotificationCenter.default.addObserver(self, selector: #selector(scrolled(_:)), name: NSView.boundsDidChangeNotification, object: scroll.contentView)
-        for view in [field, secure, button, counter, clickField, sheetButton, slider, time, timeLabel, marker, scrollCounter, scroll] { stack.addArrangedSubview(view) }
+        for view in [field, secure, button, counter, clickField, caretField, sheetButton, slider, time, timeLabel, marker, scrollCounter, scroll] { stack.addArrangedSubview(view) }
         window.contentView!.addSubview(stack)
-        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 30), stack.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor, constant: -30), stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 30), field.widthAnchor.constraint(equalTo: stack.widthAnchor), secure.widthAnchor.constraint(equalTo: stack.widthAnchor), clickField.widthAnchor.constraint(equalTo: stack.widthAnchor), slider.widthAnchor.constraint(equalTo: stack.widthAnchor), scroll.widthAnchor.constraint(equalTo: stack.widthAnchor), scroll.heightAnchor.constraint(equalToConstant: 230), marker.widthAnchor.constraint(equalToConstant: 100), marker.heightAnchor.constraint(equalToConstant: 70)])
+        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 30), stack.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor, constant: -30), stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 30), field.widthAnchor.constraint(equalTo: stack.widthAnchor), secure.widthAnchor.constraint(equalTo: stack.widthAnchor), clickField.widthAnchor.constraint(equalTo: stack.widthAnchor), caretField.widthAnchor.constraint(equalTo: stack.widthAnchor), slider.widthAnchor.constraint(equalTo: stack.widthAnchor), scroll.widthAnchor.constraint(equalTo: stack.widthAnchor), scroll.heightAnchor.constraint(equalToConstant: 230), marker.widthAnchor.constraint(equalToConstant: 100), marker.heightAnchor.constraint(equalToConstant: 70)])
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(field)
         NSApplication.shared.activate()
