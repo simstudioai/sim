@@ -107,6 +107,7 @@ export const PIPEDRIVE_FILE_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'File ID' },
   name: { type: 'string', description: 'File name' },
   file_name: { type: 'string', description: 'Stored file name' },
+  file_type: { type: 'string', description: 'File type/extension' },
   file_size: { type: 'number', description: 'File size in bytes' },
   add_time: { type: 'string', description: 'When the file was uploaded' },
   update_time: { type: 'string', description: 'When the file was last updated' },

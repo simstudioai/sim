@@ -96,7 +96,7 @@ export const pipedriveUpdateActivityTool: ToolConfig<
       if (params.due_date) body.due_date = params.due_date
       if (params.due_time) body.due_time = params.due_time
       if (params.duration) body.duration = params.duration
-      if (params.done !== undefined) body.done = params.done === '1' || params.done === 'true'
+      if (params.done !== undefined) body.done = [true, 1, '1', 'true'].includes(params.done)
       if (params.note) body.note = params.note
 
       return body

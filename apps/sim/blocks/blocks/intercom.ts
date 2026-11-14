@@ -855,9 +855,9 @@ Return ONLY the subject line - no explanations.`,
       title: 'To Type',
       type: 'dropdown',
       options: [
-        { label: 'Contact', id: 'contact' },
         { label: 'User', id: 'user' },
         { label: 'Lead', id: 'lead' },
+        { label: 'Contact', id: 'contact' },
       ],
       required: true,
       condition: {
