@@ -114,7 +114,7 @@ export const squareCreatePaymentTool: ToolConfig<
       if (params.orderId) body.order_id = params.orderId
       if (params.referenceId) body.reference_id = params.referenceId
       if (params.note) body.note = params.note
-      if (params.autocomplete != null) body.autocomplete = params.autocomplete
+      if (params.autocomplete !== undefined) body.autocomplete = params.autocomplete
       return withSquareIdempotencyKey(DELIVERY, params, body)
     },
   },

@@ -925,7 +925,7 @@ export const SquareBlock: BlockConfig = {
           ...(coercedLimit !== undefined && { limit: coercedLimit }),
           ...(coercedVersion !== undefined && { version: coercedVersion }),
           ...(coercedOrderVersion !== undefined && { orderVersion: coercedOrderVersion }),
-          ...(autocomplete != null && { autocomplete: coerceBoolean(autocomplete) }),
+          ...(autocomplete !== undefined && { autocomplete: coerceBoolean(autocomplete) }),
           ...(includeRelatedObjects != null && {
             includeRelatedObjects: coerceBoolean(includeRelatedObjects),
           }),
