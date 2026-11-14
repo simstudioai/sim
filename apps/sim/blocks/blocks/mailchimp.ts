@@ -657,10 +657,6 @@ Return ONLY the JSON object - no explanations or markdown.`,
           : params?.operation === 'update_audience'
             ? ''
             : undefined,
-      required: {
-        field: 'operation',
-        value: ['create_audience'],
-      },
       condition: {
         field: 'operation',
         value: ['create_audience', 'update_audience'],

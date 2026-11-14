@@ -535,6 +535,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
           value === undefined || value === null || String(value).trim() === ''
             ? undefined
             : Number(value)
+        /** A dedicated limit wins when present, so a reference resolving to 0 still reaches validation. */
+        const pickLimit = (dedicated: unknown, toolArg: unknown): unknown =>
+          dedicated === undefined || dedicated === null || dedicated === ''
+            ? toolCallArg(context, toolArg)
+            : dedicated
         const projectsArray = splitGids(params.projects)
 
         // Only send a completion value when the user actually set the toggle; an
@@ -555,7 +560,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               workspace: params.getTasks_workspace || toolCallArg(context, params.workspace),
               project: params.getTasks_project || toolCallArg(context, params.project),
               assignee: params.assignee,
-              limit: toLimit(params.getTasks_limit || toolCallArg(context, params.limit)),
+              limit: toLimit(pickLimit(params.getTasks_limit, params.limit)),
               offset: params.getTasks_offset || toolCallArg(context, params.offset),
             }
           case 'create_task':
@@ -590,7 +595,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               assignee: params.assignee,
               projects: projectsArray,
               completed: completedValue,
-              limit: toLimit(params.searchTasks_limit || toolCallArg(context, params.limit)),
+              limit: toLimit(pickLimit(params.searchTasks_limit, params.limit)),
             }
           case 'add_comment':
             return {

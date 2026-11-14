@@ -164,6 +164,13 @@ describe('Mailchimp campaign and audience requests', () => {
     expect(body).not.toHaveProperty('email_type_option')
   })
 
+  it('parses the update email type option like create and rejects other values', () => {
+    const update = (emailTypeOption: string) =>
+      bodyOf(mailchimpUpdateAudienceTool, { apiKey, listId: 'list1', emailTypeOption })
+    expect(update(' True ')).toMatchObject({ email_type_option: true })
+    expect(() => update('yes')).toThrow('emailTypeOption must be "true" or "false"')
+  })
+
   it('sends a boolean email_type_option from an agent as true', () => {
     const body = bodyOf(mailchimpUpdateAudienceTool, {
       apiKey,
