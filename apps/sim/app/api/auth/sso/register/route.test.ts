@@ -171,6 +171,16 @@ describe('POST /api/auth/sso/register', () => {
     expect((await res.json()).error).toContain('Organization ID is required')
   })
 
+  it.each(['acme%2Fidp', 'acme/idp', 'acme idp'])(
+    'refuses a providerId that does not survive a URL path unchanged (%s)',
+    async (providerId) => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      const res = await POST(request({ ...OIDC_BODY, providerId }))
+      expect(res.status).toBe(400)
+      expect((await res.json()).error).toContain('Provider ID may only contain')
+    }
+  )
+
   it("refuses a second provider on a domain the caller's own org-less provider signs in", async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     queueProviders([

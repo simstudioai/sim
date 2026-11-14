@@ -76,7 +76,7 @@ import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
 import { refuseSsoCallbackEmailOutsideProviderDomain } from '@/lib/auth/sso/callback-email-domain'
-import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
+import { isSsoCallbackPath, resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
 import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
 import {
   assertPersonalCheckoutAllowed,
@@ -1311,19 +1311,16 @@ export const auth = betterAuth({
         routeProviderId: ctx.params?.providerId,
         stateProviderId: oauthState?.ssoProviderId,
       })
-      if (!providerId) {
-        await recordFinalAuthenticationResult()
-        return
-      }
-
       const newSession = ctx.context.newSession
-      if (!newSession?.session || !newSession.user) {
+      if (!isSsoCallbackPath(ctx.path) || !newSession?.session || !newSession.user) {
         await recordFinalAuthenticationResult(providerId)
         return
       }
 
       let admissionErrorCode: string | null = null
       try {
+        if (!providerId)
+          throw new Error('SSO callback minted a session without a resolvable provider')
         const admission = await admitSsoUser.execute({
           principal: {
             kind: 'session',

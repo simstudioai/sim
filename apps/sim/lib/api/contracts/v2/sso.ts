@@ -12,7 +12,7 @@ import {
   v2SortFields,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
-import { ssoRegistrationInputSchema } from '@/lib/auth/sso/registration-input'
+import { ssoProviderIdSchema, ssoRegistrationInputSchema } from '@/lib/auth/sso/registration-input'
 import { addOrganizationDomainBodySchema } from '@/lib/organizations/domain-validation'
 
 const v2SsoOrganizationParamsSchema = z
@@ -92,11 +92,9 @@ const mapping = z
   .default({ id: 'sub', email: 'email', name: 'name', image: 'picture' })
   .describe('Identity-provider claims mapped to user fields.')
 const shared = {
-  providerId: nonEmptyIdSchema
-    .max(255)
-    .describe(
-      'Globally unique provider ID; saving an existing provider replaces its supplied configuration.'
-    ),
+  providerId: ssoProviderIdSchema.describe(
+    'Globally unique provider ID; saving an existing provider replaces its supplied configuration.'
+  ),
   domain: z
     .string()
     .trim()
