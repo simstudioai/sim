@@ -290,8 +290,10 @@ export async function executeAsanaGetTask(input: AsanaGetTaskBody, signal?: Abor
   } else if (input.workspace) {
     validateId(input.workspace, 'workspace')
     params.append('workspace', input.workspace)
+    if (input.assignee) params.append('assignee', input.assignee)
   }
   params.append('limit', input.limit ? String(input.limit) : '50')
+  if (input.offset) params.append('offset', input.offset)
   params.append('opt_fields', TASK_OPT_FIELDS)
   const result = await client.json(`/tasks?${params.toString()}`, { method: 'GET' }, signal)
   return {
@@ -355,6 +357,7 @@ export async function executeAsanaSearchTasks(input: AsanaSearchTasksBody, signa
   if (input.completed !== undefined) {
     params.append('completed', String(input.completed))
   }
+  if (input.limit) params.append('limit', String(input.limit))
   params.append('opt_fields', TASK_OPT_FIELDS)
   const result = await new AsanaClient(input.accessToken).json(
     `/workspaces/${input.workspace}/tasks/search?${params.toString()}`,

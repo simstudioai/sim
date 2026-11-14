@@ -32,7 +32,7 @@ export const asanaSearchTasksTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Text to search for in task names',
+      description: 'Full-text search on task names and descriptions',
     },
     assignee: {
       type: 'string',
@@ -52,6 +52,12 @@ export const asanaSearchTasksTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter by completion status',
     },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum number of tasks to return, 1-100',
+    },
   },
 
   operation: {
@@ -62,6 +68,7 @@ export const asanaSearchTasksTool: InternalToolConfig<
       assignee: params.assignee,
       projects: params.projects,
       completed: params.completed,
+      limit: params.limit,
     }),
   },
 
@@ -116,7 +123,9 @@ export const asanaSearchTasksTool: InternalToolConfig<
     },
     next_page: {
       type: 'object',
-      description: 'Pagination info',
+      description:
+        'Not returned by Asana search, which has no pagination; sort by created_at and filter to page manually',
+      optional: true,
       properties: {
         offset: { type: 'string', description: 'Offset token' },
         path: { type: 'string', description: 'API path' },

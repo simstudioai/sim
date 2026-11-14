@@ -5,7 +5,9 @@ export interface AsanaGetTaskParams {
   taskGid?: string
   workspace?: string
   project?: string
+  assignee?: string
   limit?: number
+  offset?: string
 }
 
 export interface AsanaGetTaskResponse extends ToolResponse {
@@ -122,6 +124,7 @@ export interface AsanaSearchTasksParams {
   assignee?: string
   projects?: string[]
   completed?: boolean
+  limit?: number
 }
 
 export interface AsanaSearchTasksResponse extends ToolResponse {

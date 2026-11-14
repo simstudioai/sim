@@ -2,6 +2,7 @@ import { AsanaIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { toolCallArg } from '@/blocks/utils'
 
 const WORKSPACE_FIELD = ['workspaceSelector', 'workspace'] as const
 const GET_TASKS_WORKSPACE_FIELD = ['getTasksWorkspaceSelector', 'getTasks_workspace'] as const
@@ -220,6 +221,17 @@ export const AsanaBlock: BlockConfig = {
       },
     },
     {
+      id: 'getTasks_offset',
+      title: 'Page Offset',
+      type: 'short-input',
+      placeholder: 'Offset token from a previous next_page.offset',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['get_task'],
+      },
+    },
+    {
       id: 'name',
       title: 'Task Name',
       type: 'short-input',
@@ -250,7 +262,7 @@ export const AsanaBlock: BlockConfig = {
       placeholder: 'Enter assignee user GID',
       condition: {
         field: 'operation',
-        value: ['create_task', 'update_task', 'search_tasks'],
+        value: ['get_task', 'create_task', 'update_task', 'search_tasks'],
       },
     },
     {
@@ -428,6 +440,17 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       },
     },
     {
+      id: 'searchTasks_limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Max tasks to return, 1-100',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['search_tasks'],
+      },
+    },
+    {
       /**
        * One boolean, so a switch rather than a single-option checkbox list — and a
        * switch is `null` until the user touches it, which is exactly the
@@ -495,15 +518,20 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return 'asana_get_task'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const { oauthCredential, operation } = params
 
-        const projectsArray = params.projects
-          ? params.projects
-              .split(',')
-              .map((p: string) => p.trim())
-              .filter((p: string) => p.length > 0)
-          : undefined
+        const splitGids = (value: unknown): string[] | undefined => {
+          if (Array.isArray(value)) return value.map(String)
+          if (typeof value !== 'string' || !value) return undefined
+          return value
+            .split(',')
+            .map((gid) => gid.trim())
+            .filter((gid) => gid.length > 0)
+        }
+        const toLimit = (value: unknown): number | undefined =>
+          value === undefined || value === null || value === '' ? undefined : Number(value)
+        const projectsArray = splitGids(params.projects)
 
         // Only send a completion value when the user actually set the toggle; an
         // untouched field must omit it (not send `false`), so update_task doesn't
@@ -520,9 +548,11 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               taskGid: params.taskGid,
-              workspace: params.getTasks_workspace,
-              project: params.getTasks_project,
-              limit: params.getTasks_limit ? Number(params.getTasks_limit) : undefined,
+              workspace: params.getTasks_workspace || toolCallArg(context, params.workspace),
+              project: params.getTasks_project || toolCallArg(context, params.project),
+              assignee: params.assignee,
+              limit: toLimit(params.getTasks_limit || toolCallArg(context, params.limit)),
+              offset: params.getTasks_offset || toolCallArg(context, params.offset),
             }
           case 'create_task':
             return {
@@ -552,21 +582,22 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               workspace: params.workspace,
-              text: params.searchText,
+              text: params.searchText || toolCallArg(context, params.text),
               assignee: params.assignee,
               projects: projectsArray,
               completed: completedValue,
+              limit: toLimit(params.searchTasks_limit || toolCallArg(context, params.limit)),
             }
           case 'add_comment':
             return {
               ...baseParams,
               taskGid: params.taskGid,
-              text: params.commentText,
+              text: params.commentText || toolCallArg(context, params.text),
             }
           case 'create_subtask':
             return {
               ...baseParams,
-              taskGid: params.subtaskParentGid,
+              taskGid: params.subtaskParentGid || toolCallArg(context, params.taskGid),
               name: params.name,
               notes: params.notes,
               assignee: params.assignee,
@@ -581,17 +612,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               taskGid: params.taskGid,
-              followers: params.followers
-                ? params.followers
-                    .split(',')
-                    .map((f: string) => f.trim())
-                    .filter((f: string) => f.length > 0)
-                : [],
+              followers: splitGids(params.followers) ?? [],
             }
           case 'create_project':
             return {
               ...baseParams,
-              workspace: params.createProject_workspace,
+              workspace: params.createProject_workspace || toolCallArg(context, params.workspace),
               name: params.name,
               notes: params.notes,
             }
@@ -629,6 +655,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     getTasks_workspace: { type: 'string', description: 'Workspace GID for getting tasks' },
     getTasks_project: { type: 'string', description: 'Project GID filter for getting tasks' },
     getTasks_limit: { type: 'string', description: 'Limit for getting tasks' },
+    getTasks_offset: { type: 'string', description: 'Pagination offset for getting tasks' },
+    searchTasks_limit: { type: 'string', description: 'Limit for searching tasks' },
     name: { type: 'string', description: 'Task name' },
     notes: { type: 'string', description: 'Task notes' },
     assignee: { type: 'string', description: 'Assignee user GID' },
@@ -660,6 +688,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     modified_at: { type: 'string', description: 'Last modified timestamp' },
     permalink_url: { type: 'string', description: 'URL to the resource in Asana' },
     tasks: { type: 'json', description: 'Array of tasks' },
+    next_page: {
+      type: 'json',
+      description: 'Pagination info when getting multiple tasks (offset, path, uri)',
+    },
     projects: { type: 'json', description: 'Array of projects' },
     workspaces: { type: 'json', description: 'Array of workspaces' },
     sections: { type: 'json', description: 'Array of sections' },
