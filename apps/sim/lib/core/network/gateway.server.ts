@@ -128,6 +128,20 @@ function getErrorCode(error: Error | undefined): string | undefined {
 }
 
 /**
+ * A destination whose name does not resolve. It fails the request with the resolver's own error,
+ * exactly as the direct route would, rather than as an unavailable gateway: the gateway is fine and
+ * the caller's host is wrong.
+ */
+class UnresolvedDestination {
+  readonly resolverError: Error
+
+  constructor(cause: unknown) {
+    this.resolverError =
+      cause instanceof Error ? cause : new Error('Destination host could not be resolved')
+  }
+}
+
+/**
  * Opens a TLS connection to `target` through `gateway` after the egress policy approves it:
  * HTTPS on 443 only, judged against `profile` (or the already resolved `resolvedIP`). Every
  * failure is an {@link OutboundRoutingError}, so no gateway detail reaches the caller.
@@ -153,12 +167,16 @@ export async function connectThroughGateway(
       const result = await validateEgressUrl(url.href, 'url', options.profile, {
         logDetails: false,
       })
-      if (!result.isValid) throw new OutboundRoutingError('ROUTE_BLOCKED')
+      if (!result.isValid) {
+        if (result.refusal === 'dns') throw new UnresolvedDestination(result.cause)
+        throw new OutboundRoutingError('ROUTE_BLOCKED')
+      }
       address = result.resolvedIP
     }
     const socket = await openGatewayTunnel(gateway, address, target.port)
     return await secureOutboundTunnel(socket, hostname, target.port)
   } catch (error) {
+    if (error instanceof UnresolvedDestination) throw error.resolverError
     throw error instanceof OutboundRoutingError
       ? error
       : new OutboundRoutingError('GATEWAY_UNAVAILABLE')

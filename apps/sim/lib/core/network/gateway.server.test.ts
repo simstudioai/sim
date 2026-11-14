@@ -8,6 +8,7 @@ import { getCACertificates, setDefaultCACertificates } from 'node:tls'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts'
+import { resolveHostAddresses } from '@sim/security/dns'
 import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { OutboundGateway, ResolvedOutboundRoute } from '@/lib/core/network/config.server'
@@ -23,10 +24,12 @@ import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { openGatewayTunnel, secureOutboundTunnel } from '@/lib/core/network/gateway.server'
 import { organizationAwsRequestHandler } from '@/lib/core/network/organization-aws-handler.server'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   createPinnedFetchWithDispatcher,
   secureFetchWithPinnedIP,
 } from '@/lib/core/security/input-validation.server'
+import { isHostNotFound } from '@/lib/credentials/token-service-accounts/errors'
 
 const state = { gateways: new Map<string, OutboundGateway>() }
 
@@ -303,6 +306,18 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
     } finally {
       await transport.dispatcher.destroy()
     }
+  })
+  it('fails an unresolvable destination as a missing host, not as an unavailable gateway', async () => {
+    vi.mocked(resolveHostAddresses).mockRejectedValueOnce(
+      Object.assign(new Error('getaddrinfo ENOTFOUND missing.invalid'), { code: 'ENOTFOUND' })
+    )
+    const start = admissions.length
+    const failure = await runWithOutboundOrganization('org_a', () =>
+      outboundFetch('https://missing.invalid', { redirect: 'error' })
+    ).catch((error: unknown) => error)
+    expect(isHostNotFound(failure)).toBe(true)
+    expect(isUnavailableFailure(failure)).toBe(false)
+    expect(admissions.length).toBe(start)
   })
   it("sends outboundFetch through the scoped organization's gateway", async () => {
     const start = admissions.length
