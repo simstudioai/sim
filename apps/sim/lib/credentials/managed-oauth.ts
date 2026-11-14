@@ -25,7 +25,6 @@ import {
 import { getCredentialGroupProviderAdapterByProviderId } from '@/lib/credential-groups/provider-registry'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
-import type { RefreshTokenResult } from '@/lib/oauth'
 import { isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
 import { fetchSalesforceInstanceUrl } from '@/lib/oauth/salesforce-instance.server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
@@ -525,7 +524,7 @@ async function resolveManagedOAuthAccessToken(
       }
     }
 
-    const refreshed: RefreshTokenResult = await adapter.refreshToken(currentTokenSet.refreshToken)
+    const refreshed = await adapter.refreshToken(currentTokenSet.refreshToken)
     if (!refreshed.ok) {
       const terminal = adapter.isTerminalRefreshError(refreshed.errorCode)
       if (terminal) {

@@ -84,6 +84,7 @@ vi.mock('@/lib/credentials/token-service-accounts/errors', () => ({
 }))
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   createServiceAccountCredential,
   deleteCredentialRecord,
@@ -177,6 +178,23 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(updatePayload().encryptedServiceAccountKey).toBe('new-cipher')
     expect(result.updatedFields).toContain('displayName')
     expect(result.previousDisplayName).toBe(OLD_EMAIL)
+  })
+
+  it('surfaces an unavailable egress route instead of an internal failure', async () => {
+    mockCredential()
+    mockStoredBlob({ type: 'service_account', client_email: OLD_EMAIL })
+    mockVerifyAndBuildServiceAccountSecret.mockRejectedValueOnce(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    await expect(
+      performUpdateCredential({
+        credentialId: 'cred-1',
+        userId: 'user-1',
+        serviceAccountJson: NEW_GOOGLE_KEY,
+      })
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
   it('requires the complete OCI tuple and treats an omitted passphrase as clearing it', async () => {
@@ -695,6 +713,23 @@ describe('createServiceAccountCredential', () => {
       expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     }
   )
+
+  it('surfaces an unavailable egress route instead of an internal failure', async () => {
+    mockVerifyAndBuildServiceAccountSecret.mockRejectedValueOnce(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    await expect(
+      createServiceAccountCredential({
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        providerId: 'google-service-account',
+        displayName: 'Google signer',
+        serviceAccountJson: NEW_GOOGLE_KEY,
+      })
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
 
   it('rejects an existing service-account source instead of discarding the submitted secret', async () => {
     mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({

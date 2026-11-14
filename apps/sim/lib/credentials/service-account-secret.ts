@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage } from '@/lib/api/server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { mintAtlassianServiceAccountToken } from '@/lib/credentials/atlassian-client-credentials'
 import {
@@ -320,6 +321,7 @@ async function buildSlackCustomBotSecret(
     botUserId = auth.userId
     teamName = auth.teamName
   } catch (error) {
+    if (error instanceof OutboundRoutingError) throw error
     throw new ServiceAccountSecretError(
       `Could not verify the Slack bot token: ${getErrorMessage(error)}`
     )
@@ -393,6 +395,25 @@ async function buildGoogleServiceAccountSecret(
 }
 
 /**
+ * Rethrows a keyless-capable provider's verification failure as the save reports it: a keyless
+ * refusal and an unavailable egress route keep their own class (the surface maps both), the
+ * provider's own error becomes its message, and anything else is named for `label`.
+ */
+function throwVerificationFailure(
+  error: unknown,
+  ProviderError: abstract new (...args: never[]) => Error,
+  label: string
+): never {
+  if (error instanceof KeylessCredentialRefusedError || error instanceof OutboundRoutingError) {
+    throw error
+  }
+  if (error instanceof ProviderError) throw new ServiceAccountSecretError(error.message)
+  throw new ServiceAccountSecretError(
+    `Could not verify the ${label}: ${getErrorMessage(error, 'Unknown error')}`
+  )
+}
+
+/**
  * A keyless Google credential: Workload Identity Federation, no stored key,
  * optionally with domain-wide delegation to one Workspace user.
  */
@@ -405,13 +426,7 @@ async function buildGoogleWorkloadIdentitySecret(
   try {
     result = await verifyAndEncryptGoogleWorkloadIdentityCredential(serviceAccountJson, owner)
   } catch (error) {
-    if (error instanceof KeylessCredentialRefusedError) throw error
-    if (error instanceof GoogleWorkloadIdentityError) {
-      throw new ServiceAccountSecretError(error.message)
-    }
-    throw new ServiceAccountSecretError(
-      `Could not verify the Google Cloud keyless credential: ${getErrorMessage(error, 'Unknown error')}`
-    )
+    throwVerificationFailure(error, GoogleWorkloadIdentityError, 'Google Cloud keyless credential')
   }
   const principal: ServiceAccountPrincipal = { kind: 'user', id: result.serviceAccountEmail }
   return {
@@ -444,11 +459,7 @@ async function buildAwsServiceAccountSecret(
   try {
     result = await verifyAndEncryptAwsCredential(fields.serviceAccountJson, fields.owner)
   } catch (error) {
-    if (error instanceof KeylessCredentialRefusedError) throw error
-    if (error instanceof AwsCredentialError) throw new ServiceAccountSecretError(error.message)
-    throw new ServiceAccountSecretError(
-      `Could not verify the AWS credential: ${getErrorMessage(error, 'Unknown error')}`
-    )
+    throwVerificationFailure(error, AwsCredentialError, 'AWS credential')
   }
   const principal: ServiceAccountPrincipal = { kind: 'user', id: result.callerArn }
   return {
@@ -471,13 +482,7 @@ async function buildDatabricksServiceAccountSecret(
   try {
     result = await verifyAndEncryptDatabricksCredential(fields.serviceAccountJson, fields.owner)
   } catch (error) {
-    if (error instanceof KeylessCredentialRefusedError) throw error
-    if (error instanceof DatabricksCredentialError) {
-      throw new ServiceAccountSecretError(error.message)
-    }
-    throw new ServiceAccountSecretError(
-      `Could not verify the Databricks credential: ${getErrorMessage(error, 'Unknown error')}`
-    )
+    throwVerificationFailure(error, DatabricksCredentialError, 'Databricks credential')
   }
   const principal: ServiceAccountPrincipal = { kind: 'user', id: result.identity }
   return {
@@ -501,13 +506,7 @@ async function buildMicrosoftAppServiceAccountSecret(
   try {
     result = await verifyAndEncryptMicrosoftAppCredential(fields.serviceAccountJson, fields.owner)
   } catch (error) {
-    if (error instanceof KeylessCredentialRefusedError) throw error
-    if (error instanceof MicrosoftAppCredentialError) {
-      throw new ServiceAccountSecretError(error.message)
-    }
-    throw new ServiceAccountSecretError(
-      `Could not verify the Microsoft app credential: ${getErrorMessage(error, 'Unknown error')}`
-    )
+    throwVerificationFailure(error, MicrosoftAppCredentialError, 'Microsoft app credential')
   }
   // The app's service principal is the identity every app-only token acts as.
   const principal: ServiceAccountPrincipal = {

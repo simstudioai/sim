@@ -4,6 +4,7 @@ import { LRUCache } from 'lru-cache'
 import { z } from 'zod'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   GOOGLE_DELEGATION_SERVICE_NAMES,
@@ -282,7 +283,8 @@ async function postJson(
       redirect: 'error',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof OutboundRoutingError) throw error
     throw new GoogleWorkloadIdentityError('Could not reach Google Cloud. Try again.')
   }
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>
@@ -292,7 +294,7 @@ async function postJson(
 /**
  * The HTTP status of a bearer-authorized GET, with the same redirect and
  * timeout guards as {@link postJson}. The body is discarded unread.
- * Undefined when Google could not be reached.
+ * Undefined when Google could not be reached; an unavailable egress route throws.
  */
 async function getStatus(url: string, bearer: string): Promise<number | undefined> {
   try {
@@ -303,7 +305,8 @@ async function getStatus(url: string, bearer: string): Promise<number | undefine
     })
     void response.body?.cancel().catch(() => undefined)
     return response.status
-  } catch {
+  } catch (error) {
+    if (error instanceof OutboundRoutingError) throw error
     return undefined
   }
 }
@@ -546,7 +549,8 @@ async function exchangeDelegationAssertion(
   let response: Awaited<ReturnType<typeof exchangeGoogleServiceAccountJwt>>
   try {
     response = await exchangeGoogleServiceAccountJwt(OAUTH_TOKEN_URL, assertion)
-  } catch {
+  } catch (error) {
+    if (error instanceof OutboundRoutingError) throw error
     throw new GoogleWorkloadIdentityError('Could not reach Google. Try again.')
   }
   const payload = parsePayload(response.body)
@@ -646,6 +650,7 @@ async function assertSubjectPinned(
       await step()
     } catch (error) {
       if (isRefusal(error)) return true
+      if (error instanceof OutboundRoutingError) throw error
       throw unconfirmed()
     }
     return false
@@ -818,7 +823,12 @@ export async function verifyAndEncryptGoogleWorkloadIdentityCredential(
     assertSubjectPinned(config, owner),
   ])
   if (verified.status === 'rejected') {
-    if (verified.reason instanceof GoogleWorkloadIdentityError) throw verified.reason
+    if (
+      verified.reason instanceof GoogleWorkloadIdentityError ||
+      verified.reason instanceof OutboundRoutingError
+    ) {
+      throw verified.reason
+    }
     throw new GoogleWorkloadIdentityError(
       `Could not verify the Google Cloud keyless credential: ${getErrorMessage(verified.reason, 'Unknown error')}`
     )

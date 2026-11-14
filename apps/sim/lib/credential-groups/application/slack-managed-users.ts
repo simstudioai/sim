@@ -102,17 +102,20 @@ export const startSlackCredentialGroupConfiguration: OperationUseCase<
     )
     if (scope.kind === 'organization')
       await requireOrganizationAccountsSetup(scope.organizationId, input.credentialGroupId)
-    return createSlackManagedUsersAttempt({
-      ...resourceScopeFields(scope),
-      userId: principal.userId,
-      credentialGroupId: input.credentialGroupId,
-      slackBotCredentialId: input.slackBotCredentialId,
-      appId: input.appId,
-      teamId: input.teamId,
-      clientId: input.clientId,
-      clientSecret: input.clientSecret,
-      requiredScopes: input.requiredScopes,
-    })
+    const owner = resourceScopeFields(scope)
+    return withResourceOutboundScope(owner, () =>
+      createSlackManagedUsersAttempt({
+        ...owner,
+        userId: principal.userId,
+        credentialGroupId: input.credentialGroupId,
+        slackBotCredentialId: input.slackBotCredentialId,
+        appId: input.appId,
+        teamId: input.teamId,
+        clientId: input.clientId,
+        clientSecret: input.clientSecret,
+        requiredScopes: input.requiredScopes,
+      })
+    )
   },
 }
 

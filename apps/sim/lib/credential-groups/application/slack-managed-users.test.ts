@@ -199,6 +199,17 @@ describe('scoped Slack setup', () => {
     )
   })
 
+  it("verifies the custom bot through the owning organization's egress route", async () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    queueTableRows(credentialGroup, [group])
+    mocks.create.mockImplementation(async () => {
+      await resolveCurrentOutboundRoute()
+      return { state: 'state-1', authorizationUrl: 'https://slack.com/oauth' }
+    })
+    await expect(start()).resolves.toMatchObject({ state: 'state-1' })
+    expect(networkConfigMockFns.mockResolveOutboundRoute).toHaveBeenCalledWith('organization-1')
+  })
+
   it("exchanges the Slack grant through the owning organization's egress route", async () => {
     networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
     queueTableRows(credentialGroup, [group])

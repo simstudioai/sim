@@ -1,5 +1,6 @@
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   SelectorConnectionUnavailableError,
   SelectorOptionsUnavailableError,
@@ -63,6 +64,16 @@ describe('provider HTTP selector boundary', () => {
       })
     ).resolves.toEqual({ ok: false, status: 404 })
     expect(cancel).toHaveBeenCalledOnce()
+  })
+
+  it('surfaces an unavailable egress route instead of unavailable selector options', async () => {
+    mockFetch.mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(
+      fetchProviderJsonWithStatus('https://provider.example/item', undefined, {
+        passthroughNetworkErrors: true,
+      })
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
   })
 
   it('can preserve a generic retry signal without exposing the raw network error', async () => {

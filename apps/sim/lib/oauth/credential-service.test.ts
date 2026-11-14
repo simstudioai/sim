@@ -907,14 +907,18 @@ describe('OAuth access-token refresh headroom', () => {
     )
   })
 
-  it('rethrows an unavailable egress route instead of a revoked or failed refresh', async () => {
-    mocks.refreshOAuthToken.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
-    const row = createOAuthAccount(WAITED_GOOGLE_REMAINING_MS)
-    queueTableRows(account, [row])
-    await expect(refreshTokenIfNeeded('test', row, RAW_ACCOUNT_ID)).rejects.toBeInstanceOf(
-      OutboundRoutingError
-    )
-  })
+  it.each(readers)(
+    '$name rethrows an unavailable egress route instead of a missing, revoked or failed token',
+    async ({ read }) => {
+      mocks.refreshOAuthToken.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+      const row = createOAuthAccount(WAITED_GOOGLE_REMAINING_MS)
+      queueTableRows(account, [row])
+      await expect(read(row)).rejects.toBeInstanceOf(OutboundRoutingError)
+      expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ refreshRevokedCode: expect.anything() })
+      )
+    }
+  )
 
   it('answers a Microsoft caller from its valid token while refresh-token aging refreshes', async () => {
     vi.mocked(isMicrosoftProvider).mockReturnValue(true)

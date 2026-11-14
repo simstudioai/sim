@@ -24,6 +24,7 @@ vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
 }))
 
 import { credential } from '@sim/db/schema'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   MicrosoftAppCredentialError,
   resolveMicrosoftAppCredentialToken,
@@ -205,6 +206,26 @@ describe('saving a Microsoft app credential', () => {
     )
   })
 
+  it.each([
+    { label: 'Entra', failing: (url: string) => url === TOKEN_URL },
+    {
+      label: 'Microsoft Graph',
+      failing: (url: string) => url.includes('/v1.0/servicePrincipals('),
+    },
+  ])('surfaces an unavailable egress route while reaching $label', async ({ failing }) => {
+    fakeMicrosoft(fetch)
+    const microsoft = fetch.getMockImplementation()
+    fetch.mockImplementation(async (url: string, init: RequestInit) => {
+      if (failing(url)) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+      return microsoft?.(url, init)
+    })
+
+    await expect(save({ authType: 'client_secret', clientSecret: SECRET })).rejects.toBeInstanceOf(
+      OutboundRoutingError
+    )
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
   it('signs a PS256 certificate assertion Entra can verify with the uploaded certificate', async () => {
     const tokens = fakeMicrosoft(fetch)
 
@@ -302,6 +323,23 @@ describe('saving a Microsoft app credential', () => {
 
       await expect(save({ authType: 'federated' }, reconnectOwner)).rejects.toThrow(
         /also trusts other Sim credentials/
+      )
+      expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+    })
+
+    it('surfaces an unavailable egress route while confirming the subject is pinned', async () => {
+      fakeMicrosoft(fetch, { acceptAssertion: (assertion) => assertion.endsWith(`|${SUBJECT}`) })
+      const microsoft = fetch.getMockImplementation()
+      fetch.mockImplementation(async (url: string, init: RequestInit) => {
+        const assertion = new URLSearchParams(String(init?.body)).get('client_assertion') ?? ''
+        if (url === TOKEN_URL && !assertion.endsWith(`|${SUBJECT}`)) {
+          throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+        }
+        return microsoft?.(url, init)
+      })
+
+      await expect(save({ authType: 'federated' }, reconnectOwner)).rejects.toBeInstanceOf(
+        OutboundRoutingError
       )
       expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
     })

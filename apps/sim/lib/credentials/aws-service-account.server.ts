@@ -385,6 +385,7 @@ async function assertRolePinsSubject(
   } catch (error) {
     if (error instanceof Error && error.name === 'AccessDenied') return
     if (error instanceof KeylessCredentialRefusedError) throw error
+    if (error instanceof OutboundRoutingError) throw error
     throw new AwsCredentialError(
       `Sim could not confirm the role's trust policy limits it to this credential: ${failureClause(error)}. Try again.`
     )

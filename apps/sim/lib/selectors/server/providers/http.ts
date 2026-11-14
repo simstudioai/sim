@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   SelectorConnectionUnavailableError,
   SelectorOptionsUnavailableError,
@@ -122,7 +123,7 @@ export async function fetchProviderJsonWithStatus<T>(
   try {
     response = await outboundFetch(input, { ...init, signal, redirect: init?.redirect ?? 'error' })
   } catch (error) {
-    if (init?.signal?.aborted) throw error
+    if (init?.signal?.aborted || error instanceof OutboundRoutingError) throw error
     logProviderFailure(input, 'network')
     if (options.passthroughNetworkErrors) throw new RetryableProviderNetworkError()
     throw new SelectorOptionsUnavailableError()

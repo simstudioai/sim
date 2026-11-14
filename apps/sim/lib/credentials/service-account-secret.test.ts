@@ -91,6 +91,7 @@ vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
       : undefined,
 }))
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import {
   ServiceAccountSecretError,
@@ -98,6 +99,7 @@ import {
 } from '@/lib/credentials/service-account-secret'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   POSTGRESQL_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
@@ -110,6 +112,34 @@ describe('verifyAndBuildServiceAccountSecret', () => {
   beforeEach(() => {
     mockEncryptSecret.mockImplementation(async (value: string) => ({ encrypted: value }))
     mockNormalizeDomain.mockImplementation((raw: string) => raw.trim().toLowerCase())
+  })
+
+  it('surfaces an unavailable egress route while verifying a Slack bot token', async () => {
+    mockFetchSlackTeamId.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(
+      verifyAndBuildServiceAccountSecret(SLACK_CUSTOM_BOT_PROVIDER_ID, {
+        signingSecret: 'sec',
+        botToken: 'xoxb-1',
+      })
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+  })
+
+  it('surfaces an unavailable egress route while verifying a Databricks connection', async () => {
+    inputValidationMockFns.mockSecureFetchWithValidation.mockRejectedValueOnce(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    await expect(
+      verifyAndBuildServiceAccountSecret(DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID, {
+        serviceAccountJson: JSON.stringify({
+          authType: 'personal_access_token',
+          host: 'dbc-1234abcd-5678.cloud.databricks.com',
+          token: 'dapi-secret',
+        }),
+        owner: { workspaceId: 'ws-1', actorUserId: 'user-1' },
+      })
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
   })
 
   it('verifies a Slack bot token and encrypts the derived blob', async () => {

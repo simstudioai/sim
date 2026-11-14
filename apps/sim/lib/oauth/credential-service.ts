@@ -836,6 +836,8 @@ async function resolveMintedServiceAccountToken(
       return { ...minted.token }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') throw error
+      // Sim's egress route is down: nothing is known about the credential, so nothing is recorded.
+      if (error instanceof OutboundRoutingError) throw error
       if (sharedToken && !isCoordinatedReplay(error)) {
         clientCredentialMintFailureCache.delete(cacheIdentity)
         throw error
@@ -1853,7 +1855,13 @@ async function performCoalescedRefresh({
             logger.info('Successfully refreshed access token', logContext)
             return { kind: 'token', accessToken: result.accessToken }
           } catch (error) {
-            if (error instanceof OutboundRoutingError) return { kind: 'egress_unavailable', error }
+            if (error instanceof OutboundRoutingError) {
+              logger.warn('Egress route unavailable for token refresh', {
+                ...logContext,
+                code: error.code,
+              })
+              return { kind: 'egress_unavailable', error }
+            }
             logger.error('Refresh failed inside leader path', {
               ...logContext,
               ...(privacyMode === 'selector' ? {} : { error: toError(error).message }),
@@ -1963,6 +1971,8 @@ async function resolveStoredAccessToken(
     })
     return { kind: 'token', accessToken: stored.accessToken, refreshed: false }
   }
+  // Sim's egress route is down: every caller surfaces it, never a missing or revoked token.
+  if (fresh?.kind === 'egress_unavailable') throw fresh.error
   return { kind: 'failed', outcome: fresh }
 }
 
@@ -2139,7 +2149,6 @@ export async function refreshTokenIfNeeded(
       refreshed: result.refreshed,
     }
   }
-  if (result.outcome?.kind === 'egress_unavailable') throw result.outcome.error
   if (result.outcome?.kind === 'revoked') {
     throw new CredentialRevokedError(
       `The ${credential.providerId} credential was revoked by the provider (${result.outcome.errorCode}). Reconnect it to continue.`,

@@ -65,8 +65,10 @@ async function runInOAuthCallbackDraftScope<T>(
  * `getToken` gets Better Auth's exchange sent through `outboundFetch`, since the plugin's
  * built-in exchange uses its own fetch. Better Auth's own discovery reads for the authorize URL
  * and callback stay unrouted; the exchange resolves its token endpoint through `outboundFetch`.
+ * A deployment without outbound routing keeps the connector exactly as configured.
  */
 export function withConnectDraftOutboundScope(config: GenericOAuthConfig): GenericOAuthConfig {
+  if (!isOutboundRoutingEnabled()) return config
   const { providerId, getUserInfo } = config
   const getToken = config.getToken ?? createOutboundCodeExchange(config)
   return {

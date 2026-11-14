@@ -209,7 +209,8 @@ export function isHostNotFound(error: unknown): boolean {
  * as raw undici errors — whose `cause` can carry connection details — and are
  * never blamed on the pasted token. DNS-resolution failures can optionally be
  * mapped to a different code via {@link FetchProviderOptions}. A blocked or unavailable
- * organization egress route is also `provider_unavailable`.
+ * organization egress route is Sim's outage, not the provider's, so its
+ * {@link OutboundRoutingError} propagates unchanged.
  *
  * Redirects are refused (`redirect: 'error'`) unless `init` names another mode:
  * every caller sends a secret, and fetch replays custom headers and 307/308
@@ -228,6 +229,7 @@ export async function fetchProvider(
     return await outboundFetch(url, { ...init, redirect: init.redirect ?? 'error', signal })
   } catch (error) {
     init.signal?.throwIfAborted()
+    if (error instanceof OutboundRoutingError) throw error
     // Only ENOTFOUND proves the host doesn't exist; EAI_AGAIN is a transient
     // resolver failure and stays provider_unavailable.
     if (options?.dnsFailureCode && isHostNotFound(error)) {
@@ -238,10 +240,7 @@ export async function fetchProvider(
     }
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step,
-      reason:
-        error instanceof OutboundRoutingError
-          ? 'organization egress route unavailable'
-          : 'network error reaching provider',
+      reason: 'network error reaching provider',
     })
   }
 }

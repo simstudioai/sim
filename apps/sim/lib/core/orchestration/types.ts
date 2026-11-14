@@ -101,7 +101,8 @@ export function throwOrchestrationFailure(
   )
 }
 
-const EGRESS_UNAVAILABLE_MESSAGE = "The organization's egress route is unavailable"
+/** The fixed caller-facing text for an organization egress outage; the routing code stays in logs. */
+export const EGRESS_UNAVAILABLE_MESSAGE = "The organization's egress route is unavailable"
 
 /**
  * The {@link OrchestrationError} in `error`'s cause chain, or `null` when the
@@ -127,6 +128,15 @@ export function asOrchestrationError(error: unknown): OrchestrationError | null 
     current = current.cause
   }
   return null
+}
+
+/**
+ * Whether `error` is a failure Sim's side cannot currently get past (an `unavailable` failure,
+ * such as the organization's egress route being down): never a verdict on the caller, its
+ * credentials, or the resource, so nothing may be recorded against them.
+ */
+export function isUnavailableFailure(error: unknown): boolean {
+  return asOrchestrationError(error)?.code === 'unavailable'
 }
 
 /** Transport metadata available to an application operation for audit capture. */

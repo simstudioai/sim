@@ -3,6 +3,7 @@ import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { SignJWT } from 'jose'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -121,7 +122,8 @@ async function exchangeNetSuiteToken(
       redirect: 'error',
       signal,
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof OutboundRoutingError) throw error
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: TOKEN_MINT_STEP,
       reason: 'network error reaching provider',

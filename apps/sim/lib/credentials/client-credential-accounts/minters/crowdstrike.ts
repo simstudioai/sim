@@ -1,3 +1,4 @@
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import type {
   ClientCredentialAccountFields,
   ClientCredentialAccountMintOptions,
@@ -68,6 +69,7 @@ export async function mintCrowdStrikeServiceAccountToken(
     )
   } catch (error) {
     options?.signal?.throwIfAborted()
+    if (error instanceof OutboundRoutingError) throw error
     if (error instanceof CrowdStrikeTokenRedirectError) {
       throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
         step: STEP,

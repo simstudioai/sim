@@ -10,6 +10,7 @@ import {
   webhooksProcessorMockFns,
 } from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 
 vi.mock('@/lib/core/idempotency/service', () => idempotencyServiceMock)
 
@@ -24,8 +25,11 @@ import type {
   WorkflowRecord,
 } from '@/lib/webhooks/polling/types'
 
-const { mockUpdateWebhookProviderConfig: mockUpdateConfig, mockResolveOAuthCredential } =
-  webhooksPollingUtilsMockFns
+const {
+  mockUpdateWebhookProviderConfig: mockUpdateConfig,
+  mockResolveOAuthCredential,
+  mockMarkWebhookFailed,
+} = webhooksPollingUtilsMockFns
 const mockProcessEvent = webhooksProcessorMockFns.mockProcessPolledWebhookEvent
 
 const EXPIRED_HISTORY_ID = '30000'
@@ -189,5 +193,29 @@ describe('gmailPollingHandler history cursor', () => {
     expect(mockUpdateConfig).toHaveBeenCalledTimes(1)
     const [, updates] = mockUpdateConfig.mock.calls[0]
     expect(updates).not.toHaveProperty('historyId')
+  })
+})
+
+describe('gmailPollingHandler egress outage', () => {
+  it('skips the poll without counting a failure when the egress route is down', async () => {
+    mockResolveOAuthCredential.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(gmailPollingHandler.pollWebhook(context({}))).resolves.toBe('skipped')
+
+    expect(mockMarkWebhookFailed).not.toHaveBeenCalled()
+  })
+
+  it('leaves the mail for a later poll without counting a failure when the route drops mid-batch', async () => {
+    mockResolveOAuthCredential.mockResolvedValue('access-token')
+    mailboxWithExpiredHistory({
+      profileHistoryId: '40100',
+      inboxMessages: [{ id: 'm-new', historyId: '40050' }],
+    })
+    mockProcessEvent.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(gmailPollingHandler.pollWebhook(context({}))).resolves.toBe('skipped')
+
+    expect(mockMarkWebhookFailed).not.toHaveBeenCalled()
+    expect(mockUpdateConfig).not.toHaveBeenCalled()
   })
 })

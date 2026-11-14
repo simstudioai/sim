@@ -91,6 +91,17 @@ describe('withConnectDraftOutboundScope', () => {
     networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
   })
 
+  it('keeps a connector exactly as configured when the deployment has no outbound routing', () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
+    const config: GenericOAuthConfig = {
+      providerId: 'idp',
+      clientId: 'client-1',
+      tokenUrl: 'https://idp.test/token',
+    }
+
+    expect(withConnectDraftOutboundScope(config)).toBe(config)
+  })
+
   it("runs a generic connector's code exchange in its connect draft's organization", async () => {
     mockGetOAuthState.mockResolvedValue({
       callbackURL: '/workspace/ws-1/integrations?credentialDraftId=draft-1',
@@ -185,6 +196,7 @@ describe('default code exchange for connectors without getToken', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-11-13T12:00:00Z'))
     mockGetOAuthState.mockResolvedValue(null)
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
   })
 
   afterEach(() => {

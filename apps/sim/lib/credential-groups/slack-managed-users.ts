@@ -371,6 +371,7 @@ async function callSlackApi(method: string, accessToken: string, body?: URLSearc
       cache: 'no-store',
     })
   } catch (error) {
+    if (error instanceof OutboundRoutingError) throw error
     logger.error('Slack API verification failed', { method, error: getErrorMessage(error) })
     throw new SlackManagedUsersError('Slack could not verify the authorization.', 'provider_error')
   }

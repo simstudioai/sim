@@ -4,6 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
@@ -171,8 +172,9 @@ async function requestWorkspaceToken(
       redirect: 'error',
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     })
-  } catch {
+  } catch (error) {
     signal?.throwIfAborted()
+    if (error instanceof OutboundRoutingError) throw error
     // A network failure, timeout, or refused redirect says nothing about the credential.
     throw new DatabricksCredentialError('Could not reach the Databricks workspace', 502)
   }
@@ -353,6 +355,7 @@ async function verifyWorkspaceIdentity(
   } catch (error) {
     // A keyless refusal already names its cause and code; wrapping it would lose both.
     if (error instanceof KeylessCredentialRefusedError) throw error
+    if (error instanceof OutboundRoutingError) throw error
     if (error instanceof EgressRefusedError) {
       throw new DatabricksCredentialError(
         'Could not verify the Databricks credential: the workspace host is not allowed'
@@ -389,6 +392,7 @@ async function assertPolicyPinsSubject(
       providerFailureCode(error.status) === 'invalid_credentials'
     if (refused) return
     if (error instanceof KeylessCredentialRefusedError) throw error
+    if (error instanceof OutboundRoutingError) throw error
     throw new DatabricksCredentialError(
       `Sim could not confirm the federation policy limits this service principal to this credential: ${failureClause(error)}. Try again.`
     )

@@ -46,6 +46,7 @@ import {
   exchangeAndConfigureSlackManagedUsers,
   exchangeSlackUserAuthorization,
   loadSlackManagedUsersAttempt,
+  verifySlackCustomBotAppIdentity,
 } from '@/lib/credential-groups/slack-managed-users'
 
 const shared = { flag: featureFlagsMockFns.mockIsFeatureEnabled }
@@ -596,6 +597,19 @@ describe('Slack managed-user authorization', () => {
           code: 'single-use-code',
           redirectUri: 'https://sim.ai/callback',
         })
+      )
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+  })
+
+  it('surfaces an unavailable egress route while verifying a custom bot instead of blaming Slack', async () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    networkConfigMockFns.mockResolveOutboundRoute.mockRejectedValueOnce(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    await expect(
+      runWithOutboundOrganization('organization-1', () =>
+        verifySlackCustomBotAppIdentity('xoxb-token')
       )
     ).rejects.toBeInstanceOf(OutboundRoutingError)
   })

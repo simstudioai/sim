@@ -14,6 +14,23 @@ class PollAdmissionRefusedError extends Error {
   }
 }
 
+/**
+ * Faithful copy of the production egress-outage test (`asOrchestrationError(error)?.code ===
+ * 'unavailable'`): an `OutboundRoutingError`, or an `OrchestrationError` coded `unavailable`,
+ * anywhere in the cause chain.
+ */
+function isSimOutage(error: unknown): boolean {
+  let current: unknown = error
+  while (current instanceof Error) {
+    if (current.name === 'OutboundRoutingError') return true
+    if (current.name === 'OrchestrationError') {
+      return (current as Error & { code?: string }).code === 'unavailable'
+    }
+    current = current.cause
+  }
+  return false
+}
+
 /** Faithful copy of the production `PollFetchError`. */
 class PollFetchError extends Error {
   readonly status: number
@@ -32,8 +49,8 @@ class PollFetchError extends Error {
  *
  * State writes (`markWebhookFailed`, `markWebhookSuccess`, `updateWebhookProviderConfig`,
  * `recordPollSourceFailure`) resolve `undefined`; `fetchActiveWebhooks` resolves `[]`;
- * `resolveOAuthCredential` is a bare `vi.fn()`. `throwIfAdmissionRefused` and
- * `skipAdmissionRefusedPoll` keep production behavior so a poller's refusal path runs as it
+ * `resolveOAuthCredential` is a bare `vi.fn()`. `throwIfAdmissionRefused`,
+ * `isUncountedPollFailure`, and `skipUncountedPollFailure` keep production behavior so a poller's refusal path runs as it
  * does in production. Defaults are `vi.fn(impl)`, so `mockReset()` restores them.
  *
  * @example
@@ -52,7 +69,12 @@ export const webhooksPollingUtilsMockFns = {
       }
     }
   ),
-  mockSkipAdmissionRefusedPoll: vi.fn((..._args: unknown[]): 'skipped' => 'skipped'),
+  mockIsUncountedPollFailure: vi.fn(
+    (error: unknown): boolean => error instanceof PollAdmissionRefusedError || isSimOutage(error)
+  ),
+  mockSkipUncountedPollFailure: vi.fn((error: unknown, ..._args: unknown[]): 'skipped' | null =>
+    error instanceof PollAdmissionRefusedError || isSimOutage(error) ? 'skipped' : null
+  ),
   mockReadPollRetryAfterMs: vi.fn((_header: string | null, _body: string): number | null => null),
   mockClearPollBackoff: vi.fn((_providerConfig: unknown): Record<string, undefined> => ({})),
   mockRecordPollSourceFailure: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
@@ -79,7 +101,8 @@ export const webhooksPollingUtilsMock = {
   PollFetchError,
   isPollBackedOff: webhooksPollingUtilsMockFns.mockIsPollBackedOff,
   throwIfAdmissionRefused: webhooksPollingUtilsMockFns.mockThrowIfAdmissionRefused,
-  skipAdmissionRefusedPoll: webhooksPollingUtilsMockFns.mockSkipAdmissionRefusedPoll,
+  isUncountedPollFailure: webhooksPollingUtilsMockFns.mockIsUncountedPollFailure,
+  skipUncountedPollFailure: webhooksPollingUtilsMockFns.mockSkipUncountedPollFailure,
   readPollRetryAfterMs: webhooksPollingUtilsMockFns.mockReadPollRetryAfterMs,
   clearPollBackoff: webhooksPollingUtilsMockFns.mockClearPollBackoff,
   recordPollSourceFailure: webhooksPollingUtilsMockFns.mockRecordPollSourceFailure,
