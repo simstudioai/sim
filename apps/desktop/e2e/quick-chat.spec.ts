@@ -20,8 +20,7 @@ import { recordCheck } from './check-report'
 
 const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 const WORKSPACE_ROUTE = '/workspace/ws1/home'
-const DEFAULT_SHORTCUT: QuickChatShortcut =
-  process.platform === 'darwin' ? 'Alt+Space' : 'CommandOrControl+Shift+J'
+const DEFAULT_SHORTCUT: QuickChatShortcut = 'Alt+Space'
 
 const PAGES: Record<string, string> = {
   [WORKSPACE_ROUTE]: '<!doctype html><html><body><h1 id="app">workspace</h1></body></html>',
@@ -75,11 +74,13 @@ function startFixtureServer(): Promise<FixtureServer> {
   })
 }
 
-function launchApp(origin: string, settings: Record<string, unknown> = {}) {
+function launchApp(origin: string, settings: string | Record<string, unknown> = {}) {
   const userData = mkdtempSync(join(tmpdir(), 'sim-desktop-quick-chat-'))
   writeFileSync(
     join(userData, 'settings.json'),
-    JSON.stringify({ origin, lastRoute: WORKSPACE_ROUTE, ...settings })
+    typeof settings === 'string'
+      ? settings
+      : JSON.stringify({ origin, lastRoute: WORKSPACE_ROUTE, ...settings })
   )
   return electron.launch({
     args: ['.'],
@@ -281,6 +282,7 @@ test.describe('quick chat window', () => {
   })
 
   test('the shortcut setting and a failed first load', async () => {
+    test.skip(process.platform !== 'darwin', 'Only macOS binds a shortcut by default')
     const launched = await launchApp(fixture.origin, { quickChatShortcut: 'CommandOrControl+Q' })
     app = launched
     const main = await launched.firstWindow()
@@ -350,5 +352,24 @@ test.describe('quick chat window', () => {
         .toBe(true)
       await expect(quick.locator('#quick')).toHaveText('quick-chat')
     })
+  })
+
+  test('stays closed while account data cannot be stored', async () => {
+    // An unreadable settings file blocks persistence, which makes account data unavailable.
+    const launched = await launchApp(fixture.origin, '[]')
+    app = launched
+    await launched.firstWindow()
+    await check(
+      'the shortcut opens nothing while the window could not hold an account',
+      async () => {
+        await clickMenu(launched, 'Quick Chat')
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_500))
+        expect(
+          await launched.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows().some((win) => !win.isDestroyed() && win.isAlwaysOnTop())
+          )
+        ).toBe(false)
+      }
+    )
   })
 })

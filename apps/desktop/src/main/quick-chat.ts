@@ -17,6 +17,8 @@ const MIN_WIDTH = 360
 const MIN_HEIGHT = 420
 
 export interface QuickChatDeps {
+  /** False while account data is being torn down or cannot be stored; the window holds a signed-in page. */
+  isAvailable: () => boolean
   partition: () => string
   /** The compact chat URL to open, scoped to where the user last was. */
   startUrl: () => string
@@ -102,7 +104,7 @@ export function createQuickChat(deps: QuickChatDeps): QuickChat {
 
   const toggle = () => {
     if (!win || win.isDestroyed()) {
-      win = open()
+      if (deps.isAvailable()) win = open()
       return
     }
     if (win.isVisible() && win.isFocused()) win.hide()

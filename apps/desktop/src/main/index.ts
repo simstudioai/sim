@@ -557,6 +557,8 @@ function main(): void {
         if (lastActiveWindow === win) {
           lastActiveWindow = getWindows().at(-1) ?? null
         }
+        // Closing the last full window quits on Windows and Linux; the quick chat must not keep the app alive.
+        if (process.platform !== 'darwin' && getWindows().length === 0) quickChat.close()
       },
     })
     windows.add(win)
@@ -654,6 +656,7 @@ function main(): void {
   }
 
   const quickChat = createQuickChat({
+    isAvailable: accountDataAvailable,
     partition: () => {
       // Configures the partition's permission and header handlers on first use, as a full window does.
       ensureAppSession()

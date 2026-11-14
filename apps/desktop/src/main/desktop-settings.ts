@@ -86,11 +86,12 @@ interface DesktopSettingsServiceDeps {
 }
 
 /**
- * ⌥Space is the macOS convention for an assistant launcher. On Windows and Linux Alt+Space opens
- * the focused window's system menu, so those platforms default to a chord nothing standard owns.
+ * ⌥Space is the macOS convention for an assistant launcher. On Windows and Linux every preset is
+ * already a common chord (the window menu, browser DevTools, editor hints), so the shortcut starts
+ * off there rather than silently taking one system-wide; the menu and tray still open quick chat.
  */
-const DEFAULT_QUICK_CHAT_SHORTCUT: QuickChatShortcut =
-  process.platform === 'darwin' ? 'Alt+Space' : 'CommandOrControl+Shift+J'
+const DEFAULT_QUICK_CHAT_SHORTCUT: QuickChatShortcut | null =
+  process.platform === 'darwin' ? 'Alt+Space' : null
 
 /** The stored quick chat shortcut: null when turned off, the platform default when never chosen. */
 function readQuickChatShortcut(config: ConfigStore): QuickChatShortcut | null {
