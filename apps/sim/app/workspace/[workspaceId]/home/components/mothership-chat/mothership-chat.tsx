@@ -66,6 +66,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/user-input'
 import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
+import { useResourceNameRevision } from '@/app/workspace/[workspaceId]/home/hooks/use-tool-resource-titles'
 import {
   fetchWorkspaceResourceRef,
   readCachedWorkspaceResourceRef,
@@ -246,12 +247,13 @@ const AutomatedTurnRow = memo(function AutomatedTurnRow({
   bubbleClassName,
 }: AutomatedTurnRowProps) {
   const params = useParams<{ workspaceId?: string }>()
+  useResourceNameRevision()
   const { label, text, note } = describeAutomatedTurn(origin, content, params?.workspaceId)
   const Icon = origin === 'task' ? Clock : Calendar
   return (
     <div className={rowClassName}>
-      <div className='flex items-center gap-1.5 text-[12px] text-[var(--text-tertiary)]'>
-        <Icon className='size-[12px]' />
+      <div className='flex items-center gap-1.5 text-[var(--text-muted)] text-caption'>
+        <Icon className='size-[12px] text-[var(--text-icon)]' />
         {label}
       </div>
       <div className={bubbleClassName} title={note}>
