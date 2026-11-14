@@ -24,11 +24,7 @@ export function createSecureWebPreferences(
     devTools: !isPackaged,
     spellcheck: true,
     partition,
-    ...(preloadPath
-      ? {
-          preload: preloadPath,
-          additionalArguments: [`--sim-desktop-version=${app.getVersion()}`],
-        }
-      : {}),
+    preload: preloadPath ?? undefined,
+    additionalArguments: [`--sim-desktop-version=${app.getVersion()}`],
   }
 }

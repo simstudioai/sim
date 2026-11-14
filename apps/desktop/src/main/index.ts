@@ -67,7 +67,7 @@ import {
   isSafeInternalPath,
   partitionForOrigin,
 } from '@/main/config'
-import { attachContextMenu } from '@/main/context-menu'
+import { attachContextMenu, type ContextMenuDeps } from '@/main/context-menu'
 import { attachCspFallback } from '@/main/csp'
 import { DesktopChatSessionStore } from '@/main/desktop-chat-session-store'
 import { createApprovalNotifier } from '@/main/desktop-executor/approval-notifier'
@@ -118,7 +118,7 @@ import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { installBrowserUserAgent } from '@/main/user-agent'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
-import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
+import { attachWindowOpenPolicy, isPopupContents, type WindowPolicyDeps } from '@/main/windows'
 
 const logger = createLogger('DesktopMain')
 
@@ -500,6 +500,28 @@ function main(): void {
     }
   }
 
+  /**
+   * Window-open policy for app pages: internal URLs open as full Sim windows. `activate` brings
+   * the app forward for a caller that never activates it itself, like the macOS quick chat panel.
+   */
+  function appWindowPolicy({ activate }: { activate: boolean }): WindowPolicyDeps {
+    return {
+      appOrigin,
+      openAppWindow: (url) => {
+        const route = routeFromAppUrl(url)
+        if (!route) return
+        const opened = createAndLoadAppWindow({ route })
+        if (activate) void opened.then(showMainWindow)
+      },
+      allowHttpLocalhost: allowHttpLocalhost(),
+      isCommittedRelaunchPending: () => committedRelaunchPending,
+    }
+  }
+
+  function appContextMenuDeps(): ContextMenuDeps {
+    return { isDev: !app.isPackaged, allowHttpLocalhost: allowHttpLocalhost() }
+  }
+
   async function createAndLoadAppWindow({
     route: requestedRouteOverride,
     restorePosition = false,
@@ -554,21 +576,8 @@ function main(): void {
     win.webContents.on('did-start-loading', () => {
       setBrowserAgentPanelBounds(null, win)
     })
-    attachWindowOpenPolicy(win.webContents, {
-      appOrigin,
-      openAppWindow: (url) => {
-        const route = routeFromAppUrl(url)
-        if (route) {
-          void createAndLoadAppWindow({ route })
-        }
-      },
-      allowHttpLocalhost: allowHttpLocalhost(),
-      isCommittedRelaunchPending: () => committedRelaunchPending,
-    })
-    attachContextMenu(win.webContents, {
-      isDev: !app.isPackaged,
-      allowHttpLocalhost: allowHttpLocalhost(),
-    })
+    attachWindowOpenPolicy(win.webContents, appWindowPolicy({ activate: false }))
+    attachContextMenu(win.webContents, appContextMenuDeps())
     const loadHealth = attachLoadHealth(win, {
       offlinePageUrl: (query) => localPageUrl('offline.html', query),
       getStartUrl: () => `${appOrigin()}${route}`,
@@ -645,26 +654,16 @@ function main(): void {
   }
 
   const quickChat = createQuickChat({
-    appOrigin,
     partition: () => {
       // Configures the partition's permission and header handlers on first use, as a full window does.
       ensureAppSession()
       return appPartition()
     },
-    startRoute: () => quickChatRoute(config.get('lastRoute')),
+    startUrl: () => `${appOrigin()}${quickChatRoute(config.get('lastRoute'))}`,
     themeBackground: () => config.get('themeBackground'),
     isPackaged: app.isPackaged,
-    windowPolicy: {
-      appOrigin,
-      // The macOS panel never activates Sim, so a window it opens must bring the app forward itself.
-      openAppWindow: (url) => {
-        const route = routeFromAppUrl(url)
-        if (route) void createAndLoadAppWindow({ route }).then(showMainWindow)
-      },
-      allowHttpLocalhost: allowHttpLocalhost(),
-      isCommittedRelaunchPending: () => committedRelaunchPending,
-    },
-    contextMenu: { isDev: !app.isPackaged, allowHttpLocalhost: allowHttpLocalhost() },
+    windowPolicy: appWindowPolicy({ activate: true }),
+    contextMenu: appContextMenuDeps(),
   })
 
   /** Installs or removes the menu-bar status item; safe to call repeatedly. */
@@ -712,8 +711,8 @@ function main(): void {
       desktopExecutor.refreshRegistration()
     },
     setPreventSleepWhileRunning: () => sleepBlocker.refresh(),
-    setQuickChatShortcut: (shortcut) => quickChat.bindShortcut(shortcut),
-    isQuickChatShortcutAvailable: () => quickChat.isShortcutAvailable(),
+    setQuickChatShortcut: quickChat.bindShortcut,
+    isQuickChatShortcutAvailable: quickChat.isShortcutAvailable,
     setBrowserTheme: setAgentBrowserTheme,
     setBrowserDefaultZoom: setAgentBrowserDefaultZoom,
     setTerminalDefaultZoom: (zoom) => {
@@ -1204,9 +1203,11 @@ function main(): void {
       },
       describeInFlightWork: async () => {
         // Native activity is read after the window probes so work started meanwhile still counts.
-        const windows = await countWindowsWithUnsavedChanges(
-          getWindows().map((win) => win.webContents)
-        )
+        const quickChatPage = quickChat.webContents()
+        const windows = await countWindowsWithUnsavedChanges([
+          ...getWindows().map((win) => win.webContents),
+          ...(quickChatPage ? [quickChatPage] : []),
+        ])
         const terminalWork = await terminal.runningWork()
         const computerUseActivity = computerUse.getActivity()
         return describeInFlightWork({

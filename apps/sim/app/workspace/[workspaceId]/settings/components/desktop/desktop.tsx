@@ -1,18 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import {
-  type DesktopPreferenceKey,
-  type DesktopPreferences,
-  isQuickChatShortcut,
-  QUICK_CHAT_SHORTCUTS,
-  type QuickChatShortcut,
+import type {
+  DesktopPreferenceKey,
+  DesktopPreferences,
+  QuickChatShortcut,
 } from '@sim/desktop-bridge'
-import { ChipSelect, Label, Switch, toast } from '@sim/emcn'
+import { Label, Switch, toast } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
-import { isMacPlatform } from '@/lib/core/utils/platform'
 import { getDesktopBridge, getDesktopShellVersion } from '@/lib/desktop'
 import { ComputerUseSettings } from '@/app/workspace/[workspaceId]/settings/components/desktop/computer-use'
+import { QuickChatShortcutSelect } from '@/app/workspace/[workspaceId]/settings/components/desktop/quick-chat-shortcut-select'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
@@ -25,14 +23,6 @@ interface PreferenceRowProps {
   disabled?: boolean
   onCheckedChange: (checked: boolean) => void
 }
-
-const QUICK_CHAT_SHORTCUT_LABELS: Record<QuickChatShortcut, { mac: string; other: string }> = {
-  'Alt+Space': { mac: '⌥ Space', other: 'Alt+Space' },
-  'CommandOrControl+Shift+Space': { mac: '⇧⌘ Space', other: 'Ctrl+Shift+Space' },
-  'CommandOrControl+Shift+J': { mac: '⇧⌘J', other: 'Ctrl+Shift+J' },
-}
-
-const QUICK_CHAT_SHORTCUT_OFF = 'off'
 
 function PreferenceRow({ id, label, checked, disabled, onCheckedChange }: PreferenceRowProps) {
   return (
@@ -165,27 +155,11 @@ export function Desktop() {
                     </p>
                   )}
               </div>
-              <div className='w-[240px] max-w-[55%] shrink-0 md:max-w-none'>
-                <ChipSelect
-                  aria-label='Quick chat shortcut'
-                  align='start'
-                  fullWidth
-                  dropdownWidth='trigger'
-                  value={preferences.quickChatShortcut ?? QUICK_CHAT_SHORTCUT_OFF}
-                  onChange={(next) =>
-                    void setQuickChatShortcut(isQuickChatShortcut(next) ? next : null)
-                  }
-                  disabled={quickChatShortcutPending}
-                  options={[
-                    { label: 'Off', value: QUICK_CHAT_SHORTCUT_OFF },
-                    ...QUICK_CHAT_SHORTCUTS.map((shortcut) => ({
-                      label:
-                        QUICK_CHAT_SHORTCUT_LABELS[shortcut][isMacPlatform() ? 'mac' : 'other'],
-                      value: shortcut,
-                    })),
-                  ]}
-                />
-              </div>
+              <QuickChatShortcutSelect
+                value={preferences.quickChatShortcut}
+                disabled={quickChatShortcutPending}
+                onChange={(shortcut) => void setQuickChatShortcut(shortcut)}
+              />
             </div>
           )}
           <PreferenceRow

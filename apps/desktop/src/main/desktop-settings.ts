@@ -101,8 +101,7 @@ function readQuickChatShortcut(config: ConfigStore): QuickChatShortcut | null {
 
 function readPreferences(
   config: ConfigStore,
-  defaultBrowserDownloadDirectory: string,
-  quickChatShortcutAvailable: boolean
+  defaultBrowserDownloadDirectory: string
 ): DesktopPreferences {
   const browserTheme = config.get('browserTheme')
   const browserDefaultZoom = config.get('browserDefaultZoom')
@@ -122,7 +121,6 @@ function readPreferences(
     fullFileAccess: config.get('fullFileAccess') === true,
     preventSleepWhileRunning: config.get('preventSleepWhileRunning') ?? true,
     quickChatShortcut: readQuickChatShortcut(config),
-    quickChatShortcutAvailable,
     browserTheme: isDesktopAppearanceTheme(browserTheme) ? browserTheme : 'app',
     browserDefaultZoom: isDesktopZoomPercent(browserDefaultZoom) ? browserDefaultZoom : 100,
     browserDownloadDirectory:
@@ -158,12 +156,10 @@ function showsRoute(window: BrowserWindow, route: string | undefined): boolean {
 export function createDesktopSettingsService(
   deps: DesktopSettingsServiceDeps
 ): DesktopSettingsService {
-  const read = () =>
-    readPreferences(
-      deps.config,
-      deps.getDefaultBrowserDownloadDirectory(),
-      deps.isQuickChatShortcutAvailable()
-    )
+  const read = (): DesktopPreferences => ({
+    ...readPreferences(deps.config, deps.getDefaultBrowserDownloadDirectory()),
+    quickChatShortcutAvailable: deps.isQuickChatShortcutAvailable(),
+  })
 
   const applyLaunchAtLogin = (enabled: boolean) => {
     // Registering an unpackaged Electron binary at login is surprising and

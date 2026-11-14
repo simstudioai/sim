@@ -1,7 +1,9 @@
 import type { QuickChatShortcut } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
+import type { WebContents } from 'electron'
 import { BrowserWindow, globalShortcut, nativeTheme, screen } from 'electron'
 import { attachContextMenu, type ContextMenuDeps } from '@/main/context-menu'
+import { classifyLoadError } from '@/main/load-health'
 import { backgroundColorFor } from '@/main/shell-theme'
 import { handleWillPreventUnload } from '@/main/window'
 import { createSecureWebPreferences } from '@/main/window-preferences'
@@ -14,14 +16,10 @@ const HEIGHT = 620
 const MIN_WIDTH = 360
 const MIN_HEIGHT = 420
 
-/** Chromium's code for a navigation the page itself replaced, which is not a failure. */
-const ERR_ABORTED = -3
-
 export interface QuickChatDeps {
-  appOrigin: () => string
   partition: () => string
-  /** The compact chat route to open, scoped to where the user last was. */
-  startRoute: () => string
+  /** The compact chat URL to open, scoped to where the user last was. */
+  startUrl: () => string
   themeBackground: () => 'dark' | 'light' | undefined
   isPackaged: boolean
   windowPolicy: WindowPolicyDeps
@@ -37,6 +35,8 @@ export interface QuickChat {
   bindShortcut(shortcut: QuickChatShortcut | null): void
   /** False while another app holds the shortcut, so pressing it never reaches Sim. */
   isShortcutAvailable(): boolean
+  /** The open window's page, for checks that must see every app page before a relaunch. */
+  webContents(): WebContents | null
 }
 
 /**
@@ -49,8 +49,7 @@ export interface QuickChat {
 export function createQuickChat(deps: QuickChatDeps): QuickChat {
   let win: BrowserWindow | null = null
   let loadFailed = false
-  let boundShortcut: QuickChatShortcut | null = null
-  let shortcutAvailable = true
+  let shortcut: QuickChatShortcut | null = null
 
   const reveal = (target: BrowserWindow) => {
     if (loadFailed) {
@@ -87,21 +86,17 @@ export function createQuickChat(deps: QuickChatDeps): QuickChat {
     created.on('closed', () => {
       if (win === created) win = null
     })
-    created.webContents.on(
-      'did-fail-load',
-      (_event, errorCode, _description, _url, isMainFrame) => {
-        if (isMainFrame && errorCode !== ERR_ABORTED) loadFailed = true
-      }
-    )
-    created.webContents.on('did-finish-load', () => {
-      loadFailed = false
+    created.webContents.on('did-fail-load', (_event, errorCode, _description, url, isMainFrame) => {
+      if (isMainFrame && classifyLoadError(errorCode, url) !== 'ignored') loadFailed = true
     })
+    // A crashed page cannot recover in place; the next toggle builds a fresh window instead.
+    created.webContents.on('render-process-gone', () => created.destroy())
     created.webContents.on('will-prevent-unload', (event) => {
       handleWillPreventUnload(created, event, deps.windowPolicy.isCommittedRelaunchPending())
     })
     attachWindowOpenPolicy(created.webContents, deps.windowPolicy)
     attachContextMenu(created.webContents, deps.contextMenu)
-    void created.loadURL(`${deps.appOrigin()}${deps.startRoute()}`).catch(() => {})
+    void created.loadURL(deps.startUrl()).catch(() => {})
     return created
   }
 
@@ -120,15 +115,15 @@ export function createQuickChat(deps: QuickChatDeps): QuickChat {
       if (win && !win.isDestroyed()) win.destroy()
       win = null
     },
-    bindShortcut(shortcut) {
-      if (boundShortcut) globalShortcut.unregister(boundShortcut)
-      boundShortcut = null
-      shortcutAvailable = true
-      if (!shortcut) return
-      shortcutAvailable = globalShortcut.register(shortcut, toggle)
-      if (shortcutAvailable) boundShortcut = shortcut
-      else logger.warn('Quick chat shortcut is held by another app', { shortcut })
+    bindShortcut(next) {
+      if (next === shortcut && (!next || globalShortcut.isRegistered(next))) return
+      if (shortcut) globalShortcut.unregister(shortcut)
+      shortcut = next
+      if (next && !globalShortcut.register(next, toggle)) {
+        logger.warn('Quick chat shortcut is held by another app', { shortcut: next })
+      }
     },
-    isShortcutAvailable: () => shortcutAvailable,
+    isShortcutAvailable: () => !shortcut || globalShortcut.isRegistered(shortcut),
+    webContents: () => (win && !win.isDestroyed() ? win.webContents : null),
   }
 }
