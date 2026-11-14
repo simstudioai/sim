@@ -222,9 +222,10 @@ test.describe('quick chat window', () => {
       const page = quick
       await resizeWindow(launched, quickUrl, 200, 200)
       await expect.poll(() => windowState(launched, quickUrl)).toMatchObject({ size: [360, 420] })
-      await resizeWindow(launched, quickUrl, 720, 900)
-      await expect.poll(() => windowState(launched, quickUrl)).toMatchObject({ size: [720, 900] })
-      await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(720)
+      // Small enough for any runner display; macOS clamps a window to the screen it is on.
+      await resizeWindow(launched, quickUrl, 600, 560)
+      await expect.poll(() => windowState(launched, quickUrl)).toMatchObject({ size: [600, 560] })
+      await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(600)
     })
 
     await check(
