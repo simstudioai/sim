@@ -666,7 +666,9 @@ Validate Copilot configuration
           {{- fail (printf "copilot.server.env.%s is required when copilot is enabled" $key) -}}
         {{- end -}}
       {{- end -}}
-      {{- include "sim.rejectPlaceholderSecret" (list (printf "copilot.server.env.%s" $key) (index (default dict $env) $key)) -}}
+      {{- if not $useExternalSecrets -}}
+        {{- include "sim.rejectPlaceholderSecret" (list (printf "copilot.server.env.%s" $key) (index (default dict $env) $key)) -}}
+      {{- end -}}
     {{- end -}}
     {{- if $useExternalSecrets -}}
       {{- range $key, $value := $env -}}
