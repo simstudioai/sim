@@ -1,6 +1,6 @@
 {
   "explicitAny": {
-    "apps/realtime/src/database/operations.ts": 29,
+    "apps/realtime/src/database/operations.ts": 27,
     "apps/realtime/src/handlers/subblocks.ts": 2,
     "apps/realtime/src/handlers/variables.ts": 2,
     "apps/sim/app/(auth)/login/login-form.tsx": 2,

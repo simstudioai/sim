@@ -244,6 +244,64 @@ export function isWorkflowBlockProtected(
   return Boolean(block.locked || isWorkflowBlockAncestorLocked(blockId, blocks))
 }
 
+interface WorkflowLockGraph<B, E> {
+  blocks: Record<string, B>
+  edges: E[]
+}
+
+/**
+ * Merges a caller-supplied full-graph replacement into the stored graph without
+ * letting it change anything the block lock protects.
+ *
+ * Locking is admin-only (`batch-toggle-locked`) while a full replace needs only
+ * `write`, so the lock flag is never taken from `incoming`:
+ * - a block protected in `stored` (locked, or inside a locked container) is kept
+ *   exactly as stored, even when `incoming` changes or omits it, and so are the
+ *   edges into it, matching the edge rules that refuse adding or removing them;
+ * - every other block is written unlocked;
+ * - an incoming block that would land inside a locked container is dropped,
+ *   together with the edges that touch it.
+ *
+ * Blocks are keyed by their own `id`, never the record key, because that is the
+ * value persistence writes.
+ */
+export function preserveProtectedWorkflowBlocks<
+  B extends WorkflowLockBlock & { id: string },
+  E extends WorkflowEdgeEndpoints,
+>(
+  stored: WorkflowLockGraph<B, E>,
+  incoming: WorkflowLockGraph<B, E>
+): WorkflowLockGraph<B, E> & { protectedBlockIds: Set<string> } {
+  const protectedBlockIds = new Set(
+    Object.keys(stored.blocks).filter((id) => isWorkflowBlockProtected(id, stored.blocks))
+  )
+
+  const blocks: Record<string, B> = {}
+  for (const block of Object.values(incoming.blocks)) {
+    if (!protectedBlockIds.has(block.id)) blocks[block.id] = { ...block, locked: false }
+  }
+  for (const id of protectedBlockIds) blocks[id] = stored.blocks[id]
+
+  const droppedBlockIds = new Set(
+    Object.keys(blocks).filter(
+      (id) => !protectedBlockIds.has(id) && isWorkflowBlockAncestorLocked(id, blocks)
+    )
+  )
+  for (const id of droppedBlockIds) delete blocks[id]
+
+  const edges = [
+    ...incoming.edges.filter(
+      (edge) =>
+        !protectedBlockIds.has(edge.target) &&
+        !droppedBlockIds.has(edge.source) &&
+        !droppedBlockIds.has(edge.target)
+    ),
+    ...stored.edges.filter((edge) => protectedBlockIds.has(edge.target) && blocks[edge.source]),
+  ]
+
+  return { blocks, edges, protectedBlockIds }
+}
+
 export interface WorkflowEdgeEndpoints {
   source: string
   target: string
