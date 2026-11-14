@@ -4,6 +4,7 @@ import {
   MONDAY_API_URL,
   mondayHeaders,
   sanitizeNumericId,
+  toGraphqlJsonArg,
 } from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -51,7 +52,7 @@ export const mondayUpdateItemTool: ToolConfig<MondayUpdateItemParams, MondayUpda
     method: 'POST',
     headers: (params) => mondayHeaders(params.accessToken),
     body: (params) => ({
-      query: `mutation { change_multiple_column_values(item_id: ${sanitizeNumericId(params.itemId, 'itemId')}, board_id: ${sanitizeNumericId(params.boardId, 'boardId')}, column_values: ${JSON.stringify(params.columnValues)}) { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } }`,
+      query: `mutation { change_multiple_column_values(item_id: ${sanitizeNumericId(params.itemId, 'itemId')}, board_id: ${sanitizeNumericId(params.boardId, 'boardId')}, column_values: ${toGraphqlJsonArg(params.columnValues)}) { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } }`,
     }),
   },
 

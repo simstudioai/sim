@@ -5,6 +5,7 @@ import {
   mondayHeaders,
   sanitizeEnum,
   sanitizeNumericId,
+  toGraphqlJsonArg,
 } from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -112,7 +113,7 @@ export const mondayCreateColumnTool: ToolConfig<
         args.push(`description: ${JSON.stringify(params.columnDescription)}`)
       }
       if (params.columnDefaults) {
-        args.push(`defaults: ${JSON.stringify(params.columnDefaults)}`)
+        args.push(`defaults: ${toGraphqlJsonArg(params.columnDefaults)}`)
       }
       return {
         query: `mutation { create_column(${args.join(', ')}) { id title type } }`,

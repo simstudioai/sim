@@ -4,6 +4,7 @@ import {
   createWorkdaySoapClient,
   extractRefId,
 } from '@/lib/internal/workday/client'
+import { executeWorkdayGetOrganizations } from '@/lib/internal/workday/operations'
 
 const SUCCESS_RESPONSE = `<?xml version="1.0" encoding="UTF-8"?>
 <env:Envelope xmlns:env="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wd="urn:com.workday/bsvc">
@@ -37,6 +38,31 @@ describe('Workday SOAP client', () => {
     expect(() => buildServiceUrl('https://127.0.0.1', 'example', 'staffing')).toThrow(
       'tenantUrl must be a Workday-hosted domain'
     )
+  })
+
+  it('sends Get_Organizations criteria before the response filter, in schema order', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        '<env:Envelope xmlns:env="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wd="urn:com.workday/bsvc"><env:Body><wd:Get_Organizations_Response/></env:Body></env:Envelope>',
+        { status: 200 }
+      )
+    )
+
+    await executeWorkdayGetOrganizations({
+      tenantUrl: 'https://wd2-impl-services1.workday.com',
+      tenant: 'example',
+      username: 'user',
+      password: 'password',
+      type: 'Supervisory',
+    })
+
+    const body = String(fetchMock.mock.calls[0]?.[1]?.body)
+    const criteria = body.indexOf('<wd:Request_Criteria>')
+    const filter = body.indexOf('<wd:Response_Filter>')
+    const group = body.indexOf('<wd:Response_Group>')
+    expect(criteria).toBeGreaterThan(-1)
+    expect(criteria).toBeLessThan(filter)
+    expect(filter).toBeLessThan(group)
   })
 
   it('passes cancellation to fetch, escapes XML, and parses SOAP responses', async () => {

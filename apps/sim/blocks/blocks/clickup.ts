@@ -1802,21 +1802,21 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
                 toolCallArg(context, optionalNumber(params.endDate)),
               assignee: params.timerAssignee || toolCallArg(context, params.assignee) || undefined,
               taskId:
-                params.timeLocationType === 'task'
-                  ? params.timeLocationId || undefined
-                  : toolCallArg(context, params.taskId) || undefined,
+                (params.timeLocationType === 'task' ? params.timeLocationId : undefined) ||
+                toolCallArg(context, params.taskId) ||
+                undefined,
               listId:
-                params.timeLocationType === 'list'
-                  ? params.timeLocationId || undefined
-                  : toolCallArg(context, params.listId) || undefined,
+                (params.timeLocationType === 'list' ? params.timeLocationId : undefined) ||
+                toolCallArg(context, params.listId) ||
+                undefined,
               folderId:
-                params.timeLocationType === 'folder'
-                  ? params.timeLocationId || undefined
-                  : toolCallArg(context, params.folderId) || undefined,
+                (params.timeLocationType === 'folder' ? params.timeLocationId : undefined) ||
+                toolCallArg(context, params.folderId) ||
+                undefined,
               spaceId:
-                params.timeLocationType === 'space'
-                  ? params.timeLocationId || undefined
-                  : toolCallArg(context, params.spaceId) || undefined,
+                (params.timeLocationType === 'space' ? params.timeLocationId : undefined) ||
+                toolCallArg(context, params.spaceId) ||
+                undefined,
               includeTaskTags: params.includeTaskTags ? true : undefined,
               includeLocationNames: params.includeLocationNames ? true : undefined,
             }

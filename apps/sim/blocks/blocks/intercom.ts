@@ -866,7 +866,7 @@ Return ONLY the subject line - no explanations.`,
       options: [
         { label: 'User', id: 'user' },
         { label: 'Lead', id: 'lead' },
-        { label: 'Contact', id: 'contact' },
+        { label: 'Contact (legacy)', id: 'contact' },
       ],
       required: true,
       condition: {

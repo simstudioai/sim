@@ -76,7 +76,7 @@ export const zendeskMergeTicketsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comment text to add to target ticket after merge',
+      description: 'Comment text to add to the target ticket after merge, posted as a public reply',
     },
   },
 

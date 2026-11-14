@@ -281,7 +281,6 @@ export async function executeWorkdayGetOrganizations(
   const offset = input.offset ?? 0
   const page = offset > 0 ? Math.floor(offset / limit) + 1 : 1
   const [result] = await client.Get_OrganizationsAsync({
-    Response_Filter: { Page: page, Count: limit },
     Request_Criteria: input.type
       ? {
           Organization_Type_Reference: {
@@ -289,6 +288,7 @@ export async function executeWorkdayGetOrganizations(
           },
         }
       : undefined,
+    Response_Filter: { Page: page, Count: limit },
     Response_Group: { Include_Hierarchy_Data: true },
   })
   signal?.throwIfAborted()

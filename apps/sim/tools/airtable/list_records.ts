@@ -71,7 +71,10 @@ export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableLis
       const queryParams = new URLSearchParams()
       if (params.maxRecords) queryParams.append('maxRecords', Number(params.maxRecords).toString())
       if (params.filterFormula) queryParams.append('filterByFormula', params.filterFormula)
-      if (params.pageSize) queryParams.append('pageSize', Number(params.pageSize).toString())
+      const pageSize = Number(params.pageSize)
+      if (params.pageSize && Number.isFinite(pageSize)) {
+        queryParams.append('pageSize', pageSize.toString())
+      }
       if (params.offset) queryParams.append('offset', params.offset.trim())
       if (params.view) queryParams.append('view', params.view.trim())
       const queryString = queryParams.toString()
