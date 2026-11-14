@@ -209,13 +209,14 @@ Query event analytics data with segmentation. Get event counts, uniques, average
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `eventType` | string | Yes | Event type name to analyze |
+| `secondEventType` | string | No | Second event type to query alongside the first \(event B in a formula such as "UNIQUES\(A\)/UNIQUES\(B\)"\) |
 | `start` | string | Yes | Start date in YYYYMMDD format |
 | `end` | string | Yes | End date in YYYYMMDD format |
 | `metric` | string | No | Metric type: uniques, totals, pct_dau, average, histogram, sums, value_avg, or formula \(default: uniques\) |
-| `interval` | string | No | Time interval: 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
+| `interval` | string | No | Time interval: -300000 \(real-time\), -3600000 \(hourly\), 1 \(daily\), 7 \(weekly\), or 30 \(monthly\) |
 | `groupBy` | string | No | Property name to group by \(prefix custom user properties with "gp:"\) |
 | `groupBy2` | string | No | Second property name to group by \(prefix custom user properties with "gp:"\) |
-| `limit` | string | No | Maximum number of group-by values \(max 1000\) |
+| `limit` | string | No | Maximum number of group-by values \(default 1000, max 20000\) |
 | `filters` | string | No | JSON array of filter objects applied to the event, e.g. \[\{"subprop_type":"event","subprop_key":"city","subprop_op":"is","subprop_value":\["San Francisco"\]\}\] |
 | `formula` | string | No | Required when metric is "formula", e.g. "UNIQUES\(A\)/UNIQUES\(B\)" |
 | `segment` | string | No | JSON segment definition\(s\) applied to the query |

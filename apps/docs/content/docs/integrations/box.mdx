@@ -139,7 +139,9 @@ List files and folders in a Box folder
 | --------- | ---- | -------- | ----------- |
 | `folderId` | string | Yes | The ID of the folder to list items from \(use "0" for root\) |
 | `limit` | number | No | Maximum number of items to return per page |
-| `offset` | number | No | The offset for pagination |
+| `offset` | number | No | The offset for pagination \(ignored when using marker-based pagination\) |
+| `usemarker` | boolean | No | Use marker-based pagination instead of offsets \(recommended for large folders\); returns nextMarker |
+| `marker` | string | No | Marker from a previous response to fetch the next page \(implies usemarker\) |
 | `sort` | string | No | Sort field: id, name, date, or size |
 | `direction` | string | No | Sort direction: ASC or DESC |
 
@@ -154,9 +156,10 @@ List files and folders in a Box folder
 |   ↳ `size` | number | Item size in bytes |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `modifiedAt` | string | Last modified timestamp |
-| `totalCount` | number | Total number of items in the folder |
+| `totalCount` | number | Total number of items in the folder \(omitted by Box for marker pagination\) |
 | `offset` | number | Current pagination offset |
 | `limit` | number | Current pagination limit |
+| `nextMarker` | string | Marker for the next page when using marker-based pagination |
 
 </ReferenceDetails>
 
