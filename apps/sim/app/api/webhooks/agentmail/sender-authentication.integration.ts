@@ -232,6 +232,11 @@ describe('inbox sender authentication', () => {
       `${memberFrom}, Attacker <ceo@attacker.test>`,
       { spf: 'pass' },
     ],
+    [
+      'lists an allow-listed address beside a second mailbox',
+      `Ops <${allowlistedMemberEmail}>, Attacker <ceo@attacker.test>`,
+      undefined,
+    ],
   ])('rejects a message naming a member that %s', async (_case, from, results) => {
     const task = await deliver(from, results)
 

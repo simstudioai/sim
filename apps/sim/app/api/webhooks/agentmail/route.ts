@@ -325,16 +325,16 @@ export const POST = withRouteHandler(async (req: Request) => {
  * and `dmarc` is the From domain's own verdict, so a pass on either is trusted as
  * given. `dkim` is kept whoever signed, so it counts only when the signing domain
  * aligns with the From domain the way DMARC's relaxed mode does: one registrable
- * domain. A From header naming several mailboxes is never attributed to one of them.
- * The delivery's own `unauthenticated` label is not enough: AgentMail delivers mail
- * without it when an unaligned envelope SPF passes, which any domain can arrange.
+ * domain. The delivery's own `unauthenticated` label is not enough: AgentMail
+ * delivers mail without it when an unaligned envelope SPF passes, which any domain
+ * can arrange.
  */
 function isSenderAuthenticated(
   sender: ParsedSender,
   message: AgentMailWebhookPayload['message']
 ): boolean {
   const results = message.authentication_results
-  if (!sender.isSingleMailbox || !results) return false
+  if (!sender.email || !results) return false
   if (results.dmarc === 'pass' || results.spf === 'pass') return true
   if (results.dkim !== 'pass' || !results.dkim_domain) return false
 
@@ -424,21 +424,17 @@ async function createRejectedTask(
 interface ParsedSender {
   email: string
   name: string | null
-  /** False when the header names no mailbox or several, so no single address speaks for it. */
-  isSingleMailbox: boolean
 }
 
 /**
  * Parse AgentMail's From field (`addr@domain` or `Display Name <addr@domain>`) per
  * RFC 5322, so a display name that itself looks like an address — `"<admin@victim>"
- * <x@attacker>` — is never mistaken for the mailbox.
+ * <x@attacker>` — is never mistaken for the mailbox. A header naming no mailbox or
+ * several yields no address, so no one of them speaks for the message.
  */
 function parseSender(from: string): ParsedSender {
   const mailboxes = addressparser(from, { flatten: true })
-  const [first] = mailboxes
-  return {
-    email: first?.address.trim().toLowerCase() ?? '',
-    name: first?.name || null,
-    isSingleMailbox: mailboxes.length === 1,
-  }
+  if (mailboxes.length !== 1) return { email: '', name: null }
+  const [{ address, name }] = mailboxes
+  return { email: address.trim().toLowerCase(), name: name || null }
 }
