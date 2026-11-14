@@ -14,6 +14,8 @@ import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import addressparser from 'nodemailer/lib/addressparser'
+import { getDomain } from 'tldts'
 import {
   agentMailEnvelopeSchema,
   agentMailMessageSchema,
@@ -30,6 +32,7 @@ import {
   readStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { emailDomain } from '@/lib/messaging/email/disposable'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 import type { AgentMailWebhookPayload, RejectionReason } from '@/lib/mothership/inbox/types'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
@@ -163,8 +166,15 @@ export const POST = withRouteHandler(async (req: Request) => {
       return NextResponse.json({ ok: true })
     }
 
-    const fromEmail = extractSenderEmail(message.from) || ''
-    logger.info('Webhook received', { fromEmail, from_raw: message.from, workspaceId: result.id })
+    const sender = parseSender(message.from)
+    const fromEmail = sender.email
+    const senderAuthenticated = isSenderAuthenticated(sender, message)
+    logger.info('Webhook received', {
+      fromEmail,
+      from_raw: message.from,
+      senderAuthenticated,
+      workspaceId: result.id,
+    })
 
     if (result.inboxAddress && fromEmail === result.inboxAddress.toLowerCase()) {
       logger.info('Skipping email from inbox itself', { workspaceId: result.id })
@@ -195,7 +205,7 @@ export const POST = withRouteHandler(async (req: Request) => {
               )
               .limit(1)
           : Promise.resolve([]),
-        isSenderAllowed(fromEmail, result.id),
+        isSenderAllowed(fromEmail, senderAuthenticated, result.id),
         getRecentTaskCount(result.id),
         inReplyTo
           ? db
@@ -235,8 +245,6 @@ export const POST = withRouteHandler(async (req: Request) => {
 
     const chatId = parentTaskResult[0]?.chatId ?? null
 
-    const fromName = extractDisplayName(message.from)
-
     const taskId = generateId()
     const bodyText = message.text?.substring(0, 50_000) || null
     const bodyHtml = message.html?.substring(0, 50_000) || null
@@ -246,7 +254,8 @@ export const POST = withRouteHandler(async (req: Request) => {
       id: taskId,
       workspaceId: result.id,
       fromEmail,
-      fromName,
+      senderAuthenticated,
+      fromName: sender.name,
       subject: message.subject || '(no subject)',
       bodyPreview,
       bodyText,
@@ -307,7 +316,45 @@ export const POST = withRouteHandler(async (req: Request) => {
   }
 })
 
-async function isSenderAllowed(email: string, workspaceId: string): Promise<boolean> {
+/**
+ * Whether the receiving provider proved the sender controls `fromEmail`'s domain.
+ * The From header is written by whoever sends the mail, so a workspace member's
+ * address only identifies that member when this holds.
+ *
+ * AgentMail keeps `spf` only when the envelope domain aligns with the From domain,
+ * and `dmarc` is the From domain's own verdict, so a pass on either is trusted as
+ * given. `dkim` is kept whoever signed, so it counts only when the signing domain
+ * aligns with the From domain the way DMARC's relaxed mode does: one registrable
+ * domain. The delivery's own `unauthenticated` label is not enough: AgentMail
+ * delivers mail without it when an unaligned envelope SPF passes, which any domain
+ * can arrange.
+ */
+function isSenderAuthenticated(
+  sender: ParsedSender,
+  message: AgentMailWebhookPayload['message']
+): boolean {
+  const results = message.authentication_results
+  if (!sender.email || !results) return false
+  if (results.dmarc === 'pass' || results.spf === 'pass') return true
+  if (results.dkim !== 'pass' || !results.dkim_domain) return false
+
+  const fromOrganization = organizationalDomain(emailDomain(sender.email))
+  return (
+    fromOrganization !== null &&
+    fromOrganization === organizationalDomain(emailDomain(results.dkim_domain))
+  )
+}
+
+/** The registrable domain DMARC aligns on; null for a bare public suffix. */
+function organizationalDomain(domain: string): string | null {
+  return getDomain(domain, { allowPrivateDomains: true })
+}
+
+async function isSenderAllowed(
+  email: string,
+  senderAuthenticated: boolean,
+  workspaceId: string
+): Promise<boolean> {
   const [allowedSenderResult, memberResult] = await Promise.all([
     db
       .select({ id: mothershipInboxAllowedSender.id })
@@ -319,18 +366,20 @@ async function isSenderAllowed(email: string, workspaceId: string): Promise<bool
         )
       )
       .limit(1),
-    db
-      .select({ userId: permissions.userId })
-      .from(permissions)
-      .innerJoin(user, eq(permissions.userId, user.id))
-      .where(
-        and(
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workspaceId),
-          sql`lower(${user.email}) = ${email}`
-        )
-      )
-      .limit(1),
+    senderAuthenticated
+      ? db
+          .select({ userId: permissions.userId })
+          .from(permissions)
+          .innerJoin(user, eq(permissions.userId, user.id))
+          .where(
+            and(
+              eq(permissions.entityType, 'workspace'),
+              eq(permissions.entityId, workspaceId),
+              sql`lower(${user.email}) = ${email}`
+            )
+          )
+          .limit(1)
+      : [],
   ])
 
   return !!(allowedSenderResult[0] || memberResult[0])
@@ -356,11 +405,12 @@ async function createRejectedTask(
   message: AgentMailWebhookPayload['message'],
   reason: RejectionReason
 ): Promise<void> {
+  const sender = parseSender(message.from)
   await db.insert(mothershipInboxTask).values({
     id: generateId(),
     workspaceId,
-    fromEmail: extractSenderEmail(message.from) || 'unknown',
-    fromName: extractDisplayName(message.from),
+    fromEmail: sender.email || 'unknown',
+    fromName: sender.name,
     subject: message.subject || '(no subject)',
     bodyPreview: (message.text || '').substring(0, 200) || null,
     emailMessageId: message.message_id,
@@ -371,29 +421,20 @@ async function createRejectedTask(
   })
 }
 
-/**
- * Extract the raw email address from AgentMail's from field.
- * Format: "username@domain.com" or "Display Name <username@domain.com>"
- */
-function extractSenderEmail(from: string): string {
-  const openBracket = from.indexOf('<')
-  const closeBracket = from.indexOf('>', openBracket + 1)
-  if (openBracket !== -1 && closeBracket !== -1) {
-    return from
-      .substring(openBracket + 1, closeBracket)
-      .toLowerCase()
-      .trim()
-  }
-  return from.toLowerCase().trim()
+interface ParsedSender {
+  email: string
+  name: string | null
 }
 
-function extractDisplayName(from: string): string | null {
-  const openBracket = from.indexOf('<')
-  if (openBracket <= 0) return null
-  const name = from.substring(0, openBracket).trim()
-  if (!name) return null
-  if (name.startsWith('"') && name.endsWith('"')) {
-    return name.slice(1, -1) || null
-  }
-  return name
+/**
+ * Parse AgentMail's From field (`addr@domain` or `Display Name <addr@domain>`) per
+ * RFC 5322, so a display name that itself looks like an address — `"<admin@victim>"
+ * <x@attacker>` — is never mistaken for the mailbox. A header naming no mailbox or
+ * several yields no address, so no one of them speaks for the message.
+ */
+function parseSender(from: string): ParsedSender {
+  const mailboxes = addressparser(from, { flatten: true })
+  if (mailboxes.length !== 1) return { email: '', name: null }
+  const [{ address, name }] = mailboxes
+  return { email: address.trim().toLowerCase(), name: name || null }
 }

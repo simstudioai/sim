@@ -122,7 +122,7 @@ async function seedWorkspace(ws: InboxWorkspace): Promise<void> {
   })
 }
 
-/** Delivers a `message.received` webhook to `ws`'s inbox from its owner, signed with its secret. */
+/** Delivers an authenticated `message.received` webhook to `ws`'s inbox from its owner, signed with its secret. */
 async function deliver(
   ws: InboxWorkspace,
   message: { messageId: string; inReplyTo?: string }
@@ -137,6 +137,7 @@ async function deliver(
       to: [ws.inboxId],
       subject: 'Re: quarterly numbers',
       text: 'Please continue this thread.',
+      authentication_results: { dmarc: 'pass' },
       created_at: new Date().toISOString(),
       ...(message.inReplyTo ? { in_reply_to: message.inReplyTo } : {}),
     },

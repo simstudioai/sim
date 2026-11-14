@@ -2117,6 +2117,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'id',
     'workspaceId',
     'fromEmail',
+    'senderAuthenticated',
     'fromName',
     'subject',
     'bodyPreview',

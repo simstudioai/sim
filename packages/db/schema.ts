@@ -8456,6 +8456,8 @@ export const mothershipInboxTask = pgTable(
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
     fromEmail: text('from_email').notNull(),
+    /** Whether the receiving provider authenticated `fromEmail`'s domain (SPF, DKIM, or DMARC). */
+    senderAuthenticated: boolean('sender_authenticated').notNull().default(false),
     fromName: text('from_name'),
     subject: text('subject').notNull(),
     bodyPreview: text('body_preview'),

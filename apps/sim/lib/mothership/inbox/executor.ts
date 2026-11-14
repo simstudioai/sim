@@ -93,7 +93,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
         .set({ status: 'processing', processingStartedAt: new Date() })
         .where(and(eq(mothershipInboxTask.id, taskId), eq(mothershipInboxTask.status, 'received')))
         .returning({ id: mothershipInboxTask.id }),
-      resolveInboxExecutionActor(inboxTask.fromEmail, ws),
+      resolveInboxExecutionActor(inboxTask, ws),
       resolveWorkspaceChatId(inboxTask),
     ])
     const userId = actor.executionUserId
@@ -384,8 +384,10 @@ async function resolveWorkspaceChatId(
 
 /**
  * Resolve the execution and raw-secret actors independently. Workspace members
- * execute and mount secrets as themselves. External senders retain the existing
- * owner execution fallback but receive no raw-secret actor.
+ * whose address the provider authenticated execute and mount secrets as
+ * themselves; an unauthenticated message naming a member is external. External
+ * senders retain the existing owner execution fallback but receive no raw-secret
+ * actor.
  *
  * The owner fallback exists because billing attribution and workspace reads need
  * a real user, not because an unknown sender should act as the owner. A null
@@ -430,15 +432,17 @@ function inboxToolPermission(
 }
 
 async function resolveInboxExecutionActor(
-  senderEmail: string,
+  sender: Pick<InboxTask, 'fromEmail' | 'senderAuthenticated'>,
   ws: { id: string; ownerId: string }
 ): Promise<InboxExecutionActor> {
-  const [matchedUser] = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(sql`lower(${user.email}) = ${senderEmail.toLowerCase()}`)
-    .orderBy(user.createdAt)
-    .limit(1)
+  const [matchedUser] = sender.senderAuthenticated
+    ? await db
+        .select({ id: user.id })
+        .from(user)
+        .where(sql`lower(${user.email}) = ${sender.fromEmail.toLowerCase()}`)
+        .orderBy(user.createdAt)
+        .limit(1)
+    : []
 
   if (matchedUser) {
     const permission = await getUserEntityPermissions(matchedUser.id, 'workspace', ws.id)
