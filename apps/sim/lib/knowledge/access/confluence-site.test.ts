@@ -4,7 +4,9 @@ import {
   credentialsManagedOauthMockFns,
 } from '@sim/testing/mocks/credentials-managed-oauth.mock'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   CONFLUENCE_READ_CREDENTIAL_ALTERNATIVES,
   CONFLUENCE_READ_RESPONSE_MAX_BYTES,
@@ -14,6 +16,7 @@ import { MAX_KNOWLEDGE_ACCESS_CANDIDATES } from '@/lib/knowledge/access/types'
 
 vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
 const mocks = { token: credentialsManagedOauthMockFns.mockResolveManagedOAuthToken, fetch: vi.fn() }
 
@@ -88,6 +91,31 @@ describe('current Confluence site access', () => {
       })
     )
     expect(JSON.stringify(mocks.fetch.mock.calls)).not.toContain(binding.apiToken)
+  })
+
+  describe('with organization egress routing', () => {
+    beforeEach(() => networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true))
+    afterEach(() => {
+      networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
+      networkConfigMockFns.mockResolveOutboundRoute.mockResolvedValue({ kind: 'direct' })
+    })
+
+    it("reaches Confluence from the knowledge base owner's route when the caller set none", async () => {
+      queueSources()
+      await expect(resolveConfluenceSiteReadGrants(input)).resolves.toEqual([grant])
+      expect(networkConfigMockFns.mockResolveOutboundRoute).toHaveBeenCalledWith('org-1')
+    })
+
+    it('fails the admission on an unavailable route instead of denying the site', async () => {
+      queueSources()
+      networkConfigMockFns.mockResolveOutboundRoute.mockRejectedValue(
+        new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+      )
+      await expect(resolveConfluenceSiteReadGrants(input)).rejects.toBeInstanceOf(
+        OutboundRoutingError
+      )
+      expect(mocks.fetch).not.toHaveBeenCalled()
+    })
   })
 
   it('denies newly revoked site access even if a direct space grant remains indexed', async () => {
