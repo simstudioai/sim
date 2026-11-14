@@ -147,7 +147,7 @@ function resolveBedrockClientCredentials(request: ProviderRequest): {
       return {
         credentials: { accessKeyId, secretAccessKey, sessionToken },
         credentialKey: null,
-        requestHandler: organizationAwsRequestHandler(),
+        requestHandler: organizationAwsRequestHandler({ http2: true }),
       }
     }
     return {
@@ -157,7 +157,7 @@ function resolveBedrockClientCredentials(request: ProviderRequest): {
         session.credentialId,
         sha256Hex([accessKeyId, secretAccessKey].join('\0')),
       ].join(':'),
-      requestHandler: organizationAwsRequestHandler(),
+      requestHandler: organizationAwsRequestHandler({ http2: true }),
     }
   }
 
@@ -179,7 +179,7 @@ function resolveBedrockClientCredentials(request: ProviderRequest): {
         secretAccessKey: request.bedrockSecretKey,
       },
       credentialKey: `${request.bedrockAccessKeyId}:${request.bedrockSecretKey}`,
-      requestHandler: organizationAwsRequestHandler(),
+      requestHandler: organizationAwsRequestHandler({ http2: true }),
     }
   }
   // The deployment's own credentials stay on Sim's network, never an organization's route.

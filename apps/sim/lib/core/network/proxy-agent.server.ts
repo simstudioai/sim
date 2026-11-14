@@ -46,11 +46,8 @@ class EnvironmentProxyAgent extends Agent {
 
 let sharedAgent: EnvironmentProxyAgent | null = null
 
-/**
- * The process-wide {@link EnvironmentProxyAgent}. Without a configured proxy every connection
- * takes its direct keep-alive agent.
- */
-export function environmentProxyAgent(): EnvironmentProxyAgent {
+/** The process-wide {@link EnvironmentProxyAgent}; only meaningful while a proxy is configured. */
+function environmentProxyAgent(): EnvironmentProxyAgent {
   sharedAgent ??= new EnvironmentProxyAgent(AGENT_OPTIONS)
   return sharedAgent
 }
