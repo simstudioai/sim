@@ -44,7 +44,9 @@ const SCAN_DIRS = [
   'apps/sim/lib/managed-agents',
   'apps/sim/lib/media',
   'apps/sim/lib/oauth',
+  'apps/sim/lib/provider-models',
   'apps/sim/lib/selectors',
+  'apps/sim/lib/wand',
   'apps/sim/lib/webhooks',
 ]
 
