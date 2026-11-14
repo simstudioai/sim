@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { getCACertificates, setDefaultCACertificates } from 'node:tls'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts'
 import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { OutboundGateway, ResolvedOutboundRoute } from '@/lib/core/network/config.server'
@@ -20,6 +21,7 @@ vi.mock('@sim/security/dns', async (importOriginal) => ({
 
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { openGatewayTunnel, secureOutboundTunnel } from '@/lib/core/network/gateway.server'
+import { organizationAwsRequestHandler } from '@/lib/core/network/organization-aws-handler.server'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   createPinnedFetchWithDispatcher,
@@ -317,6 +319,45 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
       { token: 'Bearer bravo', destination: '1.1.1.1:443', sni: 'gateway.invalid' },
     ])
   })
+  describe('AWS SDK clients signing with customer credentials', () => {
+    const sts = new STSClient({
+      region: 'us-east-1',
+      endpoint: url(),
+      maxAttempts: 1,
+      credentials: { accessKeyId: 'AKIDEXAMPLE', secretAccessKey: 'secret' },
+      requestHandler: organizationAwsRequestHandler(),
+    })
+    afterAll(() => sts.destroy())
+
+    /** The origin echoes the signed query body, which STS cannot parse; only the route matters. */
+    const viaProxy = async (organizationId: string) => {
+      const error = await runWithOutboundOrganization(organizationId, () =>
+        sts.send(new GetCallerIdentityCommand({}))
+      ).then(
+        () => undefined,
+        (failure: { $response?: { headers: Record<string, string> } }) => failure
+      )
+      return error?.$response?.headers['x-via-proxy']
+    }
+
+    it("sends a request through the organization's gateway", async () => {
+      const start = admissions.length
+      expect(await viaProxy('org_a')).toBe('yes')
+      expect(admissions.slice(start)).toEqual([
+        { token: 'Bearer alpha', destination: '1.1.1.1:443', sni: 'gateway.invalid' },
+      ])
+    })
+
+    it("never reuses one organization's pooled socket for another", async () => {
+      expect(await viaProxy('org_a')).toBe('yes')
+      const start = admissions.length
+      expect(await viaProxy('org_b')).toBe('yes')
+      expect(await viaProxy('org_a')).toBe('yes')
+      expect(await viaProxy('org_b')).toBe('yes')
+      expect(admissions.slice(start).map((entry) => entry.token)).toEqual(['Bearer bravo'])
+    })
+  })
+
   it('fails closed on denied proxy credentials without contacting the origin', async () => {
     state.gateways.set('denied', {
       ...state.gateways.get('org_a')!,

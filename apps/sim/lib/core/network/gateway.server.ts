@@ -127,6 +127,44 @@ function getErrorCode(error: Error | undefined): string | undefined {
   return typeof code === 'string' ? code : undefined
 }
 
+/**
+ * Opens a TLS connection to `target` through `gateway` after the egress policy approves it:
+ * HTTPS on 443 only, judged against `profile` (or the already resolved `resolvedIP`). Every
+ * failure is an {@link OutboundRoutingError}, so no gateway detail reaches the caller.
+ */
+export async function connectThroughGateway(
+  gateway: OutboundGateway,
+  target: { protocol: string; hostname: string; port: number },
+  options: { profile: EgressProfile; resolvedIP?: string }
+): Promise<Socket> {
+  try {
+    const hostname = target.hostname.replace(/^\[|\]$/g, '')
+    if (target.protocol !== 'https:' || target.port !== 443) {
+      throw new OutboundRoutingError('UNSUPPORTED_TRANSPORT')
+    }
+    const authority = isIP(hostname) === 6 ? `[${hostname}]` : hostname
+    const url = new URL(`https://${authority}:${target.port}`)
+    let address = options.resolvedIP
+    if (address) {
+      if (!checkResolvedEgress(url, address, options.profile).allowed) {
+        throw new OutboundRoutingError('ROUTE_BLOCKED')
+      }
+    } else {
+      const result = await validateEgressUrl(url.href, 'url', options.profile, {
+        logDetails: false,
+      })
+      if (!result.isValid) throw new OutboundRoutingError('ROUTE_BLOCKED')
+      address = result.resolvedIP
+    }
+    const socket = await openGatewayTunnel(gateway, address, target.port)
+    return await secureOutboundTunnel(socket, hostname, target.port)
+  } catch (error) {
+    throw error instanceof OutboundRoutingError
+      ? error
+      : new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+  }
+}
+
 /** A dispatcher belongs to one organization and gateway, never a process-wide default. */
 export function createGatewayDispatcher(
   gateway: OutboundGateway,
@@ -136,37 +174,17 @@ export function createGatewayDispatcher(
     allowH2: false,
     ...(options.maxResponseSize !== undefined ? { maxResponseSize: options.maxResponseSize } : {}),
     connect(connection, callback) {
-      const port = Number(connection.port || (connection.protocol === 'https:' ? 443 : 80))
-      const hostname = connection.hostname.replace(/^\[|\]$/g, '')
-      const authority = isIP(hostname) === 6 ? `[${hostname}]` : hostname
-      const url = new URL(`${connection.protocol}//${authority}:${port}`)
-      void (async () => {
-        if (connection.protocol !== 'https:' || port !== 443) {
-          throw new OutboundRoutingError('UNSUPPORTED_TRANSPORT')
-        }
-        let address = options.resolvedIP
-        if (address) {
-          if (!checkResolvedEgress(url, address, options.profile).allowed) {
-            throw new OutboundRoutingError('ROUTE_BLOCKED')
-          }
-        } else {
-          const result = await validateEgressUrl(url.href, 'url', options.profile, {
-            logDetails: false,
-          })
-          if (!result.isValid) throw new OutboundRoutingError('ROUTE_BLOCKED')
-          address = result.resolvedIP
-        }
-        const socket = await openGatewayTunnel(gateway, address, port)
-        return secureOutboundTunnel(socket, hostname, port)
-      })().then(
+      connectThroughGateway(
+        gateway,
+        {
+          protocol: connection.protocol,
+          hostname: connection.hostname,
+          port: Number(connection.port || (connection.protocol === 'https:' ? 443 : 80)),
+        },
+        options
+      ).then(
         (socket) => callback(null, socket),
-        (error) =>
-          callback(
-            error instanceof OutboundRoutingError
-              ? error
-              : new OutboundRoutingError('GATEWAY_UNAVAILABLE'),
-            null
-          )
+        (error: OutboundRoutingError) => callback(error, null)
       )
     },
   })
