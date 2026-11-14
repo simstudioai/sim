@@ -5394,7 +5394,7 @@
         },
         {
           "name": "Get Tasks",
-          "description": "List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)"
+          "description": "List the tasks in a ClickUp list (100 tasks per page; increment page until lastPage is true to paginate)"
         },
         {
           "name": "Search Tasks",
@@ -5683,7 +5683,7 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "ticketing", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-14"
     },
     {
       "type": "cloudflare_v2",
@@ -19667,7 +19667,7 @@
       "category": "tools",
       "integrationType": "commerce",
       "tags": ["automation", "data-analytics"],
-      "updatedAt": "2026-11-14"
+      "updatedAt": "2026-10-17"
     },
     {
       "type": "netsuite",
@@ -28609,7 +28609,7 @@
         },
         {
           "name": "Introspect Schema",
-          "description": "Introspect Supabase database schema from its OpenAPI spec to get table and column structures (best-effort primary/foreign key detection)"
+          "description": "Introspect Supabase database schema from its OpenAPI spec to get table and column structures, primary keys, and foreign keys"
         },
         {
           "name": "Storage: Upload File",
@@ -28676,7 +28676,7 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["cloud", "data-warehouse", "vector-search"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-14"
     },
     {
       "type": "tailscale_v2",

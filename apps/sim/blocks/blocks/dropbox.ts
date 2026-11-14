@@ -3,7 +3,7 @@ import { DropboxIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, toolCallArg } from '@/blocks/utils'
 
 /*
  * Canonical basic/advanced pair for the upload source, shared by the card
@@ -191,6 +191,14 @@ export const DropboxBlock = {
       condition: { field: 'operation', value: 'dropbox_list_folder' },
     },
     {
+      id: 'listFolderCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor from a previous call, to fetch the next page',
+      condition: { field: 'operation', value: 'dropbox_list_folder' },
+      mode: 'advanced',
+    },
+    {
       id: 'path',
       title: 'Folder Path',
       type: 'short-input',
@@ -348,6 +356,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'dropbox_search' },
     },
     {
+      id: 'searchCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor from a previous call, to fetch the next page',
+      condition: { field: 'operation', value: 'dropbox_search' },
+      mode: 'advanced',
+    },
+    {
       id: 'path',
       title: 'Path',
       type: 'short-input',
@@ -459,8 +475,15 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'dropbox_upload'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
+        const operation = params.operation ?? context?.operation
+        // `cursor` is List Shared Links' field; List Folder and Search page with their own
+        if (operation === 'dropbox_list_folder') {
+          result.cursor = params.listFolderCursor || toolCallArg(context, params.cursor)
+        } else if (operation === 'dropbox_search') {
+          result.cursor = params.searchCursor || toolCallArg(context, params.cursor)
+        }
         if (params.limit) result.limit = Number(params.limit)
         if (params.maxResults) result.maxResults = Number(params.maxResults)
         const normalizedFile = normalizeFileInput(params.file, { single: true })
@@ -494,6 +517,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     maxResults: { type: 'number', description: 'Maximum search results' },
     directOnly: { type: 'boolean', description: 'Only return direct links, not parent folders' },
     cursor: { type: 'string', description: 'Fetch the next page of shared links (pagination)' },
+    listFolderCursor: {
+      type: 'string',
+      description: 'Fetch the next page of folder entries (pagination)',
+    },
+    searchCursor: { type: 'string', description: 'Fetch the next page of search results' },
     beforeRev: { type: 'string', description: 'Fetch revisions before this one (pagination)' },
     rev: { type: 'string', description: 'Revision identifier to restore' },
   },

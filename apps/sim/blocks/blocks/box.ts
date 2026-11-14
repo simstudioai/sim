@@ -3,7 +3,7 @@ import { BoxCompanyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, toolCallArg } from '@/blocks/utils'
 
 /** Canonical pair for the upload payload: file picker in basic mode, file reference in advanced. */
 const UPLOAD_FILE_FIELD = ['uploadFile', 'fileRef'] as const
@@ -327,6 +327,21 @@ export const BoxBlock = {
       condition: { field: 'operation', value: 'list_folder_items' },
       mode: 'advanced',
     },
+    {
+      id: 'usemarker',
+      title: 'Use Marker Pagination',
+      type: 'switch',
+      condition: { field: 'operation', value: 'list_folder_items' },
+      mode: 'advanced',
+    },
+    {
+      id: 'folderMarker',
+      title: 'Pagination Marker',
+      type: 'short-input',
+      placeholder: 'nextMarker from a previous response',
+      condition: { field: 'operation', value: 'list_folder_items' },
+      mode: 'advanced',
+    },
 
     // Sign Request fields
     {
@@ -514,7 +529,7 @@ export const BoxBlock = {
         }
         return `box_${op}`
       },
-      params: (params) => {
+      params: (params, context) => {
         const normalizedFile = normalizeFileInput(params.file, { single: true })
         if (normalizedFile) {
           params.file = normalizedFile
@@ -542,9 +557,11 @@ export const BoxBlock = {
             if (rest.offset) baseParams.offset = Number(rest.offset)
             if (rest.sort) baseParams.sort = rest.sort
             if (rest.direction) baseParams.direction = rest.direction
+            baseParams.usemarker = rest.usemarker === true || rest.usemarker === 'true' || undefined
+            baseParams.marker = rest.folderMarker || toolCallArg(context, rest.marker)
             break
           case 'create_folder':
-            baseParams.name = rest.folderName
+            baseParams.name = rest.folderName || toolCallArg(context, rest.name)
             baseParams.parentFolderId = rest.parentFolderId
             break
           case 'delete_folder':

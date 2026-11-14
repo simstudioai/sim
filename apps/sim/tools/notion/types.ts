@@ -436,6 +436,8 @@ export interface NotionReadParams {
 export interface NotionResponse extends ToolResponse {
   output: {
     content: string
+    /** Set by the page reader when content stops at its block cap. */
+    truncated?: boolean
     metadata?: {
       title?: string
       lastEditedTime?: string

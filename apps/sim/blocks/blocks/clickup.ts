@@ -2,7 +2,12 @@ import { ClickUpIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import {
+  isToolCall,
+  normalizeFileInput,
+  parseOptionalBooleanInput,
+  toolCallArg,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const TIMESTAMP_WAND_PROMPT = `Generate a Unix timestamp in milliseconds based on the user's description.
@@ -13,12 +18,17 @@ Examples:
 
 Return ONLY the numeric timestamp in milliseconds - no explanations, no quotes, no extra text.`
 
+/**
+ * Splits a comma-separated block input into trimmed values. An array (the shape a model
+ * sends for the tool's array params on a tool call) is accepted as already split.
+ */
 function splitCommaSeparated(value: unknown): string[] | undefined {
-  if (typeof value !== 'string') return undefined
-  const parts = value
-    .split(',')
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0)
+  const rawParts = Array.isArray(value)
+    ? value.filter((part) => typeof part === 'string' || typeof part === 'number').map(String)
+    : typeof value === 'string'
+      ? value.split(',')
+      : []
+  const parts = rawParts.map((part) => part.trim()).filter((part) => part.length > 0)
   return parts.length > 0 ? parts : undefined
 }
 
@@ -881,6 +891,74 @@ export const ClickUpBlock: BlockConfig = {
       },
     },
     {
+      id: 'dateCreatedGt',
+      title: 'Created After',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Unix timestamp in milliseconds',
+      condition: {
+        field: 'operation',
+        value: ['get_tasks', 'search_tasks'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: TIMESTAMP_WAND_PROMPT,
+        placeholder: 'Describe the earliest creation date (e.g., "start of this week")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'dateCreatedLt',
+      title: 'Created Before',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Unix timestamp in milliseconds',
+      condition: {
+        field: 'operation',
+        value: ['get_tasks', 'search_tasks'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: TIMESTAMP_WAND_PROMPT,
+        placeholder: 'Describe the latest creation date (e.g., "yesterday")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'dateUpdatedGt',
+      title: 'Updated After',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Unix timestamp in milliseconds',
+      condition: {
+        field: 'operation',
+        value: ['get_tasks', 'search_tasks'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: TIMESTAMP_WAND_PROMPT,
+        placeholder: 'Describe the earliest update time (e.g., "1 hour ago")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'dateUpdatedLt',
+      title: 'Updated Before',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: 'Unix timestamp in milliseconds',
+      condition: {
+        field: 'operation',
+        value: ['get_tasks', 'search_tasks'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: TIMESTAMP_WAND_PROMPT,
+        placeholder: 'Describe the latest update time (e.g., "now")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
       id: 'listIds',
       title: 'List IDs',
       type: 'short-input',
@@ -1398,7 +1476,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
     ],
     config: {
       tool: (params) => `clickup_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const { oauthCredential, operation } = params
 
         const baseParams = {
@@ -1407,6 +1485,25 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
 
         const priorityValue =
           params.priority && params.priority !== 'none' ? Number(params.priority) : undefined
+
+        /**
+         * On a tool call the model's args arrive under the tool's param names, so a value
+         * collected by a differently named sub-block falls back to the model's arg there.
+         */
+        const workspaceId = params.teamId || toolCallArg(context, params.workspaceId) || undefined
+        const resolvedFlag =
+          params.resolvedAction === 'resolve'
+            ? true
+            : params.resolvedAction === 'unresolve'
+              ? false
+              : toolCallArg(context, parseOptionalBooleanInput(params.resolved))
+        const billable =
+          billableFromAction(params.billableAction) ??
+          toolCallArg(context, parseOptionalBooleanInput(params.billable))
+        const timerTaskId = params.timerTaskId || toolCallArg(context, params.taskId) || undefined
+        const entryDescription =
+          params.entryDescription || toolCallArg(context, params.description) || undefined
+        const listSpaceId = params.listSpaceId || toolCallArg(context, params.spaceId) || undefined
 
         switch (operation) {
           case 'create_task':
@@ -1471,7 +1568,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
                   ? true
                   : params.archiveAction === 'unarchive'
                     ? false
-                    : undefined,
+                    : toolCallArg(context, parseOptionalBooleanInput(params.archived)),
             }
           case 'delete_task':
             return {
@@ -1494,11 +1591,15 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
               tags: splitCommaSeparated(params.tags),
               dueDateGt: optionalNumber(params.dueDateGt),
               dueDateLt: optionalNumber(params.dueDateLt),
+              dateCreatedGt: optionalNumber(params.dateCreatedGt),
+              dateCreatedLt: optionalNumber(params.dateCreatedLt),
+              dateUpdatedGt: optionalNumber(params.dateUpdatedGt),
+              dateUpdatedLt: optionalNumber(params.dateUpdatedLt),
             }
           case 'search_tasks':
             return {
               ...baseParams,
-              workspaceId: params.teamId,
+              workspaceId,
               page: optionalNumber(params.page),
               orderBy: params.orderBy && params.orderBy !== 'none' ? params.orderBy : undefined,
               reverse: params.reverse ? true : undefined,
@@ -1513,13 +1614,19 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
               tags: splitCommaSeparated(params.tags),
               dueDateGt: optionalNumber(params.dueDateGt),
               dueDateLt: optionalNumber(params.dueDateLt),
+              dateCreatedGt: optionalNumber(params.dateCreatedGt),
+              dateCreatedLt: optionalNumber(params.dateCreatedLt),
+              dateUpdatedGt: optionalNumber(params.dateUpdatedGt),
+              dateUpdatedLt: optionalNumber(params.dateUpdatedLt),
             }
           case 'create_comment':
             return {
               ...baseParams,
               taskId: params.taskId,
               commentText: params.commentText,
-              assignee: optionalNumber(params.commentAssignee),
+              assignee:
+                optionalNumber(params.commentAssignee) ??
+                toolCallArg(context, optionalNumber(params.assignee)),
               notifyAll: params.notifyAll ? true : undefined,
             }
           case 'get_comments':
@@ -1534,13 +1641,10 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
               ...baseParams,
               commentId: params.commentId,
               commentText: params.commentText || undefined,
-              assignee: optionalNumber(params.commentAssignee),
-              resolved:
-                params.resolvedAction === 'resolve'
-                  ? true
-                  : params.resolvedAction === 'unresolve'
-                    ? false
-                    : undefined,
+              assignee:
+                optionalNumber(params.commentAssignee) ??
+                toolCallArg(context, optionalNumber(params.assignee)),
+              resolved: resolvedFlag,
             }
           case 'delete_comment':
             return {
@@ -1592,7 +1696,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
           case 'get_spaces':
             return {
               ...baseParams,
-              workspaceId: params.teamId,
+              workspaceId,
               archived: params.archived ? true : undefined,
             }
           case 'get_folders':
@@ -1605,7 +1709,8 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
             return {
               ...baseParams,
               folderId: params.listParent === 'space' ? undefined : params.folderId || undefined,
-              spaceId: params.listParent === 'space' ? params.listSpaceId || undefined : undefined,
+              spaceId:
+                params.listParent === 'space' ? listSpaceId : toolCallArg(context, listSpaceId),
               archived: params.archived ? true : undefined,
             }
           case 'create_folder':
@@ -1618,7 +1723,8 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
             return {
               ...baseParams,
               folderId: params.listParent === 'space' ? undefined : params.folderId || undefined,
-              spaceId: params.listParent === 'space' ? params.listSpaceId || undefined : undefined,
+              spaceId:
+                params.listParent === 'space' ? listSpaceId : toolCallArg(context, listSpaceId),
               name: params.name,
               content: params.content || undefined,
               markdownContent: params.markdownContent || undefined,
@@ -1628,7 +1734,10 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
               ...baseParams,
               taskId: params.taskId,
               fieldId: params.fieldId,
-              value: parseCustomFieldValue(params.fieldValue),
+              value:
+                isToolCall(context) && (params.fieldValue === undefined || params.fieldValue === '')
+                  ? params.value
+                  : parseCustomFieldValue(params.fieldValue),
             }
           case 'remove_custom_field_value':
             return {
@@ -1659,7 +1768,9 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
               ...baseParams,
               checklistId: params.checklistId,
               name: params.name,
-              assignee: optionalNumber(params.itemAssignee),
+              assignee:
+                optionalNumber(params.itemAssignee) ??
+                toolCallArg(context, optionalNumber(params.assignee)),
             }
           case 'update_checklist_item':
             return {
@@ -1667,14 +1778,11 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
               checklistId: params.checklistId,
               checklistItemId: params.checklistItemId,
               name: params.name || undefined,
-              assignee: optionalNumber(params.itemAssignee),
-              resolved:
-                params.resolvedAction === 'resolve'
-                  ? true
-                  : params.resolvedAction === 'unresolve'
-                    ? false
-                    : undefined,
-              parent: params.itemParent || undefined,
+              assignee:
+                optionalNumber(params.itemAssignee) ??
+                toolCallArg(context, optionalNumber(params.assignee)),
+              resolved: resolvedFlag,
+              parent: params.itemParent || toolCallArg(context, params.parent) || undefined,
             }
           case 'delete_checklist_item':
             return {
@@ -1685,73 +1793,96 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
           case 'get_time_entries':
             return {
               ...baseParams,
-              workspaceId: params.teamId,
-              startDate: optionalNumber(params.timeStartDate),
-              endDate: optionalNumber(params.timeEndDate),
-              assignee: params.timerAssignee || undefined,
+              workspaceId,
+              startDate:
+                optionalNumber(params.timeStartDate) ??
+                toolCallArg(context, optionalNumber(params.startDate)),
+              endDate:
+                optionalNumber(params.timeEndDate) ??
+                toolCallArg(context, optionalNumber(params.endDate)),
+              assignee: params.timerAssignee || toolCallArg(context, params.assignee) || undefined,
               taskId:
-                params.timeLocationType === 'task' ? params.timeLocationId || undefined : undefined,
+                params.timeLocationType === 'task'
+                  ? params.timeLocationId || undefined
+                  : toolCallArg(context, params.taskId) || undefined,
               listId:
-                params.timeLocationType === 'list' ? params.timeLocationId || undefined : undefined,
+                params.timeLocationType === 'list'
+                  ? params.timeLocationId || undefined
+                  : toolCallArg(context, params.listId) || undefined,
               folderId:
                 params.timeLocationType === 'folder'
                   ? params.timeLocationId || undefined
-                  : undefined,
+                  : toolCallArg(context, params.folderId) || undefined,
               spaceId:
                 params.timeLocationType === 'space'
                   ? params.timeLocationId || undefined
-                  : undefined,
+                  : toolCallArg(context, params.spaceId) || undefined,
               includeTaskTags: params.includeTaskTags ? true : undefined,
               includeLocationNames: params.includeLocationNames ? true : undefined,
             }
           case 'create_time_entry':
             return {
               ...baseParams,
-              workspaceId: params.teamId,
-              start: optionalNumber(params.entryStart),
-              duration: optionalNumber(params.entryDuration),
-              description: params.entryDescription || undefined,
-              billable: billableFromAction(params.billableAction),
-              taskId: params.timerTaskId || undefined,
-              assignee: optionalNumber(params.entryAssignee),
+              workspaceId,
+              start:
+                optionalNumber(params.entryStart) ??
+                toolCallArg(context, optionalNumber(params.start)),
+              duration:
+                optionalNumber(params.entryDuration) ??
+                toolCallArg(context, optionalNumber(params.duration)),
+              description: entryDescription,
+              billable,
+              taskId: timerTaskId,
+              assignee:
+                optionalNumber(params.entryAssignee) ??
+                toolCallArg(context, optionalNumber(params.assignee)),
             }
           case 'update_time_entry':
             return {
               ...baseParams,
-              workspaceId: params.teamId,
+              workspaceId,
               timerId: params.timerId,
-              description: params.entryDescription || undefined,
-              start: optionalNumber(params.entryStart),
-              end: optionalNumber(params.entryEnd),
-              duration: optionalNumber(params.entryDuration),
-              taskId: params.timerTaskId || undefined,
-              billable: billableFromAction(params.billableAction),
+              description: entryDescription,
+              start:
+                optionalNumber(params.entryStart) ??
+                toolCallArg(context, optionalNumber(params.start)),
+              end:
+                optionalNumber(params.entryEnd) ?? toolCallArg(context, optionalNumber(params.end)),
+              duration:
+                optionalNumber(params.entryDuration) ??
+                toolCallArg(context, optionalNumber(params.duration)),
+              taskId: timerTaskId,
+              billable,
             }
           case 'delete_time_entry':
             return {
               ...baseParams,
-              workspaceId: params.teamId,
+              workspaceId,
               timerId: params.timerId,
             }
           case 'start_timer':
             return {
               ...baseParams,
-              workspaceId: params.teamId,
-              taskId: params.timerTaskId || undefined,
-              description: params.entryDescription || undefined,
-              billable: billableFromAction(params.billableAction),
-              tags: splitCommaSeparated(params.timerTags),
+              workspaceId,
+              taskId: timerTaskId,
+              description: entryDescription,
+              billable,
+              tags:
+                splitCommaSeparated(params.timerTags) ??
+                toolCallArg(context, splitCommaSeparated(params.tags)),
             }
           case 'stop_timer':
             return {
               ...baseParams,
-              workspaceId: params.teamId,
+              workspaceId,
             }
           case 'get_running_timer':
             return {
               ...baseParams,
-              workspaceId: params.teamId,
-              assignee: optionalNumber(params.entryAssignee),
+              workspaceId,
+              assignee:
+                optionalNumber(params.entryAssignee) ??
+                toolCallArg(context, optionalNumber(params.assignee)),
             }
           default:
             return baseParams
@@ -1811,6 +1942,22 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
     statuses: { type: 'string', description: 'Comma-separated status filters' },
     dueDateGt: { type: 'string', description: 'Only tasks due after this Unix ms timestamp' },
     dueDateLt: { type: 'string', description: 'Only tasks due before this Unix ms timestamp' },
+    dateCreatedGt: {
+      type: 'string',
+      description: 'Only tasks created after this Unix ms timestamp',
+    },
+    dateCreatedLt: {
+      type: 'string',
+      description: 'Only tasks created before this Unix ms timestamp',
+    },
+    dateUpdatedGt: {
+      type: 'string',
+      description: 'Only tasks updated after this Unix ms timestamp',
+    },
+    dateUpdatedLt: {
+      type: 'string',
+      description: 'Only tasks updated before this Unix ms timestamp',
+    },
     listIds: { type: 'string', description: 'Comma-separated list ID filters' },
     spaceIds: { type: 'string', description: 'Comma-separated space ID filters' },
     folderIds: { type: 'string', description: 'Comma-separated folder ID filters' },
@@ -1864,6 +2011,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
   outputs: {
     task: { type: 'json', description: 'Task details' },
     tasks: { type: 'json', description: 'Array of tasks' },
+    lastPage: { type: 'boolean', description: 'Whether Get Tasks returned the last page' },
     comments: { type: 'json', description: 'Array of comments' },
     id: { type: 'string', description: 'ID of the affected resource' },
     histId: { type: 'string', description: 'History ID of the created comment' },

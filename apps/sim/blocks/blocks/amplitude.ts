@@ -574,7 +574,7 @@ export const AmplitudeBlock: BlockConfig = {
       id: 'segmentationLimit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: 'Max group-by values (max 1000)',
+      placeholder: 'Max group-by values (default 1000, max 20000)',
       condition: { field: 'operation', value: 'event_segmentation' },
       mode: 'advanced',
     },
@@ -608,6 +608,14 @@ export const AmplitudeBlock: BlockConfig = {
         value: 'event_segmentation',
         and: { field: 'segmentationMetric', value: 'formula' },
       },
+      mode: 'advanced',
+    },
+    {
+      id: 'segmentationSecondEventType',
+      title: 'Second Event Type',
+      type: 'short-input',
+      placeholder: 'Event B for a formula, e.g. UNIQUES(A)/UNIQUES(B)',
+      condition: { field: 'operation', value: 'event_segmentation' },
       mode: 'advanced',
     },
     {
@@ -1033,6 +1041,8 @@ export const AmplitudeBlock: BlockConfig = {
 
           case 'event_segmentation':
             if (params.segmentationEventType) result.eventType = params.segmentationEventType
+            if (params.segmentationSecondEventType)
+              result.secondEventType = params.segmentationSecondEventType
             if (params.segmentationStart) result.start = params.segmentationStart
             if (params.segmentationEnd) result.end = params.segmentationEnd
             if (params.segmentationMetric) result.metric = params.segmentationMetric
@@ -1122,6 +1132,10 @@ export const AmplitudeBlock: BlockConfig = {
     dataResidency: { type: 'string', description: 'Data residency region: "us" or "eu"' },
     segmentationFilters: { type: 'string', description: 'Event segmentation filters JSON' },
     segmentationFormula: { type: 'string', description: 'Event segmentation formula expression' },
+    segmentationSecondEventType: {
+      type: 'string',
+      description: 'Event segmentation second event type (e2)',
+    },
     segmentationGroupBy2: {
       type: 'string',
       description: 'Event segmentation second group-by property',

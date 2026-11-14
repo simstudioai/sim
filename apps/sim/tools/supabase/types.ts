@@ -163,16 +163,15 @@ export const INTROSPECT_COLUMN_OUTPUT_PROPERTIES = {
   default: { type: 'string', description: 'Default value for the column', optional: true },
   isPrimaryKey: {
     type: 'boolean',
-    description: 'Best-effort guess based on the column being named "id" (not authoritative)',
+    description: 'Whether the column is part of the table primary key',
   },
   isForeignKey: {
     type: 'boolean',
-    description:
-      'True only if the column has a "references table.column" SQL comment; most databases will show false even for real foreign keys',
+    description: 'Whether the column is a foreign key to another table',
   },
   references: {
     type: 'object',
-    description: 'Foreign key reference details, when detected via SQL comment',
+    description: 'Foreign key reference details',
     optional: true,
     properties: INTROSPECT_REFERENCE_OUTPUT_PROPERTIES,
   },

@@ -1,7 +1,92 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { NotionReadParams, NotionResponse } from '@/tools/notion/types'
 import { PAGE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import { extractTitle } from '@/tools/notion/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+
+/** Children pages fetched per read: 10 pages of 100 top-level blocks. */
+const MAX_BLOCK_CHILDREN_PAGES = 10
+
+interface PageBlocks {
+  blocks: unknown[]
+  /** True when the page has more top-level blocks than {@link MAX_BLOCK_CHILDREN_PAGES} pages hold. */
+  truncated: boolean
+}
+
+/**
+ * Fetch a page's top-level blocks, following `has_more`/`next_cursor` up to
+ * {@link MAX_BLOCK_CHILDREN_PAGES} pages. Returns null when the first page fails, so the
+ * read still returns the page metadata as it always has. A failure on a later page
+ * throws rather than returning partial content that would look complete.
+ */
+async function fetchPageBlocks(
+  pageId: string,
+  accessToken: string,
+  signal?: AbortSignal
+): Promise<PageBlocks | null> {
+  const blocks: unknown[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < MAX_BLOCK_CHILDREN_PAGES; page++) {
+    const url = new URL(`https://api.notion.com/v1/blocks/${pageId}/children`)
+    url.searchParams.set('page_size', '100')
+    if (cursor) url.searchParams.set('start_cursor', cursor)
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json',
+      },
+      signal,
+    })
+    if (!response.ok) {
+      if (page === 0) return null
+      throw new Error(
+        `Failed to read page content after ${blocks.length} blocks: Notion returned ${response.status}`
+      )
+    }
+
+    const data = await response.json()
+    blocks.push(...(data.results ?? []))
+    if (!data.has_more || !data.next_cursor) return { blocks, truncated: false }
+    cursor = data.next_cursor
+  }
+  return { blocks, truncated: true }
+}
+
+const TRUNCATED_OUTPUT = {
+  type: 'boolean',
+  description: `True when the page has more than ${MAX_BLOCK_CHILDREN_PAGES * 100} top-level blocks and content stops there`,
+  optional: true,
+} as const
+
+const MARKDOWN_PREFIX: Record<string, string> = {
+  paragraph: '',
+  heading_1: '# ',
+  heading_2: '## ',
+  heading_3: '### ',
+  bulleted_list_item: '• ',
+  numbered_list_item: '1. ',
+}
+
+/** Render supported top-level block types as markdown; other types are skipped. */
+function blocksToMarkdown(blocks: unknown[]): string {
+  return blocks
+    .map((block) => {
+      if (!isRecordLike(block) || typeof block.type !== 'string') return ''
+      const value = block[block.type]
+      if (!isRecordLike(value) || !Array.isArray(value.rich_text)) return ''
+      const text = value.rich_text
+        .map((item: unknown) => (isRecordLike(item) ? String(item.plain_text ?? '') : ''))
+        .join('')
+      if (block.type === 'to_do') return `${value.checked ? '[x]' : '[ ]'} ${text}`
+      const prefix = MARKDOWN_PREFIX[block.type]
+      return prefix === undefined ? '' : `${prefix}${text}`
+    })
+    .filter(Boolean)
+    .join('\n\n')
+}
 
 export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
   id: 'notion_read',
@@ -48,7 +133,11 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
     },
   },
 
-  transformResponse: async (response: Response, params?: NotionReadParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: NotionReadParams,
+    context?: ToolResponseContext
+  ) => {
     const data = await response.json()
     const pageTitle = extractTitle(data.properties ?? {}) || 'Untitled'
 
@@ -71,20 +160,8 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       }
     }
 
-    // Fetch page content using blocks endpoint
-    const blocksResponse = await fetch(
-      `https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Notion-Version': '2022-06-28',
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    if (!blocksResponse.ok) {
+    const pageBlocks = await fetchPageBlocks(pageId, accessToken, context?.signal)
+    if (!pageBlocks) {
       // If we can't get blocks, still return the page metadata
       return {
         success: true,
@@ -100,43 +177,13 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       }
     }
 
-    const blocksData = await blocksResponse.json()
-
-    // Extract text content from blocks
-    const blocks = blocksData.results || []
-    const content = blocks
-      .map((block: any) => {
-        if (block.type === 'paragraph') {
-          return block.paragraph.rich_text.map((text: any) => text.plain_text).join('')
-        }
-        if (block.type === 'heading_1') {
-          return `# ${block.heading_1.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'heading_2') {
-          return `## ${block.heading_2.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'heading_3') {
-          return `### ${block.heading_3.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'bulleted_list_item') {
-          return `• ${block.bulleted_list_item.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'numbered_list_item') {
-          return `1. ${block.numbered_list_item.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'to_do') {
-          const checked = block.to_do.checked ? '[x]' : '[ ]'
-          return `${checked} ${block.to_do.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        return ''
-      })
-      .filter(Boolean)
-      .join('\n\n')
+    const content = blocksToMarkdown(pageBlocks.blocks)
 
     return {
       success: true,
       output: {
         content: content,
+        truncated: pageBlocks.truncated,
         metadata: {
           title: pageTitle,
           lastEditedTime: data.last_edited_time,
@@ -152,6 +199,7 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       type: 'string',
       description: 'Page content in markdown format with headers, paragraphs, lists, and todos',
     },
+    truncated: TRUNCATED_OUTPUT,
     metadata: {
       type: 'object',
       description: 'Page metadata including title, URL, and timestamps',
@@ -170,6 +218,7 @@ interface NotionReadV2Response {
   success: boolean
   output: {
     content: string
+    truncated?: boolean
     title: string
     url: string
     created_time: string
@@ -186,7 +235,11 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
   params: notionReadTool.params,
   request: notionReadTool.request,
 
-  transformResponse: async (response: Response, params?: NotionReadParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: NotionReadParams,
+    context?: ToolResponseContext
+  ) => {
     const data = await response.json()
     const pageTitle = extractTitle(data.properties ?? {}) || 'Untitled'
 
@@ -206,19 +259,8 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
       }
     }
 
-    const blocksResponse = await fetch(
-      `https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Notion-Version': '2022-06-28',
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    if (!blocksResponse.ok) {
+    const pageBlocks = await fetchPageBlocks(pageId, accessToken, context?.signal)
+    if (!pageBlocks) {
       return {
         success: true,
         output: {
@@ -231,41 +273,13 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
       }
     }
 
-    const blocksData = await blocksResponse.json()
-    const blocks = blocksData.results || []
-    const content = blocks
-      .map((block: any) => {
-        if (block.type === 'paragraph') {
-          return block.paragraph.rich_text.map((text: any) => text.plain_text).join('')
-        }
-        if (block.type === 'heading_1') {
-          return `# ${block.heading_1.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'heading_2') {
-          return `## ${block.heading_2.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'heading_3') {
-          return `### ${block.heading_3.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'bulleted_list_item') {
-          return `• ${block.bulleted_list_item.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'numbered_list_item') {
-          return `1. ${block.numbered_list_item.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'to_do') {
-          const checked = block.to_do.checked ? '[x]' : '[ ]'
-          return `${checked} ${block.to_do.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        return ''
-      })
-      .filter(Boolean)
-      .join('\n\n')
+    const content = blocksToMarkdown(pageBlocks.blocks)
 
     return {
       success: true,
       output: {
         content,
+        truncated: pageBlocks.truncated,
         title: pageTitle,
         url: data.url,
         created_time: data.created_time,
@@ -276,6 +290,7 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
 
   outputs: {
     content: { type: 'string', description: 'Page content in markdown format' },
+    truncated: TRUNCATED_OUTPUT,
     title: { type: 'string', description: 'Page title' },
     url: PAGE_OUTPUT_PROPERTIES.url,
     created_time: PAGE_OUTPUT_PROPERTIES.created_time,

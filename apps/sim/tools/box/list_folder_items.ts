@@ -1,6 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { BoxFolderItemsResponse, BoxListFolderItemsParams } from './types'
-import { FOLDER_ITEMS_OUTPUT_PROPERTIES } from './types'
+import { BOX_FOLDER_ITEM_FIELDS, FOLDER_ITEMS_OUTPUT_PROPERTIES } from './types'
 
 export const boxListFolderItemsTool: ToolConfig<BoxListFolderItemsParams, BoxFolderItemsResponse> =
   {
@@ -37,7 +38,20 @@ export const boxListFolderItemsTool: ToolConfig<BoxListFolderItemsParams, BoxFol
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'The offset for pagination',
+        description: 'The offset for pagination (ignored when using marker-based pagination)',
+      },
+      usemarker: {
+        type: 'boolean',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Use marker-based pagination instead of offsets (recommended for large folders); returns nextMarker',
+      },
+      marker: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Marker from a previous response to fetch the next page (implies usemarker)',
       },
       sort: {
         type: 'string',
@@ -56,12 +70,17 @@ export const boxListFolderItemsTool: ToolConfig<BoxListFolderItemsParams, BoxFol
     request: {
       url: (params) => {
         const queryParams = new URLSearchParams()
+        queryParams.set('fields', BOX_FOLDER_ITEM_FIELDS)
         if (params.limit !== undefined) queryParams.set('limit', String(params.limit))
-        if (params.offset !== undefined) queryParams.set('offset', String(params.offset))
+        if (params.usemarker || params.marker) {
+          queryParams.set('usemarker', 'true')
+          if (params.marker) queryParams.set('marker', params.marker)
+        } else if (params.offset !== undefined) {
+          queryParams.set('offset', String(params.offset))
+        }
         if (params.sort) queryParams.set('sort', params.sort)
         if (params.direction) queryParams.set('direction', params.direction)
-        const qs = queryParams.toString()
-        return `https://api.box.com/2.0/folders/${params.folderId.trim()}/items${qs ? `?${qs}` : ''}`
+        return `https://api.box.com/2.0/folders/${safeUrlPathSegment(params.folderId, 'folderId')}/items?${queryParams.toString()}`
       },
       method: 'GET',
       headers: (params) => ({
@@ -87,9 +106,10 @@ export const boxListFolderItemsTool: ToolConfig<BoxListFolderItemsParams, BoxFol
             createdAt: item.created_at ?? null,
             modifiedAt: item.modified_at ?? null,
           })),
-          totalCount: data.total_count ?? 0,
+          totalCount: data.total_count ?? null,
           offset: data.offset ?? 0,
           limit: data.limit ?? 0,
+          nextMarker: data.next_marker ?? null,
         },
       }
     },

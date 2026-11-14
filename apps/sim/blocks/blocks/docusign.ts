@@ -287,7 +287,15 @@ export const DocuSignBlock: BlockConfig = {
       id: 'count',
       title: 'Max Results',
       type: 'short-input',
-      placeholder: '25',
+      placeholder: '100',
+      condition: { field: 'operation', value: ['list_envelopes', 'list_templates'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'startPosition',
+      title: 'Start Position',
+      type: 'short-input',
+      placeholder: '0',
       condition: { field: 'operation', value: ['list_envelopes', 'list_templates'] },
       mode: 'advanced',
     },
@@ -359,6 +367,7 @@ export const DocuSignBlock: BlockConfig = {
     toDate: { type: 'string', description: 'End date filter' },
     searchText: { type: 'string', description: 'Search text filter' },
     count: { type: 'string', description: 'Max results to return' },
+    startPosition: { type: 'string', description: 'Zero-based index of the first result' },
   },
   outputs: {
     envelopeId: { type: 'string', description: 'Envelope ID' },
@@ -404,6 +413,18 @@ export const DocuSignBlock: BlockConfig = {
     fileName: { type: 'string', description: 'Document file name' },
     totalSetSize: { type: 'number', description: 'Total matching results' },
     resultSetSize: { type: 'number', description: 'Results returned in this response' },
+    startPosition: {
+      type: 'number',
+      description: 'Zero-based index of the first result in this page',
+    },
+    endPosition: {
+      type: 'number',
+      description: 'Zero-based index of the last result in this page',
+    },
+    nextUri: {
+      type: 'string',
+      description: 'URI of the next page of results (null on the last page)',
+    },
   },
 }
 

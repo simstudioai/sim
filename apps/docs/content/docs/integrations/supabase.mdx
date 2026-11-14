@@ -33,7 +33,7 @@ Query data from a Supabase table
 | `schema` | string | No | Database schema to query from \(default: public\). Use this to access tables in other schemas. |
 | `select` | string | No | Columns to return \(comma-separated\). Defaults to * \(all columns\) |
 | `filter` | string | No | PostgREST filter \(e.g., "id=eq.123"\) |
-| `orderBy` | string | No | Column to order by \(add DESC for descending\) |
+| `orderBy` | string | No | Column\(s\) to order by, comma-separated \(e.g., "created_at DESC" or "created_at.desc,name.asc"\) |
 | `limit` | number | No | Maximum number of rows to return |
 | `offset` | number | No | Number of rows to skip \(for pagination\) |
 
@@ -288,7 +288,7 @@ Invoke a Supabase Edge Function over HTTP
 
 ### Supabase Introspect
 
-Introspect Supabase database schema from its OpenAPI spec to get table and column structures (best-effort primary/foreign key detection)
+Introspect Supabase database schema from its OpenAPI spec to get table and column structures, primary keys, and foreign keys
 
 <ReferenceDetails>
 
@@ -311,9 +311,9 @@ Introspect Supabase database schema from its OpenAPI spec to get table and colum
 |     ↳ `type` | string | Column data type |
 |     ↳ `nullable` | boolean | Whether the column allows null values — a NOT NULL column that has a default value is misreported as nullable, since the OpenAPI spec this is derived from omits it from the required list in that case |
 |     ↳ `default` | string | Default value for the column |
-|     ↳ `isPrimaryKey` | boolean | Best-effort guess based on the column being named "id" \(not authoritative\) |
-|     ↳ `isForeignKey` | boolean | True only if the column has a "references table.column" SQL comment; most databases will show false even for real foreign keys |
-|     ↳ `references` | object | Foreign key reference details, when detected via SQL comment |
+|     ↳ `isPrimaryKey` | boolean | Whether the column is part of the table primary key |
+|     ↳ `isForeignKey` | boolean | Whether the column is a foreign key to another table |
+|     ↳ `references` | object | Foreign key reference details |
 |       ↳ `table` | string | Referenced table name |
 |       ↳ `column` | string | Referenced column name |
 |   ↳ `primaryKey` | array | Array of primary key column names |

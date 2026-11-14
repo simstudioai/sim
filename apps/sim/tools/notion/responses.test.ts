@@ -1,7 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { notionCreateCommentTool } from '@/tools/notion/create_comment'
 import { notionCreatePageTool, notionCreatePageV2Tool } from '@/tools/notion/create_page'
 import { notionReadTool, notionReadV2Tool } from '@/tools/notion/read'
 import { notionUpdatePageTool, notionUpdatePageV2Tool } from '@/tools/notion/update_page'
+import { notionWriteTool } from '@/tools/notion/write'
+
+function defined<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error('Expected the tool to define this handler')
+  return value
+}
 
 const PAGE_TITLE = 'Project Apollo'
 
@@ -56,5 +63,116 @@ const responseCases = [
 describe('Notion page title responses', () => {
   it.each(responseCases)('$id reads a custom-named title property', async ({ title }) => {
     await expect(title()).resolves.toBe(PAGE_TITLE)
+  })
+})
+
+type RichTextBody = { rich_text: Array<{ text: { content: string } }> }
+
+function paragraphRichText(body: unknown): RichTextBody['rich_text'] {
+  const { children } = body as { children: Array<{ paragraph: RichTextBody }> }
+  return children[0].paragraph.rich_text
+}
+
+describe('Notion rich text length limit', () => {
+  const longText = `${'a'.repeat(1999)}😀${'b'.repeat(2500)}`
+  const bodies = [
+    {
+      id: notionWriteTool.id,
+      richText: () =>
+        paragraphRichText(
+          defined(notionWriteTool.request.body)({
+            accessToken: 't',
+            pageId: 'p',
+            content: longText,
+          })
+        ),
+    },
+    {
+      id: notionCreatePageTool.id,
+      richText: () =>
+        paragraphRichText(
+          defined(notionCreatePageTool.request.body)({
+            accessToken: 't',
+            parentId: 'p',
+            content: longText,
+          })
+        ),
+    },
+    {
+      id: notionCreateCommentTool.id,
+      richText: () =>
+        (
+          defined(notionCreateCommentTool.request.body)({
+            accessToken: 't',
+            pageId: 'p',
+            content: longText,
+          }) as RichTextBody
+        ).rich_text,
+    },
+  ]
+
+  it.each(bodies)('$id splits content into 2000-character text objects', ({ richText }) => {
+    const parts = richText()
+    expect(parts.length).toBeGreaterThan(1)
+    for (const part of parts) expect(part.text.content.length).toBeLessThanOrEqual(2000)
+    expect(parts.map((part) => part.text.content).join('')).toBe(longText)
+  })
+})
+
+describe('Notion read page content pagination', () => {
+  it('follows next_cursor past the first 100 blocks', async () => {
+    const paragraph = (text: string) => ({
+      type: 'paragraph',
+      paragraph: { rich_text: [{ plain_text: text }] },
+    })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ results: [paragraph('first')], has_more: true, next_cursor: 'cursor-2' })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ results: [paragraph('second')], has_more: false, next_cursor: null })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await defined(notionReadV2Tool.transformResponse)(pageResponse(), {
+      accessToken: 't',
+      pageId: 'page-1',
+    })
+
+    expect(result.output.content).toBe('first\n\nsecond')
+    expect(result.output.truncated).toBe(false)
+    expect(String(fetchMock.mock.calls[1][0])).toContain('start_cursor=cursor-2')
+  })
+
+  it('throws when a later page fails instead of returning partial content', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(Response.json({ results: [], has_more: true, next_cursor: 'c2' }))
+        .mockResolvedValueOnce(new Response('busy', { status: 503 }))
+    )
+
+    await expect(
+      defined(notionReadV2Tool.transformResponse)(pageResponse(), {
+        accessToken: 't',
+        pageId: 'page-1',
+      })
+    ).rejects.toThrow('503')
+  })
+
+  it('flags content that stops at the block cap', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ results: [], has_more: true, next_cursor: 'next' }))
+    )
+
+    const result = await defined(notionReadTool.transformResponse)(pageResponse(), {
+      accessToken: 't',
+      pageId: 'page-1',
+    })
+
+    expect(result.output.truncated).toBe(true)
   })
 })

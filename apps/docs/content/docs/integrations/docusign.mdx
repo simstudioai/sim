@@ -53,7 +53,7 @@ Create and send a DocuSign envelope with a document for e-signature
 | `signerName` | string | Yes | Full name of the signer |
 | `ccEmail` | string | No | Email address of carbon copy recipient |
 | `ccName` | string | No | Full name of carbon copy recipient |
-| `file` | file | No | Document file to send for signature |
+| `file` | file | No | Document file to send for signature. Text "/sig1/" and "/date1/" in the document anchor the signature and date fields; without them the signer places fields freely, unless the DocuSign account disables freeform signing |
 | `status` | string | No | Envelope status: "sent" to send immediately, "created" for draft \(default: "sent"\) |
 
 #### Output
@@ -137,7 +137,8 @@ List envelopes from your DocuSign account with optional filters
 | `toDate` | string | No | End date filter \(ISO 8601\) |
 | `envelopeStatus` | string | No | Filter by status: created, sent, delivered, completed, declined, voided |
 | `searchText` | string | No | Search text to filter envelopes |
-| `count` | string | No | Maximum number of envelopes to return \(default: 25\) |
+| `count` | string | No | Maximum number of envelopes to return \(max 1000\) |
+| `startPosition` | string | No | Zero-based index of the first result to return, for paging through envelopes \(default: 0\) |
 
 #### Output
 
@@ -153,6 +154,9 @@ List envelopes from your DocuSign account with optional filters
 |   ↳ `statusChangedDateTime` | string | ISO 8601 datetime of last status change |
 | `totalSetSize` | number | Total number of matching envelopes |
 | `resultSetSize` | number | Number of envelopes returned in this response |
+| `startPosition` | number | Zero-based index of the first result in this page |
+| `endPosition` | number | Zero-based index of the last result in this page |
+| `nextUri` | string | URI of the next page of results; null on the last page |
 
 </ReferenceDetails>
 
@@ -213,7 +217,8 @@ List available templates in your DocuSign account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `searchText` | string | No | Search text to filter templates by name |
-| `count` | string | No | Maximum number of templates to return |
+| `count` | string | No | Maximum number of templates to return \(DocuSign returns up to 2000 when omitted\) |
+| `startPosition` | string | No | Zero-based index of the first result to return, for paging through templates \(default: 0\) |
 
 #### Output
 
@@ -228,6 +233,9 @@ List available templates in your DocuSign account
 |   ↳ `lastModified` | string | ISO 8601 last modified date |
 | `totalSetSize` | number | Total number of matching templates |
 | `resultSetSize` | number | Number of templates returned in this response |
+| `startPosition` | number | Zero-based index of the first result in this page |
+| `endPosition` | number | Zero-based index of the last result in this page |
+| `nextUri` | string | URI of the next page of results; null on the last page |
 
 </ReferenceDetails>
 

@@ -1,5 +1,6 @@
 import type { NotionCreateCommentParams } from '@/tools/notion/types'
 import { RICH_TEXT_ARRAY_OUTPUT } from '@/tools/notion/types'
+import { toNotionRichText } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface NotionCreateCommentResponse {
@@ -77,7 +78,7 @@ export const notionCreateCommentTool: ToolConfig<
       }
 
       const body: any = {
-        rich_text: [{ type: 'text', text: { content: params.content } }],
+        rich_text: toNotionRichText(params.content),
       }
 
       if (discussionId) {

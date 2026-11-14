@@ -36,6 +36,13 @@ export const eventSegmentationTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Event type name to analyze',
     },
+    secondEventType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Second event type to query alongside the first (event B in a formula such as "UNIQUES(A)/UNIQUES(B)")',
+    },
     start: {
       type: 'string',
       required: true,
@@ -59,7 +66,8 @@ export const eventSegmentationTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Time interval: 1 (daily), 7 (weekly), or 30 (monthly)',
+      description:
+        'Time interval: -300000 (real-time), -3600000 (hourly), 1 (daily), 7 (weekly), or 30 (monthly)',
     },
     groupBy: {
       type: 'string',
@@ -77,7 +85,7 @@ export const eventSegmentationTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of group-by values (max 1000)',
+      description: 'Maximum number of group-by values (default 1000, max 20000)',
     },
     filters: {
       type: 'string',
@@ -133,12 +141,16 @@ export const eventSegmentationTool: ToolConfig<
       }
 
       url.searchParams.set('e', JSON.stringify(event))
+      const secondEventType = params.secondEventType?.trim()
+      if (secondEventType) {
+        url.searchParams.set('e2', JSON.stringify({ event_type: secondEventType }))
+      }
       url.searchParams.set('start', params.start)
       url.searchParams.set('end', params.end)
       if (params.metric) url.searchParams.set('m', params.metric)
       if (params.interval) url.searchParams.set('i', params.interval)
       if (params.groupBy) url.searchParams.set('g', params.groupBy)
-      if (params.groupBy2) url.searchParams.set('g2', params.groupBy2)
+      if (params.groupBy2) url.searchParams.append('g', params.groupBy2)
       if (params.limit) url.searchParams.set('limit', params.limit)
       if (params.formula) url.searchParams.set('formula', params.formula)
       if (params.segment) url.searchParams.set('s', params.segment)

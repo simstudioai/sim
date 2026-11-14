@@ -258,11 +258,16 @@ export interface ClickUpGetTasksParams {
   tags?: string[]
   dueDateGt?: number
   dueDateLt?: number
+  dateCreatedGt?: number
+  dateCreatedLt?: number
+  dateUpdatedGt?: number
+  dateUpdatedLt?: number
 }
 
 export interface ClickUpTaskListResponse extends ToolResponse {
   output: {
     tasks?: ClickUpTask[]
+    lastPage?: boolean | null
     error?: string
   }
 }
@@ -284,6 +289,10 @@ export interface ClickUpSearchTasksParams {
   tags?: string[]
   dueDateGt?: number
   dueDateLt?: number
+  dateCreatedGt?: number
+  dateCreatedLt?: number
+  dateUpdatedGt?: number
+  dateUpdatedLt?: number
 }
 
 export interface ClickUpCreateCommentParams {

@@ -35,6 +35,16 @@ function validateId(value: string, name: string): void {
   }
 }
 
+/** Asana accepts page sizes from 1 to 100; reject anything else before calling the API. */
+function pageLimit(value: string | number): string {
+  const limit = Number(value)
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    const error = 'limit must be a whole number from 1 to 100'
+    throw new AsanaOperationError(error, 400, { error })
+  }
+  return String(limit)
+}
+
 function dataObject(result: AsanaJsonObject): AsanaJsonObject {
   return toRecord(result.data)
 }
@@ -289,9 +299,15 @@ export async function executeAsanaGetTask(input: AsanaGetTaskBody, signal?: Abor
     params.append('project', input.project)
   } else if (input.workspace) {
     validateId(input.workspace, 'workspace')
+    if (!input.assignee) {
+      const error = 'assignee is required when listing tasks by workspace'
+      throw new AsanaOperationError(error, 400, { error })
+    }
     params.append('workspace', input.workspace)
+    params.append('assignee', input.assignee)
   }
-  params.append('limit', input.limit ? String(input.limit) : '50')
+  params.append('limit', input.limit ? pageLimit(input.limit) : '50')
+  if (input.offset) params.append('offset', input.offset)
   params.append('opt_fields', TASK_OPT_FIELDS)
   const result = await client.json(`/tasks?${params.toString()}`, { method: 'GET' }, signal)
   return {
@@ -355,6 +371,7 @@ export async function executeAsanaSearchTasks(input: AsanaSearchTasksBody, signa
   if (input.completed !== undefined) {
     params.append('completed', String(input.completed))
   }
+  if (input.limit) params.append('limit', pageLimit(input.limit))
   params.append('opt_fields', TASK_OPT_FIELDS)
   const result = await new AsanaClient(input.accessToken).json(
     `/workspaces/${input.workspace}/tasks/search?${params.toString()}`,

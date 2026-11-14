@@ -43,6 +43,9 @@ const { mockProcessFilesToUserFiles } = fileUtilsMockFns
 import { DocuSignOperationError } from '@/lib/internal/docusign/errors'
 import {
   executeDocuSignDownloadDocument,
+  executeDocuSignGetEnvelope,
+  executeDocuSignListEnvelopes,
+  executeDocuSignListTemplates,
   executeDocuSignSendEnvelope,
 } from '@/lib/internal/docusign/operations'
 
@@ -124,4 +127,43 @@ describe('DocuSign operations', () => {
     })
     expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })
+
+  it('sends a document that lacks the anchor strings instead of failing on missing anchors', async () => {
+    await executeDocuSignSendEnvelope(
+      {
+        accessToken: 'access-token',
+        emailSubject: 'Sign',
+        signerEmail: 'a@example.com',
+        signerName: 'A',
+        file: { id: 'file-1' },
+      },
+      CONTEXT
+    )
+
+    const body = JSON.parse(mocks.json.mock.calls[0][1].body)
+    const tabs = body.recipients.signers[0].tabs
+    expect(tabs.signHereTabs[0].anchorIgnoreIfNotPresent).toBe('true')
+    expect(tabs.dateSignedTabs[0].anchorIgnoreIfNotPresent).toBe('true')
+  })
+
+  it.each([
+    ['envelopes', executeDocuSignListEnvelopes],
+    ['templates', executeDocuSignListTemplates],
+  ] as const)('pages %s with start_position', async (_name, execute) => {
+    await execute({ accessToken: 'access-token', count: '50', startPosition: '100' }, CONTEXT)
+
+    const query = new URL(`https://x${mocks.json.mock.calls[0][0]}`).searchParams
+    expect(query.get('start_position')).toBe('100')
+    expect(query.get('count')).toBe('50')
+  })
+
+  it.each(['..', 'env-1/../../users'])(
+    'rejects envelope id %s before contacting DocuSign',
+    async (envelopeId) => {
+      await expect(
+        executeDocuSignGetEnvelope({ accessToken: 'access-token', envelopeId }, CONTEXT)
+      ).rejects.toMatchObject({ status: 400 })
+      expect(mocks.create).not.toHaveBeenCalled()
+    }
+  )
 })
