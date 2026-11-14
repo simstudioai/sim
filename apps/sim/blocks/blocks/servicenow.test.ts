@@ -166,7 +166,7 @@ describe('ServiceNow state written after the split is never re-migrated', () => 
  * fall back to the model's arg instead of overwriting it with the blank subblock.
  */
 describe('ServiceNow tool-call args reach the tool', () => {
-  function mapToolCall(operation: string, args: Record<string, unknown>) {
+  function mapToolCall(operation: string, args: Record<string, unknown>): Record<string, unknown> {
     const transform = ServiceNowBlock.tools.config?.params
     if (!transform) throw new Error('ServiceNow block has no params transform')
     const params = { ...CREDENTIALS, ...args }

@@ -1,5 +1,5 @@
 import { ServiceNowIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { isToolCall, normalizeFileInput, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import {
@@ -1622,7 +1622,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params, context) => {
+      params: (params, context?: BlockToolParamsContext) => {
         const {
           operation: storedOperation,
           fields,
