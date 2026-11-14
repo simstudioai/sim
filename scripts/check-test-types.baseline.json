@@ -997,8 +997,7 @@
   },
   "apps/sim/lib/billing/credits/weekly-refresh.test.ts": {
     "TS2352": 1,
-    "TS2493": 1,
-    "TS2739": 1
+    "TS2493": 1
   },
   "apps/sim/lib/billing/enterprise-outbox.test.ts": {
     "TS2345": 4
