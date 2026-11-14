@@ -28,7 +28,7 @@ import {
   retryAccountDataTeardown,
   waitForAccountDataMutations,
 } from '@/main/account-data-generation'
-import { newChatRoute, settingsRoute } from '@/main/app-routes'
+import { newChatRoute, quickChatRoute, settingsRoute } from '@/main/app-routes'
 import {
   activateBrowserScope as activateAgentBrowserScope,
   cancelTool as cancelAgentBrowserTool,
@@ -67,7 +67,7 @@ import {
   isSafeInternalPath,
   partitionForOrigin,
 } from '@/main/config'
-import { attachContextMenu } from '@/main/context-menu'
+import { attachContextMenu, type ContextMenuDeps } from '@/main/context-menu'
 import { attachCspFallback } from '@/main/csp'
 import { DesktopChatSessionStore } from '@/main/desktop-chat-session-store'
 import { createApprovalNotifier } from '@/main/desktop-executor/approval-notifier'
@@ -97,6 +97,7 @@ import {
 import { installApplicationMenu } from '@/main/menu'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import { createEventLog, installMainProcessFailureObservers } from '@/main/observability'
+import { createQuickChat } from '@/main/quick-chat'
 import { ScopedEventRouter } from '@/main/scoped-event-router'
 import { installGlobalGuards } from '@/main/security-guards'
 import { createServerWindow, relaunchApp } from '@/main/server-window'
@@ -117,7 +118,7 @@ import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
 import { installBrowserUserAgent } from '@/main/user-agent'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
-import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
+import { attachWindowOpenPolicy, isPopupContents, type WindowPolicyDeps } from '@/main/windows'
 
 const logger = createLogger('DesktopMain')
 
@@ -433,6 +434,8 @@ function main(): void {
             },
           },
           { label: 'task resource state', clear: clearDesktopChatSessions },
+          // The quick chat page belongs to the signed-out account and holds its chat.
+          { label: 'quick chat', clear: () => quickChat.close() },
           { label: 'local filesystem grants', clear: clearLocalFileAccess },
           { label: 'computer use', clear: () => computerUse.reset() },
         ]
@@ -497,6 +500,28 @@ function main(): void {
     }
   }
 
+  /**
+   * Window-open policy for app pages: internal URLs open as full Sim windows. `activate` brings
+   * the app forward for a caller that never activates it itself, like the macOS quick chat panel.
+   */
+  function appWindowPolicy({ activate }: { activate: boolean }): WindowPolicyDeps {
+    return {
+      appOrigin,
+      openAppWindow: (url) => {
+        const route = routeFromAppUrl(url)
+        if (!route) return
+        const opened = createAndLoadAppWindow({ route })
+        if (activate) void opened.then(showMainWindow)
+      },
+      allowHttpLocalhost: allowHttpLocalhost(),
+      isCommittedRelaunchPending: () => committedRelaunchPending,
+    }
+  }
+
+  function appContextMenuDeps(): ContextMenuDeps {
+    return { isDev: !app.isPackaged, allowHttpLocalhost: allowHttpLocalhost() }
+  }
+
   async function createAndLoadAppWindow({
     route: requestedRouteOverride,
     restorePosition = false,
@@ -532,6 +557,8 @@ function main(): void {
         if (lastActiveWindow === win) {
           lastActiveWindow = getWindows().at(-1) ?? null
         }
+        // Closing the last full window quits on Windows and Linux; the quick chat must not keep the app alive.
+        if (process.platform !== 'darwin' && getWindows().length === 0) quickChat.close()
       },
     })
     windows.add(win)
@@ -551,21 +578,8 @@ function main(): void {
     win.webContents.on('did-start-loading', () => {
       setBrowserAgentPanelBounds(null, win)
     })
-    attachWindowOpenPolicy(win.webContents, {
-      appOrigin,
-      openAppWindow: (url) => {
-        const route = routeFromAppUrl(url)
-        if (route) {
-          void createAndLoadAppWindow({ route })
-        }
-      },
-      allowHttpLocalhost: allowHttpLocalhost(),
-      isCommittedRelaunchPending: () => committedRelaunchPending,
-    })
-    attachContextMenu(win.webContents, {
-      isDev: !app.isPackaged,
-      allowHttpLocalhost: allowHttpLocalhost(),
-    })
+    attachWindowOpenPolicy(win.webContents, appWindowPolicy({ activate: false }))
+    attachContextMenu(win.webContents, appContextMenuDeps())
     const loadHealth = attachLoadHealth(win, {
       offlinePageUrl: (query) => localPageUrl('offline.html', query),
       getStartUrl: () => `${appOrigin()}${route}`,
@@ -641,6 +655,20 @@ function main(): void {
     showMainWindow(win)
   }
 
+  const quickChat = createQuickChat({
+    isAvailable: accountDataAvailable,
+    partition: () => {
+      // Configures the partition's permission and header handlers on first use, as a full window does.
+      ensureAppSession()
+      return appPartition()
+    },
+    startUrl: () => `${appOrigin()}${quickChatRoute(config.get('lastRoute'))}`,
+    themeBackground: () => config.get('themeBackground'),
+    isPackaged: app.isPackaged,
+    windowPolicy: appWindowPolicy({ activate: true }),
+    contextMenu: appContextMenuDeps(),
+  })
+
   /** Installs or removes the menu-bar status item; safe to call repeatedly. */
   function setTrayEnabled(enabled: boolean): void {
     if (!enabled) {
@@ -654,6 +682,7 @@ function main(): void {
         appOrigin,
         lastRoute: () => config.get('lastRoute'),
         openMainWindow: (route) => void openMainWindowAt(route),
+        openQuickChat: quickChat.toggle,
       })
     }
   }
@@ -685,6 +714,8 @@ function main(): void {
       desktopExecutor.refreshRegistration()
     },
     setPreventSleepWhileRunning: () => sleepBlocker.refresh(),
+    setQuickChatShortcut: quickChat.bindShortcut,
+    isQuickChatShortcutAvailable: quickChat.isShortcutAvailable,
     setBrowserTheme: setAgentBrowserTheme,
     setBrowserDefaultZoom: setAgentBrowserDefaultZoom,
     setTerminalDefaultZoom: (zoom) => {
@@ -895,6 +926,7 @@ function main(): void {
     tray = null
     computerUse.cancel()
     if (computerStopShortcutRegistered) globalShortcut.unregister(computerStopShortcut)
+    quickChat.bindShortcut(null)
     localFilesystem.close()
     quiesceBrowserSessions()
     terminal.dispose()
@@ -1148,6 +1180,7 @@ function main(): void {
       },
       newWindow: () => void createAndLoadAppWindow(),
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
+      openQuickChat: quickChat.toggle,
       handleFocusedResourceShortcut: (win, shortcut) =>
         handleFocusedBrowserShortcut(shortcut, win) ||
         terminal.handleFocusedShortcut(win, shortcut),
@@ -1160,6 +1193,7 @@ function main(): void {
     })
     installDocumentationHelpSearch()
     setTrayEnabled(config.get('trayEnabled') ?? true)
+    quickChat.bindShortcut(desktopSettings.getPreferences().quickChatShortcut ?? null)
     updater = initUpdater({
       getWindow: getMainWindow,
       events,
@@ -1172,9 +1206,11 @@ function main(): void {
       },
       describeInFlightWork: async () => {
         // Native activity is read after the window probes so work started meanwhile still counts.
-        const windows = await countWindowsWithUnsavedChanges(
-          getWindows().map((win) => win.webContents)
-        )
+        const quickChatPage = quickChat.webContents()
+        const windows = await countWindowsWithUnsavedChanges([
+          ...getWindows().map((win) => win.webContents),
+          ...(quickChatPage ? [quickChatPage] : []),
+        ])
         const terminalWork = await terminal.runningWork()
         const computerUseActivity = computerUse.getActivity()
         return describeInFlightWork({

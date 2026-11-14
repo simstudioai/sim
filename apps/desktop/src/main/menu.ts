@@ -22,6 +22,7 @@ export interface MenuDeps {
   openFolderAccess: (parent: BrowserWindow) => void
   newWindow: () => void
   newChat: () => void
+  openQuickChat: () => void
   /**
    * Menu accelerators are global, so the focused Browser or Terminal gets the
    * first chance to claim every resource shortcut before the Sim window uses
@@ -227,6 +228,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           click: deps.newWindow,
         },
         { label: 'New Chat', accelerator: 'CmdOrCtrl+N', click: deps.newChat },
+        { label: 'Quick Chat', click: deps.openQuickChat },
         { type: 'separator' },
         {
           label: 'Close Window',

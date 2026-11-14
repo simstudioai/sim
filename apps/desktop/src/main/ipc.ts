@@ -23,6 +23,7 @@ import {
   isDesktopScopeId,
   isDesktopZoomPercent,
   isPendingDesktopScopeId,
+  isQuickChatShortcut,
 } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import {
@@ -940,6 +941,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (enabled) =>
         typeof enabled === 'boolean'
           ? deps.settings.setPreventSleepWhileRunning(enabled)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:set-quick-chat-shortcut': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (shortcut) =>
+        shortcut === null || isQuickChatShortcut(shortcut)
+          ? deps.settings.setQuickChatShortcut(shortcut)
           : deps.settings.getPreferences(),
     },
     'desktop:settings:set-appearance': {
