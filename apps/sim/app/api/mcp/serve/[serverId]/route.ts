@@ -87,6 +87,10 @@ import { buildWorkflowMcpServerUrl } from '@/lib/mcp/urls'
 import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { executeWorkflowService } from '@/lib/workflows/executor/execute-service'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  PublicApiNotAllowedError,
+  validatePublicApiAllowed,
+} from '@/ee/access-control/utils/permission-check'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import {
@@ -453,6 +457,7 @@ async function getServer(serverId: string) {
       isPublic: workflowMcpServer.isPublic,
       createdBy: workflowMcpServer.createdBy,
       workspaceAllowsPersonalApiKeys: workspace.allowPersonalApiKeys,
+      workspaceBilledAccountUserId: workspace.billedAccountUserId,
     })
     .from(workflowMcpServer)
     .innerJoin(workspace, eq(workflowMcpServer.workspaceId, workspace.id))
@@ -561,7 +566,21 @@ async function authorizeMcpServeRequest(
   server: WorkflowMcpServeServer,
   options: { requireAuthForPublic?: boolean } = {}
 ): Promise<{ response?: NextResponse; executeAuthContext?: ExecuteAuthContext }> {
-  if (server.isPublic && !options.requireAuthForPublic) return {}
+  if (server.isPublic) {
+    // The public-API gate, checked per request so a revocation reaches servers already public.
+    try {
+      await validatePublicApiAllowed(server.workspaceBilledAccountUserId, server.workspaceId)
+    } catch (error) {
+      if (!(error instanceof PublicApiNotAllowedError)) throw error
+      return {
+        response: NextResponse.json(
+          { error: 'Public access to this MCP server is disabled' },
+          { status: 403 }
+        ),
+      }
+    }
+    if (!options.requireAuthForPublic) return {}
+  }
 
   const auth = await authenticateMcpServeRequest(request, server.id)
   if (auth === 'invalid_token') return { response: unauthorizedResponse(server.id, true) }
