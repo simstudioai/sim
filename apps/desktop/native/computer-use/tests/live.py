@@ -91,6 +91,12 @@ try:
         else:
             assert 'screen_capture_permission_required' in snapshot.get('screenshotError', '')
             print('BLOCKED: screenshot verification skipped because Screen Recording grant is missing', flush=True)
+        # Increment follows the inserted row and is never the focused editor, which traversal always lists first.
+        increment_id = find(snapshot, role='AXButton', label='Increment')['elementId']
+        mutate('click', snapshot, elementId=find(snapshot, role='AXButton', label='Add row')['elementId'])
+        snapshot = state()
+        assert any(node.get('value', node.get('label')) == 'Added row' for node in snapshot['nodes']), 'Add row did not insert its label'
+        assert find(snapshot, role='AXButton', label='Increment')['elementId'] == increment_id, 'An element changed id when another was added above it'
         baseline = int(next(node.get('value', node.get('label', '')) for node in snapshot['nodes'] if node.get('value', node.get('label', '')).startswith('Count: ')).split(': ')[1])
         button = find(snapshot, role='AXButton', label='Increment')
         snapshot = mutate('click', snapshot, elementId=button['elementId'])
@@ -212,7 +218,7 @@ try:
         assert error['dispatchState'] == 'not_started', error
         assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'replaced', 'A background app was clicked or typed into'
         call('activate_app', bundleId=bundle)
-        print('PASS: real fixture state, a large closed menu not reported as truncation, secure suppression, an element reported at infinity read without a frame, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click, a batch that applies, stops at a failing step, refuses before dispatch and stops when a sheet opens, click-to-focus for an editor that ignores Accessibility focus (inserting at the end, refusing an unconfirmed caret, and none in the background); every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
+        print('PASS: real fixture state, element ids stable across observations, a large closed menu not reported as truncation, secure suppression, an element reported at infinity read without a frame, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click, a batch that applies, stops at a failing step, refuses before dispatch and stops when a sheet opens, click-to-focus for an editor that ignores Accessibility focus (inserting at the end, refusing an unconfirmed caret, and none in the background); every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
 finally:
     if fixture:
         fixture.terminate()
