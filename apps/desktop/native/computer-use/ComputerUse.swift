@@ -109,8 +109,9 @@ func attributes(_ element: AXUIElement, _ names: [String]) -> [String: CFTypeRef
 /// Elements bucketed by CFHash, so a walk's membership and parent lookups stay linear in its size.
 struct ElementIndex {
     private var buckets: [CFHashCode: [(element: AXUIElement, id: String)]] = [:]
+    private(set) var count = 0
     func id(of element: AXUIElement) -> String? { buckets[CFHash(element)]?.first { CFEqual($0.element, element) }?.id }
-    mutating func insert(_ element: AXUIElement, id: String) { buckets[CFHash(element), default: []].append((element, id)) }
+    mutating func insert(_ element: AXUIElement, id: String) { buckets[CFHash(element), default: []].append((element, id)); count += 1 }
 }
 let NODE_ATTRIBUTES = [kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute, kAXDescriptionAttribute, kAXPlaceholderValueAttribute,
                        kAXHelpAttribute, kAXValueAttribute, kAXFocusedAttribute, kAXEnabledAttribute, kAXPositionAttribute, kAXSizeAttribute]
@@ -304,7 +305,18 @@ final class Snapshot {
     var selectedWindowId: String?
     var nodes: [[String: Any]] = []
     var truncated = false
-    init(app: NSRunningApplication) { pid = app.processIdentifier; launchDate = app.launchDate }
+    /// Every element this app session has been given an id, so the same element keeps its id across observations.
+    private(set) var index = ElementIndex()
+    private(set) var nextOrdinal = 0
+    /// Carries ids over from `previous` when it observed the same process instance.
+    init(app: NSRunningApplication, previous: Snapshot? = nil) {
+        pid = app.processIdentifier; launchDate = app.launchDate
+        if let previous, previous.pid == pid, previous.launchDate == launchDate {
+            // Ids never repeat within a session; past the cap the next read starts a fresh index so it stays bounded.
+            nextOrdinal = previous.nextOrdinal
+            if previous.index.count < 20_000 { index = previous.index }
+        }
+    }
     func read(preferredWindowFrame: CGRect? = nil) async throws {
         try requireAccessibility()
         let root = AXUIElementCreateApplication(pid)
@@ -342,12 +354,12 @@ final class Snapshot {
             queue.append(AXTraversalEntry(element: unsafeBitCast(raw, to: AXUIElement.self), parent: root, depth: 1, menu: false, priority: true))
         }
         var menuCount = 0
-        var index = ElementIndex()
+        var seen = ElementIndex()
         while nodes.count < 2000 && Date().timeIntervalSince(created) < 8, let entry = queue.next() {
             try checkCancellation()
             let element = entry.element
             AXUIElementSetMessagingTimeout(element, 0.25)
-            if index.id(of: element) != nil { continue }
+            if seen.id(of: element) != nil { continue }
             let values = attributes(element, NODE_ATTRIBUTES)
             let role = values[kAXRoleAttribute] as? String ?? "AXUnknown"
             let isMenu = entry.menu || [kAXMenuBarRole, kAXMenuRole, kAXMenuItemRole, kAXMenuBarItemRole].contains(role)
@@ -359,9 +371,13 @@ final class Snapshot {
                 guard menuCount < 80 else { continue }
                 menuCount += 1
             }
-            let id = "e\(nodes.count)"; elements[id] = element; index.insert(element, id: id)
+            let id: String
+            if let known = index.id(of: element) { id = known } else {
+                id = "e\(nextOrdinal)"; nextOrdinal += 1; index.insert(element, id: id)
+            }
+            elements[id] = element; seen.insert(element, id: id)
             var node: [String: Any] = ["elementId": id, "role": role, "actions": [String]()]
-            if let parent = entry.parent, let parentID = index.id(of: parent) { node["parentId"] = parentID }
+            if let parent = entry.parent, let parentID = seen.id(of: parent) { node["parentId"] = parentID }
             let isSecure = values[kAXSubroleAttribute] as? String == kAXSecureTextFieldSubrole
             var labels = [kAXTitleAttribute, kAXDescriptionAttribute].compactMap { values[$0] as? String }.filter { !$0.isEmpty }
             if labels.isEmpty { labels = [kAXPlaceholderValueAttribute, kAXHelpAttribute].compactMap { values[$0] as? String }.filter { !$0.isEmpty } }
@@ -741,7 +757,7 @@ final class Driver {
             return ["kind": "action", "action": "activate_app", "bundleId": app.bundleIdentifier!, "dispatched": true, "verified": true]
         case "get_app_state":
             try requireAccessibility()
-            let app = try await appFor(p.bundleId, launch: true); let snapshot = Snapshot(app: app)
+            let app = try await appFor(p.bundleId, launch: true); let snapshot = Snapshot(app: app, previous: snapshots[p.bundleId])
             let preferredFrame = try p.windowId.map { try windowRect($0, pid: app.processIdentifier) }
             try await snapshot.read(preferredWindowFrame: preferredFrame)
             let axWindows = snapshot.elements.values.filter { attribute($0, kAXRoleAttribute) as? String == kAXWindowRole }
