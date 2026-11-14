@@ -89,4 +89,5 @@ export const loggerMock = {
   getRequestContext: vi.fn(() => undefined),
   setRequestTraceId: vi.fn(),
   setRequestAuth: vi.fn(),
+  setRequestError: vi.fn(),
 }

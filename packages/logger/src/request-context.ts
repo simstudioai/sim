@@ -29,6 +29,23 @@ export interface RequestContext {
    * oldest first. Present only when one workflow's execution made this call.
    */
   callChain?: readonly string[]
+  /**
+   * What the request's error response told the caller, stamped as the response
+   * is rendered so the route's closing log line can be grouped by it without
+   * reading the body.
+   */
+  error?: RequestError
+}
+
+/**
+ * The machine-readable part of an error response: its stable `code`, where a
+ * validation failure occurred (`body.columns.0.type`), and the cause a refusal
+ * named (`insufficient_scope`). Never the message, which can quote user input.
+ */
+export interface RequestError {
+  code: string
+  field?: string
+  reason?: string
 }
 
 /**
@@ -121,4 +138,15 @@ export function setRequestAuth(auth: RequestAuth, options: SetRequestAuthOptions
   if (options.preserveExisting && store.auth) return
   store.auth = auth
   if (store.client) store.client = attributeUndeclaredClient(store.client, auth.kind)
+}
+
+/**
+ * Records the error the current request is answering with, so every later log
+ * line in it, including the route's closing one, carries the code. A later
+ * call replaces an earlier one: the response that is returned is the one built
+ * last. No-op outside a request context.
+ */
+export function setRequestError(error: RequestError): void {
+  const store = storage.getStore()
+  if (store) store.error = error
 }

@@ -400,6 +400,11 @@ const requestContextMetadata = (context: RequestContext): LoggerMetadata => {
     if (context.auth.clientId) metadata.authClientId = context.auth.clientId
   }
   if (context.callChain) metadata.callDepth = context.callChain.length
+  if (context.error) {
+    metadata.errorCode = context.error.code
+    if (context.error.field) metadata.errorField = context.error.field
+    if (context.error.reason) metadata.errorReason = context.error.reason
+  }
   return metadata
 }
 
@@ -626,6 +631,7 @@ export {
   getRequestContext,
   runWithRequestContext,
   setRequestAuth,
+  setRequestError,
   setRequestTraceId,
 } from './request-context'
 

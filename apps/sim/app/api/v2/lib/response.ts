@@ -1,4 +1,4 @@
-import { getRequestContext } from '@sim/logger'
+import { getRequestContext, setRequestError } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
 import {
@@ -211,6 +211,7 @@ export function v2Error(
     message,
   }
   if (options.details !== undefined) error.details = options.details
+  setRequestError({ code, reason: detailCode(options.details) })
   const requestId = getRequestContext()?.requestId
   if (requestId) error.requestId = requestId
   const status = options.status ?? V2_ERROR_STATUS_BY_CODE[code]
@@ -229,6 +230,12 @@ export function v2Error(
       },
     }
   )
+}
+
+/** The cause a refusal names in `details.code`, a closed vocabulary safe to log. */
+function detailCode(details: unknown): string | undefined {
+  if (typeof details !== 'object' || details === null || !('code' in details)) return undefined
+  return typeof details.code === 'string' ? details.code : undefined
 }
 
 /** Renders a trusted typed HTTP error without changing the v2 envelope. */
@@ -267,9 +274,11 @@ export function v2ValidationError(error: ZodError, slice?: RequestSlice): NextRe
       ? issueMessage.slice(fieldLabel.length)
       : issueMessage
   const location = [slice, ...path].filter((part) => part !== undefined && part !== '').join('.')
-  return v2Error('BAD_REQUEST', location ? `${location}: ${message}` : message, {
+  const response = v2Error('BAD_REQUEST', location ? `${location}: ${message}` : message, {
     details: serializeZodIssues(error),
   })
+  if (location) setRequestError({ code: 'BAD_REQUEST', field: location })
+  return response
 }
 
 /**
