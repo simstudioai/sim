@@ -307,9 +307,9 @@ Archive a member from a Mailchimp audience without permanently deleting their da
 
 </ReferenceDetails>
 
-### Archive Member from Mailchimp Audience
+### Permanently Delete Member from Mailchimp Audience
 
-Request permanent deletion of a member and their identifying data. This targets delete-permanent, despite the Archive Member label; provider acceptance of the current HTTP method is unverified.
+Permanently delete a member and their personally identifiable data from a Mailchimp audience. This cannot be undone, and the address cannot be re-imported.
 
 <ReferenceDetails>
 
@@ -325,7 +325,30 @@ Request permanent deletion of a member and their identifying data. This targets 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
-| `output` | object | Permanent-deletion request confirmation |
+| `output` | object | Permanent deletion confirmation |
+|   ↳ `success` | boolean | Operation success |
+
+</ReferenceDetails>
+
+### Archive Member from Mailchimp Audience
+
+Archive a member in a Mailchimp audience. Archived contacts keep their data and can be restored with Unarchive Member.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
+| `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Archive confirmation |
 |   ↳ `success` | boolean | Operation success |
 
 </ReferenceDetails>
@@ -1137,7 +1160,7 @@ Add tags to a member in a Mailchimp audience
 | --------- | ---- | -------- | ----------- |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
-| `tags` | string | Yes | JSON array of tag objects \(e.g., \[\{"name": "VIP", "status": "active"\}\]\) |
+| `tags` | string | Yes | JSON array of tag objects \(e.g., \[\{"name": "VIP", "status": "active"\}\]\) or a comma-separated list of tag names; status defaults to "active" |
 
 #### Output
 
@@ -1161,7 +1184,7 @@ Remove tags from a member in a Mailchimp audience
 | --------- | ---- | -------- | ----------- |
 | `listId` | string | Yes | The unique ID for the audience/list \(e.g., "abc123def4"\) |
 | `subscriberEmail` | string | Yes | Member email address or MD5 hash of the lowercase email |
-| `tags` | string | Yes | JSON array of tag objects with inactive status \(e.g., \[\{"name": "VIP", "status": "inactive"\}\]\) |
+| `tags` | string | Yes | JSON array of tag objects with inactive status \(e.g., \[\{"name": "VIP", "status": "inactive"\}\]\) or a comma-separated list of tag names; status defaults to "inactive" |
 
 #### Output
 
@@ -1766,7 +1789,7 @@ Create a new batch operation in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `operations` | string | Yes | JSON array of batch operations \(e.g., \[\{"method": "POST", "path": "/lists/\{list_id\}/members", "body": "..."\}\]\) |
+| `operations` | string | Yes | JSON array of batch operations \(e.g., \[\{"method": "POST", "path": "/lists/\{list_id\}/members", "body": \{"email_address": "user@example.com", "status": "subscribed"\}\}\]\); an object body is sent as the JSON string Mailchimp expects |
 
 #### Output
 

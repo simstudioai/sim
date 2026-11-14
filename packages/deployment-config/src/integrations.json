@@ -17118,8 +17118,12 @@
           "description": "Archive a member from a Mailchimp audience without permanently deleting their data."
         },
         {
+          "name": "Permanently Delete Member",
+          "description": "Permanently delete a member and their personally identifiable data from a Mailchimp audience. This cannot be undone, and the address cannot be re-imported."
+        },
+        {
           "name": "Archive Member",
-          "description": "Request permanent deletion of a member and their identifying data. This targets delete-permanent, despite the Archive Member label; provider acceptance of the current HTTP method is unverified."
+          "description": "Archive a member in a Mailchimp audience. Archived contacts keep their data and can be restored with Unarchive Member."
         },
         {
           "name": "Unarchive Member",
@@ -17366,7 +17370,7 @@
           "description": "Delete a batch operation from Mailchimp"
         }
       ],
-      "operationCount": 73,
+      "operationCount": 74,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -17374,7 +17378,7 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["email-marketing", "marketing", "automation"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-14"
     },
     {
       "type": "mailgun_v2",
