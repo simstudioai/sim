@@ -1477,7 +1477,9 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
     config: {
       tool: (params) => `clickup_${params.operation}`,
       params: (params, context) => {
-        const { oauthCredential, operation } = params
+        const { oauthCredential } = params
+        /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
+        const operation = params.operation ?? context?.operation
 
         const baseParams = {
           accessToken: oauthCredential?.accessToken,

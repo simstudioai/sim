@@ -1,6 +1,7 @@
 import { SapS4HanaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta, CanvasSentence } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { isToolCall } from '@/blocks/utils'
 
 /**
  * Whichever name a new business partner carries: an organization has
@@ -1045,7 +1046,15 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context) => {
+        /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
+        const operation = params.operation ?? context?.operation
+        /**
+         * A differently named sub-block feeds each tool param below. On a tool call the model's
+         * arg arrives under the tool param name, so a blank sub-block falls back to it.
+         */
+        const pick = (dedicated: unknown, toolParam: string): unknown =>
+          isToolCall(context) ? dedicated || params[toolParam] : dedicated
         const auth = {
           deploymentType: params.deploymentType || 'cloud_public',
           authType: params.authType || 'oauth_client_credentials',
@@ -1071,7 +1080,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
           expand: params.expand || undefined,
         }
 
-        switch (params.operation) {
+        switch (operation) {
           case 'sap_s4hana_list_business_partners':
             return { ...auth, ...listFields }
           case 'sap_s4hana_get_business_partner':
@@ -1084,14 +1093,14 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               firstName: params.firstName || undefined,
               lastName: params.lastName || undefined,
               organizationBPName1: params.organizationBPName1 || undefined,
-              body: params.businessPartnerBody || undefined,
+              body: pick(params.businessPartnerBody, 'body') || undefined,
             }
           case 'sap_s4hana_update_business_partner':
             return {
               ...auth,
               businessPartner: params.businessPartner,
-              body: params.updateBody,
-              ifMatch: params.updateIfMatch || undefined,
+              body: pick(params.updateBody, 'body'),
+              ifMatch: pick(params.updateIfMatch, 'ifMatch') || undefined,
             }
           case 'sap_s4hana_list_customers':
             return { ...auth, ...listFields }
@@ -1101,8 +1110,8 @@ Return ONLY the JSON array - no explanations, no extra text.`,
             return {
               ...auth,
               customer: params.customer,
-              body: params.updateBody,
-              ifMatch: params.updateIfMatch || undefined,
+              body: pick(params.updateBody, 'body'),
+              ifMatch: pick(params.updateIfMatch, 'ifMatch') || undefined,
             }
           case 'sap_s4hana_list_suppliers':
             return { ...auth, ...listFields }
@@ -1112,8 +1121,8 @@ Return ONLY the JSON array - no explanations, no extra text.`,
             return {
               ...auth,
               supplier: params.supplier,
-              body: params.updateBody,
-              ifMatch: params.updateIfMatch || undefined,
+              body: pick(params.updateBody, 'body'),
+              ifMatch: pick(params.updateIfMatch, 'ifMatch') || undefined,
             }
           case 'sap_s4hana_list_sales_orders':
             return { ...auth, ...listFields }
@@ -1127,21 +1136,21 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               distributionChannel: params.distributionChannel,
               organizationDivision: params.organizationDivision,
               soldToParty: params.soldToParty,
-              items: params.salesOrderItems,
-              body: params.salesOrderBody || undefined,
+              items: pick(params.salesOrderItems, 'items'),
+              body: pick(params.salesOrderBody, 'body') || undefined,
             }
           case 'sap_s4hana_update_sales_order':
             return {
               ...auth,
               salesOrder: params.salesOrder,
-              body: params.updateBody,
-              ifMatch: params.updateIfMatch || undefined,
+              body: pick(params.updateBody, 'body'),
+              ifMatch: pick(params.updateIfMatch, 'ifMatch') || undefined,
             }
           case 'sap_s4hana_delete_sales_order':
             return {
               ...auth,
               salesOrder: params.salesOrder,
-              ifMatch: params.updateIfMatch || undefined,
+              ifMatch: pick(params.updateIfMatch, 'ifMatch') || undefined,
             }
           case 'sap_s4hana_list_outbound_deliveries':
             return { ...auth, ...listFields }
@@ -1171,8 +1180,8 @@ Return ONLY the JSON array - no explanations, no extra text.`,
             return {
               ...auth,
               product: params.product,
-              body: params.updateBody,
-              ifMatch: params.updateIfMatch || undefined,
+              body: pick(params.updateBody, 'body'),
+              ifMatch: pick(params.updateIfMatch, 'ifMatch') || undefined,
             }
           case 'sap_s4hana_list_material_stock':
             return { ...auth, ...listFields }
@@ -1197,15 +1206,15 @@ Return ONLY the JSON array - no explanations, no extra text.`,
             return {
               ...auth,
               purchaseRequisitionType: params.purchaseRequisitionType,
-              items: params.purchaseRequisitionItems,
-              body: params.purchaseRequisitionBody || undefined,
+              items: pick(params.purchaseRequisitionItems, 'items'),
+              body: pick(params.purchaseRequisitionBody, 'body') || undefined,
             }
           case 'sap_s4hana_update_purchase_requisition':
             return {
               ...auth,
               purchaseRequisition: params.purchaseRequisition,
-              body: params.updateBody,
-              ifMatch: params.updateIfMatch || undefined,
+              body: pick(params.updateBody, 'body'),
+              ifMatch: pick(params.updateIfMatch, 'ifMatch') || undefined,
             }
           case 'sap_s4hana_list_purchase_orders':
             return { ...auth, ...listFields }
@@ -1219,14 +1228,14 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               purchasingOrganization: params.purchasingOrganization,
               purchasingGroup: params.purchasingGroup,
               supplier: params.supplier,
-              body: params.purchaseOrderBody || undefined,
+              body: pick(params.purchaseOrderBody, 'body') || undefined,
             }
           case 'sap_s4hana_update_purchase_order':
             return {
               ...auth,
               purchaseOrder: params.purchaseOrder,
-              body: params.updateBody,
-              ifMatch: params.updateIfMatch || undefined,
+              body: pick(params.updateBody, 'body'),
+              ifMatch: pick(params.updateIfMatch, 'ifMatch') || undefined,
             }
           case 'sap_s4hana_list_supplier_invoices':
             return { ...auth, ...listFields }
@@ -1240,12 +1249,12 @@ Return ONLY the JSON array - no explanations, no extra text.`,
           case 'sap_s4hana_odata_query':
             return {
               ...auth,
-              service: params.odataService,
-              path: params.odataPath,
-              method: params.odataMethod || 'GET',
-              query: params.odataQuery || undefined,
-              body: params.odataBody || undefined,
-              ifMatch: params.odataIfMatch || undefined,
+              service: pick(params.odataService, 'service'),
+              path: pick(params.odataPath, 'path'),
+              method: pick(params.odataMethod, 'method') || 'GET',
+              query: pick(params.odataQuery, 'query') || undefined,
+              body: pick(params.odataBody, 'body') || undefined,
+              ifMatch: pick(params.odataIfMatch, 'ifMatch') || undefined,
             }
           default:
             return auth

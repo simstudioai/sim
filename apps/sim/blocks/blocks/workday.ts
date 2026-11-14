@@ -408,9 +408,18 @@ Output: {"Marital_Status_Reference":{"ID":{"attributes":{"wd:type":"Marital_Stat
     ],
     config: {
       tool: (params) => `workday_${params.operation}`,
-      params: (params) => {
-        const { operation, orgType, fields, jobProfileId, locationId, supervisoryOrgId, ...rest } =
-          params
+      params: (params, context) => {
+        const {
+          operation: storedOperation,
+          orgType,
+          fields,
+          jobProfileId,
+          locationId,
+          supervisoryOrgId,
+          ...rest
+        } = params
+        /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
+        const operation = storedOperation ?? context?.operation
 
         if (rest.limit != null && rest.limit !== '') rest.limit = Number(rest.limit)
         if (rest.offset != null && rest.offset !== '') rest.offset = Number(rest.offset)

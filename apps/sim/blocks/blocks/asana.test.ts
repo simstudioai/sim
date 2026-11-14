@@ -10,13 +10,12 @@ const buildParams = (
 
 /**
  * On an agent call the model supplies args under the tool's own param names (`workspace`, `text`,
- * `taskGid`, array `projects`/`followers`); the per-operation canvas fields are never rendered.
- * The handler forwards `{ ...inputs, ...mapped }`.
+ * `taskGid`, array `projects`/`followers`), and the stored operation reaches the mapper only on
+ * `context` (never in the args). The handler forwards `{ ...inputs, ...mapped }`.
  */
 describe('AsanaBlock agent tool calls', () => {
   const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
-    const inputs = { ...args, operation }
-    return { ...inputs, ...buildParams(inputs, { operation }) }
+    return { ...args, ...buildParams(args, { operation }) }
   }
 
   it('keeps the model workspace, project, limit, and offset on get_task', () => {
@@ -79,5 +78,15 @@ describe('AsanaBlock canvas inputs', () => {
     expect(
       buildParams({ operation: 'search_tasks', workspace: '1', searchTasks_limit: '25' })
     ).toMatchObject({ limit: 25 })
+  })
+})
+
+describe('AsanaBlock agent tool calls with a configured field', () => {
+  it('maps a workspace the user set on the tool to the get_task workspace param', () => {
+    const mapped = buildParams(
+      { getTasks_workspace: 'ws-1', assignee: 'me' },
+      { operation: 'get_task' }
+    )
+    expect(mapped.workspace).toBe('ws-1')
   })
 })

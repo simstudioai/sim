@@ -116,10 +116,12 @@ describe('Airtable pagination offsets', () => {
   })
 
   it('keeps the model offset on a List Records tool call', () => {
-    const mapped = mapParams(
-      { ...baseParams, operation: 'list', offset: 'itrModel' },
-      { operation: 'list' }
-    )
+    const mapped = mapParams({ ...baseParams, offset: 'itrModel' }, { operation: 'list' })
     expect(mapped.offset).toBe('itrModel')
+  })
+
+  it('maps an offset the user set on the tool when the operation arrives only on the context', () => {
+    const mapped = mapParams({ ...baseParams, recordsOffset: 'itrUser' }, { operation: 'list' })
+    expect(mapped.offset).toBe('itrUser')
   })
 })
