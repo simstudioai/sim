@@ -58,20 +58,26 @@ export const pipedriveGetPipelinesTool: ToolConfig<
     start: {
       type: 'string',
       required: false,
+      visibility: 'user-only',
+      description: 'Ignored: Pipedrive API v2 pages pipelines with cursor instead of an offset',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Pagination start offset (0-based index of the first item to return)',
+      description: 'For pagination, the marker representing the first item on the next page',
     },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = 'https://api.pipedrive.com/v1/pipelines'
+      const baseUrl = 'https://api.pipedrive.com/api/v2/pipelines'
       const queryParams = new URLSearchParams()
 
       if (params.sort_by) queryParams.append('sort_by', params.sort_by)
       if (params.sort_direction) queryParams.append('sort_direction', params.sort_direction)
       if (params.limit) queryParams.append('limit', params.limit)
-      if (params.start) queryParams.append('start', params.start)
+      if (params.cursor) queryParams.append('cursor', params.cursor)
 
       const queryString = queryParams.toString()
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
@@ -89,16 +95,16 @@ export const pipedriveGetPipelinesTool: ToolConfig<
     }
 
     const pipelines = data.data || []
-    const hasMore = data.additional_data?.pagination?.more_items_in_collection || false
-    const nextStart = data.additional_data?.pagination?.next_start ?? null
+    const nextCursor = data.additional_data?.next_cursor ?? null
 
     return {
       success: true,
       output: {
         pipelines,
         total_items: pipelines.length,
-        has_more: hasMore,
-        next_start: nextStart,
+        has_more: nextCursor !== null,
+        next_start: null,
+        next_cursor: nextCursor,
         success: true,
       },
     }
@@ -121,7 +127,12 @@ export const pipedriveGetPipelinesTool: ToolConfig<
     },
     next_start: {
       type: 'number',
-      description: 'Offset for fetching the next page',
+      description: 'Always null: API v2 pages with next_cursor instead of an offset',
+      optional: true,
+    },
+    next_cursor: {
+      type: 'string',
+      description: 'Cursor for fetching the next page',
       optional: true,
     },
     success: { type: 'boolean', description: 'Operation success status' },

@@ -106,7 +106,7 @@ export const PIPEDRIVE_ACTIVITY_OUTPUT_PROPERTIES = {
 export const PIPEDRIVE_FILE_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'File ID' },
   name: { type: 'string', description: 'File name' },
-  file_type: { type: 'string', description: 'File type/extension' },
+  file_name: { type: 'string', description: 'Stored file name' },
   file_size: { type: 'number', description: 'File size in bytes' },
   add_time: { type: 'string', description: 'When the file was uploaded' },
   update_time: { type: 'string', description: 'When the file was last updated' },
@@ -118,17 +118,19 @@ export const PIPEDRIVE_FILE_OUTPUT_PROPERTIES = {
 
 /**
  * Output definition for pipeline objects.
- * @see https://developers.pipedrive.com/docs/api/v1/Pipelines
+ * @see https://developers.pipedrive.com/docs/api/v2/Pipelines#getPipelines
  */
 export const PIPEDRIVE_PIPELINE_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Pipeline ID' },
   name: { type: 'string', description: 'Pipeline name' },
-  url_title: { type: 'string', description: 'URL-friendly title' },
   order_nr: { type: 'number', description: 'Pipeline order number' },
-  active: { type: 'boolean', description: 'Whether the pipeline is active' },
-  deal_probability: { type: 'boolean', description: 'Whether deal probability is enabled' },
-  add_time: { type: 'string', description: 'When the pipeline was created' },
-  update_time: { type: 'string', description: 'When the pipeline was last updated' },
+  is_deleted: { type: 'boolean', description: 'Whether the pipeline is deleted' },
+  is_deal_probability_enabled: {
+    type: 'boolean',
+    description: 'Whether deal probability is enabled',
+  },
+  add_time: { type: 'string', description: 'When the pipeline was created (ISO 8601)' },
+  update_time: { type: 'string', description: 'When the pipeline was last updated (ISO 8601)' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -255,7 +257,7 @@ interface PipedriveActivity {
 interface PipedriveFile {
   id: number
   name: string
-  file_type: string
+  file_name: string
   file_size: number
   add_time: string
   update_time: string
@@ -268,10 +270,9 @@ interface PipedriveFile {
 interface PipedrivePipeline {
   id: number
   name: string
-  url_title: string
   order_nr: number
-  active: boolean
-  deal_probability: boolean
+  is_deleted: boolean
+  is_deal_probability_enabled: boolean
   add_time: string
   update_time: string
 }
@@ -447,13 +448,15 @@ export interface PipedriveGetPipelinesParams extends PipedriveBaseParams {
   sort_direction?: string
   limit?: string
   start?: string
+  cursor?: string
 }
 
 interface PipedriveGetPipelinesOutput {
   pipelines: PipedrivePipeline[]
   total_items: number
   has_more?: boolean
-  next_start?: number
+  next_start?: number | null
+  next_cursor?: string | null
   success: boolean
 }
 

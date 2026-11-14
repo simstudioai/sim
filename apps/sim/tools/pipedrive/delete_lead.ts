@@ -5,6 +5,7 @@ import type {
 } from '@/tools/pipedrive/types'
 import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('PipedriveDeleteLead')
 
@@ -45,7 +46,8 @@ export const pipedriveDeleteLeadTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.pipedrive.com/v1/leads/${params.lead_id}`,
+    url: (params) =>
+      `https://api.pipedrive.com/v1/leads/${safeUrlPathSegment(params.lead_id, 'lead_id')}`,
     method: 'DELETE',
     headers: (params) => getPipedriveAuthHeaders(params),
   },

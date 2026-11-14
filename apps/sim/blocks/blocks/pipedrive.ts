@@ -399,7 +399,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Pagination cursor from previous response',
       condition: {
         field: 'operation',
-        value: ['get_all_deals', 'get_projects'],
+        value: ['get_all_deals', 'get_projects', 'get_pipelines'],
       },
     },
     {
@@ -415,7 +415,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
           'get_files',
           'get_pipeline_deals',
           'get_mail_messages',
-          'get_pipelines',
         ],
       },
     },
@@ -448,6 +447,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         { label: 'All', id: '' },
         { label: 'Open', id: 'open' },
         { label: 'Completed', id: 'completed' },
+        { label: 'Canceled', id: 'canceled' },
       ],
       value: () => '',
       condition: { field: 'operation', value: ['get_projects'] },
