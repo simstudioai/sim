@@ -263,6 +263,7 @@ describe('CI task attribution through real Turborepo', () => {
       'browser-extension-access',
       'browser-extension-composer',
       'browser-extension-navigation',
+      'markdown-viewer',
       'mobile',
       'organization-search',
       'seo',
@@ -445,6 +446,7 @@ describe('CI task attribution through real Turborepo', () => {
   })
   it.each([
     ['test-mobile-e2e.ts', 'mobile'],
+    ['test-markdown-viewer-e2e.ts', 'markdown-viewer'],
     ['test-project-file-sharing-e2e.ts', 'project-files'],
     ['test-scim-e2e.ts', 'scim'],
     ['test-landing-seo-e2e.ts', 'seo'],
@@ -488,6 +490,7 @@ describe('CI task attribution through real Turborepo', () => {
       'browser-extension-navigation',
       'cli',
       'desktop-inbox',
+      'markdown-viewer',
       'mobile',
       'organization-search',
       'project-files',
