@@ -405,18 +405,25 @@ export function buildMemberTags(
     }
   }
   const items = Array.isArray(parsed) ? parsed : [parsed]
-  return items.flatMap((item) => {
-    if (typeof item === 'string') {
-      const name = item.trim()
+  const tags = items.flatMap((item) => {
+    if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') {
+      const name = String(item).trim()
       return name ? [{ name, status: defaultStatus }] : []
     }
     if (item && typeof item === 'object' && 'name' in item) {
       const tag = item as { name: unknown; status?: unknown }
+      const name =
+        typeof tag.name === 'string' || typeof tag.name === 'number' ? String(tag.name).trim() : ''
+      if (!name) return []
       const status = typeof tag.status === 'string' && tag.status ? tag.status : defaultStatus
-      return [{ name: String(tag.name), status }]
+      return [{ name, status }]
     }
     return []
   })
+  if (tags.length === 0) {
+    throw new Error('Tags must include at least one tag name')
+  }
+  return tags
 }
 
 // Helper function for consistent error handling

@@ -14,9 +14,9 @@ Use [Mailchimp](https://mailchimp.com/) in Sim to manage audiences and members, 
 
 ## Member removal
 
-**Delete Member from Mailchimp Audience** calls Mailchimp's reversible archive endpoint. **Archive Member from Mailchimp Audience** instead targets permanent deletion of identifying data, after which the member cannot be re-imported. These UI labels differ from the provider's terminology.
+**Delete Member from Mailchimp Audience** and **Archive Member from Mailchimp Audience** both call Mailchimp's reversible [archive endpoint](https://mailchimp.com/developer/marketing/api/list-members/archive-list-member); an archived member can be added back.
 
-The current permanent-deletion action sends `DELETE`, while [Mailchimp documents `POST` for delete-permanent](https://mailchimp.com/developer/marketing/api/lists/members/create-member-action-delete-permanent). Its compatibility is unverified; do not rely on it for deletion until the request method is corrected and tested.
+**Permanently Delete Member from Mailchimp Audience** calls [`POST .../actions/delete-permanent`](https://mailchimp.com/developer/marketing/api/list-member-actions/delete-list-member-permanently), which erases the member's identifying data. It cannot be undone, and the address cannot be re-imported.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]

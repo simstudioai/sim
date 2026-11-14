@@ -89,6 +89,24 @@ describe('Mailchimp request bodies', () => {
     })
   })
 
+  it('keeps numeric tag names and rejects input with no tag names', () => {
+    const params = { apiKey, listId: 'list1', subscriberEmail: janeHash }
+    expect(bodyOf(mailchimpAddMemberTagsTool, { ...params, tags: '2024' })).toEqual({
+      tags: [{ name: '2024', status: 'active' }],
+    })
+    expect(() => bodyOf(mailchimpAddMemberTagsTool, { ...params, tags: '[]' })).toThrow()
+  })
+
+  it('accepts an already-parsed operations array and rejects unparseable operations', () => {
+    const operations = [{ method: 'GET', path: '/lists' }]
+    expect(bodyOf(mailchimpCreateBatchOperationTool, { apiKey, operations })).toEqual({
+      operations,
+    })
+    expect(() =>
+      bodyOf(mailchimpCreateBatchOperationTool, { apiKey, operations: 'not json' })
+    ).toThrow()
+  })
+
   it('serializes an object batch operation body to the JSON string Mailchimp requires', () => {
     const body = bodyOf(mailchimpCreateBatchOperationTool, {
       apiKey,
