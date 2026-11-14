@@ -1576,6 +1576,7 @@ import {
   embeddingsOllamaTool,
   embeddingsOpenAITool,
   embeddingsOpenRouterTool,
+  embeddingsVoyageTool,
 } from '@/tools/embeddings'
 import {
   enrichCheckCreditsTool,
@@ -6498,6 +6499,7 @@ import {
   veoVideoTool,
 } from '@/tools/video'
 import { visionTool, visionToolV2 } from '@/tools/vision'
+import { voyageaiContextualizedEmbeddingsTool, voyageaiRerankTool } from '@/tools/voyageai'
 import {
   wealthboxReadContactTool,
   wealthboxReadNoteTool,
@@ -7237,6 +7239,8 @@ export const tools: Record<string, ExecutableToolConfig> = {
 
   vision_tool: visionTool,
   vision_tool_v2: visionToolV2,
+  voyageai_contextualized_embeddings: voyageaiContextualizedEmbeddingsTool,
+  voyageai_rerank: voyageaiRerankTool,
   file_parser: fileParseTool,
   file_parser_v2: fileParserV2Tool,
   file_parser_v3: fileParserV3Tool,
@@ -10096,6 +10100,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   embeddings_gemini: embeddingsGeminiTool,
   embeddings_cohere: embeddingsCohereTool,
   embeddings_mistral: embeddingsMistralTool,
+  embeddings_voyage: embeddingsVoyageTool,
   embeddings_openrouter: embeddingsOpenRouterTool,
   embeddings_ollama: embeddingsOllamaTool,
   enrich_check_credits: enrichCheckCreditsTool,

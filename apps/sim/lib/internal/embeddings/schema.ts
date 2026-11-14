@@ -9,6 +9,7 @@ export const embeddingProviders = [
   'gemini',
   'cohere',
   'mistral',
+  'voyage',
   'ollama',
 ] as const satisfies readonly EmbeddingToolProvider[]
 
@@ -59,6 +60,13 @@ export const embeddingsInputSchema = z.discriminatedUnion('provider', [
   z.object({
     ...commonShape,
     provider: z.enum(catalogProviders),
+    apiKey: z.string({ error: 'apiKey is required' }).min(1, 'apiKey cannot be empty'),
+  }),
+  /** Voyage has no default model, so the caller names one. */
+  z.object({
+    ...commonShape,
+    provider: z.literal('voyage'),
+    model: z.string().min(1, 'model is required for voyage'),
     apiKey: z.string({ error: 'apiKey is required' }).min(1, 'apiKey cannot be empty'),
   }),
   z.object({

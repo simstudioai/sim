@@ -82,6 +82,7 @@ export function createEmbeddingTool(
             throw new Error('Embedding response missing token usage')
           }
           const model = typeof output.model === 'string' ? output.model : hostedDefaultModel
+          if (!model) throw new Error('Embedding response missing model')
           const pricing = getEmbeddingModelPricing(model)
           if (!pricing) {
             throw new Error(`No pricing configured for embedding model: ${model}`)
@@ -111,7 +112,7 @@ export function createEmbeddingTool(
       },
       model: {
         type: 'string',
-        required: isKeyless,
+        required: defaultModel === undefined,
         visibility: 'user-only',
         description: isKeyless
           ? 'Embedding model pulled on the configured Ollama server'

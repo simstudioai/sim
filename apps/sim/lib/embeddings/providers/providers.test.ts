@@ -5,6 +5,7 @@ import {
   createGeminiAdapter,
   createMistralAdapter,
   createOllamaAdapter,
+  createVoyageAdapter,
 } from '@/lib/embeddings/providers'
 
 const INPUTS = ['alpha', 'beta']
@@ -79,6 +80,30 @@ describe('Mistral adapter', () => {
       [9, 9],
     ])
     expect(request.parseTokens?.(json)).toBe(4)
+  })
+})
+
+describe('Voyage adapter', () => {
+  const adapter = createVoyageAdapter({
+    modelName: 'voyage-4',
+    apiKey: 'pa-test',
+    nativeDimensions: 1024,
+  })
+
+  it('restores input order from the response index', () => {
+    const request = adapter.buildRequest({ inputs: INPUTS, taskType: 'document' })
+    const json = {
+      data: [
+        { embedding: [9, 9], index: 1 },
+        { embedding: [1, 1], index: 0 },
+      ],
+      usage: { total_tokens: 7 },
+    }
+    expect(request.parse(json)).toEqual([
+      [1, 1],
+      [9, 9],
+    ])
+    expect(request.parseTokens?.(json)).toBe(7)
   })
 })
 

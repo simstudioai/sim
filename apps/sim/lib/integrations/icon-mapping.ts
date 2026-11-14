@@ -733,6 +733,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   vanta: VantaIcon,
   vercel: VercelIcon,
   vercel_v2: VercelIcon,
+  voyageai: EmbeddingsIcon,
   wealthbox: WealthboxIcon,
   webflow: WebflowIcon,
   whatsapp: WhatsAppIcon,

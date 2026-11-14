@@ -33,6 +33,7 @@ const TOOL_ID_BY_PROVIDER: Record<EmbeddingBlockProvider, string> = {
   gemini: 'embeddings_gemini',
   cohere: 'embeddings_cohere',
   mistral: 'embeddings_mistral',
+  voyage: 'embeddings_voyage',
   ollama: 'embeddings_ollama',
 }
 
@@ -42,6 +43,7 @@ const PROVIDER_LABELS: Record<EmbeddingBlockProvider, string> = {
   gemini: 'Google Gemini',
   cohere: 'Cohere',
   mistral: 'Mistral',
+  voyage: 'Voyage AI',
   ollama: 'Ollama',
 }
 
@@ -62,16 +64,37 @@ const TASK_TYPE_LABELS: Record<EmbeddingTaskType, string> = {
  * sub-block id, so each is scoped by a `condition` naming the provider.
  */
 const MODEL_SUB_BLOCKS: SubBlockConfig[] = EMBEDDING_CATALOG_PROVIDERS.map((provider) => {
+  const defaultModel = DEFAULT_MODEL_BY_PROVIDER[provider]
+  const options = getModelsForProvider(provider).map((id) => ({
+    label: EMBEDDING_MODELS[id].label,
+    id,
+  }))
+  const condition = { field: 'provider', value: provider }
+  /**
+   * A provider with no default model must not have one picked for the user: a
+   * dropdown selects its first option on its own, so this is a combobox whose
+   * `emptyIsValid` suppresses that, left empty until a model is chosen.
+   */
+  if (!defaultModel) {
+    return {
+      id: 'model',
+      title: 'Model',
+      type: 'combobox',
+      options,
+      placeholder: 'Select a model',
+      required: true,
+      emptyIsValid: true,
+      condition,
+      dependsOn: ['provider'],
+    }
+  }
   return {
     id: 'model',
     title: 'Model',
     type: 'dropdown',
-    options: getModelsForProvider(provider).map((id) => ({
-      label: EMBEDDING_MODELS[id].label,
-      id,
-    })),
-    value: () => DEFAULT_MODEL_BY_PROVIDER[provider],
-    condition: { field: 'provider', value: provider },
+    options,
+    value: () => defaultModel,
+    condition,
     dependsOn: ['provider'],
   }
 })
@@ -164,7 +187,7 @@ export const EmbeddingsBlock: BlockConfig = {
   description: 'Generate embeddings',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus embedding models on a self-hosted Ollama.',
+    'Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, Mistral, and Voyage AI embedding models, plus embedding models on a self-hosted Ollama.',
   category: 'tools',
   integrationType: IntegrationType.AI,
   docsLink: 'https://docs.sim.ai/integrations/embeddings',
@@ -237,6 +260,7 @@ export const EmbeddingsBlock: BlockConfig = {
       'embeddings_gemini',
       'embeddings_cohere',
       'embeddings_mistral',
+      'embeddings_voyage',
       'embeddings_ollama',
     ],
     config: {
@@ -327,6 +351,7 @@ export const EmbeddingsBlock: BlockConfig = {
           savedModel && EMBEDDING_MODELS[savedModel]?.provider === catalogProvider
             ? savedModel
             : DEFAULT_MODEL_BY_PROVIDER[catalogProvider]
+        if (!model) throw new Error(`A ${PROVIDER_LABELS[catalogProvider]} model is required`)
 
         const info = EMBEDDING_MODELS[model]
         const requested =
