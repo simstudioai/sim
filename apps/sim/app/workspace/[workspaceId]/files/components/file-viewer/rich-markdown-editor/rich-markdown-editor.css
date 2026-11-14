@@ -612,7 +612,7 @@
   position: absolute;
   top: -1.4em;
   left: -1px;
-  max-width: 10rem;
+  max-width: min(10rem, var(--caret-label-max-width, 10rem));
   overflow: hidden;
   padding: 0.1rem 0.35rem;
   border-radius: 2px 2px 2px 0;
@@ -628,6 +628,11 @@
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s ease;
+  transform: translateX(var(--caret-label-offset, 0px));
+}
+
+.rich-markdown-nodes .collaboration-carets__caret[data-caret-outside] .collaboration-carets__label {
+  display: none;
 }
 
 .rich-markdown-nodes .collaboration-carets__caret--active .collaboration-carets__label,

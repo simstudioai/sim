@@ -60,7 +60,7 @@ export function useBubbleMenuFloating(
       const { node } = editor.view.domAtPos(editor.state.selection.from)
       const reference = node instanceof Element ? node : (node.parentElement ?? editor.view.dom)
       stop = autoUpdate(reference, menu, () => {
-        if (!editor.isDestroyed && menu.isConnected && menu.style.visibility !== 'hidden') {
+        if (!editor.isDestroyed && menu.isConnected) {
           editor.commands.setMeta(pluginKey, 'updatePosition')
         }
       })

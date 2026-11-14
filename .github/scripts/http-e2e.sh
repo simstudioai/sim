@@ -3,7 +3,7 @@
 # CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|mobile|seo>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|mobile|seo>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|mobile|seo>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -313,6 +313,22 @@ JS
     PROJECT_FILES_E2E_RELAY_URL=http://127.0.0.1:3052 \
     PROJECT_FILES_E2E_REPORT_PATH="$report_dir/project-files/orchestration.json" \
       bun --no-env-file scripts/test-project-files-e2e.ts
+    ;;
+
+  markdown-viewer)
+    app_server=start
+    export NEXT_PUBLIC_FORCE_HOSTED=false
+    export INTERNAL_API_SECRET=markdown-viewer-http-ci-local-secret-at-least-32-characters
+    export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3027 SOCKET_SERVER_URL=http://127.0.0.1:3027
+    start_browser_install markdown-viewer --only-shell chromium webkit
+    start_app markdown-viewer 3026 'Markdown viewer' record-http-status
+    start_realtime markdown-viewer 3027
+    wait_for_browsers
+    MARKDOWN_VIEWER_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+    MARKDOWN_VIEWER_E2E_DATABASE_URL="$DATABASE_URL" \
+    MARKDOWN_VIEWER_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    MARKDOWN_VIEWER_E2E_REPORT_PATH="$report_dir/markdown-viewer-ui-report.json" \
+      bun run test:markdown-viewer:e2e
     ;;
 
   # MOBILE_E2E_BROWSER (chromium or webkit) narrows the job to one browser; unset runs both.

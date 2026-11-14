@@ -382,12 +382,150 @@ async function proveCollaborationCursor(page: Page) {
   }
 }
 
+async function proveToolbarTracking(page: Page) {
+  const viewport = page.viewportSize()
+  assert(viewport)
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  try {
+    const table = page.locator('.rich-markdown-prose table').filter({ hasText: 'Option Alpha' })
+    await table.evaluate((element) => {
+      if (element.parentElement) element.parentElement.scrollLeft = 128
+    })
+    await table.locator('th').nth(6).click()
+    const toolbar = page.getByRole('toolbar', { name: 'Table editing' })
+    await proveToolbar(page, toolbar)
+    const popup = toolbar.locator('..')
+    const header = await popup.boundingBox()
+    assert(header)
+    await table.locator('tr').nth(1).locator('td').nth(6).click()
+    await proveToolbar(page, toolbar)
+    await expect
+      .poll(async () => (await popup.boundingBox())?.width ?? 0)
+      .toBeGreaterThan(header.width + 20)
+    await expect
+      .poll(async () => {
+        const caret = await page.evaluate(() => {
+          const selection = getSelection()
+          if (!selection?.rangeCount) return null
+          const rect = selection.getRangeAt(0).getBoundingClientRect()
+          return (rect.left + rect.right) / 2
+        })
+        const bounds = await popup.boundingBox()
+        return caret === null || !bounds
+          ? Number.POSITIVE_INFINITY
+          : Math.abs(bounds.x + bounds.width / 2 - caret)
+      })
+      .toBeLessThan(4)
+    const before = await popup.boundingBox()
+    assert(before)
+    const movement = await table.evaluate((element) => {
+      const wrapper = element.parentElement
+      if (!wrapper) throw new Error('Missing table viewport')
+      const from = wrapper.scrollLeft
+      wrapper.scrollLeft += 64
+      return { from, delta: wrapper.scrollLeft - from }
+    })
+    assert(movement.delta > 32, 'The table did not move with its toolbar open')
+    await expect
+      .poll(async () =>
+        Math.abs(
+          ((await popup.boundingBox())?.x ?? Number.POSITIVE_INFINITY) - before.x + movement.delta
+        )
+      )
+      .toBeLessThan(2)
+    await table.evaluate((element, left) => {
+      if (element.parentElement) element.parentElement.scrollLeft = left
+    }, movement.from)
+    await expect
+      .poll(async () =>
+        Math.abs(((await popup.boundingBox())?.x ?? Number.POSITIVE_INFINITY) - before.x)
+      )
+      .toBeLessThan(2)
+    await page.screenshot({ path: resolve(artifactDir, `toolbar-tracking-${checks.length}.png`) })
+    await page
+      .locator('.rich-markdown-prose strong')
+      .filter({ hasText: /^bold$/ })
+      .click()
+  } finally {
+    await page.setViewportSize(viewport)
+  }
+}
+
+async function proveCollaborationScroll(page: Page) {
+  const peer = await page.context().newPage()
+  peer.on('pageerror', (error) => errors.push(error.message))
+  try {
+    await peer.goto(page.url(), { timeout: 360_000 })
+    await expect(peer.locator('.rich-markdown-prose[contenteditable="true"]')).toBeVisible({
+      timeout: 120_000,
+    })
+    const peerTable = peer.locator('.rich-markdown-prose table').filter({ hasText: 'Option Alpha' })
+    await peerTable.locator('th').nth(6).click()
+    await peer.keyboard.press('Home')
+    const table = page.locator('.rich-markdown-prose table').filter({ hasText: 'Option Alpha' })
+    const label = table.locator('.collaboration-carets__label').first()
+    await expect(label).toBeAttached({ timeout: 20_000 })
+    await table.scrollIntoViewIfNeeded()
+    for (const edge of ['right', 'left', 'center'] as const) {
+      await label.evaluate((element, edge) => {
+        const caret = element.parentElement
+        const wrapper = element.closest('.tableWrapper')
+        if (!caret || !(wrapper instanceof HTMLElement)) throw new Error('Missing caret viewport')
+        const viewport = wrapper.getBoundingClientRect()
+        const target =
+          edge === 'right'
+            ? viewport.right - 20
+            : edge === 'left'
+              ? viewport.left + 20
+              : (viewport.left + viewport.right) / 2
+        wrapper.scrollLeft += caret.getBoundingClientRect().left - target
+      }, edge)
+      await expect
+        .poll(() =>
+          label.evaluate((element) => {
+            const wrapper = element.closest('.tableWrapper')
+            if (!wrapper) return false
+            const bounds = wrapper.getBoundingClientRect()
+            const label = element.getBoundingClientRect()
+            return (
+              label.width > 0 &&
+              label.left >= bounds.left - 1 &&
+              label.right <= bounds.right + 1 &&
+              label.top >= bounds.top &&
+              label.bottom <= bounds.bottom
+            )
+          })
+        )
+        .toBe(true)
+    }
+    await page.mouse.move(1, 1)
+    await expect
+      .poll(() => label.evaluate((element) => Number(getComputedStyle(element).opacity)))
+      .toBe(0)
+    await table.evaluate((element) => {
+      if (element.parentElement) element.parentElement.scrollLeft += 16
+    })
+    const idleOpacity = await label.evaluate(async (element) => {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      })
+      return Number(getComputedStyle(element).opacity)
+    })
+    assert.equal(idleOpacity, 0, 'Local scrolling reactivated an idle collaborator name')
+    await page.screenshot({
+      path: resolve(artifactDir, `collaborator-scroll-${checks.length}.png`),
+    })
+  } finally {
+    await peer.close()
+  }
+}
+
 try {
   await mkdir(artifactDir, { recursive: true })
   await writeFile(resolve(artifactDir, 'fixture.md'), source)
   await sql.begin(async (tx) => {
     const email = `${userId}@markdown-e2e.test`
-    await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at) values (${userId}, 'Markdown E2E', ${email}, ${email}, true, now(), now())`
+    await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at) values (${userId}, 'Markdown collaboration proof name', ${email}, ${email}, true, now(), now())`
     await tx`insert into user_stats (id, user_id) values (${generateId()}, ${userId})`
     await tx`insert into project (id, name, owner_id) values (${workspaceId}, 'Markdown E2E', ${userId})`
     await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id) values (${workspaceId}, ${workspaceId}, 'Markdown E2E', ${userId}, ${userId})`
@@ -477,6 +615,17 @@ try {
           () => editLastCell(page, `-${browserName}-${theme}-saved`),
           page
         )
+        await check(
+          `${browserName} ${theme}: open toolbar follows scrolling and control resizing`,
+          () => proveToolbarTracking(page),
+          page
+        )
+        if (theme === 'light')
+          await check(
+            `${browserName}: collaborator names stay inside locally scrolled tables`,
+            () => proveCollaborationScroll(page),
+            page
+          )
         if (theme === 'light')
           await check(
             `${browserName}: collaborator name stays visible above the first row`,
