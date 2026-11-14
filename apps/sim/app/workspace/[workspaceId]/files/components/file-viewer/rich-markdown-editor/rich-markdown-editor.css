@@ -262,6 +262,11 @@
   padding: 0.125rem 0.375rem;
 }
 
+/* WebKit can leave inline padding outside the line when only overflow-wrap breaks a token. */
+.rich-markdown-prose :not(pre) > code {
+  word-break: break-all;
+}
+
 /* del/s are the one mark that both needs its own explicit default color (dimmer than the prose
  * default, unlike strong/em/code above) AND must still yield it to a link's blue — an inherited
  * value never beats an element's own explicit rule regardless of the ancestor selector's
