@@ -80,6 +80,12 @@ export function createMockSql() {
   return Object.assign(sqlFn, { raw, join, param })
 }
 
+/** An aggregate expression; `.as(alias)` mirrors drizzle's for a subquery's selected field. */
+function aggregate(type: string, column: unknown) {
+  const expression = { type, column, as: (alias: string) => ({ ...expression, alias }) }
+  return expression
+}
+
 /**
  * Creates mock SQL operators (eq, and, or, etc.).
  */
@@ -91,11 +97,11 @@ function createMockSqlOperators() {
     gte: vi.fn((a, b) => ({ type: 'gte', left: a, right: b })),
     lt: vi.fn((a, b) => ({ type: 'lt', left: a, right: b })),
     lte: vi.fn((a, b) => ({ type: 'lte', left: a, right: b })),
-    count: vi.fn((column) => ({ type: 'count', column })),
-    avg: vi.fn((column) => ({ type: 'avg', column })),
-    sum: vi.fn((column) => ({ type: 'sum', column })),
-    min: vi.fn((column) => ({ type: 'min', column })),
-    max: vi.fn((column) => ({ type: 'max', column })),
+    count: vi.fn((column) => aggregate('count', column)),
+    avg: vi.fn((column) => aggregate('avg', column)),
+    sum: vi.fn((column) => aggregate('sum', column)),
+    min: vi.fn((column) => aggregate('min', column)),
+    max: vi.fn((column) => aggregate('max', column)),
     and: vi.fn((...conditions) => ({ type: 'and', conditions })),
     or: vi.fn((...conditions) => ({ type: 'or', conditions })),
     not: vi.fn((condition) => ({ type: 'not', condition })),
