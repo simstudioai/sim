@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { NotionIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, parseOptionalJsonInput } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -659,33 +659,9 @@ export const NotionBlock: BlockConfig = {
           }
         }
 
-        // Parse filter for query database operations
-        let parsedFilter
-        if (operation === 'notion_query_database' && filter) {
-          if (typeof filter === 'string') {
-            try {
-              parsedFilter = JSON.parse(filter)
-            } catch (error) {
-              throw new Error(`Invalid JSON for filter: ${toError(error).message}`)
-            }
-          } else {
-            parsedFilter = filter
-          }
-        }
-
-        // Parse sorts for query database operations
-        let parsedSorts
-        if (operation === 'notion_query_database' && sorts) {
-          if (typeof sorts === 'string') {
-            try {
-              parsedSorts = JSON.parse(sorts)
-            } catch (error) {
-              throw new Error(`Invalid JSON for sorts: ${toError(error).message}`)
-            }
-          } else {
-            parsedSorts = sorts
-          }
-        }
+        const isQuery = operation === 'notion_query_database'
+        const parsedFilter = isQuery ? parseOptionalJsonInput(filter, 'filter') : undefined
+        const parsedSorts = isQuery ? parseOptionalJsonInput(sorts, 'sorts') : undefined
 
         // Parse block children array for append operations
         let parsedChildren

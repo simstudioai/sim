@@ -1,3 +1,4 @@
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import { IntercomIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -25,6 +26,148 @@ function toSnoozeTimestamp(value: unknown): number {
     throw new Error('Snooze until must be a positive whole Unix timestamp in seconds')
   }
   return timestamp
+}
+
+type IntercomParamsMapper = NonNullable<NonNullable<BlockConfig['tools']['config']>['params']>
+
+/** Maps Intercom block fields to tool params; shared by every Intercom block version. */
+const mapIntercomParams: IntercomParamsMapper = (params, context) => {
+  const {
+    operation: storedOperation,
+    message_type_msg,
+    company_name,
+    contact_company_id,
+    reply_created_at,
+    ticket_company_id,
+    ticket_created_at,
+    message_created_at,
+    include_translations,
+    disable_notifications,
+    close_body,
+    assign_body,
+    tag_contact_id,
+    attach_company_id,
+    update_ticket_attributes,
+    ticket_open,
+    ticket_is_shared,
+    ticket_snoozed_until,
+    snoozed_until,
+    ticket_assignee_id,
+    tag_name,
+    tag_id_update,
+    note_body,
+    event_user_id,
+    event_email,
+    event_contact_id,
+    event_metadata,
+    event_created_at,
+    ...rest
+  } = params
+  const operation = storedOperation ?? context?.operation
+  const cleanParams: Record<string, any> = {}
+
+  if (operation === 'create_message' && message_type_msg) {
+    cleanParams.message_type = message_type_msg
+  }
+
+  if (operation === 'create_company' && company_name) {
+    cleanParams.name = company_name
+  }
+
+  if ((operation === 'create_contact' || operation === 'update_contact') && contact_company_id) {
+    cleanParams.company_id = contact_company_id
+  }
+
+  if (operation === 'reply_conversation' && reply_created_at) {
+    cleanParams.created_at = Number(reply_created_at)
+  }
+
+  if (operation === 'create_ticket') {
+    if (ticket_company_id) cleanParams.company_id = ticket_company_id
+    if (ticket_created_at) cleanParams.created_at = Number(ticket_created_at)
+    const disableNotifications = toBooleanFromInput(disable_notifications)
+    if (disableNotifications !== undefined) {
+      cleanParams.disable_notifications = disableNotifications
+    }
+  }
+
+  if (operation === 'create_message' && message_created_at) {
+    cleanParams.created_at = Number(message_created_at)
+  }
+
+  const includeTranslations = toBooleanFromInput(include_translations)
+  if (operation === 'get_conversation' && includeTranslations !== undefined) {
+    cleanParams.include_translations = includeTranslations
+  }
+
+  if (operation === 'snooze_conversation' && snoozed_until) {
+    cleanParams.snoozed_until = toSnoozeTimestamp(snoozed_until)
+  }
+
+  if (operation === 'close_conversation' && close_body) {
+    cleanParams.body = close_body
+  }
+
+  if (operation === 'assign_conversation' && assign_body) {
+    cleanParams.body = assign_body
+  }
+
+  if (
+    [
+      'tag_contact',
+      'untag_contact',
+      'create_note',
+      'attach_contact_to_company',
+      'detach_contact_from_company',
+    ].includes(operation) &&
+    tag_contact_id
+  ) {
+    cleanParams.contactId = tag_contact_id
+  }
+
+  if (
+    ['attach_contact_to_company', 'detach_contact_from_company'].includes(operation) &&
+    attach_company_id
+  ) {
+    cleanParams.companyId = attach_company_id
+  }
+
+  if (operation === 'update_ticket') {
+    if (update_ticket_attributes) cleanParams.ticket_attributes = update_ticket_attributes
+    const ticketOpen = toBooleanFromInput(ticket_open)
+    if (ticketOpen !== undefined) cleanParams.open = ticketOpen
+    const ticketIsShared = toBooleanFromInput(ticket_is_shared)
+    if (ticketIsShared !== undefined) cleanParams.is_shared = ticketIsShared
+    if (ticket_snoozed_until) {
+      cleanParams.snoozed_until = toSnoozeTimestamp(ticket_snoozed_until)
+    }
+    if (ticket_assignee_id) cleanParams.assignee_id = ticket_assignee_id
+  }
+
+  if (operation === 'create_tag') {
+    if (tag_name) cleanParams.name = tag_name
+    if (tag_id_update) cleanParams.id = tag_id_update
+  }
+
+  if (operation === 'create_note' && note_body) {
+    cleanParams.body = note_body
+  }
+
+  if (operation === 'create_event') {
+    if (event_user_id) cleanParams.user_id = event_user_id
+    if (event_email) cleanParams.email = event_email
+    if (event_contact_id) cleanParams.id = event_contact_id
+    if (event_metadata) cleanParams.metadata = event_metadata
+    if (event_created_at) cleanParams.created_at = Number(event_created_at)
+  }
+
+  Object.entries(rest).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      cleanParams[key] = value
+    }
+  })
+
+  return cleanParams
 }
 
 export const IntercomBlock: BlockConfig = {
@@ -1357,153 +1500,7 @@ Return ONLY the numeric timestamp.`,
             throw new Error(`Unknown operation: ${params.operation}`)
         }
       },
-      params: (params, context) => {
-        const {
-          operation: storedOperation,
-          message_type_msg,
-          company_name,
-          contact_company_id,
-          reply_created_at,
-          ticket_company_id,
-          ticket_created_at,
-          message_created_at,
-          include_translations,
-          disable_notifications,
-          close_body,
-          assign_body,
-          tag_contact_id,
-          attach_company_id,
-          update_ticket_attributes,
-          ticket_open,
-          ticket_is_shared,
-          ticket_snoozed_until,
-          snoozed_until,
-          ticket_assignee_id,
-          tag_name,
-          tag_id_update,
-          note_body,
-          event_user_id,
-          event_email,
-          event_contact_id,
-          event_metadata,
-          event_created_at,
-          ...rest
-        } = params
-        const operation = storedOperation ?? context?.operation
-        const cleanParams: Record<string, any> = {}
-
-        if (operation === 'create_message' && message_type_msg) {
-          cleanParams.message_type = message_type_msg
-        }
-
-        if (operation === 'create_company' && company_name) {
-          cleanParams.name = company_name
-        }
-
-        if (
-          (operation === 'create_contact' || operation === 'update_contact') &&
-          contact_company_id
-        ) {
-          cleanParams.company_id = contact_company_id
-        }
-
-        if (operation === 'reply_conversation' && reply_created_at) {
-          cleanParams.created_at = Number(reply_created_at)
-        }
-
-        if (operation === 'create_ticket') {
-          if (ticket_company_id) cleanParams.company_id = ticket_company_id
-          if (ticket_created_at) cleanParams.created_at = Number(ticket_created_at)
-          if (disable_notifications !== undefined && disable_notifications !== '') {
-            cleanParams.disable_notifications =
-              disable_notifications === true || disable_notifications === 'true'
-          }
-        }
-
-        if (operation === 'create_message' && message_created_at) {
-          cleanParams.created_at = Number(message_created_at)
-        }
-
-        if (
-          operation === 'get_conversation' &&
-          include_translations !== undefined &&
-          include_translations !== ''
-        ) {
-          cleanParams.include_translations =
-            include_translations === true || include_translations === 'true'
-        }
-
-        if (operation === 'snooze_conversation' && snoozed_until) {
-          cleanParams.snoozed_until = toSnoozeTimestamp(snoozed_until)
-        }
-
-        if (operation === 'close_conversation' && close_body) {
-          cleanParams.body = close_body
-        }
-
-        if (operation === 'assign_conversation' && assign_body) {
-          cleanParams.body = assign_body
-        }
-
-        if (
-          [
-            'tag_contact',
-            'untag_contact',
-            'create_note',
-            'attach_contact_to_company',
-            'detach_contact_from_company',
-          ].includes(operation) &&
-          tag_contact_id
-        ) {
-          cleanParams.contactId = tag_contact_id
-        }
-
-        if (
-          ['attach_contact_to_company', 'detach_contact_from_company'].includes(operation) &&
-          attach_company_id
-        ) {
-          cleanParams.companyId = attach_company_id
-        }
-
-        if (operation === 'update_ticket') {
-          if (update_ticket_attributes) cleanParams.ticket_attributes = update_ticket_attributes
-          if (ticket_open !== undefined && ticket_open !== '') {
-            cleanParams.open = ticket_open === 'true'
-          }
-          if (ticket_is_shared !== undefined && ticket_is_shared !== '') {
-            cleanParams.is_shared = ticket_is_shared === 'true'
-          }
-          if (ticket_snoozed_until) {
-            cleanParams.snoozed_until = toSnoozeTimestamp(ticket_snoozed_until)
-          }
-          if (ticket_assignee_id) cleanParams.assignee_id = ticket_assignee_id
-        }
-
-        if (operation === 'create_tag') {
-          if (tag_name) cleanParams.name = tag_name
-          if (tag_id_update) cleanParams.id = tag_id_update
-        }
-
-        if (operation === 'create_note' && note_body) {
-          cleanParams.body = note_body
-        }
-
-        if (operation === 'create_event') {
-          if (event_user_id) cleanParams.user_id = event_user_id
-          if (event_email) cleanParams.email = event_email
-          if (event_contact_id) cleanParams.id = event_contact_id
-          if (event_metadata) cleanParams.metadata = event_metadata
-          if (event_created_at) cleanParams.created_at = Number(event_created_at)
-        }
-
-        Object.entries(rest).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== '') {
-            cleanParams[key] = value
-          }
-        })
-
-        return cleanParams
-      },
+      params: mapIntercomParams,
     },
   },
   inputs: {
@@ -1651,153 +1648,7 @@ export const IntercomV2Block: BlockConfig = {
         suffix: '_v2',
         fallbackToolId: 'intercom_create_contact_v2',
       }),
-      params: (params, context) => {
-        const {
-          operation: storedOperation,
-          message_type_msg,
-          company_name,
-          contact_company_id,
-          reply_created_at,
-          ticket_company_id,
-          ticket_created_at,
-          message_created_at,
-          include_translations,
-          disable_notifications,
-          close_body,
-          assign_body,
-          tag_contact_id,
-          attach_company_id,
-          update_ticket_attributes,
-          ticket_open,
-          ticket_is_shared,
-          ticket_snoozed_until,
-          snoozed_until,
-          ticket_assignee_id,
-          tag_name,
-          tag_id_update,
-          note_body,
-          event_user_id,
-          event_email,
-          event_contact_id,
-          event_metadata,
-          event_created_at,
-          ...rest
-        } = params
-        const operation = storedOperation ?? context?.operation
-        const cleanParams: Record<string, any> = {}
-
-        if (operation === 'create_message' && message_type_msg) {
-          cleanParams.message_type = message_type_msg
-        }
-
-        if (operation === 'create_company' && company_name) {
-          cleanParams.name = company_name
-        }
-
-        if (
-          (operation === 'create_contact' || operation === 'update_contact') &&
-          contact_company_id
-        ) {
-          cleanParams.company_id = contact_company_id
-        }
-
-        if (operation === 'reply_conversation' && reply_created_at) {
-          cleanParams.created_at = Number(reply_created_at)
-        }
-
-        if (operation === 'create_ticket') {
-          if (ticket_company_id) cleanParams.company_id = ticket_company_id
-          if (ticket_created_at) cleanParams.created_at = Number(ticket_created_at)
-          if (disable_notifications !== undefined && disable_notifications !== '') {
-            cleanParams.disable_notifications =
-              disable_notifications === true || disable_notifications === 'true'
-          }
-        }
-
-        if (operation === 'create_message' && message_created_at) {
-          cleanParams.created_at = Number(message_created_at)
-        }
-
-        if (
-          operation === 'get_conversation' &&
-          include_translations !== undefined &&
-          include_translations !== ''
-        ) {
-          cleanParams.include_translations =
-            include_translations === true || include_translations === 'true'
-        }
-
-        if (operation === 'snooze_conversation' && snoozed_until) {
-          cleanParams.snoozed_until = toSnoozeTimestamp(snoozed_until)
-        }
-
-        if (operation === 'close_conversation' && close_body) {
-          cleanParams.body = close_body
-        }
-
-        if (operation === 'assign_conversation' && assign_body) {
-          cleanParams.body = assign_body
-        }
-
-        if (
-          [
-            'tag_contact',
-            'untag_contact',
-            'create_note',
-            'attach_contact_to_company',
-            'detach_contact_from_company',
-          ].includes(operation) &&
-          tag_contact_id
-        ) {
-          cleanParams.contactId = tag_contact_id
-        }
-
-        if (
-          ['attach_contact_to_company', 'detach_contact_from_company'].includes(operation) &&
-          attach_company_id
-        ) {
-          cleanParams.companyId = attach_company_id
-        }
-
-        if (operation === 'update_ticket') {
-          if (update_ticket_attributes) cleanParams.ticket_attributes = update_ticket_attributes
-          if (ticket_open !== undefined && ticket_open !== '') {
-            cleanParams.open = ticket_open === 'true'
-          }
-          if (ticket_is_shared !== undefined && ticket_is_shared !== '') {
-            cleanParams.is_shared = ticket_is_shared === 'true'
-          }
-          if (ticket_snoozed_until) {
-            cleanParams.snoozed_until = toSnoozeTimestamp(ticket_snoozed_until)
-          }
-          if (ticket_assignee_id) cleanParams.assignee_id = ticket_assignee_id
-        }
-
-        if (operation === 'create_tag') {
-          if (tag_name) cleanParams.name = tag_name
-          if (tag_id_update) cleanParams.id = tag_id_update
-        }
-
-        if (operation === 'create_note' && note_body) {
-          cleanParams.body = note_body
-        }
-
-        if (operation === 'create_event') {
-          if (event_user_id) cleanParams.user_id = event_user_id
-          if (event_email) cleanParams.email = event_email
-          if (event_contact_id) cleanParams.id = event_contact_id
-          if (event_metadata) cleanParams.metadata = event_metadata
-          if (event_created_at) cleanParams.created_at = Number(event_created_at)
-        }
-
-        Object.entries(rest).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== '') {
-            cleanParams[key] = value
-          }
-        })
-
-        return cleanParams
-      },
+      params: mapIntercomParams,
     },
   },
   outputs: {

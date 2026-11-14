@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { IntercomV2Block } from '@/blocks/blocks/intercom'
+import type { BlockToolParamsContext } from '@/blocks/types'
 
-function mapParams(params: Record<string, unknown>) {
+function mapParams(params: Record<string, unknown>, context?: BlockToolParamsContext) {
   const mapper = IntercomV2Block.tools.config?.params
   if (!mapper) throw new Error('Intercom block has no params mapper')
-  return mapper(params)
+  return mapper(params, context)
 }
 
 describe('Intercom snooze timestamps', () => {
@@ -33,10 +34,7 @@ describe('Intercom snooze timestamps', () => {
 
 describe('Intercom agent operation resolution', () => {
   it('keeps a boolean disable_notifications when the operation arrives only in the context', () => {
-    const mapper = IntercomV2Block.tools.config?.params
-    if (!mapper) throw new Error('Intercom block has no params mapper')
-
-    const mapped = mapper(
+    const mapped = mapParams(
       { ticket_type_id: 't1', disable_notifications: true },
       { operation: 'create_ticket' }
     )
