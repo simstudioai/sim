@@ -482,7 +482,7 @@ export async function persistWorkflowOperation(
           await handleEdgesOperationTx(tx, workflowId, op, payload)
           break
         case OPERATION_TARGETS.SUBFLOW:
-          await handleSubflowOperationTx(tx, workflowId, op, payload)
+          reconcile = await handleSubflowOperationTx(tx, workflowId, op, payload)
           break
         case OPERATION_TARGETS.SUBBLOCK:
           await handleSubblockOperationTx(tx, workflowId, op, payload)
@@ -1828,7 +1828,7 @@ async function handleSubflowOperationTx(
   workflowId: string,
   operation: string,
   payload: any
-) {
+): Promise<boolean> {
   switch (operation) {
     case SUBFLOW_OPERATIONS.UPDATE: {
       if (!payload.id || !payload.config) {
@@ -1839,7 +1839,7 @@ async function handleSubflowOperationTx(
         logger.info(
           `Skipping update of subflow ${payload.id} - it is locked or in a locked container`
         )
-        break
+        return true
       }
 
       logger.debug(`Updating subflow ${payload.id} with config:`, payload.config)
@@ -1953,7 +1953,7 @@ async function handleSubflowOperationTx(
           .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
       }
 
-      break
+      return false
     }
 
     default:
@@ -2277,9 +2277,7 @@ async function handleWorkflowOperationTx(
           incomingSubflows.filter(({ id }) => merged.blocks[id]).map((row) => [row.id, row])
         ),
         ...Object.fromEntries(
-          storedSubflows
-            .filter(({ id }) => merged.protectedBlockIds.has(id))
-            .map((row) => [row.id, row])
+          storedSubflows.filter(({ id }) => merged.keptBlockIds.has(id)).map((row) => [row.id, row])
         ),
       })
       if (subflowValues.length > 0) {
@@ -2287,10 +2285,10 @@ async function handleWorkflowOperationTx(
       }
 
       logger.info(`Successfully replaced workflow state for ${workflowId}`)
-      // A graph holding protected blocks may have been kept over the payload; comparing the
+      // A graph holding locked blocks may have been kept over the payload; comparing the
       // stored rows against it field by field is not worth the precision, so re-sync.
       return (
-        merged.protectedBlockIds.size > 0 ||
+        storedBlocks.some((row) => row.locked) ||
         Object.values((blocks || {}) as Record<string, { locked?: unknown }>).some(
           (block) => block.locked
         )

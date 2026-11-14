@@ -32,6 +32,8 @@ const ids = {
   child: generateId(),
   free: generateId(),
   edgeIntoLocked: generateId(),
+  unlockedParent: generateId(),
+  lockedChild: generateId(),
 }
 const lockedLoopConfig = { id: ids.container, nodes: [ids.child], iterations: 3, loopType: 'for' }
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
@@ -132,14 +134,17 @@ describe('block locks against PostgreSQL', () => {
   beforeEach(async () => {
     await db.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId))
     await db.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId))
-    await db
-      .insert(workflowBlocks)
-      .values([
-        blockRow(ids.locked, 'Locked', { locked: true }),
-        blockRow(ids.container, 'Locked loop', { type: 'loop', locked: true }),
-        blockRow(ids.child, 'Child', { data: { parentId: ids.container, extent: 'parent' } }),
-        blockRow(ids.free, 'Free'),
-      ])
+    await db.insert(workflowBlocks).values([
+      blockRow(ids.locked, 'Locked', { locked: true }),
+      blockRow(ids.container, 'Locked loop', { type: 'loop', locked: true }),
+      blockRow(ids.child, 'Child', { data: { parentId: ids.container, extent: 'parent' } }),
+      blockRow(ids.free, 'Free'),
+      blockRow(ids.unlockedParent, 'Unlocked loop', { type: 'loop' }),
+      blockRow(ids.lockedChild, 'Locked child', {
+        locked: true,
+        data: { parentId: ids.unlockedParent, extent: 'parent' },
+      }),
+    ])
     await db.insert(workflowEdges).values({
       id: ids.edgeIntoLocked,
       workflowId,
@@ -188,7 +193,7 @@ describe('block locks against PostgreSQL', () => {
       loops: { [ids.container]: { ...lockedLoopConfig, iterations: 99 } },
       parallels: {},
     })
-    await persist(OPERATION_TARGETS.SUBFLOW, SUBFLOW_OPERATIONS.UPDATE, {
+    const updated = await persist(OPERATION_TARGETS.SUBFLOW, SUBFLOW_OPERATIONS.UPDATE, {
       id: ids.container,
       type: 'loop',
       config: { iterations: 42 },
@@ -196,6 +201,7 @@ describe('block locks against PostgreSQL', () => {
 
     expect(await readSubflows()).toEqual([{ id: ids.container, config: lockedLoopConfig }])
     expect(result).toEqual({ reconcile: true })
+    expect(updated).toEqual({ reconcile: true })
   })
 
   check('an add that touches no lock keeps collaborators on the payload', async () => {
@@ -231,7 +237,7 @@ describe('block locks against PostgreSQL', () => {
   )
 
   check(
-    'replace-state keeps protected blocks, their incoming edges and loop config as stored, and drops blocks nested into a lock',
+    'replace-state keeps protected blocks, their incoming edges and loop config as stored, and drops what a lock or a removed parent no longer allows',
     async () => {
       const added = generateId()
       const nestedNew = generateId()
@@ -245,7 +251,11 @@ describe('block locks against PostgreSQL', () => {
               data: { parentId: ids.container, extent: 'parent' },
             }),
           },
-          edges: [{ id: generateId(), source: ids.free, target: nestedNew }],
+          edges: [
+            { id: generateId(), source: ids.free, target: nestedNew },
+            // Retargets the protected edge under its own id.
+            { id: ids.edgeIntoLocked, source: ids.free, target: added },
+          ],
           loops: { [ids.container]: { ...lockedLoopConfig, iterations: 99 } },
           parallels: {},
         },
@@ -258,12 +268,14 @@ describe('block locks against PostgreSQL', () => {
       expect(blocks[ids.free]).toMatchObject({ locked: false, name: 'Free renamed' })
       expect(blocks[added]).toMatchObject({ locked: false })
       expect(blocks[nestedNew]).toBeUndefined()
+      // The replacement removed its unlocked parent, so the locked child goes with it.
+      expect(blocks[ids.lockedChild]).toBeUndefined()
 
       const edges = await db
-        .select()
+        .select({ id: workflowEdges.id, target: workflowEdges.targetBlockId })
         .from(workflowEdges)
         .where(eq(workflowEdges.workflowId, workflowId))
-      expect(edges.map((edge) => edge.id)).toEqual([ids.edgeIntoLocked])
+      expect(edges).toEqual([{ id: ids.edgeIntoLocked, target: ids.locked }])
 
       expect(await readSubflows()).toEqual([{ id: ids.container, config: lockedLoopConfig }])
       expect(result).toEqual({ reconcile: true })
