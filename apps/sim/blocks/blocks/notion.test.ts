@@ -11,8 +11,8 @@ describe('Notion agent operation resolution', () => {
 
   it('parses page properties set in the tool row when the operation is in the context', () => {
     const mapped = mapper(
-      { parentId: 'page-1', properties: '{"Status":{"select":{"name":"Done"}}}' },
-      { operation: 'notion_create_page' }
+      { databaseId: 'db-1', properties: '{"Status":{"select":{"name":"Done"}}}' },
+      { operation: 'notion_add_database_row' }
     )
 
     expect(mapped.properties).toEqual({ Status: { select: { name: 'Done' } } })

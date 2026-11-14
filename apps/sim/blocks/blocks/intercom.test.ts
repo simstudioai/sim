@@ -61,3 +61,16 @@ describe('Intercom ticket snooze', () => {
     expect(sent.snoozed_until).toBeUndefined()
   })
 })
+
+describe('Intercom role defaults', () => {
+  const role = IntercomV2Block.subBlocks.find((subBlock) => subBlock.id === 'role')
+
+  it('leads with No change everywhere except a known Create Contact', () => {
+    const options = role?.options
+    if (typeof options !== 'function') throw new Error('role options are static')
+    expect(options({ values: {} })[0]?.id).toBe('')
+    expect(options({ values: { operation: 'update_contact' } })[0]?.id).toBe('')
+    expect(options({ values: { operation: 'create_contact' } })[0]?.id).toBe('lead')
+    expect(options()[0]?.id).toBe('lead')
+  })
+})
