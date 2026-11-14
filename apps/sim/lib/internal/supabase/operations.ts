@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateSupabaseProjectId } from '@/lib/core/security/input-validation'
 import {
   assertKnownSizeWithinLimit,
@@ -136,7 +137,7 @@ export async function executeSupabaseStorageUpload(
     }
     if (input.upsert) headers['x-upsert'] = 'true'
 
-    const response = await fetch(`${baseUrl}/${encodedBucket}/${encodedPath}`, {
+    const response = await outboundFetch(`${baseUrl}/${encodedBucket}/${encodedPath}`, {
       method: 'POST',
       headers,
       body: new Uint8Array(upload.body),

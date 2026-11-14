@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readWhatsAppGraphResponse } from '@/lib/internal/whatsapp/client'
 import type { RawFileInput } from '@/lib/uploads/utils/file'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file'
@@ -93,7 +94,7 @@ export async function uploadWhatsAppMedia({
     userFile.name
   )
 
-  const response = await fetch(buildMediaUploadUrl(phoneNumberId), {
+  const response = await outboundFetch(buildMediaUploadUrl(phoneNumberId), {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken.trim()}` },
     body: formData,

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { TikTokUploadVideoDraftInput } from '@/lib/internal/tiktok/schema'
 import {
@@ -77,7 +78,7 @@ export async function executeTikTokUploadVideoDraft(
     if (videoSize === 0) return failureResponse('The video file is empty.', 400)
 
     const { chunkSize, totalChunkCount } = computeTikTokChunkPlan(videoSize)
-    const initResponse = await fetch(
+    const initResponse = await outboundFetch(
       'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/',
       {
         method: 'POST',

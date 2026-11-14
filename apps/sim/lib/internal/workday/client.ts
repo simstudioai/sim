@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateWorkdayTenantUrl } from '@/lib/core/security/input-validation'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 
@@ -566,7 +567,7 @@ async function callOperation(
   signal?.throwIfAborted()
   const envelope = buildEnvelope(operation, args, username, password)
 
-  const response = await fetch(endpoint, {
+  const response = await outboundFetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml; charset=utf-8',

@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   secureFetchWithPinnedIP,
@@ -492,7 +493,7 @@ async function transcribeWithWhisper(
   }
 
   const endpoint = translate ? 'translations' : 'transcriptions'
-  const response = await fetch(`https://api.openai.com/v1/audio/${endpoint}`, {
+  const response = await outboundFetch(`https://api.openai.com/v1/audio/${endpoint}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -562,7 +563,7 @@ async function transcribeWithDeepgram(
     params.append('diarize', 'true')
   }
 
-  const response = await fetch(`https://api.deepgram.com/v1/listen?${params.toString()}`, {
+  const response = await outboundFetch(`https://api.deepgram.com/v1/listen?${params.toString()}`, {
     method: 'POST',
     headers: {
       Authorization: `Token ${apiKey}`,
@@ -645,7 +646,7 @@ async function transcribeWithElevenLabs(
     formData.append('timestamps_granularity', 'word')
   }
 
-  const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+  const response = await outboundFetch('https://api.elevenlabs.io/v1/speech-to-text', {
     method: 'POST',
     headers: {
       'xi-api-key': apiKey,
@@ -705,7 +706,7 @@ async function transcribeWithAssemblyAI(
   entities?: Record<string, unknown>[]
   summary?: string
 }> {
-  const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
+  const uploadResponse = await outboundFetch('https://api.assemblyai.com/v2/upload', {
     method: 'POST',
     headers: {
       authorization: apiKey,
@@ -764,7 +765,7 @@ async function transcribeWithAssemblyAI(
     transcriptRequest.summary_type = 'bullets'
   }
 
-  const transcriptResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
+  const transcriptResponse = await outboundFetch('https://api.assemblyai.com/v2/transcript', {
     method: 'POST',
     headers: {
       authorization: apiKey,
@@ -788,7 +789,7 @@ async function transcribeWithAssemblyAI(
   const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
 
   while (attempts < maxAttempts) {
-    const statusResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${id}`, {
+    const statusResponse = await outboundFetch(`https://api.assemblyai.com/v2/transcript/${id}`, {
       headers: {
         authorization: apiKey,
       },
@@ -902,7 +903,7 @@ async function transcribeWithGemini(
     ],
   }
 
-  const response = await fetch(
+  const response = await outboundFetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
     {
       method: 'POST',

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -71,7 +72,7 @@ export async function executeSquareCreateCatalogImage(
       input.fileName || userFile.name
     )
 
-    const response = await fetch(
+    const response = await outboundFetch(
       `${SQUARE_ENVIRONMENTS.apiBase(input.environment)}/v2/catalog/images`,
       {
         method: 'POST',

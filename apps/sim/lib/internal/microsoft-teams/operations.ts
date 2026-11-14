@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   MicrosoftTeamsClient,
@@ -465,7 +466,7 @@ export async function deleteMicrosoftTeamsChatMessage(
     throw new MicrosoftTeamsOperationError('Chat ID and Message ID are required', 400)
   }
 
-  const meResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
+  const meResponse = await outboundFetch('https://graph.microsoft.com/v1.0/me', {
     headers: { Authorization: `Bearer ${input.accessToken}` },
     signal: context.signal,
   })
@@ -477,7 +478,7 @@ export async function deleteMicrosoftTeamsChatMessage(
     )
   }
 
-  const response = await fetch(
+  const response = await outboundFetch(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(me.id)}/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/softDelete`,
     {
       method: 'POST',
