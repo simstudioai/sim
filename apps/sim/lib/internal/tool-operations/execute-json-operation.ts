@@ -2,6 +2,11 @@ import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import type { AnyApiRouteContract, ContractBody } from '@/lib/api/contracts'
 import { logFailureOnce } from '@/lib/core/errors/failure-log'
+import {
+  EGRESS_UNAVAILABLE_MESSAGE,
+  isUnavailableFailure,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { parseInternalToolInput } from '@/lib/internal/tool-operations/parse-input'
 
 const logger = createLogger('InternalJsonToolOperation')
@@ -23,6 +28,12 @@ export async function executeInternalJsonToolOperation<C extends AnyApiRouteCont
     return Response.json(result)
   } catch (error) {
     signal?.throwIfAborted()
+    if (isUnavailableFailure(error)) {
+      return Response.json(
+        { error: EGRESS_UNAVAILABLE_MESSAGE },
+        { status: statusForOrchestrationError('unavailable') }
+      )
+    }
     /** The 500 below carries only the message; the cause (a database code, a stack) lives here. */
     logFailureOnce(logger, errorMessage, error, { metadata: { cause: describeError(error) } })
     return Response.json({ error: `${errorMessage}: ${toError(error).message}` }, { status: 500 })
