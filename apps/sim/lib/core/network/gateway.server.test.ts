@@ -12,9 +12,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { OutboundGateway, ResolvedOutboundRoute } from '@/lib/core/network/config.server'
 
 vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
+/** The synthetic origin's name resolves to the one address the local gateway admits. */
+vi.mock('@sim/security/dns', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/security/dns')>()),
+  resolveHostAddresses: vi.fn(async () => ({ addresses: ['1.1.1.1'], preferred: '1.1.1.1' })),
+}))
 
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { openGatewayTunnel, secureOutboundTunnel } from '@/lib/core/network/gateway.server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   createPinnedFetchWithDispatcher,
   secureFetchWithPinnedIP,
@@ -295,6 +301,21 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
     } finally {
       await transport.dispatcher.destroy()
     }
+  })
+  it("sends a credential request through the organization's gateway", async () => {
+    const start = admissions.length
+    await runWithOutboundOrganization('org_b', async () => {
+      const response = await outboundFetch(url(), {
+        method: 'POST',
+        body: 'grant_type=client_credentials',
+        redirect: 'error',
+      })
+      expect(response.headers.get('x-via-proxy')).toBe('yes')
+      expect(await response.text()).toBe('grant_type=client_credentials')
+    })
+    expect(admissions.slice(start)).toEqual([
+      { token: 'Bearer bravo', destination: '1.1.1.1:443', sni: 'gateway.invalid' },
+    ])
   })
   it('fails closed on denied proxy credentials without contacting the origin', async () => {
     state.gateways.set('denied', {
