@@ -4,6 +4,7 @@ import type {
   HubSpotDeleteCompanyResponse,
 } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotDeleteCompany')
 
@@ -37,7 +38,8 @@ export const hubspotDeleteCompanyTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.hubapi.com/crm/v3/objects/companies/${params.companyId.trim()}`,
+    url: (params) =>
+      `https://api.hubapi.com/crm/v3/objects/companies/${safeUrlPathSegment(params.companyId, 'companyId')}`,
     method: 'DELETE',
     headers: (params) => {
       if (!params.accessToken) {

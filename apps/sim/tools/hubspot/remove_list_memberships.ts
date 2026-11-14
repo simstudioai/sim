@@ -4,6 +4,7 @@ import type {
   HubSpotRemoveListMembershipsResponse,
 } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotRemoveListMemberships')
 
@@ -45,7 +46,7 @@ export const hubspotRemoveListMembershipsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.hubapi.com/crm/v3/lists/${params.listId.trim()}/memberships/remove`,
+      `https://api.hubapi.com/crm/v3/lists/${safeUrlPathSegment(params.listId, 'listId')}/memberships/remove`,
     method: 'PUT',
     headers: (params) => {
       if (!params.accessToken) {

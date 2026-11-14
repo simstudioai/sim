@@ -4,6 +4,7 @@ import type {
   HubSpotDeleteContactResponse,
 } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotDeleteContact')
 
@@ -37,7 +38,8 @@ export const hubspotDeleteContactTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.hubapi.com/crm/v3/objects/contacts/${params.contactId.trim()}`,
+    url: (params) =>
+      `https://api.hubapi.com/crm/v3/objects/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}`,
     method: 'DELETE',
     headers: (params) => {
       if (!params.accessToken) {

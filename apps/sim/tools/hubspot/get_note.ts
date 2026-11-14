@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { HubSpotGetNoteParams, HubSpotGetNoteResponse } from '@/tools/hubspot/types'
 import { NOTE_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotGetNote')
 
@@ -47,7 +48,7 @@ export const hubspotGetNoteTool: ToolConfig<HubSpotGetNoteParams, HubSpotGetNote
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.hubapi.com/crm/v3/objects/notes/${params.noteId.trim()}`
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/notes/${safeUrlPathSegment(params.noteId, 'noteId')}`
       const queryParams = new URLSearchParams()
 
       if (params.properties) {
