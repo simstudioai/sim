@@ -253,6 +253,41 @@ describe('slackHandler formatInput - interactivity (block_actions)', () => {
     expect(event.text).toBe('opt_b')
     expect(event.user_name).toBe('bob')
   })
+
+  it('maps a threaded button click to its thread and the clicking user team', async () => {
+    const { input } = await slackHandler.formatInput!(
+      ctx({
+        type: 'block_actions',
+        user: { id: 'U3', username: 'carol', team_id: 'T-external' },
+        team: { id: 'T-install' },
+        channel: { id: 'C42', name: 'incidents' },
+        container: { type: 'message', message_ts: '1700000002.000300' },
+        message: { ts: '1700000002.000300', thread_ts: '1700000000.000100', text: '' },
+        actions: [{ action_id: 'followup_0', type: 'button', value: 'Check the NAT gateway' }],
+      })
+    )
+    const event = eventOf(input)
+    expect(event.channel).toBe('C42')
+    expect(event.thread_ts).toBe('1700000000.000100')
+    expect(event.message_ts).toBe('1700000002.000300')
+    expect(event.team_id).toBe('T-install')
+    expect(event.user_team_id).toBe('T-external')
+    expect(event.action_id).toBe('followup_0')
+    expect(event.action_value).toBe('Check the NAT gateway')
+  })
+
+  it('falls back to the installation team when the user carries no team', async () => {
+    const { input } = await slackHandler.formatInput!(
+      ctx({
+        type: 'block_actions',
+        user: { id: 'U4', username: 'dave' },
+        team: { id: 'T-install' },
+        channel: { id: 'C42' },
+        actions: [{ action_id: 'followup_1', type: 'button', value: 'next' }],
+      })
+    )
+    expect(eventOf(input).user_team_id).toBe('T-install')
+  })
 })
 
 describe('slackHandler formatInput - block_suggestion', () => {

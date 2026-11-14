@@ -66,7 +66,16 @@ describe('Slack stream response config', () => {
     ).toBe('Running')
   })
 
-  it.each(['reaction_added', 'assistant_thread_started'])(
+  it('accepts button clicks as a reply-capable streaming event', () => {
+    expect(
+      normalizeSlackStreamResponseConfig(
+        { eventType: 'block_actions', streamResponse: true, streamOutputs: ['agent.content'] },
+        { 'block-1': { id: 'block-1', name: 'Agent' } }
+      )?.outputConfigs
+    ).toEqual([{ blockId: 'block-1', path: 'content' }])
+  })
+
+  it.each(['reaction_added', 'assistant_thread_started', 'view_submission'])(
     'rejects unsupported streaming event %s and malformed output selectors',
     (eventType) => {
       expect(() =>
