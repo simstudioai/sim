@@ -38,7 +38,13 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
         let editMenu = NSMenu(title: "Edit")
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
-        editItem.submenu = editMenu; menu.addItem(editItem); NSApplication.shared.mainMenu = menu
+        editItem.submenu = editMenu; menu.addItem(editItem)
+        // More closed menu items than a snapshot lists, as most real apps have.
+        let manyItem = NSMenuItem(title: "Many", action: nil, keyEquivalent: "")
+        let manyMenu = NSMenu(title: "Many")
+        for index in 1...120 { manyMenu.addItem(withTitle: "Fixture command \(index)", action: nil, keyEquivalent: "") }
+        manyItem.submenu = manyMenu; menu.addItem(manyItem)
+        NSApplication.shared.mainMenu = menu
         window = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 600, height: 720), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         window.title = "Mothership Computer Use Test Fixture"
         let stack = NSStackView(); stack.orientation = .vertical; stack.spacing = 16

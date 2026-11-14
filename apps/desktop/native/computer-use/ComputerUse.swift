@@ -354,8 +354,9 @@ final class Snapshot {
             if role == kAXMenuItemRole && !entry.menu && !entry.priority {
                 queue.append(AXTraversalEntry(element: element, parent: entry.parent, depth: entry.depth, menu: true, priority: false)); continue
             }
+            // Closed menus past the cap hide no content: opening a menu lists its items as priority entries.
             if isMenu && !entry.priority {
-                guard menuCount < 80 else { truncated = true; continue }
+                guard menuCount < 80 else { continue }
                 menuCount += 1
             }
             let id = "e\(nodes.count)"; elements[id] = element; index.insert(element, id: id)

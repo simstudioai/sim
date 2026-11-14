@@ -81,6 +81,7 @@ try:
             time.sleep(1)
         snapshot = state(screenshot=True)
         assert 'fixture-only-secret' not in json.dumps(snapshot), 'Secure value leaked'
+        assert snapshot['truncated'] is False, 'Closed menu items past the snapshot cap marked the state truncated'
         infinite = find(snapshot, label='Fixture infinite frame')
         assert not {'x', 'y', 'width', 'height'} & infinite.keys(), f'An infinite frame reached the reply: {infinite}'
         image = snapshot.get('screenshot')
@@ -211,7 +212,7 @@ try:
         assert error['dispatchState'] == 'not_started', error
         assert find(state(), role='AXTextField', label='Fixture click-focus field').get('value') == 'replaced', 'A background app was clicked or typed into'
         call('activate_app', bundleId=bundle)
-        print('PASS: real fixture state, secure suppression, an element reported at infinity read without a frame, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click, a batch that applies, stops at a failing step, refuses before dispatch and stops when a sheet opens, click-to-focus for an editor that ignores Accessibility focus (inserting at the end, refusing an unconfirmed caret, and none in the background); every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
+        print('PASS: real fixture state, a large closed menu not reported as truncation, secure suppression, an element reported at infinity read without a frame, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click, a batch that applies, stops at a failing step, refuses before dispatch and stops when a sheet opens, click-to-focus for an editor that ignores Accessibility focus (inserting at the end, refusing an unconfirmed caret, and none in the background); every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
 finally:
     if fixture:
         fixture.terminate()
