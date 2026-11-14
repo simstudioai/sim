@@ -1,6 +1,7 @@
 import { createHash, createPrivateKey, createSign } from 'node:crypto'
 import { z } from 'zod'
 import { env } from '@/lib/core/config/env'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type {
   GitHubInstallationBinding,
@@ -166,7 +167,7 @@ async function request(
   operation: GitHubInstallationOperation = 'installation'
 ): Promise<unknown> {
   const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await outboundFetch(`${API_URL}${path}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers: {
       Accept: 'application/vnd.github+json',

@@ -26,7 +26,6 @@ vi.mock('@/lib/credentials/application/managed-oauth-delegation', () => ({
       this.name = 'InvalidManagedOAuthDelegationError'
     }
   },
-  authenticateManagedOAuthDelegation: vi.fn(),
 }))
 
 vi.mock('@/lib/credentials/application/resolve-managed-oauth-token', () => ({

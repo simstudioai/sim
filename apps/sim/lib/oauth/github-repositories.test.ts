@@ -8,7 +8,7 @@ import {
   verifyGitHubRepositoriesIdentity,
 } from '@/lib/oauth/github-repositories'
 import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
-import { refreshOAuthToken } from '@/lib/oauth/oauth'
+import { refreshOAuthToken } from '@/lib/oauth/refresh.server'
 
 const tokenResponse = {
   access_token: 'ghu_access',

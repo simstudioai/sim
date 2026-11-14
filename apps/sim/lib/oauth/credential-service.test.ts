@@ -60,8 +60,11 @@ vi.mock('@/lib/oauth/microsoft', () => ({
 
 vi.mock('@/lib/oauth/oauth', () => ({
   OAUTH_PROVIDERS: {},
-  refreshOAuthToken: hoisted.refreshOAuthToken,
   TOKEN_REFRESH_TIMEOUT_MS: 15_000,
+}))
+
+vi.mock('@/lib/oauth/refresh.server', () => ({
+  refreshOAuthToken: hoisted.refreshOAuthToken,
 }))
 
 vi.mock('@/lib/oauth/quickbooks-client-config', () => ({

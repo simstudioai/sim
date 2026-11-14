@@ -42,10 +42,9 @@ export interface ResolveExecutorCredentialTokenParams {
 
 /**
  * Resolves a credential's access token in-process for server-side workflow
- * execution, through the same authorized application dispatch as
- * `POST /api/auth/oauth/token` (`resolveCredentialAccessToken`). Both runtimes
- * hold the OAuth client config the refresh branch needs, so authorization,
- * refresh, and audit run identically to the route.
+ * execution through the authorized application dispatch
+ * (`resolveCredentialAccessToken`), so authorization, refresh, and audit run
+ * identically to every other server surface.
  */
 export async function resolveExecutorCredentialToken(
   params: ResolveExecutorCredentialTokenParams

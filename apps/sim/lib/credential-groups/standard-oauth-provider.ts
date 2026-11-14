@@ -26,8 +26,8 @@ import {
 } from '@/lib/credential-groups/provider-adapter'
 import type { CredentialGroupStandardOAuthProvider } from '@/lib/credential-groups/providers'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
-import { refreshOAuthToken } from '@/lib/oauth'
 import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
+import { refreshOAuthToken } from '@/lib/oauth/refresh.server'
 
 const OAUTH_DISCOVERY_TIMEOUT_MS = 10_000
 const OAUTH_DISCOVERY_MAX_BYTES = 256 * 1024

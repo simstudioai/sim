@@ -59,7 +59,7 @@ export interface ResolveCredentialTokenInput {
    * The call is an Assistant turn acting with the person's own connected account, so the
    * tool's policy is the one the Assistant projects for it (GitHub tools bind the person's
    * GitHub account, never a workspace token). Set only by the in-process executor for an
-   * authenticated Assistant turn; the token route never forwards it.
+   * authenticated Assistant turn.
    */
   assistantConnectedAccount?: boolean
   /** Correlation id used by the credential service's own logging. */
@@ -91,7 +91,7 @@ interface OAuthCredentialContext {
   accountId?: string | null
 }
 
-export function validateOAuthCredentialContext(
+function validateOAuthCredentialContext(
   credential: OAuthCredentialContext
 ): { ok: true } | { ok: false; error: string } {
   if (credential.providerId !== 'quickbooks') return { ok: true }
@@ -583,18 +583,17 @@ export interface ResolveCredentialAccessTokenInput
   authenticate: () => AuthResult | Promise<AuthResult>
   /**
    * Proves a delegation for one managed credential: a workflow execution (the
-   * route verifies the delegation JWT header; the executor binds its delegation
-   * origin in-process) or a Chat turn acting as the signed-in user. Absent,
-   * managed credentials are rejected with `MANAGED_CREDENTIAL_DELEGATION_REQUIRED`.
+   * executor binds its delegation origin in-process) or a Chat turn acting as the
+   * signed-in user. Absent, managed credentials are rejected with
+   * `MANAGED_CREDENTIAL_DELEGATION_REQUIRED`.
    * Must throw {@link InvalidManagedOAuthDelegationError} on an invalid delegation.
    */
   resolveManagedPrincipal?: (credentialId: string) => Promise<DelegatedPrincipal>
 }
 
 /**
- * Authorized application dispatch behind `POST /api/auth/oauth/token`. Every server
- * surface that needs a credential token — the route and the in-process tool
- * executor — goes through here, so the managed / service-account / plain-OAuth
+ * Authorized application dispatch for a credential token. Every server surface
+ * that needs one goes through here, so the managed / service-account / plain-OAuth
  * dispatch, authorization, refresh, audit, and analytics cannot drift between them.
  */
 export async function resolveCredentialAccessToken(

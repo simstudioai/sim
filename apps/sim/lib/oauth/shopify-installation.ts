@@ -5,6 +5,7 @@ import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { and, eq, sql } from 'drizzle-orm'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -95,7 +96,7 @@ async function exchangeToken(
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
   let response: Response
   try {
-    response = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
+    response = await outboundFetch(`https://${shopDomain}/admin/oauth/access_token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -152,7 +153,7 @@ async function fetchShopAccountId(
 ): Promise<string> {
   const timeout = AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS)
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
-  const response = await fetch(
+  const response = await outboundFetch(
     `https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
     {
       method: 'POST',

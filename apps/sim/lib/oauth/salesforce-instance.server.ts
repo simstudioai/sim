@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateSalesforceInstanceUrl } from '@/lib/core/security/input-validation'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { isSalesforceLoginOrigin, SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
@@ -14,7 +15,7 @@ export async function fetchSalesforceInstanceUrl(
   const loginHost = SALESFORCE_LOGIN_HOSTS[providerId]
   if (!loginHost) return undefined
   try {
-    const response = await fetch(`https://${loginHost}/services/oauth2/userinfo`, {
+    const response = await outboundFetch(`https://${loginHost}/services/oauth2/userinfo`, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
       redirect: 'error',
       signal: AbortSignal.timeout(10_000),

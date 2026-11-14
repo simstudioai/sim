@@ -19,12 +19,6 @@
     "TS2345": 2,
     "TS2554": 5
   },
-  "apps/sim/app/api/auth/oauth/token/route.test.ts": {
-    "TS2322": 1,
-    "TS2345": 1,
-    "TS2554": 11,
-    "TS2739": 2
-  },
   "apps/sim/app/api/auth/oauth2/authorize/route.test.ts": {
     "TS2345": 2
   },

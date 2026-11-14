@@ -65,8 +65,9 @@ import {
   isMicrosoftProvider,
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
 } from '@/lib/oauth/microsoft'
-import { refreshOAuthToken, TOKEN_REFRESH_TIMEOUT_MS } from '@/lib/oauth/oauth'
+import { TOKEN_REFRESH_TIMEOUT_MS } from '@/lib/oauth/oauth'
 import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
+import { refreshOAuthToken } from '@/lib/oauth/refresh.server'
 import {
   clearOAuthRefreshDeadFlag,
   getOAuthRefreshCoordinationIdentity,
@@ -1086,8 +1087,8 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
 
 /**
  * Single dispatch point for turning a `service_account` credential into an
- * access token, keyed on `providerId`. Both `refreshAccessTokenIfNeeded` and the
- * `POST /api/auth/oauth/token` route go through here, so a new service-account
+ * access token, keyed on `providerId`. Both `refreshAccessTokenIfNeeded` and
+ * `resolveCredentialAccessToken` go through here, so a new service-account
  * provider is one registry entry and an unknown provider fails loudly instead
  * of silently attempting a Google JWT.
  */
