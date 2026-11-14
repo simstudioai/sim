@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-13",
+  "updatedAt": "2026-11-14",
   "integrations": [
     {
       "type": "onepassword",
@@ -19506,7 +19506,7 @@
       "name": "Oracle Fusion Financials",
       "description": "Manage receivables and expenses, and report on payables and ledgers",
       "longDescription": "Connect your Oracle Fusion Applications integration user through a reusable saved credential. Read payables invoices and payments; create and update receivables invoices, read their lines and installments, create credit memos, and create and apply receipts. Create, update, and submit expense reports and their expense lines. Read ledgers, journal batches, and ledger balances. Lists return one bounded page at a time. Oracle roles, business-unit access, and business validation still apply.",
-      "bgColor": "#C74634",
+      "bgColor": "#FFFFFF",
       "iconName": "OracleIcon",
       "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_financials",
       "operations": [
@@ -19663,7 +19663,7 @@
       "category": "tools",
       "integrationType": "commerce",
       "tags": ["automation", "data-analytics"],
-      "updatedAt": "2026-10-17"
+      "updatedAt": "2026-11-14"
     },
     {
       "type": "netsuite",

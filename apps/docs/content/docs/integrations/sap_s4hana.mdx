@@ -72,7 +72,7 @@ List business partners from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessP
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 envelope `\{ d: \{ results: \[...\], __count?, __next? \} \}`. Properties listed below describe each element of `data.d.results`. |
+| `data` | json | Array of A_BusinessPartner entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each item. |
 |   ↳ `BusinessPartner` | string | Business partner key \(up to 10 chars\) |
 |   ↳ `BusinessPartnerFullName` | string | Full name \(concatenated first/last or organization name\) |
 |   ↳ `BusinessPartnerCategory` | string | "1" Person, "2" Organization, "3" Group |
@@ -120,7 +120,7 @@ Retrieve a single business partner by BusinessPartner key from SAP S/4HANA Cloud
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | A_BusinessPartner entity \(under d in OData v2\) |
+| `data` | json | A_BusinessPartner entity \(the integration unwraps the OData v2 `d` envelope\) |
 |   ↳ `BusinessPartner` | string | Business partner key \(up to 10 chars\) |
 |   ↳ `BusinessPartnerFullName` | string | Full name \(concatenated first/last or organization name\) |
 |   ↳ `BusinessPartnerCategory` | string | "1" Person, "2" Organization, "3" Group |
@@ -173,7 +173,7 @@ Create a business partner in SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Business
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP \(201 on success\) |
-| `data` | json | Created A_BusinessPartner entity \(under d in OData v2\) |
+| `data` | json | Created A_BusinessPartner entity \(the integration unwraps the OData v2 `d` envelope\) |
 |   ↳ `BusinessPartner` | string | Generated business partner key \(up to 10 chars\) |
 |   ↳ `BusinessPartnerFullName` | string | Full name \(concatenated first/last or organization name\) |
 |   ↳ `BusinessPartnerCategory` | string | "1" Person, "2" Organization, "3" Group |
@@ -419,47 +419,43 @@ List suppliers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier) with op
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; collection at output.data.d.results |
-|   ↳ `d` | json | OData v2 envelope |
-|     ↳ `results` | array | A_Supplier entities |
-|       ↳ `Supplier` | string | Supplier key \(up to 10 characters\) |
-|       ↳ `AlternativePayeeAccountNumber` | string | Account number of the alternative payee |
-|       ↳ `AuthorizationGroup` | string | Authorization group |
-|       ↳ `BusinessPartner` | string | Linked BusinessPartner key |
-|       ↳ `BR_TaxIsSplit` | boolean | Brazil-specific tax split flag |
-|       ↳ `CreatedByUser` | string | User who created the supplier |
-|       ↳ `CreationDate` | string | Creation date \(OData v2 epoch\) |
-|       ↳ `Customer` | string | Linked customer key \(if any\) |
-|       ↳ `DeletionIndicator` | boolean | Central deletion flag |
-|       ↳ `BirthDate` | string | Date of birth \(OData v2 epoch\) |
-|       ↳ `ConcatenatedInternationalLocNo` | string | Concatenated international location number |
-|       ↳ `FiscalAddress` | string | Fiscal address number |
-|       ↳ `Industry` | string | Industry key |
-|       ↳ `InternationalLocationNumber1` | string | International location number, part 1 |
-|       ↳ `InternationalLocationNumber2` | string | International location number, part 2 |
-|       ↳ `InternationalLocationNumber3` | string | International location number, part 3 |
-|       ↳ `IsNaturalPerson` | boolean | Indicates whether the supplier is a natural person |
-|       ↳ `PaymentIsBlockedForSupplier` | boolean | Payment block flag |
-|       ↳ `PostingIsBlocked` | boolean | Posting block flag |
-|       ↳ `PurchasingIsBlocked` | boolean | Purchasing block flag |
-|       ↳ `ResponsibleType` | string | Type of business \(Brazil\) |
-|       ↳ `SupplierAccountGroup` | string | Supplier account group |
-|       ↳ `SupplierCorporateGroup` | string | Corporate group identifier |
-|       ↳ `SupplierFullName` | string | Full name of the supplier |
-|       ↳ `SupplierName` | string | Supplier name |
-|       ↳ `SupplierProcurementBlock` | string | Procurement block at supplier level |
-|       ↳ `SuplrProofOfDelivRlvtCode` | string | Proof of delivery relevance code |
-|       ↳ `SuplrQltyInProcmtCertfnValidTo` | string | Quality certification validity end date \(OData v2 epoch\) |
-|       ↳ `SuplrQualityManagementSystem` | string | Quality management system of the supplier |
-|       ↳ `TaxNumber1` | string | Tax number 1 |
-|       ↳ `TaxNumber2` | string | Tax number 2 |
-|       ↳ `TaxNumber3` | string | Tax number 3 |
-|       ↳ `TaxNumber4` | string | Tax number 4 |
-|       ↳ `TaxNumber5` | string | Tax number 5 |
-|       ↳ `TaxNumberResponsible` | string | Tax number of responsible party |
-|       ↳ `TaxNumberType` | string | Tax number type |
-|       ↳ `VATRegistration` | string | VAT registration number |
-|     ↳ `__next` | string | OData skiptoken URL for next page |
+| `data` | json | Array of A_Supplier entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each item. |
+|   ↳ `Supplier` | string | Supplier key \(up to 10 characters\) |
+|   ↳ `AlternativePayeeAccountNumber` | string | Account number of the alternative payee |
+|   ↳ `AuthorizationGroup` | string | Authorization group |
+|   ↳ `BR_TaxIsSplit` | boolean | Brazil-specific tax split flag |
+|   ↳ `CreatedByUser` | string | User who created the supplier |
+|   ↳ `CreationDate` | string | Creation date \(OData v2 epoch\) |
+|   ↳ `Customer` | string | Linked customer key \(if any\) |
+|   ↳ `DeletionIndicator` | boolean | Central deletion flag |
+|   ↳ `BirthDate` | string | Date of birth \(OData v2 epoch\) |
+|   ↳ `ConcatenatedInternationalLocNo` | string | Concatenated international location number |
+|   ↳ `FiscalAddress` | string | Fiscal address number |
+|   ↳ `Industry` | string | Industry key |
+|   ↳ `InternationalLocationNumber1` | string | International location number, part 1 |
+|   ↳ `InternationalLocationNumber2` | string | International location number, part 2 |
+|   ↳ `InternationalLocationNumber3` | string | International location number, part 3 |
+|   ↳ `IsNaturalPerson` | boolean | Indicates whether the supplier is a natural person |
+|   ↳ `PaymentIsBlockedForSupplier` | boolean | Payment block flag |
+|   ↳ `PostingIsBlocked` | boolean | Posting block flag |
+|   ↳ `PurchasingIsBlocked` | boolean | Purchasing block flag |
+|   ↳ `ResponsibleType` | string | Type of business \(Brazil\) |
+|   ↳ `SupplierAccountGroup` | string | Supplier account group |
+|   ↳ `SupplierCorporateGroup` | string | Corporate group identifier |
+|   ↳ `SupplierFullName` | string | Full name of the supplier |
+|   ↳ `SupplierName` | string | Supplier name |
+|   ↳ `SupplierProcurementBlock` | string | Procurement block at supplier level |
+|   ↳ `SuplrProofOfDelivRlvtCode` | string | Proof of delivery relevance code |
+|   ↳ `SuplrQltyInProcmtCertfnValidTo` | string | Quality certification validity end date \(OData v2 epoch\) |
+|   ↳ `SuplrQualityManagementSystem` | string | Quality management system of the supplier |
+|   ↳ `TaxNumber1` | string | Tax number 1 |
+|   ↳ `TaxNumber2` | string | Tax number 2 |
+|   ↳ `TaxNumber3` | string | Tax number 3 |
+|   ↳ `TaxNumber4` | string | Tax number 4 |
+|   ↳ `TaxNumber5` | string | Tax number 5 |
+|   ↳ `TaxNumberResponsible` | string | Tax number of responsible party |
+|   ↳ `TaxNumberType` | string | Tax number type |
+|   ↳ `VATRegistration` | string | VAT registration number |
 
 </ReferenceDetails>
 
@@ -492,45 +488,43 @@ Retrieve a single supplier by Supplier key from SAP S/4HANA Cloud (API_BUSINESS_
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; entity at output.data.d |
-|   ↳ `d` | json | A_Supplier entity |
-|     ↳ `Supplier` | string | Supplier key \(up to 10 characters\) |
-|     ↳ `AlternativePayeeAccountNumber` | string | Account number of the alternative payee |
-|     ↳ `AuthorizationGroup` | string | Authorization group |
-|     ↳ `BusinessPartner` | string | Linked BusinessPartner key |
-|     ↳ `BR_TaxIsSplit` | boolean | Brazil-specific tax split flag |
-|     ↳ `CreatedByUser` | string | User who created the supplier |
-|     ↳ `CreationDate` | string | Creation date \(OData v2 epoch\) |
-|     ↳ `Customer` | string | Linked customer key \(if any\) |
-|     ↳ `DeletionIndicator` | boolean | Central deletion flag |
-|     ↳ `BirthDate` | string | Date of birth \(OData v2 epoch\) |
-|     ↳ `ConcatenatedInternationalLocNo` | string | Concatenated international location number |
-|     ↳ `FiscalAddress` | string | Fiscal address number |
-|     ↳ `Industry` | string | Industry key |
-|     ↳ `InternationalLocationNumber1` | string | International location number, part 1 |
-|     ↳ `InternationalLocationNumber2` | string | International location number, part 2 |
-|     ↳ `InternationalLocationNumber3` | string | International location number, part 3 |
-|     ↳ `IsNaturalPerson` | boolean | Indicates whether the supplier is a natural person |
-|     ↳ `PaymentIsBlockedForSupplier` | boolean | Payment block flag |
-|     ↳ `PostingIsBlocked` | boolean | Posting block flag |
-|     ↳ `PurchasingIsBlocked` | boolean | Purchasing block flag |
-|     ↳ `ResponsibleType` | string | Type of business \(Brazil\) |
-|     ↳ `SupplierAccountGroup` | string | Supplier account group |
-|     ↳ `SupplierCorporateGroup` | string | Corporate group identifier |
-|     ↳ `SupplierFullName` | string | Full name of the supplier |
-|     ↳ `SupplierName` | string | Supplier name |
-|     ↳ `SupplierProcurementBlock` | string | Procurement block at supplier level |
-|     ↳ `SuplrProofOfDelivRlvtCode` | string | Proof of delivery relevance code |
-|     ↳ `SuplrQltyInProcmtCertfnValidTo` | string | Quality certification validity end date \(OData v2 epoch\) |
-|     ↳ `SuplrQualityManagementSystem` | string | Quality management system of the supplier |
-|     ↳ `TaxNumber1` | string | Tax number 1 |
-|     ↳ `TaxNumber2` | string | Tax number 2 |
-|     ↳ `TaxNumber3` | string | Tax number 3 |
-|     ↳ `TaxNumber4` | string | Tax number 4 |
-|     ↳ `TaxNumber5` | string | Tax number 5 |
-|     ↳ `TaxNumberResponsible` | string | Tax number of responsible party |
-|     ↳ `TaxNumberType` | string | Tax number type |
-|     ↳ `VATRegistration` | string | VAT registration number |
+| `data` | json | A_Supplier entity \(the integration unwraps the OData v2 `d` envelope\) |
+|   ↳ `Supplier` | string | Supplier key \(up to 10 characters\) |
+|   ↳ `AlternativePayeeAccountNumber` | string | Account number of the alternative payee |
+|   ↳ `AuthorizationGroup` | string | Authorization group |
+|   ↳ `BR_TaxIsSplit` | boolean | Brazil-specific tax split flag |
+|   ↳ `CreatedByUser` | string | User who created the supplier |
+|   ↳ `CreationDate` | string | Creation date \(OData v2 epoch\) |
+|   ↳ `Customer` | string | Linked customer key \(if any\) |
+|   ↳ `DeletionIndicator` | boolean | Central deletion flag |
+|   ↳ `BirthDate` | string | Date of birth \(OData v2 epoch\) |
+|   ↳ `ConcatenatedInternationalLocNo` | string | Concatenated international location number |
+|   ↳ `FiscalAddress` | string | Fiscal address number |
+|   ↳ `Industry` | string | Industry key |
+|   ↳ `InternationalLocationNumber1` | string | International location number, part 1 |
+|   ↳ `InternationalLocationNumber2` | string | International location number, part 2 |
+|   ↳ `InternationalLocationNumber3` | string | International location number, part 3 |
+|   ↳ `IsNaturalPerson` | boolean | Indicates whether the supplier is a natural person |
+|   ↳ `PaymentIsBlockedForSupplier` | boolean | Payment block flag |
+|   ↳ `PostingIsBlocked` | boolean | Posting block flag |
+|   ↳ `PurchasingIsBlocked` | boolean | Purchasing block flag |
+|   ↳ `ResponsibleType` | string | Type of business \(Brazil\) |
+|   ↳ `SupplierAccountGroup` | string | Supplier account group |
+|   ↳ `SupplierCorporateGroup` | string | Corporate group identifier |
+|   ↳ `SupplierFullName` | string | Full name of the supplier |
+|   ↳ `SupplierName` | string | Supplier name |
+|   ↳ `SupplierProcurementBlock` | string | Procurement block at supplier level |
+|   ↳ `SuplrProofOfDelivRlvtCode` | string | Proof of delivery relevance code |
+|   ↳ `SuplrQltyInProcmtCertfnValidTo` | string | Quality certification validity end date \(OData v2 epoch\) |
+|   ↳ `SuplrQualityManagementSystem` | string | Quality management system of the supplier |
+|   ↳ `TaxNumber1` | string | Tax number 1 |
+|   ↳ `TaxNumber2` | string | Tax number 2 |
+|   ↳ `TaxNumber3` | string | Tax number 3 |
+|   ↳ `TaxNumber4` | string | Tax number 4 |
+|   ↳ `TaxNumber5` | string | Tax number 5 |
+|   ↳ `TaxNumberResponsible` | string | Tax number of responsible party |
+|   ↳ `TaxNumberType` | string | Tax number type |
+|   ↳ `VATRegistration` | string | VAT registration number |
 
 </ReferenceDetails>
 
@@ -563,16 +557,14 @@ Update fields on an A_Supplier entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP \(204 on success\) |
-| `data` | json | Null on 204 success, or OData v2 envelope with updated entity at output.data.d when SAP returns a representation |
-|   ↳ `d` | json | A_Supplier entity \(when SAP returns a representation\) |
-|     ↳ `Supplier` | string | Supplier key \(up to 10 characters\) |
-|     ↳ `SupplierName` | string | Supplier name |
-|     ↳ `SupplierAccountGroup` | string | Supplier account group |
-|     ↳ `BusinessPartner` | string | Linked BusinessPartner key |
-|     ↳ `PaymentIsBlockedForSupplier` | boolean | Payment block flag |
-|     ↳ `PostingIsBlocked` | boolean | Posting block flag |
-|     ↳ `PurchasingIsBlocked` | boolean | Purchasing block flag |
-|     ↳ `DeletionIndicator` | boolean | Central deletion flag |
+| `data` | json | Null on 204 No Content \(the usual response\), or the updated A_Supplier entity when SAP returns one |
+|   ↳ `Supplier` | string | Supplier key \(up to 10 characters\) |
+|   ↳ `SupplierName` | string | Supplier name |
+|   ↳ `SupplierAccountGroup` | string | Supplier account group |
+|   ↳ `PaymentIsBlockedForSupplier` | boolean | Payment block flag |
+|   ↳ `PostingIsBlocked` | boolean | Posting block flag |
+|   ↳ `PurchasingIsBlocked` | boolean | Purchasing block flag |
+|   ↳ `DeletionIndicator` | boolean | Central deletion flag |
 
 </ReferenceDetails>
 
@@ -608,26 +600,23 @@ List sales orders from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) wit
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; collection at output.data.d.results |
-|   ↳ `d` | json | OData v2 envelope |
-|     ↳ `results` | array | A_SalesOrder entities |
-|       ↳ `SalesOrder` | string | Sales order number |
-|       ↳ `SalesOrderType` | string | Sales document type \(e.g., OR\) |
-|       ↳ `SalesOrganization` | string | Sales organization |
-|       ↳ `DistributionChannel` | string | Distribution channel |
-|       ↳ `OrganizationDivision` | string | Division |
-|       ↳ `SoldToParty` | string | Sold-to business partner |
-|       ↳ `TotalNetAmount` | string | Total net amount |
-|       ↳ `TransactionCurrency` | string | Document currency |
-|       ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
-|       ↳ `SalesOrderDate` | string | Sales order date \(OData /Date\(ms\)/\) |
-|       ↳ `RequestedDeliveryDate` | string | Requested delivery date \(OData /Date\(ms\)/\) |
-|       ↳ `LastChangeDate` | string | Last change date \(OData /Date\(ms\)/\) |
-|       ↳ `PurchaseOrderByCustomer` | string | Customer purchase order reference |
-|       ↳ `OverallSDProcessStatus` | string | Overall sales document process status |
-|       ↳ `OverallTotalDeliveryStatus` | string | Overall total delivery status |
-|       ↳ `OverallSDDocumentRejectionSts` | string | Overall sales document rejection status |
-|     ↳ `__next` | string | OData skiptoken URL for next page |
+| `data` | json | Array of A_SalesOrder entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each item. |
+|   ↳ `SalesOrder` | string | Sales order number |
+|   ↳ `SalesOrderType` | string | Sales document type \(e.g., OR\) |
+|   ↳ `SalesOrganization` | string | Sales organization |
+|   ↳ `DistributionChannel` | string | Distribution channel |
+|   ↳ `OrganizationDivision` | string | Division |
+|   ↳ `SoldToParty` | string | Sold-to business partner |
+|   ↳ `TotalNetAmount` | string | Total net amount |
+|   ↳ `TransactionCurrency` | string | Document currency |
+|   ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
+|   ↳ `SalesOrderDate` | string | Sales order date \(OData /Date\(ms\)/\) |
+|   ↳ `RequestedDeliveryDate` | string | Requested delivery date \(OData /Date\(ms\)/\) |
+|   ↳ `LastChangeDate` | string | Last change date \(OData /Date\(ms\)/\) |
+|   ↳ `PurchaseOrderByCustomer` | string | Customer purchase order reference |
+|   ↳ `OverallSDProcessStatus` | string | Overall sales document process status |
+|   ↳ `OverallTotalDeliveryStatus` | string | Overall total delivery status |
+|   ↳ `OverallSDDocumentRejectionSts` | string | Overall sales document rejection status |
 
 </ReferenceDetails>
 
@@ -660,27 +649,26 @@ Retrieve a single sales order by SalesOrder key from SAP S/4HANA Cloud (API_SALE
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; entity at output.data.d |
-|   ↳ `d` | json | A_SalesOrder entity |
-|     ↳ `SalesOrder` | string | Sales order number |
-|     ↳ `SalesOrderType` | string | Sales document type |
-|     ↳ `SalesOrganization` | string | Sales organization |
-|     ↳ `DistributionChannel` | string | Distribution channel |
-|     ↳ `OrganizationDivision` | string | Division |
-|     ↳ `SoldToParty` | string | Sold-to business partner |
-|     ↳ `PurchaseOrderByCustomer` | string | Customer purchase order reference |
-|     ↳ `SalesOrderDate` | string | Sales order date \(OData /Date\(ms\)/\) |
-|     ↳ `RequestedDeliveryDate` | string | Requested delivery date \(OData /Date\(ms\)/\) |
-|     ↳ `PricingDate` | string | Pricing date \(OData /Date\(ms\)/\) |
-|     ↳ `LastChangeDate` | string | Last change date \(OData /Date\(ms\)/\) |
-|     ↳ `LastChangeDateTime` | string | Last change timestamp \(OData /Date\(ms\)/\) |
-|     ↳ `TotalNetAmount` | string | Total net amount |
-|     ↳ `TransactionCurrency` | string | Document currency |
-|     ↳ `CreationDate` | string | Creation date |
-|     ↳ `OverallSDProcessStatus` | string | Overall sales document process status |
-|     ↳ `OverallTotalDeliveryStatus` | string | Overall total delivery status |
-|     ↳ `OverallSDDocumentRejectionSts` | string | Overall sales document rejection status |
-|     ↳ `to_Item` | json | Sales order items \(when $expand=to_Item\) |
+| `data` | json | A_SalesOrder entity \(the integration unwraps the OData v2 `d` envelope\) |
+|   ↳ `SalesOrder` | string | Sales order number |
+|   ↳ `SalesOrderType` | string | Sales document type |
+|   ↳ `SalesOrganization` | string | Sales organization |
+|   ↳ `DistributionChannel` | string | Distribution channel |
+|   ↳ `OrganizationDivision` | string | Division |
+|   ↳ `SoldToParty` | string | Sold-to business partner |
+|   ↳ `PurchaseOrderByCustomer` | string | Customer purchase order reference |
+|   ↳ `SalesOrderDate` | string | Sales order date \(OData /Date\(ms\)/\) |
+|   ↳ `RequestedDeliveryDate` | string | Requested delivery date \(OData /Date\(ms\)/\) |
+|   ↳ `PricingDate` | string | Pricing date \(OData /Date\(ms\)/\) |
+|   ↳ `LastChangeDate` | string | Last change date \(OData /Date\(ms\)/\) |
+|   ↳ `LastChangeDateTime` | string | Last change timestamp \(OData /Date\(ms\)/\) |
+|   ↳ `TotalNetAmount` | string | Total net amount |
+|   ↳ `TransactionCurrency` | string | Document currency |
+|   ↳ `CreationDate` | string | Creation date |
+|   ↳ `OverallSDProcessStatus` | string | Overall sales document process status |
+|   ↳ `OverallTotalDeliveryStatus` | string | Overall total delivery status |
+|   ↳ `OverallSDDocumentRejectionSts` | string | Overall sales document rejection status |
+|   ↳ `to_Item` | json | Sales order items \(when $expand=to_Item\) |
 
 </ReferenceDetails>
 
@@ -717,20 +705,19 @@ Create a sales order in SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) wi
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP \(201 on create\) |
-| `data` | json | OData v2 response envelope; created entity at output.data.d |
-|   ↳ `d` | json | Created A_SalesOrder entity |
-|     ↳ `SalesOrder` | string | Newly assigned sales order number |
-|     ↳ `SalesOrderType` | string | Sales document type |
-|     ↳ `SalesOrganization` | string | Sales organization |
-|     ↳ `DistributionChannel` | string | Distribution channel |
-|     ↳ `OrganizationDivision` | string | Division |
-|     ↳ `SoldToParty` | string | Sold-to business partner |
-|     ↳ `TotalNetAmount` | string | Total net amount |
-|     ↳ `TransactionCurrency` | string | Document currency |
-|     ↳ `CreationDate` | string | Creation date |
-|     ↳ `OverallSDProcessStatus` | string | Overall sales document process status |
-|     ↳ `OverallTotalDeliveryStatus` | string | Overall total delivery status |
-|     ↳ `to_Item` | json | Deep-inserted sales order items as returned by SAP |
+| `data` | json | Created A_SalesOrder entity \(the integration unwraps the OData v2 `d` envelope\) |
+|   ↳ `SalesOrder` | string | Newly assigned sales order number |
+|   ↳ `SalesOrderType` | string | Sales document type |
+|   ↳ `SalesOrganization` | string | Sales organization |
+|   ↳ `DistributionChannel` | string | Distribution channel |
+|   ↳ `OrganizationDivision` | string | Division |
+|   ↳ `SoldToParty` | string | Sold-to business partner |
+|   ↳ `TotalNetAmount` | string | Total net amount |
+|   ↳ `TransactionCurrency` | string | Document currency |
+|   ↳ `CreationDate` | string | Creation date |
+|   ↳ `OverallSDProcessStatus` | string | Overall sales document process status |
+|   ↳ `OverallTotalDeliveryStatus` | string | Overall total delivery status |
+|   ↳ `to_Item` | json | Deep-inserted sales order items as returned by SAP |
 
 </ReferenceDetails>
 
@@ -763,13 +750,12 @@ Update fields on an A_SalesOrder header in SAP S/4HANA Cloud (API_SALES_ORDER_SR
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP \(204 on success\) |
-| `data` | json | Null on 204 success; otherwise OData v2 envelope with the updated entity at output.data.d |
-|   ↳ `d` | json | Updated A_SalesOrder entity \(when SAP returns one\) |
-|     ↳ `SalesOrder` | string | Sales order number |
-|     ↳ `SalesOrderType` | string | Sales document type |
-|     ↳ `PurchaseOrderByCustomer` | string | Customer purchase order reference |
-|     ↳ `OverallSDProcessStatus` | string | Overall sales document process status |
-|     ↳ `OverallTotalDeliveryStatus` | string | Overall total delivery status |
+| `data` | json | Null on 204 No Content \(the usual response\), or the updated A_SalesOrder entity when SAP returns one |
+|   ↳ `SalesOrder` | string | Sales order number |
+|   ↳ `SalesOrderType` | string | Sales document type |
+|   ↳ `PurchaseOrderByCustomer` | string | Customer purchase order reference |
+|   ↳ `OverallSDProcessStatus` | string | Overall sales document process status |
+|   ↳ `OverallTotalDeliveryStatus` | string | Overall total delivery status |
 
 </ReferenceDetails>
 
@@ -837,27 +823,23 @@ List outbound deliveries from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=000
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; collection at output.data.d.results |
-|   ↳ `d` | json | OData v2 envelope |
-|     ↳ `results` | array | A_OutbDeliveryHeader entities |
-|       ↳ `DeliveryDocument` | string | Outbound delivery number |
-|       ↳ `DeliveryDocumentType` | string | Delivery document type \(e.g., LF\) |
-|       ↳ `SDDocumentCategory` | string | SD document category \(e.g., J = outbound delivery\) |
-|       ↳ `ShippingPoint` | string | Shipping point |
-|       ↳ `ShippingType` | string | Shipping type |
-|       ↳ `ShipToParty` | string | Ship-to business partner |
-|       ↳ `SoldToParty` | string | Sold-to business partner |
-|       ↳ `DeliveryDate` | string | Delivery date \(Edm.DateTime\) |
-|       ↳ `ActualGoodsMovementDate` | string | Actual goods issue date \(Edm.DateTime\) |
-|       ↳ `PlannedGoodsIssueDate` | string | Planned goods issue date \(Edm.DateTime\) |
-|       ↳ `OverallSDProcessStatus` | string | Overall SD process \(delivery\) status |
-|       ↳ `OverallGoodsMovementStatus` | string | Overall goods movement status |
-|       ↳ `TransactionCurrency` | string | Document currency |
-|       ↳ `DocumentDate` | string | Document date \(Edm.DateTime\) |
-|       ↳ `CreationDate` | string | Creation date \(Edm.DateTime\) |
-|       ↳ `LastChangeDate` | string | Last change date \(Edm.DateTime\) |
-|     ↳ `__next` | string | OData skiptoken URL for next page |
-|     ↳ `__count` | string | Total count when $inlinecount=allpages is used |
+| `data` | json | Array of A_OutbDeliveryHeader entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each item. |
+|   ↳ `DeliveryDocument` | string | Outbound delivery number |
+|   ↳ `DeliveryDocumentType` | string | Delivery document type \(e.g., LF\) |
+|   ↳ `SDDocumentCategory` | string | SD document category \(e.g., J = outbound delivery\) |
+|   ↳ `ShippingPoint` | string | Shipping point |
+|   ↳ `ShippingType` | string | Shipping type |
+|   ↳ `ShipToParty` | string | Ship-to business partner |
+|   ↳ `SoldToParty` | string | Sold-to business partner |
+|   ↳ `DeliveryDate` | string | Delivery date \(Edm.DateTime\) |
+|   ↳ `ActualGoodsMovementDate` | string | Actual goods issue date \(Edm.DateTime\) |
+|   ↳ `PlannedGoodsIssueDate` | string | Planned goods issue date \(Edm.DateTime\) |
+|   ↳ `OverallSDProcessStatus` | string | Overall SD process \(delivery\) status |
+|   ↳ `OverallGoodsMovementStatus` | string | Overall goods movement status |
+|   ↳ `TransactionCurrency` | string | Document currency |
+|   ↳ `DocumentDate` | string | Document date \(Edm.DateTime\) |
+|   ↳ `CreationDate` | string | Creation date \(Edm.DateTime\) |
+|   ↳ `LastChangeDate` | string | Last change date \(Edm.DateTime\) |
 
 </ReferenceDetails>
 
@@ -890,26 +872,25 @@ Retrieve a single outbound delivery by DeliveryDocument key from SAP S/4HANA Clo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; entity at output.data.d |
-|   ↳ `d` | json | A_OutbDeliveryHeader entity |
-|     ↳ `DeliveryDocument` | string | Outbound delivery number |
-|     ↳ `DeliveryDocumentType` | string | Delivery document type |
-|     ↳ `SDDocumentCategory` | string | SD document category \(e.g., J = outbound delivery\) |
-|     ↳ `ShippingPoint` | string | Shipping point |
-|     ↳ `ShippingType` | string | Shipping type |
-|     ↳ `ShipToParty` | string | Ship-to business partner |
-|     ↳ `SoldToParty` | string | Sold-to business partner |
-|     ↳ `DeliveryDate` | string | Delivery date \(Edm.DateTime\) |
-|     ↳ `ActualGoodsMovementDate` | string | Actual goods issue date \(Edm.DateTime\) |
-|     ↳ `PlannedGoodsIssueDate` | string | Planned goods issue date \(Edm.DateTime\) |
-|     ↳ `OverallSDProcessStatus` | string | Overall SD process \(delivery\) status |
-|     ↳ `OverallGoodsMovementStatus` | string | Overall goods movement status |
-|     ↳ `TransactionCurrency` | string | Document currency |
-|     ↳ `DocumentDate` | string | Document date \(Edm.DateTime\) |
-|     ↳ `CreationDate` | string | Creation date \(Edm.DateTime\) |
-|     ↳ `LastChangeDate` | string | Last change date \(Edm.DateTime\) |
-|     ↳ `to_DeliveryDocumentItem` | json | Delivery items \(when $expand=to_DeliveryDocumentItem\) |
-|     ↳ `to_DeliveryDocumentPartner` | json | Delivery partners \(when $expand=to_DeliveryDocumentPartner\) |
+| `data` | json | A_OutbDeliveryHeader entity \(the integration unwraps the OData v2 `d` envelope\) |
+|   ↳ `DeliveryDocument` | string | Outbound delivery number |
+|   ↳ `DeliveryDocumentType` | string | Delivery document type |
+|   ↳ `SDDocumentCategory` | string | SD document category \(e.g., J = outbound delivery\) |
+|   ↳ `ShippingPoint` | string | Shipping point |
+|   ↳ `ShippingType` | string | Shipping type |
+|   ↳ `ShipToParty` | string | Ship-to business partner |
+|   ↳ `SoldToParty` | string | Sold-to business partner |
+|   ↳ `DeliveryDate` | string | Delivery date \(Edm.DateTime\) |
+|   ↳ `ActualGoodsMovementDate` | string | Actual goods issue date \(Edm.DateTime\) |
+|   ↳ `PlannedGoodsIssueDate` | string | Planned goods issue date \(Edm.DateTime\) |
+|   ↳ `OverallSDProcessStatus` | string | Overall SD process \(delivery\) status |
+|   ↳ `OverallGoodsMovementStatus` | string | Overall goods movement status |
+|   ↳ `TransactionCurrency` | string | Document currency |
+|   ↳ `DocumentDate` | string | Document date \(Edm.DateTime\) |
+|   ↳ `CreationDate` | string | Creation date \(Edm.DateTime\) |
+|   ↳ `LastChangeDate` | string | Last change date \(Edm.DateTime\) |
+|   ↳ `to_DeliveryDocumentItem` | json | Delivery items \(when $expand=to_DeliveryDocumentItem\) |
+|   ↳ `to_DeliveryDocumentPartner` | json | Delivery partners \(when $expand=to_DeliveryDocumentPartner\) |
 
 </ReferenceDetails>
 
@@ -945,25 +926,21 @@ List inbound deliveries from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002,
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; collection at output.data.d.results |
-|   ↳ `d` | json | OData v2 envelope |
-|     ↳ `results` | array | A_InbDeliveryHeader entities |
-|       ↳ `DeliveryDocument` | string | Inbound delivery number |
-|       ↳ `DeliveryDocumentType` | string | Delivery document type \(e.g., EL\) |
-|       ↳ `SDDocumentCategory` | string | SD document category \(e.g., 7 = inbound delivery\) |
-|       ↳ `ReceivingPlant` | string | Receiving plant |
-|       ↳ `Supplier` | string | Supplier business partner |
-|       ↳ `ShipToParty` | string | Ship-to business partner |
-|       ↳ `DeliveryDate` | string | Delivery date \(Edm.DateTime\) |
-|       ↳ `ActualGoodsMovementDate` | string | Actual goods movement \(receipt\) date \(Edm.DateTime\) |
-|       ↳ `PlannedGoodsMovementDate` | string | Planned goods movement date \(Edm.DateTime\) |
-|       ↳ `OverallSDProcessStatus` | string | Overall SD process \(delivery\) status |
-|       ↳ `OverallGoodsMovementStatus` | string | Overall goods movement status |
-|       ↳ `DocumentDate` | string | Document date \(Edm.DateTime\) |
-|       ↳ `CreationDate` | string | Creation date \(Edm.DateTime\) |
-|       ↳ `LastChangeDate` | string | Last change date \(Edm.DateTime\) |
-|     ↳ `__next` | string | OData skiptoken URL for next page |
-|     ↳ `__count` | string | Total count when $inlinecount=allpages is used |
+| `data` | json | Array of A_InbDeliveryHeader entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each item. |
+|   ↳ `DeliveryDocument` | string | Inbound delivery number |
+|   ↳ `DeliveryDocumentType` | string | Delivery document type \(e.g., EL\) |
+|   ↳ `SDDocumentCategory` | string | SD document category \(e.g., 7 = inbound delivery\) |
+|   ↳ `ReceivingPlant` | string | Receiving plant |
+|   ↳ `Supplier` | string | Supplier business partner |
+|   ↳ `ShipToParty` | string | Ship-to business partner |
+|   ↳ `DeliveryDate` | string | Delivery date \(Edm.DateTime\) |
+|   ↳ `ActualGoodsMovementDate` | string | Actual goods movement \(receipt\) date \(Edm.DateTime\) |
+|   ↳ `PlannedGoodsIssueDate` | string | Planned goods issue/receipt date \(Edm.DateTime\) |
+|   ↳ `OverallSDProcessStatus` | string | Overall SD process \(delivery\) status |
+|   ↳ `OverallGoodsMovementStatus` | string | Overall goods movement status |
+|   ↳ `DocumentDate` | string | Document date \(Edm.DateTime\) |
+|   ↳ `CreationDate` | string | Creation date \(Edm.DateTime\) |
+|   ↳ `LastChangeDate` | string | Last change date \(Edm.DateTime\) |
 
 </ReferenceDetails>
 
@@ -996,24 +973,23 @@ Retrieve a single inbound delivery by DeliveryDocument key from SAP S/4HANA Clou
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; entity at output.data.d |
-|   ↳ `d` | json | A_InbDeliveryHeader entity |
-|     ↳ `DeliveryDocument` | string | Inbound delivery number |
-|     ↳ `DeliveryDocumentType` | string | Delivery document type |
-|     ↳ `SDDocumentCategory` | string | SD document category \(e.g., 7 = inbound delivery\) |
-|     ↳ `ReceivingPlant` | string | Receiving plant |
-|     ↳ `Supplier` | string | Supplier business partner |
-|     ↳ `ShipToParty` | string | Ship-to business partner |
-|     ↳ `DeliveryDate` | string | Delivery date \(Edm.DateTime\) |
-|     ↳ `ActualGoodsMovementDate` | string | Actual goods movement \(receipt\) date \(Edm.DateTime\) |
-|     ↳ `PlannedGoodsMovementDate` | string | Planned goods movement date \(Edm.DateTime\) |
-|     ↳ `OverallSDProcessStatus` | string | Overall SD process \(delivery\) status |
-|     ↳ `OverallGoodsMovementStatus` | string | Overall goods movement status |
-|     ↳ `DocumentDate` | string | Document date \(Edm.DateTime\) |
-|     ↳ `CreationDate` | string | Creation date \(Edm.DateTime\) |
-|     ↳ `LastChangeDate` | string | Last change date \(Edm.DateTime\) |
-|     ↳ `to_DeliveryDocumentItem` | json | Delivery items \(when $expand=to_DeliveryDocumentItem\) |
-|     ↳ `to_DeliveryDocumentPartner` | json | Delivery partners \(when $expand=to_DeliveryDocumentPartner\) |
+| `data` | json | A_InbDeliveryHeader entity \(the integration unwraps the OData v2 `d` envelope\) |
+|   ↳ `DeliveryDocument` | string | Inbound delivery number |
+|   ↳ `DeliveryDocumentType` | string | Delivery document type |
+|   ↳ `SDDocumentCategory` | string | SD document category \(e.g., 7 = inbound delivery\) |
+|   ↳ `ReceivingPlant` | string | Receiving plant |
+|   ↳ `Supplier` | string | Supplier business partner |
+|   ↳ `ShipToParty` | string | Ship-to business partner |
+|   ↳ `DeliveryDate` | string | Delivery date \(Edm.DateTime\) |
+|   ↳ `ActualGoodsMovementDate` | string | Actual goods movement \(receipt\) date \(Edm.DateTime\) |
+|   ↳ `PlannedGoodsIssueDate` | string | Planned goods issue/receipt date \(Edm.DateTime\) |
+|   ↳ `OverallSDProcessStatus` | string | Overall SD process \(delivery\) status |
+|   ↳ `OverallGoodsMovementStatus` | string | Overall goods movement status |
+|   ↳ `DocumentDate` | string | Document date \(Edm.DateTime\) |
+|   ↳ `CreationDate` | string | Creation date \(Edm.DateTime\) |
+|   ↳ `LastChangeDate` | string | Last change date \(Edm.DateTime\) |
+|   ↳ `to_DeliveryDocumentItem` | json | Delivery items \(when $expand=to_DeliveryDocumentItem\) |
+|   ↳ `to_DeliveryDocumentPartner` | json | Delivery partners \(when $expand=to_DeliveryDocumentPartner\) |
 
 </ReferenceDetails>
 
@@ -1049,40 +1025,36 @@ List billing documents (customer invoices) from SAP S/4HANA Cloud (API_BILLING_D
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; collection at output.data.d.results |
-|   ↳ `d` | json | OData v2 envelope |
-|     ↳ `results` | array | A_BillingDocument entities |
-|       ↳ `BillingDocument` | string | Billing document number |
-|       ↳ `SDDocumentCategory` | string | SD document category |
-|       ↳ `BillingDocumentCategory` | string | Billing document category |
-|       ↳ `BillingDocumentType` | string | Billing document type \(e.g., F2\) |
-|       ↳ `BillingDocumentDate` | string | Billing document date \(OData /Date\(ms\)/\) |
-|       ↳ `BillingDocumentIsCancelled` | boolean | Whether the billing document is cancelled |
-|       ↳ `CancelledBillingDocument` | string | Cancelled billing document number |
-|       ↳ `TotalNetAmount` | string | Total net amount \(Edm.Decimal as string\) |
-|       ↳ `TaxAmount` | string | Tax amount \(Edm.Decimal as string\) |
-|       ↳ `TotalGrossAmount` | string | Total gross amount \(Edm.Decimal as string\) |
-|       ↳ `TransactionCurrency` | string | Document currency |
-|       ↳ `SoldToParty` | string | Sold-to business partner |
-|       ↳ `PayerParty` | string | Payer party |
-|       ↳ `SalesOrganization` | string | Sales organization |
-|       ↳ `DistributionChannel` | string | Distribution channel |
-|       ↳ `Division` | string | Division |
-|       ↳ `CompanyCode` | string | Company code |
-|       ↳ `FiscalYear` | string | Fiscal year |
-|       ↳ `OverallBillingStatus` | string | Overall billing status |
-|       ↳ `AccountingPostingStatus` | string | Accounting posting status |
-|       ↳ `AccountingTransferStatus` | string | Accounting transfer status |
-|       ↳ `InvoiceClearingStatus` | string | Invoice clearing status |
-|       ↳ `AccountingDocument` | string | Linked accounting document |
-|       ↳ `CustomerPaymentTerms` | string | Customer payment terms |
-|       ↳ `PaymentMethod` | string | Payment method |
-|       ↳ `DocumentReferenceID` | string | Document reference ID |
-|       ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
-|       ↳ `LastChangeDate` | string | Last change date \(OData /Date\(ms\)/\) |
-|       ↳ `LastChangeDateTime` | string | Last change date-time \(Edm.DateTimeOffset\) |
-|     ↳ `__next` | string | OData skiptoken URL for next page |
-|     ↳ `__count` | string | Total count when $inlinecount=allpages is used |
+| `data` | json | Array of A_BillingDocument entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each item. |
+|   ↳ `BillingDocument` | string | Billing document number |
+|   ↳ `SDDocumentCategory` | string | SD document category |
+|   ↳ `BillingDocumentCategory` | string | Billing document category |
+|   ↳ `BillingDocumentType` | string | Billing document type \(e.g., F2\) |
+|   ↳ `BillingDocumentDate` | string | Billing document date \(OData /Date\(ms\)/\) |
+|   ↳ `BillingDocumentIsCancelled` | boolean | Whether the billing document is cancelled |
+|   ↳ `CancelledBillingDocument` | string | Cancelled billing document number |
+|   ↳ `TotalNetAmount` | string | Total net amount \(Edm.Decimal as string\) |
+|   ↳ `TaxAmount` | string | Tax amount \(Edm.Decimal as string\) |
+|   ↳ `TotalGrossAmount` | string | Total gross amount \(Edm.Decimal as string\) |
+|   ↳ `TransactionCurrency` | string | Document currency |
+|   ↳ `SoldToParty` | string | Sold-to business partner |
+|   ↳ `PayerParty` | string | Payer party |
+|   ↳ `SalesOrganization` | string | Sales organization |
+|   ↳ `DistributionChannel` | string | Distribution channel |
+|   ↳ `Division` | string | Division |
+|   ↳ `CompanyCode` | string | Company code |
+|   ↳ `FiscalYear` | string | Fiscal year |
+|   ↳ `OverallBillingStatus` | string | Overall billing status |
+|   ↳ `AccountingPostingStatus` | string | Accounting posting status |
+|   ↳ `AccountingTransferStatus` | string | Accounting transfer status |
+|   ↳ `InvoiceClearingStatus` | string | Invoice clearing status |
+|   ↳ `AccountingDocument` | string | Linked accounting document |
+|   ↳ `CustomerPaymentTerms` | string | Customer payment terms |
+|   ↳ `PaymentMethod` | string | Payment method |
+|   ↳ `DocumentReferenceID` | string | Document reference ID |
+|   ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
+|   ↳ `LastChangeDate` | string | Last change date \(OData /Date\(ms\)/\) |
+|   ↳ `LastChangeDateTime` | string | Last change date-time \(Edm.DateTimeOffset\) |
 
 </ReferenceDetails>
 
@@ -1115,40 +1087,39 @@ Retrieve a single billing document (customer invoice) by BillingDocument key fro
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; entity at output.data.d |
-|   ↳ `d` | json | A_BillingDocument entity |
-|     ↳ `BillingDocument` | string | Billing document number |
-|     ↳ `SDDocumentCategory` | string | SD document category |
-|     ↳ `BillingDocumentCategory` | string | Billing document category |
-|     ↳ `BillingDocumentType` | string | Billing document type |
-|     ↳ `BillingDocumentDate` | string | Billing document date \(OData /Date\(ms\)/\) |
-|     ↳ `BillingDocumentIsCancelled` | boolean | Whether the billing document is cancelled |
-|     ↳ `CancelledBillingDocument` | string | Cancelled billing document number |
-|     ↳ `TotalNetAmount` | string | Total net amount \(Edm.Decimal as string\) |
-|     ↳ `TaxAmount` | string | Tax amount \(Edm.Decimal as string\) |
-|     ↳ `TotalGrossAmount` | string | Total gross amount \(Edm.Decimal as string\) |
-|     ↳ `TransactionCurrency` | string | Document currency |
-|     ↳ `SoldToParty` | string | Sold-to business partner |
-|     ↳ `PayerParty` | string | Payer party |
-|     ↳ `SalesOrganization` | string | Sales organization |
-|     ↳ `DistributionChannel` | string | Distribution channel |
-|     ↳ `Division` | string | Division |
-|     ↳ `CompanyCode` | string | Company code |
-|     ↳ `FiscalYear` | string | Fiscal year |
-|     ↳ `OverallBillingStatus` | string | Overall billing status |
-|     ↳ `AccountingPostingStatus` | string | Accounting posting status |
-|     ↳ `AccountingTransferStatus` | string | Accounting transfer status |
-|     ↳ `InvoiceClearingStatus` | string | Invoice clearing status |
-|     ↳ `AccountingDocument` | string | Linked accounting document |
-|     ↳ `CustomerPaymentTerms` | string | Customer payment terms |
-|     ↳ `PaymentMethod` | string | Payment method |
-|     ↳ `DocumentReferenceID` | string | Document reference ID |
-|     ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
-|     ↳ `LastChangeDate` | string | Last change date \(OData /Date\(ms\)/\) |
-|     ↳ `LastChangeDateTime` | string | Last change date-time \(Edm.DateTimeOffset\) |
-|     ↳ `to_Item` | json | Billing document items \(when $expand=to_Item\) |
-|     ↳ `to_Partner` | json | Billing document partners \(when $expand=to_Partner\) |
-|     ↳ `to_PricingElement` | json | Billing document pricing elements \(when $expand=to_PricingElement\) |
+| `data` | json | A_BillingDocument entity \(the integration unwraps the OData v2 `d` envelope\) |
+|   ↳ `BillingDocument` | string | Billing document number |
+|   ↳ `SDDocumentCategory` | string | SD document category |
+|   ↳ `BillingDocumentCategory` | string | Billing document category |
+|   ↳ `BillingDocumentType` | string | Billing document type |
+|   ↳ `BillingDocumentDate` | string | Billing document date \(OData /Date\(ms\)/\) |
+|   ↳ `BillingDocumentIsCancelled` | boolean | Whether the billing document is cancelled |
+|   ↳ `CancelledBillingDocument` | string | Cancelled billing document number |
+|   ↳ `TotalNetAmount` | string | Total net amount \(Edm.Decimal as string\) |
+|   ↳ `TaxAmount` | string | Tax amount \(Edm.Decimal as string\) |
+|   ↳ `TotalGrossAmount` | string | Total gross amount \(Edm.Decimal as string\) |
+|   ↳ `TransactionCurrency` | string | Document currency |
+|   ↳ `SoldToParty` | string | Sold-to business partner |
+|   ↳ `PayerParty` | string | Payer party |
+|   ↳ `SalesOrganization` | string | Sales organization |
+|   ↳ `DistributionChannel` | string | Distribution channel |
+|   ↳ `Division` | string | Division |
+|   ↳ `CompanyCode` | string | Company code |
+|   ↳ `FiscalYear` | string | Fiscal year |
+|   ↳ `OverallBillingStatus` | string | Overall billing status |
+|   ↳ `AccountingPostingStatus` | string | Accounting posting status |
+|   ↳ `AccountingTransferStatus` | string | Accounting transfer status |
+|   ↳ `InvoiceClearingStatus` | string | Invoice clearing status |
+|   ↳ `AccountingDocument` | string | Linked accounting document |
+|   ↳ `CustomerPaymentTerms` | string | Customer payment terms |
+|   ↳ `PaymentMethod` | string | Payment method |
+|   ↳ `DocumentReferenceID` | string | Document reference ID |
+|   ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
+|   ↳ `LastChangeDate` | string | Last change date \(OData /Date\(ms\)/\) |
+|   ↳ `LastChangeDateTime` | string | Last change date-time \(Edm.DateTimeOffset\) |
+|   ↳ `to_Item` | json | Billing document items \(when $expand=to_Item\) |
+|   ↳ `to_Partner` | json | Billing document partners \(when $expand=to_Partner\) |
+|   ↳ `to_PricingElement` | json | Billing document pricing elements \(when $expand=to_PricingElement\) |
 
 </ReferenceDetails>
 
@@ -1184,30 +1155,26 @@ List products (materials) from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product) wi
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; collection at output.data.d.results |
-|   ↳ `d` | json | OData v2 envelope |
-|     ↳ `results` | array | A_Product entities |
-|       ↳ `Product` | string | Product \(material\) number |
-|       ↳ `ProductType` | string | Product type \(e.g., FERT, HAWA\) |
-|       ↳ `ProductGroup` | string | Material group |
-|       ↳ `BaseUnit` | string | Base unit of measure |
-|       ↳ `Brand` | string | Brand |
-|       ↳ `Division` | string | Division |
-|       ↳ `GrossWeight` | string | Gross weight |
-|       ↳ `NetWeight` | string | Net weight |
-|       ↳ `WeightUnit` | string | Weight unit of measure |
-|       ↳ `CrossPlantStatus` | string | Cross-plant material status |
-|       ↳ `IsMarkedForDeletion` | boolean | Deletion flag |
-|       ↳ `ProductStandardID` | string | Standard product ID \(e.g., GTIN\) |
-|       ↳ `ItemCategoryGroup` | string | Item category group |
-|       ↳ `ProductOldID` | string | Legacy/old product ID |
-|       ↳ `CreatedByUser` | string | User who created the product |
-|       ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
-|       ↳ `LastChangedByUser` | string | User who last changed the product |
-|       ↳ `LastChangeDate` | string | Last change date |
-|       ↳ `LastChangeDateTime` | string | Last change timestamp \(Edm.DateTimeOffset\) |
-|     ↳ `__next` | string | OData skiptoken URL for next page |
-|     ↳ `__count` | string | Total count when $inlinecount=allpages is used |
+| `data` | json | Array of A_Product entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each item. |
+|   ↳ `Product` | string | Product \(material\) number |
+|   ↳ `ProductType` | string | Product type \(e.g., FERT, HAWA\) |
+|   ↳ `ProductGroup` | string | Material group |
+|   ↳ `BaseUnit` | string | Base unit of measure |
+|   ↳ `Brand` | string | Brand |
+|   ↳ `Division` | string | Division |
+|   ↳ `GrossWeight` | string | Gross weight |
+|   ↳ `NetWeight` | string | Net weight |
+|   ↳ `WeightUnit` | string | Weight unit of measure |
+|   ↳ `CrossPlantStatus` | string | Cross-plant material status |
+|   ↳ `IsMarkedForDeletion` | boolean | Deletion flag |
+|   ↳ `ProductStandardID` | string | Standard product ID \(e.g., GTIN\) |
+|   ↳ `ItemCategoryGroup` | string | Item category group |
+|   ↳ `ProductOldID` | string | Legacy/old product ID |
+|   ↳ `CreatedByUser` | string | User who created the product |
+|   ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
+|   ↳ `LastChangedByUser` | string | User who last changed the product |
+|   ↳ `LastChangeDate` | string | Last change date |
+|   ↳ `LastChangeDateTime` | string | Last change timestamp \(Edm.DateTimeOffset\) |
 
 </ReferenceDetails>
 
@@ -1240,30 +1207,29 @@ Retrieve a single product (material) by Product key from SAP S/4HANA Cloud (API_
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; entity at output.data.d |
-|   ↳ `d` | json | A_Product entity |
-|     ↳ `Product` | string | Product \(material\) number |
-|     ↳ `ProductType` | string | Product type \(e.g., FERT, HAWA\) |
-|     ↳ `ProductGroup` | string | Material group |
-|     ↳ `BaseUnit` | string | Base unit of measure |
-|     ↳ `Brand` | string | Brand |
-|     ↳ `Division` | string | Division |
-|     ↳ `GrossWeight` | string | Gross weight |
-|     ↳ `NetWeight` | string | Net weight |
-|     ↳ `WeightUnit` | string | Weight unit of measure |
-|     ↳ `CrossPlantStatus` | string | Cross-plant material status |
-|     ↳ `IsMarkedForDeletion` | boolean | Deletion flag |
-|     ↳ `ProductStandardID` | string | Standard product ID \(e.g., GTIN\) |
-|     ↳ `ItemCategoryGroup` | string | Item category group |
-|     ↳ `ProductOldID` | string | Legacy/old product ID |
-|     ↳ `CreatedByUser` | string | User who created the product |
-|     ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
-|     ↳ `LastChangedByUser` | string | User who last changed the product |
-|     ↳ `LastChangeDate` | string | Last change date |
-|     ↳ `LastChangeDateTime` | string | Last change timestamp \(Edm.DateTimeOffset\) |
-|     ↳ `to_Description` | json | Product descriptions \(when $expand=to_Description\) |
-|     ↳ `to_Plant` | json | Plant-level data \(when $expand=to_Plant\) |
-|     ↳ `to_ProductSales` | json | Sales data \(when $expand=to_ProductSales\) |
+| `data` | json | A_Product entity \(the integration unwraps the OData v2 `d` envelope\) |
+|   ↳ `Product` | string | Product \(material\) number |
+|   ↳ `ProductType` | string | Product type \(e.g., FERT, HAWA\) |
+|   ↳ `ProductGroup` | string | Material group |
+|   ↳ `BaseUnit` | string | Base unit of measure |
+|   ↳ `Brand` | string | Brand |
+|   ↳ `Division` | string | Division |
+|   ↳ `GrossWeight` | string | Gross weight |
+|   ↳ `NetWeight` | string | Net weight |
+|   ↳ `WeightUnit` | string | Weight unit of measure |
+|   ↳ `CrossPlantStatus` | string | Cross-plant material status |
+|   ↳ `IsMarkedForDeletion` | boolean | Deletion flag |
+|   ↳ `ProductStandardID` | string | Standard product ID \(e.g., GTIN\) |
+|   ↳ `ItemCategoryGroup` | string | Item category group |
+|   ↳ `ProductOldID` | string | Legacy/old product ID |
+|   ↳ `CreatedByUser` | string | User who created the product |
+|   ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
+|   ↳ `LastChangedByUser` | string | User who last changed the product |
+|   ↳ `LastChangeDate` | string | Last change date |
+|   ↳ `LastChangeDateTime` | string | Last change timestamp \(Edm.DateTimeOffset\) |
+|   ↳ `to_Description` | json | Product descriptions \(when $expand=to_Description\) |
+|   ↳ `to_Plant` | json | Plant-level data \(when $expand=to_Plant\) |
+|   ↳ `to_ProductSales` | json | Sales data \(when $expand=to_ProductSales\) |
 
 </ReferenceDetails>
 
@@ -1296,14 +1262,13 @@ Update fields on an A_Product entity in SAP S/4HANA Cloud (API_PRODUCT_SRV). Use
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP \(204 on success\) |
-| `data` | json | Null on 204 success, or OData v2 envelope with the updated A_Product entity at output.data.d |
-|   ↳ `d` | json | Updated A_Product entity \(only present if SAP returns a body\) |
-|     ↳ `Product` | string | Product \(material\) number |
-|     ↳ `ProductType` | string | Product type |
-|     ↳ `ProductGroup` | string | Material group |
-|     ↳ `BaseUnit` | string | Base unit of measure |
-|     ↳ `IsMarkedForDeletion` | boolean | Deletion flag |
-|     ↳ `LastChangeDate` | string | Last change date |
+| `data` | json | Null on 204 No Content \(the usual response\), or the updated A_Product entity when SAP returns one |
+|   ↳ `Product` | string | Product \(material\) number |
+|   ↳ `ProductType` | string | Product type |
+|   ↳ `ProductGroup` | string | Material group |
+|   ↳ `BaseUnit` | string | Base unit of measure |
+|   ↳ `IsMarkedForDeletion` | boolean | Deletion flag |
+|   ↳ `LastChangeDate` | string | Last change date |
 
 </ReferenceDetails>
 
@@ -1488,14 +1453,11 @@ List purchase requisitions from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; collection at output.data.d.results |
-|   ↳ `d` | json | OData v2 envelope |
-|     ↳ `results` | array | A_PurchaseRequisitionHeader entities |
-|       ↳ `PurchaseRequisition` | string | Purchase requisition number |
-|       ↳ `PurchaseRequisitionType` | string | Purchase requisition document type \(e.g., NB\) |
-|       ↳ `PurReqnDescription` | string | Purchase requisition description |
-|       ↳ `SourceDetermination` | string | Source-of-supply determination flag |
-|     ↳ `__next` | string | OData skiptoken URL for next page |
+| `data` | json | Array of A_PurchaseRequisitionHeader entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each item. |
+|   ↳ `PurchaseRequisition` | string | Purchase requisition number |
+|   ↳ `PurchaseRequisitionType` | string | Purchase requisition document type \(e.g., NB\) |
+|   ↳ `PurReqnDescription` | string | Purchase requisition description |
+|   ↳ `SourceDetermination` | string | Source-of-supply determination flag |
 
 </ReferenceDetails>
 
@@ -1528,13 +1490,12 @@ Retrieve a single purchase requisition by PurchaseRequisition key from SAP S/4HA
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; entity at output.data.d |
-|   ↳ `d` | json | A_PurchaseRequisitionHeader entity |
-|     ↳ `PurchaseRequisition` | string | Purchase requisition number |
-|     ↳ `PurchaseRequisitionType` | string | PR document type \(e.g., NB\) |
-|     ↳ `PurReqnDescription` | string | Purchase requisition description |
-|     ↳ `SourceDetermination` | string | Source-of-supply determination flag |
-|     ↳ `to_PurchaseReqnItem` | json | Expanded PR items \(when $expand=to_PurchaseReqnItem\) |
+| `data` | json | A_PurchaseRequisitionHeader entity \(the integration unwraps the OData v2 `d` envelope\) |
+|   ↳ `PurchaseRequisition` | string | Purchase requisition number |
+|   ↳ `PurchaseRequisitionType` | string | PR document type \(e.g., NB\) |
+|   ↳ `PurReqnDescription` | string | Purchase requisition description |
+|   ↳ `SourceDetermination` | string | Source-of-supply determination flag |
+|   ↳ `to_PurchaseReqnItem` | json | Expanded PR items \(when $expand=to_PurchaseReqnItem\) |
 
 </ReferenceDetails>
 
@@ -1567,13 +1528,12 @@ Create a purchase requisition in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV,
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; created entity at output.data.d |
-|   ↳ `d` | json | Created A_PurchaseRequisitionHeader entity |
-|     ↳ `PurchaseRequisition` | string | Auto-assigned purchase requisition number |
-|     ↳ `PurchaseRequisitionType` | string | PR document type \(e.g., NB\) |
-|     ↳ `PurReqnDescription` | string | Purchase requisition description |
-|     ↳ `SourceDetermination` | string | Source-of-supply determination flag |
-|     ↳ `to_PurchaseReqnItem` | json | Created PR items returned in deep insert |
+| `data` | json | Created A_PurchaseRequisitionHeader entity \(the integration unwraps the OData v2 `d` envelope\) |
+|   ↳ `PurchaseRequisition` | string | Auto-assigned purchase requisition number |
+|   ↳ `PurchaseRequisitionType` | string | PR document type \(e.g., NB\) |
+|   ↳ `PurReqnDescription` | string | Purchase requisition description |
+|   ↳ `SourceDetermination` | string | Source-of-supply determination flag |
+|   ↳ `to_PurchaseReqnItem` | json | Created PR items returned in deep insert |
 
 </ReferenceDetails>
 
@@ -1606,12 +1566,11 @@ Update fields on an A_PurchaseRequisitionHeader entity in SAP S/4HANA Cloud (API
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP \(204 on success\) |
-| `data` | json | Null on 204 success, or OData v2 envelope with updated A_PurchaseRequisitionHeader at output.data.d |
-|   ↳ `d` | json | Updated A_PurchaseRequisitionHeader entity \(if returned\) |
-|     ↳ `PurchaseRequisition` | string | Purchase requisition number |
-|     ↳ `PurchaseRequisitionType` | string | PR document type |
-|     ↳ `PurReqnDescription` | string | Purchase requisition description |
-|     ↳ `SourceDetermination` | string | Source-of-supply determination flag |
+| `data` | json | Null on 204 No Content \(the usual response\), or the updated A_PurchaseRequisitionHeader entity when SAP returns one |
+|   ↳ `PurchaseRequisition` | string | Purchase requisition number |
+|   ↳ `PurchaseRequisitionType` | string | PR document type |
+|   ↳ `PurReqnDescription` | string | Purchase requisition description |
+|   ↳ `SourceDetermination` | string | Source-of-supply determination flag |
 
 </ReferenceDetails>
 
@@ -1647,22 +1606,17 @@ List purchase orders from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_Pu
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; collection at output.data.d.results |
-|   ↳ `d` | json | OData v2 envelope |
-|     ↳ `results` | array | A_PurchaseOrder entities |
-|       ↳ `PurchaseOrder` | string | Purchase order number |
-|       ↳ `PurchaseOrderType` | string | PO document type \(e.g., NB\) |
-|       ↳ `CompanyCode` | string | Company code |
-|       ↳ `PurchasingOrganization` | string | Purchasing organization |
-|       ↳ `PurchasingGroup` | string | Purchasing group |
-|       ↳ `Supplier` | string | Supplier business partner key |
-|       ↳ `DocumentCurrency` | string | Document currency |
-|       ↳ `NetAmount` | string | Net amount of the purchase order |
-|       ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
-|       ↳ `CreatedByUser` | string | User who created the PO |
-|       ↳ `PurchaseOrderDate` | string | Purchase order date |
-|     ↳ `__next` | string | OData skiptoken URL for next page |
-|     ↳ `__count` | string | Total count when $inlinecount=allpages is used |
+| `data` | json | Array of A_PurchaseOrder entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each item. |
+|   ↳ `PurchaseOrder` | string | Purchase order number |
+|   ↳ `PurchaseOrderType` | string | PO document type \(e.g., NB\) |
+|   ↳ `CompanyCode` | string | Company code |
+|   ↳ `PurchasingOrganization` | string | Purchasing organization |
+|   ↳ `PurchasingGroup` | string | Purchasing group |
+|   ↳ `Supplier` | string | Supplier business partner key |
+|   ↳ `DocumentCurrency` | string | Document currency |
+|   ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
+|   ↳ `CreatedByUser` | string | User who created the PO |
+|   ↳ `PurchaseOrderDate` | string | Purchase order date |
 
 </ReferenceDetails>
 
@@ -1695,25 +1649,23 @@ Retrieve a single purchase order by PurchaseOrder key from SAP S/4HANA Cloud (AP
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; entity at output.data.d |
-|   ↳ `d` | json | A_PurchaseOrder entity |
-|     ↳ `PurchaseOrder` | string | Purchase order number |
-|     ↳ `PurchaseOrderType` | string | PO document type |
-|     ↳ `CompanyCode` | string | Company code |
-|     ↳ `PurchasingOrganization` | string | Purchasing organization |
-|     ↳ `PurchasingGroup` | string | Purchasing group |
-|     ↳ `Supplier` | string | Supplier business partner key |
-|     ↳ `DocumentCurrency` | string | Document currency |
-|     ↳ `NetAmount` | string | Net amount of the purchase order |
-|     ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
-|     ↳ `CreatedByUser` | string | User who created the PO |
-|     ↳ `PurchaseOrderDate` | string | Purchase order date |
-|     ↳ `ValidityStartDate` | string | Validity start date |
-|     ↳ `ValidityEndDate` | string | Validity end date |
-|     ↳ `IncotermsClassification` | string | Incoterms classification \(e.g., FOB\) |
-|     ↳ `PaymentTerms` | string | Payment terms key |
-|     ↳ `LastChangeDateTime` | string | Last change timestamp \(OData /Date\(ms\)/\) |
-|     ↳ `to_PurchaseOrderItem` | json | Expanded PO items \(when $expand=to_PurchaseOrderItem\) |
+| `data` | json | A_PurchaseOrder entity \(the integration unwraps the OData v2 `d` envelope\) |
+|   ↳ `PurchaseOrder` | string | Purchase order number |
+|   ↳ `PurchaseOrderType` | string | PO document type |
+|   ↳ `CompanyCode` | string | Company code |
+|   ↳ `PurchasingOrganization` | string | Purchasing organization |
+|   ↳ `PurchasingGroup` | string | Purchasing group |
+|   ↳ `Supplier` | string | Supplier business partner key |
+|   ↳ `DocumentCurrency` | string | Document currency |
+|   ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
+|   ↳ `CreatedByUser` | string | User who created the PO |
+|   ↳ `PurchaseOrderDate` | string | Purchase order date |
+|   ↳ `ValidityStartDate` | string | Validity start date |
+|   ↳ `ValidityEndDate` | string | Validity end date |
+|   ↳ `IncotermsClassification` | string | Incoterms classification \(e.g., FOB\) |
+|   ↳ `PaymentTerms` | string | Payment terms key |
+|   ↳ `LastChangeDateTime` | string | Last change timestamp \(OData /Date\(ms\)/\) |
+|   ↳ `to_PurchaseOrderItem` | json | Expanded PO items \(when $expand=to_PurchaseOrderItem\) |
 
 </ReferenceDetails>
 
@@ -1749,18 +1701,16 @@ Create a purchase order in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_P
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; created entity at output.data.d |
-|   ↳ `d` | json | Created A_PurchaseOrder entity |
-|     ↳ `PurchaseOrder` | string | Auto-assigned purchase order number |
-|     ↳ `PurchaseOrderType` | string | PO document type |
-|     ↳ `CompanyCode` | string | Company code |
-|     ↳ `PurchasingOrganization` | string | Purchasing organization |
-|     ↳ `PurchasingGroup` | string | Purchasing group |
-|     ↳ `Supplier` | string | Supplier business partner key |
-|     ↳ `DocumentCurrency` | string | Document currency |
-|     ↳ `NetAmount` | string | Net amount of the purchase order |
-|     ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
-|     ↳ `to_PurchaseOrderItem` | json | Created PO items returned in deep insert |
+| `data` | json | Created A_PurchaseOrder entity \(the integration unwraps the OData v2 `d` envelope\) |
+|   ↳ `PurchaseOrder` | string | Auto-assigned purchase order number |
+|   ↳ `PurchaseOrderType` | string | PO document type |
+|   ↳ `CompanyCode` | string | Company code |
+|   ↳ `PurchasingOrganization` | string | Purchasing organization |
+|   ↳ `PurchasingGroup` | string | Purchasing group |
+|   ↳ `Supplier` | string | Supplier business partner key |
+|   ↳ `DocumentCurrency` | string | Document currency |
+|   ↳ `CreationDate` | string | Creation date \(OData /Date\(ms\)/\) |
+|   ↳ `to_PurchaseOrderItem` | json | Created PO items returned in deep insert |
 
 </ReferenceDetails>
 
@@ -1793,16 +1743,14 @@ Update fields on an A_PurchaseOrder header in SAP S/4HANA Cloud (API_PURCHASEORD
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP \(204 on success\) |
-| `data` | json | Null on 204 success, or OData v2 envelope with updated A_PurchaseOrder at output.data.d |
-|   ↳ `d` | json | Updated A_PurchaseOrder entity \(if returned\) |
-|     ↳ `PurchaseOrder` | string | Purchase order number |
-|     ↳ `PurchaseOrderType` | string | PO document type |
-|     ↳ `CompanyCode` | string | Company code |
-|     ↳ `PurchasingGroup` | string | Purchasing group |
-|     ↳ `Supplier` | string | Supplier key |
-|     ↳ `NetAmount` | string | Net amount |
-|     ↳ `DocumentCurrency` | string | Document currency |
-|     ↳ `LastChangeDateTime` | string | Last change timestamp |
+| `data` | json | Null on 204 No Content \(the usual response\), or the updated A_PurchaseOrder entity when SAP returns one |
+|   ↳ `PurchaseOrder` | string | Purchase order number |
+|   ↳ `PurchaseOrderType` | string | PO document type |
+|   ↳ `CompanyCode` | string | Company code |
+|   ↳ `PurchasingGroup` | string | Purchasing group |
+|   ↳ `Supplier` | string | Supplier key |
+|   ↳ `DocumentCurrency` | string | Document currency |
+|   ↳ `LastChangeDateTime` | string | Last change timestamp |
 
 </ReferenceDetails>
 
@@ -1838,26 +1786,23 @@ List supplier invoices from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; collection at output.data.d.results |
-|   ↳ `d` | json | OData v2 envelope |
-|     ↳ `results` | array | A_SupplierInvoice entities |
-|       ↳ `SupplierInvoice` | string | Supplier invoice number |
-|       ↳ `FiscalYear` | string | Fiscal year |
-|       ↳ `CompanyCode` | string | Company code |
-|       ↳ `DocumentDate` | string | Invoice document date |
-|       ↳ `PostingDate` | string | Posting date |
-|       ↳ `InvoicingParty` | string | Invoicing party \(supplier key\) |
-|       ↳ `InvoiceGrossAmount` | string | Gross invoice amount |
-|       ↳ `DocumentCurrency` | string | Document currency |
-|       ↳ `AccountingDocumentType` | string | Accounting document type |
-|       ↳ `PaymentTerms` | string | Payment terms key |
-|       ↳ `DueCalculationBaseDate` | string | Baseline date for due-date calculation |
-|       ↳ `SupplierInvoiceIDByInvcgParty` | string | Reference number used by the invoicing party |
-|       ↳ `PaymentMethod` | string | Payment method |
-|       ↳ `TaxIsCalculatedAutomatically` | boolean | Whether tax is calculated automatically |
-|       ↳ `ManualCashDiscount` | string | Manually entered cash discount amount |
-|       ↳ `BusinessPlace` | string | Business place \(jurisdiction code\) |
-|     ↳ `__next` | string | OData skiptoken URL for next page |
+| `data` | json | Array of A_SupplierInvoice entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each item. |
+|   ↳ `SupplierInvoice` | string | Supplier invoice number |
+|   ↳ `FiscalYear` | string | Fiscal year |
+|   ↳ `CompanyCode` | string | Company code |
+|   ↳ `DocumentDate` | string | Invoice document date |
+|   ↳ `PostingDate` | string | Posting date |
+|   ↳ `InvoicingParty` | string | Invoicing party \(supplier key\) |
+|   ↳ `InvoiceGrossAmount` | string | Gross invoice amount |
+|   ↳ `DocumentCurrency` | string | Document currency |
+|   ↳ `AccountingDocumentType` | string | Accounting document type |
+|   ↳ `PaymentTerms` | string | Payment terms key |
+|   ↳ `DueCalculationBaseDate` | string | Baseline date for due-date calculation |
+|   ↳ `SupplierInvoiceIDByInvcgParty` | string | Reference number used by the invoicing party |
+|   ↳ `PaymentMethod` | string | Payment method |
+|   ↳ `TaxIsCalculatedAutomatically` | boolean | Whether tax is calculated automatically |
+|   ↳ `ManualCashDiscount` | string | Manually entered cash discount amount |
+|   ↳ `BusinessPlace` | string | Business place \(jurisdiction code\) |
 
 </ReferenceDetails>
 
@@ -1891,24 +1836,23 @@ Retrieve a single supplier invoice by composite key (SupplierInvoice + FiscalYea
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData v2 response envelope; entity at output.data.d |
-|   ↳ `d` | json | A_SupplierInvoice entity |
-|     ↳ `SupplierInvoice` | string | Supplier invoice number |
-|     ↳ `FiscalYear` | string | Fiscal year |
-|     ↳ `CompanyCode` | string | Company code |
-|     ↳ `DocumentDate` | string | Invoice document date |
-|     ↳ `PostingDate` | string | Posting date |
-|     ↳ `InvoicingParty` | string | Invoicing party \(supplier key\) |
-|     ↳ `InvoiceGrossAmount` | string | Gross invoice amount |
-|     ↳ `DocumentCurrency` | string | Document currency |
-|     ↳ `AccountingDocumentType` | string | Accounting document type |
-|     ↳ `PaymentTerms` | string | Payment terms key |
-|     ↳ `DueCalculationBaseDate` | string | Baseline date for due-date calculation |
-|     ↳ `SupplierInvoiceIDByInvcgParty` | string | Reference number used by the invoicing party |
-|     ↳ `PaymentMethod` | string | Payment method |
-|     ↳ `TaxIsCalculatedAutomatically` | boolean | Whether tax is calculated automatically |
-|     ↳ `ManualCashDiscount` | string | Manually entered cash discount amount |
-|     ↳ `BusinessPlace` | string | Business place \(jurisdiction code\) |
+| `data` | json | A_SupplierInvoice entity \(the integration unwraps the OData v2 `d` envelope\) |
+|   ↳ `SupplierInvoice` | string | Supplier invoice number |
+|   ↳ `FiscalYear` | string | Fiscal year |
+|   ↳ `CompanyCode` | string | Company code |
+|   ↳ `DocumentDate` | string | Invoice document date |
+|   ↳ `PostingDate` | string | Posting date |
+|   ↳ `InvoicingParty` | string | Invoicing party \(supplier key\) |
+|   ↳ `InvoiceGrossAmount` | string | Gross invoice amount |
+|   ↳ `DocumentCurrency` | string | Document currency |
+|   ↳ `AccountingDocumentType` | string | Accounting document type |
+|   ↳ `PaymentTerms` | string | Payment terms key |
+|   ↳ `DueCalculationBaseDate` | string | Baseline date for due-date calculation |
+|   ↳ `SupplierInvoiceIDByInvcgParty` | string | Reference number used by the invoicing party |
+|   ↳ `PaymentMethod` | string | Payment method |
+|   ↳ `TaxIsCalculatedAutomatically` | boolean | Whether tax is calculated automatically |
+|   ↳ `ManualCashDiscount` | string | Manually entered cash discount amount |
+|   ↳ `BusinessPlace` | string | Business place \(jurisdiction code\) |
 
 </ReferenceDetails>
 
