@@ -21,6 +21,7 @@ vi.mock('@/lib/credential-groups/slack-managed-users', () => ({
   }),
 }))
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
 import {
   SLACK_MANAGED_USER_SCOPES,
@@ -94,6 +95,38 @@ describe('Slack member scope policy', () => {
       expect(policy.requiredScopes).toEqual([...scopes])
     }
   )
+
+  it('passes an unavailable egress route through instead of blaming Slack', async () => {
+    const current = context(SLACK_SEARCH_USER_SCOPES)
+    mocks.exchange.mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+    const policy = await adapter.getPolicy(current.option, {
+      workspaceId: current.workspaceId,
+      credentialGroupId: current.credentialGroupId,
+    })
+    await expect(
+      adapter.exchangeAndVerify({
+        context: current,
+        policy,
+        code: 'code',
+        attempt: {
+          state: 'state',
+          provider: 'slack',
+          workspaceId: 'workspace-1',
+          email: current.email,
+          nonceHash: 'nonce-hash',
+          enrollmentId: current.enrollmentId,
+          credentialGroupId: current.credentialGroupId,
+          optionId: current.option.id,
+          authorizationAppId: policy.authorizationAppId,
+          scopeVersion: policy.scopeVersion,
+          requiredScopes: policy.requiredScopes,
+          redirectUri: 'https://sim.fixture.test/api/credential-groups/oauth/slack/callback',
+          invitationToken: 'invitation',
+          createdAt: Date.now(),
+        },
+      })
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+  })
 
   it('accepts a different provider email', async () => {
     const scopes = SLACK_SEARCH_USER_SCOPES

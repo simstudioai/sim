@@ -521,7 +521,7 @@ describe('managed OAuth token resolution', () => {
     expect(mocks.encryptSecret).not.toHaveBeenCalled()
   })
 
-  it('reports an unavailable egress route during refresh as a retryable outage without reauthorization', async () => {
+  it('surfaces an unavailable egress route during refresh without reauthorizing or writing', async () => {
     const row = mondayCredentialRow()
     dbChainMockFns.limit.mockResolvedValueOnce([row]).mockResolvedValueOnce([row])
     mocks.decryptSecret.mockResolvedValue({
@@ -544,10 +544,9 @@ describe('managed OAuth token resolution', () => {
       isTerminalRefreshError: vi.fn().mockReturnValue(true),
     })
 
-    await expect(resolveManagedOAuthToken(mondayTokenResolutionParams())).rejects.toMatchObject({
-      code: 'MANAGED_CREDENTIAL_REFRESH_FAILED',
-      statusCode: 503,
-    })
+    await expect(resolveManagedOAuthToken(mondayTokenResolutionParams())).rejects.toBeInstanceOf(
+      OutboundRoutingError
+    )
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 })

@@ -5,7 +5,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { impersonateEmailSchema } from '@/lib/api/contracts/oauth-connections'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { AuthType } from '@/lib/auth/hybrid'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
 import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
@@ -42,13 +41,20 @@ import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 const logger = createLogger('OAuthTokenResolution')
 
 /**
- * The organization's egress gateway is down or refuses the route: an outage on Sim's side,
- * never a sign the credential is bad, so the caller is told to retry rather than reconnect.
+ * A failure Sim's side can't currently get past (the organization's egress gateway is down or
+ * refuses the route), or null. Never a sign the credential is bad, so the caller is told to
+ * retry rather than reconnect.
  */
-const EGRESS_ROUTE_UNAVAILABLE: Extract<ResolveCredentialTokenResult, { ok: false }> = {
-  ok: false,
-  status: 503,
-  error: "The organization's egress route is unavailable",
+function unavailableFailure(
+  error: unknown
+): Extract<ResolveCredentialTokenResult, { ok: false }> | null {
+  const classified = asOrchestrationError(error)
+  if (classified?.code !== 'unavailable') return null
+  return {
+    ok: false,
+    status: statusForOrchestrationError('unavailable'),
+    error: classified.message,
+  }
 }
 
 /**
@@ -288,9 +294,10 @@ export async function completeOAuthCredentialToken(params: {
       })
       return { ok: false, status: 401, code: OAUTH_CREDENTIAL_REVOKED, error: error.message }
     }
-    if (error instanceof OutboundRoutingError) {
-      logger.warn('Egress route unavailable for token refresh', { requestId, code: error.code })
-      return EGRESS_ROUTE_UNAVAILABLE
+    const unavailable = unavailableFailure(error)
+    if (unavailable) {
+      logger.warn('Egress route unavailable for token refresh', { requestId })
+      return unavailable
     }
     logger.error('Failed to refresh access token:', error, { requestId })
     return { ok: false, status: 401, error: 'Failed to refresh access token' }
@@ -453,12 +460,10 @@ async function resolveCredentialToken(
           },
         }
       } catch (error) {
-        if (error instanceof OutboundRoutingError) {
-          logger.warn('Egress route unavailable for service account token', {
-            requestId,
-            code: error.code,
-          })
-          return EGRESS_ROUTE_UNAVAILABLE
+        const unavailable = unavailableFailure(error)
+        if (unavailable) {
+          logger.warn('Egress route unavailable for service account token', { requestId })
+          return unavailable
         }
         logger.error('Service account token error:', error, { requestId })
         if (error instanceof TokenServiceAccountValidationError) {
@@ -734,6 +739,8 @@ export async function resolveCredentialAccessToken(
       return { ok: false, status: error.statusCode, code: error.code, error: error.message }
     }
 
+    const unavailable = unavailableFailure(error)
+    if (unavailable) return unavailable
     const orchestrationError = asOrchestrationError(error)
     if (orchestrationError) {
       return {

@@ -6,7 +6,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   type ResourceOwner,
   resourceScopeFields,
@@ -526,19 +525,7 @@ async function resolveManagedOAuthAccessToken(
       }
     }
 
-    let refreshed: RefreshTokenResult
-    try {
-      refreshed = await adapter.refreshToken(currentTokenSet.refreshToken)
-    } catch (error) {
-      if (!(error instanceof OutboundRoutingError)) throw error
-      return {
-        error: new ManagedOAuthCredentialError(
-          'MANAGED_CREDENTIAL_REFRESH_FAILED',
-          'Managed credential refresh is temporarily unavailable',
-          503
-        ),
-      }
-    }
+    const refreshed: RefreshTokenResult = await adapter.refreshToken(currentTokenSet.refreshToken)
     if (!refreshed.ok) {
       const terminal = adapter.isTerminalRefreshError(refreshed.errorCode)
       if (terminal) {

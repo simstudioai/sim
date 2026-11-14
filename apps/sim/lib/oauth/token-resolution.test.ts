@@ -454,6 +454,25 @@ describe('resolveCredentialAccessToken', () => {
       error: 'Managed credential not found',
     })
   })
+
+  it('reports a managed refresh blocked by the egress route as a retryable 503, not unauthorized', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
+    mockExecuteManagedToken.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      toolId: 'gmail_send',
+      userId: 'user-1',
+      resolveManagedPrincipal,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 503,
+      error: "The organization's egress route is unavailable",
+    })
+  })
 })
 
 describe('ordinary tool credential binding', () => {
