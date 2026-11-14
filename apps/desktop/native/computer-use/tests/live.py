@@ -91,11 +91,12 @@ try:
         else:
             assert 'screen_capture_permission_required' in snapshot.get('screenshotError', '')
             print('BLOCKED: screenshot verification skipped because Screen Recording grant is missing', flush=True)
-        field_id = find(snapshot, role='AXTextField', label='Fixture editable text')['elementId']
+        # Increment follows the inserted row and is never the focused editor, which traversal always lists first.
+        increment_id = find(snapshot, role='AXButton', label='Increment')['elementId']
         mutate('click', snapshot, elementId=find(snapshot, role='AXButton', label='Add row')['elementId'])
         snapshot = state()
         assert any(node.get('value', node.get('label')) == 'Added row' for node in snapshot['nodes']), 'Add row did not insert its label'
-        assert find(snapshot, role='AXTextField', label='Fixture editable text')['elementId'] == field_id, 'An element changed id when another was added above it'
+        assert find(snapshot, role='AXButton', label='Increment')['elementId'] == increment_id, 'An element changed id when another was added above it'
         baseline = int(next(node.get('value', node.get('label', '')) for node in snapshot['nodes'] if node.get('value', node.get('label', '')).startswith('Count: ')).split(': ')[1])
         button = find(snapshot, role='AXButton', label='Increment')
         snapshot = mutate('click', snapshot, elementId=button['elementId'])
