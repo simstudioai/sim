@@ -96,8 +96,9 @@ class OrganizationRoutedHandler {
     return handler.handle(request, options)
   }
 
-  updateHttpClientConfig(...args: Parameters<AwsHttpHandler['updateHttpClientConfig']>): void {
-    this.direct.updateHttpClientConfig(...args)
+  /** The SDK only tunes the direct handler's own options; the gateway handler keeps its own. */
+  updateHttpClientConfig(key: never, value: never): void {
+    this.direct.updateHttpClientConfig(key, value)
   }
 
   httpHandlerConfigs(): ReturnType<AwsHttpHandler['httpHandlerConfigs']> {
