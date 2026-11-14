@@ -46,6 +46,12 @@ Select a model beginning with `nebius/` to run an open model through Nebius Toke
 
 Bring your own Nebius Token Factory API key. On Sim Cloud, a workspace admin can add it under **Workspace settings → BYOK → Nebius**. On self-hosted Sim, provide the key in the Agent block's **API Key** field, using a [secret reference](/platform/credentials). Model features such as image input and structured outputs depend on the selected model.
 
+#### Runcrate
+
+Select a model beginning with `runcrate/` to run an open model through the Runcrate inference API, an OpenAI-compatible endpoint. Sim includes DeepSeek, Gemma, Llama, MiniMax, Qwen, and GLM models in the catalog.
+
+Bring your own Runcrate API key. On Sim Cloud, a workspace admin can add it under **Workspace settings → BYOK → Runcrate**. On self-hosted Sim, provide the key in the Agent block's **API Key** field, using a [secret reference](/platform/credentials). File attachments are not sent. A forced tool choice is only sent to models that honor it; other models use automatic tool choice.
+
 #### Thinking Machines
 
 Select a model beginning with `thinkingmachines/` to run Inkling, Inkling-Small, or Inkling 2 Small through Tinker serverless inference. To sample a checkpoint you trained on Tinker, enter `thinkingmachines/` followed by its `tinker://` path. Custom checkpoints have no catalog pricing.

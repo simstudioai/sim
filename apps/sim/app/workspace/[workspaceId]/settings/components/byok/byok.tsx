@@ -47,6 +47,7 @@ import {
   ZeroBounceIcon,
 } from '@/components/icons'
 import { NebiusIcon } from '@/components/icons/nebius'
+import { RuncrateIcon } from '@/components/icons/runcrate'
 import { ThinkingMachinesIcon } from '@/components/icons/thinking-machines'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { type BYOKProviderId, MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
@@ -182,6 +183,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: KieIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Kie API key',
+  },
+  {
+    id: 'runcrate',
+    name: 'Runcrate',
+    icon: RuncrateIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Runcrate API key',
   },
   {
     id: 'thinkingmachines',
@@ -391,6 +399,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'nebius',
       'ollama-cloud',
       'kie',
+      'runcrate',
       'thinkingmachines',
       'falai',
     ],

@@ -30,6 +30,7 @@ const ATTACHMENT_PROVIDER_BY_ID: Record<string, string> = {
   zai: 'zai',
   kimi: 'kimi',
   thinkingmachines: 'thinkingmachines',
+  runcrate: 'runcrate',
 }
 
 const UNSUPPORTED_FILE_PROVIDERS = new Set([
@@ -40,6 +41,7 @@ const UNSUPPORTED_FILE_PROVIDERS = new Set([
   'meta',
   'zai',
   'thinkingmachines',
+  'runcrate',
 ])
 
 function getAttachmentProvider(providerId: string): string | null {

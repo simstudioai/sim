@@ -48,6 +48,7 @@ export type AttachmentProvider =
   | 'zai'
   | 'kimi'
   | 'thinkingmachines'
+  | 'runcrate'
 
 export interface PreparedProviderAttachment {
   file: UserFile
@@ -163,6 +164,7 @@ const UNSUPPORTED_FILE_PROVIDERS = new Set<AttachmentProvider>([
   'meta',
   'zai',
   'thinkingmachines',
+  'runcrate',
 ])
 
 const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
@@ -189,6 +191,7 @@ const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
   zai: 'no file attachments in the current API adapter',
   kimi: 'images through image_url message parts on multimodal models',
   thinkingmachines: 'no file attachments in the current API adapter',
+  runcrate: 'no file attachments in the current API adapter',
 }
 
 export function getAttachmentProvider(providerId: ProviderId | string): AttachmentProvider | null {
@@ -215,6 +218,7 @@ export function getAttachmentProvider(providerId: ProviderId | string): Attachme
   if (providerId === 'zai') return 'zai'
   if (providerId === 'kimi') return 'kimi'
   if (providerId === 'thinkingmachines') return 'thinkingmachines'
+  if (providerId === 'runcrate') return 'runcrate'
   return null
 }
 
@@ -432,6 +436,7 @@ function isMimeTypeSupportedByProvider(
     case 'meta':
     case 'zai':
     case 'thinkingmachines':
+    case 'runcrate':
       return false
     default: {
       const _exhaustive: never = provider

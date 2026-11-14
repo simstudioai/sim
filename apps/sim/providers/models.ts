@@ -36,6 +36,7 @@ import {
   ZaiIcon,
 } from '@/components/icons'
 import { NebiusIcon } from '@/components/icons/nebius'
+import { RuncrateIcon } from '@/components/icons/runcrate'
 import { ThinkingMachinesIcon } from '@/components/icons/thinking-machines'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { ModelPricing, ProviderId } from '@/providers/types'
@@ -439,6 +440,80 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: { input: 0.15, output: 0.5, updatedAt: '2026-10-07' },
         capabilities: { toolUsageControl: true, nativeStructuredOutputs: false },
         contextWindow: 1024000,
+      },
+    ],
+  },
+  runcrate: {
+    id: 'runcrate',
+    name: 'Runcrate',
+    description: 'Open models via the Runcrate inference API',
+    defaultModel: 'runcrate/Qwen/Qwen3-235B-A22B-Instruct-2507',
+    modelPatterns: [/^runcrate\//],
+    icon: RuncrateIcon,
+    color: '#1C2E7F',
+    isReseller: true,
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    models: [
+      {
+        id: 'runcrate/deepseek-ai/DeepSeek-V3.2',
+        pricing: { input: 0.273, cachedInput: 0.1365, output: 0.399, updatedAt: '2026-11-08' },
+        capabilities: { toolUsageControl: true, nativeStructuredOutputs: true },
+        contextWindow: 163840,
+      },
+      {
+        id: 'runcrate/google/gemma-3-27b-it',
+        pricing: { input: 0.084, cachedInput: 0.084, output: 0.168, updatedAt: '2026-11-08' },
+        capabilities: { toolUsageControl: true, nativeStructuredOutputs: true },
+        contextWindow: 131072,
+      },
+      {
+        id: 'runcrate/meta-llama/Llama-3.3-70B-Instruct-Turbo',
+        pricing: { input: 0.105, cachedInput: 0.105, output: 0.336, updatedAt: '2026-11-08' },
+        capabilities: {
+          toolUsageControl: true,
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
+        },
+        contextWindow: 131072,
+      },
+      {
+        id: 'runcrate/MiniMaxAI/MiniMax-M3',
+        pricing: { input: 0.294, cachedInput: 0.0588, output: 1.155, updatedAt: '2026-11-08' },
+        capabilities: {
+          toolUsageControl: true,
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
+        },
+        contextWindow: 524288,
+      },
+      {
+        id: 'runcrate/Qwen/Qwen3-235B-A22B-Instruct-2507',
+        pricing: { input: 0.0945, cachedInput: 0.0945, output: 0.5775, updatedAt: '2026-11-08' },
+        capabilities: {
+          toolUsageControl: true,
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
+        },
+        contextWindow: 262144,
+      },
+      {
+        id: 'runcrate/Qwen/Qwen3-Coder-480B-A35B-Instruct-Turbo',
+        pricing: { input: 0.315, cachedInput: 0.105, output: 1.05, updatedAt: '2026-11-08' },
+        capabilities: {
+          toolUsageControl: true,
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
+        },
+        contextWindow: 262144,
+      },
+      {
+        id: 'runcrate/zai-org/GLM-5.3',
+        pricing: { input: 0.590625, cachedInput: 0.13125, output: 2.625, updatedAt: '2026-11-08' },
+        capabilities: { toolUsageControl: true, nativeStructuredOutputs: true },
+        contextWindow: 1048576,
       },
     ],
   },

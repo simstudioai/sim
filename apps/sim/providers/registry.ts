@@ -20,6 +20,7 @@ import { ollamaProvider } from '@/providers/ollama'
 import { ollamaCloudProvider } from '@/providers/ollama-cloud'
 import { openaiProvider } from '@/providers/openai'
 import { openRouterProvider } from '@/providers/openrouter'
+import { runcrateProvider } from '@/providers/runcrate'
 import { sakanaProvider } from '@/providers/sakana'
 import { thinkingMachinesProvider } from '@/providers/thinkingmachines'
 import { togetherProvider } from '@/providers/together'
@@ -58,6 +59,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   together: togetherProvider,
   baseten: basetenProvider,
   nebius: nebiusProvider,
+  runcrate: runcrateProvider,
   thinkingmachines: thinkingMachinesProvider,
   ollama: ollamaProvider,
   'ollama-cloud': ollamaCloudProvider,
