@@ -1,0 +1,76 @@
+import { describe, expect, it } from 'vitest'
+import { IntercomV2Block } from '@/blocks/blocks/intercom'
+import type { BlockToolParamsContext } from '@/blocks/types'
+
+function mapParams(params: Record<string, unknown>, context?: BlockToolParamsContext) {
+  const mapper = IntercomV2Block.tools.config?.params
+  if (!mapper) throw new Error('Intercom block has no params mapper')
+  return mapper(params, context)
+}
+
+describe('Intercom snooze timestamps', () => {
+  it('sends a positive whole Unix timestamp as a number', () => {
+    expect(
+      mapParams({
+        operation: 'snooze_conversation',
+        conversationId: 'c1',
+        admin_id: 'a1',
+        snoozed_until: '1767225600',
+      }).snoozed_until
+    ).toBe(1767225600)
+  })
+
+  it.each(['0', '-5', '   ', '1.5', 0])('rejects %j as a snooze time', (snoozedUntil) => {
+    expect(() =>
+      mapParams({
+        operation: 'snooze_conversation',
+        conversationId: 'c1',
+        admin_id: 'a1',
+        snoozed_until: snoozedUntil,
+      })
+    ).toThrow('positive whole Unix timestamp')
+  })
+})
+
+describe('Intercom agent operation resolution', () => {
+  it('keeps a boolean disable_notifications when the operation arrives only in the context', () => {
+    const mapped = mapParams(
+      { ticket_type_id: 't1', disable_notifications: true },
+      { operation: 'create_ticket' }
+    )
+
+    expect(mapped.disable_notifications).toBe(true)
+  })
+})
+
+describe('Intercom ticket snooze', () => {
+  it('validates the model snoozed_until on an update_ticket tool call', () => {
+    const mapped = mapParams(
+      { ticket_id: 't1', snoozed_until: '1767225600' },
+      { operation: 'update_ticket' }
+    )
+    expect(mapped.snoozed_until).toBe(1767225600)
+    expect(() =>
+      mapParams({ ticket_id: 't1', snoozed_until: '-1' }, { operation: 'update_ticket' })
+    ).toThrow('positive whole Unix timestamp')
+  })
+
+  it('does not send a stale conversation snooze value with a canvas ticket update', () => {
+    const inputs = { operation: 'update_ticket', ticket_id: 't1', snoozed_until: '5' }
+    const sent = { ...inputs, ...mapParams(inputs) }
+    expect(sent.snoozed_until).toBeUndefined()
+  })
+})
+
+describe('Intercom role defaults', () => {
+  const role = IntercomV2Block.subBlocks.find((subBlock) => subBlock.id === 'role')
+
+  it('leads with No change everywhere except a known Create Contact', () => {
+    const options = role?.options
+    if (typeof options !== 'function') throw new Error('role options are static')
+    expect(options({ values: {} })[0]?.id).toBe('')
+    expect(options({ values: { operation: 'update_contact' } })[0]?.id).toBe('')
+    expect(options({ values: { operation: 'create_contact' } })[0]?.id).toBe('lead')
+    expect(options()[0]?.id).toBe('lead')
+  })
+})

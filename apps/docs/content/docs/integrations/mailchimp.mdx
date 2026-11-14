@@ -87,7 +87,7 @@ Create a new audience (list) in Mailchimp
 | `contact` | string | Yes | JSON object of contact information \(e.g., \{"company": "Acme", "address1": "123 Main St", "city": "NYC", "state": "NY", "zip": "10001", "country": "US"\}\) |
 | `permissionReminder` | string | Yes | Permission reminder text shown to subscribers \(e.g., "You signed up for updates on our website"\) |
 | `campaignDefaults` | string | Yes | JSON object of default campaign settings \(e.g., \{"from_name": "Acme", "from_email": "news@acme.com", "subject": "", "language": "en"\}\) |
-| `emailTypeOption` | string | Yes | Support multiple email formats: "true" or "false" |
+| `emailTypeOption` | string | No | Support multiple email formats: "true" or "false" \(default "true"\) |
 
 #### Output
 
@@ -115,7 +115,7 @@ Update an existing audience (list) in Mailchimp
 | `audienceName` | string | No | The name of the audience/list \(e.g., "Newsletter Subscribers"\) |
 | `permissionReminder` | string | No | Permission reminder text shown to subscribers \(e.g., "You signed up for updates on our website"\) |
 | `campaignDefaults` | string | No | JSON object of default campaign settings \(e.g., \{"from_name": "Acme", "from_email": "news@acme.com"\}\) |
-| `emailTypeOption` | string | No | Support multiple email formats: "true" or "false". Omit to leave it unchanged |
+| `emailTypeOption` | string | No | Whether the audience supports multiple email formats \("true" or "false"\). Leave unset to keep the current setting |
 
 #### Output
 
@@ -1789,7 +1789,7 @@ Create a new batch operation in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `operations` | string | Yes | JSON array of batch operations \(e.g., \[\{"method": "POST", "path": "/lists/\{list_id\}/members", "body": \{"email_address": "user@example.com", "status": "subscribed"\}\}\]\); an object body is sent as the JSON string Mailchimp expects |
+| `operations` | json | Yes | JSON array of batch operations \(e.g., \[\{"method": "POST", "path": "/lists/\{list_id\}/members", "body": \{"email_address": "user@example.com", "status": "subscribed"\}\}\]\); an object body is sent as the JSON string Mailchimp expects |
 
 #### Output
 

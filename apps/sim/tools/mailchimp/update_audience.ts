@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import type { MailchimpAudience } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -13,7 +14,7 @@ export interface MailchimpUpdateAudienceParams {
   audienceName?: string
   permissionReminder?: string
   campaignDefaults?: string
-  emailTypeOption?: string | boolean
+  emailTypeOption?: string | boolean | null
 }
 
 export interface MailchimpUpdateAudienceResponse {
@@ -72,7 +73,8 @@ export const mailchimpUpdateAudienceTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Support multiple email formats: "true" or "false". Omit to leave it unchanged',
+      description:
+        'Whether the audience supports multiple email formats ("true" or "false"). Leave unset to keep the current setting',
     },
   },
 
@@ -89,8 +91,13 @@ export const mailchimpUpdateAudienceTool: ToolConfig<
 
       if (params.audienceName) body.name = params.audienceName
       if (params.permissionReminder) body.permission_reminder = params.permissionReminder
-      if (params.emailTypeOption !== undefined && params.emailTypeOption !== '')
-        body.email_type_option = String(params.emailTypeOption) === 'true'
+      if (params.emailTypeOption != null && String(params.emailTypeOption).trim() !== '') {
+        const emailTypeOption = toBooleanFromInput(params.emailTypeOption)
+        if (emailTypeOption === undefined) {
+          throw new Error('emailTypeOption must be "true" or "false"')
+        }
+        body.email_type_option = emailTypeOption
+      }
 
       if (params.campaignDefaults) {
         try {

@@ -284,13 +284,15 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'dropdown',
       dependsOn: ['operation'],
       /**
-       * Update Deal leads with "No change" so a new block does not reopen deals, and `dependsOn`
-       * clears the value on an operation switch so it reseeds. Without block
-       * values (Copilot validation, catalogs) every option is listed, with "No change" last so
-       * the default stays Open.
+       * Every context except a known Create Deal leads with "No change" so an update does not
+       * reopen deals; that includes agent tool rows, whose values carry no operation. `dependsOn`
+       * clears the value on an operation switch so it reseeds. Without block values (Copilot
+       * validation, catalogs) every option is listed, with "No change" last so the default stays Open.
        */
       options: (params) => [
-        ...(params?.values.operation === 'update_deal' ? [{ label: 'No change', id: '' }] : []),
+        ...(params && params.values.operation !== 'create_deal'
+          ? [{ label: 'No change', id: '' }]
+          : []),
         { label: 'Open', id: 'open' },
         { label: 'Won', id: 'won' },
         { label: 'Lost', id: 'lost' },

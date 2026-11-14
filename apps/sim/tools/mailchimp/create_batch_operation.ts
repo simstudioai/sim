@@ -35,7 +35,7 @@ export const mailchimpCreateBatchOperationTool: ToolConfig<
       description: 'Mailchimp API key with server prefix',
     },
     operations: {
-      type: 'string',
+      type: 'json',
       required: true,
       visibility: 'user-or-llm',
       description:

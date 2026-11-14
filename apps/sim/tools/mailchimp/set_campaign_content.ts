@@ -82,7 +82,13 @@ export const mailchimpSetCampaignContentTool: ToolConfig<
 
       if (params.html) body.html = params.html
       if (params.plainText) body.plain_text = params.plainText
-      if (params.templateId) body.template = { id: Number(params.templateId) }
+      if (params.templateId) {
+        const templateId = Number(String(params.templateId).trim())
+        if (!Number.isSafeInteger(templateId) || templateId <= 0) {
+          throw new Error('templateId must be a positive integer')
+        }
+        body.template = { id: templateId }
+      }
 
       return body
     },

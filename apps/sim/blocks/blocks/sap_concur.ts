@@ -2030,6 +2030,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     config: {
       tool: (params) => params.operation,
       params: (params, context) => {
+        const operation = params.operation ?? context?.operation
         const auth = {
           datacenter: params.datacenter || undefined,
           grantType: params.grantType || undefined,
@@ -2045,9 +2046,9 @@ Return ONLY the JSON object - no explanations, no extra text.`,
         const start = params.start ? Number(params.start) : undefined
         const count = params.count ? Number(params.count) : undefined
         const page = params.page ? Number(params.page) : undefined
-        const contextType = clampContextType(params.operation, params.contextType)
+        const contextType = clampContextType(operation, params.contextType)
 
-        switch (params.operation) {
+        switch (operation) {
           case 'sap_concur_list_expense_reports':
             return {
               ...auth,
@@ -2391,7 +2392,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
             return {
               ...auth,
               page,
-              sortBy: clampSortBy(params.operation, params.sortBy),
+              sortBy: clampSortBy(operation, params.sortBy),
               sortDirection: params.sortDirection || undefined,
               value: params.value || undefined,
               categoryType: params.categoryType || undefined,
@@ -2405,7 +2406,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
               ...auth,
               listId: params.listId,
               page,
-              sortBy: clampSortBy(params.operation, params.sortBy),
+              sortBy: clampSortBy(operation, params.sortBy),
               sortDirection: params.sortDirection || undefined,
               hasChildren: toBool(params.hasChildren),
               isDeleted: params.isDeleted || undefined,
@@ -2492,7 +2493,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
             }
           }
           default:
-            throw new Error(`Unsupported SAP Concur operation: ${params.operation}`)
+            throw new Error(`Unsupported SAP Concur operation: ${operation}`)
         }
       },
     },

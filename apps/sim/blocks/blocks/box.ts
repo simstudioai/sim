@@ -534,7 +534,8 @@ export const BoxBlock = {
         if (normalizedFile) {
           params.file = normalizedFile
         }
-        const { credential, operation, ...rest } = params
+        const { credential, operation: storedOperation, ...rest } = params
+        const operation = storedOperation ?? context?.operation
 
         const baseParams: Record<string, unknown> = {
           accessToken: credential,

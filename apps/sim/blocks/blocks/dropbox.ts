@@ -175,7 +175,10 @@ export const DropboxBlock = {
       type: 'short-input',
       placeholder: '/ (root) or /folder',
       condition: { field: 'operation', value: 'dropbox_list_folder' },
-      required: true,
+      required: (values) =>
+        String(values?.listFolderCursor ?? '').trim()
+          ? { field: 'operation', value: [] }
+          : { field: 'operation', value: 'dropbox_list_folder' },
     },
     {
       id: 'recursive',
@@ -332,7 +335,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'Enter search term...',
       condition: { field: 'operation', value: 'dropbox_search' },
-      required: true,
+      required: (values) =>
+        String(values?.searchCursor ?? '').trim()
+          ? { field: 'operation', value: [] }
+          : { field: 'operation', value: 'dropbox_search' },
     },
     {
       id: 'path',

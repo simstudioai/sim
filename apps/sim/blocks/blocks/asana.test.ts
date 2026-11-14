@@ -90,3 +90,20 @@ describe('AsanaBlock agent tool calls with a configured field', () => {
     expect(mapped.workspace).toBe('ws-1')
   })
 })
+
+describe('AsanaBlock canvas limits', () => {
+  it('passes a numeric 0 limit through so validation can reject it', () => {
+    expect(
+      buildParams({ operation: 'get_task', workspace: 'ws-1', assignee: 'me', getTasks_limit: 0 })
+    ).toMatchObject({ limit: 0 })
+  })
+
+  it('ignores a whitespace-only limit field so the model limit applies on a tool call', () => {
+    expect(
+      buildParams(
+        { workspace: 'ws-1', assignee: 'me', getTasks_limit: '  ', limit: 25 },
+        { operation: 'get_task' }
+      )
+    ).toMatchObject({ limit: 25 })
+  })
+})

@@ -637,19 +637,30 @@ Return ONLY the JSON object - no explanations or markdown.`,
       id: 'emailTypeOption',
       title: 'Email Type Option',
       type: 'dropdown',
-      options: [
+      dependsOn: ['operation'],
+      /**
+       * Create Audience offers True/False. Every other context leads with "Keep current" so an
+       * update leaves the setting alone; that includes agent tool rows, where the operation is not
+       * in the values. `value` seeds API-built blocks per operation and returns undefined without
+       * one, so the editor falls back to the first option; `dependsOn` reseeds on an operation switch.
+       */
+      options: (params) => [
+        ...(params?.values.operation === 'create_audience'
+          ? []
+          : [{ label: 'Keep current', id: '' }]),
         { label: 'True', id: 'true' },
         { label: 'False', id: 'false' },
       ],
-      required: {
-        field: 'operation',
-        value: ['create_audience'],
-      },
+      value: (params) =>
+        params?.operation === 'create_audience'
+          ? 'true'
+          : params?.operation === 'update_audience'
+            ? ''
+            : undefined,
       condition: {
         field: 'operation',
         value: ['create_audience', 'update_audience'],
       },
-      value: () => 'true',
     },
     // Member fields
     {

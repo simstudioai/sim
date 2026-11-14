@@ -93,7 +93,7 @@
     "apps/sim/blocks/blocks/google_contacts.ts": 1,
     "apps/sim/blocks/blocks/google_slides.ts": 1,
     "apps/sim/blocks/blocks/hubspot.ts": 1,
-    "apps/sim/blocks/blocks/intercom.ts": 2,
+    "apps/sim/blocks/blocks/intercom.ts": 1,
     "apps/sim/blocks/blocks/kalshi.ts": 1,
     "apps/sim/blocks/blocks/linear.ts": 1,
     "apps/sim/blocks/blocks/logs.ts": 4,

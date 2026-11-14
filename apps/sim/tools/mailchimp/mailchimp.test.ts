@@ -2,8 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { MailchimpBlock } from '@/blocks/blocks/mailchimp'
 import { mailchimpAddMemberTagsTool } from '@/tools/mailchimp/add_member_tags'
 import { mailchimpArchiveMemberTool } from '@/tools/mailchimp/archive_member'
+import { mailchimpCreateAudienceTool } from '@/tools/mailchimp/create_audience'
 import { mailchimpCreateBatchOperationTool } from '@/tools/mailchimp/create_batch_operation'
 import { mailchimpDeleteMemberPermanentTool } from '@/tools/mailchimp/delete_member_permanent'
 import { mailchimpGetCampaignReportTool } from '@/tools/mailchimp/get_campaign_report'
@@ -148,6 +150,25 @@ describe('Mailchimp campaign and audience requests', () => {
     expect(
       bodyOf(mailchimpSetCampaignContentTool, { apiKey, campaignId: 'camp-1', templateId: '42' })
     ).toMatchObject({ template: { id: 42 } })
+    expect(() =>
+      bodyOf(mailchimpSetCampaignContentTool, { apiKey, campaignId: 'camp-1', templateId: 'abc' })
+    ).toThrow('templateId must be a positive integer')
+  })
+
+  it('leaves email_type_option unchanged when the stored value is null', () => {
+    const body = bodyOf(mailchimpUpdateAudienceTool, {
+      apiKey,
+      listId: 'list1',
+      emailTypeOption: null,
+    })
+    expect(body).not.toHaveProperty('email_type_option')
+  })
+
+  it('parses the update email type option like create and rejects other values', () => {
+    const update = (emailTypeOption: string) =>
+      bodyOf(mailchimpUpdateAudienceTool, { apiKey, listId: 'list1', emailTypeOption })
+    expect(update(' True ')).toMatchObject({ email_type_option: true })
+    expect(() => update('yes')).toThrow('emailTypeOption must be "true" or "false"')
   })
 
   it('sends a boolean email_type_option from an agent as true', () => {
@@ -157,5 +178,51 @@ describe('Mailchimp campaign and audience requests', () => {
       emailTypeOption: true,
     })
     expect(body).toMatchObject({ email_type_option: true })
+  })
+})
+
+describe('Mailchimp email type option defaults', () => {
+  const field = MailchimpBlock.subBlocks.find((subBlock) => subBlock.id === 'emailTypeOption')
+
+  it('seeds per operation and lets the editor fall back to the first option', () => {
+    const { options, value } = field ?? {}
+    if (typeof options !== 'function' || !value) throw new Error('emailTypeOption is not dynamic')
+    expect(options({ values: { operation: 'update_audience' } })[0]?.id).toBe('')
+    expect(options({ values: { operation: 'create_audience' } })[0]?.id).toBe('true')
+    expect(options({ values: {} })[0]?.id).toBe('')
+    expect(value({ operation: 'create_audience' })).toBe('true')
+    expect(value({ operation: 'update_audience' })).toBe('')
+    expect(value({})).toBeUndefined()
+  })
+
+  it('rejects an email type option that is not true or false', () => {
+    expect(() =>
+      bodyOf(mailchimpCreateAudienceTool, {
+        apiKey,
+        audienceName: 'News',
+        permissionReminder: 'You signed up',
+        contact: '',
+        campaignDefaults: '',
+        emailTypeOption: 'maybe',
+      })
+    ).toThrow('emailTypeOption must be "true" or "false"')
+  })
+
+  it('creates an audience with multiple email formats when the option is unset', () => {
+    const body = bodyOf(mailchimpCreateAudienceTool, {
+      apiKey,
+      audienceName: 'News',
+      permissionReminder: 'You signed up',
+      contact: '',
+      campaignDefaults: '',
+      emailTypeOption: '',
+    })
+    expect(body).toMatchObject({ email_type_option: true })
+  })
+
+  it('accepts Keep current when options are listed without block values', () => {
+    const { options } = field ?? {}
+    if (typeof options !== 'function') throw new Error('emailTypeOption options are static')
+    expect(options().map((option) => option.id)).toEqual(['', 'true', 'false'])
   })
 })
