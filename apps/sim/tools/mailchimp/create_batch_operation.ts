@@ -42,7 +42,7 @@ export const mailchimpCreateBatchOperationTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON array of batch operations (e.g., [{"method": "POST", "path": "/lists/{list_id}/members", "body": "..."}])',
+        'JSON array of batch operations (e.g., [{"method": "POST", "path": "/lists/{list_id}/members", "body": {"email_address": "user@example.com", "status": "subscribed"}}]); an object body is sent as the JSON string Mailchimp expects',
     },
   },
 
@@ -61,7 +61,16 @@ export const mailchimpCreateBatchOperationTool: ToolConfig<
         logger.warn('Failed to parse operations', { error })
       }
 
-      return { operations }
+      if (!Array.isArray(operations)) return { operations }
+
+      return {
+        operations: operations.map((operation: unknown) => {
+          if (!operation || typeof operation !== 'object') return operation
+          const { body, ...rest } = operation as Record<string, unknown>
+          if (body === undefined || body === null || typeof body === 'string') return operation
+          return { ...rest, body: JSON.stringify(body) }
+        }),
+      }
     },
   },
 

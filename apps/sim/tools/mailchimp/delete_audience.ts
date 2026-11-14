@@ -1,6 +1,7 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpDeleteAudienceParams {
   apiKey: string
@@ -37,7 +38,8 @@ export const mailchimpDeleteAudienceTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/lists/${params.listId}`),
+    url: (params) =>
+      buildMailchimpUrl(params.apiKey, `/lists/${safeUrlPathSegment(params.listId, 'listId')}`),
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
