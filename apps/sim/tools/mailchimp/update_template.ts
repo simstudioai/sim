@@ -2,6 +2,7 @@ import type { MailchimpTemplate } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpUpdateTemplateParams {
   apiKey: string
@@ -57,7 +58,11 @@ export const mailchimpUpdateTemplateTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/templates/${params.templateId}`),
+    url: (params) =>
+      buildMailchimpUrl(
+        params.apiKey,
+        `/templates/${safeUrlPathSegment(params.templateId, 'templateId')}`
+      ),
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

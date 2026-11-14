@@ -2,6 +2,7 @@ import type { MailchimpMergeField } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpCreateMergeFieldParams {
   apiKey: string
@@ -58,7 +59,11 @@ export const mailchimpCreateMergeFieldTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/lists/${params.listId}/merge-fields`),
+    url: (params) =>
+      buildMailchimpUrl(
+        params.apiKey,
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/merge-fields`
+      ),
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

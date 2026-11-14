@@ -1,6 +1,7 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpReplicateCampaignParams {
   apiKey: string
@@ -43,7 +44,10 @@ export const mailchimpReplicateCampaignTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildMailchimpUrl(params.apiKey, `/campaigns/${params.campaignId}/actions/replicate`),
+      buildMailchimpUrl(
+        params.apiKey,
+        `/campaigns/${safeUrlPathSegment(params.campaignId, 'campaignId')}/actions/replicate`
+      ),
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
