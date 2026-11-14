@@ -1,31 +1,49 @@
 import { workspaceFiles } from '@sim/db/schema'
-import { asc, inArray, type SQL } from 'drizzle-orm'
+import { and, asc, count, inArray, not, or, type SQL } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import { snapshotWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   isVersionHeadCurrent,
   loadWorkspaceFileVersionHeads,
   materializeWorkspaceFileVersionInTx,
+  workspaceFileVersionHeadCurrentSql,
 } from '@/lib/uploads/contexts/workspace/file-version-store'
 
-/** Freezes implicit history under the writer lock before replacing a shared file's live creator. */
+/** Contexts whose files keep version history, frozen before their creator changes. */
+const VERSIONED_FILE_CONTEXTS = ['workspace', 'project']
+
+/**
+ * Freezes implicit history under the writer lock before replacing a shared file's live creator.
+ * Every statement is keyed by `condition`, never by a list of file ids: a departing member can
+ * own more files than Postgres accepts bind parameters.
+ */
 export async function handoffFileCreatorsInTx(
   tx: DbTransaction,
   condition: SQL | undefined,
   successorId: string
 ) {
   if (!condition) throw new Error('File creator handoff requires a scope')
-  const files = await tx
-    .select()
+  // Takes every row lock in id order without loading the rows into memory.
+  const locked = tx
+    .select({ id: workspaceFiles.id })
     .from(workspaceFiles)
     .where(condition)
     .orderBy(asc(workspaceFiles.id))
     .for('update')
-  const versioned = files.filter(
-    (file) => file.context === 'workspace' || file.context === 'project'
-  )
+    .as('locked')
+  await tx.select({ count: count() }).from(locked)
+
+  const isVersioned = inArray(workspaceFiles.context, VERSIONED_FILE_CONTEXTS)
+  const versionedCondition = and(condition, isVersioned)
+  // Also locks a versioned file committed after the lock pass before its history is frozen.
+  const versioned = await tx
+    .select()
+    .from(workspaceFiles)
+    .where(versionedCondition)
+    .orderBy(asc(workspaceFiles.id))
+    .for('update')
   const heads = await loadWorkspaceFileVersionHeads(
-    versioned.map((file) => file.id),
+    tx.select({ id: workspaceFiles.id }).from(workspaceFiles).where(versionedCondition),
     tx
   )
   for (const file of versioned) {
@@ -42,14 +60,15 @@ export async function handoffFileCreatorsInTx(
           )
     await materializeWorkspaceFileVersionInTx(tx, file, head, provenance, new Date())
   }
-  if (!files.length) return
+
   await tx
     .update(workspaceFiles)
     .set({ userId: successorId, updatedAt: new Date() })
     .where(
-      inArray(
-        workspaceFiles.id,
-        files.map((file) => file.id)
+      and(
+        condition,
+        // A versioned file committed after the history pass keeps its creator until frozen.
+        or(not(isVersioned), workspaceFileVersionHeadCurrentSql())
       )
     )
 }
