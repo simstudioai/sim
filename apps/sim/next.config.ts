@@ -7,7 +7,6 @@ import {
   FILE_DELIVERY_CSP_PATH_PATTERN,
   getChatEmbedCSPPolicy,
   getMainCSPPolicy,
-  getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
 import { LANDING_ROUTES } from './lib/landing/routes'
 import { LIBRARY_MERGED_SLUGS, LIBRARY_MOVED_BLOG_SLUGS } from './lib/library/retired-slugs'
@@ -326,10 +325,6 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
           { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
-          {
-            key: 'Content-Security-Policy',
-            value: getWorkflowExecutionCSPPolicy(),
-          },
         ],
       },
       {
@@ -337,10 +332,6 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
           { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
-          {
-            key: 'Content-Security-Policy',
-            value: getWorkflowExecutionCSPPolicy(),
-          },
         ],
       },
       {
