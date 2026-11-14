@@ -74,7 +74,8 @@ export const airtableListBasesTool: ToolConfig<AirtableListBasesParams, Airtable
             name: { type: 'string', description: 'Base name' },
             permissionLevel: {
               type: 'string',
-              description: 'Permission level (none, read, comment, edit, create)',
+              description:
+                'Permission level (none, read, comment, edit, create, interfaceOnly, permissionSetOnly)',
             },
           },
         },

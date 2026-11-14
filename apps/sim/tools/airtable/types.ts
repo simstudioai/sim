@@ -88,6 +88,9 @@ export interface AirtableListTablesResponse extends ToolResponse {
 export interface AirtableListParams extends AirtableBaseParams {
   maxRecords?: number
   filterFormula?: string
+  pageSize?: number
+  offset?: string
+  view?: string
 }
 
 export interface AirtableListResponse extends ToolResponse {

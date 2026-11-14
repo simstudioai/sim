@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { AirtableIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -167,6 +168,30 @@ export const AirtableBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Maximum records to return',
       condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'view',
+      title: 'View',
+      type: 'short-input',
+      placeholder: 'View name or ID (e.g., viwXXXXXXXXXXXXXX)',
+      condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'pageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: 'Records per page (max 100, default 100)',
+      condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'offset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: 'Pagination offset from a previous response',
+      condition: { field: 'operation', value: ['listBases', 'list'] },
       mode: 'advanced',
     },
     {
@@ -385,12 +410,15 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
       params: (params) => {
         const { oauthCredential, records, fields, fieldsToMergeOn, recordIds, typecast, ...rest } =
           params
-        let parsedRecords: any | undefined
-        let parsedFields: any | undefined
-        let parsedFieldsToMergeOn: any | undefined
-        let parsedRecordIds: any | undefined
+        let parsedRecords: unknown
+        let parsedFields: unknown
+        let parsedFieldsToMergeOn: unknown
+        let parsedRecordIds: unknown
 
-        // Parse JSON inputs safely
+        /** Tool-call args and an already-mapped pass arrive parsed; only canvas code strings need parsing. */
+        const parseJsonInput = (value: unknown): unknown =>
+          typeof value === 'string' ? JSON.parse(value) : value
+
         try {
           if (
             records &&
@@ -398,19 +426,21 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
               params.operation === 'updateMultiple' ||
               params.operation === 'upsert')
           ) {
-            parsedRecords = JSON.parse(records)
+            parsedRecords = parseJsonInput(records)
           }
           if (fields && params.operation === 'update') {
-            parsedFields = JSON.parse(fields)
+            parsedFields = parseJsonInput(fields)
           }
           if (fieldsToMergeOn && params.operation === 'upsert') {
-            parsedFieldsToMergeOn = JSON.parse(fieldsToMergeOn)
+            parsedFieldsToMergeOn = parseJsonInput(fieldsToMergeOn)
           }
           if (recordIds && params.operation === 'delete') {
-            parsedRecordIds = JSON.parse(recordIds)
+            parsedRecordIds = parseJsonInput(recordIds)
           }
-        } catch (error: any) {
-          throw new Error(`Invalid JSON input for ${params.operation} operation: ${error.message}`)
+        } catch (error) {
+          throw new Error(
+            `Invalid JSON input for ${params.operation} operation: ${getErrorMessage(error)}`
+          )
         }
 
         // Construct parameters based on operation
@@ -451,6 +481,9 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
     recordId: { type: 'string', description: 'Record identifier' }, // Required for get/update
     maxRecords: { type: 'number', description: 'Maximum records to return' }, // Optional for list
     filterFormula: { type: 'string', description: 'Filter formula expression' }, // Optional for list
+    view: { type: 'string', description: 'View name or ID to list records from' },
+    pageSize: { type: 'number', description: 'Records per page (max 100)' },
+    offset: { type: 'string', description: 'Pagination offset from a previous response' },
     records: { type: 'json', description: 'Record data array' }, // Required for create/updateMultiple/upsert
     fields: { type: 'json', description: 'Field data object' }, // Required for update single
     fieldsToMergeOn: { type: 'json', description: 'Field names to match records on' }, // Required for upsert

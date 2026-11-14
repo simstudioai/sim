@@ -91,4 +91,17 @@ describe('AirtableBlock typecast', () => {
       })
     ).not.toHaveProperty('typecast')
   })
+
+  it.each(operationCases)(
+    'accepts already-parsed $operation values from a tool call or a second mapping pass',
+    ({ operation, payload }) => {
+      expect(buildParams({ ...baseParams, operation, ...payload })).toMatchObject(payload)
+    }
+  )
+
+  it('accepts already-parsed record IDs for delete', () => {
+    expect(
+      buildParams({ ...baseParams, operation: 'delete', recordIds: ['rec123'] })
+    ).toMatchObject({ recordIds: ['rec123'] })
+  })
 })
