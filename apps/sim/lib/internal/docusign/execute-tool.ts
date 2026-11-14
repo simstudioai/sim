@@ -45,12 +45,14 @@ const schemas = {
     envelopeStatus: z.string().optional(),
     searchText: z.string().optional(),
     count: z.string().optional(),
+    startPosition: z.string().optional(),
   }),
   docusign_list_recipients: z.object({ ...auth, envelopeId: z.string().min(1) }),
   docusign_list_templates: z.object({
     ...auth,
     searchText: z.string().optional(),
     count: z.string().optional(),
+    startPosition: z.string().optional(),
   }),
   docusign_send_envelope: z.object({
     ...auth,
