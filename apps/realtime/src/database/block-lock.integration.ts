@@ -215,24 +215,39 @@ describe('block locks against PostgreSQL', () => {
     expect(result).toEqual({ reconcile: false })
   })
 
+  check('an add whose only rejected part is an edge into a locked block re-syncs', async () => {
+    const result = await persist(OPERATION_TARGETS.BLOCKS, BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS, {
+      blocks: [],
+      edges: [{ id: generateId(), source: ids.free, target: ids.locked, sourceHandle: 'source' }],
+      loops: {},
+      parallels: {},
+    })
+
+    expect(result).toEqual({ reconcile: true })
+  })
+
   check(
     'batch-add-blocks never takes the lock flag from the client nor nests under a locked ancestor',
     async () => {
       const lockedNew = generateId()
       const nestedNew = generateId()
+      const nestedChild = generateId()
       await persist(OPERATION_TARGETS.BLOCKS, BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS, {
         blocks: [
           payloadBlock(lockedNew, 'Self-locked', { locked: true }),
-          payloadBlock(nestedNew, 'Nested', { data: { parentId: ids.child } }),
+          payloadBlock(nestedNew, 'Nested loop', { type: 'loop', data: { parentId: ids.child } }),
+          payloadBlock(nestedChild, 'Nested child', { data: { parentId: nestedNew } }),
         ],
         edges: [],
-        loops: {},
+        loops: { [nestedNew]: { id: nestedNew, nodes: [nestedChild], iterations: 2 } },
         parallels: {},
       })
 
       const blocks = await readBlocks()
       expect(blocks[lockedNew]).toMatchObject({ locked: false })
       expect(blocks[nestedNew]).toBeUndefined()
+      expect(blocks[nestedChild]).toBeUndefined()
+      expect(await readSubflows()).toEqual([{ id: ids.container, config: lockedLoopConfig }])
     }
   )
 

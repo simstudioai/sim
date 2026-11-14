@@ -34,6 +34,7 @@ import {
   getWorkflowEdgeScopeDropReason,
   isKnownWorkflowTriggerBlock,
   isWorkflowAnnotationOnlyBlockType,
+  isWorkflowBlockAncestorLocked,
   isWorkflowBlockProtected,
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
@@ -978,21 +979,28 @@ async function handleBlocksOperationTx(
       // Lock state is admin-only, so an add never writes the lock flag, overwrites a protected
       // block or its loop/parallel config, nor places a block inside a locked container.
       let reconcile = false
+      const rejectedBlockIds = new Set<string>()
 
       if (blocks && blocks.length > 0) {
-        const allowedBlocks = (blocks as Array<Record<string, unknown>>).filter((block) => {
-          const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-            | string
-            | undefined
-          if (isProtected(block.id as string) || (parentId && isProtected(parentId))) {
-            logger.info(`Skipping block ${block.id} - it or its parent is locked`)
-            return false
-          }
-          return true
-        })
-        reconcile =
-          allowedBlocks.length < blocks.length ||
-          (blocks as Array<Record<string, unknown>>).some((block) => block.locked)
+        const incoming = blocks as Array<Record<string, unknown>>
+        // Added blocks land unlocked, so one is refused exactly when it is protected now or
+        // would sit under a locked ancestor once the whole batch lands.
+        const landed: Record<string, DbBlockRef> = { ...lockBlocks }
+        for (const block of incoming) {
+          const id = block.id as string
+          if (!isProtected(id)) landed[id] = { id, locked: false, data: block.data }
+        }
+        for (const block of incoming) {
+          const id = block.id as string
+          if (isProtected(id) || isWorkflowBlockAncestorLocked(id, landed)) rejectedBlockIds.add(id)
+        }
+        const allowedBlocks = incoming.filter((block) => !rejectedBlockIds.has(block.id as string))
+        if (rejectedBlockIds.size > 0) {
+          logger.info('Skipping blocks that are locked or inside a locked container', {
+            count: rejectedBlockIds.size,
+          })
+        }
+        reconcile = rejectedBlockIds.size > 0 || incoming.some((block) => block.locked)
 
         if (allowedBlocks.length === 0) {
           logger.info('All blocks filtered out due to locks, skipping add')
@@ -1118,6 +1126,7 @@ async function handleBlocksOperationTx(
             droppedCyclic,
           })
         }
+        if (droppedCounts['protected target block']) reconcile = true
 
         if (safeEdges.length > 0) {
           const edgeValues = safeEdges.map((edge) => ({
@@ -1142,7 +1151,7 @@ async function handleBlocksOperationTx(
         })),
       ]
       const subflowValues = subflowEntries
-        .filter((subflow) => !isProtected(subflow.id))
+        .filter((subflow) => !isProtected(subflow.id) && !rejectedBlockIds.has(subflow.id))
         .map((subflow) => ({
           ...subflow,
           workflowId,
