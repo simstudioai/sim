@@ -94,6 +94,12 @@ describe('Mailchimp request bodies', () => {
     expect(bodyOf(mailchimpAddMemberTagsTool, { ...params, tags: '2024' })).toEqual({
       tags: [{ name: '2024', status: 'active' }],
     })
+    expect(bodyOf(mailchimpAddMemberTagsTool, { ...params, tags: '1e3' })).toEqual({
+      tags: [{ name: '1e3', status: 'active' }],
+    })
+    expect(() =>
+      bodyOf(mailchimpAddMemberTagsTool, { ...params, tags: '[{"name":"VIP"}' })
+    ).toThrow()
     expect(() => bodyOf(mailchimpAddMemberTagsTool, { ...params, tags: '[]' })).toThrow()
   })
 

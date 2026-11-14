@@ -389,8 +389,8 @@ export function mailchimpMemberSegment(value: string): string {
 
 /**
  * Normalizes the tags input for the member tags endpoint, which requires `{ name, status }`
- * objects. Accepts a JSON array of tag objects or names, or a comma-separated list of names;
- * a tag without a status gets `defaultStatus`.
+ * objects. Accepts a JSON array (or object) of tag objects or names, or a comma-separated list of
+ * names kept as text; a tag without a status gets `defaultStatus`.
  */
 export function buildMemberTags(
   raw: unknown,
@@ -398,10 +398,15 @@ export function buildMemberTags(
 ): Array<{ name: string; status: string }> {
   let parsed: unknown = raw
   if (typeof raw === 'string') {
-    try {
-      parsed = JSON.parse(raw)
-    } catch {
-      parsed = raw.split(',')
+    const trimmed = raw.trim()
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        parsed = JSON.parse(trimmed)
+      } catch {
+        throw new Error('Tags look like JSON but could not be parsed')
+      }
+    } else {
+      parsed = trimmed.split(',')
     }
   }
   const items = Array.isArray(parsed) ? parsed : [parsed]
