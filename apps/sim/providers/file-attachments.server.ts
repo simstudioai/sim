@@ -149,7 +149,10 @@ export async function uploadLargeFilesToProvider(
   if (groups.length === 0) return
 
   const maxBytes = getProviderAttachmentMaxBytes(providerId)
-  const ai = providerId === 'google' ? new GoogleGenAI({ apiKey: request.apiKey }) : null
+  const ai =
+    providerId === 'google'
+      ? new GoogleGenAI({ apiKey: request.apiKey, httpOptions: { fetch: outboundFetch } })
+      : null
 
   for (const group of groups) {
     const [representative] = group

@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { StreamingExecution } from '@/executor/types'
 import { executeGeminiRequest } from '@/providers/gemini/core'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -30,7 +31,7 @@ export const googleProvider: ProviderConfig = {
 
     logger.info('Creating Google Gemini client', { model: request.model })
 
-    const ai = new GoogleGenAI({ apiKey: request.apiKey })
+    const ai = new GoogleGenAI({ apiKey: request.apiKey, httpOptions: { fetch: outboundFetch } })
 
     return executeGeminiRequest({
       ai,

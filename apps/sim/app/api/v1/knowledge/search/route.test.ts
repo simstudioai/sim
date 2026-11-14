@@ -30,9 +30,14 @@ import {
   knowledgeTagsServiceMock,
   knowledgeTagsServiceMockFns,
 } from '@sim/testing/mocks/knowledge-tags-service.mock'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { getErrorMessage } from '@sim/utils/errors'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockResolveV1KnowledgeReadAccess, mockExecuteKnowledgeSearch, mockRetrievalStatus } =
   vi.hoisted(() => ({
@@ -84,7 +89,10 @@ vi.mock('@/app/api/v1/knowledge/utils', () => ({
 }))
 
 vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
+import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import { POST } from '@/app/api/v1/knowledge/search/route'
 
 const { mockGetDocumentTagDefinitions } = knowledgeTagsServiceMockFns
@@ -141,6 +149,10 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     )
     mockResolveSystemBillingAttribution.mockResolvedValue(SYSTEM_BILLING_ATTRIBUTION)
     mockRecordSearchEmbeddingUsage.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
   })
 
   it('fails a search whose retrieval ran out of time instead of returning partial rows', async () => {
@@ -248,6 +260,29 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
         billingAttribution: SYSTEM_BILLING_ATTRIBUTION,
       })
     )
+  })
+
+  it("embeds the query through the workspace organization's outbound route", async () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    workspaceContextMockFns.mockLoadWorkspaceApplicationContext.mockResolvedValueOnce({
+      workspaceId: 'ws-1',
+      workspaceOrganizationId: 'org-1',
+    })
+    mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
+      hasAccess: true,
+      knowledgeBase: baseKb('kb-1', 'text-embedding-3-small'),
+    })
+    mockGenerateSearchEmbedding.mockImplementationOnce(async () => {
+      await resolveCurrentOutboundRoute()
+      return { embedding: [0.1, 0.2, 0.3], isBYOK: false }
+    })
+
+    const res = await POST(
+      createMockRequest('POST', { workspaceId: 'ws-1', knowledgeBaseIds: 'kb-1', query: 'hello' })
+    )
+
+    expect(res.status).toBe(200)
+    expect(networkConfigMockFns.mockResolveOutboundRoute).toHaveBeenCalledWith('org-1')
   })
 
   it('rejects cross-KB queries with mixed vector widths, which store in different columns', async () => {

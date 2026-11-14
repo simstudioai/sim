@@ -18,6 +18,8 @@ import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/env-flags'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enrichSandboxCapabilities } from '@/lib/execution/remote-sandbox/wand-enricher'
@@ -46,6 +48,19 @@ if (!useWandAzure && !openaiApiKey) {
   )
 } else {
   logger.info(`Using ${useWandAzure ? 'Azure OpenAI' : 'OpenAI'} for wand generation`)
+}
+
+const wandApiUrl = useWandAzure
+  ? `${azureEndpoint?.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
+  : 'https://api.openai.com/v1/responses'
+
+/**
+ * Sends a wand completion request. Sim's own Azure OpenAI deployment stays direct; OpenAI calls
+ * (BYOK or Sim's key) are made for the workspace, so they leave through its egress route.
+ */
+function postWandRequest(workspaceId: string, init: RequestInit): Promise<Response> {
+  if (useWandAzure) return fetch(wandApiUrl, init)
+  return withResourceOutboundScope({ workspaceId }, () => outboundFetch(wandApiUrl, init))
 }
 
 interface ChatMessage {
@@ -342,26 +357,22 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     messages.push({ role: 'user', content: prompt })
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'OpenAI-Beta': 'responses=v1',
+    }
+
+    if (useWandAzure) {
+      headers['api-key'] = azureApiKey!
+    } else {
+      headers.Authorization = `Bearer ${activeOpenAIKey}`
+    }
+
     if (stream) {
       try {
         logger.info(`About to create stream with model: ${useWandAzure ? wandModelName : 'gpt-4o'}`)
 
-        const apiUrl = useWandAzure
-          ? `${azureEndpoint?.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
-          : 'https://api.openai.com/v1/responses'
-
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          'OpenAI-Beta': 'responses=v1',
-        }
-
-        if (useWandAzure) {
-          headers['api-key'] = azureApiKey!
-        } else {
-          headers.Authorization = `Bearer ${activeOpenAIKey}`
-        }
-
-        const response = await fetch(apiUrl, {
+        const response = await postWandRequest(workspaceId, {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -567,22 +578,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
     }
 
-    const apiUrl = useWandAzure
-      ? `${azureEndpoint?.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
-      : 'https://api.openai.com/v1/responses'
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'OpenAI-Beta': 'responses=v1',
-    }
-
-    if (useWandAzure) {
-      headers['api-key'] = azureApiKey!
-    } else {
-      headers.Authorization = `Bearer ${activeOpenAIKey}`
-    }
-
-    const response = await fetch(apiUrl, {
+    const response = await postWandRequest(workspaceId, {
       method: 'POST',
       headers,
       body: JSON.stringify({

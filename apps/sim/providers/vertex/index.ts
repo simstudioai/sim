@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { OAuth2Client } from 'google-auth-library'
 import { env } from '@/lib/core/config/env'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   validateGoogleCloudLocation,
   validateGoogleCloudProject,
@@ -91,6 +92,7 @@ export const vertexProvider: ProviderConfig = {
       googleAuthOptions: {
         authClient,
       },
+      httpOptions: { fetch: outboundFetch },
     })
 
     return executeGeminiRequest({

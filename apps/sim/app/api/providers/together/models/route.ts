@@ -10,11 +10,14 @@ import { validationErrorResponse } from '@/lib/api/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('TogetherModelsAPI')
+const MODELS_URL = 'https://api.together.ai/v1/models'
 
 /** Together's catalog includes non-text models; only chat models work with chat completions. */
 const NON_CHAT_MODEL_TYPES = new Set([
@@ -34,6 +37,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 
   let apiKey: string | undefined
+  let authorizedWorkspaceId: string | undefined
 
   const queryValidation = togetherProviderModelsQuerySchema.safeParse({
     workspaceId: request.nextUrl.searchParams.get('workspaceId') ?? undefined,
@@ -45,6 +49,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (session?.user?.id) {
       const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
       if (permission) {
+        authorizedWorkspaceId = workspaceId
         const byokResult = await getBYOKKey(workspaceId, 'together')
         if (byokResult) {
           apiKey = byokResult.apiKey
@@ -63,13 +68,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const response = await fetch('https://api.together.ai/v1/models', {
+    const init: RequestInit = {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       cache: 'no-store',
-    })
+    }
+    const response = authorizedWorkspaceId
+      ? await withResourceOutboundScope({ workspaceId: authorizedWorkspaceId }, () =>
+          outboundFetch(MODELS_URL, init)
+        )
+      : await fetch(MODELS_URL, init)
 
     if (!response.ok) {
       logger.warn('Failed to fetch Together models', {

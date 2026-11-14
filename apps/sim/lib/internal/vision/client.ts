@@ -122,7 +122,7 @@ async function analyzeWithGemini(
   signal?.throwIfAborted()
   const base64Payload = await fetchGeminiImage(input, signal)
   const { mediaType, base64Data } = parseDataImage(base64Payload)
-  const ai = new GoogleGenAI({ apiKey: input.apiKey })
+  const ai = new GoogleGenAI({ apiKey: input.apiKey, httpOptions: { fetch: outboundFetch } })
   const response = await ai.models.generateContent({
     model: input.model,
     contents: [
