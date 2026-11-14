@@ -183,7 +183,7 @@ export const WorkdayBlock: BlockConfig = {
       id: 'address',
       title: 'Address',
       type: 'short-input',
-      placeholder: '123 Main St, City, State',
+      placeholder: '123 Main St',
       condition: { field: 'operation', value: 'create_prehire' },
       mode: 'advanced',
     },
