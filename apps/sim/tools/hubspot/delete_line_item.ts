@@ -4,6 +4,7 @@ import type {
   HubSpotDeleteLineItemResponse,
 } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotDeleteLineItem')
 
@@ -37,7 +38,8 @@ export const hubspotDeleteLineItemTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.hubapi.com/crm/v3/objects/line_items/${params.lineItemId.trim()}`,
+    url: (params) =>
+      `https://api.hubapi.com/crm/v3/objects/line_items/${safeUrlPathSegment(params.lineItemId, 'lineItemId')}`,
     method: 'DELETE',
     headers: (params) => {
       if (!params.accessToken) {

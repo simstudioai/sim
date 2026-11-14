@@ -5,6 +5,7 @@ import type {
 } from '@/tools/hubspot/types'
 import { APPOINTMENT_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotUpdateAppointment')
 
@@ -52,7 +53,7 @@ export const hubspotUpdateAppointmentTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.hubapi.com/crm/v3/objects/appointments/${params.appointmentId.trim()}`
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/appointments/${safeUrlPathSegment(params.appointmentId, 'appointmentId')}`
       const queryParams = new URLSearchParams()
       if (params.idProperty) queryParams.append('idProperty', params.idProperty)
       const queryString = queryParams.toString()

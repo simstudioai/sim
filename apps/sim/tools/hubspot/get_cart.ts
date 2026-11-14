@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { HubSpotGetCartParams, HubSpotGetCartResponse } from '@/tools/hubspot/types'
 import { GENERIC_CRM_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotGetCart')
 
@@ -45,7 +46,7 @@ export const hubspotGetCartTool: ToolConfig<HubSpotGetCartParams, HubSpotGetCart
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.hubapi.com/crm/v3/objects/carts/${params.cartId.trim()}`
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/carts/${safeUrlPathSegment(params.cartId, 'cartId')}`
       const queryParams = new URLSearchParams()
       if (params.properties) queryParams.append('properties', params.properties)
       if (params.associations) queryParams.append('associations', params.associations)

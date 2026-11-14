@@ -5,6 +5,7 @@ import type {
 } from '@/tools/hubspot/types'
 import { MARKETING_EVENT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotGetMarketingEvent')
 
@@ -39,7 +40,7 @@ export const hubspotGetMarketingEventTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.hubapi.com/marketing/v3/marketing-events/${params.eventId.trim()}`,
+      `https://api.hubapi.com/marketing/v3/marketing-events/${safeUrlPathSegment(params.eventId, 'eventId')}`,
     method: 'GET',
     headers: (params) => {
       if (!params.accessToken) {
