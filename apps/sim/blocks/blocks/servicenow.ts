@@ -1767,7 +1767,12 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         }
 
         const projection = operation === 'servicenow_read_record' ? readFields : returnFields
-        return { ...rest, fields: projection || toolCallArg(context, fields) || undefined }
+        const toolFields = toolCallArg(context, fields)
+        const toolProjection =
+          typeof toolFields === 'string' && !toolFields.trim().startsWith('{')
+            ? toolFields
+            : undefined
+        return { ...rest, fields: projection || toolProjection || undefined }
       },
     },
   },

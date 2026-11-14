@@ -196,6 +196,14 @@ describe('ServiceNow tool-call args reach the tool', () => {
     expect(mapped.displayValue).toBe('false')
   })
 
+  it('does not send a stored Create/Update JSON body as the List Incidents projection', () => {
+    const mapped = mapToolCall('servicenow_list_incidents', {
+      fields: '{"short_description":"Printer down"}',
+    })
+
+    expect(mapped.fields).toBeUndefined()
+  })
+
   it('keeps the model comment on Update Approval and the search text on Search Knowledge', () => {
     expect(
       mapToolCall('servicenow_update_approval', {
