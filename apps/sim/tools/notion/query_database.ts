@@ -1,7 +1,7 @@
 import { toError } from '@sim/utils/errors'
 import type { NotionQueryDatabaseParams, NotionResponse } from '@/tools/notion/types'
 import { DATABASE_QUERY_RESULTS_OUTPUT, PAGINATION_OUTPUT_PROPERTIES } from '@/tools/notion/types'
-import { extractTitle, formatPropertyValue } from '@/tools/notion/utils'
+import { clampNotionPageSize, extractTitle, formatPropertyValue } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, NotionResponse> = {
@@ -92,8 +92,9 @@ export const notionQueryDatabaseTool: ToolConfig<NotionQueryDatabaseParams, Noti
       }
 
       // Add page size if provided
-      if (params.pageSize) {
-        body.page_size = Math.min(Number(params.pageSize), 100)
+      const pageSize = clampNotionPageSize(params.pageSize)
+      if (pageSize != null) {
+        body.page_size = pageSize
       }
 
       // Add pagination cursor if provided

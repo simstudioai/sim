@@ -1,4 +1,5 @@
 import type { NotionResponse, NotionWriteParams } from '@/tools/notion/types'
+import { toNotionRichText } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
@@ -56,14 +57,7 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
           object: 'block',
           type: 'paragraph',
           paragraph: {
-            rich_text: [
-              {
-                type: 'text',
-                text: {
-                  content: params.content,
-                },
-              },
-            ],
+            rich_text: toNotionRichText(params.content),
           },
         },
       ],

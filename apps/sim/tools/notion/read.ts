@@ -1,7 +1,74 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { NotionReadParams, NotionResponse } from '@/tools/notion/types'
 import { PAGE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import { extractTitle } from '@/tools/notion/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
+
+/** Children pages fetched per read: 10 pages of 100 top-level blocks. */
+const MAX_BLOCK_CHILDREN_PAGES = 10
+
+/**
+ * Fetch a page's top-level blocks, following `has_more`/`next_cursor` up to
+ * {@link MAX_BLOCK_CHILDREN_PAGES} pages. Returns null when the first page fails;
+ * a later failure keeps the blocks already read.
+ */
+async function fetchPageBlocks(
+  pageId: string,
+  accessToken: string,
+  signal?: AbortSignal
+): Promise<unknown[] | null> {
+  const blocks: unknown[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < MAX_BLOCK_CHILDREN_PAGES; page++) {
+    const url = new URL(`https://api.notion.com/v1/blocks/${pageId}/children`)
+    url.searchParams.set('page_size', '100')
+    if (cursor) url.searchParams.set('start_cursor', cursor)
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json',
+      },
+      signal,
+    })
+    if (!response.ok) return page === 0 ? null : blocks
+
+    const data = await response.json()
+    blocks.push(...(data.results ?? []))
+    if (!data.has_more || !data.next_cursor) break
+    cursor = data.next_cursor
+  }
+  return blocks
+}
+
+const MARKDOWN_PREFIX: Record<string, string> = {
+  paragraph: '',
+  heading_1: '# ',
+  heading_2: '## ',
+  heading_3: '### ',
+  bulleted_list_item: '• ',
+  numbered_list_item: '1. ',
+}
+
+/** Render supported top-level block types as markdown; other types are skipped. */
+function blocksToMarkdown(blocks: unknown[]): string {
+  return blocks
+    .map((block) => {
+      if (!isRecordLike(block) || typeof block.type !== 'string') return ''
+      const value = block[block.type]
+      if (!isRecordLike(value) || !Array.isArray(value.rich_text)) return ''
+      const text = value.rich_text
+        .map((item: unknown) => (isRecordLike(item) ? String(item.plain_text ?? '') : ''))
+        .join('')
+      if (block.type === 'to_do') return `${value.checked ? '[x]' : '[ ]'} ${text}`
+      const prefix = MARKDOWN_PREFIX[block.type]
+      return prefix === undefined ? '' : `${prefix}${text}`
+    })
+    .filter(Boolean)
+    .join('\n\n')
+}
 
 export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
   id: 'notion_read',
@@ -48,7 +115,11 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
     },
   },
 
-  transformResponse: async (response: Response, params?: NotionReadParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: NotionReadParams,
+    context?: ToolResponseContext
+  ) => {
     const data = await response.json()
     const pageTitle = extractTitle(data.properties ?? {}) || 'Untitled'
 
@@ -71,20 +142,8 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       }
     }
 
-    // Fetch page content using blocks endpoint
-    const blocksResponse = await fetch(
-      `https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Notion-Version': '2022-06-28',
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    if (!blocksResponse.ok) {
+    const blocks = await fetchPageBlocks(pageId, accessToken, context?.signal)
+    if (!blocks) {
       // If we can't get blocks, still return the page metadata
       return {
         success: true,
@@ -100,38 +159,7 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       }
     }
 
-    const blocksData = await blocksResponse.json()
-
-    // Extract text content from blocks
-    const blocks = blocksData.results || []
-    const content = blocks
-      .map((block: any) => {
-        if (block.type === 'paragraph') {
-          return block.paragraph.rich_text.map((text: any) => text.plain_text).join('')
-        }
-        if (block.type === 'heading_1') {
-          return `# ${block.heading_1.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'heading_2') {
-          return `## ${block.heading_2.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'heading_3') {
-          return `### ${block.heading_3.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'bulleted_list_item') {
-          return `• ${block.bulleted_list_item.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'numbered_list_item') {
-          return `1. ${block.numbered_list_item.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'to_do') {
-          const checked = block.to_do.checked ? '[x]' : '[ ]'
-          return `${checked} ${block.to_do.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        return ''
-      })
-      .filter(Boolean)
-      .join('\n\n')
+    const content = blocksToMarkdown(blocks)
 
     return {
       success: true,
@@ -186,7 +214,11 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
   params: notionReadTool.params,
   request: notionReadTool.request,
 
-  transformResponse: async (response: Response, params?: NotionReadParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: NotionReadParams,
+    context?: ToolResponseContext
+  ) => {
     const data = await response.json()
     const pageTitle = extractTitle(data.properties ?? {}) || 'Untitled'
 
@@ -206,19 +238,8 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
       }
     }
 
-    const blocksResponse = await fetch(
-      `https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Notion-Version': '2022-06-28',
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    if (!blocksResponse.ok) {
+    const blocks = await fetchPageBlocks(pageId, accessToken, context?.signal)
+    if (!blocks) {
       return {
         success: true,
         output: {
@@ -231,36 +252,7 @@ export const notionReadV2Tool: ToolConfig<NotionReadParams, NotionReadV2Response
       }
     }
 
-    const blocksData = await blocksResponse.json()
-    const blocks = blocksData.results || []
-    const content = blocks
-      .map((block: any) => {
-        if (block.type === 'paragraph') {
-          return block.paragraph.rich_text.map((text: any) => text.plain_text).join('')
-        }
-        if (block.type === 'heading_1') {
-          return `# ${block.heading_1.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'heading_2') {
-          return `## ${block.heading_2.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'heading_3') {
-          return `### ${block.heading_3.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'bulleted_list_item') {
-          return `• ${block.bulleted_list_item.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'numbered_list_item') {
-          return `1. ${block.numbered_list_item.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'to_do') {
-          const checked = block.to_do.checked ? '[x]' : '[ ]'
-          return `${checked} ${block.to_do.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        return ''
-      })
-      .filter(Boolean)
-      .join('\n\n')
+    const content = blocksToMarkdown(blocks)
 
     return {
       success: true,

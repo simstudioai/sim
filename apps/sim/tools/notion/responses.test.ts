@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { notionCreateCommentTool } from '@/tools/notion/create_comment'
 import { notionCreatePageTool, notionCreatePageV2Tool } from '@/tools/notion/create_page'
 import { notionReadTool, notionReadV2Tool } from '@/tools/notion/read'
 import { notionUpdatePageTool, notionUpdatePageV2Tool } from '@/tools/notion/update_page'
+import { notionWriteTool } from '@/tools/notion/write'
 
 const PAGE_TITLE = 'Project Apollo'
 
@@ -56,5 +58,84 @@ const responseCases = [
 describe('Notion page title responses', () => {
   it.each(responseCases)('$id reads a custom-named title property', async ({ title }) => {
     await expect(title()).resolves.toBe(PAGE_TITLE)
+  })
+})
+
+type RichTextBody = { rich_text: Array<{ text: { content: string } }> }
+
+function paragraphRichText(body: unknown): RichTextBody['rich_text'] {
+  const { children } = body as { children: Array<{ paragraph: RichTextBody }> }
+  return children[0].paragraph.rich_text
+}
+
+describe('Notion rich text length limit', () => {
+  const longText = `${'a'.repeat(1999)}😀${'b'.repeat(2500)}`
+  const bodies = [
+    {
+      id: notionWriteTool.id,
+      richText: () =>
+        paragraphRichText(
+          notionWriteTool.request.body!({ accessToken: 't', pageId: 'p', content: longText })
+        ),
+    },
+    {
+      id: notionCreatePageTool.id,
+      richText: () =>
+        paragraphRichText(
+          notionCreatePageTool.request.body!({
+            accessToken: 't',
+            parentId: 'p',
+            content: longText,
+          })
+        ),
+    },
+    {
+      id: notionCreateCommentTool.id,
+      richText: () =>
+        (
+          notionCreateCommentTool.request.body!({
+            accessToken: 't',
+            pageId: 'p',
+            content: longText,
+          }) as RichTextBody
+        ).rich_text,
+    },
+  ]
+
+  it.each(bodies)('$id splits content into 2000-character text objects', ({ richText }) => {
+    const parts = richText()
+    expect(parts.length).toBeGreaterThan(1)
+    for (const part of parts) expect(part.text.content.length).toBeLessThanOrEqual(2000)
+    expect(parts.map((part) => part.text.content).join('')).toBe(longText)
+  })
+})
+
+describe('Notion read page content pagination', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('follows next_cursor past the first 100 blocks', async () => {
+    const paragraph = (text: string) => ({
+      type: 'paragraph',
+      paragraph: { rich_text: [{ plain_text: text }] },
+    })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ results: [paragraph('first')], has_more: true, next_cursor: 'cursor-2' })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ results: [paragraph('second')], has_more: false, next_cursor: null })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await notionReadV2Tool.transformResponse!(pageResponse(), {
+      accessToken: 't',
+      pageId: 'page-1',
+    })
+
+    expect(result.output.content).toBe('first\n\nsecond')
+    expect(String(fetchMock.mock.calls[1][0])).toContain('start_cursor=cursor-2')
   })
 })

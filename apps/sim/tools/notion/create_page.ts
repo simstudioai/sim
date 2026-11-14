@@ -1,6 +1,6 @@
 import type { NotionCreatePageParams, NotionResponse } from '@/tools/notion/types'
 import { PAGE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
-import { extractTitle } from '@/tools/notion/utils'
+import { extractTitle, toNotionRichText } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResponse> = {
@@ -87,14 +87,7 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
             object: 'block',
             type: 'paragraph',
             paragraph: {
-              rich_text: [
-                {
-                  type: 'text',
-                  text: {
-                    content: params.content,
-                  },
-                },
-              ],
+              rich_text: toNotionRichText(params.content),
             },
           },
         ]

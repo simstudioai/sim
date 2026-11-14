@@ -63,3 +63,37 @@ export function extractTitleFromItem(item: any): string {
   }
   return 'Untitled'
 }
+
+/** Notion's per-object `text.content` limit for rich text (request limits). */
+const NOTION_RICH_TEXT_MAX_CHARS = 2000
+
+/** Notion's maximum element count for any array in a request body. */
+const NOTION_MAX_ARRAY_ELEMENTS = 100
+
+/**
+ * Build a plain-text rich text array, splitting `content` into objects of at most
+ * 2000 characters so long text is not rejected with a `validation_error`. A
+ * surrogate pair is never split across two objects.
+ */
+export function toNotionRichText(
+  content: string
+): Array<{ type: 'text'; text: { content: string } }> {
+  const chunks: string[] = []
+  let index = 0
+  while (index < content.length) {
+    let end = Math.min(index + NOTION_RICH_TEXT_MAX_CHARS, content.length)
+    if (end < content.length) {
+      const lastCode = content.charCodeAt(end - 1)
+      if (lastCode >= 0xd800 && lastCode <= 0xdbff) end -= 1
+    }
+    chunks.push(content.slice(index, end))
+    index = end
+  }
+  if (chunks.length === 0) chunks.push('')
+  if (chunks.length > NOTION_MAX_ARRAY_ELEMENTS) {
+    throw new Error(
+      `Content is too long for one Notion rich text value (max ${NOTION_RICH_TEXT_MAX_CHARS * NOTION_MAX_ARRAY_ELEMENTS} characters)`
+    )
+  }
+  return chunks.map((chunk) => ({ type: 'text', text: { content: chunk } }))
+}
