@@ -704,6 +704,8 @@ func discoverApps() throws -> [[String: Any]] {
 @MainActor
 final class Driver {
     var snapshots: [String: Snapshot] = [:]
+    /// Each app's latest observation, kept after actions consume `snapshots` so the next read reuses its element ids.
+    var lastObserved: [String: Snapshot] = [:]
     func point(_ p: Parameters, app: NSRunningApplication, snapshot: Snapshot, end: Bool = false) throws -> CGPoint {
         if let elementId = p.elementId, !end {
             guard let frame = elementRect(try snapshot.element(elementId)) else { throw ComputerError("element_unavailable", "Element has no usable frame.") }
@@ -757,7 +759,7 @@ final class Driver {
             return ["kind": "action", "action": "activate_app", "bundleId": app.bundleIdentifier!, "dispatched": true, "verified": true]
         case "get_app_state":
             try requireAccessibility()
-            let app = try await appFor(p.bundleId, launch: true); let snapshot = Snapshot(app: app, previous: snapshots[app.bundleIdentifier!])
+            let app = try await appFor(p.bundleId, launch: true); let snapshot = Snapshot(app: app, previous: lastObserved[app.bundleIdentifier!])
             let preferredFrame = try p.windowId.map { try windowRect($0, pid: app.processIdentifier) }
             try await snapshot.read(preferredWindowFrame: preferredFrame)
             let axWindows = snapshot.elements.values.filter { attribute($0, kAXRoleAttribute) as? String == kAXWindowRole }
@@ -781,7 +783,9 @@ final class Driver {
                 result.merge(rectJSON(rect)) { _, new in new }; return result
             }
             if snapshots.count >= 16 { snapshots.removeAll() }
+            if lastObserved.count >= 16 { lastObserved.removeAll() }
             snapshots[app.bundleIdentifier!] = snapshot
+            lastObserved[app.bundleIdentifier!] = snapshot
             let root = AXUIElementCreateApplication(app.processIdentifier)
             let focusedID = attribute(root, kAXFocusedWindowAttribute).flatMap { CFGetTypeID($0) == AXUIElementGetTypeID() ? snapshot.windowId(holding: unsafeBitCast($0, to: AXUIElement.self)) : nil }
             for index in snapshot.nodes.indices {
