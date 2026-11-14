@@ -639,20 +639,24 @@ Return ONLY the JSON object - no explanations or markdown.`,
       type: 'dropdown',
       dependsOn: ['operation'],
       /**
-       * Update Audience leads with "Keep current" so an update leaves the setting alone; Create
-       * Audience leads with True, and its tool treats an unset value as true. There is no `value`
-       * default: the editor calls it without the operation, so the first option seeds instead, and
-       * `dependsOn` clears the value on an operation switch so it reseeds. Without block values
-       * (Copilot validation, catalogs) every option is listed, with "Keep current" last.
+       * Create Audience offers True/False. Every other context leads with "Keep current" so an
+       * update leaves the setting alone; that includes agent tool rows, where the operation is not
+       * in the values. `value` seeds API-built blocks per operation and returns undefined without
+       * one, so the editor falls back to the first option; `dependsOn` reseeds on an operation switch.
        */
       options: (params) => [
-        ...(params?.values.operation === 'update_audience'
-          ? [{ label: 'Keep current', id: '' }]
-          : []),
+        ...(params?.values.operation === 'create_audience'
+          ? []
+          : [{ label: 'Keep current', id: '' }]),
         { label: 'True', id: 'true' },
         { label: 'False', id: 'false' },
-        ...(params ? [] : [{ label: 'Keep current', id: '' }]),
       ],
+      value: (params) =>
+        params?.operation === 'create_audience'
+          ? 'true'
+          : params?.operation === 'update_audience'
+            ? ''
+            : undefined,
       required: {
         field: 'operation',
         value: ['create_audience'],

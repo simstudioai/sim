@@ -177,12 +177,28 @@ describe('Mailchimp campaign and audience requests', () => {
 describe('Mailchimp email type option defaults', () => {
   const field = MailchimpBlock.subBlocks.find((subBlock) => subBlock.id === 'emailTypeOption')
 
-  it('seeds Keep current first on update and True first on create', () => {
-    if (typeof field?.options !== 'function') throw new Error('emailTypeOption options are static')
-    const firstOption = (operation: string) => field.options?.({ values: { operation } })[0]?.id
-    expect(field.value).toBeUndefined()
-    expect(firstOption('update_audience')).toBe('')
-    expect(firstOption('create_audience')).toBe('true')
+  it('seeds per operation and lets the editor fall back to the first option', () => {
+    const { options, value } = field ?? {}
+    if (typeof options !== 'function' || !value) throw new Error('emailTypeOption is not dynamic')
+    expect(options({ values: { operation: 'update_audience' } })[0]?.id).toBe('')
+    expect(options({ values: { operation: 'create_audience' } })[0]?.id).toBe('true')
+    expect(options({ values: {} })[0]?.id).toBe('')
+    expect(value({ operation: 'create_audience' })).toBe('true')
+    expect(value({ operation: 'update_audience' })).toBe('')
+    expect(value({})).toBeUndefined()
+  })
+
+  it('rejects an email type option that is not true or false', () => {
+    expect(() =>
+      bodyOf(mailchimpCreateAudienceTool, {
+        apiKey,
+        audienceName: 'News',
+        permissionReminder: 'You signed up',
+        contact: '',
+        campaignDefaults: '',
+        emailTypeOption: 'maybe',
+      })
+    ).toThrow('emailTypeOption must be "true" or "false"')
   })
 
   it('creates an audience with multiple email formats when the option is unset', () => {
@@ -198,7 +214,8 @@ describe('Mailchimp email type option defaults', () => {
   })
 
   it('accepts Keep current when options are listed without block values', () => {
-    if (typeof field?.options !== 'function') throw new Error('emailTypeOption options are static')
-    expect(field.options().map((option) => option.id)).toEqual(['true', 'false', ''])
+    const { options } = field ?? {}
+    if (typeof options !== 'function') throw new Error('emailTypeOption options are static')
+    expect(options().map((option) => option.id)).toEqual(['', 'true', 'false'])
   })
 })
