@@ -5,10 +5,10 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/mothership/request/
  * Guards a post-tool output-redirection sink against read-only principals.
  *
  * `run_function`, `user_table`, and `read` are read-allowed for execution
- * (they don't mutate the workspace themselves), so their own permission gate
- * lets read-only collaborators run them. But their output-redirection
- * declarations (`outputs.files`, `outputTable`) durably persist to the
- * workspace — creating/overwriting files and table rows.
+ * (they don't mutate the workspace themselves), so the router's `WRITE_ACTIONS`
+ * gate in `tools/server/router.ts` lets read-only collaborators run them. But
+ * their output-redirection declarations (`outputs.files`, `outputTable`)
+ * durably persist to the workspace — creating/overwriting files and table rows.
  * Those writes must satisfy the same write gate as the dedicated mutation tools.
  *
  * Returns a denial `ToolCallResult` when the caller lacks write access (so the

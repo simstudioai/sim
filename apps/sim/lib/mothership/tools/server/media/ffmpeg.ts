@@ -82,7 +82,6 @@ interface FfmpegResult {
 
 export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
   name: Ffmpeg.id,
-  writes: () => true,
 
   async execute(params: FfmpegArgs, context?: ServerToolContext): Promise<FfmpegResult> {
     if (!context?.userId) {
