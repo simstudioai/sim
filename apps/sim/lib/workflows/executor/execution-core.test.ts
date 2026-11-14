@@ -222,11 +222,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       enforceCredentialAccess: false,
       startTime: new Date().toISOString(),
     },
-    workflow: {
-      id: 'workflow-1',
-      userId: 'workflow-owner',
-      variables: {},
-    },
+    workflow: { version: '1.0', blocks: [], connections: [], loops: {}, parallels: {} },
     input: { hello: 'world' },
     workflowVariables: {},
     selectedOutputs: [],
@@ -914,6 +910,61 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(loadWorkflowDeploymentVersionStateMock).not.toHaveBeenCalled()
   })
 
+  it('runs a draft resume on the graph it paused on, never the live draft', async () => {
+    const pausedWorkflow = {
+      version: '1.0',
+      blocks: [{ id: 'paused-block' }],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+    })
+    const resumedSnapshot = createSnapshot()
+    resumedSnapshot.metadata = {
+      ...resumedSnapshot.metadata,
+      resumeFromSnapshot: true,
+      resumeTerminalNoop: true,
+    } as any
+    ;(resumedSnapshot as any).workflow = pausedWorkflow
+
+    await executeWorkflowCore({
+      snapshot: resumedSnapshot as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+      skipLogCreation: true,
+    })
+
+    expect(loadWorkflowFromNormalizedTablesMock).not.toHaveBeenCalled()
+    expect(executorConstructorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ workflow: pausedWorkflow })
+    )
+  })
+
+  it('fails a draft resume whose snapshot lost its paused graph', async () => {
+    const resumedSnapshot = createSnapshot()
+    resumedSnapshot.metadata = {
+      ...resumedSnapshot.metadata,
+      resumeFromSnapshot: true,
+    } as any
+    ;(resumedSnapshot as any).workflow = undefined
+
+    await expect(
+      executeWorkflowCore({
+        snapshot: resumedSnapshot as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+        skipLogCreation: true,
+      })
+    ).rejects.toThrow('Draft resume is missing the workflow graph it paused on')
+    expect(loadWorkflowFromNormalizedTablesMock).not.toHaveBeenCalled()
+  })
+
   describe('PII redaction of restored large values', () => {
     const sourceItems = [{ email: 'alice@example.com', count: 7 }]
     const maskedItems = [{ email: '<EMAIL_ADDRESS>', count: 7 }]
@@ -953,6 +1004,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
         decisions: { router: {}, condition: {} },
         completedLoops: [],
         activeExecutionPath: [],
+        pendingQueue: [],
         trustedLargeValueAccess: { executionIds: [], largeValueKeys: [], fileKeys: [] },
       }
     }
