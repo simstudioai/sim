@@ -282,8 +282,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'status',
       title: 'Status',
       type: 'dropdown',
+      dependsOn: ['operation'],
       /**
-       * Update Deal leads with "No change" so a new block does not reopen deals. Without block
+       * Update Deal leads with "No change" so a new block does not reopen deals, and `dependsOn`
+       * clears the value on an operation switch so it reseeds. Without block
        * values (Copilot validation, catalogs) every option is listed, with "No change" last so
        * the default stays Open.
        */

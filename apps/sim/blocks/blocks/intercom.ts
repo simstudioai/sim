@@ -188,8 +188,10 @@ export const IntercomBlock: BlockConfig = {
       id: 'role',
       title: 'Role',
       type: 'dropdown',
+      dependsOn: ['operation'],
       /**
-       * Update Contact leads with "No change" so a new block does not resend a role. Without block
+       * Update Contact leads with "No change" so a new block does not resend a role, and `dependsOn`
+       * clears the value on an operation switch so it reseeds. Without block
        * values (Copilot validation, catalogs) every option is listed, with "No change" last so
        * the default stays Lead.
        */
