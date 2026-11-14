@@ -11,6 +11,7 @@ import { filterUndefined, sortObjectKeysDeep, toRecord } from '@sim/utils/object
 import { APIError } from 'better-auth/api'
 import { and, count, eq } from 'drizzle-orm'
 import type { auth } from '@/lib/auth'
+import { SSO_PROVIDER_ID_PATTERN } from '@/lib/auth/sso/callback-provider'
 import type { SsoProviderConfig } from '@/lib/auth/sso/provider-adapter'
 import { lockSsoProvider } from '@/lib/auth/sso/provider-lock'
 import type { DbOrTx } from '@/lib/db/types'
@@ -150,6 +151,11 @@ export function createSsoProviderRepository(
           message: 'Provider organization does not match its authorized scope',
         })
       validateConfig(body)
+      if (!SSO_PROVIDER_ID_PATTERN.test(body.providerId))
+        throw new APIError('BAD_REQUEST', {
+          message:
+            'Provider ID may only contain letters, numbers, dashes, underscores, periods, and colons',
+        })
       const reserved = new Set<string>([
         ...BUILT_IN_PROVIDER_IDS,
         ...configuration.reservedProviderIds,
