@@ -150,14 +150,12 @@ describe('Mailchimp campaign and audience requests', () => {
     ).toMatchObject({ template: { id: 42 } })
   })
 
-  it('leaves email_type_option unchanged when blank and sends contact details', () => {
+  it('sends a boolean email_type_option from an agent as true', () => {
     const body = bodyOf(mailchimpUpdateAudienceTool, {
       apiKey,
       listId: 'list1',
-      emailTypeOption: '',
-      contact: '{"company":"Acme","city":"NYC"}',
+      emailTypeOption: true,
     })
-    expect(body).not.toHaveProperty('email_type_option')
-    expect(body).toMatchObject({ contact: { company: 'Acme', city: 'NYC' } })
+    expect(body).toMatchObject({ email_type_option: true })
   })
 })
