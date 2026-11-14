@@ -13,7 +13,7 @@ export interface MailchimpUpdateAudienceParams {
   audienceName?: string
   permissionReminder?: string
   campaignDefaults?: string
-  emailTypeOption?: string | boolean
+  emailTypeOption?: string | boolean | null
 }
 
 export interface MailchimpUpdateAudienceResponse {
@@ -90,7 +90,7 @@ export const mailchimpUpdateAudienceTool: ToolConfig<
 
       if (params.audienceName) body.name = params.audienceName
       if (params.permissionReminder) body.permission_reminder = params.permissionReminder
-      if (params.emailTypeOption !== undefined && params.emailTypeOption !== '')
+      if (params.emailTypeOption != null && params.emailTypeOption !== '')
         body.email_type_option = String(params.emailTypeOption) === 'true'
 
       if (params.campaignDefaults) {

@@ -153,6 +153,15 @@ describe('Mailchimp campaign and audience requests', () => {
     ).toThrow('templateId must be a positive integer')
   })
 
+  it('leaves email_type_option unchanged when the stored value is null', () => {
+    const body = bodyOf(mailchimpUpdateAudienceTool, {
+      apiKey,
+      listId: 'list1',
+      emailTypeOption: null,
+    })
+    expect(body).not.toHaveProperty('email_type_option')
+  })
+
   it('sends a boolean email_type_option from an agent as true', () => {
     const body = bodyOf(mailchimpUpdateAudienceTool, {
       apiKey,
