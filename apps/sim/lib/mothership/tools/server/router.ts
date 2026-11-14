@@ -1,18 +1,13 @@
 import { createLogger } from '@sim/logger'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { getValidationErrorMessage, isZodError } from '@/lib/api/server/validation'
 import { OAUTH_API_WRITE_SCOPE } from '@/lib/auth/oauth-provider'
 import { requireDelegatedApiScope } from '@/lib/core/application/oauth-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  Ffmpeg,
-  GenerateAudio,
-  GenerateImage,
-  GenerateVideo,
-} from '@/lib/mothership/generated/tool-catalog-v1'
 import { withFileTabFlag } from '@/lib/mothership/resources/file-tabs'
-import { copilotToolCanWrite } from '@/lib/mothership/tools/permissions'
+import { copilotToolCanWrite, copilotWriteDeniedMessage } from '@/lib/mothership/tools/permissions'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -49,21 +44,6 @@ const ExecuteResponseSuccessSchema = z.object({
 })
 
 const logger = createLogger('ServerToolRouter')
-
-const WRITE_ACTIONS: Record<string, string[]> = {
-  [GenerateImage.id]: ['generate'],
-  [GenerateVideo.id]: ['generate'],
-  [GenerateAudio.id]: ['generate'],
-  [Ffmpeg.id]: ['*'],
-}
-
-function isWriteAction(toolName: string, action: string | undefined): boolean {
-  const writeActions = WRITE_ACTIONS[toolName]
-  if (!writeActions) return false
-  // '*' means the tool is always a write operation regardless of action field
-  if (writeActions.includes('*')) return true
-  return Boolean(action && writeActions.includes(action))
-}
 
 /** Registry of all server tools. Tools self-declare their validation schemas. */
 const baseServerToolRegistry: Record<string, BaseServerTool> = {
@@ -114,21 +94,6 @@ export async function routeExecution(
     { toolName }
   )
 
-  // Action-level permission enforcement for mixed read/write tools
-  if (WRITE_ACTIONS[toolName]) {
-    const p = payload as Record<string, unknown>
-    const action = (p?.operation ?? p?.action) as string | undefined
-    if (isWriteAction(toolName, action) && !copilotToolCanWrite(context?.userPermission)) {
-      const actionLabel = action ? `'${action}' on ` : ''
-      // Classified so the projection surfaces it: a permission denial is
-      // caller-actionable (stop retrying, tell the user), not a system error.
-      throw new OrchestrationError(
-        'forbidden',
-        `Permission denied: ${actionLabel}${toolName} requires write access. You have '${context?.userPermission ?? 'none'}' permission.`
-      )
-    }
-  }
-
   assertServerToolNotAborted(
     context,
     `User stop signal aborted ${toolName} before payload normalization`
@@ -158,7 +123,29 @@ export async function routeExecution(
   }
 
   assertServerToolNotAborted(context, `User stop signal aborted ${toolName} after validation`)
-  if (tool.writes?.(args)) requireDelegatedApiScope(OAUTH_API_WRITE_SCOPE)
+  if (tool.writes?.(args)) {
+    // A workspace run's permission can sit below its principal's live role (an unattributed inbox
+    // message runs as the owner, capped to read), and the operations behind these tools authorize
+    // that live role, so the cap is enforced here. An organization chat carries no workspace cap.
+    if (
+      !context?.organizationId &&
+      !context?.chatOrganizationId &&
+      !copilotToolCanWrite(context?.userPermission)
+    ) {
+      const { operation, action } = args as { operation?: unknown; action?: unknown }
+      // Classified so the projection surfaces it: a permission denial is
+      // caller-actionable (stop retrying, tell the user), not a system error.
+      throw new OrchestrationError(
+        'forbidden',
+        copilotWriteDeniedMessage(
+          toolName,
+          toStringOrNull(operation ?? action),
+          context?.userPermission
+        )
+      )
+    }
+    requireDelegatedApiScope(OAUTH_API_WRITE_SCOPE)
+  }
 
   // Execute. None of the remaining tools resolve blocks or gate discovery, so the old
   // custom-block-overlay / block-visibility ALS scopes are gone with the tools that

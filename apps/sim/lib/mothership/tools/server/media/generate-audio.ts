@@ -68,6 +68,7 @@ function audioExtFromContentType(contentType: string): string {
 
 export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, GenerateAudioResult> = {
   name: GenerateAudio.id,
+  writes: () => true,
 
   async execute(
     params: GenerateAudioArgs,

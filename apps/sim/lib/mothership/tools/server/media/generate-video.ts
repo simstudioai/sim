@@ -54,6 +54,7 @@ interface GenerateVideoResult {
 
 export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, GenerateVideoResult> = {
   name: GenerateVideo.id,
+  writes: () => true,
 
   async execute(
     params: GenerateVideoArgs,

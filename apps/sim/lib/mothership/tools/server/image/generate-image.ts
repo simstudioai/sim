@@ -108,6 +108,7 @@ async function loadReferenceImage(
 
 export const generateImageServerTool: BaseServerTool<GenerateImageArgs, GenerateImageResult> = {
   name: GenerateImage.id,
+  writes: () => true,
 
   async execute(
     params: GenerateImageArgs,

@@ -136,9 +136,11 @@ export async function executeTool(
                     chatOrganizationId,
                     secretActorUserId: context.userId,
                     secretMountPolicy: undefined,
+                    // Only an organization chat takes the target's role: a workspace chat targets
+                    // its own workspace, and its context permission may be a deliberate cap.
+                    userPermission: target.permission ?? context.userPermission,
                   }
                 : {}),
-              userPermission: target.permission ?? context.userPermission,
             })
         )
         return chatOrganizationId && result.resources?.length

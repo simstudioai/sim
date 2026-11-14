@@ -147,7 +147,7 @@ describe('organization workspace creation through the real tool router', () => {
     { workspaceId: 'workspace' },
     { workflowId: 'workflow' },
     { copilotToolExecution: false },
-    { organizationId: undefined },
+    { organizationId: undefined, userPermission: 'write' },
     { userId: undefined },
     { chatId: undefined },
   ])('rejects unavailable or untrusted context %j', async (override) => {
