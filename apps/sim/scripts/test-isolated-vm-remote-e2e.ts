@@ -640,6 +640,19 @@ async function run() {
     assert.equal(reused.error, undefined, reused.error?.message)
   })
 
+  await check('keeps a busy task from queuing interval ticks on the shared worker', async () => {
+    const busy = await runTask(
+      // utils-lint-allow: runs inside the isolate, where @sim/utils is unavailable
+      'let ticks = 0; setInterval(() => { ticks++ }, 1); const end = Date.now() + 500; while (Date.now() < end) {} await new Promise((resolve) => setTimeout(resolve, 0)); if (ticks > 5) throw new Error("queued ticks: " + ticks)'
+    )
+    assert.equal(busy.error, undefined, busy.error?.message)
+    const idle = await runTask(
+      // utils-lint-allow: runs inside the isolate, where @sim/utils is unavailable
+      'let ticks = 0; setInterval(() => { ticks++ }, 5); await new Promise((resolve) => setTimeout(resolve, 300)); if (ticks < 20) throw new Error("ticks: " + ticks)'
+    )
+    assert.equal(idle.error, undefined, idle.error?.message)
+  })
+
   await check('rejects a connection with the wrong token', async () => {
     const ws = await openSocket(probeHost, authFrame(generateRandomHex(32)))
     assert.equal(await closeCode(ws), 4401)
