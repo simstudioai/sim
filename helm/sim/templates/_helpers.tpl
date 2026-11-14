@@ -255,6 +255,18 @@ Database URL for internal PostgreSQL
 {{- end }}
 
 {{/*
+Fail when a secret still holds a documentation placeholder ("CHANGE-ME-...",
+"your-...") instead of a generated value. A shape check rather than a list of
+exact strings, so a placeholder reworded in an example is still rejected.
+Usage: include "sim.rejectPlaceholderSecret" (list "<values path>" <value>)
+*/}}
+{{- define "sim.rejectPlaceholderSecret" -}}
+{{- if regexMatch "(?i)^(change[-_ ]?me|your[-_ ])" (toString (index . 1)) }}
+{{- fail (printf "%s must not use a placeholder value. Generate a secure value with: openssl rand -hex 32" (index . 0)) }}
+{{- end }}
+{{- end }}
+
+{{/*
 Validate required secrets and reject default placeholder values
 Skip validation when using existing secrets or External Secrets Operator
 */}}
@@ -268,21 +280,16 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- if and .Values.app.enabled (not .Values.app.env.BETTER_AUTH_SECRET) }}
 {{- fail "app.env.BETTER_AUTH_SECRET is required for production deployment" }}
 {{- end }}
-{{- if and .Values.app.enabled (eq .Values.app.env.BETTER_AUTH_SECRET "CHANGE-ME-32-CHAR-SECRET-FOR-PRODUCTION-USE") }}
-{{- fail "app.env.BETTER_AUTH_SECRET must not use the default placeholder value. Generate a secure secret with: openssl rand -hex 32" }}
-{{- end }}
 {{- if and .Values.app.enabled (not .Values.app.env.ENCRYPTION_KEY) }}
 {{- fail "app.env.ENCRYPTION_KEY is required for production deployment" }}
-{{- end }}
-{{- if and .Values.app.enabled (eq .Values.app.env.ENCRYPTION_KEY "CHANGE-ME-32-CHAR-ENCRYPTION-KEY-FOR-PROD") }}
-{{- fail "app.env.ENCRYPTION_KEY must not use the default placeholder value. Generate a secure key with: openssl rand -hex 32" }}
 {{- end }}
 {{- if and .Values.app.enabled (not .Values.app.env.INTERNAL_API_SECRET) }}
 {{- fail "app.env.INTERNAL_API_SECRET is required for production deployment (shared auth between sim-app and sim-realtime pods). Generate one with: openssl rand -hex 32" }}
 {{- end }}
-{{- if and .Values.realtime.enabled (eq .Values.realtime.env.BETTER_AUTH_SECRET "CHANGE-ME-32-CHAR-SECRET-FOR-PRODUCTION-USE") }}
-{{- fail "realtime.env.BETTER_AUTH_SECRET must not use the default placeholder value. Generate a secure secret with: openssl rand -hex 32" }}
+{{- range $key := list "BETTER_AUTH_SECRET" "ENCRYPTION_KEY" "INTERNAL_API_SECRET" "CRON_SECRET" "API_ENCRYPTION_KEY" }}
+{{- include "sim.rejectPlaceholderSecret" (list (printf "app.env.%s" $key) (index $.Values.app.env $key)) }}
 {{- end }}
+{{- include "sim.rejectPlaceholderSecret" (list "realtime.env.BETTER_AUTH_SECRET" .Values.realtime.env.BETTER_AUTH_SECRET) }}
 {{- /* CRON_SECRET is required when cronjobs are enabled — pods reference it via secretKeyRef and would fail to start if the key is missing from the Secret. */ -}}
 {{- if and .Values.cronjobs.enabled (not .Values.app.env.CRON_SECRET) }}
 {{- fail "app.env.CRON_SECRET is required when cronjobs.enabled=true (every cron pod authenticates with this token). Generate one with: openssl rand -hex 32, or set cronjobs.enabled=false." }}
@@ -293,8 +300,8 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- if and .Values.postgresql.enabled (not .Values.postgresql.auth.password) }}
 {{- fail "postgresql.auth.password is required when using internal PostgreSQL" }}
 {{- end }}
-{{- if and .Values.postgresql.enabled (eq .Values.postgresql.auth.password "CHANGE-ME-SECURE-PASSWORD") }}
-{{- fail "postgresql.auth.password must not use the default placeholder value. Set a secure password for production" }}
+{{- if .Values.postgresql.enabled }}
+{{- include "sim.rejectPlaceholderSecret" (list "postgresql.auth.password" .Values.postgresql.auth.password) }}
 {{- end }}
 {{- if and .Values.postgresql.enabled .Values.postgresql.auth.password (not (regexMatch "^[a-zA-Z0-9._-]+$" .Values.postgresql.auth.password)) }}
 {{- fail "postgresql.auth.password must only contain alphanumeric characters, hyphens, underscores, or periods to ensure DATABASE_URL compatibility. Generate with: openssl rand -base64 16 | tr -d '/+='" }}
@@ -304,6 +311,9 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- if not (or $useExistingExternalDbSecret $useExternalSecrets) }}
 {{- if and .Values.externalDatabase.enabled (not .Values.externalDatabase.password) }}
 {{- fail "externalDatabase.password is required when using external database" }}
+{{- end }}
+{{- if .Values.externalDatabase.enabled }}
+{{- include "sim.rejectPlaceholderSecret" (list "externalDatabase.password" .Values.externalDatabase.password) }}
 {{- end }}
 {{- if and .Values.externalDatabase.enabled .Values.externalDatabase.password (not (regexMatch "^[a-zA-Z0-9._-]+$" .Values.externalDatabase.password)) }}
 {{- fail "externalDatabase.password must only contain alphanumeric characters, hyphens, underscores, or periods to ensure DATABASE_URL compatibility." }}
@@ -656,6 +666,7 @@ Validate Copilot configuration
           {{- fail (printf "copilot.server.env.%s is required when copilot is enabled" $key) -}}
         {{- end -}}
       {{- end -}}
+      {{- include "sim.rejectPlaceholderSecret" (list (printf "copilot.server.env.%s" $key) (index (default dict $env) $key)) -}}
     {{- end -}}
     {{- if $useExternalSecrets -}}
       {{- range $key, $value := $env -}}
@@ -676,6 +687,7 @@ Validate Copilot configuration
     {{- if or (not .Values.copilot.postgresql.auth.password) (eq .Values.copilot.postgresql.auth.password "") -}}
       {{- fail "copilot.postgresql.auth.password is required when copilot.postgresql.enabled=true" -}}
     {{- end -}}
+    {{- include "sim.rejectPlaceholderSecret" (list "copilot.postgresql.auth.password" .Values.copilot.postgresql.auth.password) -}}
   {{- else -}}
     {{- if and (or (not .Values.copilot.database.existingSecretName) (eq .Values.copilot.database.existingSecretName "")) (or (not .Values.copilot.database.url) (eq .Values.copilot.database.url "")) -}}
       {{- fail "Provide copilot.database.existingSecretName or copilot.database.url when copilot.postgresql.enabled=false" -}}
