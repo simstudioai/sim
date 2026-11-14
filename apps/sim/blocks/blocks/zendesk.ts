@@ -1,7 +1,7 @@
 import { ZendeskIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { parseOptionalBooleanInput, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const ZendeskBlock: BlockConfig = {
@@ -206,7 +206,7 @@ Return ONLY the subject line - no explanations.`,
       },
       condition: {
         field: 'operation',
-        value: ['create_ticket', 'update_ticket'],
+        value: ['create_ticket'],
       },
       wandConfig: {
         enabled: true,
@@ -227,13 +227,39 @@ Return ONLY the description text - no explanations.`,
       },
     },
     {
+      id: 'comment',
+      title: 'Comment',
+      type: 'long-input',
+      placeholder: 'Comment to add to the ticket',
+      condition: {
+        field: 'operation',
+        value: ['update_ticket'],
+      },
+    },
+    {
+      id: 'commentPublic',
+      title: 'Comment Visibility',
+      type: 'dropdown',
+      options: [
+        { label: 'Ticket default', id: '' },
+        { label: 'Public reply', id: 'true' },
+        { label: 'Internal note', id: 'false' },
+      ],
+      value: () => '',
+      condition: {
+        field: 'operation',
+        value: ['update_ticket'],
+      },
+      mode: 'advanced',
+    },
+    {
       id: 'status',
       title: 'Status',
       type: 'short-input',
       placeholder: 'Status (new, open, pending, hold, solved, closed)',
       condition: {
         field: 'operation',
-        value: ['get_tickets', 'create_ticket', 'update_ticket'],
+        value: ['get_tickets', 'create_ticket', 'update_ticket', 'update_tickets_bulk'],
       },
       mode: 'advanced',
     },
@@ -244,7 +270,7 @@ Return ONLY the description text - no explanations.`,
       placeholder: 'Priority (low, normal, high, urgent)',
       condition: {
         field: 'operation',
-        value: ['get_tickets', 'create_ticket', 'update_ticket'],
+        value: ['get_tickets', 'create_ticket', 'update_ticket', 'update_tickets_bulk'],
       },
       mode: 'advanced',
     },
@@ -266,7 +292,15 @@ Return ONLY the description text - no explanations.`,
       placeholder: 'Comma-separated tags',
       condition: {
         field: 'operation',
-        value: ['create_ticket', 'update_ticket'],
+        value: [
+          'create_ticket',
+          'update_ticket',
+          'update_tickets_bulk',
+          'create_user',
+          'update_user',
+          'create_organization',
+          'update_organization',
+        ],
       },
       mode: 'advanced',
     },
@@ -277,7 +311,18 @@ Return ONLY the description text - no explanations.`,
       placeholder: 'User ID to assign ticket to',
       condition: {
         field: 'operation',
-        value: ['get_tickets', 'create_ticket', 'update_ticket'],
+        value: ['get_tickets', 'create_ticket', 'update_ticket', 'update_tickets_bulk'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'requesterId',
+      title: 'Requester ID',
+      type: 'short-input',
+      placeholder: 'User ID of the requester',
+      condition: {
+        field: 'operation',
+        value: ['create_ticket'],
       },
       mode: 'advanced',
     },
@@ -288,7 +333,7 @@ Return ONLY the description text - no explanations.`,
       placeholder: 'Group ID',
       condition: {
         field: 'operation',
-        value: ['create_ticket', 'update_ticket'],
+        value: ['create_ticket', 'update_ticket', 'update_tickets_bulk'],
       },
       mode: 'advanced',
     },
@@ -296,24 +341,24 @@ Return ONLY the description text - no explanations.`,
       id: 'customFields',
       title: 'Custom Fields',
       type: 'long-input',
-      placeholder: 'JSON object with custom fields',
+      placeholder: '{"123456": "enterprise"}',
       condition: {
         field: 'operation',
         value: ['create_ticket', 'update_ticket'],
       },
       wandConfig: {
         enabled: true,
-        prompt: `Generate a JSON object for Zendesk custom fields based on the user's description.
-Custom fields use numeric IDs and can have various value types.
-Format: {"id": field_id, "value": "field_value"}
+        prompt: `Generate a JSON object for Zendesk custom ticket fields based on the user's description.
+Each key is a numeric custom field ID and each value is the value to set.
+Format: {"field_id": "field_value"}
 
 Examples:
 - "set product to Enterprise and region to EMEA" ->
-  [{"id": 123456, "value": "enterprise"}, {"id": 789012, "value": "emea"}]
+  {"123456": "enterprise", "789012": "emea"}
 - "mark as VIP customer with priority support" ->
-  [{"id": 111111, "value": true}, {"id": 222222, "value": "priority"}]
+  {"111111": true, "222222": "priority"}
 
-Return ONLY the JSON array - no explanations.`,
+Return ONLY the JSON object - no explanations.`,
         placeholder: 'Describe the custom field values to set...',
         generationType: 'json-object',
       },
@@ -327,7 +372,7 @@ Return ONLY the JSON array - no explanations.`,
       required: true,
       condition: {
         field: 'operation',
-        value: ['create_tickets_bulk', 'update_tickets_bulk'],
+        value: ['create_tickets_bulk'],
       },
       wandConfig: {
         enabled: true,
@@ -345,8 +390,19 @@ Example structure:
 ]
 
 Return ONLY the JSON array - no explanations.`,
-        placeholder: 'Describe the tickets to create or update...',
+        placeholder: 'Describe the tickets to create...',
         generationType: 'json-object',
+      },
+    },
+    {
+      id: 'ticketIds',
+      title: 'Ticket IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated ticket IDs (max 100, e.g., 111, 222)',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['update_tickets_bulk'],
       },
     },
     {
@@ -366,6 +422,16 @@ Return ONLY the JSON array - no explanations.`,
       type: 'short-input',
       placeholder: 'Comma-separated ticket IDs to merge',
       required: true,
+      condition: {
+        field: 'operation',
+        value: ['merge_tickets'],
+      },
+    },
+    {
+      id: 'targetComment',
+      title: 'Merge Comment',
+      type: 'long-input',
+      placeholder: 'Reason for the merge, added to the target ticket',
       condition: {
         field: 'operation',
         value: ['merge_tickets'],
@@ -402,6 +468,28 @@ Return ONLY the JSON array - no explanations.`,
       title: 'Email',
       type: 'short-input',
       placeholder: 'User email',
+      condition: {
+        field: 'operation',
+        value: ['create_user', 'update_user'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'role',
+      title: 'Role',
+      type: 'short-input',
+      placeholder: 'end-user, agent, or admin',
+      condition: {
+        field: 'operation',
+        value: ['get_users', 'create_user', 'update_user'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'phone',
+      title: 'Phone',
+      type: 'short-input',
+      placeholder: '+15551234567',
       condition: {
         field: 'operation',
         value: ['create_user', 'update_user'],
@@ -474,6 +562,39 @@ Return ONLY the JSON array - no explanations.`,
         field: 'operation',
         value: ['autocomplete_organizations', 'create_organization', 'update_organization'],
       },
+    },
+    {
+      id: 'domainNames',
+      title: 'Domain Names',
+      type: 'short-input',
+      placeholder: 'Comma-separated domains (e.g., acme.com, acme.io)',
+      condition: {
+        field: 'operation',
+        value: ['create_organization', 'update_organization'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'details',
+      title: 'Details',
+      type: 'long-input',
+      placeholder: 'Details about the organization',
+      condition: {
+        field: 'operation',
+        value: ['create_organization', 'update_organization'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'notes',
+      title: 'Notes',
+      type: 'long-input',
+      placeholder: 'Notes about the organization',
+      condition: {
+        field: 'operation',
+        value: ['create_organization', 'update_organization'],
+      },
+      mode: 'advanced',
     },
     {
       id: 'organizations',
@@ -555,6 +676,17 @@ Return ONLY the search query - no explanations.`,
         field: 'operation',
         value: ['search'],
       },
+    },
+    {
+      id: 'externalId',
+      title: 'External ID',
+      type: 'short-input',
+      placeholder: 'External ID from your system',
+      condition: {
+        field: 'operation',
+        value: ['search_users'],
+      },
+      mode: 'advanced',
     },
     {
       id: 'sort',
@@ -711,24 +843,27 @@ Return ONLY the search query - no explanations.`,
             throw new Error(`Unknown operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { apiToken, operation, ...rest } = params
-        const cleanParams: Record<string, any> = { apiToken }
-
-        // Special mapping for autocomplete_organizations
-        if (operation === 'autocomplete_organizations' && params.organizationName) {
-          cleanParams.name = params.organizationName
-        }
+      params: (params, context) => {
+        const { apiToken, operation, organizationName, commentPublic, ...rest } = params
+        const cleanParams: Record<string, unknown> = { apiToken }
 
         Object.entries(rest).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
-            // Skip organizationName for autocomplete_organizations as it's mapped to 'name'
-            if (operation === 'autocomplete_organizations' && key === 'organizationName') {
-              return
-            }
             cleanParams[key] = value
           }
         })
+
+        // Organization tools take `name`; the block's `name` field belongs to users.
+        const selectedOperation = operation ?? context?.operation
+        if (
+          selectedOperation === 'autocomplete_organizations' ||
+          selectedOperation === 'create_organization' ||
+          selectedOperation === 'update_organization'
+        ) {
+          cleanParams.name = organizationName || toolCallArg(context, rest.name) || undefined
+        }
+
+        cleanParams.commentPublic = parseOptionalBooleanInput(commentPublic)
         return cleanParams
       },
     },
@@ -775,6 +910,30 @@ Return ONLY the search query - no explanations.`,
       description:
         'Job status for async operations (create_tickets_bulk, update_tickets_bulk, merge_tickets, create_users_bulk, update_users_bulk, create_organizations_bulk)',
     },
+    job_status: {
+      type: 'json',
+      description:
+        'Job status (id, url, status, job_type, total, progress, message, results) for bulk and merge operations',
+    },
+    job_id: { type: 'string', description: 'Background job ID for bulk and merge operations' },
+    ticket_id: {
+      type: 'number',
+      description: 'Ticket ID (get_ticket, create_ticket, update_ticket; string for delete_ticket)',
+    },
+    target_ticket_id: {
+      type: 'string',
+      description: 'Ticket the source tickets were merged into (merge_tickets)',
+    },
+    user_id: {
+      type: 'number',
+      description:
+        'User ID (get_user, get_current_user, create_user, update_user; string for delete_user)',
+    },
+    organization_id: {
+      type: 'number',
+      description:
+        'Organization ID (get_organization, create_organization, update_organization; string for delete_organization)',
+    },
     // Delete operations
     deleted: {
       type: 'boolean',
@@ -783,10 +942,14 @@ Return ONLY the search query - no explanations.`,
     // Cursor-based pagination (shared across list operations)
     paging: {
       type: 'json',
-      description: 'Cursor-based pagination information (after_cursor, has_more)',
+      description:
+        'Pagination information (after_cursor, has_more, next_page); search_users and autocomplete_organizations page by number, so after_cursor is null there',
     },
     // Metadata (shared across all operations)
-    metadata: { type: 'json', description: 'Operation metadata including operation type' },
+    metadata: {
+      type: 'json',
+      description: 'List metadata (total_returned, has_more)',
+    },
   },
 
   triggers: {

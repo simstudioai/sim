@@ -1,5 +1,6 @@
 import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   buildZendeskUrl,
   handleZendeskError,
@@ -61,7 +62,11 @@ export const zendeskGetTicketTool: ToolConfig<ZendeskGetTicketParams, ZendeskGet
   },
 
   request: {
-    url: (params) => buildZendeskUrl(params.subdomain, `/tickets/${params.ticketId}`),
+    url: (params) =>
+      buildZendeskUrl(
+        params.subdomain,
+        `/tickets/${safeUrlPathSegment(params.ticketId, 'ticketId')}`
+      ),
     method: 'GET',
     headers: (params) => ({
       Authorization: zendeskAuthorization(params),

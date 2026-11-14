@@ -1,5 +1,6 @@
 import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   buildZendeskUrl,
   handleZendeskError,
@@ -80,7 +81,11 @@ export const zendeskMergeTicketsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildZendeskUrl(params.subdomain, `/tickets/${params.targetTicketId}/merge`),
+    url: (params) =>
+      buildZendeskUrl(
+        params.subdomain,
+        `/tickets/${safeUrlPathSegment(params.targetTicketId, 'targetTicketId')}/merge`
+      ),
     method: 'POST',
     headers: (params) => ({
       Authorization: zendeskAuthorization(params),
@@ -90,10 +95,8 @@ export const zendeskMergeTicketsTool: ToolConfig<
       const ids = params.sourceTicketIds.split(',').map((id) => id.trim())
       const body: any = { ids }
       if (params.targetComment) {
-        body.target_comment = {
-          body: params.targetComment,
-          public: true,
-        }
+        body.target_comment = params.targetComment
+        body.target_comment_is_public = true
       }
       return body
     },

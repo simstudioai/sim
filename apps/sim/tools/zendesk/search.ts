@@ -37,6 +37,15 @@ export interface ZendeskSearchResponse {
   }
 }
 
+/**
+ * The export endpoint takes the object type only from `filter[type]` and rejects a query that
+ * also names one, so a `type:` keyword is removed (`ticket_type:` and other keywords are kept).
+ * @see https://developer.zendesk.com/api-reference/ticketing/ticket-management/search/#export-search-results
+ */
+function withoutTypeKeyword(query: string): string {
+  return query.replace(/(^|\s)type:\S+/gi, ' ').trim()
+}
+
 export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchResponse> = {
   id: 'zendesk_search',
   name: 'Search Zendesk',
@@ -70,7 +79,7 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Search query string using Zendesk search syntax (e.g., "type:ticket status:open")',
+        'Search query string using Zendesk search syntax (e.g., "status:open priority:urgent"). The resource type comes from filterType; a "type:" keyword in the query is dropped',
     },
     filterType: {
       type: 'string',
@@ -95,7 +104,7 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams()
-      queryParams.append('query', params.query)
+      queryParams.append('query', withoutTypeKeyword(params.query))
       queryParams.append('filter[type]', params.filterType)
       appendCursorPaginationParams(queryParams, params)
 
