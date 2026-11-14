@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { z } from 'zod'
 import { env } from '@/lib/core/config/env'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
@@ -219,7 +220,7 @@ export async function requestGeminiImageExtraction(input: {
   maxOutputTokens: number
   signal: AbortSignal
 }): Promise<GeminiImageExtractionResponse> {
-  const response = await fetch(
+  const response = await outboundFetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(input.model)}:generateContent`,
     {
       method: 'POST',

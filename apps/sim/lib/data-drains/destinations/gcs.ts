@@ -4,6 +4,7 @@ import { generateShortId } from '@sim/utils/id'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { JWT } from 'google-auth-library'
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   buildObjectKey,
   normalizePrefix,
@@ -139,7 +140,7 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
     let response: Response
     try {
       const headers = await input.buildHeaders()
-      response = await fetch(input.url, {
+      response = await outboundFetch(input.url, {
         method: input.method,
         body: input.body as BodyInit | undefined,
         headers,

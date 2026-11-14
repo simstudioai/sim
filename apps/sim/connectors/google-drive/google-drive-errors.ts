@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   attachRetryHeaders,
   isRetryableError,
@@ -169,7 +170,7 @@ export async function fetchGoogleDriveWithRetry(
 ): Promise<Response> {
   return retryWithExponentialBackoff(
     async () => {
-      const response = await fetch(url, options)
+      const response = await outboundFetch(url, options)
       if (response.ok) return response
 
       const error = await readGoogleDriveApiError(response, operation)

@@ -9,6 +9,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
@@ -71,7 +72,7 @@ function positiveId(value: unknown): string | null {
 
 async function readGitHubJson(path: string, accessToken: string, signal: AbortSignal) {
   signal.throwIfAborted()
-  const response = await fetch(`https://api.github.com${path}`, {
+  const response = await outboundFetch(`https://api.github.com${path}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: 'application/vnd.github+json',

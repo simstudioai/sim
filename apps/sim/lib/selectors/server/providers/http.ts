@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { parseRetryAfter } from '@sim/utils/retry'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   SelectorConnectionUnavailableError,
   SelectorOptionsUnavailableError,
@@ -119,7 +120,7 @@ export async function fetchProviderJsonWithStatus<T>(
   const timeoutSignal = AbortSignal.timeout(PROVIDER_TIMEOUT_MS)
   const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
   try {
-    response = await fetch(input, { ...init, signal, redirect: init?.redirect ?? 'error' })
+    response = await outboundFetch(input, { ...init, signal, redirect: init?.redirect ?? 'error' })
   } catch (error) {
     if (init?.signal?.aborted) throw error
     logProviderFailure(input, 'network')

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -134,7 +135,7 @@ export const linqHandler: WebhookProviderHandler = {
       webhookId: webhook.id,
     })
 
-    const response = await fetch(`${LINQ_API_BASE}/webhook-subscriptions`, {
+    const response = await outboundFetch(`${LINQ_API_BASE}/webhook-subscriptions`, {
       method: 'POST',
       headers: linqHeaders(apiKey),
       body: JSON.stringify(requestBody),
@@ -196,7 +197,7 @@ export const linqHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(`${LINQ_API_BASE}/webhook-subscriptions/${externalId}`, {
+      const response = await outboundFetch(`${LINQ_API_BASE}/webhook-subscriptions/${externalId}`, {
         method: 'DELETE',
         headers: linqHeaders(apiKey),
       })

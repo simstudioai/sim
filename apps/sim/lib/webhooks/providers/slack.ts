@@ -9,6 +9,7 @@ import { isRecordLike, toRecord, toRecordOrNull } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -287,7 +288,7 @@ async function resolveSlackFileInfo(
   botToken: string
 ): Promise<{ url_private?: string; name?: string; mimetype?: string; size?: number } | null> {
   try {
-    const response = await fetch(
+    const response = await outboundFetch(
       `https://slack.com/api/files.info?file=${encodeURIComponent(fileId)}`,
       { headers: { Authorization: `Bearer ${botToken}` } }
     )
@@ -432,7 +433,7 @@ async function fetchSlackMessageText(
 ): Promise<string> {
   try {
     const params = new URLSearchParams({ channel, timestamp: messageTs })
-    const response = await fetch(`https://slack.com/api/reactions.get?${params}`, {
+    const response = await outboundFetch(`https://slack.com/api/reactions.get?${params}`, {
       headers: { Authorization: `Bearer ${botToken}` },
     })
     const data = (await response.json()) as {
@@ -486,7 +487,7 @@ export async function fetchSlackTeamId(botToken: string): Promise<{
   userId: string | undefined
   teamName: string | undefined
 }> {
-  const response = await fetch('https://slack.com/api/auth.test', {
+  const response = await outboundFetch('https://slack.com/api/auth.test', {
     headers: { Authorization: `Bearer ${botToken}` },
   })
   const data = (await response.json()) as {

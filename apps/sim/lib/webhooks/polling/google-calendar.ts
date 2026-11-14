@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
@@ -225,7 +226,7 @@ async function fetchChangedEvents(
     const encodedCalendarId = encodeURIComponent(calendarId)
     const url = `${CALENDAR_API_BASE}/calendars/${encodedCalendarId}/events?${params.toString()}`
 
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
 

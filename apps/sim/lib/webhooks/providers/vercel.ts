@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -146,7 +147,7 @@ export const vercelHandler: WebhookProviderHandler = {
         ? `https://api.vercel.com/v1/webhooks?teamId=${encodeURIComponent(teamId)}`
         : 'https://api.vercel.com/v1/webhooks'
 
-      const vercelResponse = await fetch(apiUrl, {
+      const vercelResponse = await outboundFetch(apiUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -234,7 +235,7 @@ export const vercelHandler: WebhookProviderHandler = {
         ? `https://api.vercel.com/v1/webhooks/${encodeURIComponent(externalId)}?teamId=${encodeURIComponent(teamId)}`
         : `https://api.vercel.com/v1/webhooks/${encodeURIComponent(externalId)}`
 
-      const response = await fetch(apiUrl, {
+      const response = await outboundFetch(apiUrl, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${apiKey}`,

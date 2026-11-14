@@ -4,6 +4,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type OpenAI from 'openai'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
@@ -143,7 +144,7 @@ export interface ResponsesProviderConfig {
   /**
    * Optional fetch implementation. Used to pin the connection to a pre-validated
    * IP (DNS-rebinding/SSRF protection) when the endpoint is user-supplied.
-   * Defaults to the global fetch.
+   * Defaults to {@link outboundFetch}.
    */
   fetch?: typeof fetch
 }
@@ -156,7 +157,7 @@ export async function executeResponsesProviderRequest(
   config: ResponsesProviderConfig
 ): Promise<ProviderResponse | StreamingExecution> {
   const { logger } = config
-  const fetchImpl = config.fetch ?? fetch
+  const fetchImpl = config.fetch ?? outboundFetch
 
   logger.info(`Preparing ${config.providerLabel} request`, {
     model: request.model,

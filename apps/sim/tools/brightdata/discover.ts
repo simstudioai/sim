@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { BrightDataDiscoverParams, BrightDataDiscoverResponse } from '@/tools/brightdata/types'
 import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -147,7 +148,7 @@ export const brightDataDiscoverTool: ToolConfig<
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
-        const pollResponse = await fetch(
+        const pollResponse = await outboundFetch(
           `https://api.brightdata.com/discover?task_id=${encodeURIComponent(taskId)}`,
           {
             method: 'GET',

@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraSearchIssuesParams, JiraSearchIssuesResponse } from '@/tools/jira/types'
 import { SEARCH_ISSUE_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import {
@@ -212,7 +213,7 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
       query.set('fields', explicitFields(params)?.join(',') ?? '*all')
       if (params?.expand) query.set('expand', params.expand)
       const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${query.toString()}`
-      const searchResponse = await fetch(searchUrl, {
+      const searchResponse = await outboundFetch(searchUrl, {
         method: 'GET',
         headers: {
           Accept: 'application/json',

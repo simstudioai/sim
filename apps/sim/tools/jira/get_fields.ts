@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraGetFieldsParams, JiraGetFieldsResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
@@ -58,7 +59,7 @@ export const jiraGetFieldsTool: ToolConfig<JiraGetFieldsParams, JiraGetFieldsRes
 
   transformResponse: async (response: Response, params?: JiraGetFieldsParams) => {
     const fetchFields = async (cloudId: string) => {
-      const fieldsResponse = await fetch(buildFieldsUrl(cloudId), {
+      const fieldsResponse = await outboundFetch(buildFieldsUrl(cloudId), {
         method: 'GET',
         headers: {
           Accept: 'application/json',

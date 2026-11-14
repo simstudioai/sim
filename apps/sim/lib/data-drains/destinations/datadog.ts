@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { redactExactSensitiveValues } from '@/lib/core/security/redaction'
 import { parseNdjsonObjects } from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
@@ -160,7 +161,7 @@ async function postWithRetries(input: PostInput): Promise<Response> {
     let retryAfterMs: number | null = null
     let response: Response | undefined
     try {
-      response = await fetch(input.url, {
+      response = await outboundFetch(input.url, {
         method: 'POST',
         // double-cast-allowed: Uint8Array is a valid runtime BodyInit but the DOM lib types only enumerate Blob/FormData/string/etc.
         body: body as unknown as BodyInit,

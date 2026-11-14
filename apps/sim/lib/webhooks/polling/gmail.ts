@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   getProviderConfig,
   type PollingProviderHandler,
@@ -149,7 +150,7 @@ async function fetchNewEmails(accessToken: string, config: GmailWebhookConfig, l
           historyUrl += `&pageToken=${pageToken}`
         }
 
-        const historyResponse = await fetch(historyUrl, {
+        const historyResponse = await outboundFetch(historyUrl, {
           headers: { Authorization: `Bearer ${accessToken}` },
         })
 
@@ -303,7 +304,7 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, log
     const query = `${baseQuery}${timeConstraint}`
     const searchUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${config.maxEmailsPerPoll || 25}`
 
-    const searchResponse = await fetch(searchUrl, {
+    const searchResponse = await outboundFetch(searchUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
 
@@ -386,7 +387,7 @@ async function getGmailProfileHistoryId(
   logger: Logger
 ): Promise<string | null> {
   try {
-    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+    const response = await outboundFetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
     if (!response.ok) {
@@ -404,7 +405,7 @@ async function getGmailProfileHistoryId(
 async function getEmailDetails(accessToken: string, messageId: string): Promise<GmailEmail> {
   const messageUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`
 
-  const messageResponse = await fetch(messageUrl, {
+  const messageResponse = await outboundFetch(messageUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
 
@@ -577,7 +578,7 @@ async function markEmailAsRead(accessToken: string, messageId: string, logger: L
   const modifyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`
 
   try {
-    const response = await fetch(modifyUrl, {
+    const response = await outboundFetch(modifyUrl, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,

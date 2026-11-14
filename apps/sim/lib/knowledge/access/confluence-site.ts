@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { normalizeAtlassianSiteUrl } from '@/lib/atlassian/discovery'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
@@ -99,7 +100,7 @@ async function verifySite(
   signal: AbortSignal
 ): Promise<boolean> {
   signal.throwIfAborted()
-  const response = await fetch(
+  const response = await outboundFetch(
     `https://api.atlassian.com/ex/confluence/${binding.cloudId}/wiki/rest/api/user/current`,
     {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },

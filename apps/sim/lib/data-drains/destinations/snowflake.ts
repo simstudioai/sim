@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { importPKCS8, SignJWT } from 'jose'
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainSnowflakeDestination')
@@ -245,7 +246,7 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
     const url = `${baseUrl}?${params.toString()}`
     let response: Response
     try {
-      response = await fetch(url, {
+      response = await outboundFetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${jwt}`,
@@ -347,7 +348,7 @@ async function pollStatement(input: PollInput): Promise<void> {
     const perAttempt = AbortSignal.any([input.signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
     let response: Response
     try {
-      response = await fetch(url, {
+      response = await outboundFetch(url, {
         headers: {
           Authorization: `Bearer ${jwt}`,
           Accept: 'application/json',

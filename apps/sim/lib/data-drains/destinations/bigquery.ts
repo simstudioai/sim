@@ -4,6 +4,7 @@ import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { JWT } from 'google-auth-library'
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   type ParsedServiceAccount,
   parseNdjsonObjects,
@@ -110,7 +111,7 @@ async function postInsertAll(
   const token = await getAccessToken(input.jwt, forceRefresh)
   const perAttempt = AbortSignal.any([input.signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
   try {
-    return await fetch(url, {
+    return await outboundFetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -292,7 +293,7 @@ export const bigqueryDestination: DrainDestination<
     const token = await getAccessToken(jwt)
     const url = `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(config.projectId)}/datasets/${encodeURIComponent(config.datasetId)}/tables/${encodeURIComponent(config.tableId)}?fields=id`
     const perAttempt = AbortSignal.any([signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       headers: { Authorization: `Bearer ${token}` },
       signal: perAttempt,
     })

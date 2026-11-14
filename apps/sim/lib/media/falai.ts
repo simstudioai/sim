@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -140,7 +141,7 @@ async function submitAndPollFalQueue(
 ): Promise<FalQueueResult> {
   // Only a submit already under way outlives its caller; a stopped call never starts one.
   queueSignal.throwIfAborted()
-  const createResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
+  const createResponse = await outboundFetch(`https://queue.fal.run/${endpoint}`, {
     method: 'POST',
     headers: {
       Authorization: `Key ${apiKey}`,
@@ -201,7 +202,7 @@ async function pollFalQueue(
     await interruptibleSleep(POLL_INTERVAL_MS, signal)
     signal.throwIfAborted()
 
-    const statusResponse = await fetch(statusUrl, {
+    const statusResponse = await outboundFetch(statusUrl, {
       headers: { Authorization: `Key ${apiKey}` },
       signal,
     })
@@ -226,10 +227,13 @@ async function pollFalQueue(
       if (statusData.error) {
         throw new Error(`Fal.ai generation failed: ${falErrorMessage(statusData.error)}`)
       }
-      const resultResponse = await fetch(getStringProp(statusData, 'response_url') || responseUrl, {
-        headers: { Authorization: `Key ${apiKey}` },
-        signal,
-      })
+      const resultResponse = await outboundFetch(
+        getStringProp(statusData, 'response_url') || responseUrl,
+        {
+          headers: { Authorization: `Key ${apiKey}` },
+          signal,
+        }
+      )
       if (!resultResponse.ok) {
         const body = await readResponseTextWithLimit(resultResponse, {
           maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -260,7 +264,7 @@ async function pollFalQueue(
 export async function cancelFalRequest(cancelUrl: string, apiKey: string, requestId: string) {
   try {
     // boundary-raw-fetch: cancels a request on the external Fal.ai queue
-    const response = await fetch(cancelUrl, {
+    const response = await outboundFetch(cancelUrl, {
       method: 'PUT',
       headers: { Authorization: `Key ${apiKey}` },
       signal: AbortSignal.timeout(FAL_CANCEL_TIMEOUT_MS),

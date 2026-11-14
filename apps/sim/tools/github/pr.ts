@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   nullableBoolean,
   nullableString,
@@ -150,7 +151,7 @@ async function fetchPullRequestFiles(
   const maxPages = MAX_PULL_REQUEST_FILES / PULL_REQUEST_FILES_PER_PAGE
 
   for (let page = 1; page <= maxPages; page += 1) {
-    const response = await fetch(
+    const response = await outboundFetch(
       `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${pullNumber}/files?per_page=${PULL_REQUEST_FILES_PER_PAGE}&page=${page}`,
       {
         headers: {

@@ -3,6 +3,7 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -110,7 +111,7 @@ export const typeformHandler: WebhookProviderHandler = {
         requestBody.secret = secret
       }
 
-      const typeformResponse = await fetch(typeformApiUrl, {
+      const typeformResponse = await outboundFetch(typeformApiUrl, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -199,7 +200,7 @@ export const typeformHandler: WebhookProviderHandler = {
       const tag = webhookTag || `sim-${(ctx.webhook.id as string).substring(0, 8)}`
       const typeformApiUrl = `https://api.typeform.com/forms/${formId}/webhooks/${tag}`
 
-      const typeformResponse = await fetch(typeformApiUrl, {
+      const typeformResponse = await outboundFetch(typeformApiUrl, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${apiKey}`,

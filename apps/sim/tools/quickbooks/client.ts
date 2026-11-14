@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -125,7 +126,7 @@ export async function fetchValidatedQuickBooksCompanyInfo(
   environment: QuickBooksEnvironment
 ): Promise<QuickBooksCompanyInfoEnvelope> {
   const normalizedRealmId = normalizeQuickBooksRealmId(realmId)
-  const response = await fetch(
+  const response = await outboundFetch(
     buildQuickBooksCompanyUrl(
       normalizedRealmId,
       `companyinfo/${encodeURIComponent(normalizedRealmId)}`,

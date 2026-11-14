@@ -12,6 +12,7 @@ import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env, envNumber } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { isQuotaExhaustionBody } from '@/lib/core/errors/provider-quota'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   ProviderQuotaExhaustedError,
   recordProviderCooldown,
@@ -581,7 +582,9 @@ async function callEmbeddingAPI(
       const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
 
       try {
-        const response = await fetch(request.apiUrl, {
+        // Ollama is the deployment's own server, never an organization's vendor.
+        const requestFetch = providerId === 'ollama' ? fetch : outboundFetch
+        const response = await requestFetch(request.apiUrl, {
           method: 'POST',
           headers: request.headers,
           body: JSON.stringify(request.body),

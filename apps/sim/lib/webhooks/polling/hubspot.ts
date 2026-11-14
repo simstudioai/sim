@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   getProviderConfig,
   type PollingProviderHandler,
@@ -676,7 +677,7 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
   }
 
   do {
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -923,7 +924,9 @@ async function fetchListMembershipPages(
     const params = new URLSearchParams({ limit: String(HUBSPOT_PAGE_LIMIT) })
     if (after) params.set('after', after)
     const url = `https://api.hubapi.com/crm/v3/lists/${encodeURIComponent(listId)}/memberships/join-order?${params.toString()}`
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+    const response = await outboundFetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')

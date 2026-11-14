@@ -1,5 +1,6 @@
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toRecordOrNull } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -47,7 +48,7 @@ export async function fetchWorkItemsChunk(
   url.searchParams.set('$expand', 'all')
   url.searchParams.set('api-version', '7.2-preview.3')
 
-  const response = await fetch(url.toString(), {
+  const response = await outboundFetch(url.toString(), {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',

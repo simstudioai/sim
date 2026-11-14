@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   CALENDAR_API_BASE,
   type CalendarAttendee,
@@ -67,7 +68,7 @@ async function respondToEvent(
   const patchUrl = `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(params?.eventId ?? '', 'eventId')}${queryString ? `?${queryString}` : ''}`
 
   signal?.throwIfAborted()
-  const patchResponse = await fetch(patchUrl, {
+  const patchResponse = await outboundFetch(patchUrl, {
     method: 'PATCH',
     signal,
     headers: {

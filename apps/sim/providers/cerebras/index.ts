@@ -2,6 +2,7 @@ import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -70,6 +71,7 @@ export const cerebrasProvider: ProviderConfig = {
       const client = new Cerebras({
         apiKey: request.apiKey,
         ...openAICompatTransport(),
+        fetch: outboundFetch,
       })
 
       const allMessages = []

@@ -18,6 +18,7 @@ import {
 } from '@/lib/chunkers'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { env } from '@/lib/core/config/env'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   recordProviderCooldown,
   waitForProviderAdmission,
@@ -669,7 +670,7 @@ async function makeOCRRequest(
   const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
 
   try {
-    const response = await fetch(endpoint, {
+    const response = await outboundFetch(endpoint, {
       method: 'POST',
       headers,
       body: typeof body === 'string' ? body : JSON.stringify(body),

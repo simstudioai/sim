@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError, readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   isRetryableError,
@@ -200,7 +201,7 @@ async function firefliesGraphQL(
   return retryWithExponentialBackoff(
     async () => {
       /** One retry layer owns transport, HTTP, and GraphQL semantic failures. */
-      const response = await fetch(FIREFLIES_GRAPHQL_URL, {
+      const response = await outboundFetch(FIREFLIES_GRAPHQL_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

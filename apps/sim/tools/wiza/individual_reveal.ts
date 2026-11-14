@@ -1,4 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 import { wizaHosting } from '@/tools/wiza/hosting'
@@ -224,7 +225,7 @@ export const wizaIndividualRevealTool: ToolConfig<
       await sleep(POLL_INTERVAL_MS)
       elapsedTime += POLL_INTERVAL_MS
 
-      const statusResponse = await fetch(
+      const statusResponse = await outboundFetch(
         `https://wiza.co/api/individual_reveals/${encodeURIComponent(String(revealId))}`,
         {
           headers: {

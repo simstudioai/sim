@@ -14,6 +14,7 @@ import type {
 } from 'openai/resources/chat/completions'
 import type { ReasoningEffort } from 'openai/resources/shared'
 import { env } from '@/lib/core/config/env'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -104,7 +105,7 @@ async function executeChatCompletionsRequest(
     apiVersion: azureApiVersion,
     endpoint: azureEndpoint,
     ...openAICompatTransport(),
-    ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
+    fetch: pinnedFetch ?? outboundFetch,
   })
 
   const allMessages: ChatCompletionMessageParam[] = []

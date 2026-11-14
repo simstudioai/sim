@@ -1,4 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { dropcontactHosting } from '@/tools/dropcontact/hosting'
 import type {
   DropcontactEmailEntry,
@@ -254,7 +255,7 @@ export const dropcontactEnrichContactTool: ToolConfig<
 
       // Poll endpoint: GET https://api.dropcontact.com/v1/enrich/all/{request_id}
       // Source: https://developer.dropcontact.com (retrieved 2026-05)
-      const pollResponse = await fetch(
+      const pollResponse = await outboundFetch(
         `https://api.dropcontact.com/v1/enrich/all/${encodeURIComponent(requestId)}`,
         {
           headers: {

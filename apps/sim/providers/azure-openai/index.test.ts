@@ -11,6 +11,7 @@ import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace
 import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderRequest, ProviderToolConfig } from '@/providers/types'
 
@@ -180,7 +181,7 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
       expect(azureOpenAIArgs()[0]).toMatchObject({ fetch: sentinelFetch })
     })
 
-    it('constructs the AzureOpenAI client without a custom fetch for a trusted env endpoint', async () => {
+    it('constructs the AzureOpenAI client with the unpinned outbound fetch for a trusted env endpoint', async () => {
       mockIsChatCompletionsEndpoint.mockReturnValue(true)
       setEnv({
         AZURE_OPENAI_ENDPOINT:
@@ -194,7 +195,7 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
       await azureOpenAIProvider.executeRequest(request({ azureEndpoint: undefined }))
 
       expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-      expect(azureOpenAIArgs()[0]).not.toHaveProperty('fetch')
+      expect(azureOpenAIArgs()[0].fetch).toBe(outboundFetch)
     })
 
     it('preserves a custom deployment name through Chat Completions routing', async () => {

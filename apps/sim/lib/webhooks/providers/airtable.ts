@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
 import {
   getOAuthToken,
@@ -198,7 +199,7 @@ async function fetchAndProcessAirtablePayloads(
       const fullUrl = `${apiUrl}?${queryParams.toString()}`
 
       try {
-        const response = await fetch(fullUrl, {
+        const response = await outboundFetch(fullUrl, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -509,7 +510,7 @@ export const airtableHandler: WebhookProviderHandler = {
         specification: specification,
       }
 
-      const airtableResponse = await fetch(airtableApiUrl, {
+      const airtableResponse = await outboundFetch(airtableApiUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -622,7 +623,7 @@ export const airtableHandler: WebhookProviderHandler = {
           const expectedNotificationUrl = getNotificationUrl(webhookRecord)
 
           const listUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks`
-          const listResp = await fetch(listUrl, {
+          const listResp = await outboundFetch(listUrl, {
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },
@@ -694,7 +695,7 @@ export const airtableHandler: WebhookProviderHandler = {
       }
 
       const airtableDeleteUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks/${resolvedExternalId}`
-      const airtableResponse = await fetch(airtableDeleteUrl, {
+      const airtableResponse = await outboundFetch(airtableDeleteUrl, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${accessToken}`,

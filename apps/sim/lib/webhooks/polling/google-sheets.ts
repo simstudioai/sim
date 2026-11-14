@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
@@ -259,7 +260,7 @@ async function getDriveFileModifiedTime(
   fileId: string
 ): Promise<string | undefined> {
   try {
-    const response = await fetch(
+    const response = await outboundFetch(
       `https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
@@ -296,7 +297,7 @@ async function fetchSheetState(
   })
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedSheet}!A:Z?${params.toString()}`
 
-  const response = await fetch(url, {
+  const response = await outboundFetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
 
@@ -348,7 +349,7 @@ async function fetchRowRange(
   })
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedSheet}!${startRow}:${endRow}?${params.toString()}`
 
-  const response = await fetch(url, {
+  const response = await outboundFetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
 

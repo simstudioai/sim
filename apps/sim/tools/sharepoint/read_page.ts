@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type {
   GraphApiPageFields,
   GraphApiResponse,
@@ -246,7 +247,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
         siteId,
       })
 
-      const contentResponse = await fetch(contentUrl, {
+      const contentResponse = await outboundFetch(contentUrl, {
         headers: {
           Authorization: `Bearer ${params?.accessToken}`,
           Accept: 'application/json',
@@ -290,7 +291,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       const contentUrl = `https://graph.microsoft.com/v1.0/sites/${encodedSiteId}/pages/${graphPathSegment(pageInfo.id, 'pageId')}/microsoft.graph.sitePage?$expand=canvasLayout`
 
       try {
-        const contentResponse = await fetch(contentUrl, {
+        const contentResponse = await outboundFetch(contentUrl, {
           headers: {
             Authorization: `Bearer ${params?.accessToken}`,
             Accept: 'application/json',

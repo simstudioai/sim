@@ -7,6 +7,7 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { toolResultError } from '@/executor/handlers/pi/cloud/shared'
 import { executeTool } from '@/tools'
 import { GITHUB_GRAPHQL_URL, githubGraphQlHeaders, readGraphQlData } from '@/tools/github/graphql'
@@ -227,7 +228,7 @@ export async function setPullRequestDraftState(
     repo: params.repo,
     pullNumber: params.pullNumber,
   }
-  const queryResponse = await fetch(GITHUB_GRAPHQL_URL, {
+  const queryResponse = await outboundFetch(GITHUB_GRAPHQL_URL, {
     method: 'POST',
     headers: githubGraphQlHeaders(params.githubToken),
     body: JSON.stringify({
@@ -268,7 +269,7 @@ export async function setPullRequestDraftState(
   if (isDraft === shouldBeDraft) return
 
   const mutationName = shouldBeDraft ? 'convertPullRequestToDraft' : 'markPullRequestReadyForReview'
-  const mutationResponse = await fetch(GITHUB_GRAPHQL_URL, {
+  const mutationResponse = await outboundFetch(GITHUB_GRAPHQL_URL, {
     method: 'POST',
     headers: githubGraphQlHeaders(params.githubToken),
     body: JSON.stringify({

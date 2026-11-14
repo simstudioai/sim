@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
@@ -59,7 +60,7 @@ export const fathomHandler: WebhookProviderHandler = {
         webhookId: webhook.id,
       })
 
-      const fathomResponse = await fetch('https://api.fathom.ai/external/v1/webhooks', {
+      const fathomResponse = await outboundFetch('https://api.fathom.ai/external/v1/webhooks', {
         method: 'POST',
         headers: {
           'X-Api-Key': apiKey,
@@ -157,7 +158,7 @@ export const fathomHandler: WebhookProviderHandler = {
 
       const fathomApiUrl = `https://api.fathom.ai/external/v1/webhooks/${externalId}`
 
-      const fathomResponse = await fetch(fathomApiUrl, {
+      const fathomResponse = await outboundFetch(fathomApiUrl, {
         method: 'DELETE',
         headers: {
           'X-Api-Key': apiKey,
