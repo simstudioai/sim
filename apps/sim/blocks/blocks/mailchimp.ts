@@ -639,7 +639,9 @@ Return ONLY the JSON object - no explanations or markdown.`,
       type: 'dropdown',
       dependsOn: ['operation'],
       /**
-       * Update Audience leads with "Keep current" so an update leaves the setting alone, and
+       * Update Audience leads with "Keep current" so an update leaves the setting alone; Create
+       * Audience leads with True, and its tool treats an unset value as true. There is no `value`
+       * default: the editor calls it without the operation, so the first option seeds instead, and
        * `dependsOn` clears the value on an operation switch so it reseeds. Without block values
        * (Copilot validation, catalogs) every option is listed, with "Keep current" last.
        */
@@ -659,7 +661,6 @@ Return ONLY the JSON object - no explanations or markdown.`,
         field: 'operation',
         value: ['create_audience', 'update_audience'],
       },
-      value: (params) => (params?.operation === 'update_audience' ? '' : 'true'),
     },
     // Member fields
     {

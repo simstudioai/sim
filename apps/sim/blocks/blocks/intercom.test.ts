@@ -42,3 +42,22 @@ describe('Intercom agent operation resolution', () => {
     expect(mapped.disable_notifications).toBe(true)
   })
 })
+
+describe('Intercom ticket snooze', () => {
+  it('validates the model snoozed_until on an update_ticket tool call', () => {
+    const mapped = mapParams(
+      { ticket_id: 't1', snoozed_until: '1767225600' },
+      { operation: 'update_ticket' }
+    )
+    expect(mapped.snoozed_until).toBe(1767225600)
+    expect(() =>
+      mapParams({ ticket_id: 't1', snoozed_until: '-1' }, { operation: 'update_ticket' })
+    ).toThrow('positive whole Unix timestamp')
+  })
+
+  it('does not send a stale conversation snooze value with a canvas ticket update', () => {
+    const inputs = { operation: 'update_ticket', ticket_id: 't1', snoozed_until: '5' }
+    const sent = { ...inputs, ...mapParams(inputs) }
+    expect(sent.snoozed_until).toBeUndefined()
+  })
+})

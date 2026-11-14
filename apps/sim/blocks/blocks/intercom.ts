@@ -2,7 +2,7 @@ import { toBooleanFromInput } from '@sim/utils/coerce'
 import { IntercomIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, withSavedCredential } from '@/blocks/utils'
+import { createVersionedToolSelector, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -143,9 +143,12 @@ const mapIntercomParams: IntercomParamsMapper = (params, context) => {
     if (ticketOpen !== undefined) cleanParams.open = ticketOpen
     const ticketIsShared = toBooleanFromInput(ticket_is_shared)
     if (ticketIsShared !== undefined) cleanParams.is_shared = ticketIsShared
-    if (hasInput(ticket_snoozed_until)) {
-      cleanParams.snoozed_until = toSnoozeTimestamp(ticket_snoozed_until)
-    }
+    const ticketSnoozedUntil = hasInput(ticket_snoozed_until)
+      ? ticket_snoozed_until
+      : toolCallArg(context, snoozed_until)
+    cleanParams.snoozed_until = hasInput(ticketSnoozedUntil)
+      ? toSnoozeTimestamp(ticketSnoozedUntil)
+      : undefined
     if (ticket_assignee_id) cleanParams.assignee_id = ticket_assignee_id
   }
 

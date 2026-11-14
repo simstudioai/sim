@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { MailchimpBlock } from '@/blocks/blocks/mailchimp'
 import { mailchimpAddMemberTagsTool } from '@/tools/mailchimp/add_member_tags'
 import { mailchimpArchiveMemberTool } from '@/tools/mailchimp/archive_member'
+import { mailchimpCreateAudienceTool } from '@/tools/mailchimp/create_audience'
 import { mailchimpCreateBatchOperationTool } from '@/tools/mailchimp/create_batch_operation'
 import { mailchimpDeleteMemberPermanentTool } from '@/tools/mailchimp/delete_member_permanent'
 import { mailchimpGetCampaignReportTool } from '@/tools/mailchimp/get_campaign_report'
@@ -176,11 +177,24 @@ describe('Mailchimp campaign and audience requests', () => {
 describe('Mailchimp email type option defaults', () => {
   const field = MailchimpBlock.subBlocks.find((subBlock) => subBlock.id === 'emailTypeOption')
 
-  it('defaults to Keep current on update and true otherwise', () => {
-    if (!field?.value) throw new Error('emailTypeOption has no default')
-    expect(field.value({ operation: 'update_audience' })).toBe('')
-    expect(field.value({ operation: 'create_audience' })).toBe('true')
-    expect(field.value({})).toBe('true')
+  it('seeds Keep current first on update and True first on create', () => {
+    if (typeof field?.options !== 'function') throw new Error('emailTypeOption options are static')
+    const firstOption = (operation: string) => field.options?.({ values: { operation } })[0]?.id
+    expect(field.value).toBeUndefined()
+    expect(firstOption('update_audience')).toBe('')
+    expect(firstOption('create_audience')).toBe('true')
+  })
+
+  it('creates an audience with multiple email formats when the option is unset', () => {
+    const body = bodyOf(mailchimpCreateAudienceTool, {
+      apiKey,
+      audienceName: 'News',
+      permissionReminder: 'You signed up',
+      contact: '',
+      campaignDefaults: '',
+      emailTypeOption: '',
+    })
+    expect(body).toMatchObject({ email_type_option: true })
   })
 
   it('accepts Keep current when options are listed without block values', () => {

@@ -87,7 +87,7 @@ export const mailchimpCreateAudienceTool: ToolConfig<
       const body: Record<string, unknown> = {
         name: params.audienceName,
         permission_reminder: params.permissionReminder,
-        email_type_option: params.emailTypeOption === 'true',
+        email_type_option: String(params.emailTypeOption ?? '').trim() !== 'false',
       }
 
       if (params.contact) {
