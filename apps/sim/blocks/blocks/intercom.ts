@@ -877,9 +877,9 @@ Return ONLY the subject line - no explanations.`,
     {
       id: 'to_id',
       title: 'To ID',
-      canvasNoun: 'a contact ID',
+      canvasNoun: 'a recipient ID',
       type: 'short-input',
-      placeholder: 'Contact ID',
+      placeholder: 'User, lead, or contact ID',
       required: true,
       condition: {
         field: 'operation',
