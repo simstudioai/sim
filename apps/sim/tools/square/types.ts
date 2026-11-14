@@ -1062,9 +1062,33 @@ export interface InvoiceListResponse extends ToolResponse {
 export interface CatalogObjectResponse extends ToolResponse {
   output: {
     object: CatalogObject
+    related_objects?: CatalogObject[]
+    id_mappings?: CatalogIdMapping[]
     metadata: { id: string; type?: string; version?: number }
   }
 }
+
+/**
+ * Pairs a client-supplied `#` temporary ID with the permanent ID Square assigned.
+ * @see https://developer.squareup.com/reference/square/objects/CatalogIdMapping
+ */
+export interface CatalogIdMapping {
+  client_object_id?: string
+  object_id?: string
+}
+
+export const CATALOG_ID_MAPPING_OUTPUT_PROPERTIES = {
+  client_object_id: {
+    type: 'string',
+    description: 'Client-supplied temporary #-prefixed ID',
+    optional: true,
+  },
+  object_id: {
+    type: 'string',
+    description: 'Permanent ID Square assigned to the object',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
 
 export interface CatalogListResponse extends ToolResponse {
   output: {

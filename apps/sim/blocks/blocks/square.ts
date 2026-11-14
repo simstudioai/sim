@@ -1005,6 +1005,14 @@ export const SquareBlock: BlockConfig = {
     invoices: { type: 'json', description: 'Array of invoice objects' },
     object: { type: 'json', description: 'Catalog object' },
     objects: { type: 'json', description: 'Array of catalog objects' },
+    related_objects: {
+      type: 'json',
+      description: 'Catalog objects referenced by the retrieved object (Get Catalog Object)',
+    },
+    id_mappings: {
+      type: 'json',
+      description: 'Temporary-to-permanent ID mappings [{client_object_id, object_id}] (Upsert)',
+    },
     counts: { type: 'json', description: 'Array of inventory count objects' },
     deleted: { type: 'boolean', description: 'Whether the resource was deleted' },
     deleted_object_ids: { type: 'json', description: 'IDs of deleted catalog objects' },
