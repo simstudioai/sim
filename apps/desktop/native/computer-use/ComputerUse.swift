@@ -757,7 +757,7 @@ final class Driver {
             return ["kind": "action", "action": "activate_app", "bundleId": app.bundleIdentifier!, "dispatched": true, "verified": true]
         case "get_app_state":
             try requireAccessibility()
-            let app = try await appFor(p.bundleId, launch: true); let snapshot = Snapshot(app: app, previous: snapshots[p.bundleId])
+            let app = try await appFor(p.bundleId, launch: true); let snapshot = Snapshot(app: app, previous: snapshots[app.bundleIdentifier!])
             let preferredFrame = try p.windowId.map { try windowRect($0, pid: app.processIdentifier) }
             try await snapshot.read(preferredWindowFrame: preferredFrame)
             let axWindows = snapshot.elements.values.filter { attribute($0, kAXRoleAttribute) as? String == kAXWindowRole }

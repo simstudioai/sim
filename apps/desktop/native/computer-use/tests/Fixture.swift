@@ -78,8 +78,11 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.activate()
         print("fixture-ready"); fflush(stdout)
     }
-    /// Inserts a label above every other control, so later elements move in traversal order.
-    @objc func addRow() { stack.insertArrangedSubview(NSTextField(labelWithString: "Added row"), at: 0) }
+    /// Adds a label ahead of every control in Accessibility order, so positional ids after it would all shift.
+    @objc func addRow() {
+        let row = NSTextField(labelWithString: "Added row"); row.frame = NSRect(x: 4, y: 4, width: 120, height: 18)
+        window.contentView!.addSubview(row, positioned: .below, relativeTo: stack)
+    }
     @objc func increment() { count += 1; counter.stringValue = "Count: \(count)" }
     @objc func showSheet() { let alert = NSAlert(); alert.messageText = "Fixture sheet"; alert.addButton(withTitle: "Dismiss"); alert.beginSheetModal(for: window) }
     @objc func timeChanged(_ picker: NSDatePicker) {

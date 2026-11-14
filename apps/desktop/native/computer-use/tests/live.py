@@ -82,11 +82,6 @@ try:
         snapshot = state(screenshot=True)
         assert 'fixture-only-secret' not in json.dumps(snapshot), 'Secure value leaked'
         assert snapshot['truncated'] is False, 'Closed menu items past the snapshot cap marked the state truncated'
-        field_id = find(snapshot, role='AXTextField', label='Fixture editable text')['elementId']
-        mutate('click', snapshot, elementId=find(snapshot, role='AXButton', label='Add row')['elementId'])
-        snapshot = state()
-        assert any(node.get('value', node.get('label')) == 'Added row' for node in snapshot['nodes']), 'Add row did not insert its label'
-        assert find(snapshot, role='AXTextField', label='Fixture editable text')['elementId'] == field_id, 'An element changed id when another was added above it'
         infinite = find(snapshot, label='Fixture infinite frame')
         assert not {'x', 'y', 'width', 'height'} & infinite.keys(), f'An infinite frame reached the reply: {infinite}'
         image = snapshot.get('screenshot')
@@ -96,6 +91,11 @@ try:
         else:
             assert 'screen_capture_permission_required' in snapshot.get('screenshotError', '')
             print('BLOCKED: screenshot verification skipped because Screen Recording grant is missing', flush=True)
+        field_id = find(snapshot, role='AXTextField', label='Fixture editable text')['elementId']
+        mutate('click', snapshot, elementId=find(snapshot, role='AXButton', label='Add row')['elementId'])
+        snapshot = state()
+        assert any(node.get('value', node.get('label')) == 'Added row' for node in snapshot['nodes']), 'Add row did not insert its label'
+        assert find(snapshot, role='AXTextField', label='Fixture editable text')['elementId'] == field_id, 'An element changed id when another was added above it'
         baseline = int(next(node.get('value', node.get('label', '')) for node in snapshot['nodes'] if node.get('value', node.get('label', '')).startswith('Count: ')).split(': ')[1])
         button = find(snapshot, role='AXButton', label='Increment')
         snapshot = mutate('click', snapshot, elementId=button['elementId'])
