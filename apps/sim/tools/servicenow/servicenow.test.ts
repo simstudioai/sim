@@ -857,3 +857,21 @@ describe('the limit guidance matches what the block actually sends', () => {
     expect(url.searchParams.has('sysparm_limit')).toBe(false)
   })
 })
+
+describe('ServiceNow URL path segments', () => {
+  it('keeps valid table names and sys_ids byte-identical', () => {
+    const url = urlOf(deleteRecordTool, {
+      ...auth,
+      tableName: 'u_custom_table',
+      sysId: '46d44a5dc0a8010e0115a9c2b1a3a8e5',
+    })
+    expect(url.pathname).toBe('/api/now/table/u_custom_table/46d44a5dc0a8010e0115a9c2b1a3a8e5')
+  })
+
+  it('rejects a sys_id that would walk to another endpoint', () => {
+    expect(() =>
+      urlOf(deleteRecordTool, { ...auth, tableName: 'incident', sysId: '../../sys_user/abc' })
+    ).toThrow()
+    expect(() => urlOf(readRecordTool, { ...auth, tableName: '..', sysId: 'abc' })).toThrow()
+  })
+})

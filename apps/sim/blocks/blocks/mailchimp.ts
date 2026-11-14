@@ -647,9 +647,23 @@ Return ONLY the JSON object - no explanations or markdown.`,
       },
       condition: {
         field: 'operation',
-        value: ['create_audience', 'update_audience'],
+        value: ['create_audience'],
       },
       value: () => 'true',
+    },
+    {
+      id: 'updateEmailTypeOption',
+      title: 'Email Type Option',
+      type: 'dropdown',
+      options: [
+        { label: 'No change', id: '' },
+        { label: 'True', id: 'true' },
+        { label: 'False', id: 'false' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['update_audience'],
+      },
     },
     // Member fields
     {
@@ -1545,7 +1559,8 @@ Return ONLY the landing page title - no explanations.`,
       type: 'dropdown',
       options: [
         { label: 'Signup', id: 'signup' },
-        { label: 'Click Through', id: 'click-through' },
+        { label: 'Product', id: 'product' },
+        { label: 'Click Through (legacy)', id: 'click-through' },
       ],
       required: {
         field: 'operation',
@@ -1738,8 +1753,10 @@ Return ONLY the JSON array - no explanations or markdown.`,
         return `mailchimp_${params.operation}`
       },
       params: (params) => {
-        const { apiKey, operation, ...rest } = params
+        const { apiKey, operation, updateEmailTypeOption, ...rest } = params
         const cleanParams: Record<string, any> = { apiKey }
+        /** Update Audience has its own dropdown whose blank default leaves the setting unchanged. */
+        if (updateEmailTypeOption) cleanParams.emailTypeOption = updateEmailTypeOption
 
         Object.entries(rest).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
@@ -1753,6 +1770,10 @@ Return ONLY the JSON array - no explanations or markdown.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Mailchimp API key with server prefix' },
+    updateEmailTypeOption: {
+      type: 'string',
+      description: 'Email type option for Update Audience; blank leaves it unchanged',
+    },
   },
   outputs: {
     success: { type: 'boolean', description: 'Operation success status' },

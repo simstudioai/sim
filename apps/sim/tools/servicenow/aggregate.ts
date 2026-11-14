@@ -13,6 +13,7 @@ import {
 } from '@/tools/servicenow/utils'
 import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ServiceNowAggregateTool')
 
@@ -111,7 +112,7 @@ export const aggregateTool: ToolConfig<ServiceNowAggregateParams, ServiceNowAggr
   request: {
     url: (params) => {
       const baseUrl = normalizeInstanceUrl(params.instanceUrl)
-      const url = `${baseUrl}/api/now/stats/${params.tableName.trim()}`
+      const url = `${baseUrl}/api/now/stats/${safeUrlPathSegment(params.tableName, 'tableName')}`
 
       const queryParams = new URLSearchParams()
 

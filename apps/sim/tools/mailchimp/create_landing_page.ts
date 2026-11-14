@@ -39,7 +39,7 @@ export const mailchimpCreateLandingPageTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The type of landing page: "signup"',
+      description: 'The type of landing page: "signup" or "product"',
     },
     landingPageTitle: {
       type: 'string',

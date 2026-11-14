@@ -115,7 +115,8 @@ Update an existing audience (list) in Mailchimp
 | `audienceName` | string | No | The name of the audience/list \(e.g., "Newsletter Subscribers"\) |
 | `permissionReminder` | string | No | Permission reminder text shown to subscribers \(e.g., "You signed up for updates on our website"\) |
 | `campaignDefaults` | string | No | JSON object of default campaign settings \(e.g., \{"from_name": "Acme", "from_email": "news@acme.com"\}\) |
-| `emailTypeOption` | string | No | Support multiple email formats: "true" or "false" |
+| `emailTypeOption` | string | No | Support multiple email formats: "true" or "false". Omit to leave it unchanged |
+| `contact` | string | No | JSON object of contact information \(e.g., \{"company": "Acme", "address1": "123 Main St", "city": "NYC", "state": "NY", "zip": "10001", "country": "US"\}\) |
 
 #### Output
 
@@ -1627,7 +1628,7 @@ Create a new landing page in Mailchimp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `landingPageType` | string | Yes | The type of landing page: "signup" |
+| `landingPageType` | string | Yes | The type of landing page: "signup" or "product" |
 | `landingPageTitle` | string | No | The title of the landing page \(e.g., "Join Our Newsletter"\) |
 
 #### Output

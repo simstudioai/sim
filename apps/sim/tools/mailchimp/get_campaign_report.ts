@@ -70,7 +70,7 @@ export const mailchimpGetCampaignReportTool: ToolConfig<
       success: true,
       output: {
         report: data,
-        campaign_id: data.campaign_id,
+        campaign_id: data.id,
       },
     }
   },

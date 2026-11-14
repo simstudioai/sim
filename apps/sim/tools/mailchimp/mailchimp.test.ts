@@ -6,10 +6,13 @@ import { mailchimpAddMemberTagsTool } from '@/tools/mailchimp/add_member_tags'
 import { mailchimpArchiveMemberTool } from '@/tools/mailchimp/archive_member'
 import { mailchimpCreateBatchOperationTool } from '@/tools/mailchimp/create_batch_operation'
 import { mailchimpDeleteMemberPermanentTool } from '@/tools/mailchimp/delete_member_permanent'
+import { mailchimpGetCampaignReportTool } from '@/tools/mailchimp/get_campaign_report'
 import { mailchimpGetMemberTool } from '@/tools/mailchimp/get_member'
 import { mailchimpGetSegmentTool } from '@/tools/mailchimp/get_segment'
 import { mailchimpRemoveMemberTagsTool } from '@/tools/mailchimp/remove_member_tags'
+import { mailchimpSetCampaignContentTool } from '@/tools/mailchimp/set_campaign_content'
 import { mailchimpUnarchiveMemberTool } from '@/tools/mailchimp/unarchive_member'
+import { mailchimpUpdateAudienceTool } from '@/tools/mailchimp/update_audience'
 
 const apiKey = 'abc123-us19'
 const base = 'https://us19.api.mailchimp.com/3.0'
@@ -130,5 +133,31 @@ describe('Mailchimp request bodies', () => {
         { method: 'GET', path: '/lists', body: '{"x":1}' },
       ],
     })
+  })
+})
+
+describe('Mailchimp campaign and audience requests', () => {
+  it('reads the campaign id of a report from the id field', async () => {
+    const transform = mailchimpGetCampaignReportTool.transformResponse
+    if (!transform) throw new Error('missing transformResponse')
+    const result = await transform(Response.json({ id: 'camp-1', campaign_title: 'Launch' }))
+    expect(result.output.campaign_id).toBe('camp-1')
+  })
+
+  it('sends the template id as the integer the API requires', () => {
+    expect(
+      bodyOf(mailchimpSetCampaignContentTool, { apiKey, campaignId: 'camp-1', templateId: '42' })
+    ).toMatchObject({ template: { id: 42 } })
+  })
+
+  it('leaves email_type_option unchanged when blank and sends contact details', () => {
+    const body = bodyOf(mailchimpUpdateAudienceTool, {
+      apiKey,
+      listId: 'list1',
+      emailTypeOption: '',
+      contact: '{"company":"Acme","city":"NYC"}',
+    })
+    expect(body).not.toHaveProperty('email_type_option')
+    expect(body).toMatchObject({ contact: { company: 'Acme', city: 'NYC' } })
   })
 })

@@ -102,7 +102,11 @@ export const zendeskUpdateTicketsBulkTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const ids = params.ticketIds.split(',').map((id) => id.trim())
+      const ids = params.ticketIds
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean)
+        .map((id) => encodeURIComponent(id))
       return buildZendeskUrl(params.subdomain, `/tickets/update_many?ids=${ids.join(',')}`)
     },
     method: 'PUT',
