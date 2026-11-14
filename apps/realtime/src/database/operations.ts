@@ -34,9 +34,11 @@ import {
   getWorkflowEdgeScopeDropReason,
   isKnownWorkflowTriggerBlock,
   isWorkflowAnnotationOnlyBlockType,
+  isWorkflowBlockAncestorLocked,
   isWorkflowBlockProtected,
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
+  preserveProtectedWorkflowBlocks,
 } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { PgInsertValue } from 'drizzle-orm/pg-core'
@@ -297,6 +299,15 @@ interface DbBlockRef {
   data: unknown
 }
 
+/** Every block of the workflow with the fields the lock checks read, keyed by id. */
+async function loadLockBlocks(tx: DbOrTx, workflowId: string): Promise<Record<string, DbBlockRef>> {
+  const rows = await tx
+    .select({ id: workflowBlocks.id, locked: workflowBlocks.locked, data: workflowBlocks.data })
+    .from(workflowBlocks)
+    .where(eq(workflowBlocks.workflowId, workflowId))
+  return Object.fromEntries(rows.map((row) => [row.id, row]))
+}
+
 /**
  * Finds all descendant block IDs of a container (recursive).
  * Works with raw DB block arrays.
@@ -412,8 +423,21 @@ export async function getWorkflowState(workflowId: string) {
   }
 }
 
-export async function persistWorkflowOperation(workflowId: string, operation: any) {
+/** What a persisted operation means for the clients that applied its payload optimistically. */
+export interface PersistedWorkflowOperation {
+  /**
+   * True when the stored graph kept lock-protected state the payload tried to change, so the
+   * payload no longer describes what was saved and every client must re-sync from the server.
+   */
+  reconcile: boolean
+}
+
+export async function persistWorkflowOperation(
+  workflowId: string,
+  operation: any
+): Promise<PersistedWorkflowOperation> {
   const startTime = Date.now()
+  let reconcile = false
   try {
     const { operation: op, target, payload, timestamp, userId } = operation
 
@@ -450,7 +474,7 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
           await handleBlockOperationTx(tx, workflowId, op, payload)
           break
         case OPERATION_TARGETS.BLOCKS:
-          await handleBlocksOperationTx(tx, workflowId, op, payload)
+          reconcile = (await handleBlocksOperationTx(tx, workflowId, op, payload)) === true
           break
         case OPERATION_TARGETS.EDGE:
           await handleEdgeOperationTx(tx, workflowId, op, payload)
@@ -459,7 +483,7 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
           await handleEdgesOperationTx(tx, workflowId, op, payload)
           break
         case OPERATION_TARGETS.SUBFLOW:
-          await handleSubflowOperationTx(tx, workflowId, op, payload)
+          reconcile = await handleSubflowOperationTx(tx, workflowId, op, payload)
           break
         case OPERATION_TARGETS.SUBBLOCK:
           await handleSubblockOperationTx(tx, workflowId, op, payload)
@@ -468,7 +492,7 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
           await handleVariableOperationTx(tx, workflowId, op, payload)
           break
         case OPERATION_TARGETS.WORKFLOW:
-          await handleWorkflowOperationTx(tx, workflowId, op, payload)
+          reconcile = await handleWorkflowOperationTx(tx, workflowId, op, payload)
           break
         default:
           throw new Error(`Unknown operation target: ${target}`)
@@ -494,6 +518,7 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
         workflowId: `${workflowId.substring(0, 8)}...`,
       })
     }
+    return { reconcile }
   } catch (error) {
     const duration = Date.now() - startTime
     logger.error(
@@ -948,33 +973,38 @@ async function handleBlocksOperationTx(
         parallelCount: Object.keys(parallels || {}).length,
       })
 
+      const lockBlocks = await loadLockBlocks(tx, workflowId)
+      const isProtected = (id: string) => isWorkflowBlockProtected(id, lockBlocks)
+
+      // Lock state is admin-only, so an add never writes the lock flag, overwrites a protected
+      // block or its loop/parallel config, nor places a block inside a locked container.
+      let reconcile = false
+      const rejectedBlockIds = new Set<string>()
+
       if (blocks && blocks.length > 0) {
-        const existingBlocks = await tx
-          .select({ id: workflowBlocks.id, locked: workflowBlocks.locked })
-          .from(workflowBlocks)
-          .where(eq(workflowBlocks.workflowId, workflowId))
-
-        type ExistingBlockRecord = (typeof existingBlocks)[number]
-        const lockedParentIds = new Set(
-          existingBlocks
-            .filter((b: ExistingBlockRecord) => b.locked)
-            .map((b: ExistingBlockRecord) => b.id)
-        )
-
-        const allowedBlocks = (blocks as Array<Record<string, unknown>>).filter((block) => {
-          const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-            | string
-            | undefined
-          if (parentId && lockedParentIds.has(parentId)) {
-            logger.info(`Skipping block ${block.id} - parent ${parentId} is locked`)
-            return false
-          }
-          return true
-        })
+        const incoming = blocks as Array<Record<string, unknown>>
+        // Added blocks land unlocked, so one is refused exactly when it is protected now or
+        // would sit under a locked ancestor once the whole batch lands.
+        const landed: Record<string, DbBlockRef> = { ...lockBlocks }
+        for (const block of incoming) {
+          const id = block.id as string
+          if (!isProtected(id)) landed[id] = { id, locked: false, data: block.data }
+        }
+        for (const block of incoming) {
+          const id = block.id as string
+          if (isProtected(id) || isWorkflowBlockAncestorLocked(id, landed)) rejectedBlockIds.add(id)
+        }
+        const allowedBlocks = incoming.filter((block) => !rejectedBlockIds.has(block.id as string))
+        if (rejectedBlockIds.size > 0) {
+          logger.info('Skipping blocks that are locked or inside a locked container', {
+            count: rejectedBlockIds.size,
+          })
+        }
+        reconcile = rejectedBlockIds.size > 0 || incoming.some((block) => block.locked)
 
         if (allowedBlocks.length === 0) {
-          logger.info('All blocks filtered out due to locked parents, skipping add')
-          break
+          logger.info('All blocks filtered out due to locks, skipping add')
+          return reconcile
         }
 
         const blockValues = allowedBlocks.map((block: Record<string, unknown>) => {
@@ -1001,7 +1031,6 @@ async function handleBlocksOperationTx(
             errorEnabled: (block.errorEnabled as boolean) ?? false,
             retry: (block.retry as Record<string, unknown> | undefined) ?? null,
             height: String((block.height as number) || 0),
-            locked: (block.locked as boolean) ?? false,
           }
         })
 
@@ -1016,7 +1045,6 @@ async function handleBlocksOperationTx(
           triggerMode: sql`excluded.trigger_mode`,
           errorEnabled: sql`excluded.error_enabled`,
           retry: sql`excluded.retry`,
-          locked: sql`excluded.locked`,
           height: sql`excluded.height`,
           subBlocks: sql`excluded.sub_blocks`,
           outputs: sql`excluded.outputs`,
@@ -1098,6 +1126,7 @@ async function handleBlocksOperationTx(
             droppedCyclic,
           })
         }
+        if (droppedCounts['protected target block']) reconcile = true
 
         if (safeEdges.length > 0) {
           const edgeValues = safeEdges.map((edge) => ({
@@ -1113,36 +1142,37 @@ async function handleBlocksOperationTx(
         }
       }
 
-      if (loops && Object.keys(loops).length > 0) {
-        const loopValues = Object.entries(loops).map(([id, loop]) => ({
+      const subflowEntries = [
+        ...Object.entries(loops || {}).map(([id, config]) => ({ id, type: 'loop', config })),
+        ...Object.entries(parallels || {}).map(([id, config]) => ({
           id,
-          workflowId,
-          type: 'loop',
-          config: loop as Record<string, unknown>,
-        }))
-
-        await upsertWorkflowRows(tx, workflowSubflows, workflowId, loopValues, SUBFLOW_UPSERT_SET)
-      }
-
-      if (parallels && Object.keys(parallels).length > 0) {
-        const parallelValues = Object.entries(parallels).map(([id, parallel]) => ({
-          id,
-          workflowId,
           type: 'parallel',
-          config: parallel as Record<string, unknown>,
+          config,
+        })),
+      ]
+      const subflowValues = subflowEntries
+        .filter((subflow) => !isProtected(subflow.id) && !rejectedBlockIds.has(subflow.id))
+        .map((subflow) => ({
+          ...subflow,
+          workflowId,
+          config: subflow.config as Record<string, unknown>,
         }))
-
+      if (subflowValues.length < subflowEntries.length) {
+        logger.info('Skipping loop/parallel config of locked containers')
+        reconcile = true
+      }
+      if (subflowValues.length > 0) {
         await upsertWorkflowRows(
           tx,
           workflowSubflows,
           workflowId,
-          parallelValues,
+          subflowValues,
           SUBFLOW_UPSERT_SET
         )
       }
 
       logger.info(`Successfully batch added blocks to workflow ${workflowId}`)
-      break
+      return reconcile
     }
 
     case BLOCKS_OPERATIONS.BATCH_REMOVE_BLOCKS: {
@@ -1807,11 +1837,18 @@ async function handleSubflowOperationTx(
   workflowId: string,
   operation: string,
   payload: any
-) {
+): Promise<boolean> {
   switch (operation) {
     case SUBFLOW_OPERATIONS.UPDATE: {
       if (!payload.id || !payload.config) {
         throw new Error('Missing required fields for update subflow operation')
+      }
+
+      if (isWorkflowBlockProtected(payload.id, await loadLockBlocks(tx, workflowId))) {
+        logger.info(
+          `Skipping update of subflow ${payload.id} - it is locked or in a locked container`
+        )
+        return true
       }
 
       logger.debug(`Updating subflow ${payload.id} with config:`, payload.config)
@@ -1925,7 +1962,7 @@ async function handleSubflowOperationTx(
           .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
       }
 
-      break
+      return false
     }
 
     default:
@@ -2126,13 +2163,13 @@ async function handleVariableOperationTx(
   }
 }
 
-/** Replaces the complete workflow state. */
+/** Replaces the complete workflow state; resolves whether clients must re-sync from the server. */
 async function handleWorkflowOperationTx(
   tx: any,
   workflowId: string,
   operation: string,
   payload: any
-) {
+): Promise<boolean> {
   switch (operation) {
     case WORKFLOW_OPERATIONS.REPLACE_STATE: {
       if (!payload.state) {
@@ -2148,44 +2185,67 @@ async function handleWorkflowOperationTx(
         parallelCount: Object.keys(parallels || {}).length,
       })
 
+      type BlockRow = typeof workflowBlocks.$inferInsert
+      const [storedBlocks, storedEdges, storedSubflows]: [
+        BlockRow[],
+        (typeof workflowEdges.$inferSelect)[],
+        (typeof workflowSubflows.$inferSelect)[],
+      ] = await Promise.all([
+        tx.select().from(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
+        tx.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
+        tx.select().from(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
+      ])
+
+      const incomingBlocks: BlockRow[] = Object.values(blocks || {}).map((block: any) => ({
+        id: block.id,
+        workflowId,
+        type: block.type,
+        name: block.name,
+        positionX: String(block.position.x),
+        positionY: String(block.position.y),
+        errorEnabled: block.errorEnabled ?? false,
+        retry: block.retry ?? null,
+        data: block.data || {},
+        subBlocks: block.subBlocks || {},
+        outputs: block.outputs || {},
+        enabled: block.enabled ?? true,
+        horizontalHandles: block.horizontalHandles ?? true,
+        advancedMode: block.advancedMode ?? false,
+        triggerMode: block.triggerMode ?? false,
+        height: String(block.height || 0),
+      }))
+      const incomingEdges: EdgeAddCandidate[] = (
+        (edges || []) as Array<Record<string, unknown>>
+      ).map((edge) => ({
+        id: edge.id as string,
+        source: edge.source as string,
+        target: edge.target as string,
+        sourceHandle: (edge.sourceHandle as string | null) ?? null,
+        targetHandle: (edge.targetHandle as string | null) ?? null,
+      }))
+
+      const merged = preserveProtectedWorkflowBlocks(
+        {
+          blocks: Object.fromEntries(storedBlocks.map((row) => [row.id, row])),
+          edges: storedEdges.map((row) => ({ id: row.id, ...toEdgeHandles(row) })),
+        },
+        {
+          blocks: Object.fromEntries(incomingBlocks.map((row) => [row.id, row])),
+          edges: incomingEdges,
+        }
+      )
+
       await tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId))
 
       await tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId))
 
-      if (blocks && Object.keys(blocks).length > 0) {
-        const blockValues = Object.values(blocks).map((block: any) => ({
-          id: block.id,
-          workflowId,
-          type: block.type,
-          name: block.name,
-          positionX: block.position.x,
-          positionY: block.position.y,
-          errorEnabled: block.errorEnabled ?? false,
-          retry: block.retry ?? null,
-          data: block.data || {},
-          subBlocks: block.subBlocks || {},
-          outputs: block.outputs || {},
-          enabled: block.enabled ?? true,
-          horizontalHandles: block.horizontalHandles ?? true,
-          advancedMode: block.advancedMode ?? false,
-          triggerMode: block.triggerMode ?? false,
-          height: block.height || 0,
-          locked: block.locked ?? false,
-        }))
-
+      const blockValues = Object.values(merged.blocks)
+      if (blockValues.length > 0) {
         await tx.insert(workflowBlocks).values(blockValues)
       }
 
-      if (edges && edges.length > 0) {
-        const canonicalEdges = (edges as Array<Record<string, unknown>>).map((edge) =>
-          canonicalizeEdgeAddCandidate({
-            id: edge.id as string,
-            source: edge.source as string,
-            target: edge.target as string,
-            sourceHandle: (edge.sourceHandle as string | null) ?? null,
-            targetHandle: (edge.targetHandle as string | null) ?? null,
-          })
-        )
+      if (merged.edges.length > 0) {
+        const canonicalEdges = merged.edges.map(canonicalizeEdgeAddCandidate)
         const uniqueEdges = filterUniqueWorkflowEdges(canonicalEdges, [])
         const edgeValues = uniqueEdges.map((edge) => ({
           id: edge.id,
@@ -2196,8 +2256,8 @@ async function handleWorkflowOperationTx(
           targetHandle: edge.targetHandle ?? null,
         }))
 
-        if (uniqueEdges.length < edges.length) {
-          logger.info(`Dropped ${edges.length - uniqueEdges.length} duplicate edge(s)`, {
+        if (uniqueEdges.length < merged.edges.length) {
+          logger.info(`Dropped ${merged.edges.length - uniqueEdges.length} duplicate edge(s)`, {
             operation: WORKFLOW_OPERATIONS.REPLACE_STATE,
           })
         }
@@ -2207,30 +2267,41 @@ async function handleWorkflowOperationTx(
         }
       }
 
-      if (loops && Object.keys(loops).length > 0) {
-        const loopValues = Object.entries(loops).map(([id, loop]: [string, any]) => ({
+      const incomingSubflows = [
+        ...Object.entries(loops || {}).map(([id, config]) => ({
           id,
           workflowId,
           type: 'loop',
-          config: loop,
-        }))
-
-        await tx.insert(workflowSubflows).values(loopValues)
-      }
-
-      if (parallels && Object.keys(parallels).length > 0) {
-        const parallelValues = Object.entries(parallels).map(([id, parallel]: [string, any]) => ({
+          config,
+        })),
+        ...Object.entries(parallels || {}).map(([id, config]) => ({
           id,
           workflowId,
           type: 'parallel',
-          config: parallel,
-        }))
-
-        await tx.insert(workflowSubflows).values(parallelValues)
+          config,
+        })),
+      ]
+      const subflowValues = Object.values({
+        ...Object.fromEntries(
+          incomingSubflows.filter(({ id }) => merged.blocks[id]).map((row) => [row.id, row])
+        ),
+        ...Object.fromEntries(
+          storedSubflows.filter(({ id }) => merged.keptBlockIds.has(id)).map((row) => [row.id, row])
+        ),
+      })
+      if (subflowValues.length > 0) {
+        await tx.insert(workflowSubflows).values(subflowValues)
       }
 
       logger.info(`Successfully replaced workflow state for ${workflowId}`)
-      break
+      // A graph holding locked blocks may have been kept over the payload; comparing the
+      // stored rows against it field by field is not worth the precision, so re-sync.
+      return (
+        storedBlocks.some((row) => row.locked) ||
+        Object.values((blocks || {}) as Record<string, { locked?: unknown }>).some(
+          (block) => block.locked
+        )
+      )
     }
 
     default:
