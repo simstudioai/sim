@@ -41,6 +41,7 @@ import { enqueueAdminRemovedChatCleanup } from '@/lib/auth/admin-removal-chat-cl
 import { holdAdminRemovalStops, stopAdminRemovedRuns } from '@/lib/auth/admin-removal-stops'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { stableExternalAccountId } from '@/lib/auth/connectors/account-id'
+import { getGoogleOAuthVerificationRefusal } from '@/lib/auth/connectors/google-verification'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import {
   applyRegistrationGate,
@@ -1006,6 +1007,26 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       try {
+        let grantProviderId: unknown
+        switch (ctx.path) {
+          case '/oauth2/link':
+          case '/sign-in/oauth2':
+            grantProviderId = ctx.body?.providerId
+            break
+          case '/link-social':
+          case '/sign-in/social':
+            grantProviderId = ctx.body?.provider
+            break
+          default:
+            if (ctx.path.startsWith('/oauth2/callback/') || ctx.path.startsWith('/callback/')) {
+              grantProviderId = ctx.params?.providerId ?? ctx.params?.id
+            }
+        }
+        if (grantProviderId) {
+          const refusal = await getGoogleOAuthVerificationRefusal(grantProviderId, ctx.body?.scopes)
+          if (refusal) throw new APIError('FORBIDDEN', { message: refusal })
+        }
+
         /** Refuse provider calls when user authentication is disabled without blocking connector OAuth. */
         if (
           ((ctx.path.startsWith('/oauth2/') &&
