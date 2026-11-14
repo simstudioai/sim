@@ -289,7 +289,9 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- range $key := list "BETTER_AUTH_SECRET" "ENCRYPTION_KEY" "INTERNAL_API_SECRET" "CRON_SECRET" "API_ENCRYPTION_KEY" }}
 {{- include "sim.rejectPlaceholderSecret" (list (printf "app.env.%s" $key) (index $.Values.app.env $key)) }}
 {{- end }}
+{{- if .Values.realtime.enabled }}
 {{- include "sim.rejectPlaceholderSecret" (list "realtime.env.BETTER_AUTH_SECRET" .Values.realtime.env.BETTER_AUTH_SECRET) }}
+{{- end }}
 {{- /* CRON_SECRET is required when cronjobs are enabled — pods reference it via secretKeyRef and would fail to start if the key is missing from the Secret. */ -}}
 {{- if and .Values.cronjobs.enabled (not .Values.app.env.CRON_SECRET) }}
 {{- fail "app.env.CRON_SECRET is required when cronjobs.enabled=true (every cron pod authenticates with this token). Generate one with: openssl rand -hex 32, or set cronjobs.enabled=false." }}
