@@ -148,6 +148,9 @@ describe('Mailchimp campaign and audience requests', () => {
     expect(
       bodyOf(mailchimpSetCampaignContentTool, { apiKey, campaignId: 'camp-1', templateId: '42' })
     ).toMatchObject({ template: { id: 42 } })
+    expect(() =>
+      bodyOf(mailchimpSetCampaignContentTool, { apiKey, campaignId: 'camp-1', templateId: 'abc' })
+    ).toThrow('templateId must be a positive integer')
   })
 
   it('sends a boolean email_type_option from an agent as true', () => {

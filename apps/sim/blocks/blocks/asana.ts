@@ -532,7 +532,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             .filter((gid) => gid.length > 0)
         }
         const toLimit = (value: unknown): number | undefined =>
-          value === undefined || value === null || value === '' ? undefined : Number(value)
+          value === undefined || value === null || String(value).trim() === ''
+            ? undefined
+            : Number(value)
         const projectsArray = splitGids(params.projects)
 
         // Only send a completion value when the user actually set the toggle; an

@@ -35,6 +35,11 @@ function validateId(value: string, name: string): void {
   }
 }
 
+/** True when a value was supplied, so an explicit 0 reaches validation instead of the default. */
+function hasValue<T>(value: T | null | undefined | ''): value is T {
+  return value !== undefined && value !== null && value !== ''
+}
+
 /** Asana accepts page sizes from 1 to 100; reject anything else before calling the API. */
 function pageLimit(value: string | number): string {
   const limit = Number(value)
@@ -306,7 +311,7 @@ export async function executeAsanaGetTask(input: AsanaGetTaskBody, signal?: Abor
     params.append('workspace', input.workspace)
     params.append('assignee', input.assignee)
   }
-  params.append('limit', input.limit ? pageLimit(input.limit) : '50')
+  params.append('limit', hasValue(input.limit) ? pageLimit(input.limit) : '50')
   if (input.offset) params.append('offset', input.offset)
   params.append('opt_fields', TASK_OPT_FIELDS)
   const result = await client.json(`/tasks?${params.toString()}`, { method: 'GET' }, signal)
@@ -371,7 +376,7 @@ export async function executeAsanaSearchTasks(input: AsanaSearchTasksBody, signa
   if (input.completed !== undefined) {
     params.append('completed', String(input.completed))
   }
-  if (input.limit) params.append('limit', pageLimit(input.limit))
+  if (hasValue(input.limit)) params.append('limit', pageLimit(input.limit))
   params.append('opt_fields', TASK_OPT_FIELDS)
   const result = await new AsanaClient(input.accessToken).json(
     `/workspaces/${input.workspace}/tasks/search?${params.toString()}`,

@@ -92,6 +92,12 @@ describe('Asana operations', () => {
     await expect(
       executeAsanaGetTask({ ...AUTH, project: 'project1', limit: '2.5' })
     ).rejects.toMatchObject({ status: 400 })
+    await expect(
+      executeAsanaGetTask({ ...AUTH, project: 'project1', limit: 0 })
+    ).rejects.toMatchObject({ status: 400 })
+    await expect(
+      executeAsanaSearchTasks({ ...AUTH, workspace: 'workspace1', limit: 0 })
+    ).rejects.toMatchObject({ status: 400 })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 

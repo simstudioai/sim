@@ -72,7 +72,8 @@ export const mailchimpUpdateAudienceTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Support multiple email formats: "true" or "false". Omit to leave it unchanged',
+      description:
+        'Whether the audience supports multiple email formats ("true" or "false"). Leave unset to keep the current setting',
     },
   },
 

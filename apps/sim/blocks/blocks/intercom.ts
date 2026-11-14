@@ -17,11 +17,12 @@ const EVENT_ACTOR_FIELD = ['event_email', 'event_user_id', 'event_contact_id'] a
 /** What an outbound message shows: its subject when set, otherwise its body. */
 const MESSAGE_PREVIEW_FIELD = ['subject', 'body'] as const
 
-/** Intercom requires `snoozed_until` as a whole Unix timestamp in seconds. */
+/** Intercom requires `snoozed_until` as a positive whole Unix timestamp in seconds. */
 function toSnoozeTimestamp(value: unknown): number {
-  const timestamp = Number(value)
-  if (!Number.isInteger(timestamp)) {
-    throw new Error('Snooze until must be a whole Unix timestamp in seconds')
+  const text = String(value).trim()
+  const timestamp = Number(text)
+  if (text === '' || !Number.isSafeInteger(timestamp) || timestamp <= 0) {
+    throw new Error('Snooze until must be a positive whole Unix timestamp in seconds')
   }
   return timestamp
 }
@@ -1469,7 +1470,9 @@ Return ONLY the numeric timestamp.`,
           if (ticket_is_shared !== undefined && ticket_is_shared !== '') {
             cleanParams.is_shared = ticket_is_shared === 'true'
           }
-          if (ticket_snoozed_until) cleanParams.snoozed_until = Number(ticket_snoozed_until)
+          if (ticket_snoozed_until) {
+            cleanParams.snoozed_until = toSnoozeTimestamp(ticket_snoozed_until)
+          }
           if (ticket_assignee_id) cleanParams.assignee_id = ticket_assignee_id
         }
 
@@ -1758,7 +1761,9 @@ export const IntercomV2Block: BlockConfig = {
           if (ticket_is_shared !== undefined && ticket_is_shared !== '') {
             cleanParams.is_shared = ticket_is_shared === 'true'
           }
-          if (ticket_snoozed_until) cleanParams.snoozed_until = Number(ticket_snoozed_until)
+          if (ticket_snoozed_until) {
+            cleanParams.snoozed_until = toSnoozeTimestamp(ticket_snoozed_until)
+          }
           if (ticket_assignee_id) cleanParams.assignee_id = ticket_assignee_id
         }
 

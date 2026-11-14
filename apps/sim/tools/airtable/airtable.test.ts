@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { airtableCreateRecordsTool } from '@/tools/airtable/create_records'
+import { airtableListRecordsTool } from '@/tools/airtable/list_records'
 import { airtableUpdateMultipleRecordsTool } from '@/tools/airtable/update_multiple_records'
 import { airtableUpdateRecordTool } from '@/tools/airtable/update_record'
 import { airtableUpsertRecordsTool } from '@/tools/airtable/upsert_records'
@@ -85,5 +86,19 @@ describe.each(requestCases)('Airtable $operation request body', ({ buildBody, bo
 
   it('includes typecast false at the request-body root', () => {
     expect(buildBody(false)).toEqual({ ...body, typecast: false })
+  })
+})
+
+describe('airtable_list_records page size', () => {
+  function listUrl(pageSize: number): URL {
+    const { url } = airtableListRecordsTool.request
+    if (typeof url !== 'function') throw new Error('list records url must be a builder')
+    return new URL(url({ accessToken: 't', baseId: 'app1', tableId: 'tbl1', pageSize }))
+  }
+
+  it('clamps the page size to the documented 1 to 100 range', () => {
+    expect(listUrl(500).searchParams.get('pageSize')).toBe('100')
+    expect(listUrl(2.7).searchParams.get('pageSize')).toBe('2')
+    expect(listUrl(-3).searchParams.get('pageSize')).toBe('1')
   })
 })
