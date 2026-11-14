@@ -132,6 +132,7 @@ function mailboxWithExpiredHistory(state: MailboxState) {
     return new Response('unexpected request', { status: 500 })
   })
   vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
 }
 
 function persistedHistoryIds() {
@@ -237,6 +238,28 @@ describe('gmailPollingHandler egress outage', () => {
     expect(mockProcessEvent).toHaveBeenCalledTimes(2)
     expect(mockMarkWebhookFailed).not.toHaveBeenCalled()
     expect(mockUpdateConfig).not.toHaveBeenCalled()
+  })
+
+  it('delivers a message once even when marking it read hits an outage', async () => {
+    mockResolveOAuthCredential.mockResolvedValue('access-token')
+    mockProcessEvent.mockResolvedValue({ success: true })
+    const fetchMock = mailboxWithExpiredHistory({
+      profileHistoryId: '40100',
+      inboxMessages: [{ id: 'm-new', historyId: '40050' }],
+    })
+    const mailbox = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = new URL(typeof input === 'string' ? input : input.toString())
+      if (url.pathname.endsWith('/modify')) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+      return mailbox ? mailbox(input) : jsonResponse({})
+    })
+
+    await expect(gmailPollingHandler.pollWebhook(context({ markAsRead: true }))).resolves.toBe(
+      'success'
+    )
+
+    expect(mockProcessEvent).toHaveBeenCalledTimes(1)
+    expect(mockUpdateConfig).toHaveBeenCalled()
   })
 
   it('keeps the history cursor when the route drops while fetching message details', async () => {

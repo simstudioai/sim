@@ -581,6 +581,10 @@ async function processEmails(
   return { processedCount, failedCount }
 }
 
+/**
+ * Best effort, like Outlook's: the email's workflow has already been queued, so a failure here is
+ * logged rather than thrown. Throwing would drop the email's duplicate check and run it again.
+ */
 async function markEmailAsRead(accessToken: string, messageId: string, logger: Logger) {
   const modifyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`
 
@@ -602,6 +606,5 @@ async function markEmailAsRead(accessToken: string, messageId: string, logger: L
     }
   } catch (error) {
     logger.error(`Error marking email ${messageId} as read:`, error)
-    throw error
   }
 }
