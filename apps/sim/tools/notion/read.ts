@@ -1,4 +1,4 @@
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { parseRetryAfter } from '@sim/utils/retry'
 import type { NotionReadParams, NotionResponse } from '@/tools/notion/types'
@@ -13,7 +13,7 @@ import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 /** Children pages fetched per read: 10 pages of 100 top-level blocks. */
 const MAX_BLOCK_CHILDREN_PAGES = NOTION_READ_MAX_BLOCK_PAGES
 
-/** Retries for a rate-limited (429) continuation page before the read fails. */
+/** Retries for a rate-limited (429) page of block children before giving up on it. */
 const MAX_RATE_LIMIT_RETRIES = 2
 
 interface PageBlocks {
@@ -51,12 +51,8 @@ async function fetchPageBlocks(
         signal,
       })
     let response = await request()
-    for (
-      let attempt = 0;
-      page > 0 && response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES;
-      attempt++
-    ) {
-      await sleep(parseRetryAfter(response.headers.get('retry-after')) ?? 1000)
+    for (let attempt = 0; response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES; attempt++) {
+      await interruptibleSleep(parseRetryAfter(response.headers.get('retry-after')) ?? 1000, signal)
       signal?.throwIfAborted()
       response = await request()
     }
