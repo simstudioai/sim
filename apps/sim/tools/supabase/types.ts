@@ -86,8 +86,16 @@ export const STORAGE_UPLOAD_OUTPUT_PROPERTIES = {
  */
 export const STORAGE_MOVE_OUTPUT_PROPERTIES = {
   message: { type: 'string', description: 'Operation status message' },
-  Id: { type: 'string', description: 'Identifier of the destination object', optional: true },
-  Key: { type: 'string', description: 'Full object key of the destination', optional: true },
+  Id: {
+    type: 'string',
+    description: 'Not returned by the move endpoint, which responds with only a message',
+    optional: true,
+  },
+  Key: {
+    type: 'string',
+    description: 'Not returned by the move endpoint, which responds with only a message',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 /**

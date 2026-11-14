@@ -72,13 +72,16 @@ export const boxListFolderItemsTool: ToolConfig<BoxListFolderItemsParams, BoxFol
         const queryParams = new URLSearchParams()
         queryParams.set('fields', BOX_FOLDER_ITEM_FIELDS)
         if (params.limit !== undefined) queryParams.set('limit', String(params.limit))
-        if (params.usemarker || params.marker) {
+        const markerPaging = Boolean(params.usemarker || params.marker)
+        if (markerPaging) {
           queryParams.set('usemarker', 'true')
           if (params.marker) queryParams.set('marker', params.marker)
         } else if (params.offset !== undefined) {
           queryParams.set('offset', String(params.offset))
         }
-        if (params.sort) queryParams.set('sort', params.sort)
+        /** Box rejects `sort` with marker pagination on the root folder (id `0`). */
+        const rootWithMarker = markerPaging && String(params.folderId).trim() === '0'
+        if (params.sort && !rootWithMarker) queryParams.set('sort', params.sort)
         if (params.direction) queryParams.set('direction', params.direction)
         return `https://api.box.com/2.0/folders/${safeUrlPathSegment(params.folderId, 'folderId')}/items?${queryParams.toString()}`
       },

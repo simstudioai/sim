@@ -519,7 +519,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         }
       },
       params: (params, context) => {
-        const { oauthCredential, operation } = params
+        const { oauthCredential } = params
+        /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
+        const operation = params.operation ?? context?.operation
 
         const splitGids = (value: unknown): string[] | undefined => {
           if (Array.isArray(value)) return value.map(String)

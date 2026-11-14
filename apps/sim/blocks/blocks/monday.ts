@@ -525,7 +525,9 @@ export const MondayBlock: BlockConfig = {
         const baseParams: Record<string, unknown> = {
           oauthCredential: params.oauthCredential,
         }
-        const op = typeof params.operation === 'string' ? params.operation.trim() : 'list_boards'
+        /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
+        const rawOperation = params.operation ?? context?.operation
+        const op = typeof rawOperation === 'string' ? rawOperation.trim() : 'list_boards'
 
         switch (op) {
           case 'list_boards':
@@ -550,7 +552,7 @@ export const MondayBlock: BlockConfig = {
             return {
               ...baseParams,
               boardId: params.boardId,
-              columns: params.searchColumns,
+              columns: params.searchColumns || toolCallArg(context, params.columns),
               limit: params.limit ? Number(params.limit) : undefined,
               cursor: params.cursor || undefined,
             }
@@ -575,7 +577,7 @@ export const MondayBlock: BlockConfig = {
               boardId: params.boardId,
               itemId: params.itemId,
               columnId: params.columnId,
-              value: params.columnValue,
+              value: params.columnValue || toolCallArg(context, params.value),
               createLabelsIfMissing: Boolean(params.createLabelsIfMissing),
             }
           case 'duplicate_item':
@@ -590,7 +592,8 @@ export const MondayBlock: BlockConfig = {
               ...baseParams,
               boardName: params.boardName,
               boardKind: params.boardKind || 'public',
-              description: params.boardDescription || undefined,
+              description:
+                params.boardDescription || toolCallArg(context, params.description) || undefined,
               workspaceId: params.workspaceId || undefined,
               folderId: params.folderId || undefined,
             }
@@ -626,7 +629,7 @@ export const MondayBlock: BlockConfig = {
             return {
               ...baseParams,
               itemId: params.itemId,
-              body: params.updateBody,
+              body: params.updateBody || toolCallArg(context, params.body),
             }
           case 'create_group':
             return {

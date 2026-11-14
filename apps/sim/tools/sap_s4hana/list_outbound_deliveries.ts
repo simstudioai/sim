@@ -77,7 +77,7 @@ export const listOutboundDeliveriesTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'OData $filter expression (e.g., "OverallDeliveryStatus eq \'C\'")',
+      description: 'OData $filter expression (e.g., "OverallGoodsMovementStatus eq \'C\'")',
     },
     top: {
       type: 'number',

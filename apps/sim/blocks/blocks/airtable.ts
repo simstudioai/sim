@@ -428,6 +428,8 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
           basesOffset,
           ...rest
         } = params
+        /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
+        const operation = params.operation ?? context?.operation
         let parsedRecords: unknown
         let parsedFields: unknown
         let parsedFieldsToMergeOn: unknown
@@ -440,24 +442,22 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
         try {
           if (
             records &&
-            (params.operation === 'create' ||
-              params.operation === 'updateMultiple' ||
-              params.operation === 'upsert')
+            (operation === 'create' || operation === 'updateMultiple' || operation === 'upsert')
           ) {
             parsedRecords = parseJsonInput(records)
           }
-          if (fields && params.operation === 'update') {
+          if (fields && operation === 'update') {
             parsedFields = parseJsonInput(fields)
           }
-          if (fieldsToMergeOn && params.operation === 'upsert') {
+          if (fieldsToMergeOn && operation === 'upsert') {
             parsedFieldsToMergeOn = parseJsonInput(fieldsToMergeOn)
           }
-          if (recordIds && params.operation === 'delete') {
+          if (recordIds && operation === 'delete') {
             parsedRecordIds = parseJsonInput(recordIds)
           }
         } catch (error) {
           throw new Error(
-            `Invalid JSON input for ${params.operation} operation: ${getErrorMessage(error)}`
+            `Invalid JSON input for ${operation} operation: ${getErrorMessage(error)}`
           )
         }
 
@@ -469,7 +469,7 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
         const typecastParams =
           typecast != null ? { typecast: typecast === true || typecast === 'true' } : {}
 
-        switch (params.operation) {
+        switch (operation) {
           case 'list':
             return {
               ...baseParams,

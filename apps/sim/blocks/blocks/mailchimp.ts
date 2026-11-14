@@ -1545,7 +1545,8 @@ Return ONLY the landing page title - no explanations.`,
       type: 'dropdown',
       options: [
         { label: 'Signup', id: 'signup' },
-        { label: 'Click Through', id: 'click-through' },
+        { label: 'Product', id: 'product' },
+        { label: 'Click Through (legacy)', id: 'click-through' },
       ],
       required: {
         field: 'operation',

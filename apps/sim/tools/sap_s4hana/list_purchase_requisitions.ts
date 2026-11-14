@@ -142,7 +142,7 @@ export const listPurchaseRequisitionsTool: InternalToolConfig<
             optional: true,
           },
           SourceDetermination: {
-            type: 'string',
+            type: 'boolean',
             description: 'Source-of-supply determination flag',
             optional: true,
           },

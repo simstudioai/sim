@@ -39,7 +39,8 @@ export const mailchimpCreateLandingPageTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The type of landing page: "signup"',
+      description:
+        'The type of landing page: "signup" or "product" ("click-through" is kept for saved workflows but is not in the current API)',
     },
     landingPageTitle: {
       type: 'string',

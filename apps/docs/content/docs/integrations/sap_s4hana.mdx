@@ -435,7 +435,7 @@ List suppliers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier) with op
 |   ↳ `InternationalLocationNumber1` | string | International location number, part 1 |
 |   ↳ `InternationalLocationNumber2` | string | International location number, part 2 |
 |   ↳ `InternationalLocationNumber3` | string | International location number, part 3 |
-|   ↳ `IsNaturalPerson` | boolean | Indicates whether the supplier is a natural person |
+|   ↳ `IsNaturalPerson` | string | Indicates whether the supplier is a natural person |
 |   ↳ `PaymentIsBlockedForSupplier` | boolean | Payment block flag |
 |   ↳ `PostingIsBlocked` | boolean | Posting block flag |
 |   ↳ `PurchasingIsBlocked` | boolean | Purchasing block flag |
@@ -504,7 +504,7 @@ Retrieve a single supplier by Supplier key from SAP S/4HANA Cloud (API_BUSINESS_
 |   ↳ `InternationalLocationNumber1` | string | International location number, part 1 |
 |   ↳ `InternationalLocationNumber2` | string | International location number, part 2 |
 |   ↳ `InternationalLocationNumber3` | string | International location number, part 3 |
-|   ↳ `IsNaturalPerson` | boolean | Indicates whether the supplier is a natural person |
+|   ↳ `IsNaturalPerson` | string | Indicates whether the supplier is a natural person |
 |   ↳ `PaymentIsBlockedForSupplier` | boolean | Payment block flag |
 |   ↳ `PostingIsBlocked` | boolean | Posting block flag |
 |   ↳ `PurchasingIsBlocked` | boolean | Purchasing block flag |
@@ -811,7 +811,7 @@ List outbound deliveries from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=000
 | `tokenUrl` | string | No | OAuth token URL \(Cloud Private / On-Premise + OAuth\) |
 | `username` | string | No | Username for HTTP Basic auth |
 | `password` | string | No | Password for HTTP Basic auth |
-| `filter` | string | No | OData $filter expression \(e.g., "OverallDeliveryStatus eq 'C'"\) |
+| `filter` | string | No | OData $filter expression \(e.g., "OverallGoodsMovementStatus eq 'C'"\) |
 | `top` | number | No | Maximum results to return \($top\) |
 | `skip` | number | No | Number of results to skip \($skip\) |
 | `orderBy` | string | No | OData $orderby expression |
@@ -1366,7 +1366,7 @@ List material document headers (goods movements) from SAP S/4HANA Cloud (API_MAT
 |   ↳ `CreationDate` | string | Creation date \(OData /Date\(...\)/ string\) |
 |   ↳ `CreationTime` | string | Creation time \(OData PT...S string\) |
 |   ↳ `VersionForPrintingSlip` | string | Version for printing the goods movement slip |
-|   ↳ `ManualPrintIsTriggered` | boolean | Indicates whether manual print was triggered for this document |
+|   ↳ `ManualPrintIsTriggered` | string | Indicates whether manual print was triggered for this document |
 |   ↳ `CtrlPostgForExtWhseMgmtSyst` | string | Control posting for external warehouse management system |
 |   ↳ `to_MaterialDocumentItem` | json | Material document items \(only present when $expand=to_MaterialDocumentItem is supplied\) |
 
@@ -1415,7 +1415,7 @@ Retrieve a single material document header by composite key (MaterialDocument + 
 |   ↳ `CreationDate` | string | Creation date \(OData /Date\(...\)/ string\) |
 |   ↳ `CreationTime` | string | Creation time \(OData PT...S string\) |
 |   ↳ `VersionForPrintingSlip` | string | Version for printing the goods movement slip |
-|   ↳ `ManualPrintIsTriggered` | boolean | Indicates whether manual print was triggered for this document |
+|   ↳ `ManualPrintIsTriggered` | string | Indicates whether manual print was triggered for this document |
 |   ↳ `CtrlPostgForExtWhseMgmtSyst` | string | Control posting for external warehouse management system |
 |   ↳ `to_MaterialDocumentItem` | json | Material document items \(only present when $expand=to_MaterialDocumentItem is supplied\) |
 
@@ -1457,7 +1457,7 @@ List purchase requisitions from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, 
 |   ↳ `PurchaseRequisition` | string | Purchase requisition number |
 |   ↳ `PurchaseRequisitionType` | string | Purchase requisition document type \(e.g., NB\) |
 |   ↳ `PurReqnDescription` | string | Purchase requisition description |
-|   ↳ `SourceDetermination` | string | Source-of-supply determination flag |
+|   ↳ `SourceDetermination` | boolean | Source-of-supply determination flag |
 
 </ReferenceDetails>
 
@@ -1494,7 +1494,7 @@ Retrieve a single purchase requisition by PurchaseRequisition key from SAP S/4HA
 |   ↳ `PurchaseRequisition` | string | Purchase requisition number |
 |   ↳ `PurchaseRequisitionType` | string | PR document type \(e.g., NB\) |
 |   ↳ `PurReqnDescription` | string | Purchase requisition description |
-|   ↳ `SourceDetermination` | string | Source-of-supply determination flag |
+|   ↳ `SourceDetermination` | boolean | Source-of-supply determination flag |
 |   ↳ `to_PurchaseReqnItem` | json | Expanded PR items \(when $expand=to_PurchaseReqnItem\) |
 
 </ReferenceDetails>
@@ -1532,7 +1532,7 @@ Create a purchase requisition in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV,
 |   ↳ `PurchaseRequisition` | string | Auto-assigned purchase requisition number |
 |   ↳ `PurchaseRequisitionType` | string | PR document type \(e.g., NB\) |
 |   ↳ `PurReqnDescription` | string | Purchase requisition description |
-|   ↳ `SourceDetermination` | string | Source-of-supply determination flag |
+|   ↳ `SourceDetermination` | boolean | Source-of-supply determination flag |
 |   ↳ `to_PurchaseReqnItem` | json | Created PR items returned in deep insert |
 
 </ReferenceDetails>
@@ -1570,7 +1570,7 @@ Update fields on an A_PurchaseRequisitionHeader entity in SAP S/4HANA Cloud (API
 |   ↳ `PurchaseRequisition` | string | Purchase requisition number |
 |   ↳ `PurchaseRequisitionType` | string | PR document type |
 |   ↳ `PurReqnDescription` | string | Purchase requisition description |
-|   ↳ `SourceDetermination` | string | Source-of-supply determination flag |
+|   ↳ `SourceDetermination` | boolean | Source-of-supply determination flag |
 
 </ReferenceDetails>
 

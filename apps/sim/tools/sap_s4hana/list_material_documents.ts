@@ -168,7 +168,7 @@ export const listMaterialDocumentsTool: InternalToolConfig<
             optional: true,
           },
           ManualPrintIsTriggered: {
-            type: 'boolean',
+            type: 'string',
             description: 'Indicates whether manual print was triggered for this document',
             optional: true,
           },

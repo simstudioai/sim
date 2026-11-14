@@ -82,7 +82,7 @@ export const mailchimpSetCampaignContentTool: ToolConfig<
 
       if (params.html) body.html = params.html
       if (params.plainText) body.plain_text = params.plainText
-      if (params.templateId) body.template = { id: params.templateId }
+      if (params.templateId) body.template = { id: Number(params.templateId) }
 
       return body
     },

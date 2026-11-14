@@ -7,6 +7,7 @@ import type {
   ServiceNowRecord,
   ServiceNowWriteOptions,
 } from '@/tools/servicenow/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Creates a Basic Authentication header from username and password
@@ -147,7 +148,10 @@ export function buildTableRecordUrl(
 
   const searchParams = new URLSearchParams()
   appendWriteParams(searchParams, { ...params, defaultDisplayValue: DEFAULT_DISPLAY_VALUE })
-  return withQueryString(`${baseUrl}/api/now/table/${tableName}/${sysId}`, searchParams)
+  return withQueryString(
+    `${baseUrl}/api/now/table/${safeUrlPathSegment(tableName, 'tableName')}/${safeUrlPathSegment(sysId, 'sysId')}`,
+    searchParams
+  )
 }
 
 /**

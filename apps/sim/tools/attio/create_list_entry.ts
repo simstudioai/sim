@@ -68,7 +68,7 @@ export const attioCreateListEntryTool: ToolConfig<
               ? JSON.parse(params.entryValues)
               : params.entryValues
         } catch {
-          entryValues = {}
+          throw new Error('Invalid JSON provided for entry values')
         }
       }
       const data: Record<string, unknown> = {

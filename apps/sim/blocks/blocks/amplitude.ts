@@ -940,6 +940,7 @@ export const AmplitudeBlock: BlockConfig = {
         { label: 'N-Day', id: 'n-day' },
         { label: 'Rolling', id: 'rolling' },
         { label: 'Bracket', id: 'bracket' },
+        { label: 'N-Day or Before', id: 'nday_or_before' },
       ],
       value: () => 'n-day',
       condition: { field: 'operation', value: 'retention' },
@@ -949,7 +950,7 @@ export const AmplitudeBlock: BlockConfig = {
       id: 'retentionBrackets',
       title: 'Retention Brackets',
       type: 'short-input',
-      placeholder: '[[0,4]] — required when Retention Mode is Bracket',
+      placeholder: '[[0,5]] (end day exclusive) — required when Retention Mode is Bracket',
       condition: {
         field: 'operation',
         value: 'retention',

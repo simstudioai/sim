@@ -177,7 +177,7 @@ export const getSupplierTool: InternalToolConfig<GetSupplierParams, SapS4HanaRes
           optional: true,
         },
         IsNaturalPerson: {
-          type: 'boolean',
+          type: 'string',
           description: 'Indicates whether the supplier is a natural person',
           optional: true,
         },

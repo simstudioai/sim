@@ -91,7 +91,7 @@ export const hubspotAddListMembershipsTool: ToolConfig<
     return {
       success: true,
       output: {
-        recordIdsAdded: data.recordIdsAdded ?? [],
+        recordIdsAdded: data.recordsIdsAdded ?? data.recordIdsAdded ?? [],
         recordIdsMissing: data.recordIdsMissing ?? [],
         success: true,
       },

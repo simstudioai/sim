@@ -64,7 +64,7 @@ export const boxUpdateFileTool: ToolConfig<BoxUpdateFileParams, BoxFileInfoRespo
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.name) body.name = params.name
-      if (params.description !== undefined) body.description = params.description
+      if (typeof params.description === 'string') body.description = params.description
       if (params.parentFolderId) body.parent = { id: params.parentFolderId.trim() }
       if (params.tags)
         body.tags = params.tags

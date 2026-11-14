@@ -13,7 +13,7 @@ export interface MailchimpUpdateAudienceParams {
   audienceName?: string
   permissionReminder?: string
   campaignDefaults?: string
-  emailTypeOption?: string
+  emailTypeOption?: string | boolean
 }
 
 export interface MailchimpUpdateAudienceResponse {
@@ -72,7 +72,7 @@ export const mailchimpUpdateAudienceTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Support multiple email formats: "true" or "false"',
+      description: 'Support multiple email formats: "true" or "false". Omit to leave it unchanged',
     },
   },
 
@@ -89,8 +89,8 @@ export const mailchimpUpdateAudienceTool: ToolConfig<
 
       if (params.audienceName) body.name = params.audienceName
       if (params.permissionReminder) body.permission_reminder = params.permissionReminder
-      if (params.emailTypeOption !== undefined)
-        body.email_type_option = params.emailTypeOption === 'true'
+      if (params.emailTypeOption !== undefined && params.emailTypeOption !== '')
+        body.email_type_option = String(params.emailTypeOption) === 'true'
 
       if (params.campaignDefaults) {
         try {
