@@ -43,7 +43,7 @@ export const terminateWorkerTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Worker ID to terminate',
+      description: 'Employee ID of the worker to terminate',
     },
     terminationDate: {
       type: 'string',

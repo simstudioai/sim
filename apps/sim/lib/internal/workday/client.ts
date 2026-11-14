@@ -60,24 +60,19 @@ interface WorkdayWorkerDataSoap {
   Organization_Data?: Record<string, unknown>
 }
 
+/**
+ * `Worker_Compensation_Data` children returned by Get_Workers with `Include_Compensation`.
+ * Element names come from the Human_Resources WSDL (`Worker_Compensation_DataType`).
+ */
 export interface WorkdayCompensationDataSoap {
-  Employee_Base_Pay_Plan_Assignment_Data?:
-    | WorkdayCompensationPlanSoap
-    | WorkdayCompensationPlanSoap[]
-  Employee_Salary_Unit_Plan_Assignment_Data?:
-    | WorkdayCompensationPlanSoap
-    | WorkdayCompensationPlanSoap[]
-  Employee_Bonus_Plan_Assignment_Data?: WorkdayCompensationPlanSoap | WorkdayCompensationPlanSoap[]
-  Employee_Allowance_Plan_Assignment_Data?:
-    | WorkdayCompensationPlanSoap
-    | WorkdayCompensationPlanSoap[]
-  Employee_Commission_Plan_Assignment_Data?:
-    | WorkdayCompensationPlanSoap
-    | WorkdayCompensationPlanSoap[]
-  Employee_Stock_Plan_Assignment_Data?: WorkdayCompensationPlanSoap | WorkdayCompensationPlanSoap[]
-  Employee_Period_Salary_Plan_Assignment_Data?:
-    | WorkdayCompensationPlanSoap
-    | WorkdayCompensationPlanSoap[]
+  Salary_and_Hourly_Data?: WorkdayCompensationPlanSoap | WorkdayCompensationPlanSoap[]
+  Unit_Salary_Plan_Data?: WorkdayCompensationPlanSoap | WorkdayCompensationPlanSoap[]
+  Allowance_Plan_Data?: WorkdayCompensationPlanSoap | WorkdayCompensationPlanSoap[]
+  Unit_Allowance_Plan_Data?: WorkdayCompensationPlanSoap | WorkdayCompensationPlanSoap[]
+  Bonus_Plan_Data?: WorkdayCompensationPlanSoap | WorkdayCompensationPlanSoap[]
+  Commission_Plan_Data?: WorkdayCompensationPlanSoap | WorkdayCompensationPlanSoap[]
+  Stock_Plan_Data?: WorkdayCompensationPlanSoap | WorkdayCompensationPlanSoap[]
+  Period_Salary_Plan_Data?: WorkdayCompensationPlanSoap | WorkdayCompensationPlanSoap[]
 }
 
 export interface WorkdayCompensationPlanSoap {
@@ -85,6 +80,7 @@ export interface WorkdayCompensationPlanSoap {
   Amount?: number | string
   Per_Unit_Amount?: number | string
   Individual_Target_Amount?: number | string
+  Target_Amount?: number | string
   Currency_Reference?: WorkdayReference
   Frequency_Reference?: WorkdayReference
 }
@@ -94,11 +90,11 @@ export interface WorkdayCompensationPlanSoap {
  */
 export interface WorkdayOrganizationSoap {
   Organization_Reference?: WorkdayReference
-  Organization_Descriptor?: string
   Organization_Data?: WorkdayOrganizationDataSoap
 }
 
 interface WorkdayOrganizationDataSoap {
+  Name?: string
   Organization_Type_Reference?: WorkdayReference
   Organization_Subtype_Reference?: WorkdayReference
   Inactive?: boolean | string
@@ -158,6 +154,15 @@ const WD_OPERATIONS = [
 ] as const
 
 type WorkdayOperation = (typeof WD_OPERATIONS)[number]
+
+/**
+ * Business-process operations whose WSDL response element is `<Operation>_Event_Response`
+ * instead of `<Operation>_Response`.
+ */
+const EVENT_RESPONSE_OPERATIONS: ReadonlySet<WorkdayOperation> = new Set([
+  'Hire_Employee',
+  'Terminate_Employee',
+])
 
 type SoapOperationFn = (
   args: Record<string, unknown>
@@ -601,7 +606,10 @@ async function callOperation(
     throw new Error(`Workday SOAP request failed (HTTP ${response.status})`)
   }
 
-  const responseElement = findFirst(root, `${operation}_Response`)
+  const responseElementName = EVENT_RESPONSE_OPERATIONS.has(operation)
+    ? `${operation}_Event_Response`
+    : `${operation}_Response`
+  const responseElement = findFirst(root, responseElementName)
   const value = (responseElement ? nodeToValue(responseElement) : {}) as WorkdaySoapResult
 
   return [value, responseText, {}, envelope]

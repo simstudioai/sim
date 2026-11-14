@@ -42,7 +42,7 @@ export const getCompensationTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Worker ID to retrieve compensation data for',
+      description: 'Employee ID of the worker to retrieve compensation data for',
     },
   },
 

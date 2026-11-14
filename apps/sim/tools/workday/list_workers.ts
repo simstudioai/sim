@@ -39,7 +39,7 @@ export const listWorkersTool: InternalToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of workers to return (default: 20)',
+      description: 'Maximum number of workers to return, 1-999 (default: 20)',
     },
     offset: {
       type: 'number',
