@@ -1072,7 +1072,7 @@ export interface CatalogObjectResponse extends ToolResponse {
  * Pairs a client-supplied `#` temporary ID with the permanent ID Square assigned.
  * @see https://developer.squareup.com/reference/square/objects/CatalogIdMapping
  */
-export interface CatalogIdMapping {
+interface CatalogIdMapping {
   client_object_id?: string
   object_id?: string
 }
