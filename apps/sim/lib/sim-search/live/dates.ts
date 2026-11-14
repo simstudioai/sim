@@ -48,7 +48,10 @@ export function withImpliedListingBound(
 }
 
 /** Native bounds may be widened for provider precision; returned metadata is checked exactly. */
-export function nativeDateBounds(input: NativeSearchInput): { start?: string; end?: string } {
+export function nativeDateBounds(input: Pick<NativeSearchInput, 'filters'>): {
+  start?: string
+  end?: string
+} {
   const filters = input.filters
   const start = [filters?.startDate, filters?.modifiedAfter]
     .filter((value): value is string => Boolean(value))

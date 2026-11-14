@@ -1,3 +1,4 @@
+import { recordSearchProviderSignal } from '@/lib/knowledge/search/diagnostics'
 import { dateSortDirection, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
 import { joinMessages } from '@/lib/sim-search/live/pages'
@@ -102,13 +103,21 @@ async function channelFilterNote(
       if (input.signal?.aborted) throw error
       return undefined
     })
-  if (!data) return undefined
+  if (!data) {
+    recordSearchProviderSignal('slack.channel_lookup_failed')
+    return undefined
+  }
   const channels = searchableChannels(data, input)
   const named = channels.find((channel) => channel.name.toLowerCase() === name)
-  if (named)
+  if (named) {
+    recordSearchProviderSignal('slack.channel_filter_exists')
     return `${channelLabel(named)} exists; none of its messages matched this query and date window.`
+  }
   /** A lookup with another page has not ruled the name out, so it only names what it found. */
   const complete = !string(object(data.response_metadata).next_cursor)
+  recordSearchProviderSignal(
+    complete ? 'slack.channel_filter_missing' : 'slack.channel_filter_unresolved'
+  )
   const similar = channels.slice(0, MAX_LISTED_CHANNELS).map(channelLabel).join(', ')
   return joinMessages([
     complete ? `No channel named #${name} can be searched here.` : '',
@@ -301,6 +310,7 @@ async function searchSlackPage(
     })
   }
   const listed = listChannels ? searchableChannels(data, input).slice(0, MAX_LISTED_CHANNELS) : []
+  if (listed.length) recordSearchProviderSignal('slack.channels_listed', listed.length)
   const nextCursor = string(object(data.response_metadata).next_cursor) || undefined
   /** Only a search with no result on any page can say what its channel filter matched. */
   const filtered =
