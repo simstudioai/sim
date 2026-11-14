@@ -62,6 +62,16 @@ export const internalSessionAuth = {
   },
 } as const
 
+/** The session principal when the request is signed in, otherwise `null`, for routes that also serve anonymous callers. */
+export async function authenticateOptionalInternalSession(): Promise<SessionPrincipal | null> {
+  try {
+    return await internalSessionAuth.authenticate()
+  } catch (error) {
+    if (error instanceof InternalUnauthenticatedError) return null
+    throw error
+  }
+}
+
 interface InternalSessionOrExecutorAuthOptions {
   audience: string
   resourceScope?(

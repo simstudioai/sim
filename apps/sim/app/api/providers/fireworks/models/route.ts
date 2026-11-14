@@ -1,35 +1,13 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import {
-  fireworksProviderModelsQuerySchema,
-  fireworksUpstreamResponseSchema,
-  providerModelsResponseSchema,
-} from '@/lib/api/contracts/providers'
+import { fireworksProviderModelsQuerySchema } from '@/lib/api/contracts/providers'
 import { validationErrorResponse } from '@/lib/api/server'
-import { getBYOKKey } from '@/lib/api-key/byok'
-import { getSession } from '@/lib/auth'
-import { env } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/env-flags'
-import { fetchForWorkspace } from '@/lib/core/network/resource-scope.server'
+import { authenticateOptionalInternalSession } from '@/lib/api/server/routes'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
+import { listProviderModels } from '@/lib/provider-models/application/list-models'
+import { isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('FireworksModelsAPI')
-const MODELS_URL = 'https://api.fireworks.ai/inference/v1/models'
-
-interface FireworksModel {
-  id: string
-  object?: string
-  created?: number
-  owned_by?: string
-}
-
-interface FireworksModelsResponse {
-  data: FireworksModel[]
-  object?: string
-}
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   if (isProviderBlacklisted('fireworks')) {
@@ -37,83 +15,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ models: [] })
   }
 
-  let apiKey: string | undefined
-  let authorizedWorkspaceId: string | undefined
-
   const queryValidation = fireworksProviderModelsQuerySchema.safeParse({
     workspaceId: request.nextUrl.searchParams.get('workspaceId') ?? undefined,
   })
   if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
   const { workspaceId } = queryValidation.data
-  if (workspaceId) {
-    const session = await getSession()
-    if (session?.user?.id) {
-      const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-      if (permission) {
-        authorizedWorkspaceId = workspaceId
-        const byokResult = await getBYOKKey(workspaceId, 'fireworks')
-        if (byokResult) {
-          apiKey = byokResult.apiKey
-        }
-      }
-    }
-  }
 
-  /**
-   * On hosted Sim the platform key is the sim-auto pool's inference key, not a
-   * workspace credential: enumerating the whole Fireworks catalog from it would
-   * offer every serverless model as selectable when no key can actually run it
-   * (`getApiKeyWithBYOK` serves the platform key to catalog models only).
-   */
-  if (!apiKey && !isHosted) {
-    apiKey = env.FIREWORKS_API_KEY
-  }
-
-  if (!apiKey) {
-    logger.info('No Fireworks API key available, returning empty models')
-    return NextResponse.json({ models: [] })
-  }
-
-  try {
-    const init: RequestInit = {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      cache: 'no-store',
-    }
-    const response = await fetchForWorkspace(authorizedWorkspaceId, MODELS_URL, init)
-
-    if (!response.ok) {
-      logger.warn('Failed to fetch Fireworks models', {
-        status: response.status,
-        statusText: response.statusText,
-      })
-      return NextResponse.json({ models: [] })
-    }
-
-    const data: FireworksModelsResponse = fireworksUpstreamResponseSchema.parse(
-      await response.json()
-    )
-
-    const allModels: string[] = []
-    for (const model of data.data ?? []) {
-      allModels.push(`fireworks/${model.id}`)
-    }
-
-    const uniqueModels = Array.from(new Set(allModels))
-    const models = filterBlacklistedModels(uniqueModels)
-
-    logger.info('Successfully fetched Fireworks models', {
-      count: models.length,
-      filtered: uniqueModels.length - models.length,
-    })
-
-    return NextResponse.json(providerModelsResponseSchema.parse({ models }))
-  } catch (error) {
-    logger.error('Error fetching Fireworks models', {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
-    return NextResponse.json({ models: [] })
-  }
+  const principal = workspaceId ? await authenticateOptionalInternalSession() : null
+  const models = await listProviderModels('fireworks', { principal, workspaceId })
+  return NextResponse.json({ models })
 })
