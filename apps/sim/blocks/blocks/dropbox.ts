@@ -176,7 +176,7 @@ export const DropboxBlock = {
       placeholder: '/ (root) or /folder',
       condition: { field: 'operation', value: 'dropbox_list_folder' },
       required: (values) =>
-        values?.listFolderCursor
+        String(values?.listFolderCursor ?? '').trim()
           ? { field: 'operation', value: [] }
           : { field: 'operation', value: 'dropbox_list_folder' },
     },
@@ -336,7 +336,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'Enter search term...',
       condition: { field: 'operation', value: 'dropbox_search' },
       required: (values) =>
-        values?.searchCursor
+        String(values?.searchCursor ?? '').trim()
           ? { field: 'operation', value: [] }
           : { field: 'operation', value: 'dropbox_search' },
     },

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { MailchimpBlock } from '@/blocks/blocks/mailchimp'
 import { mailchimpAddMemberTagsTool } from '@/tools/mailchimp/add_member_tags'
 import { mailchimpArchiveMemberTool } from '@/tools/mailchimp/archive_member'
 import { mailchimpCreateBatchOperationTool } from '@/tools/mailchimp/create_batch_operation'
@@ -169,5 +170,21 @@ describe('Mailchimp campaign and audience requests', () => {
       emailTypeOption: true,
     })
     expect(body).toMatchObject({ email_type_option: true })
+  })
+})
+
+describe('Mailchimp email type option defaults', () => {
+  const field = MailchimpBlock.subBlocks.find((subBlock) => subBlock.id === 'emailTypeOption')
+
+  it('defaults to Keep current on update and true otherwise', () => {
+    if (!field?.value) throw new Error('emailTypeOption has no default')
+    expect(field.value({ operation: 'update_audience' })).toBe('')
+    expect(field.value({ operation: 'create_audience' })).toBe('true')
+    expect(field.value({})).toBe('true')
+  })
+
+  it('accepts Keep current when options are listed without block values', () => {
+    if (typeof field?.options !== 'function') throw new Error('emailTypeOption options are static')
+    expect(field.options().map((option) => option.id)).toEqual(['true', 'false', ''])
   })
 })

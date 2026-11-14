@@ -18,6 +18,11 @@ const EVENT_ACTOR_FIELD = ['event_email', 'event_user_id', 'event_contact_id'] a
 /** What an outbound message shows: its subject when set, otherwise its body. */
 const MESSAGE_PREVIEW_FIELD = ['subject', 'body'] as const
 
+/** True when a field holds a value, so a numeric 0 still reaches validation. */
+function hasInput(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== ''
+}
+
 /** Intercom requires `snoozed_until` as a positive whole Unix timestamp in seconds. */
 function toSnoozeTimestamp(value: unknown): number {
   const text = String(value).trim()
@@ -100,7 +105,7 @@ const mapIntercomParams: IntercomParamsMapper = (params, context) => {
     cleanParams.include_translations = includeTranslations
   }
 
-  if (operation === 'snooze_conversation' && snoozed_until) {
+  if (operation === 'snooze_conversation' && hasInput(snoozed_until)) {
     cleanParams.snoozed_until = toSnoozeTimestamp(snoozed_until)
   }
 
@@ -138,7 +143,7 @@ const mapIntercomParams: IntercomParamsMapper = (params, context) => {
     if (ticketOpen !== undefined) cleanParams.open = ticketOpen
     const ticketIsShared = toBooleanFromInput(ticket_is_shared)
     if (ticketIsShared !== undefined) cleanParams.is_shared = ticketIsShared
-    if (ticket_snoozed_until) {
+    if (hasInput(ticket_snoozed_until)) {
       cleanParams.snoozed_until = toSnoozeTimestamp(ticket_snoozed_until)
     }
     if (ticket_assignee_id) cleanParams.assignee_id = ticket_assignee_id

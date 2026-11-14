@@ -100,5 +100,6 @@ describe('airtable_list_records page size', () => {
     expect(listUrl(500).searchParams.get('pageSize')).toBe('100')
     expect(listUrl(2.7).searchParams.get('pageSize')).toBe('2')
     expect(listUrl(-3).searchParams.get('pageSize')).toBe('1')
+    expect(listUrl(0).searchParams.get('pageSize')).toBe('1')
   })
 })

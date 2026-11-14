@@ -20,7 +20,7 @@ describe('Intercom snooze timestamps', () => {
     ).toBe(1767225600)
   })
 
-  it.each(['0', '-5', '   ', '1.5'])('rejects %j as a snooze time', (snoozedUntil) => {
+  it.each(['0', '-5', '   ', '1.5', 0])('rejects %j as a snooze time', (snoozedUntil) => {
     expect(() =>
       mapParams({
         operation: 'snooze_conversation',

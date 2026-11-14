@@ -361,4 +361,13 @@ describe('QuickBooks block agent operation resolution', () => {
     )
     expect(mapped.file).toMatchObject({ id: 'file-1' })
   })
+
+  it('keeps the tool-row file when the upload field holds an empty list', () => {
+    const file = { id: 'file-1', name: 'receipt.pdf', url: 'https://example.com/receipt.pdf' }
+    const mapped = toolCallParams(
+      { attachmentKind: 'file', targetType: 'Invoice', targetId: '130', attachmentFile: [], file },
+      'quickbooks_add_attachment'
+    )
+    expect(mapped.file).toMatchObject({ id: 'file-1' })
+  })
 })

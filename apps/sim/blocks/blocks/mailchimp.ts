@@ -637,9 +637,19 @@ Return ONLY the JSON object - no explanations or markdown.`,
       id: 'emailTypeOption',
       title: 'Email Type Option',
       type: 'dropdown',
-      options: [
+      dependsOn: ['operation'],
+      /**
+       * Update Audience leads with "Keep current" so an update leaves the setting alone, and
+       * `dependsOn` clears the value on an operation switch so it reseeds. Without block values
+       * (Copilot validation, catalogs) every option is listed, with "Keep current" last.
+       */
+      options: (params) => [
+        ...(params?.values.operation === 'update_audience'
+          ? [{ label: 'Keep current', id: '' }]
+          : []),
         { label: 'True', id: 'true' },
         { label: 'False', id: 'false' },
+        ...(params ? [] : [{ label: 'Keep current', id: '' }]),
       ],
       required: {
         field: 'operation',
@@ -647,23 +657,9 @@ Return ONLY the JSON object - no explanations or markdown.`,
       },
       condition: {
         field: 'operation',
-        value: ['create_audience'],
+        value: ['create_audience', 'update_audience'],
       },
-      value: () => 'true',
-    },
-    {
-      id: 'emailTypeOption',
-      title: 'Email Type Option',
-      type: 'dropdown',
-      options: [
-        { label: 'Keep current', id: '' },
-        { label: 'True', id: 'true' },
-        { label: 'False', id: 'false' },
-      ],
-      condition: {
-        field: 'operation',
-        value: ['update_audience'],
-      },
+      value: (params) => (params?.operation === 'update_audience' ? '' : 'true'),
     },
     // Member fields
     {

@@ -18,6 +18,10 @@ function requiredFor(subBlockId: string, values: Record<string, unknown>) {
 describe('Dropbox cursor continuation', () => {
   it('requires a folder path only until a list folder cursor is set', () => {
     expect(requiredFor('path', {})).toEqual({ field: 'operation', value: 'dropbox_list_folder' })
+    expect(requiredFor('path', { listFolderCursor: '   ' })).toEqual({
+      field: 'operation',
+      value: 'dropbox_list_folder',
+    })
     expect(requiredFor('path', { listFolderCursor: 'cursor-1' })).toEqual({
       field: 'operation',
       value: [],

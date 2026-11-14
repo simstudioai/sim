@@ -2582,9 +2582,8 @@ export const QuickBooksBlock: BlockConfig = {
             targetId: pick(params.attachmentTargetId, 'targetId'),
             file:
               attachmentKind === 'file'
-                ? normalizeFileInput(params.attachmentFile ?? toolCallArg(context, params.file), {
-                    single: true,
-                  })
+                ? (normalizeFileInput(params.attachmentFile, { single: true }) ??
+                  normalizeFileInput(toolCallArg(context, params.file), { single: true }))
                 : undefined,
             fileName:
               attachmentKind === 'file' ? pick(params.attachmentFileName, 'fileName') : undefined,
