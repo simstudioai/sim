@@ -568,6 +568,9 @@ async function processEmails(
       logger.info(`Successfully processed email ${email.id} for webhook ${webhookData.id}`)
       processedCount++
     } catch (error) {
+      // An outage leaves the cursor where it is even after earlier emails succeeded; those
+      // emails already saved their duplicate checks, so the next poll skips them.
+      if (isUnavailableFailure(error)) throw error
       if (isUncountedPollFailure(error) && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(`Error processing email ${email.id}:`, errorMessage)

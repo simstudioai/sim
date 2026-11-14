@@ -75,9 +75,10 @@ export function messageForOrchestrationError(
 export class OrchestrationError extends Error {
   constructor(
     readonly code: OrchestrationErrorCode,
-    message: string
+    message: string,
+    options?: { cause?: unknown }
   ) {
-    super(message)
+    super(message, options)
     this.name = 'OrchestrationError'
   }
 }
@@ -127,7 +128,7 @@ export function asOrchestrationError(error: unknown): OrchestrationError | null 
     if (isPayloadSizeLimitError(current))
       return new OrchestrationError('payload_too_large', current.message)
     if (current instanceof OutboundRoutingError && current.code !== 'MISSING_SCOPE')
-      return new OrchestrationError('unavailable', EGRESS_UNAVAILABLE_MESSAGE)
+      return new OrchestrationError('unavailable', EGRESS_UNAVAILABLE_MESSAGE, { cause: current })
     current = current.cause
   }
   return null

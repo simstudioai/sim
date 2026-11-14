@@ -219,6 +219,26 @@ describe('gmailPollingHandler egress outage', () => {
     expect(mockUpdateConfig).not.toHaveBeenCalled()
   })
 
+  it('keeps the cursor when the route drops after earlier mail in the batch succeeded', async () => {
+    mockResolveOAuthCredential.mockResolvedValue('access-token')
+    mailboxWithExpiredHistory({
+      profileHistoryId: '40100',
+      inboxMessages: [
+        { id: 'm-first', historyId: '40040' },
+        { id: 'm-second', historyId: '40050' },
+      ],
+    })
+    mockProcessEvent
+      .mockResolvedValueOnce({ success: true })
+      .mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(gmailPollingHandler.pollWebhook(context({}))).resolves.toBe('skipped')
+
+    expect(mockProcessEvent).toHaveBeenCalledTimes(2)
+    expect(mockMarkWebhookFailed).not.toHaveBeenCalled()
+    expect(mockUpdateConfig).not.toHaveBeenCalled()
+  })
+
   it('keeps the history cursor when the route drops while fetching message details', async () => {
     mockResolveOAuthCredential.mockResolvedValue('access-token')
     vi.stubGlobal(
