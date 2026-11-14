@@ -307,14 +307,14 @@ final class Snapshot {
     var truncated = false
     /// Every element this app session has been given an id, so the same element keeps its id across observations.
     private(set) var index = ElementIndex()
-    private(set) var nextOrdinal = 0
-    /// Carries ids over from `previous` when it observed the same process instance.
-    init(app: NSRunningApplication, previous: Snapshot? = nil) {
-        pid = app.processIdentifier; launchDate = app.launchDate
-        if let previous, previous.pid == pid, previous.launchDate == launchDate {
-            // Ids never repeat within a session; past the cap the next read starts a fresh index so it stays bounded.
-            nextOrdinal = previous.nextOrdinal
-            if previous.index.count < 20_000 { index = previous.index }
+    private(set) var nextOrdinal: Int
+    /// Reuses `previous`'s ids when it observed the same process instance and new ids continue from
+    /// `nextOrdinal`, which the driver keeps per process so ids never repeat while it runs.
+    init(app: NSRunningApplication, previous: Snapshot? = nil, nextOrdinal: Int = 0) {
+        pid = app.processIdentifier; launchDate = app.launchDate; self.nextOrdinal = nextOrdinal
+        // One read adds at most 2,000 elements, so the carried index stays within 20,000; past that the next read starts fresh.
+        if let previous, previous.pid == pid, previous.launchDate == launchDate, previous.index.count <= 18_000 {
+            index = previous.index
         }
     }
     func read(preferredWindowFrame: CGRect? = nil) async throws {
@@ -706,6 +706,8 @@ final class Driver {
     var snapshots: [String: Snapshot] = [:]
     /// Each app's latest observation, kept after actions consume `snapshots` so the next read reuses its element ids.
     var lastObserved: [String: Snapshot] = [:]
+    /// Each app's next element id, kept apart from the evictable history so ids never repeat while that process runs.
+    var nextOrdinals: [String: (pid: pid_t, launchDate: Date?, next: Int)] = [:]
     func point(_ p: Parameters, app: NSRunningApplication, snapshot: Snapshot, end: Bool = false) throws -> CGPoint {
         if let elementId = p.elementId, !end {
             guard let frame = elementRect(try snapshot.element(elementId)) else { throw ComputerError("element_unavailable", "Element has no usable frame.") }
@@ -759,7 +761,9 @@ final class Driver {
             return ["kind": "action", "action": "activate_app", "bundleId": app.bundleIdentifier!, "dispatched": true, "verified": true]
         case "get_app_state":
             try requireAccessibility()
-            let app = try await appFor(p.bundleId, launch: true); let snapshot = Snapshot(app: app, previous: lastObserved[app.bundleIdentifier!])
+            let app = try await appFor(p.bundleId, launch: true); let bundle = app.bundleIdentifier!
+            let ordinal = nextOrdinals[bundle].flatMap { $0.pid == app.processIdentifier && $0.launchDate == app.launchDate ? $0.next : nil } ?? 0
+            let snapshot = Snapshot(app: app, previous: lastObserved[bundle], nextOrdinal: ordinal)
             let preferredFrame = try p.windowId.map { try windowRect($0, pid: app.processIdentifier) }
             try await snapshot.read(preferredWindowFrame: preferredFrame)
             let axWindows = snapshot.elements.values.filter { attribute($0, kAXRoleAttribute) as? String == kAXWindowRole }
@@ -783,9 +787,10 @@ final class Driver {
                 result.merge(rectJSON(rect)) { _, new in new }; return result
             }
             if snapshots.count >= 16 { snapshots.removeAll() }
-            if lastObserved.count >= 16 { lastObserved.removeAll() }
-            snapshots[app.bundleIdentifier!] = snapshot
-            lastObserved[app.bundleIdentifier!] = snapshot
+            if lastObserved[bundle] == nil, lastObserved.count >= 16, let evicted = lastObserved.keys.first { lastObserved.removeValue(forKey: evicted) }
+            snapshots[bundle] = snapshot
+            lastObserved[bundle] = snapshot
+            nextOrdinals[bundle] = (app.processIdentifier, app.launchDate, snapshot.nextOrdinal)
             let root = AXUIElementCreateApplication(app.processIdentifier)
             let focusedID = attribute(root, kAXFocusedWindowAttribute).flatMap { CFGetTypeID($0) == AXUIElementGetTypeID() ? snapshot.windowId(holding: unsafeBitCast($0, to: AXUIElement.self)) : nil }
             for index in snapshot.nodes.indices {
