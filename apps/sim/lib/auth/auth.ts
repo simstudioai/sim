@@ -174,7 +174,11 @@ import {
   MICROSOFT_DATAVERSE_PROVIDER_ID,
 } from '@/lib/oauth/microsoft-dataverse'
 import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
-import { isSalesforceOAuthProviderId, withSalesforceInstanceScope } from '@/lib/oauth/salesforce'
+import {
+  extractSalesforceInstanceUrl,
+  isSalesforceOAuthProviderId,
+  withSalesforceInstanceScope,
+} from '@/lib/oauth/salesforce'
 import { fetchSalesforceInstanceUrl } from '@/lib/oauth/salesforce-instance.server'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
@@ -264,6 +268,20 @@ function resolveStripeBilling() {
 }
 
 const stripeBilling = resolveStripeBilling()
+
+/**
+ * Resolves a connecting Salesforce token's instance from the egress route of the workspace or
+ * organization whose connect draft started the callback.
+ */
+async function fetchConnectingSalesforceInstanceUrl(params: {
+  draftId: string | undefined
+  userId: string
+  providerId: string
+  accessToken: string
+}): Promise<string | undefined> {
+  const inDraftScope = await resolveConnectDraftOutboundScope(params)
+  return inDraftScope(() => fetchSalesforceInstanceUrl(params.providerId, params.accessToken))
+}
 
 /**
  * A fresh Slack connect re-issues the installation's rotating token chain,
@@ -512,15 +530,12 @@ export const auth = betterAuth({
           }
 
           if (account.accessToken && isSalesforceOAuthProviderId(account.providerId)) {
-            const { accessToken } = account
-            const inDraftScope = await resolveConnectDraftOutboundScope({
+            const instanceUrl = await fetchConnectingSalesforceInstanceUrl({
               draftId: reconnectDraftId,
               userId: account.userId,
               providerId: account.providerId,
+              accessToken: account.accessToken,
             })
-            const instanceUrl = await inDraftScope(() =>
-              fetchSalesforceInstanceUrl(account.providerId, accessToken)
-            )
             if (instanceUrl) {
               modifiedAccount.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
             }
@@ -727,11 +742,14 @@ export const auth = betterAuth({
               updates.accessTokenExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000)
             }
 
-            if (account.accessToken) {
-              const instanceUrl = await fetchSalesforceInstanceUrl(
-                account.providerId,
-                account.accessToken
-              )
+            // The before hook already stored the instance when its lookup succeeded.
+            if (account.accessToken && !extractSalesforceInstanceUrl(account.scope)) {
+              const instanceUrl = await fetchConnectingSalesforceInstanceUrl({
+                draftId: credentialDraftBinding?.draftId,
+                userId: account.userId,
+                providerId: account.providerId,
+                accessToken: account.accessToken,
+              })
               if (instanceUrl) {
                 updates.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
               }

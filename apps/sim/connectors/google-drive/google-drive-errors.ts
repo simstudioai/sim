@@ -1,4 +1,4 @@
-import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { scopedOutboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   attachRetryHeaders,
   isRetryableError,
@@ -160,7 +160,8 @@ export async function readGoogleDriveApiError(
  * Fetches a Google API, retrying errors whose structured body identifies a
  * transient rejection. Shared by every Google call a connector makes — Drive
  * and the Admin SDK use the same error envelope and the same rate-limit
- * reasons.
+ * reasons. Requires an outbound scope: a lost scope fails closed instead of
+ * going direct.
  */
 export async function fetchGoogleDriveWithRetry(
   url: string,
@@ -170,7 +171,7 @@ export async function fetchGoogleDriveWithRetry(
 ): Promise<Response> {
   return retryWithExponentialBackoff(
     async () => {
-      const response = await outboundFetch(url, options)
+      const response = await scopedOutboundFetch(url, options)
       if (response.ok) return response
 
       const error = await readGoogleDriveApiError(response, operation)

@@ -9,7 +9,9 @@ import {
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
-import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { scopedOutboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
@@ -72,7 +74,7 @@ function positiveId(value: unknown): string | null {
 
 async function readGitHubJson(path: string, accessToken: string, signal: AbortSignal) {
   signal.throwIfAborted()
-  const response = await outboundFetch(`https://api.github.com${path}`, {
+  const response = await scopedOutboundFetch(`https://api.github.com${path}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: 'application/vnd.github+json',
@@ -139,7 +141,9 @@ async function verifyRepository(
 /**
  * Proves current reader access before any installation-backed indexed content is selected.
  * The caller supplies credentials already bound to the verified current member. All positive
- * evidence and token reuse are local to this admission; failures grant nothing for that source.
+ * evidence and token reuse are local to this admission; failures grant nothing for that source,
+ * except an unavailable egress route, which is Sim's outage and fails the admission. GitHub is
+ * reached from the knowledge base owner's egress route whether or not the caller set one.
  */
 export async function resolveGitHubInstallationReadGrants(input: {
   scope: ResourceScope
@@ -224,8 +228,12 @@ export async function resolveGitHubInstallationReadGrants(input: {
     )
     .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
   const contentById = new Map(credentials.map((entry) => [entry.id, entry]))
-  const timeout = AbortSignal.timeout(GITHUB_READ_TIMEOUT_MS)
-  const admissionSignal = input.signal ? AbortSignal.any([input.signal, timeout]) : timeout
+  const outage = new AbortController()
+  const admissionSignal = AbortSignal.any([
+    outage.signal,
+    AbortSignal.timeout(GITHUB_READ_TIMEOUT_MS),
+    ...(input.signal ? [input.signal] : []),
+  ])
   const installations = new Map<string, Promise<GitHubInstallationBinding>>()
   const tokens = new Map<string, Promise<string>>()
   const proofs = new Map<string, Promise<boolean>>()
@@ -301,15 +309,19 @@ export async function resolveGitHubInstallationReadGrants(input: {
             readerSubjectToken: source.subjectToken,
             repositoryId: source.repositoryId,
           })
-      } catch {
+      } catch (error) {
+        if (asOrchestrationError(error)?.code === 'unavailable') {
+          outage.abort(error)
+          throw error
+        }
         logger.warn('GitHub did not confirm current Search access', {
           connectorId: source.connectorId,
         })
       }
     }
   }
-  await Promise.all(
-    Array.from({ length: Math.min(GITHUB_READ_CONCURRENCY, sources.length) }, worker)
+  await withResourceOutboundScope(resourceScopeFields(input.scope), () =>
+    Promise.all(Array.from({ length: Math.min(GITHUB_READ_CONCURRENCY, sources.length) }, worker))
   )
   input.signal?.throwIfAborted()
   return [...grants.values()]

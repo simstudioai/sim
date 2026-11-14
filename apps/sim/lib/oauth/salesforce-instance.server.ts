@@ -1,13 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { validateSalesforceInstanceUrl } from '@/lib/core/security/input-validation'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { isSalesforceLoginOrigin, SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 
 const logger = createLogger('SalesforceAccountDestination')
 
-/** Resolves a token's API origin from Salesforce identity, never from model arguments. */
+/**
+ * Resolves a token's API origin from Salesforce identity, never from model arguments. An
+ * unavailable or blocked egress route is Sim's outage, not an unverifiable account, so it
+ * propagates instead of resolving to `undefined`.
+ */
 export async function fetchSalesforceInstanceUrl(
   providerId: string,
   accessToken: string
@@ -36,7 +41,8 @@ export async function fetchSalesforceInstanceUrl(
       if (origin.isValid && origin.sanitized && !isSalesforceLoginOrigin(origin.sanitized))
         return origin.sanitized
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof OutboundRoutingError) throw error
     logger.warn('Could not resolve Salesforce account destination', { providerId })
   }
   return undefined

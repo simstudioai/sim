@@ -2,11 +2,11 @@ import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
-import { JWT } from 'google-auth-library'
+import type { JWT } from 'google-auth-library'
 import { z } from 'zod'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { createServiceAccountJwt } from '@/lib/data-drains/destinations/google-jwt'
 import {
-  type ParsedServiceAccount,
   parseNdjsonObjects,
   parseServiceAccount,
   refineServiceAccountJson,
@@ -74,10 +74,6 @@ const bigqueryCredentialsSchema = z
 
 export type BigQueryDestinationConfig = z.infer<typeof bigqueryConfigSchema>
 export type BigQueryDestinationCredentials = z.infer<typeof bigqueryCredentialsSchema>
-
-function buildJwt(account: ParsedServiceAccount): JWT {
-  return new JWT({ email: account.clientEmail, key: account.privateKey, scopes: SCOPES })
-}
 
 async function getAccessToken(jwt: JWT, forceRefresh = false): Promise<string> {
   if (forceRefresh) {
@@ -289,7 +285,7 @@ export const bigqueryDestination: DrainDestination<
    */
   async test({ config, credentials, signal }) {
     const account = parseServiceAccount(credentials.serviceAccountJson)
-    const jwt = buildJwt(account)
+    const jwt = createServiceAccountJwt(account, SCOPES)
     const token = await getAccessToken(jwt)
     const url = `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(config.projectId)}/datasets/${encodeURIComponent(config.datasetId)}/tables/${encodeURIComponent(config.tableId)}?fields=id`
     const perAttempt = AbortSignal.any([signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
@@ -307,7 +303,7 @@ export const bigqueryDestination: DrainDestination<
 
   openSession({ config, credentials }) {
     const account = parseServiceAccount(credentials.serviceAccountJson)
-    const jwt = buildJwt(account)
+    const jwt = createServiceAccountJwt(account, SCOPES)
     return {
       async deliver({ body, metadata, signal }) {
         const rows = parseNdjsonObjects(body, { requireObject: true }) as Record<string, unknown>[]

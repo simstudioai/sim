@@ -2,13 +2,13 @@ import { createLogger } from '@sim/logger'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
-import { JWT } from 'google-auth-library'
+import type { JWT } from 'google-auth-library'
 import { z } from 'zod'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { createServiceAccountJwt } from '@/lib/data-drains/destinations/google-jwt'
 import {
   buildObjectKey,
   normalizePrefix,
-  type ParsedServiceAccount,
   parseServiceAccount,
   refineServiceAccountJson,
 } from '@/lib/data-drains/destinations/utils'
@@ -84,10 +84,6 @@ const gcsCredentialsSchema = z
 
 export type GCSDestinationConfig = z.infer<typeof gcsConfigSchema>
 export type GCSDestinationCredentials = z.infer<typeof gcsCredentialsSchema>
-
-function buildJwt(account: ParsedServiceAccount): JWT {
-  return new JWT({ email: account.clientEmail, key: account.privateKey, scopes: [SCOPE] })
-}
 
 async function getAccessToken(jwt: JWT): Promise<string> {
   const { token } = await jwt.getAccessToken()
@@ -263,7 +259,7 @@ export const gcsDestination: DrainDestination<GCSDestinationConfig, GCSDestinati
 
   async test({ config, credentials, signal }) {
     const account = parseServiceAccount(credentials.serviceAccountJson)
-    const jwt = buildJwt(account)
+    const jwt = createServiceAccountJwt(account, [SCOPE])
     const probeName = `${normalizePrefix(config.prefix)}.sim-drain-write-probe/${generateShortId(12)}`
     await uploadObject('test-put', {
       bucket: config.bucket,
@@ -286,7 +282,7 @@ export const gcsDestination: DrainDestination<GCSDestinationConfig, GCSDestinati
 
   openSession({ config, credentials }) {
     const account = parseServiceAccount(credentials.serviceAccountJson)
-    const jwt = buildJwt(account)
+    const jwt = createServiceAccountJwt(account, [SCOPE])
     return {
       async deliver({ body, contentType, metadata, signal }) {
         const objectName = buildObjectKey(config.prefix, metadata)
