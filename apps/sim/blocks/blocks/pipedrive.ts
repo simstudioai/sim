@@ -282,11 +282,17 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'status',
       title: 'Status',
       type: 'dropdown',
+      /**
+       * Update Deal leads with "No change" so a new block does not reopen deals. Without block
+       * values (Copilot validation, catalogs) every option is listed, with "No change" last so
+       * the default stays Open.
+       */
       options: (params) => [
         ...(params?.values.operation === 'update_deal' ? [{ label: 'No change', id: '' }] : []),
         { label: 'Open', id: 'open' },
         { label: 'Won', id: 'won' },
         { label: 'Lost', id: 'lost' },
+        ...(params ? [] : [{ label: 'No change', id: '' }]),
       ],
       condition: { field: 'operation', value: ['create_deal', 'update_deal'] },
     },

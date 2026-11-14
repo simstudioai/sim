@@ -188,10 +188,16 @@ export const IntercomBlock: BlockConfig = {
       id: 'role',
       title: 'Role',
       type: 'dropdown',
+      /**
+       * Update Contact leads with "No change" so a new block does not resend a role. Without block
+       * values (Copilot validation, catalogs) every option is listed, with "No change" last so
+       * the default stays Lead.
+       */
       options: (params) => [
         ...(params?.values.operation === 'update_contact' ? [{ label: 'No change', id: '' }] : []),
         { label: 'Lead', id: 'lead' },
         { label: 'User', id: 'user' },
+        ...(params ? [] : [{ label: 'No change', id: '' }]),
       ],
       condition: {
         field: 'operation',
