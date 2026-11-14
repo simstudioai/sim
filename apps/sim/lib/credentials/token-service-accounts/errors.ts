@@ -1,6 +1,8 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -206,7 +208,8 @@ export function isHostNotFound(error: unknown): boolean {
  * (DNS, TLS, connection reset) to `provider_unavailable` so they never escape
  * as raw undici errors — whose `cause` can carry connection details — and are
  * never blamed on the pasted token. DNS-resolution failures can optionally be
- * mapped to a different code via {@link FetchProviderOptions}.
+ * mapped to a different code via {@link FetchProviderOptions}. A blocked or unavailable
+ * organization egress route is also `provider_unavailable`.
  *
  * Redirects are refused (`redirect: 'error'`) unless `init` names another mode:
  * every caller sends a secret, and fetch replays custom headers and 307/308
@@ -222,7 +225,7 @@ export async function fetchProvider(
   try {
     const timeout = AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS)
     const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout
-    return await fetch(url, { ...init, redirect: init.redirect ?? 'error', signal })
+    return await outboundFetch(url, { ...init, redirect: init.redirect ?? 'error', signal })
   } catch (error) {
     init.signal?.throwIfAborted()
     // Only ENOTFOUND proves the host doesn't exist; EAI_AGAIN is a transient
@@ -235,7 +238,10 @@ export async function fetchProvider(
     }
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step,
-      reason: 'network error reaching provider',
+      reason:
+        error instanceof OutboundRoutingError
+          ? 'organization egress route unavailable'
+          : 'network error reaching provider',
     })
   }
 }

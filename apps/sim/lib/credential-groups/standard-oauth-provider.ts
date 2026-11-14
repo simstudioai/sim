@@ -12,6 +12,7 @@ import {
   getManagedOAuthConnectorProviderConfig,
   type ManagedOAuthConnectorConfig,
 } from '@/lib/auth/connectors/managed-oauth'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { credentialGroupOAuthNonceMatches } from '@/lib/credential-groups/oauth-state'
 import type {
@@ -81,7 +82,7 @@ async function resolveOAuthEndpoints(
   if (connector.discoveryUrl) {
     let response: Response
     try {
-      response = await fetch(connector.discoveryUrl, {
+      response = await outboundFetch(connector.discoveryUrl, {
         headers: connector.discoveryHeaders,
         signal: AbortSignal.timeout(OAUTH_DISCOVERY_TIMEOUT_MS),
       })

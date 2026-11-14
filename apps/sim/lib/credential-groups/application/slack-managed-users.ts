@@ -7,6 +7,7 @@ import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/autho
 import { assertOperationPrincipal, type OperationUseCase } from '@/lib/core/application/operation'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
 import { authorizeWorkspaceOperation } from '@/lib/core/application/workspace-authorization'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ResourceScope,
@@ -181,8 +182,11 @@ export const completeSlackCredentialGroupConfiguration: OperationUseCase<
       throw new OrchestrationError('validation', 'Authorization state is invalid or expired')
     }
     if (input.providerError) return { ok: false as const, reason: 'provider_error' as const }
-    if (!input.code) throw new OrchestrationError('validation', 'Authorization code is missing')
-    const result = await exchangeAndConfigureSlackManagedUsers({ attempt, code: input.code })
+    const code = input.code
+    if (!code) throw new OrchestrationError('validation', 'Authorization code is missing')
+    const result = await withResourceOutboundScope(resourceScopeFields(scope), () =>
+      exchangeAndConfigureSlackManagedUsers({ attempt, code })
+    )
     recordProjectedUseCaseAuditEntries(
       credentialGroupOperations.completeSlackConfiguration,
       scope.kind === 'workspace' ? scope.workspaceId : undefined,

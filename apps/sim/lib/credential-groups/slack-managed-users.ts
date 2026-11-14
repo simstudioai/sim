@@ -16,6 +16,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
@@ -333,7 +334,7 @@ function parseSlackOAuthResponse(value: unknown): SlackOAuthSuccess {
 }
 
 export async function revokeSlackToken(token: string): Promise<void> {
-  const response = await fetch('https://slack.com/api/auth.revoke', {
+  const response = await outboundFetch('https://slack.com/api/auth.revoke', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -359,7 +360,7 @@ export async function revokeSlackToken(token: string): Promise<void> {
 async function callSlackApi(method: string, accessToken: string, body?: URLSearchParams) {
   let response: Response
   try {
-    response = await fetch(`https://slack.com/api/${method}`, {
+    response = await outboundFetch(`https://slack.com/api/${method}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -475,7 +476,7 @@ export async function exchangeSlackUserAuthorization(params: {
   const body = new URLSearchParams({ code: params.code, redirect_uri: params.redirectUri })
   let response: Response
   try {
-    response = await fetch('https://slack.com/api/oauth.v2.access', {
+    response = await outboundFetch('https://slack.com/api/oauth.v2.access', {
       method: 'POST',
       headers: {
         Authorization: `Basic ${basicAuth}`,

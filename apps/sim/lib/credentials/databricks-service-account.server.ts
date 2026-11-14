@@ -3,6 +3,7 @@ import { credential } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
@@ -162,7 +163,7 @@ async function requestWorkspaceToken(
   const url = `${workspaceOrigin(host)}/oidc/v1/token`
   let response: Response
   try {
-    response = await fetch(url, {
+    response = await outboundFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
       body,
@@ -308,10 +309,10 @@ function databricksRefusalReason(body: string): string | undefined {
 }
 
 /**
- * Proves a configuration by calling the workspace's SCIM `Me` with the resolved
- * token. The call goes through the egress guard, which also routes it through
- * the organization's outbound gateway, so a workspace whose IP access list
- * allows only the organization's dedicated egress addresses accepts it.
+ * Proves a configuration by minting a workspace token and calling the workspace's
+ * SCIM `Me` with it. Both requests leave through the organization's outbound
+ * gateway when it has one, so a workspace whose IP access list allows only the
+ * organization's dedicated egress addresses accepts them.
  */
 async function verifyWorkspaceIdentity(
   config: DatabricksCredentialConfig,

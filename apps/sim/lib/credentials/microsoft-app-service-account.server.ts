@@ -11,6 +11,7 @@ import { SignJWT } from 'jose'
 import { LRUCache } from 'lru-cache'
 import { z } from 'zod'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   MICROSOFT_CLOUD_IDS,
@@ -414,7 +415,7 @@ async function requestEntraToken(
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   let response: Response
   try {
-    response = await fetch(tokenEndpoint(config), {
+    response = await outboundFetch(tokenEndpoint(config), {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
       body,
@@ -453,7 +454,7 @@ async function requestEntraToken(
 }
 
 async function getJson(url: string, token: string): Promise<{ status: number; body: unknown }> {
-  const response = await fetch(url, {
+  const response = await outboundFetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/json',

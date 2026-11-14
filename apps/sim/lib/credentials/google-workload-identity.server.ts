@@ -3,6 +3,7 @@ import { toRecord } from '@sim/utils/object'
 import { LRUCache } from 'lru-cache'
 import { z } from 'zod'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   GOOGLE_DELEGATION_SERVICE_NAMES,
@@ -273,7 +274,7 @@ async function postJson(
 ): Promise<{ status: number; payload: Record<string, unknown> }> {
   let response: Response
   try {
-    response = await fetch(url, {
+    response = await outboundFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...headers },
       body: JSON.stringify(body),
@@ -295,7 +296,7 @@ async function postJson(
  */
 async function getStatus(url: string, bearer: string): Promise<number | undefined> {
   try {
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' },
       redirect: 'error',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),

@@ -3,6 +3,7 @@ import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { LRUCache } from 'lru-cache'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import {
   consumeOrCancelBody,
@@ -205,7 +206,7 @@ export async function requestSailPointToken(
 
   while (true) {
     signal?.throwIfAborted()
-    const response = await fetch(tokenUrl, {
+    const response = await outboundFetch(tokenUrl, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -317,7 +318,7 @@ export async function sailpointFetch(
     headers.set('Authorization', `Bearer ${token}`)
     if (!headers.has('Accept')) headers.set('Accept', 'application/json')
 
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       ...init,
       cache: 'no-store',
       headers,

@@ -6,6 +6,7 @@ import {
   credentialGroupsAvailabilityMockFns,
 } from '@sim/testing/mocks/credential-groups-availability.mock'
 import { credentialGroupsOrganizationSetupMock } from '@sim/testing/mocks/credential-groups-organization-setup.mock'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import {
   organizationAuthorizationMock,
   organizationAuthorizationMockFns,
@@ -29,6 +30,7 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('@/lib/credential-groups/organization-setup', () => credentialGroupsOrganizationSetupMock)
 
 vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
 vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
@@ -40,6 +42,7 @@ vi.mock('@/lib/credential-groups/slack-managed-users', () => ({
   exchangeAndConfigureSlackManagedUsers: hoisted.exchange,
 }))
 
+import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import {
   completeSlackCredentialGroupConfiguration,
   startSlackCredentialGroupConfiguration,
@@ -73,6 +76,7 @@ const attempt = {
 
 beforeEach(() => {
   resetDbChainMock()
+  networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
   mocks.available.mockResolvedValue(true)
   organizationAccess.mockResolvedValue({
     organizationId: 'organization-1',
@@ -193,5 +197,22 @@ describe('scoped Slack setup', () => {
         metadata: expect.objectContaining({ organizationId: 'organization-1' }),
       })
     )
+  })
+
+  it("exchanges the Slack grant through the owning organization's egress route", async () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    queueTableRows(credentialGroup, [group])
+    mocks.exchange.mockImplementation(async () => {
+      await resolveCurrentOutboundRoute()
+      return {
+        credentialGroupId: 'group-1',
+        credentialGroupName: 'Connected accounts',
+        appId: 'app-1',
+        teamId: 'team-1',
+        requiredScopes: ['search:read'],
+      }
+    })
+    await expect(finish()).resolves.toMatchObject({ ok: true })
+    expect(networkConfigMockFns.mockResolveOutboundRoute).toHaveBeenCalledWith('organization-1')
   })
 })
