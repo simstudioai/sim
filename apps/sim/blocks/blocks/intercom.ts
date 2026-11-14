@@ -854,7 +854,11 @@ Return ONLY the subject line - no explanations.`,
       id: 'to_type',
       title: 'To Type',
       type: 'dropdown',
-      options: [{ label: 'Contact', id: 'contact' }],
+      options: [
+        { label: 'Contact', id: 'contact' },
+        { label: 'User', id: 'user' },
+        { label: 'Lead', id: 'lead' },
+      ],
       required: true,
       condition: {
         field: 'operation',
@@ -1354,6 +1358,7 @@ Return ONLY the numeric timestamp.`,
           ticket_open,
           ticket_is_shared,
           ticket_snoozed_until,
+          snoozed_until,
           ticket_assignee_id,
           tag_name,
           tag_id_update,
@@ -1404,6 +1409,10 @@ Return ONLY the numeric timestamp.`,
           include_translations !== ''
         ) {
           cleanParams.include_translations = include_translations === 'true'
+        }
+
+        if (operation === 'snooze_conversation' && snoozed_until) {
+          cleanParams.snoozed_until = Number(snoozed_until)
         }
 
         if (operation === 'close_conversation' && close_body) {
@@ -1638,6 +1647,7 @@ export const IntercomV2Block: BlockConfig = {
           ticket_open,
           ticket_is_shared,
           ticket_snoozed_until,
+          snoozed_until,
           ticket_assignee_id,
           tag_name,
           tag_id_update,
@@ -1688,6 +1698,10 @@ export const IntercomV2Block: BlockConfig = {
           include_translations !== ''
         ) {
           cleanParams.include_translations = include_translations === 'true'
+        }
+
+        if (operation === 'snooze_conversation' && snoozed_until) {
+          cleanParams.snoozed_until = Number(snoozed_until)
         }
 
         if (operation === 'close_conversation' && close_body) {
