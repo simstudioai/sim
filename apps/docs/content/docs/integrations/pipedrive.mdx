@@ -282,7 +282,7 @@ Retrieve all pipelines from Pipedrive
 | `total_items` | number | Total number of pipelines returned |
 | `has_more` | boolean | Whether more pipelines are available |
 | `next_start` | number | Always null: API v2 pages with next_cursor instead of an offset |
-| `next_cursor` | string | Cursor for fetching the next page |
+| `next_cursor` | string | Cursor for fetching the next page; null on the last page |
 | `success` | boolean | Operation success status |
 
 </ReferenceDetails>
@@ -535,7 +535,7 @@ Create a new lead in Pipedrive
 | `value_amount` | string | No | Potential value amount \(e.g., "10000"\) |
 | `value_currency` | string | No | Currency code \(e.g., "USD", "EUR", "GBP"\) |
 | `expected_close_date` | string | No | Expected close date in YYYY-MM-DD format \(e.g., "2025-04-15"\) |
-| `visible_to` | string | No | Visibility group: 1 \(owner only / owner & followers\), 3 \(owner's visibility group / entire company\), 5 \(owner's group and sub-groups\), 7 \(entire company\); 5 and 7 are Premium/Ultimate only |
+| `visible_to` | string | No | Visibility group; meanings depend on the Pipedrive plan. Light, Growth, and Professional: 1 = owner & followers, 3 = entire company. Premium and Ultimate: 1 = owner only, 3 = owner's visibility group, 5 = owner's visibility group and sub-groups, 7 = entire company |
 
 #### Output
 

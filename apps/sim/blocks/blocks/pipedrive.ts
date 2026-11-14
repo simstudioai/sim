@@ -448,6 +448,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         { label: 'Open', id: 'open' },
         { label: 'Completed', id: 'completed' },
         { label: 'Canceled', id: 'canceled' },
+        { label: 'Deleted', id: 'deleted' },
       ],
       value: () => '',
       condition: { field: 'operation', value: ['get_projects'] },

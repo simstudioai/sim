@@ -83,7 +83,7 @@ export const pipedriveCreateLeadTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Visibility group: 1 (owner only / owner & followers), 3 (owner's visibility group / entire company), 5 (owner's group and sub-groups), 7 (entire company); 5 and 7 are Premium/Ultimate only",
+        "Visibility group; meanings depend on the Pipedrive plan. Light, Growth, and Professional: 1 = owner & followers, 3 = entire company. Premium and Ultimate: 1 = owner only, 3 = owner's visibility group, 5 = owner's visibility group and sub-groups, 7 = entire company",
     },
   },
 

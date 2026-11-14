@@ -17,6 +17,15 @@ const EVENT_ACTOR_FIELD = ['event_email', 'event_user_id', 'event_contact_id'] a
 /** What an outbound message shows: its subject when set, otherwise its body. */
 const MESSAGE_PREVIEW_FIELD = ['subject', 'body'] as const
 
+/** Intercom requires `snoozed_until` as a whole Unix timestamp in seconds. */
+function toSnoozeTimestamp(value: unknown): number {
+  const timestamp = Number(value)
+  if (!Number.isInteger(timestamp)) {
+    throw new Error('Snooze until must be a whole Unix timestamp in seconds')
+  }
+  return timestamp
+}
+
 export const IntercomBlock: BlockConfig = {
   type: 'intercom',
   name: 'Intercom (Legacy)',
@@ -1412,7 +1421,7 @@ Return ONLY the numeric timestamp.`,
         }
 
         if (operation === 'snooze_conversation' && snoozed_until) {
-          cleanParams.snoozed_until = Number(snoozed_until)
+          cleanParams.snoozed_until = toSnoozeTimestamp(snoozed_until)
         }
 
         if (operation === 'close_conversation' && close_body) {
@@ -1701,7 +1710,7 @@ export const IntercomV2Block: BlockConfig = {
         }
 
         if (operation === 'snooze_conversation' && snoozed_until) {
-          cleanParams.snoozed_until = Number(snoozed_until)
+          cleanParams.snoozed_until = toSnoozeTimestamp(snoozed_until)
         }
 
         if (operation === 'close_conversation' && close_body) {

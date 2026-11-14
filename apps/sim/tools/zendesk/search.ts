@@ -43,7 +43,20 @@ export interface ZendeskSearchResponse {
  * @see https://developer.zendesk.com/api-reference/ticketing/ticket-management/search/#export-search-results
  */
 function withoutTypeKeyword(query: string): string {
-  return query.replace(/(^|\s)type:\S+/gi, ' ').trim()
+  const terms: string[] = []
+  let term = ''
+  let inQuotes = false
+  for (const char of query) {
+    if (char === '"') inQuotes = !inQuotes
+    if (!inQuotes && /\s/.test(char)) {
+      if (term) terms.push(term)
+      term = ''
+      continue
+    }
+    term += char
+  }
+  if (term) terms.push(term)
+  return terms.filter((t) => !/^type:/i.test(t)).join(' ')
 }
 
 export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchResponse> = {

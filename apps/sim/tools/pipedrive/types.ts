@@ -259,6 +259,7 @@ interface PipedriveFile {
   id: number
   name: string
   file_name: string
+  file_type: string
   file_size: number
   add_time: string
   update_time: string

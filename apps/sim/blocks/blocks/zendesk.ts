@@ -556,7 +556,7 @@ Return ONLY the JSON array - no explanations.`,
       placeholder: 'Organization name',
       required: {
         field: 'operation',
-        value: ['autocomplete_organizations'],
+        value: ['autocomplete_organizations', 'create_organization'],
       },
       condition: {
         field: 'operation',
@@ -917,22 +917,23 @@ Return ONLY the search query - no explanations.`,
     },
     job_id: { type: 'string', description: 'Background job ID for bulk and merge operations' },
     ticket_id: {
-      type: 'number',
-      description: 'Ticket ID (get_ticket, create_ticket, update_ticket; string for delete_ticket)',
+      type: 'any',
+      description:
+        'Ticket ID: a number from get, create, and update ticket; a string from delete ticket',
     },
     target_ticket_id: {
       type: 'string',
       description: 'Ticket the source tickets were merged into (merge_tickets)',
     },
     user_id: {
-      type: 'number',
+      type: 'any',
       description:
-        'User ID (get_user, get_current_user, create_user, update_user; string for delete_user)',
+        'User ID: a number from get, current, create, and update user; a string from delete user',
     },
     organization_id: {
-      type: 'number',
+      type: 'any',
       description:
-        'Organization ID (get_organization, create_organization, update_organization; string for delete_organization)',
+        'Organization ID: a number from get, create, and update organization; a string from delete organization',
     },
     // Delete operations
     deleted: {
