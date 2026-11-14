@@ -51,6 +51,14 @@ function blockParams(values: Record<string, unknown>): Record<string, unknown> {
   return params(values) as Record<string, unknown>
 }
 
+/** Runs the mapper the way the agent tool-call path does: model args under tool param names. */
+function toolCallParams(values: Record<string, unknown>): Record<string, unknown> {
+  const params = QuickBooksBlock.tools?.config?.params
+  if (!params) throw new Error('QuickBooks block does not define a params mapper')
+  const mapped = params(values, { operation: String(values.operation) })
+  return { ...values, ...mapped }
+}
+
 function staticRequiredValue(fieldId: string): unknown {
   const field = QuickBooksBlock.subBlocks.find((subBlock) => subBlock.id === fieldId)
   if (!field || typeof field.required !== 'object') {
@@ -247,5 +255,76 @@ describe('QuickBooks block wiring for documented tool parameters', () => {
       value: 'quickbooks_add_attachment',
       and: { field: 'attachmentKind', value: 'file' },
     })
+  })
+})
+
+describe('QuickBooks block agent tool calls', () => {
+  it('keeps model arguments for tool params filled by differently named subBlocks', () => {
+    const email = toolCallParams({
+      operation: 'quickbooks_email_transaction',
+      transactionType: 'invoice',
+      transactionId: '130',
+      recipient: 'ap@example.com',
+      confirmSend: true,
+    })
+    expect(email).toMatchObject({
+      transactionType: 'invoice',
+      transactionId: '130',
+      recipient: 'ap@example.com',
+    })
+
+    const salesRead = toolCallParams({
+      operation: 'quickbooks_read_sales_transactions',
+      transactionType: 'invoice',
+      readMode: 'list',
+      startDate: '2026-01-01',
+      customerId: '58',
+    })
+    expect(salesRead).toMatchObject({ startDate: '2026-01-01', customerId: '58' })
+
+    const purchasingRead = toolCallParams({
+      operation: 'quickbooks_read_purchasing_transactions',
+      readMode: 'by_id',
+      transactionType: 'bill',
+      transactionId: '42',
+    })
+    expect(purchasingRead).toMatchObject({ transactionType: 'bill', transactionId: '42' })
+
+    const billUpdate = toolCallParams({
+      operation: 'quickbooks_update_bill',
+      billId: '42',
+      syncToken: '3',
+    })
+    expect(billUpdate.billId).toBe('42')
+
+    const report = toolCallParams({
+      operation: 'quickbooks_run_financial_report',
+      reportType: 'profit_and_loss',
+      reportDateMacro: 'default',
+      dateMacro: 'this_fiscal_year',
+      customerId: '58',
+    })
+    expect(report.dateMacro).toBe('this_fiscal_year')
+  })
+
+  it('prefers a filled subBlock over the model argument', () => {
+    const pdf = toolCallParams({
+      operation: 'quickbooks_download_transaction_pdf',
+      documentTransactionType: 'invoice',
+      documentTransactionId: '7',
+      transactionId: '999',
+    })
+    expect(pdf.transactionId).toBe('7')
+  })
+
+  it('does not read tool-named values on the canvas', () => {
+    expect(
+      blockParams({
+        operation: 'quickbooks_email_transaction',
+        documentTransactionType: 'invoice',
+        transactionId: 'stale-update-id',
+        confirmSend: true,
+      }).transactionId
+    ).toBeUndefined()
   })
 })
