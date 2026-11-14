@@ -124,106 +124,85 @@ export const listOutboundDeliveriesTool: InternalToolConfig<
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {
       type: 'json',
-      description: 'OData v2 response envelope; collection at output.data.d.results',
-      properties: {
-        d: {
-          type: 'json',
-          description: 'OData v2 envelope',
-          properties: {
-            results: {
-              type: 'array',
-              description: 'A_OutbDeliveryHeader entities',
-              items: {
-                type: 'object',
-                properties: {
-                  DeliveryDocument: { type: 'string', description: 'Outbound delivery number' },
-                  DeliveryDocumentType: {
-                    type: 'string',
-                    description: 'Delivery document type (e.g., LF)',
-                  },
-                  SDDocumentCategory: {
-                    type: 'string',
-                    description: 'SD document category (e.g., J = outbound delivery)',
-                    optional: true,
-                  },
-                  ShippingPoint: {
-                    type: 'string',
-                    description: 'Shipping point',
-                    optional: true,
-                  },
-                  ShippingType: {
-                    type: 'string',
-                    description: 'Shipping type',
-                    optional: true,
-                  },
-                  ShipToParty: {
-                    type: 'string',
-                    description: 'Ship-to business partner',
-                    optional: true,
-                  },
-                  SoldToParty: {
-                    type: 'string',
-                    description: 'Sold-to business partner',
-                    optional: true,
-                  },
-                  DeliveryDate: {
-                    type: 'string',
-                    description: 'Delivery date (Edm.DateTime)',
-                    optional: true,
-                  },
-                  ActualGoodsMovementDate: {
-                    type: 'string',
-                    description: 'Actual goods issue date (Edm.DateTime)',
-                    optional: true,
-                  },
-                  PlannedGoodsIssueDate: {
-                    type: 'string',
-                    description: 'Planned goods issue date (Edm.DateTime)',
-                    optional: true,
-                  },
-                  OverallSDProcessStatus: {
-                    type: 'string',
-                    description: 'Overall SD process (delivery) status',
-                    optional: true,
-                  },
-                  OverallGoodsMovementStatus: {
-                    type: 'string',
-                    description: 'Overall goods movement status',
-                    optional: true,
-                  },
-                  TransactionCurrency: {
-                    type: 'string',
-                    description: 'Document currency',
-                    optional: true,
-                  },
-                  DocumentDate: {
-                    type: 'string',
-                    description: 'Document date (Edm.DateTime)',
-                    optional: true,
-                  },
-                  CreationDate: {
-                    type: 'string',
-                    description: 'Creation date (Edm.DateTime)',
-                    optional: true,
-                  },
-                  LastChangeDate: {
-                    type: 'string',
-                    description: 'Last change date (Edm.DateTime)',
-                    optional: true,
-                  },
-                },
-              },
-            },
-            __next: {
-              type: 'string',
-              description: 'OData skiptoken URL for next page',
-              optional: true,
-            },
-            __count: {
-              type: 'string',
-              description: 'Total count when $inlinecount=allpages is used',
-              optional: true,
-            },
+      description:
+        'Array of A_OutbDeliveryHeader entities, or `{ results, __count?, __next? }` when pagination metadata is present (the integration unwraps the OData v2 `d` envelope). Properties below describe each item.',
+      items: {
+        type: 'object',
+        properties: {
+          DeliveryDocument: { type: 'string', description: 'Outbound delivery number' },
+          DeliveryDocumentType: {
+            type: 'string',
+            description: 'Delivery document type (e.g., LF)',
+          },
+          SDDocumentCategory: {
+            type: 'string',
+            description: 'SD document category (e.g., J = outbound delivery)',
+            optional: true,
+          },
+          ShippingPoint: {
+            type: 'string',
+            description: 'Shipping point',
+            optional: true,
+          },
+          ShippingType: {
+            type: 'string',
+            description: 'Shipping type',
+            optional: true,
+          },
+          ShipToParty: {
+            type: 'string',
+            description: 'Ship-to business partner',
+            optional: true,
+          },
+          SoldToParty: {
+            type: 'string',
+            description: 'Sold-to business partner',
+            optional: true,
+          },
+          DeliveryDate: {
+            type: 'string',
+            description: 'Delivery date (Edm.DateTime)',
+            optional: true,
+          },
+          ActualGoodsMovementDate: {
+            type: 'string',
+            description: 'Actual goods issue date (Edm.DateTime)',
+            optional: true,
+          },
+          PlannedGoodsIssueDate: {
+            type: 'string',
+            description: 'Planned goods issue date (Edm.DateTime)',
+            optional: true,
+          },
+          OverallSDProcessStatus: {
+            type: 'string',
+            description: 'Overall SD process (delivery) status',
+            optional: true,
+          },
+          OverallGoodsMovementStatus: {
+            type: 'string',
+            description: 'Overall goods movement status',
+            optional: true,
+          },
+          TransactionCurrency: {
+            type: 'string',
+            description: 'Document currency',
+            optional: true,
+          },
+          DocumentDate: {
+            type: 'string',
+            description: 'Document date (Edm.DateTime)',
+            optional: true,
+          },
+          CreationDate: {
+            type: 'string',
+            description: 'Creation date (Edm.DateTime)',
+            optional: true,
+          },
+          LastChangeDate: {
+            type: 'string',
+            description: 'Last change date (Edm.DateTime)',
+            optional: true,
           },
         },
       },

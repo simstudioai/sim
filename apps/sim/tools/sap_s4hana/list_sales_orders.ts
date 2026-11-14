@@ -120,70 +120,54 @@ export const listSalesOrdersTool: InternalToolConfig<ListSalesOrdersParams, SapS
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {
       type: 'json',
-      description: 'OData v2 response envelope; collection at output.data.d.results',
-      properties: {
-        d: {
-          type: 'json',
-          description: 'OData v2 envelope',
-          properties: {
-            results: {
-              type: 'array',
-              description: 'A_SalesOrder entities',
-              items: {
-                type: 'object',
-                properties: {
-                  SalesOrder: { type: 'string', description: 'Sales order number' },
-                  SalesOrderType: { type: 'string', description: 'Sales document type (e.g., OR)' },
-                  SalesOrganization: { type: 'string', description: 'Sales organization' },
-                  DistributionChannel: { type: 'string', description: 'Distribution channel' },
-                  OrganizationDivision: { type: 'string', description: 'Division' },
-                  SoldToParty: { type: 'string', description: 'Sold-to business partner' },
-                  TotalNetAmount: { type: 'string', description: 'Total net amount' },
-                  TransactionCurrency: { type: 'string', description: 'Document currency' },
-                  CreationDate: { type: 'string', description: 'Creation date (OData /Date(ms)/)' },
-                  SalesOrderDate: {
-                    type: 'string',
-                    description: 'Sales order date (OData /Date(ms)/)',
-                    optional: true,
-                  },
-                  RequestedDeliveryDate: {
-                    type: 'string',
-                    description: 'Requested delivery date (OData /Date(ms)/)',
-                    optional: true,
-                  },
-                  LastChangeDate: {
-                    type: 'string',
-                    description: 'Last change date (OData /Date(ms)/)',
-                    optional: true,
-                  },
-                  PurchaseOrderByCustomer: {
-                    type: 'string',
-                    description: 'Customer purchase order reference',
-                    optional: true,
-                  },
-                  OverallSDProcessStatus: {
-                    type: 'string',
-                    description: 'Overall sales document process status',
-                    optional: true,
-                  },
-                  OverallTotalDeliveryStatus: {
-                    type: 'string',
-                    description: 'Overall total delivery status',
-                    optional: true,
-                  },
-                  OverallSDDocumentRejectionSts: {
-                    type: 'string',
-                    description: 'Overall sales document rejection status',
-                    optional: true,
-                  },
-                },
-              },
-            },
-            __next: {
-              type: 'string',
-              description: 'OData skiptoken URL for next page',
-              optional: true,
-            },
+      description:
+        'Array of A_SalesOrder entities, or `{ results, __count?, __next? }` when pagination metadata is present (the integration unwraps the OData v2 `d` envelope). Properties below describe each item.',
+      items: {
+        type: 'object',
+        properties: {
+          SalesOrder: { type: 'string', description: 'Sales order number' },
+          SalesOrderType: { type: 'string', description: 'Sales document type (e.g., OR)' },
+          SalesOrganization: { type: 'string', description: 'Sales organization' },
+          DistributionChannel: { type: 'string', description: 'Distribution channel' },
+          OrganizationDivision: { type: 'string', description: 'Division' },
+          SoldToParty: { type: 'string', description: 'Sold-to business partner' },
+          TotalNetAmount: { type: 'string', description: 'Total net amount' },
+          TransactionCurrency: { type: 'string', description: 'Document currency' },
+          CreationDate: { type: 'string', description: 'Creation date (OData /Date(ms)/)' },
+          SalesOrderDate: {
+            type: 'string',
+            description: 'Sales order date (OData /Date(ms)/)',
+            optional: true,
+          },
+          RequestedDeliveryDate: {
+            type: 'string',
+            description: 'Requested delivery date (OData /Date(ms)/)',
+            optional: true,
+          },
+          LastChangeDate: {
+            type: 'string',
+            description: 'Last change date (OData /Date(ms)/)',
+            optional: true,
+          },
+          PurchaseOrderByCustomer: {
+            type: 'string',
+            description: 'Customer purchase order reference',
+            optional: true,
+          },
+          OverallSDProcessStatus: {
+            type: 'string',
+            description: 'Overall sales document process status',
+            optional: true,
+          },
+          OverallTotalDeliveryStatus: {
+            type: 'string',
+            description: 'Overall total delivery status',
+            optional: true,
+          },
+          OverallSDDocumentRejectionSts: {
+            type: 'string',
+            description: 'Overall sales document rejection status',
+            optional: true,
           },
         },
       },

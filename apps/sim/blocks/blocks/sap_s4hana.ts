@@ -209,12 +209,12 @@ Rules:
 - Functions: substringof('x', Field), startswith(Field, 'x'), endswith(Field, 'x')
 
 Examples:
-- BusinessPartnerCategory eq '1' and Country eq 'US'
+- BusinessPartnerCategory eq '1' and CorrespondenceLanguage eq 'EN'
 - CreationDate gt datetime'2024-01-01T00:00:00'
 - substringof('ACME', OrganizationBPName1)
 
 Return ONLY the $filter expression - no explanations, no extra text.`,
-        placeholder: 'Describe the filter you want (e.g., "people in the US created this year")',
+        placeholder: 'Describe the filter you want (e.g., "people created this year")',
       },
       condition: {
         field: 'operation',

@@ -43,7 +43,7 @@ export const assignOnboardingTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Worker ID to assign the onboarding plan to',
+      description: 'Workday ID (WID) of the person to assign the onboarding plan to',
     },
     onboardingPlanId: {
       type: 'string',

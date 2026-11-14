@@ -39,7 +39,7 @@ export const updateWorkerTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Worker ID to update',
+      description: 'Employee ID of the worker to update',
     },
     fields: {
       type: 'json',

@@ -61,6 +61,7 @@ export const squareGetCatalogObjectTool: ToolConfig<GetCatalogObjectParams, Cata
         success: true,
         output: {
           object,
+          related_objects: data.related_objects ?? [],
           metadata: {
             id: object.id,
             type: object.type ?? null,
@@ -72,6 +73,13 @@ export const squareGetCatalogObjectTool: ToolConfig<GetCatalogObjectParams, Cata
 
     outputs: {
       object: { ...CATALOG_OBJECT_OUTPUT, description: 'The retrieved catalog object' },
+      related_objects: {
+        type: 'array',
+        description:
+          'Catalog objects referenced by the retrieved object (returned when Include Related Objects is true)',
+        optional: true,
+        items: CATALOG_OBJECT_OUTPUT,
+      },
       metadata: {
         type: 'json',
         description: 'Catalog object summary metadata',

@@ -115,33 +115,26 @@ export const updatePurchaseRequisitionTool: InternalToolConfig<
     data: {
       type: 'json',
       description:
-        'Null on 204 success, or OData v2 envelope with updated A_PurchaseRequisitionHeader at output.data.d',
+        'Null on 204 No Content (the usual response), or the updated A_PurchaseRequisitionHeader entity when SAP returns one',
       properties: {
-        d: {
-          type: 'json',
-          description: 'Updated A_PurchaseRequisitionHeader entity (if returned)',
+        PurchaseRequisition: {
+          type: 'string',
+          description: 'Purchase requisition number',
+        },
+        PurchaseRequisitionType: {
+          type: 'string',
+          description: 'PR document type',
           optional: true,
-          properties: {
-            PurchaseRequisition: {
-              type: 'string',
-              description: 'Purchase requisition number',
-            },
-            PurchaseRequisitionType: {
-              type: 'string',
-              description: 'PR document type',
-              optional: true,
-            },
-            PurReqnDescription: {
-              type: 'string',
-              description: 'Purchase requisition description',
-              optional: true,
-            },
-            SourceDetermination: {
-              type: 'string',
-              description: 'Source-of-supply determination flag',
-              optional: true,
-            },
-          },
+        },
+        PurReqnDescription: {
+          type: 'string',
+          description: 'Purchase requisition description',
+          optional: true,
+        },
+        SourceDetermination: {
+          type: 'string',
+          description: 'Source-of-supply determination flag',
+          optional: true,
         },
       },
     },
