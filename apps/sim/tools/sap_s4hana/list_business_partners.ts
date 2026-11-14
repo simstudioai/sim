@@ -125,65 +125,68 @@ export const listBusinessPartnersTool: InternalToolConfig<
       type: 'json',
       description:
         'Array of A_BusinessPartner entities, or `{ results, __count?, __next? }` when pagination metadata is present (the integration unwraps the OData v2 `d` envelope). Properties below describe each item.',
-      properties: {
-        BusinessPartner: { type: 'string', description: 'Business partner key (up to 10 chars)' },
-        BusinessPartnerFullName: {
-          type: 'string',
-          description: 'Full name (concatenated first/last or organization name)',
-          optional: true,
-        },
-        BusinessPartnerCategory: {
-          type: 'string',
-          description: '"1" Person, "2" Organization, "3" Group',
-          optional: true,
-        },
-        BusinessPartnerGrouping: {
-          type: 'string',
-          description: 'Grouping / number range (tenant-configured)',
-          optional: true,
-        },
-        BusinessPartnerType: {
-          type: 'string',
-          description: 'Business partner type (tenant-configured)',
-          optional: true,
-        },
-        BusinessPartnerUUID: {
-          type: 'string',
-          description: 'GUID identifier for the business partner',
-          optional: true,
-        },
-        BusinessPartnerIsBlocked: {
-          type: 'boolean',
-          description: 'Whether the business partner is centrally blocked',
-          optional: true,
-        },
-        FirstName: { type: 'string', description: 'First name (Person)', optional: true },
-        LastName: { type: 'string', description: 'Last name (Person)', optional: true },
-        OrganizationBPName1: {
-          type: 'string',
-          description: 'Organization name line 1',
-          optional: true,
-        },
-        SearchTerm1: { type: 'string', description: 'Search term 1', optional: true },
-        CreationDate: {
-          type: 'string',
-          description: 'Date the partner was created (OData /Date(...)/ literal)',
-          optional: true,
-        },
-        CreatedByUser: {
-          type: 'string',
-          description: 'User who created the business partner',
-          optional: true,
-        },
-        LastChangeDate: {
-          type: 'string',
-          description: 'Date of last change (OData /Date(...)/ literal)',
-          optional: true,
-        },
-        LastChangedByUser: {
-          type: 'string',
-          description: 'User who last changed the business partner',
-          optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          BusinessPartner: { type: 'string', description: 'Business partner key (up to 10 chars)' },
+          BusinessPartnerFullName: {
+            type: 'string',
+            description: 'Full name (concatenated first/last or organization name)',
+            optional: true,
+          },
+          BusinessPartnerCategory: {
+            type: 'string',
+            description: '"1" Person, "2" Organization, "3" Group',
+            optional: true,
+          },
+          BusinessPartnerGrouping: {
+            type: 'string',
+            description: 'Grouping / number range (tenant-configured)',
+            optional: true,
+          },
+          BusinessPartnerType: {
+            type: 'string',
+            description: 'Business partner type (tenant-configured)',
+            optional: true,
+          },
+          BusinessPartnerUUID: {
+            type: 'string',
+            description: 'GUID identifier for the business partner',
+            optional: true,
+          },
+          BusinessPartnerIsBlocked: {
+            type: 'boolean',
+            description: 'Whether the business partner is centrally blocked',
+            optional: true,
+          },
+          FirstName: { type: 'string', description: 'First name (Person)', optional: true },
+          LastName: { type: 'string', description: 'Last name (Person)', optional: true },
+          OrganizationBPName1: {
+            type: 'string',
+            description: 'Organization name line 1',
+            optional: true,
+          },
+          SearchTerm1: { type: 'string', description: 'Search term 1', optional: true },
+          CreationDate: {
+            type: 'string',
+            description: 'Date the partner was created (OData /Date(...)/ literal)',
+            optional: true,
+          },
+          CreatedByUser: {
+            type: 'string',
+            description: 'User who created the business partner',
+            optional: true,
+          },
+          LastChangeDate: {
+            type: 'string',
+            description: 'Date of last change (OData /Date(...)/ literal)',
+            optional: true,
+          },
+          LastChangedByUser: {
+            type: 'string',
+            description: 'User who last changed the business partner',
+            optional: true,
+          },
         },
       },
     },

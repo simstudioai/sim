@@ -125,60 +125,64 @@ export const listMaterialDocumentsTool: InternalToolConfig<
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {
       type: 'json',
-      description: 'OData payload containing the array of A_MaterialDocumentHeader entities',
-      properties: {
-        MaterialDocumentYear: {
-          type: 'string',
-          description: 'Material document year (4-digit fiscal year)',
-        },
-        MaterialDocument: { type: 'string', description: 'Material document number' },
-        DocumentDate: { type: 'string', description: 'Document date (OData /Date(...)/ string)' },
-        PostingDate: { type: 'string', description: 'Posting date (OData /Date(...)/ string)' },
-        MaterialDocumentHeaderText: {
-          type: 'string',
-          description: 'Header text describing the material document',
-          optional: true,
-        },
-        ReferenceDocument: {
-          type: 'string',
-          description: 'Reference document number',
-          optional: true,
-        },
-        GoodsMovementCode: {
-          type: 'string',
-          description: 'Goods movement code (e.g., 01 GR for PO, 03 GI to cost center)',
-        },
-        InventoryTransactionType: {
-          type: 'string',
-          description: 'Inventory transaction type indicator',
-          optional: true,
-        },
-        CreatedByUser: {
-          type: 'string',
-          description: 'User who created the material document',
-        },
-        CreationDate: { type: 'string', description: 'Creation date (OData /Date(...)/ string)' },
-        CreationTime: { type: 'string', description: 'Creation time (OData PT...S string)' },
-        VersionForPrintingSlip: {
-          type: 'string',
-          description: 'Version for printing the goods movement slip',
-          optional: true,
-        },
-        ManualPrintIsTriggered: {
-          type: 'boolean',
-          description: 'Indicates whether manual print was triggered for this document',
-          optional: true,
-        },
-        CtrlPostgForExtWhseMgmtSyst: {
-          type: 'string',
-          description: 'Control posting for external warehouse management system',
-          optional: true,
-        },
-        to_MaterialDocumentItem: {
-          type: 'json',
-          description:
-            'Material document items (only present when $expand=to_MaterialDocumentItem is supplied)',
-          optional: true,
+      description:
+        'Array of A_MaterialDocumentHeader entities, or `{ results, __count?, __next? }` when pagination metadata is present (the integration unwraps the OData v2 `d` envelope). Properties below describe each item.',
+      items: {
+        type: 'object',
+        properties: {
+          MaterialDocumentYear: {
+            type: 'string',
+            description: 'Material document year (4-digit fiscal year)',
+          },
+          MaterialDocument: { type: 'string', description: 'Material document number' },
+          DocumentDate: { type: 'string', description: 'Document date (OData /Date(...)/ string)' },
+          PostingDate: { type: 'string', description: 'Posting date (OData /Date(...)/ string)' },
+          MaterialDocumentHeaderText: {
+            type: 'string',
+            description: 'Header text describing the material document',
+            optional: true,
+          },
+          ReferenceDocument: {
+            type: 'string',
+            description: 'Reference document number',
+            optional: true,
+          },
+          GoodsMovementCode: {
+            type: 'string',
+            description: 'Goods movement code (e.g., 01 GR for PO, 03 GI to cost center)',
+          },
+          InventoryTransactionType: {
+            type: 'string',
+            description: 'Inventory transaction type indicator',
+            optional: true,
+          },
+          CreatedByUser: {
+            type: 'string',
+            description: 'User who created the material document',
+          },
+          CreationDate: { type: 'string', description: 'Creation date (OData /Date(...)/ string)' },
+          CreationTime: { type: 'string', description: 'Creation time (OData PT...S string)' },
+          VersionForPrintingSlip: {
+            type: 'string',
+            description: 'Version for printing the goods movement slip',
+            optional: true,
+          },
+          ManualPrintIsTriggered: {
+            type: 'boolean',
+            description: 'Indicates whether manual print was triggered for this document',
+            optional: true,
+          },
+          CtrlPostgForExtWhseMgmtSyst: {
+            type: 'string',
+            description: 'Control posting for external warehouse management system',
+            optional: true,
+          },
+          to_MaterialDocumentItem: {
+            type: 'json',
+            description:
+              'Material document items (only present when $expand=to_MaterialDocumentItem is supplied)',
+            optional: true,
+          },
         },
       },
     },

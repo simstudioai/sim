@@ -56,6 +56,15 @@ function workerSummary(worker: WorkdayWorkerSoap) {
   }
 }
 
+/**
+ * Clamps a page size to the 1-999 range `Response_Filter.Count` accepts (Human_Resources
+ * WSDL `Response_FilterType`), defaulting to 20 when the value is absent or not a number.
+ */
+function responseFilterCount(limit: number | undefined): number {
+  if (limit === undefined || !Number.isFinite(limit)) return 20
+  return Math.min(999, Math.max(1, Math.trunc(limit)))
+}
+
 export async function executeWorkdayGetWorker(input: WorkdayGetWorkerBody, signal?: AbortSignal) {
   const client = await createClient(input, 'humanResources', signal)
   const [result] = await client.Get_WorkersAsync({
@@ -96,7 +105,7 @@ export async function executeWorkdayListWorkers(
   signal?: AbortSignal
 ) {
   const client = await createClient(input, 'humanResources', signal)
-  const limit = input.limit ?? 20
+  const limit = responseFilterCount(input.limit)
   const offset = input.offset ?? 0
   const page = offset > 0 ? Math.floor(offset / limit) + 1 : 1
   const [result] = await client.Get_WorkersAsync({
@@ -268,7 +277,7 @@ export async function executeWorkdayGetOrganizations(
   signal?: AbortSignal
 ) {
   const client = await createClient(input, 'humanResources', signal)
-  const limit = input.limit ?? 20
+  const limit = responseFilterCount(input.limit)
   const offset = input.offset ?? 0
   const page = offset > 0 ? Math.floor(offset / limit) + 1 : 1
   const [result] = await client.Get_OrganizationsAsync({

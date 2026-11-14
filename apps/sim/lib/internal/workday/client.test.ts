@@ -73,4 +73,36 @@ describe('Workday SOAP client', () => {
     expect(extractRefId(worker.Worker_Reference)).toBe('worker-1')
     expect(result.Response_Results?.Total_Results).toBe('1')
   })
+
+  it.each([
+    ['Hire_EmployeeAsync', 'Hire_Employee_Event_Response'],
+    ['Terminate_EmployeeAsync', 'Terminate_Employee_Event_Response'],
+  ] as const)('parses %s from its %s element', async (method, responseElement) => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        `<?xml version="1.0" encoding="UTF-8"?>
+<env:Envelope xmlns:env="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wd="urn:com.workday/bsvc">
+  <env:Body>
+    <wd:${responseElement}>
+      <wd:Event_Reference><wd:ID wd:type="WID">event-1</wd:ID></wd:Event_Reference>
+      <wd:Employee_Reference><wd:ID wd:type="Employee_ID">04345</wd:ID></wd:Employee_Reference>
+    </wd:${responseElement}>
+  </env:Body>
+</env:Envelope>`,
+        { status: 200 }
+      )
+    )
+    const client = await createWorkdaySoapClient(
+      'https://wd2-impl-services1.workday.com',
+      'example',
+      'staffing',
+      'user',
+      'password'
+    )
+
+    const [result] = await client[method]({})
+
+    expect(extractRefId(result.Event_Reference)).toBe('event-1')
+    expect(extractRefId(result.Employee_Reference)).toBe('04345')
+  })
 })

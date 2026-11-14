@@ -1304,7 +1304,7 @@ List material stock quantities from SAP S/4HANA Cloud (API_MATERIAL_STOCK_SRV, A
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData payload containing the array of A_MatlStkInAcctMod stock entries |
+| `data` | json | Array of A_MatlStkInAcctMod entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each item. |
 |   ↳ `Material` | string | Material number |
 |   ↳ `Plant` | string | Plant identifier |
 |   ↳ `StorageLocation` | string | Storage location identifier |
@@ -1353,7 +1353,7 @@ List material document headers (goods movements) from SAP S/4HANA Cloud (API_MAT
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
-| `data` | json | OData payload containing the array of A_MaterialDocumentHeader entities |
+| `data` | json | Array of A_MaterialDocumentHeader entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each item. |
 |   ↳ `MaterialDocumentYear` | string | Material document year \(4-digit fiscal year\) |
 |   ↳ `MaterialDocument` | string | Material document number |
 |   ↳ `DocumentDate` | string | Document date \(OData /Date\(...\)/ string\) |
