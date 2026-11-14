@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   buildZendeskUrl,
   handleZendeskError,
@@ -109,7 +110,11 @@ export const zendeskUpdateOrganizationTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildZendeskUrl(params.subdomain, `/organizations/${params.organizationId}`),
+    url: (params) =>
+      buildZendeskUrl(
+        params.subdomain,
+        `/organizations/${safeUrlPathSegment(params.organizationId, 'organizationId')}`
+      ),
     method: 'PUT',
     headers: (params) => ({
       Authorization: zendeskAuthorization(params),

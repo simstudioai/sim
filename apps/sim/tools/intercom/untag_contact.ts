@@ -1,6 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomUntagContactParams {
   accessToken: string
@@ -41,7 +42,9 @@ const untagContactBase = {
 
   request: {
     url: (params: IntercomUntagContactParams) =>
-      buildIntercomUrl(`/contacts/${params.contactId}/tags/${params.tagId}`),
+      buildIntercomUrl(
+        `/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}/tags/${safeUrlPathSegment(params.tagId, 'tagId')}`
+      ),
     method: 'DELETE',
     headers: (params: IntercomUntagContactParams) => ({
       Authorization: `Bearer ${params.accessToken}`,

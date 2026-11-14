@@ -5,6 +5,7 @@ import type {
 } from '@/tools/pipedrive/types'
 import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('PipedriveGetPipelineDeals')
 
@@ -64,7 +65,7 @@ export const pipedriveGetPipelineDealsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.pipedrive.com/v1/pipelines/${params.pipeline_id}/deals`
+      const baseUrl = `https://api.pipedrive.com/v1/pipelines/${safeUrlPathSegment(params.pipeline_id, 'pipeline_id')}/deals`
       const queryParams = new URLSearchParams()
 
       if (params.stage_id) queryParams.append('stage_id', params.stage_id)

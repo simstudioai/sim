@@ -76,7 +76,7 @@ export const pipedriveCreateActivityTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'ID of the person to associate with (e.g., "456")',
+      description: 'ID of the person to associate with as the primary participant (e.g., "456")',
     },
     org_id: {
       type: 'string',
@@ -93,7 +93,7 @@ export const pipedriveCreateActivityTool: ToolConfig<
   },
 
   request: {
-    url: () => 'https://api.pipedrive.com/v1/activities',
+    url: () => 'https://api.pipedrive.com/api/v2/activities',
     method: 'POST',
     headers: (params) => ({
       ...getPipedriveAuthHeaders(params),
@@ -109,7 +109,9 @@ export const pipedriveCreateActivityTool: ToolConfig<
       if (params.due_time) body.due_time = params.due_time
       if (params.duration) body.duration = params.duration
       if (params.deal_id) body.deal_id = Number(params.deal_id)
-      if (params.person_id) body.person_id = Number(params.person_id)
+      if (params.person_id) {
+        body.participants = [{ person_id: Number(params.person_id), primary: true }]
+      }
       if (params.org_id) body.org_id = Number(params.org_id)
       if (params.note) body.note = params.note
 

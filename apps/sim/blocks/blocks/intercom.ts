@@ -17,6 +17,15 @@ const EVENT_ACTOR_FIELD = ['event_email', 'event_user_id', 'event_contact_id'] a
 /** What an outbound message shows: its subject when set, otherwise its body. */
 const MESSAGE_PREVIEW_FIELD = ['subject', 'body'] as const
 
+/** Intercom requires `snoozed_until` as a whole Unix timestamp in seconds. */
+function toSnoozeTimestamp(value: unknown): number {
+  const timestamp = Number(value)
+  if (!Number.isInteger(timestamp)) {
+    throw new Error('Snooze until must be a whole Unix timestamp in seconds')
+  }
+  return timestamp
+}
+
 export const IntercomBlock: BlockConfig = {
   type: 'intercom',
   name: 'Intercom (Legacy)',
@@ -854,7 +863,11 @@ Return ONLY the subject line - no explanations.`,
       id: 'to_type',
       title: 'To Type',
       type: 'dropdown',
-      options: [{ label: 'Contact', id: 'contact' }],
+      options: [
+        { label: 'User', id: 'user' },
+        { label: 'Lead', id: 'lead' },
+        { label: 'Contact', id: 'contact' },
+      ],
       required: true,
       condition: {
         field: 'operation',
@@ -864,9 +877,9 @@ Return ONLY the subject line - no explanations.`,
     {
       id: 'to_id',
       title: 'To ID',
-      canvasNoun: 'a contact ID',
+      canvasNoun: 'a recipient ID',
       type: 'short-input',
-      placeholder: 'Contact ID',
+      placeholder: 'User, lead, or contact ID',
       required: true,
       condition: {
         field: 'operation',
@@ -1354,6 +1367,7 @@ Return ONLY the numeric timestamp.`,
           ticket_open,
           ticket_is_shared,
           ticket_snoozed_until,
+          snoozed_until,
           ticket_assignee_id,
           tag_name,
           tag_id_update,
@@ -1404,6 +1418,10 @@ Return ONLY the numeric timestamp.`,
           include_translations !== ''
         ) {
           cleanParams.include_translations = include_translations === 'true'
+        }
+
+        if (operation === 'snooze_conversation' && snoozed_until) {
+          cleanParams.snoozed_until = toSnoozeTimestamp(snoozed_until)
         }
 
         if (operation === 'close_conversation' && close_body) {
@@ -1638,6 +1656,7 @@ export const IntercomV2Block: BlockConfig = {
           ticket_open,
           ticket_is_shared,
           ticket_snoozed_until,
+          snoozed_until,
           ticket_assignee_id,
           tag_name,
           tag_id_update,
@@ -1688,6 +1707,10 @@ export const IntercomV2Block: BlockConfig = {
           include_translations !== ''
         ) {
           cleanParams.include_translations = include_translations === 'true'
+        }
+
+        if (operation === 'snooze_conversation' && snoozed_until) {
+          cleanParams.snoozed_until = toSnoozeTimestamp(snoozed_until)
         }
 
         if (operation === 'close_conversation' && close_body) {
