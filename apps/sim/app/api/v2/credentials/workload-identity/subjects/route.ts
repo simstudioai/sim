@@ -26,8 +26,9 @@ const workloadIdentitySubjectErrorPolicy = createV2ResourceConcealmentPolicy({
 /**
  * POST /api/v2/credentials/workload-identity/subjects — Issue the subject a
  * cloud trust configuration pins, and the proof that attaches it to a new
- * keyless credential. A deployment that cannot sign is refused exactly as
- * Create service-account credential refuses a keyless configuration there.
+ * keyless credential, or renew the proof for a subject Sim is still holding.
+ * A deployment that cannot sign is refused exactly as Create service-account
+ * credential refuses a keyless configuration there.
  */
 export const POST = defineV2JsonRoute({
   contract: v2CreateCredentialWorkloadIdentitySubjectContract,
@@ -38,11 +39,19 @@ export const POST = defineV2JsonRoute({
   mapInput: ({ body }) => ({
     workspaceId: body.workspaceId,
     provider: workloadIdentityProviderFor(body.providerId),
+    subjectRequest: body.subject
+      ? { kind: 'renew' as const, subject: body.subject }
+      : { kind: 'new' as const },
   }),
   useCase: prepareWorkloadIdentity,
   present: (result, { body }) => {
     if (!result.available) {
       throw new WorkloadIdentityNotConfiguredError()
+    }
+    // This route only issues or renews subjects Sim holds, so the hold is always reported.
+    const { subjectIssuedAt, subjectHeldUntil } = result
+    if (!subjectIssuedAt || !subjectHeldUntil) {
+      throw new Error('A held workload identity subject must report its hold')
     }
     const { authType, requiredFields, optionalFields } =
       WORKLOAD_IDENTITY_KEYLESS_CONFIGS[workloadIdentityProviderFor(body.providerId)]
@@ -53,6 +62,8 @@ export const POST = defineV2JsonRoute({
         subject: result.subject,
         subjectProof: result.subjectProof,
         expiresAt: result.expiresAt,
+        subjectIssuedAt,
+        subjectHeldUntil,
         keylessConfig: { authType, subject: result.subject, subjectProof: result.subjectProof },
         requiredConfigFields: [...requiredFields],
         optionalConfigFields: [...optionalFields],

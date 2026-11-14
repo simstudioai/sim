@@ -1,7 +1,7 @@
 import { AzureIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { toolCallArg, withSavedCredential } from '@/blocks/utils'
 import type { AzureDevOpsBasicWorkItemType } from '@/tools/azure_devops/types'
 import { AZURE_DEVOPS_BASIC_WORK_ITEM_STATES } from '@/tools/azure_devops/utils'
 import { getTrigger } from '@/triggers'
@@ -718,7 +718,7 @@ export const AzureDevOpsBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation as string,
-      params: (params) => {
+      params: (params, context) => {
         const base = {
           accessToken: params.accessToken as string,
           organization: params.organization as string,
@@ -729,7 +729,10 @@ export const AzureDevOpsBlock: BlockConfig = {
             return {
               ...base,
               top: resolveTop(params.pipelinesTop, params.top),
-              continuationToken: (params.pipelinesContinuationToken as string) || undefined,
+              continuationToken:
+                (params.pipelinesContinuationToken as string) ||
+                toolCallArg(context, params.continuationToken) ||
+                undefined,
             }
           case 'azure_devops_get_pipeline':
             return { ...base, pipelineId: Number(params.pipelineId) }
@@ -774,7 +777,7 @@ export const AzureDevOpsBlock: BlockConfig = {
             return {
               ...base,
               wiqlQuery: params.wiqlQuery as string,
-              top: params.queryTop ? Number(params.queryTop) : undefined,
+              top: resolveTop(params.queryTop, toolCallArg(context, params.top)),
             }
           case 'azure_devops_get_work_item':
             return { ...base, workItemId: Number(params.workItemId) }
@@ -814,7 +817,10 @@ export const AzureDevOpsBlock: BlockConfig = {
               completedWork: params.completedWork ? Number(params.completedWork) : undefined,
               description: (params.description as string) || undefined,
               areaPath: (params.areaPath as string) || undefined,
-              iterationPath: (params.updateIterationPath as string) || undefined,
+              iterationPath:
+                (params.updateIterationPath as string) ||
+                toolCallArg(context, params.iterationPath) ||
+                undefined,
               tags: (params.tags as string) || undefined,
             }
           case 'azure_devops_add_comment':
@@ -822,14 +828,20 @@ export const AzureDevOpsBlock: BlockConfig = {
               ...base,
               workItemId: Number(params.workItemId),
               text: params.commentText as string,
-              format: (params.commentFormat as string) || undefined,
+              format:
+                (params.commentFormat as string) ||
+                toolCallArg(context, params.format) ||
+                undefined,
             }
           case 'azure_devops_get_comments':
             return {
               ...base,
               workItemId: Number(params.workItemId),
               top: resolveTop(params.commentsTop, params.top),
-              continuationToken: (params.commentsContinuationToken as string) || undefined,
+              continuationToken:
+                (params.commentsContinuationToken as string) ||
+                toolCallArg(context, params.continuationToken) ||
+                undefined,
             }
           default:
             return base

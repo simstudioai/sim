@@ -633,10 +633,11 @@ export const SlackBlock: BlockConfig = {
       title: 'Message',
       type: 'long-input',
       placeholder: 'Enter your message (supports Slack mrkdwn)',
+      description:
+        'With Block Kit, this optional text is what Slack shows in notifications and in clients that cannot render blocks.',
       condition: {
         field: 'operation',
         value: ['send', 'ephemeral', 'schedule_message'],
-        and: { field: 'messageFormat', value: 'blocks', not: true },
       },
       required: {
         field: 'operation',
@@ -1143,10 +1144,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'New Message Text',
       type: 'long-input',
       placeholder: 'Enter new message text (supports Slack mrkdwn)',
+      description:
+        'With Block Kit, this optional text is what Slack shows in notifications and in clients that cannot render blocks.',
       condition: {
         field: 'operation',
         value: 'update',
-        and: { field: 'messageFormat', value: 'blocks', not: true },
       },
       required: {
         field: 'operation',

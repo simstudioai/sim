@@ -7,6 +7,7 @@ import {
 import type { SubscriptionResponse, UpdateSubscriptionParams } from '@/tools/stripe/types'
 import { SUBSCRIPTION_METADATA_OUTPUT_PROPERTIES, SUBSCRIPTION_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_update_subscription',
@@ -40,7 +41,8 @@ export const stripeUpdateSubscriptionTool: ToolConfig<
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Updated array of items with price IDs',
+      description:
+        'Subscription items to change, e.g. [{"id": "si_123", "price": "price_456"}]. Include the existing item "id" to update or delete (with "deleted": true) that item; an entry without "id" adds a new item alongside the current ones.',
     },
     cancel_at_period_end: {
       type: 'boolean',
@@ -57,7 +59,8 @@ export const stripeUpdateSubscriptionTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/subscriptions/${params.id}`,
+    url: (params) =>
+      `https://api.stripe.com/v1/subscriptions/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one
@@ -77,10 +80,12 @@ export const stripeUpdateSubscriptionTool: ToolConfig<
 
       if (params.items && Array.isArray(params.items)) {
         params.items.forEach((item, index) => {
-          formData.append(`items[${index}][price]`, item.price)
-          if (item.quantity) {
+          if (item.id) formData.append(`items[${index}][id]`, item.id)
+          if (item.price) formData.append(`items[${index}][price]`, item.price)
+          if (item.quantity != null && String(item.quantity).trim() !== '') {
             formData.append(`items[${index}][quantity]`, String(item.quantity))
           }
+          if (String(item.deleted) === 'true') formData.append(`items[${index}][deleted]`, 'true')
         })
       }
 

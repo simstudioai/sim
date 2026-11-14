@@ -22,7 +22,7 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of projects to return (1-100)',
+      description: 'Maximum number of projects to return (1-100, default: 25)',
     },
     includeArchived: {
       type: 'boolean',
@@ -222,6 +222,23 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
           },
           createdAt: { type: 'string', description: 'Creation timestamp' },
           archivedAt: { type: 'string', description: 'Archived timestamp', optional: true },
+          trashedAt: { type: 'string', description: 'Trashed timestamp', optional: true },
+          categories: {
+            type: 'array',
+            description: 'Project categories',
+            optional: true,
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Category name' },
+                description: {
+                  type: 'string',
+                  description: 'Category description',
+                  nullable: true,
+                },
+              },
+            },
+          },
         },
       },
     },

@@ -2,6 +2,7 @@ import type { HexUpdateProjectParams, HexUpdateProjectResponse } from '@/tools/h
 import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProjectResponse> = {
   id: 'hex_update_project',
@@ -34,7 +35,8 @@ export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProj
   },
 
   request: {
-    url: (params) => `${hexApiBase(params.host)}/projects/${params.projectId.trim()}`,
+    url: (params) =>
+      `${hexApiBase(params.host)}/projects/${safeUrlPathSegment(params.projectId, 'projectId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

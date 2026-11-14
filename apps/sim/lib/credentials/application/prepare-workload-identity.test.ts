@@ -19,6 +19,28 @@ vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
+vi.mock('@/lib/credentials/workload-identity/pending-subjects', async () => {
+  const { newWorkloadIdentitySubject } = await vi.importActual<
+    typeof import('@/lib/credentials/workload-identity/subject')
+  >('@/lib/credentials/workload-identity/subject')
+  const actual = await vi.importActual<
+    typeof import('@/lib/credentials/workload-identity/pending-subjects')
+  >('@/lib/credentials/workload-identity/pending-subjects')
+  return {
+    ...actual,
+    resolvePendingWorkloadIdentitySubject: vi.fn(
+      async ({ workspaceId }: { workspaceId: string }) => {
+        const issuedAt = new Date()
+        return {
+          subject: newWorkloadIdentitySubject({ workspaceId }),
+          issuedAt,
+          heldUntil: new Date(issuedAt.getTime() + actual.PENDING_SUBJECT_HOLD_MS),
+          reused: false,
+        }
+      }
+    ),
+  }
+})
 
 import { env } from '@/lib/core/config/env'
 import { prepareWorkloadIdentity } from '@/lib/credentials/application/prepare-workload-identity'
@@ -58,7 +80,12 @@ function prepare(
 ) {
   return prepareWorkloadIdentity.execute({
     principal,
-    input: { workspaceId: 'workspace-1', provider, credentialId: 'cred-1' },
+    input: {
+      workspaceId: 'workspace-1',
+      provider,
+      credentialId: 'cred-1',
+      subjectRequest: { kind: 'latest' },
+    },
   })
 }
 
@@ -332,6 +359,25 @@ describe('preparing a reconnect', () => {
     expect(await prepare('microsoft')).not.toHaveProperty('reconnectCloud')
     reconnecting(keylessSecret)
     expect(await prepare()).not.toHaveProperty('reconnectCloud')
+  })
+
+  it('reports no hold for a reconnect subject Sim does not hold', async () => {
+    reconnecting(keylessSecret)
+
+    const result = await prepareWorkloadIdentity.execute({
+      principal,
+      input: {
+        workspaceId: 'workspace-1',
+        provider: 'snowflake',
+        credentialId: 'cred-1',
+        subjectRequest: { kind: 'unheld' },
+      },
+    })
+
+    expect(result).toMatchObject({ available: true, subject: expect.any(String) })
+    expect(result).not.toHaveProperty('subjectHeldUntil')
+    expect(result).not.toHaveProperty('subjectIssuedAt')
+    expect(result).not.toHaveProperty('subjectReused')
   })
 
   it('gives Google no fixed audience', async () => {

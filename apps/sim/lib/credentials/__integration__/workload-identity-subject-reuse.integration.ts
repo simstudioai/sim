@@ -19,6 +19,31 @@ vi.mock('@/lib/credentials/workload-identity/issuer', async (importOriginal) => 
   isWorkloadIdentityConfigured: async () => true,
   mintWorkloadIdentityToken: async ({ subject }: { subject: string }) => `token-for:${subject}`,
 }))
+/** The identity check goes through the egress guard, not global fetch; serve its fixture there. */
+vi.mock('@/lib/core/security/input-validation.server', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/core/security/input-validation.server')>()
+  return {
+    ...actual,
+    secureFetchWithValidation: async (
+      ...args: Parameters<typeof actual.secureFetchWithValidation>
+    ) => {
+      if (args[0] !== 'https://dbc-1234abcd-5678.cloud.databricks.com/api/2.0/preview/scim/v2/Me')
+        return actual.secureFetchWithValidation(...args)
+      const body = JSON.stringify({ userName: 'service-principal@example.com' })
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new actual.SecureFetchHeaders({ 'content-type': 'application/json' }),
+        body: null,
+        text: async () => body,
+        json: async () => JSON.parse(body),
+        arrayBuffer: async () => new TextEncoder().encode(body).buffer,
+      }
+    },
+  }
+})
 
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { updateCredentialRecord } from '@/lib/credentials/orchestration'
@@ -113,9 +138,6 @@ describe('reusing a keyless trust setup', () => {
         return pinnedSubjects.has(subject)
           ? jsonResponse({ access_token: `access-for:${subject}` })
           : jsonResponse({ error: 'invalid_client' }, 401)
-      }
-      if (target === `https://${HOST}/api/2.0/preview/scim/v2/Me`) {
-        return jsonResponse({ userName: 'service-principal@example.com' })
       }
       return originalFetch(input, init)
     })

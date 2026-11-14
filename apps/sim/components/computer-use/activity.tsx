@@ -17,6 +17,7 @@ const ACTION_LABELS: Record<string, string> = {
   drag: 'Dragging',
   set_value: 'Editing',
   perform_action: 'Interacting',
+  batch: 'Running steps',
 }
 
 /** Remains visible while a native action is active, even if the permission group or device access revokes it. */

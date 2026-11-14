@@ -26,7 +26,6 @@ import {
   AssistantActionReviewMessage,
   useHasAssistantActionReview,
 } from '@/components/assistant-actions'
-import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { TurnOrigin } from '@/lib/mothership/generated/protocol'
 import { inter } from '@/app/_styles/fonts/inter/inter'
@@ -1039,7 +1038,6 @@ export function MothershipChat({
           onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
         >
           <div className={styles.footerInner}>
-            <ComputerUseActivity />
             <QueuedMessages
               messageQueue={messageQueue}
               editingQueuedId={editingQueuedId}

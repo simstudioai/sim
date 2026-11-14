@@ -316,7 +316,12 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
               } catch (error) {
                 signal.throwIfAborted()
                 const message = await callerErrorMessage(error)
-                if (!message)
+                if (message)
+                  logger.info('Knowledge MCP batched read returned an error', {
+                    operation: knowledgeOperations.readDocument.id,
+                    reason: message,
+                  })
+                else
                   logger.error('Knowledge MCP batched read failed', {
                     operation: knowledgeOperations.readDocument.id,
                     error,

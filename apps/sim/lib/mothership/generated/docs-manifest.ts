@@ -254,6 +254,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/mintlify.mdx',
   'integrations/mistral_parse.mdx',
   'integrations/modal.mdx',
+  'integrations/monaco.mdx',
   'integrations/monday-service-account.mdx',
   'integrations/monday.mdx',
   'integrations/mongodb.mdx',

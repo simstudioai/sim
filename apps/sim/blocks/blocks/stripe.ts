@@ -1,7 +1,7 @@
 import { StripeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { isToolCall, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -9,6 +9,38 @@ import { getTrigger } from '@/triggers'
  * `capture_payment_intent` shows both, and either one carries the value.
  */
 const CAPTURE_AMOUNT_FIELD = ['amount_to_capture', 'amount'] as const
+
+/**
+ * Reads a Yes/No/Default dropdown. Default (`''`) and an absent value are never sent, so Stripe
+ * applies its own default; `null`, which saved blocks hold when they stored no value, reads as
+ * `false`.
+ */
+function parseOptionalBoolean(value: unknown): boolean | undefined {
+  if (value === undefined || value === '') return undefined
+  return value === true || value === 'true'
+}
+
+const SUBSCRIPTION_LIST_OPERATION = 'list_subscriptions'
+const SUBSCRIPTION_SEARCH_OPERATION = 'search_subscriptions'
+
+const CURSOR_LIST_OPERATIONS = [
+  'list_payment_intents',
+  'list_customers',
+  'list_invoices',
+  'list_charges',
+  'list_products',
+  'list_prices',
+  'list_events',
+]
+
+const PAGED_SEARCH_OPERATIONS = [
+  'search_payment_intents',
+  'search_customers',
+  'search_invoices',
+  'search_charges',
+  'search_products',
+  'search_prices',
+]
 
 export const StripeBlock: BlockConfig = {
   type: 'stripe',
@@ -473,6 +505,7 @@ export const StripeBlock: BlockConfig = {
       title: 'Cancel at Period End',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
       ],
@@ -501,6 +534,7 @@ export const StripeBlock: BlockConfig = {
       title: 'Auto Advance',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
       ],
@@ -525,6 +559,7 @@ export const StripeBlock: BlockConfig = {
       title: 'Capture Immediately',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
       ],
@@ -539,6 +574,7 @@ export const StripeBlock: BlockConfig = {
       title: 'Active',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
       ],
@@ -709,10 +745,34 @@ export const StripeBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'list_starting_after',
+      title: 'Starting After',
+      type: 'short-input',
+      placeholder: 'Last object ID from the previous page',
+      condition: { field: 'operation', value: CURSOR_LIST_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
+      id: 'list_ending_before',
+      title: 'Ending Before',
+      type: 'short-input',
+      placeholder: 'First object ID from the current page',
+      condition: { field: 'operation', value: CURSOR_LIST_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
+      id: 'search_page',
+      title: 'Search Page',
+      type: 'short-input',
+      placeholder: 'Token from metadata.next_page; omit for the first page',
+      condition: { field: 'operation', value: PAGED_SEARCH_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
       id: 'status',
       title: 'Status',
       type: 'short-input',
-      placeholder: 'e.g., succeeded, pending',
+      placeholder: 'e.g., active, open, paid',
       condition: {
         field: 'operation',
         value: ['list_subscriptions', 'list_invoices'],
@@ -757,6 +817,7 @@ export const StripeBlock: BlockConfig = {
       title: 'Prorate',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
       ],
@@ -771,6 +832,7 @@ export const StripeBlock: BlockConfig = {
       title: 'Invoice Now',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
       ],
@@ -785,6 +847,7 @@ export const StripeBlock: BlockConfig = {
       title: 'Paid Out of Band',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
       ],
@@ -864,7 +927,7 @@ export const StripeBlock: BlockConfig = {
       tool: (params) => {
         return `stripe_${params.operation}`
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           operation,
           apiKey,
@@ -880,6 +943,12 @@ export const StripeBlock: BlockConfig = {
           prorate,
           invoice_now,
           paid_out_of_band,
+          starting_after,
+          ending_before,
+          page,
+          list_starting_after,
+          list_ending_before,
+          search_page,
           ...rest
         } = params
 
@@ -899,16 +968,30 @@ export const StripeBlock: BlockConfig = {
           throw new Error(`Invalid JSON input: ${error.message}`)
         }
 
-        const parsedBooleans: Record<string, boolean | undefined> = {}
-        if (cancel_at_period_end !== undefined)
-          parsedBooleans.cancel_at_period_end = cancel_at_period_end === 'true'
-        if (auto_advance !== undefined) parsedBooleans.auto_advance = auto_advance === 'true'
-        if (capture !== undefined) parsedBooleans.capture = capture === 'true'
-        if (active !== undefined) parsedBooleans.active = active === 'true'
-        if (prorate !== undefined) parsedBooleans.prorate = prorate === 'true'
-        if (invoice_now !== undefined) parsedBooleans.invoice_now = invoice_now === 'true'
-        if (paid_out_of_band !== undefined)
-          parsedBooleans.paid_out_of_band = paid_out_of_band === 'true'
+        // Every key is assigned, unset ones as `undefined`: the executor merges these over the raw
+        // inputs, so an omitted key would let the raw `''` through to the tool
+        const parsedBooleans: Record<string, boolean | undefined> = {
+          cancel_at_period_end: parseOptionalBoolean(cancel_at_period_end),
+          auto_advance: parseOptionalBoolean(auto_advance),
+          capture: parseOptionalBoolean(capture),
+          active: parseOptionalBoolean(active),
+          prorate: parseOptionalBoolean(prorate),
+          invoice_now: parseOptionalBoolean(invoice_now),
+          paid_out_of_band: parseOptionalBoolean(paid_out_of_band),
+        }
+
+        // A tool call sends cursors under the tool param names. On the canvas the subscription
+        // cursor fields can hold a value stored for another operation, so the other list and
+        // search operations read their own fields
+        const pagination = isToolCall(context)
+          ? { starting_after, ending_before, page }
+          : {
+              starting_after:
+                operation === SUBSCRIPTION_LIST_OPERATION ? starting_after : list_starting_after,
+              ending_before:
+                operation === SUBSCRIPTION_LIST_OPERATION ? ending_before : list_ending_before,
+              page: operation === SUBSCRIPTION_SEARCH_OPERATION ? page : search_page,
+            }
 
         return {
           apiKey,
@@ -919,6 +1002,7 @@ export const StripeBlock: BlockConfig = {
           ...(parsedImages && { images: parsedImages }),
           ...(parsedRecurring && { recurring: parsedRecurring }),
           ...parsedBooleans,
+          ...pagination,
         }
       },
     },
@@ -959,6 +1043,9 @@ export const StripeBlock: BlockConfig = {
     starting_after: { type: 'string', description: 'Next-page subscription ID cursor' },
     ending_before: { type: 'string', description: 'Previous-page subscription ID cursor' },
     page: { type: 'string', description: 'Subscription search token from metadata.next_page' },
+    list_starting_after: { type: 'string', description: 'Next-page object ID cursor' },
+    list_ending_before: { type: 'string', description: 'Previous-page object ID cursor' },
+    search_page: { type: 'string', description: 'Search token from metadata.next_page' },
     query: { type: 'string', description: 'Search query' },
     status: { type: 'string', description: 'Status filter' },
     type: { type: 'string', description: 'Event type filter' },

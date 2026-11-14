@@ -508,6 +508,28 @@ describe('saving a Microsoft app credential', () => {
     })
   })
 
+  it('names a Conditional Access block instead of a federation mismatch', async () => {
+    fakeMicrosoft(fetch, {
+      tokenError: jsonResponse(
+        {
+          error: 'invalid_grant',
+          error_codes: [53003],
+          error_description: 'AADSTS53003: Access has been blocked by Conditional Access policies.',
+        },
+        400
+      ),
+    })
+
+    const grant = issueWorkloadIdentitySubject('microsoft', { workspaceId: 'ws-1' }, 'user-1')
+    const error: Error = await save({
+      authType: 'federated',
+      subject: grant.subject,
+      subjectProof: grant.subjectProof,
+    }).catch((caught) => caught)
+
+    expect(error.message).toContain('Conditional Access policy')
+  })
+
   it('never repeats the secret, key, or assertion in a refusal', async () => {
     fakeMicrosoft(fetch, {
       tokenError: jsonResponse(

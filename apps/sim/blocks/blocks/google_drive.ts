@@ -3,7 +3,12 @@ import { GoogleDriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import {
+  isToolCall,
+  normalizeFileInput,
+  SERVICE_ACCOUNT_SUBBLOCKS,
+  toolCallArg,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -1530,7 +1535,7 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
             throw new Error(`Invalid Google Drive operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
           uploadFolderId,
@@ -1685,19 +1690,33 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           includeDeleted === 'true' ? true : includeDeleted === 'false' ? false : undefined
 
         let effectivePageSize: string | undefined = pageSize
-        if (params.operation === 'search') effectivePageSize = searchPageSize
-        else if (params.operation === 'list_revisions') effectivePageSize = revisionsPageSize
-        else if (params.operation === 'list_comments') effectivePageSize = commentsPageSize
-        else if (params.operation === 'list_permissions') effectivePageSize = permissionsPageSize
+        // `pageSize`, `pageToken` and `query` are List's fields; other operations trust them only from a tool call
+        const agentPageSize = toolCallArg(context, pageSize)
+        if (params.operation === 'search') effectivePageSize = searchPageSize || agentPageSize
+        else if (params.operation === 'list_revisions')
+          effectivePageSize = revisionsPageSize || agentPageSize
+        else if (params.operation === 'list_comments')
+          effectivePageSize = commentsPageSize || agentPageSize
+        else if (params.operation === 'list_permissions')
+          effectivePageSize = permissionsPageSize || agentPageSize
 
+        const agentPageToken = toolCallArg(context, pageToken)
         let effectivePageToken: string | undefined = pageToken
-        if (params.operation === 'search') effectivePageToken = searchPageToken
-        else if (params.operation === 'list_permissions') effectivePageToken = permissionsPageToken
-        else if (params.operation === 'list_revisions') effectivePageToken = revisionsPageToken
-        else if (params.operation === 'list_comments') effectivePageToken = commentsPageToken
-        else if (params.operation !== 'list') effectivePageToken = undefined
+        if (params.operation === 'search') effectivePageToken = searchPageToken || agentPageToken
+        else if (params.operation === 'list_permissions')
+          effectivePageToken = permissionsPageToken || agentPageToken
+        else if (params.operation === 'list_revisions')
+          effectivePageToken = revisionsPageToken || agentPageToken
+        else if (params.operation === 'list_comments')
+          effectivePageToken = commentsPageToken || agentPageToken
+        else if (params.operation !== 'list') effectivePageToken = agentPageToken
 
-        const effectiveQuery = params.operation === 'search' ? searchQuery : query
+        const effectiveQuery =
+          params.operation === 'search'
+            ? isToolCall(context) && !searchQuery
+              ? query
+              : searchQuery
+            : query
 
         const effectiveOrderBy =
           params.operation === 'list'

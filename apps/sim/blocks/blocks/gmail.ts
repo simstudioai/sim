@@ -5,8 +5,10 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
   createVersionedToolSelector,
+  isToolCall,
   normalizeFileInput,
   SERVICE_ACCOUNT_SUBBLOCKS,
+  toolCallArg,
 } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
@@ -969,8 +971,8 @@ export const GmailV2Block: BlockConfig = {
         suffix: '_v2',
         fallbackToolId: 'gmail_send_v2',
       }),
-      params: (params) => {
-        const mapped = GmailBlock.tools?.config?.params?.(params) ?? params
+      params: (params, context) => {
+        const mapped = GmailBlock.tools?.config?.params?.(params, context) ?? params
         const {
           labelName,
           targetThreadId,
@@ -982,17 +984,18 @@ export const GmailV2Block: BlockConfig = {
           ...rest
         } = mapped
         if (LABEL_WRITE_OPERATIONS.includes(rest.operation)) {
-          rest.name = labelName || undefined
+          rest.name = labelName || toolCallArg(context, rest.name) || undefined
           rest.messageListVisibility = messageListVisibility || undefined
           rest.labelListVisibility = labelListVisibility || undefined
         }
         if (THREAD_TARGET_OPERATIONS.includes(rest.operation)) {
-          rest.threadId = targetThreadId
-          rest.format = threadFormat || undefined
+          rest.threadId = isToolCall(context) ? targetThreadId || rest.threadId : targetThreadId
+          rest.format = threadFormat || toolCallArg(context, rest.format) || undefined
         }
         if (LIST_OPERATIONS.includes(rest.operation)) {
-          rest.query = listQuery || undefined
-          rest.labelIds = threadLabelIds ? String(threadLabelIds).trim() : undefined
+          rest.query = listQuery || toolCallArg(context, rest.query) || undefined
+          const labelIds = threadLabelIds || toolCallArg(context, rest.labelIds)
+          rest.labelIds = labelIds ? String(labelIds).trim() : undefined
         }
         return rest
       },

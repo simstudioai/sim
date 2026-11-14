@@ -1,5 +1,6 @@
 import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { EventListResponse, ListEventsParams } from '@/tools/stripe/types'
+import { appendListCursors, listCursorParams } from '@/tools/stripe/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeListEventsTool: ToolConfig<ListEventsParams, EventListResponse> = {
@@ -34,12 +35,14 @@ export const stripeListEventsTool: ToolConfig<ListEventsParams, EventListRespons
       visibility: 'user-or-llm',
       description: 'Filter by creation date (e.g., {"gt": 1633024800})',
     },
+    ...listCursorParams('event'),
   },
 
   request: {
     url: (params) => {
       const url = new URL('https://api.stripe.com/v1/events')
       if (params.limit) url.searchParams.append('limit', params.limit.toString())
+      appendListCursors(url, params)
       if (params.type) url.searchParams.append('type', params.type)
       if (params.created) {
         Object.entries(params.created).forEach(([key, value]) => {

@@ -2,7 +2,7 @@ import { GoogleCalendarIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const CALENDAR_FIELD = ['calendarId', 'manualCalendarId'] as const
@@ -991,7 +991,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             throw new Error(`Invalid Google Calendar operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
           operation,
@@ -1075,7 +1075,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           processedParams.timeZone =
             typeof listTimeZone === 'string' && listTimeZone.trim()
               ? listTimeZone.trim()
-              : undefined
+              : toolCallArg(context, processedParams.timeZone)
         }
 
         return {

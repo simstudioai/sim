@@ -2,12 +2,13 @@ import type { HexGetProjectRunsParams, HexGetProjectRunsResponse } from '@/tools
 import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProjectRunsResponse> = {
   id: 'hex_get_project_runs',
   name: 'Hex Get Project Runs',
   description:
-    'Retrieve API-triggered runs for a Hex project with optional filtering by status and pagination.',
+    'Retrieve runs for a Hex project (API-triggered, scheduled, and app refresh runs) with optional filtering by status and trigger, and offset pagination.',
   version: '1.0.0',
   oauth: HEX_CREDENTIAL_OAUTH,
 
@@ -60,7 +61,7 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
       if (params.statusFilter) searchParams.set('statusFilter', params.statusFilter)
       if (params.runTriggerFilter) searchParams.set('runTriggerFilter', params.runTriggerFilter)
       const qs = searchParams.toString()
-      return `${hexApiBase(params.host)}/projects/${params.projectId.trim()}/runs${qs ? `?${qs}` : ''}`
+      return `${hexApiBase(params.host)}/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/runs${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -81,11 +82,12 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
           runId: (r.runId as string) ?? null,
           runUrl: (r.runUrl as string) ?? null,
           status: (r.status as string) ?? null,
+          runTrigger: (r.runTrigger as string) ?? null,
           startTime: (r.startTime as string) ?? null,
           endTime: (r.endTime as string) ?? null,
           elapsedTime: (r.elapsedTime as number) ?? null,
           traceId: (r.traceId as string) ?? null,
-          projectVersion: (r.projectVersion as number) ?? null,
+          projectVersion: (r.projectVersion as string | undefined) ?? null,
         })),
         total: runs.length,
         traceId: data.traceId ?? null,
@@ -110,13 +112,22 @@ export const getProjectRunsTool: ToolConfig<HexGetProjectRunsParams, HexGetProje
             description:
               'Run status (PENDING, RUNNING, COMPLETED, ERRORED, KILLED, UNABLE_TO_ALLOCATE_KERNEL)',
           },
+          runTrigger: {
+            type: 'string',
+            description: 'How the run was triggered (API, SCHEDULED, APP_REFRESH)',
+            optional: true,
+          },
           startTime: { type: 'string', description: 'Run start time', optional: true },
           endTime: { type: 'string', description: 'Run end time', optional: true },
-          elapsedTime: { type: 'number', description: 'Elapsed time in seconds', optional: true },
+          elapsedTime: {
+            type: 'number',
+            description: 'Elapsed run time in milliseconds',
+            optional: true,
+          },
           traceId: { type: 'string', description: 'Trace ID', optional: true },
           projectVersion: {
-            type: 'number',
-            description: 'Project version number',
+            type: 'string',
+            description: 'Project version that was run ("1", "2", ...; "draft" for notebook runs)',
             optional: true,
           },
         },

@@ -2,6 +2,7 @@ import type { HexCancelRunParams, HexCancelRunResponse } from '@/tools/hex/types
 import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const cancelRunTool: ToolConfig<HexCancelRunParams, HexCancelRunResponse> = {
   id: 'hex_cancel_run',
@@ -34,7 +35,7 @@ export const cancelRunTool: ToolConfig<HexCancelRunParams, HexCancelRunResponse>
 
   request: {
     url: (params) =>
-      `${hexApiBase(params.host)}/projects/${params.projectId.trim()}/runs/${params.runId.trim()}`,
+      `${hexApiBase(params.host)}/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/runs/${safeUrlPathSegment(params.runId, 'runId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

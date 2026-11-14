@@ -7,6 +7,7 @@ import {
 import type { FinalizeInvoiceParams, InvoiceResponse } from '@/tools/stripe/types'
 import { INVOICE_METADATA_OUTPUT_PROPERTIES, INVOICE_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_finalize_invoice',
@@ -45,7 +46,8 @@ export const stripeFinalizeInvoiceTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/invoices/${params.id}/finalize`,
+    url: (params) =>
+      `https://api.stripe.com/v1/invoices/${safeUrlPathSegment(params.id, 'id')}/finalize`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one

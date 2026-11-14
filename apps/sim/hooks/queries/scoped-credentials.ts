@@ -123,8 +123,19 @@ export function useUpdateScopedCredential() {
  */
 const workloadIdentityKeys = {
   all: ['workloadIdentitySetup'] as const,
-  setup: (workspaceId: string | undefined, provider: string, sessionKey: string) =>
-    [...workloadIdentityKeys.all, workspaceId ?? 'none', provider, sessionKey] as const,
+  setup: (
+    workspaceId: string | undefined,
+    provider: string,
+    sessionKey: string,
+    newSubject: boolean
+  ) =>
+    [
+      ...workloadIdentityKeys.all,
+      workspaceId ?? 'none',
+      provider,
+      sessionKey,
+      newSubject ? 'new' : 'held',
+    ] as const,
 }
 
 /** A setup's subject is minted once per modal session and never refreshed. */
@@ -138,23 +149,32 @@ interface UseWorkloadIdentitySetupProps {
   enabled: boolean
   /** The credential being reconnected, if any. */
   credentialId?: string
+  /** Ask for a new subject instead of the one Sim is holding for this person. */
+  newSubject?: boolean
 }
 
 /**
- * The trust setup for a new keyless AWS role or Databricks service principal:
- * the issuer to register and the signed subject it must trust. Each fetch
- * mints a new subject, so the key carries the modal session and the result
- * never goes stale or refetches while the person is copying it.
+ * The trust setup for a new keyless credential: the issuer to register and the
+ * signed subject it must trust. Sim holds an unsaved subject for its person, so
+ * reopening the dialog shows the same one; a `newSubject` fetch issues another.
+ * The key carries the modal session, and the result never goes stale or
+ * refetches while the person is copying it.
  */
 export function useWorkloadIdentitySetup(input: UseWorkloadIdentitySetupProps) {
   return useQuery({
-    queryKey: workloadIdentityKeys.setup(input.workspaceId, input.provider, input.sessionKey),
+    queryKey: workloadIdentityKeys.setup(
+      input.workspaceId,
+      input.provider,
+      input.sessionKey,
+      Boolean(input.newSubject)
+    ),
     queryFn: async ({ signal }) =>
       requestJson(prepareWorkloadIdentityContract, {
         body: {
           workspaceId: input.workspaceId ?? '',
           provider: input.provider,
           ...(input.credentialId ? { credentialId: input.credentialId } : {}),
+          ...(input.newSubject ? { newSubject: true } : {}),
         },
         signal,
       }),

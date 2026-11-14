@@ -2,6 +2,7 @@ import type { HexGetCollectionParams, HexGetCollectionResponse } from '@/tools/h
 import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getCollectionTool: ToolConfig<HexGetCollectionParams, HexGetCollectionResponse> = {
   id: 'hex_get_collection',
@@ -27,7 +28,8 @@ export const getCollectionTool: ToolConfig<HexGetCollectionParams, HexGetCollect
   },
 
   request: {
-    url: (params) => `${hexApiBase(params.host)}/collections/${params.collectionId.trim()}`,
+    url: (params) =>
+      `${hexApiBase(params.host)}/collections/${safeUrlPathSegment(params.collectionId, 'collectionId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

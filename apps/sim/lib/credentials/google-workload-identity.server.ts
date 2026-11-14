@@ -381,15 +381,29 @@ async function exchangeSubjectToken(
 }
 
 /**
+ * Whether Google refused the call under a VPC Service Controls perimeter: the
+ * error names a `vpcServiceControlsUniqueIdentifier` or a `VPC_SERVICE_CONTROLS`
+ * violation. Granting IAM roles cannot fix that, so it gets its own message.
+ * @see https://cloud.google.com/vpc-service-controls/docs/troubleshooting
+ */
+function isVpcServiceControlsDenial(payload: Record<string, unknown>): boolean {
+  return /vpcServiceControlsUniqueIdentifier|VPC_SERVICE_CONTROLS/.test(JSON.stringify(payload))
+}
+
+/**
  * Copy for an IAM Credentials refusal. Signing needs a role the impersonation
  * role lacks, so a refused signature always names the token-creator role.
  */
 function iamFailureMessage(
   status: number,
+  payload: Record<string, unknown>,
   config: GoogleWorkloadIdentityConfig,
   action: 'impersonate' | 'sign'
 ) {
   if (isProviderOutage(status)) return 'Google Cloud IAM is unavailable. Try again.'
+  if (status === 403 && isVpcServiceControlsDenial(payload)) {
+    return 'A VPC Service Controls perimeter in your Google Cloud organization blocked this request. Ask an administrator to allow the IAM Service Account Credentials API for this service account through the perimeter, for example with an ingress rule for this workload identity pool.'
+  }
   if (status === 403) {
     const refusal =
       action === 'sign'
@@ -424,7 +438,10 @@ async function impersonateServiceAccount(
     { Authorization: `Bearer ${federatedToken}` }
   )
   if (status !== 200) {
-    throw new GoogleWorkloadIdentityError(iamFailureMessage(status, config, 'impersonate'), status)
+    throw new GoogleWorkloadIdentityError(
+      iamFailureMessage(status, payload, config, 'impersonate'),
+      status
+    )
   }
   if (typeof payload.accessToken !== 'string' || !payload.accessToken) {
     throw new GoogleWorkloadIdentityError('Google Cloud IAM answered without a token.', 502)
@@ -473,7 +490,10 @@ async function signDelegationAssertion(
     { Authorization: `Bearer ${federatedToken}` }
   )
   if (status !== 200) {
-    throw new GoogleWorkloadIdentityError(iamFailureMessage(status, config, 'sign'), status)
+    throw new GoogleWorkloadIdentityError(
+      iamFailureMessage(status, payload, config, 'sign'),
+      status
+    )
   }
   if (typeof payload.signedJwt !== 'string' || !payload.signedJwt) {
     throw new GoogleWorkloadIdentityError('Google Cloud IAM answered without a signature.', 502)

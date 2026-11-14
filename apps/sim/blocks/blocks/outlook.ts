@@ -2,7 +2,7 @@ import { OutlookIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -949,7 +949,7 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
             throw new Error(`Invalid Outlook operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
           folder,
@@ -1010,13 +1010,16 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
         }
 
         if (['send_outlook', 'draft_outlook'].includes(rest.operation)) {
-          rest.importance = mailImportance || null
+          rest.importance = mailImportance || toolCallArg(context, rest.importance) || null
         }
 
         // Assign explicitly so a cc/bcc/importance stored for another operation never reaches these tools
         if (['reply_outlook', 'reply_all_outlook', 'forward_outlook'].includes(rest.operation)) {
-          rest.cc = rest.operation === 'reply_all_outlook' ? null : replyCc || null
-          rest.bcc = replyBcc || null
+          rest.cc =
+            rest.operation === 'reply_all_outlook'
+              ? null
+              : replyCc || toolCallArg(context, rest.cc) || null
+          rest.bcc = replyBcc || toolCallArg(context, rest.bcc) || null
           rest.importance = undefined
         }
 

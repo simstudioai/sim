@@ -2082,6 +2082,7 @@ export type CreateCredentialWorkloadIdentitySubjectBody = {
     | 'snowflake-service-account'
     | 'microsoft-app-service-account'
     | 'google-service-account'
+  subject?: string
 }
 
 type CreateCredentialWorkloadIdentitySubjectResponseRef0 = {
@@ -2090,6 +2091,8 @@ type CreateCredentialWorkloadIdentitySubjectResponseRef0 = {
   subject: string
   subjectProof: string
   expiresAt: string
+  subjectIssuedAt: string
+  subjectHeldUntil: string
   keylessConfig: {
     authType: string
     subject: string
@@ -17161,6 +17164,11 @@ export const V2_OPERATIONS = {
         ] as const,
         describe:
           'Service-account provider the keyless credential will be created under; pass the same value to Create service-account credential. The response and List credential providers name the fields its keyless configuration needs.',
+      },
+      subject: {
+        kind: 'string',
+        describe:
+          'A subject Sim issued to you earlier that no credential has saved yet. Renews its proof instead of issuing a new subject, so a trust configuration that already allows it keeps working. Refused with `WORKLOAD_IDENTITY_SUBJECT_NOT_PENDING` once a credential saves it, after its hold ends, or for a subject issued to someone else.',
       },
     },
   },

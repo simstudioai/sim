@@ -7,6 +7,7 @@ import {
 import type { InvoiceResponse, VoidInvoiceParams } from '@/tools/stripe/types'
 import { INVOICE_METADATA_OUTPUT_PROPERTIES, INVOICE_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_void_invoice',
@@ -39,7 +40,8 @@ export const stripeVoidInvoiceTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/invoices/${params.id}/void`,
+    url: (params) =>
+      `https://api.stripe.com/v1/invoices/${safeUrlPathSegment(params.id, 'id')}/void`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one

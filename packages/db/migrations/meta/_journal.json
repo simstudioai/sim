@@ -3193,6 +3193,13 @@
       "when": 1794503347845,
       "tag": "0456_aws_marketplace_usage_metering",
       "breakpoints": true
+    },
+    {
+      "idx": 457,
+      "version": "7",
+      "when": 1794602584430,
+      "tag": "0457_workload_identity_pending_subject",
+      "breakpoints": true
     }
   ]
 }

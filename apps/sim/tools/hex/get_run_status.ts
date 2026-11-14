@@ -3,6 +3,7 @@ import { HEX_RUN_STATUS_OUTPUT_PROPERTIES } from '@/tools/hex/types'
 import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
 import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getRunStatusTool: ToolConfig<HexGetRunStatusParams, HexGetRunStatusResponse> = {
   id: 'hex_get_run_status',
@@ -35,7 +36,7 @@ export const getRunStatusTool: ToolConfig<HexGetRunStatusParams, HexGetRunStatus
 
   request: {
     url: (params) =>
-      `${hexApiBase(params.host)}/projects/${params.projectId.trim()}/runs/${params.runId.trim()}`,
+      `${hexApiBase(params.host)}/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/runs/${safeUrlPathSegment(params.runId, 'runId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -53,6 +54,7 @@ export const getRunStatusTool: ToolConfig<HexGetRunStatusParams, HexGetRunStatus
         runId: data.runId ?? null,
         runUrl: data.runUrl ?? null,
         status: data.status ?? null,
+        runTrigger: data.runTrigger ?? null,
         startTime: data.startTime ?? null,
         endTime: data.endTime ?? null,
         elapsedTime: data.elapsedTime ?? null,
@@ -67,6 +69,7 @@ export const getRunStatusTool: ToolConfig<HexGetRunStatusParams, HexGetRunStatus
     runId: HEX_RUN_STATUS_OUTPUT_PROPERTIES.runId,
     runUrl: HEX_RUN_STATUS_OUTPUT_PROPERTIES.runUrl,
     status: HEX_RUN_STATUS_OUTPUT_PROPERTIES.status,
+    runTrigger: HEX_RUN_STATUS_OUTPUT_PROPERTIES.runTrigger,
     startTime: HEX_RUN_STATUS_OUTPUT_PROPERTIES.startTime,
     endTime: HEX_RUN_STATUS_OUTPUT_PROPERTIES.endTime,
     elapsedTime: HEX_RUN_STATUS_OUTPUT_PROPERTIES.elapsedTime,

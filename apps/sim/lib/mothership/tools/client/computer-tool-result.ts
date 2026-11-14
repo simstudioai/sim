@@ -24,13 +24,38 @@ function jsonBytes(value: unknown): number {
   return encoder.encode(JSON.stringify(value)).length
 }
 
+type SnapshotNode = ComputerUseSnapshot['nodes'][number]
+
+/** Layout wrappers that carry no text, state (including disabled) or action; their children are shown under the nearest meaningful ancestor. */
+const WRAPPER_ROLES = new Set([
+  'AXGroup',
+  'AXSplitGroup',
+  'AXLayoutArea',
+  'AXLayoutItem',
+  'AXUnknown',
+])
+
+function isWrapper(node: SnapshotNode): boolean {
+  return (
+    WRAPPER_ROLES.has(node.role) &&
+    !node.label &&
+    !node.value &&
+    !node.placeholder &&
+    !node.focused &&
+    !node.editable &&
+    node.enabled !== false &&
+    node.actions.length === 0
+  )
+}
+
 function nodeRow(
-  node: ComputerUseSnapshot['nodes'][number],
+  node: SnapshotNode,
+  parentId: string | undefined,
+  selectedWindowId: string,
   selected?: ReadonlySet<string>
 ): string {
   const fields = [node.elementId, node.role]
-  if (node.parentId && (!selected || selected.has(node.parentId)))
-    fields.push(`parent=${node.parentId}`)
+  if (parentId && (!selected || selected.has(parentId))) fields.push(`parent=${parentId}`)
   if (node.label) fields.push(`label=${JSON.stringify(truncateAtCodePoint(node.label, 512, ''))}`)
   if (node.value) fields.push(`value=${JSON.stringify(truncateAtCodePoint(node.value, 512, ''))}`)
   if (node.placeholder)
@@ -39,14 +64,16 @@ function nodeRow(
   if (node.editable) fields.push('editable')
   if (node.enabled === false) fields.push('disabled')
   if (node.actions.length) fields.push(`actions=${JSON.stringify(node.actions.slice(0, 16))}`)
-  if (node.windowId) fields.push(`window=${node.windowId}`)
+  if (node.windowId && node.windowId !== selectedWindowId) fields.push(`window=${node.windowId}`)
   if (
     node.x !== undefined &&
     node.y !== undefined &&
     node.width !== undefined &&
     node.height !== undefined
   )
-    fields.push(`screenRect=${JSON.stringify([node.x, node.y, node.width, node.height])}`)
+    fields.push(
+      `screenRect=${[node.x, node.y, node.width, node.height].map((value) => Math.round(value)).join(',')}`
+    )
   return fields.join(' ')
 }
 
@@ -70,8 +97,10 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
       : {}),
     windows,
     omittedWindowCount: allWindows.length - windows.length,
+    treeFormat:
+      'Rows: elementId role [parent=id, omitted when the parent is not shown] [label=] [value=] [placeholder=] (JSON strings) [focused] [editable] [disabled] [actions=JSON array of exact names] [window=id, omitted for windowId] [screenRect=x,y,w,h in global points]. Empty layout groups are folded into their parent.',
     accessibilityTree: '',
-    omittedNodeCount: nodes.length,
+    omittedNodeCount: nodes.filter((node) => !isWrapper(node)).length,
     nodeTextLimit: 512,
     ...(image
       ? {
@@ -87,8 +116,30 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
     model.omittedWindowCount += 1
   }
   const byId = new Map(nodes.map((node) => [node.elementId, node]))
-  const rows = new Map(nodes.map((node) => [node.elementId, nodeRow(node)]))
-  const priority = (node: ComputerUseSnapshot['nodes'][number]) => {
+  const shown = nodes.filter((node) => !isWrapper(node))
+  /** Each shown node's nearest shown ancestor, skipping wrappers (and stopping on a parent cycle). */
+  const shownParent = new Map<string, string | undefined>()
+  for (const node of shown) {
+    const seen = new Set([node.elementId])
+    let parent = node.parentId ? byId.get(node.parentId) : undefined
+    while (parent && isWrapper(parent) && !seen.has(parent.elementId)) {
+      seen.add(parent.elementId)
+      parent = parent.parentId ? byId.get(parent.parentId) : undefined
+    }
+    shownParent.set(
+      node.elementId,
+      parent && !isWrapper(parent) && parent.elementId !== node.elementId
+        ? parent.elementId
+        : undefined
+    )
+  }
+  const rows = new Map(
+    shown.map((node) => [
+      node.elementId,
+      nodeRow(node, shownParent.get(node.elementId), state.windowId),
+    ])
+  )
+  const priority = (node: SnapshotNode) => {
     const visible =
       selectedWindow &&
       node.windowId === selectedWindow.windowId &&
@@ -127,20 +178,21 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
   let bytes = jsonBytes(model) + envelopeBytes
   const add = (ids: string[]) => {
     const additional = ids.filter((id) => !selected.has(id))
-    const cost = additional.reduce((total, id) => total + jsonBytes(rows.get(id)) - 2 + 2, 0)
+    /** A row's JSON length: its two quotes come off, and the escaped joining newline (`\\n`) adds two bytes back. */
+    const cost = additional.reduce((total, id) => total + jsonBytes(rows.get(id)), 0)
     if (bytes + cost > MAX_STATE_BYTES) return false
     for (const id of additional) selected.add(id)
     bytes += cost
     return true
   }
-  for (const node of [...nodes].sort((left, right) => priority(right) - priority(left))) {
+  for (const node of [...shown].sort((left, right) => priority(right) - priority(left))) {
     const ancestry = [node.elementId]
     const seen = new Set(ancestry)
-    let parent = node.parentId
-    while (parent && byId.has(parent) && !seen.has(parent)) {
+    let parent = shownParent.get(node.elementId)
+    while (parent && !seen.has(parent)) {
       ancestry.push(parent)
       seen.add(parent)
-      parent = byId.get(parent)?.parentId
+      parent = shownParent.get(parent)
     }
     /** Keep the editor itself even if an unusually deep ancestry cannot fit. */
     if (!add(ancestry.reverse())) add([node.elementId])
@@ -155,14 +207,14 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
     ) || allWindows.some((window) => window.title.length > 256)
   return {
     ...model,
-    accessibilityTree: nodes
+    accessibilityTree: shown
       .filter((node) => selected.has(node.elementId))
-      .map((node) => nodeRow(node, selected))
+      .map((node) => nodeRow(node, shownParent.get(node.elementId), state.windowId, selected))
       .join('\n'),
-    omittedNodeCount: nodes.length - selected.size,
+    omittedNodeCount: shown.length - selected.size,
     truncated:
       state.truncated ||
-      selected.size < nodes.length ||
+      selected.size < shown.length ||
       windows.length < allWindows.length ||
       clipped ||
       screenshotOmitted,

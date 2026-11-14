@@ -381,6 +381,148 @@ describe('combobox typing surfaces', () => {
     expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
   })
 
+  /**
+   * Answers hit testing with the paint stack (topmost first) over the field's sampled points and
+   * elsewhere, as `elementsFromPoint` does; `elementFromPoint` is its top.
+   */
+  function stackTo(
+    overField: Element[],
+    elsewhere: (x: number, y: number) => Element[],
+    target: Document | ShadowRoot = document
+  ): void {
+    const stackAt = (x: number, y: number) =>
+      x >= 10 && x <= 100 && y <= 20 ? overField : elsewhere(x, y)
+    Object.defineProperty(target, 'elementsFromPoint', { configurable: true, value: stackAt })
+    Object.defineProperty(target, 'elementFromPoint', {
+      configurable: true,
+      value: (x: number, y: number) => stackAt(x, y)[0] ?? null,
+    })
+  }
+  const page = () => [document.body, document.documentElement]
+  const byId = <T extends Element = HTMLDivElement>(id: string) =>
+    document.getElementById(id) as unknown as T
+
+  it('refuses a top-page field behind an unmarked backdrop and panel', () => {
+    document.body.innerHTML = `
+      <input id="field" type="text" aria-label="Search" />
+      <div id="backdrop" style="position: fixed"></div>
+      <div id="panel" style="position: fixed">Subscribe to our newsletter</div>
+    `
+    const input = visible(byId<HTMLInputElement>('field'))
+    register(input)
+    stackTo([byId('panel'), byId('backdrop'), input, ...page()], () => [
+      byId('backdrop'),
+      ...page(),
+    ])
+
+    expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
+  })
+
+  it('refuses a field behind an unmarked modal nested in a full-screen app shell', () => {
+    document.body.innerHTML = `
+      <div id="shell" style="position: fixed">
+        <input id="field" type="text" aria-label="Search" />
+        <div id="backdrop" style="position: fixed"><div id="panel">Confirm your plan</div></div>
+      </div>
+    `
+    const input = visible(byId<HTMLInputElement>('field'))
+    register(input)
+    stackTo([byId('panel'), byId('backdrop'), input, byId('shell'), ...page()], () => [
+      byId('backdrop'),
+      byId('shell'),
+      ...page(),
+    ])
+
+    expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
+  })
+
+  it('refuses a field behind an unmarked modal inside the same shadow root', () => {
+    document.body.innerHTML = '<div id="host"></div>'
+    const shadow = byId('host').attachShadow({ mode: 'open' })
+    shadow.innerHTML =
+      '<input type="text" aria-label="Search" /><div id="backdrop" style="position: fixed"><div id="panel">Sign up</div></div>'
+    const input = visible(shadow.querySelector('input') as HTMLInputElement)
+    const backdrop = shadow.querySelector('#backdrop') as HTMLDivElement
+    const panel = shadow.querySelector('#panel') as HTMLDivElement
+    register(input)
+    stackTo(
+      [panel, backdrop, input, byId('host'), ...page()],
+      () => [backdrop, byId('host'), ...page()],
+      shadow
+    )
+
+    expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
+  })
+
+  it('types under covers that do not reach every corner of the viewport', () => {
+    document.body.innerHTML = `
+      <div id="map" style="position: fixed">Map</div>
+      <div id="header" style="position: fixed">Menu</div>
+      <input id="field" type="text" aria-label="Search" />
+      <div id="toast">Saved to your list</div>
+      <div id="banner" style="position: fixed">We use cookies</div>
+    `
+    const input = visible(byId<HTMLInputElement>('field'))
+    register(input)
+    const topHalf = (y: number) => y < window.innerHeight / 2
+    for (const [cover, label, elsewhere] of [
+      // a fixed header over a full-screen fixed map the field also sits above
+      [
+        'header',
+        'Menu',
+        (_x: number, y: number): Element[] => [
+          ...(topHalf(y) ? [byId('header')] : []),
+          byId('map'),
+          ...page(),
+        ],
+      ],
+      // a fixed header with a cookie banner pinned to the bottom corners
+      [
+        'header',
+        'Menu',
+        (_x: number, y: number): Element[] => [
+          topHalf(y) ? byId('header') : byId('banner'),
+          ...page(),
+        ],
+      ],
+      // a toast whose full-screen wrapper lets the pointer through, so the wrapper is in no stack
+      ['toast', 'Saved to your list', (): Element[] => page()],
+    ] as const) {
+      stackTo([byId(cover), input, byId('map'), ...page()], elsewhere)
+      expect(focusElementForTyping(0)).toMatchObject({ focused: true, coveredBy: label })
+    }
+  })
+
+  it('types inside a full-screen fixed app shell that also holds the field', () => {
+    document.body.innerHTML = `
+      <div id="shell" style="position: fixed">
+        <input id="field" type="text" aria-label="Search" /><div id="card">Shop for your home</div>
+      </div>
+    `
+    const input = visible(byId<HTMLInputElement>('field'))
+    register(input)
+    // the shell paints below the field, or above it when the field sits at a negative z-index
+    for (const overField of [
+      [byId('card'), input, byId('shell'), ...page()],
+      [byId('card'), byId('shell'), input, ...page()],
+    ]) {
+      stackTo(overField, () => [byId('shell'), ...page()])
+      expect(focusElementForTyping(0)).toMatchObject({
+        focused: true,
+        coveredBy: 'Shop for your home',
+      })
+    }
+  })
+
+  it('refuses a top-page field when no sampled point hits anything', () => {
+    document.body.innerHTML = '<input type="text" aria-label="Search" />'
+    const input = visible(document.querySelector('input') as HTMLInputElement)
+    register(input)
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => null })
+
+    expect(focusElementForTyping(0)).toMatchObject({ error: 'obstructed' })
+  })
+
   it('still refuses a covered field inside a frame', () => {
     const frame = document.createElement('iframe')
     document.body.append(frame)

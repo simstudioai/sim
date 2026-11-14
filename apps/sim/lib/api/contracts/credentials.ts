@@ -613,6 +613,12 @@ export const workloadIdentitySubjectGrantShape = {
   expiresAt: z
     .string()
     .describe('ISO 8601 timestamp after which `subjectProof` can no longer create a credential.'),
+  subjectIssuedAt: z.string().describe('ISO 8601 timestamp when Sim first issued `subject`.'),
+  subjectHeldUntil: z
+    .string()
+    .describe(
+      'ISO 8601 timestamp until which Sim holds `subject` for you if no credential saves it. Renewing the proof restarts the hold; once a credential saves the subject, it is no longer held.'
+    ),
 } as const
 
 export const prepareWorkloadIdentityContract = defineRouteContract({
@@ -623,6 +629,8 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
     provider: z.enum(WORKLOAD_IDENTITY_PROVIDERS),
     /** The credential being reconnected, so the dialog opens on its current mode. */
     credentialId: z.string().min(1).max(255).optional(),
+    /** Issue a new subject instead of the one Sim is already holding for this person. */
+    newSubject: z.boolean().optional(),
   }),
   response: {
     mode: 'json',
@@ -638,6 +646,11 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
       z.object({
         available: z.literal(true),
         ...workloadIdentitySubjectGrantShape,
+        /** Absent when Sim does not hold the subject: a reconnect that keeps its own. */
+        subjectIssuedAt: workloadIdentitySubjectGrantShape.subjectIssuedAt.optional(),
+        subjectHeldUntil: workloadIdentitySubjectGrantShape.subjectHeldUntil.optional(),
+        /** Whether `subject` was issued earlier, so a trust configuration may already allow it. */
+        subjectReused: z.boolean().optional(),
         reconnectAuthType: reconnectAuthTypeSchema,
         reconnectDelegation: reconnectDelegationSchema,
         reconnectCloud: reconnectCloudSchema,

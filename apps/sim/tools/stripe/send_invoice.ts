@@ -6,6 +6,7 @@ import {
 } from '@/tools/stripe/idempotency'
 import type { InvoiceResponse, SendInvoiceParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_send_invoice',
@@ -38,7 +39,8 @@ export const stripeSendInvoiceTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/invoices/${params.id}/send`,
+    url: (params) =>
+      `https://api.stripe.com/v1/invoices/${safeUrlPathSegment(params.id, 'id')}/send`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one

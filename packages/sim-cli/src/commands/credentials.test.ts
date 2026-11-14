@@ -523,16 +523,11 @@ describe('keyless credentials', () => {
     expect(mockRequest).toHaveBeenCalledTimes(1)
   })
 
-  it('names the command that issues a new subject when a proof is refused', async () => {
+  function createRefusedWith(code: string) {
     mockRequest
       .mockResolvedValueOnce({ data: [snowflake], nextCursor: null })
-      .mockRejectedValueOnce(
-        new SimApiError('This trust setup has expired.', 400, 'BAD_REQUEST', {
-          code: 'WORKLOAD_IDENTITY_PROOF_EXPIRED',
-        })
-      )
-
-    const failure = program().parseAsync([
+      .mockRejectedValueOnce(new SimApiError('Refused.', 400, 'BAD_REQUEST', { code }))
+    return program().parseAsync([
       'node',
       'sim',
       'credentials',
@@ -543,11 +538,87 @@ describe('keyless credentials', () => {
       '--credentials',
       JSON.stringify(keylessConfig),
     ])
+  }
 
-    await expect(failure).rejects.toMatchObject({
-      message: expect.stringContaining('sim credentials keyless-subject snowflake-service-account'),
+  it('names the renewal command when only the proof expired, so the trusted subject is kept', async () => {
+    await expect(createRefusedWith('WORKLOAD_IDENTITY_PROOF_EXPIRED')).rejects.toMatchObject({
+      message: expect.stringContaining(
+        'sim credentials keyless-subject snowflake-service-account --subject <subject>'
+      ),
       code: 'BAD_REQUEST',
       details: { code: 'WORKLOAD_IDENTITY_PROOF_EXPIRED' },
+    })
+  })
+
+  it('names the command that issues a new subject when the proof belongs to someone else', async () => {
+    const failure = createRefusedWith('WORKLOAD_IDENTITY_PROOF_INVALID')
+
+    await expect(failure).rejects.toMatchObject({
+      message: expect.stringContaining(
+        'Run `sim credentials keyless-subject snowflake-service-account` for a new subject'
+      ),
+      details: { code: 'WORKLOAD_IDENTITY_PROOF_INVALID' },
+    })
+  })
+
+  it('names the command that issues a new subject when Sim no longer holds the one to renew', async () => {
+    mockRequest.mockRejectedValueOnce(
+      new SimApiError('Sim is not holding this subject for you.', 400, 'BAD_REQUEST', {
+        code: 'WORKLOAD_IDENTITY_SUBJECT_NOT_PENDING',
+      })
+    )
+
+    const failure = program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'keyless-subject',
+      'snowflake-service-account',
+      '--subject',
+      subject,
+    ])
+
+    await expect(failure).rejects.toMatchObject({
+      message: expect.stringContaining('without --subject for a new subject'),
+      details: { code: 'WORKLOAD_IDENTITY_SUBJECT_NOT_PENDING' },
+    })
+  })
+
+  it('sends an empty --subject for the API to refuse instead of issuing a new subject', async () => {
+    mockRequest.mockResolvedValue({ data: issued })
+
+    await program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'keyless-subject',
+      'snowflake-service-account',
+      '--subject',
+      '',
+    ])
+
+    expect(mockRequest).toHaveBeenCalledWith('/api/v2/credentials/workload-identity/subjects', {
+      method: 'POST',
+      body: { workspaceId: 'ws_local', providerId: 'snowflake-service-account', subject: '' },
+    })
+  })
+
+  it('renews the proof for a held subject instead of issuing a new one', async () => {
+    mockRequest.mockResolvedValue({ data: issued })
+
+    await program().parseAsync([
+      'node',
+      'sim',
+      'credentials',
+      'keyless-subject',
+      'snowflake-service-account',
+      '--subject',
+      subject,
+    ])
+
+    expect(mockRequest).toHaveBeenCalledWith('/api/v2/credentials/workload-identity/subjects', {
+      method: 'POST',
+      body: { workspaceId: 'ws_local', providerId: 'snowflake-service-account', subject },
     })
   })
 })

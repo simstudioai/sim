@@ -3,7 +3,7 @@ import { GoogleVaultIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import { parseOptionalBooleanInput, SERVICE_ACCOUNT_SUBBLOCKS, toolCallArg } from '@/blocks/utils'
 
 export const GoogleVaultBlock: BlockConfig = {
   type: 'google_vault',
@@ -906,7 +906,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
             throw new Error(`Invalid Google Vault operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
           holdStartTime,
@@ -958,7 +958,10 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           ...(params.operation === 'list_matters' && matterState && { state: matterState }),
           ...(isQueryOperation && {
             includeSharedDrives:
-              exportIncludeSharedDrives === true || exportIncludeSharedDrives === 'true',
+              exportIncludeSharedDrives == null
+                ? (parseOptionalBooleanInput(toolCallArg(context, rest.includeSharedDrives)) ??
+                  false)
+                : exportIncludeSharedDrives === true || exportIncludeSharedDrives === 'true',
             ...(dataScope && { dataScope }),
           }),
           ...(params.operation === 'create_matters_export' && exportFormat && { exportFormat }),

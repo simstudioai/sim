@@ -1,5 +1,6 @@
 import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ListProductsParams, ProductListResponse } from '@/tools/stripe/types'
+import { appendListCursors, listCursorParams } from '@/tools/stripe/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeListProductsTool: ToolConfig<ListProductsParams, ProductListResponse> = {
@@ -28,12 +29,14 @@ export const stripeListProductsTool: ToolConfig<ListProductsParams, ProductListR
       visibility: 'user-or-llm',
       description: 'Filter by active status',
     },
+    ...listCursorParams('product'),
   },
 
   request: {
     url: (params) => {
       const url = new URL('https://api.stripe.com/v1/products')
       if (params.limit) url.searchParams.append('limit', params.limit.toString())
+      appendListCursors(url, params)
       if (params.active !== undefined) url.searchParams.append('active', String(params.active))
       return url.toString()
     },

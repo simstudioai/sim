@@ -198,6 +198,81 @@ describe('native computer model projection', () => {
     expect(result).toMatchObject({ dispatched: true, sequence: { completedSteps: 1 } })
   })
 
+  it('folds empty layout groups so their controls fit and point at a shown parent', () => {
+    const state = snapshot()
+    state.nodes = [
+      { elementId: 'window', role: 'AXWindow', label: 'Fixture', actions: [], windowId: '1' },
+      ...Array.from({ length: 300 }, (_, index) => ({
+        elementId: `wrap-${index}`,
+        parentId: index === 0 ? 'window' : `wrap-${index - 1}`,
+        role: 'AXGroup',
+        actions: [],
+        windowId: '1',
+      })),
+      ...Array.from({ length: 150 }, (_, index) => ({
+        elementId: `button-${index}`,
+        parentId: 'wrap-299',
+        role: 'AXButton',
+        label: `Action ${index}`,
+        actions: ['AXPress'],
+        windowId: '1',
+      })),
+    ]
+    const result = computerToolResultForModel(state)
+    if (!('accessibilityTree' in result)) throw new Error('Missing projected tree')
+    const rows = result.accessibilityTree.split('\n')
+    expect(rows.some((row) => row.includes('AXGroup'))).toBe(false)
+    expect(rows.filter((row) => row.includes('AXButton'))).toHaveLength(150)
+    expect(rows.find((row) => row.startsWith('button-0 '))).toContain('parent=window')
+    expect(result.omittedNodeCount).toBe(0)
+  })
+
+  it('never names a node as its own parent through a wrapper cycle', () => {
+    const state = snapshot()
+    state.nodes = [
+      {
+        elementId: 'button',
+        parentId: 'wrap',
+        role: 'AXButton',
+        label: 'Go',
+        actions: ['AXPress'],
+      },
+      { elementId: 'wrap', parentId: 'button', role: 'AXGroup', actions: [] },
+    ]
+    const result = computerToolResultForModel(state)
+    if (!('accessibilityTree' in result)) throw new Error('Missing projected tree')
+    expect(result.accessibilityTree).toContain('button AXButton')
+    expect(result.accessibilityTree).not.toContain('parent=button')
+  })
+
+  it('keeps an empty layout group that reports itself disabled', () => {
+    const state = snapshot()
+    state.nodes = [
+      { elementId: 'window', role: 'AXWindow', label: 'Fixture', actions: [], windowId: '1' },
+      {
+        elementId: 'pane',
+        parentId: 'window',
+        role: 'AXGroup',
+        enabled: false,
+        actions: [],
+        windowId: '1',
+      },
+      {
+        elementId: 'save',
+        parentId: 'pane',
+        role: 'AXButton',
+        label: 'Save',
+        actions: ['AXPress'],
+        windowId: '1',
+      },
+    ]
+    const result = computerToolResultForModel(state)
+    if (!('accessibilityTree' in result)) throw new Error('Missing projected tree')
+    const rows = result.accessibilityTree.split('\n')
+    expect(rows.find((row) => row.startsWith('pane '))).toContain('disabled')
+    expect(rows.find((row) => row.startsWith('save '))).toContain('parent=pane')
+  })
+
   it('does not split an emoji when bounding text for the model', () => {
     const state = snapshot()
     state.nodes[0] = {

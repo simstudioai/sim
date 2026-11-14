@@ -8,7 +8,7 @@ import type { SelectorKey } from '@/lib/selectors/manifest'
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import { isTriggerModeSubBlock } from '@/lib/workflows/subblocks/visibility'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockToolParamsContext, SubBlockConfig } from '@/blocks/types'
 import {
   findProviderFromModel,
   getBaseModelProviders,
@@ -929,6 +929,23 @@ export function parseOptionalNumberInput(
   }
 
   return parsed
+}
+
+/**
+ * Whether a block's `tools.config.params` mapper is running for a tool call (agent, Pi, Human v2),
+ * whose model-supplied args arrive under the tool's own param names. The canvas calls the mapper
+ * with no context, where those raw keys can hold a value stored for another operation.
+ */
+export function isToolCall(context: BlockToolParamsContext | undefined): boolean {
+  return Boolean(context?.operation)
+}
+
+/** `value` on a tool call, `undefined` on the canvas (see {@link isToolCall}). */
+export function toolCallArg<T>(
+  context: BlockToolParamsContext | undefined,
+  value: T
+): T | undefined {
+  return isToolCall(context) ? value : undefined
 }
 
 /**

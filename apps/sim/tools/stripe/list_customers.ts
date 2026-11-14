@@ -1,6 +1,7 @@
 import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerListResponse, ListCustomersParams } from '@/tools/stripe/types'
 import { CUSTOMER_OUTPUT, LIST_METADATA_OUTPUT_PROPERTIES } from '@/tools/stripe/types'
+import { appendListCursors, listCursorParams } from '@/tools/stripe/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeListCustomersTool: ToolConfig<ListCustomersParams, CustomerListResponse> = {
@@ -35,12 +36,14 @@ export const stripeListCustomersTool: ToolConfig<ListCustomersParams, CustomerLi
       visibility: 'user-or-llm',
       description: 'Filter by creation date',
     },
+    ...listCursorParams('customer'),
   },
 
   request: {
     url: (params) => {
       const url = new URL('https://api.stripe.com/v1/customers')
       if (params.limit) url.searchParams.append('limit', params.limit.toString())
+      appendListCursors(url, params)
       if (params.email) url.searchParams.append('email', params.email)
       if (params.created) {
         Object.entries(params.created).forEach(([key, value]) => {

@@ -1187,6 +1187,20 @@ export const LIST_METADATA_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
+ * Search result metadata: list metadata plus the `next_page` cursor that the
+ * search endpoints return instead of accepting `starting_after`.
+ */
+export const SEARCH_METADATA_OUTPUT_PROPERTIES = {
+  ...LIST_METADATA_OUTPUT_PROPERTIES,
+  next_page: {
+    type: 'string',
+    nullable: true,
+    description:
+      'Token for the next page of search results, or null when there are no more results',
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
  * Complete list metadata output definition
  */
 export const LIST_METADATA_OUTPUT: OutputProperty = {
@@ -1283,12 +1297,15 @@ export interface ListPaymentIntentsParams {
   limit?: number
   customer?: string
   created?: any
+  starting_after?: string
+  ending_before?: string
 }
 
 export interface SearchPaymentIntentsParams {
   apiKey: string
   query: string
   limit?: number
+  page?: string
 }
 
 export interface PaymentIntentResponse extends ToolResponse {
@@ -1309,6 +1326,8 @@ export interface PaymentIntentListResponse extends ToolResponse {
     metadata: {
       count: number
       has_more: boolean
+      /** Present on search results only. */
+      next_page?: string | null
     }
   }
 }
@@ -1365,12 +1384,15 @@ export interface ListCustomersParams {
   limit?: number
   email?: string
   created?: any
+  starting_after?: string
+  ending_before?: string
 }
 
 export interface SearchCustomersParams {
   apiKey: string
   query: string
   limit?: number
+  page?: string
 }
 
 export interface CustomerResponse extends ToolResponse {
@@ -1390,6 +1412,8 @@ export interface CustomerListResponse extends ToolResponse {
     metadata: {
       count: number
       has_more: boolean
+      /** Present on search results only. */
+      next_page?: string | null
     }
   }
 }
@@ -1444,7 +1468,7 @@ export interface RetrieveSubscriptionParams {
 export interface UpdateSubscriptionParams {
   apiKey: string
   id: string
-  items?: Array<{ price: string; quantity?: number }>
+  items?: Array<{ id?: string; price?: string; quantity?: number; deleted?: boolean }>
   cancel_at_period_end?: boolean
   metadata?: StripeMetadata
 }
@@ -1576,12 +1600,15 @@ export interface ListInvoicesParams {
   limit?: number
   customer?: string
   status?: string
+  starting_after?: string
+  ending_before?: string
 }
 
 export interface SearchInvoicesParams {
   apiKey: string
   query: string
   limit?: number
+  page?: string
 }
 
 export interface InvoiceResponse extends ToolResponse {
@@ -1602,6 +1629,8 @@ export interface InvoiceListResponse extends ToolResponse {
     metadata: {
       count: number
       has_more: boolean
+      /** Present on search results only. */
+      next_page?: string | null
     }
   }
 }
@@ -1664,12 +1693,15 @@ export interface ListChargesParams {
   limit?: number
   customer?: string
   created?: any
+  starting_after?: string
+  ending_before?: string
 }
 
 export interface SearchChargesParams {
   apiKey: string
   query: string
   limit?: number
+  page?: string
 }
 
 export interface ChargeResponse extends ToolResponse {
@@ -1691,6 +1723,8 @@ export interface ChargeListResponse extends ToolResponse {
     metadata: {
       count: number
       has_more: boolean
+      /** Present on search results only. */
+      next_page?: string | null
     }
   }
 }
@@ -1742,12 +1776,15 @@ export interface ListProductsParams {
   apiKey: string
   limit?: number
   active?: boolean
+  starting_after?: string
+  ending_before?: string
 }
 
 export interface SearchProductsParams {
   apiKey: string
   query: string
   limit?: number
+  page?: string
 }
 
 export interface ProductResponse extends ToolResponse {
@@ -1767,6 +1804,8 @@ export interface ProductListResponse extends ToolResponse {
     metadata: {
       count: number
       has_more: boolean
+      /** Present on search results only. */
+      next_page?: string | null
     }
   }
 }
@@ -1826,12 +1865,15 @@ export interface ListPricesParams {
   limit?: number
   product?: string
   active?: boolean
+  starting_after?: string
+  ending_before?: string
 }
 
 export interface SearchPricesParams {
   apiKey: string
   query: string
   limit?: number
+  page?: string
 }
 
 export interface PriceResponse extends ToolResponse {
@@ -1852,6 +1894,8 @@ export interface PriceListResponse extends ToolResponse {
     metadata: {
       count: number
       has_more: boolean
+      /** Present on search results only. */
+      next_page?: string | null
     }
   }
 }
@@ -1885,6 +1929,8 @@ export interface ListEventsParams {
   limit?: number
   type?: string
   created?: any
+  starting_after?: string
+  ending_before?: string
 }
 
 export interface EventResponse extends ToolResponse {

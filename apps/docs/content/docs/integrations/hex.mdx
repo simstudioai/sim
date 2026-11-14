@@ -87,7 +87,7 @@ Create a new group in the Hex workspace, optionally with initial members.
 | --------- | ---- | ----------- |
 | `id` | string | Newly created group UUID |
 | `name` | string | Group name |
-| `createdAt` | string | Creation timestamp |
+| `createdAt` | string | Creation timestamp \(not returned by the create endpoint, so usually null\) |
 
 </ReferenceDetails>
 
@@ -245,7 +245,7 @@ Get metadata and details for a specific Hex project by its ID.
 
 ### Hex Get Project Runs
 
-Retrieve API-triggered runs for a Hex project with optional filtering by status and pagination.
+Retrieve runs for a Hex project (API-triggered, scheduled, and app refresh runs) with optional filtering by status and trigger, and offset pagination.
 
 <ReferenceDetails>
 
@@ -268,11 +268,12 @@ Retrieve API-triggered runs for a Hex project with optional filtering by status 
 |   ↳ `runId` | string | Run UUID |
 |   ↳ `runUrl` | string | URL to view the run |
 |   ↳ `status` | string | Run status \(PENDING, RUNNING, COMPLETED, ERRORED, KILLED, UNABLE_TO_ALLOCATE_KERNEL\) |
+|   ↳ `runTrigger` | string | How the run was triggered \(API, SCHEDULED, APP_REFRESH\) |
 |   ↳ `startTime` | string | Run start time |
 |   ↳ `endTime` | string | Run end time |
-|   ↳ `elapsedTime` | number | Elapsed time in seconds |
+|   ↳ `elapsedTime` | number | Elapsed run time in milliseconds |
 |   ↳ `traceId` | string | Trace ID |
-|   ↳ `projectVersion` | number | Project version number |
+|   ↳ `projectVersion` | string | Project version that was run \("1", "2", ...; "draft" for notebook runs\) |
 | `total` | number | Total number of runs returned |
 | `traceId` | string | Top-level trace ID |
 | `nextPage` | string | Cursor for the next page of runs |
@@ -291,7 +292,9 @@ Return the warehouse tables queried by a Hex project, including data connection 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | The UUID of the Hex project |
-| `limit` | number | No | Maximum number of tables to return \(1-100\) |
+| `limit` | number | No | Maximum number of tables to return \(1-100, default: 25\) |
+| `after` | string | No | Cursor to fetch the page of results after this value |
+| `before` | string | No | Cursor to fetch the page of results before this value |
 
 #### Output
 
@@ -302,6 +305,8 @@ Return the warehouse tables queried by a Hex project, including data connection 
 |   ↳ `dataConnectionName` | string | Data connection name |
 |   ↳ `tableName` | string | Table name |
 | `total` | number | Total number of tables returned |
+| `after` | string | Cursor for the next page of results |
+| `before` | string | Cursor for the previous page of results |
 
 </ReferenceDetails>
 
@@ -326,11 +331,12 @@ Check the status of a Hex project run by its run ID.
 | `runId` | string | Run UUID |
 | `runUrl` | string | URL to view the run |
 | `status` | string | Run status \(PENDING, RUNNING, COMPLETED, ERRORED, KILLED, UNABLE_TO_ALLOCATE_KERNEL\) |
+| `runTrigger` | string | How the run was triggered \(API, SCHEDULED, APP_REFRESH\) |
 | `startTime` | string | ISO 8601 run start time |
 | `endTime` | string | ISO 8601 run end time |
-| `elapsedTime` | number | Elapsed time in seconds |
+| `elapsedTime` | number | Elapsed run time in milliseconds |
 | `traceId` | string | Trace ID for debugging |
-| `projectVersion` | number | Project version number |
+| `projectVersion` | string | Project version that was run \("1", "2", ...; "draft" for notebook runs\) |
 
 </ReferenceDetails>
 
@@ -344,7 +350,7 @@ List all collections in the Hex workspace.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `limit` | number | No | Maximum number of collections to return \(1-500, default: 25\) |
+| `limit` | number | No | Maximum number of collections to return \(1-100, default: 25\) |
 | `sortBy` | string | No | Sort by field: NAME |
 | `after` | string | No | Cursor to fetch the page of results after this value |
 | `before` | string | No | Cursor to fetch the page of results before this value |
@@ -376,7 +382,7 @@ List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, Big
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `limit` | number | No | Maximum number of connections to return \(1-500, default: 25\) |
+| `limit` | number | No | Maximum number of connections to return \(1-100, default: 25\) |
 | `sortBy` | string | No | Sort by field: CREATED_AT or NAME |
 | `sortDirection` | string | No | Sort direction: ASC or DESC |
 | `after` | string | No | Cursor to fetch the page of results after this value |
@@ -402,7 +408,7 @@ List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, Big
 
 ### Hex List Groups
 
-List all groups in the Hex workspace with optional sorting.
+List all groups in the Hex workspace with optional sorting, or only the groups a user belongs to.
 
 <ReferenceDetails>
 
@@ -413,6 +419,7 @@ List all groups in the Hex workspace with optional sorting.
 | `limit` | number | No | Maximum number of groups to return \(1-500, default: 25\) |
 | `sortBy` | string | No | Sort by field: CREATED_AT or NAME |
 | `sortDirection` | string | No | Sort direction: ASC or DESC |
+| `userId` | string | No | Return only groups this user UUID belongs to |
 | `after` | string | No | Cursor to fetch the page of results after this value |
 | `before` | string | No | Cursor to fetch the page of results before this value |
 
@@ -440,7 +447,7 @@ List all projects in your Hex workspace with optional filtering by status.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `limit` | number | No | Maximum number of projects to return \(1-100\) |
+| `limit` | number | No | Maximum number of projects to return \(1-100, default: 25\) |
 | `includeArchived` | boolean | No | Include archived projects in results |
 | `statusFilter` | string | No | Filter by status: PUBLISHED, DRAFT, or ALL |
 | `includeComponents` | boolean | No | Include components in results |
@@ -473,6 +480,10 @@ List all projects in your Hex workspace with optional filtering by status.
 |   ↳ `lastPublishedAt` | string | Last published timestamp |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `archivedAt` | string | Archived timestamp |
+|   ↳ `trashedAt` | string | Trashed timestamp |
+|   ↳ `categories` | array | Project categories |
+|     ↳ `name` | string | Category name |
+|     ↳ `description` | string | Category description |
 | `total` | number | Total number of projects returned |
 | `after` | string | Cursor for the next page of results |
 | `before` | string | Cursor for the previous page of results |
@@ -489,7 +500,7 @@ List all users in the Hex workspace with optional filtering and sorting.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `limit` | number | No | Maximum number of users to return \(1-100, default: 25\) |
+| `limit` | number | No | Maximum number of users to return \(1-500, default: 25\) |
 | `sortBy` | string | No | Sort by field: NAME or EMAIL |
 | `sortDirection` | string | No | Sort direction: ASC or DESC |
 | `groupId` | string | No | Filter users by group UUID |

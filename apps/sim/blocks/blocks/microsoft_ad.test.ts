@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { MicrosoftAdBlock } from '@/blocks/blocks/microsoft_ad'
+import type { BlockToolParamsContext } from '@/blocks/types'
+
+/** The block's `tools.config.params` mapper; `context` is set on a tool call, absent on the canvas. */
+const buildParams = (
+  inputs: Record<string, unknown>,
+  context?: BlockToolParamsContext
+): Record<string, unknown> => MicrosoftAdBlock.tools.config?.params?.(inputs, context) ?? {}
 
 /**
  * The tri-state assertions run against `{ ...inputs, ...buildParams(inputs) }`, the shape the
@@ -8,8 +15,6 @@ import { MicrosoftAdBlock } from '@/blocks/blocks/microsoft_ad'
  * pass against the broken code.
  */
 describe('MicrosoftAdBlock', () => {
-  const buildParams = MicrosoftAdBlock.tools.config.params!
-
   const subBlock = (id: string) =>
     MicrosoftAdBlock.subBlocks.find((candidate) => candidate.id === id)!
 
@@ -71,5 +76,37 @@ describe('MicrosoftAdBlock', () => {
         ])
       )
     })
+  })
+})
+
+/**
+ * On an agent call the model supplies `filter`/`search`/`transitive` under the tool's own names;
+ * the per-operation fields (`signInFilter`, `deviceSearch`, `membershipScope`) are never rendered.
+ */
+describe('MicrosoftAdBlock agent tool calls', () => {
+  const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
+    const inputs = { ...args, operation }
+    return { ...inputs, ...buildParams(inputs, { operation }) }
+  }
+
+  it('keeps the model filter on an operation with a dedicated filter field', () => {
+    const mapped = agentCall('list_sign_ins', { filter: 'status/errorCode eq 0' })
+    expect(mapped.filter).toBe('status/errorCode eq 0')
+  })
+
+  it('keeps the model search on an operation with a dedicated search field', () => {
+    const mapped = agentCall('list_devices', { search: '"displayName:laptop"' })
+    expect(mapped.search).toBe('"displayName:laptop"')
+  })
+
+  it('keeps the model transitive flag when no membership scope is chosen', () => {
+    expect(agentCall('list_user_memberships', { userId: 'u-1', transitive: true }).transitive).toBe(
+      true
+    )
+  })
+
+  it('drops a shared filter left over on the canvas for an operation with its own field', () => {
+    const inputs = { operation: 'list_sign_ins', filter: 'stale' }
+    expect({ ...inputs, ...buildParams(inputs) }.filter).toBeUndefined()
   })
 })

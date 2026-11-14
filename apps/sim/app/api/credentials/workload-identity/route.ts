@@ -14,7 +14,15 @@ export const POST = defineInternalJsonRoute({
   operation: credentialOperations.prepareWorkloadIdentity,
   rateLimit: internalRateLimits.user({ bucketName: 'credentials.workload_identity.prepare' }),
   errorPolicy: internalCredentialErrorPolicy,
-  mapInput: ({ body }) => body,
+  mapInput: ({ body: { newSubject, ...body } }) => ({
+    ...body,
+    // A reconnect shows a subject only once someone asks for a new one, so opening it holds none.
+    subjectRequest: newSubject
+      ? { kind: 'new' as const }
+      : body.credentialId
+        ? { kind: 'unheld' as const }
+        : { kind: 'latest' as const },
+  }),
   useCase: prepareWorkloadIdentity,
   present: (result) => result,
 })

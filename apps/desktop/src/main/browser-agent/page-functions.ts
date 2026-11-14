@@ -2040,11 +2040,12 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
       coveredByRelatedPopup = true
     }
   }
-  // Top-page typing goes through keyboard focus, so a non-modal overlay does not block it; a modal
-  // or dialog cover still refuses, and framed fields keep the check for their mapped point.
+  // Top-page typing goes through keyboard focus, so a non-modal overlay does not block it. A modal
+  // still does: a dialog, or an unmarked backdrop, which paints above the field and under every
+  // corner of the viewport. Framed fields keep the check for their mapped point.
   const topPageField = view === window && window.top === window
-  const insideModal = (node: Element | null): boolean => {
-    for (let current = node; current; current = composedParent(current)) {
+  const insideDialog = (node: Element): boolean => {
+    for (let current: Element | null = node; current; current = composedParent(current)) {
       const role = current.getAttribute('role')
       if (
         current.getAttribute('aria-modal') === 'true' ||
@@ -2057,12 +2058,43 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     }
     return false
   }
+  const behindBackdrop = (): boolean => {
+    const stackRoot = root as ParentNode & {
+      elementsFromPoint?: (x: number, y: number) => Element[]
+    }
+    if (typeof stackRoot.elementsFromPoint !== 'function') return false
+    const stackAt = stackRoot.elementsFromPoint.bind(stackRoot)
+    const aboveField = new Set<Element>()
+    for (const point of blockedPoints) {
+      for (const element of stackAt(point.x, point.y)) {
+        if (element === editable || editable.contains(element) || element.contains(editable)) break
+        aboveField.add(element)
+      }
+    }
+    if (aboveField.size === 0) return false
+    const width = editable.ownerDocument.documentElement.clientWidth || view.innerWidth
+    const height = editable.ownerDocument.documentElement.clientHeight || view.innerHeight
+    const inset = 4
+    for (const [x, y] of [
+      [inset, inset],
+      [width - inset, inset],
+      [inset, height - inset],
+      [width - inset, height - inset],
+    ]) {
+      const corner = new Set(stackAt(x, y))
+      for (const element of aboveField) if (!corner.has(element)) aboveField.delete(element)
+      if (aboveField.size === 0) return false
+    }
+    return true
+  }
+  const hits = Array.from(new Set(blockedPoints.flatMap((point) => (point.hit ? [point.hit] : []))))
   let coveredBy: string | undefined
   if (
     !chosenPoint &&
     topPageField &&
-    blockedPoints.length > 0 &&
-    !blockedPoints.some((point) => insideModal(point.hit))
+    hits.length > 0 &&
+    !hits.some(insideDialog) &&
+    !behindBackdrop()
   ) {
     chosenPoint = { x: blockedPoints[0].x, y: blockedPoints[0].y }
     coveredBy = blockerLabel(firstBlocker)

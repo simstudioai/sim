@@ -1,0 +1,2101 @@
+---
+title: Monaco
+description: Manage Monaco CRM records, tasks, meetings, and outreach
+integration:
+  type: "monaco"
+  color: "#000000"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[Monaco](https://www.monaco.com/) is an AI-native revenue platform that combines a CRM, a prospect database, outbound sequencing, and a meeting recorder in one system.
+
+With the Monaco block, you can:
+
+- **Manage CRM records**: list, read, create, update, upsert, and delete contacts and accounts, and manage opportunities with their pipeline stage, estimated value, linked contacts, and custom fields
+- **Track work**: create and update tasks, including email tasks with a draft, and create or list tags for contacts, accounts, and opportunities
+- **Read activity**: list meetings and read their AI summaries, next actions, and transcripts, and read a contact's or account's email and LinkedIn messages and full conversation threads
+- **Run outreach**: build audiences from contact IDs or filters, enroll contacts or attach audiences to campaigns, and pause, resume, enqueue, stop, or exclude sequences
+- **Discover your workspace**: list pipelines and users, and read the filterable and sortable field schemas for each record type
+
+Create an API key in Monaco under **Settings > API Keys** (it starts with `mks_` and is shown once), then add it as a Monaco credential from the block's **Monaco Account** field. Enrolling contacts, attaching audiences to campaigns, and resuming or enqueuing sequences send real email and LinkedIn messages.
+
+In Sim, the Monaco block lets your agents prepare account briefs before meetings, keep the pipeline clean, turn meeting outcomes into follow-up tasks, and launch outbound to a new segment.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Connect a Monaco API key to read and write contacts, accounts, and opportunities, manage tasks and tags, read meetings, transcripts, and email or LinkedIn conversations, and run outreach by building audiences, enrolling contacts in campaigns, and controlling sequences.
+
+## Actions
+
+### Monaco List Contacts
+
+List Monaco contacts with optional filters, sorting, and pagination.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | json | No | Filters as an array of \{"field", "condition", "value"\} rules \(ANDed\), or an \{"operator": "and"\|"or", "filters": \[...\]\} expression for nested logic. Conditions include is, is_not, equals, contains, not_contains, is_empty, is_not_empty, is_before, and is_after. Use Get Field Schemas to find filterable fields. |
+| `sort` | string | No | Field to sort by; prefix with "-" for descending \(e.g. "-created_at"\). Defaults to "-created_at". |
+| `page` | number | No | Page number, starting at 1. Defaults to 1. |
+| `pageSize` | number | No | Results per page, from 1 to 500. Defaults to 50. |
+| `includeCustomFields` | boolean | No | Include each contact's `custom_field_&lt;id&gt;` values. Defaults to false; Get Contact always includes them. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | object | Pagination for the returned page |
+|   ↳ `page` | number | Current page number \(1-indexed\) |
+|   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_count` | number | Total number of matching records |
+|   ↳ `total_pages` | number | Total number of pages |
+| `contacts` | array | Contacts on this page |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `account_name` | string | Display name of the associated account: its user-set name, falling back to the company name, then the account's domain |
+|   ↳ `first_name` | string | First name of the contact |
+|   ↳ `last_name` | string | Last name of the contact |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `title` | string | Job title of the contact |
+|   ↳ `phone_number` | string | Phone number of the contact |
+|   ↳ `linkedin_url` | string | LinkedIn profile URL |
+|   ↳ `location` | string | Location of the contact |
+|   ↳ `country` | string | Country of the contact |
+|   ↳ `job_start_date` | string | Start date of the contact's current job \(YYYY-MM-DD\) |
+|   ↳ `source` | string | Source from which the contact was added |
+|   ↳ `do_not_contact` | boolean | Whether the contact has opted out of outreach |
+|   ↳ `notes` | string | Notes about the contact |
+|   ↳ `scoring` | object | Contact scoring information |
+|     ↳ `heat_score` | string | Heat score tier |
+|   ↳ `tags` | array | Tag names associated with the contact |
+|   ↳ `created_at` | string | When the contact was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the contact was last updated \(ISO 8601\) |
+|   ↳ `last_activity_at` | string | When the contact's most recent activity \(inbound or outbound\) happened |
+|   ↳ `last_activity_type` | string | Type of the contact's most recent activity |
+|   ↳ `last_outbound_at` | string | When the most recent outbound interaction with the contact happened |
+|   ↳ `last_outbound_type` | string | Type of the most recent outbound interaction with the contact |
+|   ↳ `last_inbound_at` | string | When the most recent inbound interaction from the contact happened |
+|   ↳ `last_inbound_type` | string | Type of the most recent inbound interaction from the contact |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+
+</ReferenceDetails>
+
+### Monaco Get Contact
+
+Get one Monaco contact by ID, including scoring, heat score explanations, and custom fields.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | ID of the contact to fetch |
+| `includeReasoning` | boolean | No | Return each custom field as \{value, reasoning, confidence, citations\} instead of the bare value. Defaults to false. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | The contact |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `account_name` | string | Display name of the associated account: its user-set name, falling back to the company name, then the account's domain |
+|   ↳ `first_name` | string | First name of the contact |
+|   ↳ `last_name` | string | Last name of the contact |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `title` | string | Job title of the contact |
+|   ↳ `phone_number` | string | Phone number of the contact |
+|   ↳ `linkedin_url` | string | LinkedIn profile URL |
+|   ↳ `location` | string | Location of the contact |
+|   ↳ `country` | string | Country of the contact |
+|   ↳ `job_start_date` | string | Start date of the contact's current job \(YYYY-MM-DD\) |
+|   ↳ `source` | string | Source from which the contact was added |
+|   ↳ `do_not_contact` | boolean | Whether the contact has opted out of outreach |
+|   ↳ `notes` | string | Notes about the contact |
+|   ↳ `scoring` | object | Contact scoring information |
+|     ↳ `heat_score` | string | Heat score tier |
+|   ↳ `tags` | array | Tag names associated with the contact |
+|   ↳ `created_at` | string | When the contact was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the contact was last updated \(ISO 8601\) |
+|   ↳ `last_activity_at` | string | When the contact's most recent activity \(inbound or outbound\) happened |
+|   ↳ `last_activity_type` | string | Type of the contact's most recent activity |
+|   ↳ `last_outbound_at` | string | When the most recent outbound interaction with the contact happened |
+|   ↳ `last_outbound_type` | string | Type of the most recent outbound interaction with the contact |
+|   ↳ `last_inbound_at` | string | When the most recent inbound interaction from the contact happened |
+|   ↳ `last_inbound_type` | string | Type of the most recent inbound interaction from the contact |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+|   ↳ `heat_score_explanation` | object | Per-signal explanations behind the heat score tier |
+
+</ReferenceDetails>
+
+### Monaco Create Contact
+
+Create a Monaco contact from an email or LinkedIn URL. Monaco enriches the contact and resolves or creates its account, which can take several seconds. A duplicate email or LinkedIn URL is rejected; use Upsert Contact to update a match instead.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | No | Email address of the contact \(max 255 characters\). Either email or LinkedIn URL is required. |
+| `linkedinUrl` | string | No | LinkedIn profile URL \(a linkedin.com/in/... URL\). Either email or LinkedIn URL is required; with only a LinkedIn URL, also pass an account ID or domain. |
+| `firstName` | string | No | First name of the contact \(max 256 characters\) |
+| `lastName` | string | No | Last name of the contact \(max 256 characters\) |
+| `title` | string | No | Job title of the contact |
+| `phoneNumber` | string | No | Phone number of the contact |
+| `location` | string | No | Location of the contact \(max 256 characters\) |
+| `accountId` | string | No | ID of the account to associate the contact with. Takes priority over domain, then the domain parsed from email, when resolving the account. |
+| `domain` | string | No | Domain of the contact's company, used to resolve its account |
+| `doNotContact` | boolean | No | Whether the contact has opted out of outreach |
+| `notes` | string | No | Notes about the contact \(max 1,125,000 characters\) |
+| `tags` | array | No | Tag IDs for the contact, as an array or comma-separated list. When the request matches an existing contact, replaces its existing tags. |
+| `isInbound` | boolean | No | Whether the contact is an inbound lead. When true and the request creates a new contact, Monaco records it as a captured inbound lead. Ignored when the request matches an existing contact. Defaults to false. |
+| `customFields` | json | No | Custom field values as a JSON object keyed by `custom_field_&lt;id&gt;` \(e.g. \{"custom_field_1a2b...": "economic_buyer"\}\). Use Get Field Schemas to find the keys. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | The created contact |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `account_name` | string | Display name of the associated account: its user-set name, falling back to the company name, then the account's domain |
+|   ↳ `first_name` | string | First name of the contact |
+|   ↳ `last_name` | string | Last name of the contact |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `title` | string | Job title of the contact |
+|   ↳ `phone_number` | string | Phone number of the contact |
+|   ↳ `linkedin_url` | string | LinkedIn profile URL |
+|   ↳ `location` | string | Location of the contact |
+|   ↳ `country` | string | Country of the contact |
+|   ↳ `job_start_date` | string | Start date of the contact's current job \(YYYY-MM-DD\) |
+|   ↳ `source` | string | Source from which the contact was added |
+|   ↳ `do_not_contact` | boolean | Whether the contact has opted out of outreach |
+|   ↳ `notes` | string | Notes about the contact |
+|   ↳ `scoring` | object | Contact scoring information |
+|     ↳ `heat_score` | string | Heat score tier |
+|   ↳ `tags` | array | Tag names associated with the contact |
+|   ↳ `created_at` | string | When the contact was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the contact was last updated \(ISO 8601\) |
+|   ↳ `last_activity_at` | string | When the contact's most recent activity \(inbound or outbound\) happened |
+|   ↳ `last_activity_type` | string | Type of the contact's most recent activity |
+|   ↳ `last_outbound_at` | string | When the most recent outbound interaction with the contact happened |
+|   ↳ `last_outbound_type` | string | Type of the most recent outbound interaction with the contact |
+|   ↳ `last_inbound_at` | string | When the most recent inbound interaction from the contact happened |
+|   ↳ `last_inbound_type` | string | Type of the most recent inbound interaction from the contact |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+|   ↳ `enrichment_status` | string | How enriching the contact from its identifiers ended: enriched; not_found, when no person matches them; or failed, when the lookup errored or timed out and the contact was saved with only the fields sent |
+
+</ReferenceDetails>
+
+### Monaco Update Contact
+
+Update fields on an existing Monaco contact by ID. Only the fields sent change.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | ID of the contact to update |
+| `firstName` | string | No | First name of the contact \(max 256 characters\) |
+| `lastName` | string | No | Last name of the contact \(max 256 characters\) |
+| `email` | string | No | Email address of the contact \(max 255 characters\) |
+| `title` | string | No | Job title of the contact |
+| `phoneNumber` | string | No | Phone number of the contact |
+| `linkedinUrl` | string | No | LinkedIn profile URL \(a linkedin.com/in/... URL\) |
+| `location` | string | No | Location of the contact \(max 256 characters\) |
+| `notes` | string | No | Notes about the contact \(max 1,125,000 characters\) |
+| `doNotContact` | boolean | No | Whether the contact has opted out of outreach |
+| `tags` | array | No | Tag IDs for the contact, as an array or comma-separated list. Replaces the contact's existing tags; send \[\] to remove them all. |
+| `country` | string | No | Country of the contact, as a country name or code \(max 128 characters\) |
+| `jobStartDate` | string | No | Start date of the contact's current job \(YYYY-MM-DD\) |
+| `clearFields` | array | No | Fields to clear on the contact, as an array or comma-separated list. Allowed: first_name, last_name, email, title, phone_number, linkedin_url, notes. |
+| `customFields` | json | No | Custom field values to set, as a JSON object keyed by `custom_field_&lt;id&gt;` \(e.g. \{"custom_field_&lt;id&gt;": "value"\}\). Custom fields are always updatable; use Get Field Schemas to find the keys. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | The updated contact |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `account_name` | string | Display name of the associated account: its user-set name, falling back to the company name, then the account's domain |
+|   ↳ `first_name` | string | First name of the contact |
+|   ↳ `last_name` | string | Last name of the contact |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `title` | string | Job title of the contact |
+|   ↳ `phone_number` | string | Phone number of the contact |
+|   ↳ `linkedin_url` | string | LinkedIn profile URL |
+|   ↳ `location` | string | Location of the contact |
+|   ↳ `country` | string | Country of the contact |
+|   ↳ `job_start_date` | string | Start date of the contact's current job \(YYYY-MM-DD\) |
+|   ↳ `source` | string | Source from which the contact was added |
+|   ↳ `do_not_contact` | boolean | Whether the contact has opted out of outreach |
+|   ↳ `notes` | string | Notes about the contact |
+|   ↳ `scoring` | object | Contact scoring information |
+|     ↳ `heat_score` | string | Heat score tier |
+|   ↳ `tags` | array | Tag names associated with the contact |
+|   ↳ `created_at` | string | When the contact was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the contact was last updated \(ISO 8601\) |
+|   ↳ `last_activity_at` | string | When the contact's most recent activity \(inbound or outbound\) happened |
+|   ↳ `last_activity_type` | string | Type of the contact's most recent activity |
+|   ↳ `last_outbound_at` | string | When the most recent outbound interaction with the contact happened |
+|   ↳ `last_outbound_type` | string | Type of the most recent outbound interaction with the contact |
+|   ↳ `last_inbound_at` | string | When the most recent inbound interaction from the contact happened |
+|   ↳ `last_inbound_type` | string | Type of the most recent inbound interaction from the contact |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+
+</ReferenceDetails>
+
+### Monaco Upsert Contact
+
+Create a Monaco contact or update the one matching its email (case-insensitive), then LinkedIn URL. Pass a contact ID instead to update that contact by ID, which is how to change its email. Creating a contact enriches it and can take several seconds.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | No | Email address of the contact \(max 255 characters\). Either email or LinkedIn URL is required. |
+| `linkedinUrl` | string | No | LinkedIn profile URL \(a linkedin.com/in/... URL\). Either email or LinkedIn URL is required; with only a LinkedIn URL, also pass an account ID or domain. |
+| `firstName` | string | No | First name of the contact \(max 256 characters\) |
+| `lastName` | string | No | Last name of the contact \(max 256 characters\) |
+| `title` | string | No | Job title of the contact |
+| `phoneNumber` | string | No | Phone number of the contact |
+| `location` | string | No | Location of the contact \(max 256 characters\) |
+| `accountId` | string | No | ID of the account to associate the contact with. Takes priority over domain, then the domain parsed from email, when resolving the account. |
+| `domain` | string | No | Domain of the contact's company, used to resolve its account |
+| `doNotContact` | boolean | No | Whether the contact has opted out of outreach |
+| `notes` | string | No | Notes about the contact \(max 1,125,000 characters\) |
+| `tags` | array | No | Tag IDs for the contact, as an array or comma-separated list. When the request matches an existing contact, replaces its existing tags. |
+| `isInbound` | boolean | No | Whether the contact is an inbound lead. When true and the request creates a new contact, Monaco records it as a captured inbound lead. Ignored when the request matches an existing contact. Defaults to false. |
+| `customFields` | json | No | Custom field values as a JSON object keyed by `custom_field_&lt;id&gt;` \(e.g. \{"custom_field_1a2b...": "economic_buyer"\}\). Use Get Field Schemas to find the keys. |
+| `id` | string | No | ID of an existing contact to update by ID instead of matching by email or LinkedIn URL; it is never created, and an unknown ID fails. Cannot be combined with account ID, domain, location, or inbound. |
+| `clearFields` | array | No | Fields to clear on the contact, as an array or comma-separated list. Only applies with a contact ID. Allowed: first_name, last_name, email, title, phone_number, linkedin_url, notes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contact` | object | The created or updated contact |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `account_name` | string | Display name of the associated account: its user-set name, falling back to the company name, then the account's domain |
+|   ↳ `first_name` | string | First name of the contact |
+|   ↳ `last_name` | string | Last name of the contact |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `title` | string | Job title of the contact |
+|   ↳ `phone_number` | string | Phone number of the contact |
+|   ↳ `linkedin_url` | string | LinkedIn profile URL |
+|   ↳ `location` | string | Location of the contact |
+|   ↳ `country` | string | Country of the contact |
+|   ↳ `job_start_date` | string | Start date of the contact's current job \(YYYY-MM-DD\) |
+|   ↳ `source` | string | Source from which the contact was added |
+|   ↳ `do_not_contact` | boolean | Whether the contact has opted out of outreach |
+|   ↳ `notes` | string | Notes about the contact |
+|   ↳ `scoring` | object | Contact scoring information |
+|     ↳ `heat_score` | string | Heat score tier |
+|   ↳ `tags` | array | Tag names associated with the contact |
+|   ↳ `created_at` | string | When the contact was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the contact was last updated \(ISO 8601\) |
+|   ↳ `last_activity_at` | string | When the contact's most recent activity \(inbound or outbound\) happened |
+|   ↳ `last_activity_type` | string | Type of the contact's most recent activity |
+|   ↳ `last_outbound_at` | string | When the most recent outbound interaction with the contact happened |
+|   ↳ `last_outbound_type` | string | Type of the most recent outbound interaction with the contact |
+|   ↳ `last_inbound_at` | string | When the most recent inbound interaction from the contact happened |
+|   ↳ `last_inbound_type` | string | Type of the most recent inbound interaction from the contact |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+|   ↳ `enrichment_status` | string | How enriching the contact from its identifiers ended: enriched; not_found, when no person matches them; or failed, when the lookup errored or timed out and the contact was saved with only the fields sent |
+
+</ReferenceDetails>
+
+### Monaco Delete Contact
+
+Permanently delete a Monaco contact. This cannot be undone.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Yes | ID of the contact to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted contact |
+| `deleted` | boolean | Whether Monaco deleted the contact |
+
+</ReferenceDetails>
+
+### Monaco List Accounts
+
+List Monaco accounts with optional filters, sorting, and pagination.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | json | No | Filters as an array of \{"field", "condition", "value"\} rules \(ANDed\), or an \{"operator": "and"\|"or", "filters": \[...\]\} expression for nested logic. Conditions include is, is_not, equals, contains, not_contains, is_empty, is_not_empty, is_before, and is_after. Use Get Field Schemas to find filterable fields. |
+| `sort` | string | No | Field to sort by; prefix with "-" for descending \(e.g. "-created_at"\). Defaults to "-created_at". |
+| `page` | number | No | Page number, starting at 1. Defaults to 1. |
+| `pageSize` | number | No | Results per page, from 1 to 500. Defaults to 50. |
+| `includeCustomFields` | boolean | No | Include each account's `custom_field_&lt;id&gt;` values. Defaults to false; Get Account always includes them. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | object | Pagination for the returned page |
+|   ↳ `page` | number | Current page number \(1-indexed\) |
+|   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_count` | number | Total number of matching records |
+|   ↳ `total_pages` | number | Total number of pages |
+| `accounts` | array | Accounts on this page |
+|   ↳ `id` | string | Unique identifier for the account |
+|   ↳ `name` | string | Name of the account |
+|   ↳ `status` | string | Current status of the account |
+|   ↳ `owner` | object | User who owns the account |
+|     ↳ `id` | string | Unique identifier of the user |
+|     ↳ `first_name` | string | First name of the user |
+|     ↳ `last_name` | string | Last name of the user |
+|   ↳ `parent_account` | object | Account this account is a sub-account of |
+|     ↳ `id` | string | Unique identifier of the parent account |
+|     ↳ `name` | string | Name of the parent account |
+|   ↳ `notes` | string | Notes about the account |
+|   ↳ `domains` | array | The account's own domains, primary first |
+|   ↳ `company` | object | Company information associated with the account |
+|     ↳ `domain` | string | The account's primary domain: the first entry of the account's domains list |
+|     ↳ `linkedin_url` | string | LinkedIn company page URL |
+|     ↳ `description` | string | Company description |
+|     ↳ `employee_count` | number | Number of employees |
+|     ↳ `founded_year` | number | Year the company was founded |
+|     ↳ `industries` | array | Industry classifications |
+|     ↳ `total_funding_usd` | number | Total funding raised in USD |
+|     ↳ `last_funding_date` | string | Date of the most recent funding round |
+|     ↳ `company_name` | string | Company name |
+|     ↳ `estimated_annual_revenue_usd` | number | Estimated annual revenue in USD |
+|     ↳ `last_funding_round` | string | Type of the most recent funding round |
+|     ↳ `business_model` | string | Business model |
+|     ↳ `company_status` | string | Operating status of the company |
+|     ↳ `location` | string | Headquarters as "city, state, country" |
+|   ↳ `overridden_fields` | array | Fields set by a user. Company data updates don't overwrite them |
+|   ↳ `scoring` | object | Account scoring information |
+|     ↳ `tier` | string | Firmographic tier |
+|     ↳ `heat_score` | string | Heat score tier |
+|   ↳ `tags` | array | Tag names associated with the account |
+|   ↳ `created_at` | string | When the account was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the account was last updated \(ISO 8601\) |
+|   ↳ `last_activity_at` | string | When the most recent activity \(inbound or outbound\) across the account's contacts happened |
+|   ↳ `last_activity_type` | string | Type of the account's most recent contact activity |
+|   ↳ `last_contacted_at` | string | When the most recent outbound interaction with the account's contacts happened |
+|   ↳ `last_contacted_type` | string | Type of the most recent outbound interaction with the account's contacts |
+|   ↳ `last_inbound_at` | string | When the most recent inbound interaction from the account's contacts happened |
+|   ↳ `last_inbound_type` | string | Type of the most recent inbound interaction from the account's contacts |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+
+</ReferenceDetails>
+
+### Monaco Get Account
+
+Get one Monaco account by ID, including enriched company information, scoring, heat score explanations, and custom fields.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountId` | string | Yes | ID of the account to fetch |
+| `includeReasoning` | boolean | No | Return each custom field as \{value, reasoning, confidence, citations\} instead of the bare value. Defaults to false. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | object | The account |
+|   ↳ `id` | string | Unique identifier for the account |
+|   ↳ `name` | string | Name of the account |
+|   ↳ `status` | string | Current status of the account |
+|   ↳ `owner` | object | User who owns the account |
+|     ↳ `id` | string | Unique identifier of the user |
+|     ↳ `first_name` | string | First name of the user |
+|     ↳ `last_name` | string | Last name of the user |
+|   ↳ `parent_account` | object | Account this account is a sub-account of |
+|     ↳ `id` | string | Unique identifier of the parent account |
+|     ↳ `name` | string | Name of the parent account |
+|   ↳ `notes` | string | Notes about the account |
+|   ↳ `domains` | array | The account's own domains, primary first |
+|   ↳ `company` | object | Company information associated with the account |
+|     ↳ `domain` | string | The account's primary domain: the first entry of the account's domains list |
+|     ↳ `linkedin_url` | string | LinkedIn company page URL |
+|     ↳ `description` | string | Company description |
+|     ↳ `employee_count` | number | Number of employees |
+|     ↳ `founded_year` | number | Year the company was founded |
+|     ↳ `industries` | array | Industry classifications |
+|     ↳ `total_funding_usd` | number | Total funding raised in USD |
+|     ↳ `last_funding_date` | string | Date of the most recent funding round |
+|     ↳ `company_name` | string | Company name |
+|     ↳ `estimated_annual_revenue_usd` | number | Estimated annual revenue in USD |
+|     ↳ `last_funding_round` | string | Type of the most recent funding round |
+|     ↳ `business_model` | string | Business model |
+|     ↳ `company_status` | string | Operating status of the company |
+|     ↳ `location` | string | Headquarters as "city, state, country" |
+|   ↳ `overridden_fields` | array | Fields set by a user. Company data updates don't overwrite them |
+|   ↳ `scoring` | object | Account scoring information |
+|     ↳ `tier` | string | Firmographic tier |
+|     ↳ `heat_score` | string | Heat score tier |
+|   ↳ `tags` | array | Tag names associated with the account |
+|   ↳ `created_at` | string | When the account was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the account was last updated \(ISO 8601\) |
+|   ↳ `last_activity_at` | string | When the most recent activity \(inbound or outbound\) across the account's contacts happened |
+|   ↳ `last_activity_type` | string | Type of the account's most recent contact activity |
+|   ↳ `last_contacted_at` | string | When the most recent outbound interaction with the account's contacts happened |
+|   ↳ `last_contacted_type` | string | Type of the most recent outbound interaction with the account's contacts |
+|   ↳ `last_inbound_at` | string | When the most recent inbound interaction from the account's contacts happened |
+|   ↳ `last_inbound_type` | string | Type of the most recent inbound interaction from the account's contacts |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+|   ↳ `heat_score_explanation` | object | Per-signal explanations behind the heat score tier |
+
+</ReferenceDetails>
+
+### Monaco Upsert Account
+
+Create a Monaco account or update the one whose domain exactly matches the domain lookup. Pass an account ID instead to update that account by ID, or only a name to create an account without a domain where the workspace allows it. Creating an account enriches it with firmographic data and can take several seconds.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domainLookup` | string | No | Domain used to find the account, or to create it if none matches \(a company record for the domain must exist in Monaco\). Omit it to create an account from the name alone, where the workspace allows accounts without a company; every such call creates a new account. Not allowed with an account ID. |
+| `id` | string | No | ID of an existing account to update by ID instead of matching by domain lookup; it is never created, and an unknown ID fails. Requires a user-scoped API key. |
+| `name` | string | No | Display name for the account \(max 256 characters\) |
+| `status` | string | No | Account status \(max 64 characters\). Suggested values: NEW, PROSPECTING, OPPORTUNITY, CUSTOMER, DISQUALIFIED, NURTURE, INBOUND, CHURNED; any string is accepted. |
+| `notes` | string | No | Notes about the account \(max 1,125,000 characters\) |
+| `owner` | string | No | User ID to assign as account owner |
+| `parentAccount` | string | No | Account ID to set as this account's parent. The parent must be a top-level account in the same workspace. |
+| `companyId` | string | No | ID of the company to link to the account |
+| `replaceEditedFields` | boolean | No | Also replace fields a user has edited, including edited domains, when linking a company. Defaults to false. |
+| `linkedinUrl` | string | No | LinkedIn company page URL for matching or creating the account |
+| `description` | string | No | Company description \(max 8192 characters\) |
+| `employeeCount` | number | No | Number of employees \(0 or more\) |
+| `foundedYear` | number | No | Year the company was founded |
+| `estimatedAnnualRevenueUsd` | number | No | Estimated annual revenue in USD \(0 or more\) |
+| `totalFundingUsd` | number | No | Total funding raised in USD \(0 or more\) |
+| `lastFundingRound` | string | No | Type of the most recent funding round. One of: pre_seed, seed, angel, series_a, series_b, series_c, series_d, series_e, series_f, series_g, series_h, series_i, series_j, series_unknown, private_equity, debt_financing, convertible_note, grant, non_equity_assistance, corporate_round, equity_crowdfunding, product_crowdfunding, initial_coin_offering, secondary_market, post_ipo_equity, post_ipo_debt, post_ipo_secondary, undisclosed. |
+| `lastFundingDate` | string | No | Date of the most recent funding round \(YYYY-MM-DD\) |
+| `industries` | array | No | Industries from Monaco's standard list \(each max 128 characters\), as an array or comma-separated list. Replaces the current list. |
+| `businessModel` | string | No | Business model. One of: B2B, B2C. |
+| `companyStatus` | string | No | Operating status of the company. One of: active, acquired, out_of_business, ipo, unknown. |
+| `location` | string | No | Headquarters as "city, state, country" |
+| `tags` | array | No | Tag IDs to associate with the account, as an array or comma-separated list. Appended to the account's existing tags. |
+| `domains` | array | No | The account's full ordered list of domains, primary first, as an array or comma-separated list \(max 500\). Only applies with an account ID. Send \[\] to remove them all. |
+| `resetFields` | array | No | Company fields to reset to the linked company's value, as an array or comma-separated list. Only applies with an account ID. Allowed: linkedin_url, description, employee_count, founded_year, estimated_annual_revenue_usd, total_funding_usd, last_funding_round, last_funding_date, industries, business_model, company_status, location, domains. |
+| `clearFields` | array | No | Fields to clear on the account, as an array or comma-separated list. Only applies with an account ID; list company_id to unlink the company. Allowed: name, notes, owner, parent_account, company_id, linkedin_url, description, employee_count, founded_year, estimated_annual_revenue_usd, total_funding_usd, last_funding_round, last_funding_date, industries, business_model, company_status, location. |
+| `customFields` | json | No | Custom field values as a JSON object keyed by `custom_field_&lt;id&gt;` \(e.g. \{"custom_field_7a1c...": "high"\}\). Use Get Field Schemas to find the keys. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | object | The created or updated account |
+|   ↳ `id` | string | Unique identifier for the account |
+|   ↳ `name` | string | Name of the account |
+|   ↳ `status` | string | Current status of the account |
+|   ↳ `owner` | object | User who owns the account |
+|     ↳ `id` | string | Unique identifier of the user |
+|     ↳ `first_name` | string | First name of the user |
+|     ↳ `last_name` | string | Last name of the user |
+|   ↳ `parent_account` | object | Account this account is a sub-account of |
+|     ↳ `id` | string | Unique identifier of the parent account |
+|     ↳ `name` | string | Name of the parent account |
+|   ↳ `notes` | string | Notes about the account |
+|   ↳ `domains` | array | The account's own domains, primary first |
+|   ↳ `company` | object | Company information associated with the account |
+|     ↳ `domain` | string | The account's primary domain: the first entry of the account's domains list |
+|     ↳ `linkedin_url` | string | LinkedIn company page URL |
+|     ↳ `description` | string | Company description |
+|     ↳ `employee_count` | number | Number of employees |
+|     ↳ `founded_year` | number | Year the company was founded |
+|     ↳ `industries` | array | Industry classifications |
+|     ↳ `total_funding_usd` | number | Total funding raised in USD |
+|     ↳ `last_funding_date` | string | Date of the most recent funding round |
+|     ↳ `company_name` | string | Company name |
+|     ↳ `estimated_annual_revenue_usd` | number | Estimated annual revenue in USD |
+|     ↳ `last_funding_round` | string | Type of the most recent funding round |
+|     ↳ `business_model` | string | Business model |
+|     ↳ `company_status` | string | Operating status of the company |
+|     ↳ `location` | string | Headquarters as "city, state, country" |
+|   ↳ `overridden_fields` | array | Fields set by a user. Company data updates don't overwrite them |
+|   ↳ `scoring` | object | Account scoring information |
+|     ↳ `tier` | string | Firmographic tier |
+|     ↳ `heat_score` | string | Heat score tier |
+|   ↳ `tags` | array | Tag names associated with the account |
+|   ↳ `created_at` | string | When the account was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the account was last updated \(ISO 8601\) |
+|   ↳ `last_activity_at` | string | When the most recent activity \(inbound or outbound\) across the account's contacts happened |
+|   ↳ `last_activity_type` | string | Type of the account's most recent contact activity |
+|   ↳ `last_contacted_at` | string | When the most recent outbound interaction with the account's contacts happened |
+|   ↳ `last_contacted_type` | string | Type of the most recent outbound interaction with the account's contacts |
+|   ↳ `last_inbound_at` | string | When the most recent inbound interaction from the account's contacts happened |
+|   ↳ `last_inbound_type` | string | Type of the most recent inbound interaction from the account's contacts |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+|   ↳ `skipped_domains` | array | Company websites not added because another account uses them |
+|     ↳ `domain` | string | The domain that was rejected |
+|     ↳ `reason` | string | Why it was rejected: conflict \(another account uses it\), invalid \(not a domain\), consumer \(a consumer email domain such as gmail.com\) or own_org \(your own organization domain\) |
+|     ↳ `account_id` | string | For a conflict, the ID of the account that already uses the domain |
+|     ↳ `account_name` | string | For a conflict, the name of the account that already uses the domain |
+
+</ReferenceDetails>
+
+### Monaco Update Account
+
+Update fields on an existing Monaco account by ID. Only the fields sent change. Domains replace the account's whole domain list, and a domain another account already uses fails the request.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountId` | string | Yes | ID of the account to update |
+| `name` | string | No | Display name for the account \(max 256 characters\) |
+| `status` | string | No | Account status \(max 64 characters\). Suggested values: NEW, PROSPECTING, OPPORTUNITY, CUSTOMER, DISQUALIFIED, NURTURE, INBOUND, CHURNED; any string is accepted. |
+| `notes` | string | No | Notes about the account \(max 1,125,000 characters\) |
+| `owner` | string | No | User ID to assign as account owner |
+| `parentAccount` | string | No | Account ID to set as this account's parent. The parent must be a top-level account in the same workspace. |
+| `companyId` | string | No | ID of the company to link to the account |
+| `replaceEditedFields` | boolean | No | Also replace fields a user has edited, including edited domains, when linking a company. Defaults to false. |
+| `linkedinUrl` | string | No | LinkedIn company page URL |
+| `description` | string | No | Company description \(max 8192 characters\) |
+| `employeeCount` | number | No | Number of employees \(0 or more\) |
+| `foundedYear` | number | No | Year the company was founded |
+| `estimatedAnnualRevenueUsd` | number | No | Estimated annual revenue in USD \(0 or more\) |
+| `totalFundingUsd` | number | No | Total funding raised in USD \(0 or more\) |
+| `lastFundingRound` | string | No | Type of the most recent funding round. One of: pre_seed, seed, angel, series_a, series_b, series_c, series_d, series_e, series_f, series_g, series_h, series_i, series_j, series_unknown, private_equity, debt_financing, convertible_note, grant, non_equity_assistance, corporate_round, equity_crowdfunding, product_crowdfunding, initial_coin_offering, secondary_market, post_ipo_equity, post_ipo_debt, post_ipo_secondary, undisclosed. |
+| `lastFundingDate` | string | No | Date of the most recent funding round \(YYYY-MM-DD\) |
+| `industries` | array | No | Industries from Monaco's standard list \(each max 128 characters\), as an array or comma-separated list. Replaces the current list. |
+| `businessModel` | string | No | Business model. One of: B2B, B2C. |
+| `companyStatus` | string | No | Operating status of the company. One of: active, acquired, out_of_business, ipo, unknown. |
+| `location` | string | No | Headquarters as "city, state, country" |
+| `tags` | array | No | Tag IDs for the account, as an array or comma-separated list. Replaces the account's existing tags; send \[\] to remove them all. |
+| `domains` | array | No | The account's complete list of domains, primary first, as an array or comma-separated list \(max 500\). Replaces the whole list: domains left out are removed. Send \[\] to remove them all. |
+| `resetFields` | array | No | Company fields to reset to the linked company's value, as an array or comma-separated list; later company updates fill them again. Allowed: linkedin_url, description, employee_count, founded_year, estimated_annual_revenue_usd, total_funding_usd, last_funding_round, last_funding_date, industries, business_model, company_status, location, domains. |
+| `clearFields` | array | No | Fields to clear on the account, as an array or comma-separated list. Clearing parent_account makes the account top-level and clearing company_id unlinks its company. Allowed: name, notes, owner, parent_account, company_id, linkedin_url, description, employee_count, founded_year, estimated_annual_revenue_usd, total_funding_usd, last_funding_round, last_funding_date, industries, business_model, company_status, location. |
+| `customFields` | json | No | Custom field values to set, as a JSON object keyed by `custom_field_&lt;id&gt;` \(e.g. \{"custom_field_&lt;id&gt;": "value"\}\). Custom fields are always updatable; use Get Field Schemas to find the keys. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | object | The updated account |
+|   ↳ `id` | string | Unique identifier for the account |
+|   ↳ `name` | string | Name of the account |
+|   ↳ `status` | string | Current status of the account |
+|   ↳ `owner` | object | User who owns the account |
+|     ↳ `id` | string | Unique identifier of the user |
+|     ↳ `first_name` | string | First name of the user |
+|     ↳ `last_name` | string | Last name of the user |
+|   ↳ `parent_account` | object | Account this account is a sub-account of |
+|     ↳ `id` | string | Unique identifier of the parent account |
+|     ↳ `name` | string | Name of the parent account |
+|   ↳ `notes` | string | Notes about the account |
+|   ↳ `domains` | array | The account's own domains, primary first |
+|   ↳ `company` | object | Company information associated with the account |
+|     ↳ `domain` | string | The account's primary domain: the first entry of the account's domains list |
+|     ↳ `linkedin_url` | string | LinkedIn company page URL |
+|     ↳ `description` | string | Company description |
+|     ↳ `employee_count` | number | Number of employees |
+|     ↳ `founded_year` | number | Year the company was founded |
+|     ↳ `industries` | array | Industry classifications |
+|     ↳ `total_funding_usd` | number | Total funding raised in USD |
+|     ↳ `last_funding_date` | string | Date of the most recent funding round |
+|     ↳ `company_name` | string | Company name |
+|     ↳ `estimated_annual_revenue_usd` | number | Estimated annual revenue in USD |
+|     ↳ `last_funding_round` | string | Type of the most recent funding round |
+|     ↳ `business_model` | string | Business model |
+|     ↳ `company_status` | string | Operating status of the company |
+|     ↳ `location` | string | Headquarters as "city, state, country" |
+|   ↳ `overridden_fields` | array | Fields set by a user. Company data updates don't overwrite them |
+|   ↳ `scoring` | object | Account scoring information |
+|     ↳ `tier` | string | Firmographic tier |
+|     ↳ `heat_score` | string | Heat score tier |
+|   ↳ `tags` | array | Tag names associated with the account |
+|   ↳ `created_at` | string | When the account was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the account was last updated \(ISO 8601\) |
+|   ↳ `last_activity_at` | string | When the most recent activity \(inbound or outbound\) across the account's contacts happened |
+|   ↳ `last_activity_type` | string | Type of the account's most recent contact activity |
+|   ↳ `last_contacted_at` | string | When the most recent outbound interaction with the account's contacts happened |
+|   ↳ `last_contacted_type` | string | Type of the most recent outbound interaction with the account's contacts |
+|   ↳ `last_inbound_at` | string | When the most recent inbound interaction from the account's contacts happened |
+|   ↳ `last_inbound_type` | string | Type of the most recent inbound interaction from the account's contacts |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+|   ↳ `skipped_domains` | array | Company websites not added because another account uses them |
+|     ↳ `domain` | string | The domain that was rejected |
+|     ↳ `reason` | string | Why it was rejected: conflict \(another account uses it\), invalid \(not a domain\), consumer \(a consumer email domain such as gmail.com\) or own_org \(your own organization domain\) |
+|     ↳ `account_id` | string | For a conflict, the ID of the account that already uses the domain |
+|     ↳ `account_name` | string | For a conflict, the name of the account that already uses the domain |
+
+</ReferenceDetails>
+
+### Monaco Delete Account
+
+Permanently delete a Monaco account. This cannot be undone. Its contacts and opportunities are not deleted but may become unlinked.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountId` | string | Yes | ID of the account to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted account |
+| `deleted` | boolean | Whether Monaco deleted the account |
+
+</ReferenceDetails>
+
+### Monaco List Opportunities
+
+List Monaco opportunities with optional filters, sorting, pagination, and a pipeline scope.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | json | No | Filters as an array of \{"field", "condition", "value"\} rules \(ANDed\), or an \{"operator": "and"\|"or", "filters": \[...\]\} expression for nested logic. Conditions include is, is_not, equals, contains, not_contains, is_empty, is_not_empty, is_before, and is_after. Use Get Field Schemas to find filterable fields. |
+| `sort` | string | No | Field to sort by; prefix with "-" for descending \(e.g. "-created_at"\). Defaults to "-created_at". |
+| `page` | number | No | Page number, starting at 1. Defaults to 1. |
+| `pageSize` | number | No | Results per page, from 1 to 500. Defaults to 50. |
+| `pipelineId` | string | No | Return only opportunities in this pipeline \(see List Pipelines\). If omitted, opportunities in every pipeline are returned. Stage keys in a `stage` filter are this pipeline's, or the default pipeline's when omitted; a `stage` filter also takes stage IDs. |
+| `includeCustomFields` | boolean | No | Include each opportunity's `custom_field_&lt;id&gt;` values. Defaults to true; set false for leaner responses. Get Opportunity always includes them. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | object | Pagination for the returned page |
+|   ↳ `page` | number | Current page number \(1-indexed\) |
+|   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_count` | number | Total number of matching records |
+|   ↳ `total_pages` | number | Total number of pages |
+| `opportunities` | array | Opportunities on this page |
+|   ↳ `id` | string | Unique identifier for the opportunity |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `name` | string | Name of the opportunity |
+|   ↳ `owner` | object | User who owns the opportunity |
+|     ↳ `id` | string | Unique identifier of the user |
+|     ↳ `first_name` | string | First name of the user |
+|     ↳ `last_name` | string | Last name of the user |
+|   ↳ `stage` | string | Current pipeline stage key of the opportunity |
+|   ↳ `stage_id` | string | ID of the opportunity's stage within its pipeline |
+|   ↳ `pipeline_id` | string | ID of the pipeline the opportunity is in |
+|   ↳ `pipeline_name` | string | Name of the pipeline the opportunity is in |
+|   ↳ `estimated_value` | object | Estimated monetary value of the opportunity |
+|     ↳ `currency_code` | string | ISO 4217 currency code |
+|     ↳ `amount` | number | Deprecated: prefer amount_precise. Whole units of the currency. |
+|     ↳ `amount_precise` | number | Estimated value as a decimal amount of the specified currency |
+|   ↳ `estimated_close_date` | string | Expected close date for the opportunity |
+|   ↳ `actual_close_date` | string | Actual date the opportunity was closed |
+|   ↳ `summary` | string | AI-generated summary of the opportunity |
+|   ↳ `risks` | array | Identified risks for the opportunity |
+|   ↳ `notes` | string | Notes about the opportunity |
+|   ↳ `tags` | array | Tag names associated with the opportunity |
+|   ↳ `contact_ids` | array | IDs of contacts linked to the opportunity |
+|   ↳ `last_activity_at` | string | When the last activity on the opportunity happened \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the opportunity was last updated \(ISO 8601\) |
+|   ↳ `created_at` | string | When the opportunity was created \(ISO 8601\) |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+
+</ReferenceDetails>
+
+### Monaco Get Opportunity
+
+Get one Monaco opportunity by ID, including its AI-generated summary, identified risks, stage, pipeline, and custom fields.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `opportunityId` | string | Yes | ID of the opportunity to fetch |
+| `includeReasoning` | boolean | No | Return each custom field as \{value, reasoning, confidence, citations\} instead of the bare value. Defaults to false. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunity` | object | The opportunity |
+|   ↳ `id` | string | Unique identifier for the opportunity |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `name` | string | Name of the opportunity |
+|   ↳ `owner` | object | User who owns the opportunity |
+|     ↳ `id` | string | Unique identifier of the user |
+|     ↳ `first_name` | string | First name of the user |
+|     ↳ `last_name` | string | Last name of the user |
+|   ↳ `stage` | string | Current pipeline stage key of the opportunity |
+|   ↳ `stage_id` | string | ID of the opportunity's stage within its pipeline |
+|   ↳ `pipeline_id` | string | ID of the pipeline the opportunity is in |
+|   ↳ `pipeline_name` | string | Name of the pipeline the opportunity is in |
+|   ↳ `estimated_value` | object | Estimated monetary value of the opportunity |
+|     ↳ `currency_code` | string | ISO 4217 currency code |
+|     ↳ `amount` | number | Deprecated: prefer amount_precise. Whole units of the currency. |
+|     ↳ `amount_precise` | number | Estimated value as a decimal amount of the specified currency |
+|   ↳ `estimated_close_date` | string | Expected close date for the opportunity |
+|   ↳ `actual_close_date` | string | Actual date the opportunity was closed |
+|   ↳ `summary` | string | AI-generated summary of the opportunity |
+|   ↳ `risks` | array | Identified risks for the opportunity |
+|   ↳ `notes` | string | Notes about the opportunity |
+|   ↳ `tags` | array | Tag names associated with the opportunity |
+|   ↳ `contact_ids` | array | IDs of contacts linked to the opportunity |
+|   ↳ `last_activity_at` | string | When the last activity on the opportunity happened \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the opportunity was last updated \(ISO 8601\) |
+|   ↳ `created_at` | string | When the opportunity was created \(ISO 8601\) |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+
+</ReferenceDetails>
+
+### Monaco Create Opportunity
+
+Create a Monaco opportunity on an existing account, optionally setting its pipeline, stage, owner, estimated value, close date, tags, and custom fields.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name of the opportunity |
+| `accountId` | string | Yes | ID of the account to associate the opportunity with |
+| `pipelineId` | string | No | Pipeline to create the opportunity in \(see List Pipelines\). If omitted, the organization's default pipeline is used. |
+| `stage` | string | No | Stage key for the opportunity within its pipeline \(up to 64 characters; see List Pipelines\). If omitted, the opportunity is placed in the first stage of that pipeline. |
+| `stageId` | string | No | Stage ID \(from List Pipelines\), instead of a stage key; provide either stage or stageId, not both. It names the pipeline too, so a pipeline ID, if given, must be that stage's pipeline. |
+| `ownerUserId` | string | No | User ID to assign as the opportunity owner |
+| `amount` | number | No | Estimated value as a decimal amount of the currency \(e.g. 50000.25\). Set together with currencyCode. |
+| `currencyCode` | string | No | ISO 4217 currency code of the estimated value \(e.g. USD\), up to 8 characters. Set together with amount. |
+| `estimatedCloseDate` | string | No | Expected close date \(YYYY-MM-DD\) |
+| `notes` | string | No | Notes about the opportunity |
+| `tags` | array | No | Tag IDs to associate with the opportunity, as an array or comma-separated list |
+| `customFields` | json | No | Custom field values as a JSON object keyed by `custom_field_&lt;id&gt;` \(e.g. \{"custom_field_&lt;id&gt;": "outbound"\}\). Use Get Field Schemas to find the keys. |
+| `idempotencyKey` | string | No | Client-provided UUID that prevents duplicate creation. Reusing a key returns a duplicate_opportunity error naming the opportunity it already created. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunity` | object | The created opportunity |
+|   ↳ `id` | string | Unique identifier for the opportunity |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `name` | string | Name of the opportunity |
+|   ↳ `owner` | object | User who owns the opportunity |
+|     ↳ `id` | string | Unique identifier of the user |
+|     ↳ `first_name` | string | First name of the user |
+|     ↳ `last_name` | string | Last name of the user |
+|   ↳ `stage` | string | Current pipeline stage key of the opportunity |
+|   ↳ `stage_id` | string | ID of the opportunity's stage within its pipeline |
+|   ↳ `pipeline_id` | string | ID of the pipeline the opportunity is in |
+|   ↳ `pipeline_name` | string | Name of the pipeline the opportunity is in |
+|   ↳ `estimated_value` | object | Estimated monetary value of the opportunity |
+|     ↳ `currency_code` | string | ISO 4217 currency code |
+|     ↳ `amount` | number | Deprecated: prefer amount_precise. Whole units of the currency. |
+|     ↳ `amount_precise` | number | Estimated value as a decimal amount of the specified currency |
+|   ↳ `estimated_close_date` | string | Expected close date for the opportunity |
+|   ↳ `actual_close_date` | string | Actual date the opportunity was closed |
+|   ↳ `summary` | string | AI-generated summary of the opportunity |
+|   ↳ `risks` | array | Identified risks for the opportunity |
+|   ↳ `notes` | string | Notes about the opportunity |
+|   ↳ `tags` | array | Tag names associated with the opportunity |
+|   ↳ `contact_ids` | array | IDs of contacts linked to the opportunity |
+|   ↳ `last_activity_at` | string | When the last activity on the opportunity happened \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the opportunity was last updated \(ISO 8601\) |
+|   ↳ `created_at` | string | When the opportunity was created \(ISO 8601\) |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+
+</ReferenceDetails>
+
+### Monaco Update Opportunity
+
+Update a Monaco opportunity: rename it, change its owner, move it to another stage or pipeline, or set its estimated value, close dates, notes, or tags. Only the fields you set are changed.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `opportunityId` | string | Yes | ID of the opportunity to update |
+| `name` | string | No | New name of the opportunity |
+| `pipelineId` | string | No | Pipeline to move the opportunity to \(see List Pipelines\). The stage key then names a stage in that pipeline; if no stage is given, an open opportunity lands on the pipeline's first active stage and a closed one on its first closed stage with the same outcome. If omitted, the opportunity stays in its pipeline. |
+| `stage` | string | No | Stage key for the opportunity within its pipeline \(up to 64 characters; see List Pipelines\) |
+| `stageId` | string | No | Stage ID \(from List Pipelines\), instead of a stage key; provide either stage or stageId, not both. A stage of the opportunity's own pipeline changes its stage; a stage of another pipeline moves the opportunity there. |
+| `ownerUserId` | string | No | User ID to assign as the opportunity owner |
+| `amount` | number | No | Estimated value as a decimal amount of the currency \(e.g. 50000.25\). Set together with currencyCode. |
+| `currencyCode` | string | No | ISO 4217 currency code of the estimated value \(e.g. USD\), up to 8 characters. Set together with amount. |
+| `estimatedCloseDate` | string | No | Expected close date \(YYYY-MM-DD\) |
+| `actualCloseDate` | string | No | Actual date the opportunity was closed \(YYYY-MM-DD\) |
+| `notes` | string | No | Notes about the opportunity |
+| `tags` | array | No | Tag IDs for the opportunity, as an array or comma-separated list. Replaces the opportunity's existing tags; send \[\] to remove them all. |
+| `customFields` | json | No | Custom field values to set, as a JSON object keyed by `custom_field_&lt;id&gt;` \(e.g. \{"custom_field_&lt;id&gt;": "value"\}\). Custom fields are always updatable; use Get Field Schemas to find the keys. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunity` | object | The updated opportunity |
+|   ↳ `id` | string | Unique identifier for the opportunity |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `name` | string | Name of the opportunity |
+|   ↳ `owner` | object | User who owns the opportunity |
+|     ↳ `id` | string | Unique identifier of the user |
+|     ↳ `first_name` | string | First name of the user |
+|     ↳ `last_name` | string | Last name of the user |
+|   ↳ `stage` | string | Current pipeline stage key of the opportunity |
+|   ↳ `stage_id` | string | ID of the opportunity's stage within its pipeline |
+|   ↳ `pipeline_id` | string | ID of the pipeline the opportunity is in |
+|   ↳ `pipeline_name` | string | Name of the pipeline the opportunity is in |
+|   ↳ `estimated_value` | object | Estimated monetary value of the opportunity |
+|     ↳ `currency_code` | string | ISO 4217 currency code |
+|     ↳ `amount` | number | Deprecated: prefer amount_precise. Whole units of the currency. |
+|     ↳ `amount_precise` | number | Estimated value as a decimal amount of the specified currency |
+|   ↳ `estimated_close_date` | string | Expected close date for the opportunity |
+|   ↳ `actual_close_date` | string | Actual date the opportunity was closed |
+|   ↳ `summary` | string | AI-generated summary of the opportunity |
+|   ↳ `risks` | array | Identified risks for the opportunity |
+|   ↳ `notes` | string | Notes about the opportunity |
+|   ↳ `tags` | array | Tag names associated with the opportunity |
+|   ↳ `contact_ids` | array | IDs of contacts linked to the opportunity |
+|   ↳ `last_activity_at` | string | When the last activity on the opportunity happened \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the opportunity was last updated \(ISO 8601\) |
+|   ↳ `created_at` | string | When the opportunity was created \(ISO 8601\) |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+
+</ReferenceDetails>
+
+### Monaco Delete Opportunity
+
+Permanently delete a Monaco opportunity. This cannot be undone.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `opportunityId` | string | Yes | ID of the opportunity to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted opportunity |
+| `deleted` | boolean | Whether Monaco deleted the opportunity |
+
+</ReferenceDetails>
+
+### Monaco List Opportunity Contacts
+
+List the contacts linked to a Monaco opportunity, with their email, name, title, and how each link was created.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `opportunityId` | string | Yes | ID of the opportunity whose linked contacts to list |
+| `page` | number | No | Page number, starting at 1. Defaults to 1. |
+| `pageSize` | number | No | Results per page, from 1 to 100. Defaults to 50. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | object | Pagination for the returned page |
+|   ↳ `page` | number | Current page number \(1-indexed\) |
+|   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_count` | number | Total number of matching records |
+|   ↳ `total_pages` | number | Total number of pages |
+| `contacts` | array | Contacts linked to the opportunity on this page |
+|   ↳ `contact_id` | string | ID of the linked contact |
+|   ↳ `source` | string | How the link was created: `manual` \(rep or API\), `ai` \(auto-detected\), or `system` |
+|   ↳ `created_at` | string | When the link was created \(ISO 8601\) |
+|   ↳ `email` | string | Email of the linked contact |
+|   ↳ `first_name` | string | First name of the linked contact |
+|   ↳ `last_name` | string | Last name of the linked contact |
+|   ↳ `title` | string | Job title of the linked contact |
+|   ↳ `account_id` | string | Account ID of the linked contact |
+
+</ReferenceDetails>
+
+### Monaco Link Opportunity Contacts
+
+Link one or more contacts to a Monaco opportunity. Contacts that are already linked are left as they are, and previously unlinked contacts are restored.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `opportunityId` | string | Yes | ID of the opportunity to link contacts to |
+| `contactIds` | array | Yes | IDs of the contacts to link, as an array or comma-separated list. At most 500 IDs. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunityId` | string | ID of the opportunity the contacts were linked to |
+| `contactIds` | array | IDs of the contacts Monaco processed |
+
+</ReferenceDetails>
+
+### Monaco Unlink Opportunity Contacts
+
+Unlink one or more contacts from a Monaco opportunity. Contacts that are not currently linked are recorded as removed so they stay off the opportunity.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `opportunityId` | string | Yes | ID of the opportunity to unlink contacts from |
+| `contactIds` | array | Yes | IDs of the contacts to unlink, as an array or comma-separated list. At most 500 IDs. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opportunityId` | string | ID of the opportunity the contacts were unlinked from |
+| `contactIds` | array | IDs of the contacts Monaco processed |
+
+</ReferenceDetails>
+
+### Monaco List Pipelines
+
+List the organization's Monaco opportunity pipelines, default first, each with its stages in display order. Use the stage keys and IDs to set an opportunity's stage.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipelines` | array | Opportunity pipelines, default first |
+|   ↳ `id` | string | Unique identifier of the pipeline |
+|   ↳ `name` | string | Name of the pipeline |
+|   ↳ `is_default` | boolean | Whether opportunities created without a pipeline ID go to this pipeline |
+|   ↳ `stages` | array | The pipeline's stages in display order |
+|     ↳ `id` | string | Unique identifier of the stage, as written to an opportunity's `stage_id` |
+|     ↳ `key` | string | Stage key, as written to an opportunity's `stage` |
+|     ↳ `display_name` | string | Display name of the stage |
+
+</ReferenceDetails>
+
+### Monaco List Tasks
+
+List Monaco tasks with optional filters, sorting, and pagination. Email drafts are omitted from list results; use Get Task for them.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | json | No | Filters as an array of \{"field", "condition", "value"\} rules \(ANDed\), or an \{"operator": "and"\|"or", "filters": \[...\]\} expression for nested logic. Conditions include is, is_not, equals, contains, not_contains, is_empty, is_not_empty, is_before, and is_after. Use Get Field Schemas to find filterable fields. |
+| `sort` | string | No | Field to sort by; prefix with "-" for descending \(e.g. "-created_at"\). Defaults to "-created_at". |
+| `page` | number | No | Page number, starting at 1. Defaults to 1. |
+| `pageSize` | number | No | Results per page, from 1 to 500. Defaults to 50. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | object | Pagination for the returned page |
+|   ↳ `page` | number | Current page number \(1-indexed\) |
+|   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_count` | number | Total number of matching records |
+|   ↳ `total_pages` | number | Total number of pages |
+| `tasks` | array | Tasks on this page |
+|   ↳ `id` | string | Unique identifier for the task |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `opportunity_id` | string | ID of the associated opportunity |
+|   ↳ `title` | string | Title of the task |
+|   ↳ `description` | string | Detailed description of the task |
+|   ↳ `task_type` | string | Type of task \(e.g. GENERAL_ACTION_ITEM, EMAIL\) |
+|   ↳ `assignee` | object | User assigned to the task |
+|     ↳ `id` | string | Unique identifier of the user |
+|     ↳ `first_name` | string | First name of the user |
+|     ↳ `last_name` | string | Last name of the user |
+|   ↳ `status` | string | Current status of the task \(TODO, DONE, or CANCELLED\) |
+|   ↳ `due_at` | string | When the task is due \(ISO 8601\) |
+|   ↳ `completed_at` | string | When the task was completed \(ISO 8601\) |
+|   ↳ `created_at` | string | When the task was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the task was last updated \(ISO 8601\) |
+|   ↳ `message_draft` | object | Draft email contents. Populated on single-task, create, and update responses for EMAIL tasks; always null in list responses. |
+|     ↳ `recipients` | array | Primary recipients \(To\) of the email |
+|       ↳ `name` | string | Display name of the recipient |
+|       ↳ `email` | string | Email address of the recipient |
+|     ↳ `cc` | array | Carbon-copy recipients of the email |
+|       ↳ `name` | string | Display name of the recipient |
+|       ↳ `email` | string | Email address of the recipient |
+|     ↳ `subject` | string | Subject line of the email |
+|     ↳ `body` | string | Body of the email \(plain text or HTML\) |
+|     ↳ `sent_at` | string | When the email was sent \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### Monaco Get Task
+
+Get one Monaco task by ID, including the email draft for EMAIL tasks.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID \(UUID\) of the task to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | object | The task |
+|   ↳ `id` | string | Unique identifier for the task |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `opportunity_id` | string | ID of the associated opportunity |
+|   ↳ `title` | string | Title of the task |
+|   ↳ `description` | string | Detailed description of the task |
+|   ↳ `task_type` | string | Type of task \(e.g. GENERAL_ACTION_ITEM, EMAIL\) |
+|   ↳ `assignee` | object | User assigned to the task |
+|     ↳ `id` | string | Unique identifier of the user |
+|     ↳ `first_name` | string | First name of the user |
+|     ↳ `last_name` | string | Last name of the user |
+|   ↳ `status` | string | Current status of the task \(TODO, DONE, or CANCELLED\) |
+|   ↳ `due_at` | string | When the task is due \(ISO 8601\) |
+|   ↳ `completed_at` | string | When the task was completed \(ISO 8601\) |
+|   ↳ `created_at` | string | When the task was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the task was last updated \(ISO 8601\) |
+|   ↳ `message_draft` | object | Draft email contents. Populated on single-task, create, and update responses for EMAIL tasks; always null in list responses. |
+|     ↳ `recipients` | array | Primary recipients \(To\) of the email |
+|       ↳ `name` | string | Display name of the recipient |
+|       ↳ `email` | string | Email address of the recipient |
+|     ↳ `cc` | array | Carbon-copy recipients of the email |
+|       ↳ `name` | string | Display name of the recipient |
+|       ↳ `email` | string | Email address of the recipient |
+|     ↳ `subject` | string | Subject line of the email |
+|     ↳ `body` | string | Body of the email \(plain text or HTML\) |
+|     ↳ `sent_at` | string | When the email was sent \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### Monaco Create Task
+
+Create a Monaco task, optionally linked to an account and/or opportunity. Without an assignee, the task is assigned to the API key owner.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | Title of the task \(max 256 characters\) |
+| `description` | string | No | Detailed description of the task \(max 65,536 characters\) |
+| `accountId` | string | No | ID \(UUID\) of the account to associate the task with |
+| `opportunityId` | string | No | ID \(UUID\) of the opportunity to associate the task with |
+| `taskType` | string | No | Type of task. One of GENERAL_ACTION_ITEM, EMAIL. Defaults to GENERAL_ACTION_ITEM. |
+| `assigneeId` | string | No | User ID \(UUID\) to assign the task to. Defaults to the API key owner. Use List Users to find IDs. |
+| `dueAt` | string | No | Due date and time for the task \(ISO 8601 date-time\) |
+| `messageDraft` | json | No | Draft email as \{"recipients": \[\{"name", "email"\}\], "cc": \[\{"name", "email"\}\], "subject", "body"\}. recipients, subject, and body are required; body may be plain text or HTML. Only valid when taskType is EMAIL. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | object | The created task |
+|   ↳ `id` | string | Unique identifier for the task |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `opportunity_id` | string | ID of the associated opportunity |
+|   ↳ `title` | string | Title of the task |
+|   ↳ `description` | string | Detailed description of the task |
+|   ↳ `task_type` | string | Type of task \(e.g. GENERAL_ACTION_ITEM, EMAIL\) |
+|   ↳ `assignee` | object | User assigned to the task |
+|     ↳ `id` | string | Unique identifier of the user |
+|     ↳ `first_name` | string | First name of the user |
+|     ↳ `last_name` | string | Last name of the user |
+|   ↳ `status` | string | Current status of the task \(TODO, DONE, or CANCELLED\) |
+|   ↳ `due_at` | string | When the task is due \(ISO 8601\) |
+|   ↳ `completed_at` | string | When the task was completed \(ISO 8601\) |
+|   ↳ `created_at` | string | When the task was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the task was last updated \(ISO 8601\) |
+|   ↳ `message_draft` | object | Draft email contents. Populated on single-task, create, and update responses for EMAIL tasks; always null in list responses. |
+|     ↳ `recipients` | array | Primary recipients \(To\) of the email |
+|       ↳ `name` | string | Display name of the recipient |
+|       ↳ `email` | string | Email address of the recipient |
+|     ↳ `cc` | array | Carbon-copy recipients of the email |
+|       ↳ `name` | string | Display name of the recipient |
+|       ↳ `email` | string | Email address of the recipient |
+|     ↳ `subject` | string | Subject line of the email |
+|     ↳ `body` | string | Body of the email \(plain text or HTML\) |
+|     ↳ `sent_at` | string | When the email was sent \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### Monaco Update Task
+
+Update a Monaco task. Only the fields you set are changed; setting status to DONE or CANCELLED marks it completed.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | ID \(UUID\) of the task to update |
+| `title` | string | No | Title of the task \(max 256 characters\) |
+| `description` | string | No | Detailed description of the task \(max 65,536 characters\) |
+| `status` | string | No | Status of the task. One of TODO, DONE, CANCELLED. Moving to DONE or CANCELLED sets completed_at; moving out of those states clears it. |
+| `accountId` | string | No | ID \(UUID\) of the account to associate the task with. Only supported for manually created tasks. |
+| `assigneeId` | string | No | User ID \(UUID\) to assign the task to. Use List Users to find IDs. |
+| `dueAt` | string | No | Due date and time for the task \(ISO 8601 date-time\) |
+| `messageDraft` | json | No | Draft email as \{"recipients": \[\{"name", "email"\}\], "cc": \[\{"name", "email"\}\], "subject", "body"\}; replaces the existing draft. recipients, subject, and body are required. Only valid for EMAIL tasks. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | object | The updated task |
+|   ↳ `id` | string | Unique identifier for the task |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `opportunity_id` | string | ID of the associated opportunity |
+|   ↳ `title` | string | Title of the task |
+|   ↳ `description` | string | Detailed description of the task |
+|   ↳ `task_type` | string | Type of task \(e.g. GENERAL_ACTION_ITEM, EMAIL\) |
+|   ↳ `assignee` | object | User assigned to the task |
+|     ↳ `id` | string | Unique identifier of the user |
+|     ↳ `first_name` | string | First name of the user |
+|     ↳ `last_name` | string | Last name of the user |
+|   ↳ `status` | string | Current status of the task \(TODO, DONE, or CANCELLED\) |
+|   ↳ `due_at` | string | When the task is due \(ISO 8601\) |
+|   ↳ `completed_at` | string | When the task was completed \(ISO 8601\) |
+|   ↳ `created_at` | string | When the task was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the task was last updated \(ISO 8601\) |
+|   ↳ `message_draft` | object | Draft email contents. Populated on single-task, create, and update responses for EMAIL tasks; always null in list responses. |
+|     ↳ `recipients` | array | Primary recipients \(To\) of the email |
+|       ↳ `name` | string | Display name of the recipient |
+|       ↳ `email` | string | Email address of the recipient |
+|     ↳ `cc` | array | Carbon-copy recipients of the email |
+|       ↳ `name` | string | Display name of the recipient |
+|       ↳ `email` | string | Email address of the recipient |
+|     ↳ `subject` | string | Subject line of the email |
+|     ↳ `body` | string | Body of the email \(plain text or HTML\) |
+|     ↳ `sent_at` | string | When the email was sent \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### Monaco List Meetings
+
+List Monaco meetings with optional filters, sorting, and pagination. Use Get Meeting for the transcript, summary, and recording.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | json | No | Filters as an array of \{"field", "condition", "value"\} rules \(ANDed\), or an \{"operator": "and"\|"or", "filters": \[...\]\} expression for nested logic. Conditions include is, is_not, equals, contains, not_contains, is_empty, is_not_empty, is_before, and is_after. Use Get Field Schemas to find filterable fields. |
+| `sort` | string | No | Field to sort by; prefix with "-" for descending. Defaults to "-start_time". created_at is not a sortable meeting field. |
+| `page` | number | No | Page number, starting at 1. Defaults to 1. |
+| `pageSize` | number | No | Results per page, from 1 to 500. Defaults to 50. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | object | Pagination for the returned page |
+|   ↳ `page` | number | Current page number \(1-indexed\) |
+|   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_count` | number | Total number of matching records |
+|   ↳ `total_pages` | number | Total number of pages |
+| `meetings` | array | Meetings on this page |
+|   ↳ `id` | string | Unique identifier for the meeting |
+|   ↳ `account_id` | string | Deprecated: use account_candidates. ID of the associated account |
+|   ↳ `opportunity_id` | string | Deprecated: use opportunity_candidates. ID of the associated open opportunity |
+|   ↳ `opportunity_candidates` | array | Open opportunities the meeting associates to |
+|     ↳ `opportunity_id` | string | ID of the open opportunity |
+|     ↳ `name` | string | Name of the opportunity |
+|   ↳ `title` | string | Meeting title from the calendar event |
+|   ↳ `description` | string | Meeting description |
+|   ↳ `start_time` | string | Meeting start time \(ISO 8601\) |
+|   ↳ `end_time` | string | Meeting end time \(ISO 8601\) |
+|   ↳ `occurred_at` | string | When the meeting actually occurred: recording start time \(ISO 8601\). Null for meetings that were never recorded, including future and declined events. |
+|   ↳ `meeting_platform` | string | Video conferencing platform |
+|   ↳ `meeting_url` | string | URL to join the meeting |
+|   ↳ `organizer` | object | Meeting organizer |
+|     ↳ `email` | string | Email address of the organizer |
+|     ↳ `display_name` | string | Display name of the organizer |
+|   ↳ `attendees` | array | Meeting attendees |
+|     ↳ `email` | string | Email address of the attendee |
+|     ↳ `display_name` | string | Display name of the attendee |
+|     ↳ `response_status` | string | RSVP response status |
+|   ↳ `next_actions` | array | AI-generated action items from the meeting |
+|   ↳ `created_at` | string | When the meeting was created in Monaco \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the meeting was last updated in Monaco \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### Monaco Get Meeting
+
+Get one Monaco meeting by ID, including AI pre-meeting notes, the AI summary, a presigned recording URL, and the full speaker-attributed transcript with word-level timestamps. The transcript is returned untruncated and can be very large for long meetings.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `meetingId` | string | Yes | ID \(UUID\) of the meeting to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meeting` | object | The meeting with notes, summary, recording URL, and transcript |
+|   ↳ `id` | string | Unique identifier for the meeting |
+|   ↳ `account_id` | string | Deprecated: use account_candidates. ID of the associated account |
+|   ↳ `opportunity_id` | string | Deprecated: use opportunity_candidates. ID of the associated open opportunity |
+|   ↳ `opportunity_candidates` | array | Open opportunities the meeting associates to |
+|     ↳ `opportunity_id` | string | ID of the open opportunity |
+|     ↳ `name` | string | Name of the opportunity |
+|   ↳ `title` | string | Meeting title from the calendar event |
+|   ↳ `description` | string | Meeting description |
+|   ↳ `start_time` | string | Meeting start time \(ISO 8601\) |
+|   ↳ `end_time` | string | Meeting end time \(ISO 8601\) |
+|   ↳ `occurred_at` | string | When the meeting actually occurred: recording start time \(ISO 8601\). Null for meetings that were never recorded, including future and declined events. |
+|   ↳ `meeting_platform` | string | Video conferencing platform |
+|   ↳ `meeting_url` | string | URL to join the meeting |
+|   ↳ `organizer` | object | Meeting organizer |
+|     ↳ `email` | string | Email address of the organizer |
+|     ↳ `display_name` | string | Display name of the organizer |
+|   ↳ `attendees` | array | Meeting attendees |
+|     ↳ `email` | string | Email address of the attendee |
+|     ↳ `display_name` | string | Display name of the attendee |
+|     ↳ `response_status` | string | RSVP response status |
+|   ↳ `next_actions` | array | AI-generated action items from the meeting |
+|   ↳ `created_at` | string | When the meeting was created in Monaco \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the meeting was last updated in Monaco \(ISO 8601\) |
+|   ↳ `ai_premeeting_notes` | string | AI-generated preparation notes for an upcoming meeting; null when not generated yet |
+|   ↳ `meeting_summary` | string | AI-generated meeting summary |
+|   ↳ `video_url` | string | Presigned URL for the meeting recording; null when there is no recording yet |
+|   ↳ `transcript` | array | Full transcript as speaker-attributed segments with word-level timestamps. Can be very large for long meetings. |
+|     ↳ `speaker` | string | Name of the speaker |
+|     ↳ `language` | string | Language code of the segment |
+|     ↳ `words` | array | Words in this segment |
+|       ↳ `text` | string | The transcribed word |
+|       ↳ `start_timestamp` | number | Start time in seconds |
+|       ↳ `end_timestamp` | number | End time in seconds |
+|   ↳ `transcript_source` | string | Where the transcript came from: recall \(Monaco's recorder\), granola, circleback, or custom \(imported\). Null when the meeting has no transcript. |
+
+</ReferenceDetails>
+
+### Monaco List Messages
+
+List the email and LinkedIn conversation history for a contact or account as one recency-ordered feed, one row per conversation. Pass a row's conversation_id and channel to Get Conversation for the full thread. Paginates with a cursor.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | No | ID \(UUID\) of a contact to scope the feed to that contact's message history |
+| `accountId` | string | No | ID \(UUID\) of an account to scope the feed to that account's message history |
+| `channels` | array | No | Channels to include, as an array or comma-separated list. Each is one of email, linkedin. Omit to include all channels. |
+| `cursor` | string | No | Opaque nextCursor from a previous response; omit for the first page |
+| `pageSize` | number | No | Results per page, from 1 to 100. Defaults to 25. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | Conversations on this page, most recent first |
+|   ↳ `conversation_id` | string | Thread or chat identifier; pass to Get Conversation with the channel |
+|   ↳ `channel` | string | Channel the message was sent over \(email or linkedin\) |
+|   ↳ `direction` | string | Message direction: inbound, outbound, internal, or unknown |
+|   ↳ `subject` | string | Subject line of the conversation |
+|   ↳ `preview` | string | Short preview of the most recent message |
+|   ↳ `timestamp` | string | When the most recent message was sent \(ISO 8601\) |
+|   ↳ `contact_id` | string | ID of the associated contact |
+|   ↳ `account_id` | string | ID of the associated account |
+| `nextCursor` | string | Pass back as cursor to fetch the next page; null when there are no more |
+| `hasMore` | boolean | Whether more pages are available |
+
+</ReferenceDetails>
+
+### Monaco Get Conversation
+
+Get the full ordered thread of one Monaco email or LinkedIn conversation, with participants and paginated messages. Bodies are plain text and truncated past 20,000 characters.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation to fetch: the email thread_id or LinkedIn chat_id \(the conversation_id from List Messages\) |
+| `channel` | string | Yes | Channel of the conversation; must match conversationId. One of email, linkedin. |
+| `page` | number | No | Page number, starting at 1. Defaults to 1. |
+| `pageSize` | number | No | Results per page, from 1 to 100. Defaults to 20. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversation` | object | The conversation with its participants and messages on this page |
+|   ↳ `id` | string | Unique identifier for the conversation |
+|   ↳ `channel` | string | Channel of the conversation \(email or linkedin\) |
+|   ↳ `subject` | string | Subject line of the conversation |
+|   ↳ `account_id` | string | Deprecated: use account_candidates. ID of the associated account |
+|   ↳ `messages` | array | Messages on this page, in thread order |
+|     ↳ `id` | string | Unique identifier for the message |
+|     ↳ `channel` | string | Channel the message was sent over \(email or linkedin\) |
+|     ↳ `sender` | object | Sender of the message |
+|       ↳ `name` | string | Display name of the participant |
+|       ↳ `email` | string | Email address of the participant |
+|       ↳ `linkedin_url` | string | LinkedIn profile URL of the participant |
+|       ↳ `contact_id` | string | ID of the associated contact |
+|       ↳ `company_name` | string | Company name of the participant |
+|       ↳ `is_current_user` | boolean | Whether this participant is the requesting user |
+|     ↳ `subject` | string | Subject line of the message |
+|     ↳ `body` | string | Plain-text body of the message \(truncated past 20,000 characters\) |
+|     ↳ `body_truncated` | boolean | Whether the body was truncated due to length |
+|     ↳ `timestamp` | string | When the message was sent \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### Monaco List Tags
+
+List every Monaco tag defined for contacts, accounts, or opportunities.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `object` | string | Yes | Object type to list tags for. One of contacts, accounts, opportunities. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Tags defined for the object type |
+|   ↳ `id` | string | Unique identifier for the tag |
+|   ↳ `name` | string | Display name of the tag |
+|   ↳ `color` | string | Display color of the tag |
+
+</ReferenceDetails>
+
+### Monaco Create Tag
+
+Create a Monaco tag for contacts, accounts, or opportunities.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `object` | string | Yes | Object type the tag applies to. One of contacts, accounts, opportunities. |
+| `name` | string | Yes | Display name of the tag \(max 100 characters\). Letters, numbers, and spaces only; must be unique per object type within the organization. |
+| `color` | string | No | Display color of the tag. One of green, blue, red, yellow, purple, berry, peach, gray. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tag` | object | The created tag |
+|   ↳ `id` | string | Unique identifier for the tag |
+|   ↳ `name` | string | Display name of the tag |
+|   ↳ `color` | string | Display color of the tag |
+
+</ReferenceDetails>
+
+### Monaco List Users
+
+List the users in the Monaco organization, optionally filtered by name or email. Each user's role says whether they are a workspace ADMIN.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | Case-insensitive substring filter on name or email |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Users in the organization |
+|   ↳ `id` | string | Unique identifier of the user |
+|   ↳ `first_name` | string | First name of the user |
+|   ↳ `last_name` | string | Last name of the user |
+|   ↳ `email` | string | Email address of the user |
+|   ↳ `role` | string | Workspace role: ADMIN \(manages organization-wide settings and users\) or MEMBER |
+
+</ReferenceDetails>
+
+### Monaco Get Current User
+
+Get the Monaco user and organization the API key belongs to.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `currentUser` | object | The authenticated user and organization |
+|   ↳ `org_id` | string | Authenticated organization ID |
+|   ↳ `user_id` | string | Authenticated user ID |
+|   ↳ `user_email` | string | Authenticated user email |
+|   ↳ `user_first_name` | string | Authenticated user first name |
+|   ↳ `user_last_name` | string | Authenticated user last name |
+|   ↳ `org_name` | string | Authenticated organization name |
+
+</ReferenceDetails>
+
+### Monaco Get Field Schemas
+
+List the filterable and sortable fields for a Monaco entity, with each field's key, type, allowed filter operators, whether it is updatable, custom-field settings, and allowed enum values. Use it to build list filters and to interpret custom_field_&lt;id&gt; keys.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `entity` | string | Yes | Entity to describe. One of accounts, contacts, meetings, opportunities, sequences, tasks. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fields` | array | Field schemas for the entity |
+|   ↳ `name` | string | Display name of the field |
+|   ↳ `key` | string | Key used for filtering and sorting |
+|   ↳ `type` | string | Data type: string, number, time, boolean, enum, array, date, datetime, text, uuid, or object. A multi-select custom field is array. |
+|   ↳ `parent` | string | Key of the parent object field this field belongs to; null for top-level fields |
+|   ↳ `filterable` | boolean | Whether the field can be used in filter rules |
+|   ↳ `sortable` | boolean | Whether the field can be used for sorting |
+|   ↳ `updatable` | boolean | Whether the field can be written via the update endpoint; false marks a read-only field |
+|   ↳ `allowed_operators` | array | Operators that can be used to filter this field |
+|   ↳ `custom_field_settings` | object | Settings present only for custom fields |
+|     ↳ `id` | string | Unique identifier of the custom field schema |
+|     ↳ `is_ai_auto_filled` | boolean | Whether this custom field is automatically populated by AI |
+|     ↳ `question` | string | For an AI auto-filled field, the question AI answers to fill it |
+|   ↳ `enum_field_settings` | object | Settings present only for enum/select fields. For date and datetime fields these are semantic periods \(e.g. 'previous_week'\) used with the is operator. |
+|     ↳ `allowed_values` | array | Valid values that can be used in filters |
+|       ↳ `key` | string | The value to use in filter rules |
+|       ↳ `display_value` | string | Human-readable label for the value |
+
+</ReferenceDetails>
+
+### Monaco List Sequences
+
+List Monaco outreach sequences with optional filters, sorting, and pagination.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | json | No | Filters as an array of \{"field", "condition", "value"\} rules \(ANDed\), or an \{"operator": "and"\|"or", "filters": \[...\]\} expression for nested logic. Conditions include is, is_not, equals, contains, not_contains, is_empty, is_not_empty, is_before, and is_after. Use Get Field Schemas to find filterable fields. |
+| `sort` | string | No | Field to sort by; prefix with "-" for descending \(e.g. "-created_at"\). Defaults to "-created_at". |
+| `page` | number | No | Page number, starting at 1. Defaults to 1. |
+| `pageSize` | number | No | Results per page, from 1 to 500. Defaults to 50. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | object | Pagination for the returned page |
+|   ↳ `page` | number | Current page number \(1-indexed\) |
+|   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_count` | number | Total number of matching records |
+|   ↳ `total_pages` | number | Total number of pages |
+| `sequences` | array | Sequences on this page |
+|   ↳ `id` | string | Unique identifier for the sequence |
+|   ↳ `contact_id` | string | ID of the contact this sequence is associated with |
+|   ↳ `name` | string | Name of the sequence |
+|   ↳ `description` | string | Description of the sequence |
+|   ↳ `status` | string | Current status of the sequence |
+|   ↳ `template_id` | string | ID of the sequence template this sequence was created from |
+|   ↳ `created_at` | string | When the sequence was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the sequence was last updated \(ISO 8601\) |
+|   ↳ `last_interaction` | string | Human-readable summary of the most recent interaction on this sequence \(e.g. "Email today", "No interactions yet"\) |
+|   ↳ `enqueued_at` | string | When the sequence was enqueued \(ISO 8601\) |
+|   ↳ `started_at` | string | When the sequence was started \(ISO 8601\) |
+|   ↳ `responded_at` | string | When the contact responded on this sequence \(ISO 8601\) |
+|   ↳ `meeting_booked_at` | string | When a meeting was booked off this sequence \(ISO 8601\) |
+|   ↳ `sender_id` | string | ID of the user sending this sequence |
+|   ↳ `sender_name` | string | Full name of the user sending this sequence |
+|   ↳ `exclusion_info` | object | Why this sequence was excluded: the most recently triggered rules-of-engagement violation. Null unless the status is `Excluded` and a violation was recorded. |
+|     ↳ `rule_name` | string | Rules-of-engagement rule that was violated |
+|     ↳ `description` | string | Human-readable reason the sequence was excluded |
+|     ↳ `overridability` | string | Whether the rule can be overridden: `HARD` or `SOFT` |
+
+</ReferenceDetails>
+
+### Monaco Get Sequence
+
+Get one Monaco sequence by ID, including its ordered list of tasks.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sequenceId` | string | Yes | ID of the sequence to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sequence` | object | The sequence with its ordered tasks |
+|   ↳ `id` | string | Unique identifier for the sequence |
+|   ↳ `contact_id` | string | ID of the contact this sequence is associated with |
+|   ↳ `name` | string | Name of the sequence |
+|   ↳ `description` | string | Description of the sequence |
+|   ↳ `status` | string | Current status of the sequence |
+|   ↳ `template_id` | string | ID of the sequence template this sequence was created from |
+|   ↳ `created_at` | string | When the sequence was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the sequence was last updated \(ISO 8601\) |
+|   ↳ `last_interaction` | string | Human-readable summary of the most recent interaction on this sequence \(e.g. "Email today", "No interactions yet"\) |
+|   ↳ `enqueued_at` | string | When the sequence was enqueued \(ISO 8601\) |
+|   ↳ `started_at` | string | When the sequence was started \(ISO 8601\) |
+|   ↳ `responded_at` | string | When the contact responded on this sequence \(ISO 8601\) |
+|   ↳ `meeting_booked_at` | string | When a meeting was booked off this sequence \(ISO 8601\) |
+|   ↳ `sender_id` | string | ID of the user sending this sequence |
+|   ↳ `sender_name` | string | Full name of the user sending this sequence |
+|   ↳ `exclusion_info` | object | Why this sequence was excluded: the most recently triggered rules-of-engagement violation. Null unless the status is `Excluded` and a violation was recorded. |
+|     ↳ `rule_name` | string | Rules-of-engagement rule that was violated |
+|     ↳ `description` | string | Human-readable reason the sequence was excluded |
+|     ↳ `overridability` | string | Whether the rule can be overridden: `HARD` or `SOFT` |
+|   ↳ `tasks` | array | Ordered list of tasks in the sequence |
+|     ↳ `id` | string | Unique identifier for the task |
+|     ↳ `sequence_id` | string | ID of the sequence this task belongs to |
+|     ↳ `order` | number | Position of the task within the sequence \(1-indexed\) |
+|     ↳ `name` | string | Display name of the task |
+|     ↳ `type` | string | Type of task: generic, auto_email, manual_email, auto_linkedin_connection, manual_linkedin_connection, auto_linkedin_message, manual_linkedin_message, auto_linkedin_inmail, manual_linkedin_inmail, auto_phone, manual_phone, internal_email, gifting_via_email, gifting_via_address, or complete_sequence |
+|     ↳ `status` | string | Current status of the task: unknown, scheduled, pending, in_progress, paused, completed, failed, cancelled, or skipped |
+|     ↳ `scheduled_at` | string | When the task is scheduled for \(ISO 8601\) |
+|     ↳ `completed_at` | string | When the task was completed \(ISO 8601\) |
+|     ↳ `task_body` | string | Task message body |
+|     ↳ `subject` | string | Subject line, for subject-bearing channels \(email, InMail, gifting email\) |
+|     ↳ `outcome` | string | Observed outcome of the task, such as positive_reply, negative_reply, email_bounced, accepted, meeting_scheduled, or do_not_contact |
+|     ↳ `hold_reason` | string | Why this open task can't be sent right now: not_connected, inmail_not_in_plan, rate_limited, or out_of_inmail_credits. Null when nothing is holding it, including normal waits like a step delay or a pending connection request |
+|     ↳ `hold_until` | string | When the engine will try the task again, if the hold clears on its own |
+
+</ReferenceDetails>
+
+### Monaco Update Sequence
+
+Apply a state transition (enqueue, pause, resume, stop, or exclude) to a Monaco sequence and return the refreshed sequence with its tasks. Enqueuing or resuming a sequence lets it send real emails and LinkedIn messages to the contact; stopping ends the sequence as failed.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sequenceId` | string | Yes | ID of the sequence to update |
+| `action` | string | Yes | State transition to apply: "enqueue" \(move a suggested sequence into the queue\), "pause" \(temporarily halt execution\), "resume" \(resume a paused sequence\), "stop" \(end the sequence as failed\), or "exclude" \(remove a needs_review or staged sequence before it is queued; the sequence moves to excluded\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sequence` | object | The refreshed sequence with its ordered tasks |
+|   ↳ `id` | string | Unique identifier for the sequence |
+|   ↳ `contact_id` | string | ID of the contact this sequence is associated with |
+|   ↳ `name` | string | Name of the sequence |
+|   ↳ `description` | string | Description of the sequence |
+|   ↳ `status` | string | Current status of the sequence |
+|   ↳ `template_id` | string | ID of the sequence template this sequence was created from |
+|   ↳ `created_at` | string | When the sequence was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the sequence was last updated \(ISO 8601\) |
+|   ↳ `last_interaction` | string | Human-readable summary of the most recent interaction on this sequence \(e.g. "Email today", "No interactions yet"\) |
+|   ↳ `enqueued_at` | string | When the sequence was enqueued \(ISO 8601\) |
+|   ↳ `started_at` | string | When the sequence was started \(ISO 8601\) |
+|   ↳ `responded_at` | string | When the contact responded on this sequence \(ISO 8601\) |
+|   ↳ `meeting_booked_at` | string | When a meeting was booked off this sequence \(ISO 8601\) |
+|   ↳ `sender_id` | string | ID of the user sending this sequence |
+|   ↳ `sender_name` | string | Full name of the user sending this sequence |
+|   ↳ `exclusion_info` | object | Why this sequence was excluded: the most recently triggered rules-of-engagement violation. Null unless the status is `Excluded` and a violation was recorded. |
+|     ↳ `rule_name` | string | Rules-of-engagement rule that was violated |
+|     ↳ `description` | string | Human-readable reason the sequence was excluded |
+|     ↳ `overridability` | string | Whether the rule can be overridden: `HARD` or `SOFT` |
+|   ↳ `tasks` | array | Ordered list of tasks in the sequence |
+|     ↳ `id` | string | Unique identifier for the task |
+|     ↳ `sequence_id` | string | ID of the sequence this task belongs to |
+|     ↳ `order` | number | Position of the task within the sequence \(1-indexed\) |
+|     ↳ `name` | string | Display name of the task |
+|     ↳ `type` | string | Type of task: generic, auto_email, manual_email, auto_linkedin_connection, manual_linkedin_connection, auto_linkedin_message, manual_linkedin_message, auto_linkedin_inmail, manual_linkedin_inmail, auto_phone, manual_phone, internal_email, gifting_via_email, gifting_via_address, or complete_sequence |
+|     ↳ `status` | string | Current status of the task: unknown, scheduled, pending, in_progress, paused, completed, failed, cancelled, or skipped |
+|     ↳ `scheduled_at` | string | When the task is scheduled for \(ISO 8601\) |
+|     ↳ `completed_at` | string | When the task was completed \(ISO 8601\) |
+|     ↳ `task_body` | string | Task message body |
+|     ↳ `subject` | string | Subject line, for subject-bearing channels \(email, InMail, gifting email\) |
+|     ↳ `outcome` | string | Observed outcome of the task, such as positive_reply, negative_reply, email_bounced, accepted, meeting_scheduled, or do_not_contact |
+|     ↳ `hold_reason` | string | Why this open task can't be sent right now: not_connected, inmail_not_in_plan, rate_limited, or out_of_inmail_credits. Null when nothing is holding it, including normal waits like a step delay or a pending connection request |
+|     ↳ `hold_until` | string | When the engine will try the task again, if the hold clears on its own |
+
+</ReferenceDetails>
+
+### Monaco List Audiences
+
+List Monaco audiences, the reusable contact lists that campaigns enroll. The default page size returns every audience in one page.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `page` | number | No | Page number, starting at 1. Defaults to 1. |
+| `pageSize` | number | No | Results per page, from 1 to 500. Defaults to 500. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | object | Pagination for the returned page |
+|   ↳ `page` | number | Current page number \(1-indexed\) |
+|   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_count` | number | Total number of matching records |
+|   ↳ `total_pages` | number | Total number of pages |
+| `audiences` | array | Audiences on this page |
+|   ↳ `id` | string | Unique identifier for the audience |
+|   ↳ `name` | string | Name of the audience |
+|   ↳ `type` | string | Audience type |
+|   ↳ `status` | string | Audience status |
+|   ↳ `contact_count` | number | Number of contacts currently in the audience |
+|   ↳ `created_at` | string | When the audience was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the audience was last updated \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### Monaco Get Audience
+
+Get one Monaco audience by ID.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audienceId` | string | Yes | ID of the audience to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `audience` | object | The audience |
+|   ↳ `id` | string | Unique identifier for the audience |
+|   ↳ `name` | string | Name of the audience |
+|   ↳ `type` | string | Audience type |
+|   ↳ `status` | string | Audience status |
+|   ↳ `contact_count` | number | Number of contacts currently in the audience |
+|   ↳ `created_at` | string | When the audience was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the audience was last updated \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### Monaco List Audience Contacts
+
+List the contacts in a Monaco audience, one page at a time.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audienceId` | string | Yes | ID of the audience whose contacts to list |
+| `page` | number | No | Page number, starting at 1. Defaults to 1. |
+| `pageSize` | number | No | Results per page, from 1 to 500. Defaults to 15. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | object | Pagination for the returned page |
+|   ↳ `page` | number | Current page number \(1-indexed\) |
+|   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_count` | number | Total number of matching records |
+|   ↳ `total_pages` | number | Total number of pages |
+| `contacts` | array | Contacts in the audience on this page |
+|   ↳ `id` | string | Unique identifier for the contact |
+|   ↳ `account_id` | string | ID of the associated account |
+|   ↳ `account_name` | string | Display name of the associated account: its user-set name, falling back to the company name, then the account's domain |
+|   ↳ `first_name` | string | First name of the contact |
+|   ↳ `last_name` | string | Last name of the contact |
+|   ↳ `email` | string | Email address of the contact |
+|   ↳ `title` | string | Job title of the contact |
+|   ↳ `phone_number` | string | Phone number of the contact |
+|   ↳ `linkedin_url` | string | LinkedIn profile URL |
+|   ↳ `location` | string | Location of the contact |
+|   ↳ `country` | string | Country of the contact |
+|   ↳ `job_start_date` | string | Start date of the contact's current job \(YYYY-MM-DD\) |
+|   ↳ `source` | string | Source from which the contact was added |
+|   ↳ `do_not_contact` | boolean | Whether the contact has opted out of outreach |
+|   ↳ `notes` | string | Notes about the contact |
+|   ↳ `scoring` | object | Contact scoring information |
+|     ↳ `heat_score` | string | Heat score tier |
+|   ↳ `tags` | array | Tag names associated with the contact |
+|   ↳ `created_at` | string | When the contact was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the contact was last updated \(ISO 8601\) |
+|   ↳ `last_activity_at` | string | When the contact's most recent activity \(inbound or outbound\) happened |
+|   ↳ `last_activity_type` | string | Type of the contact's most recent activity |
+|   ↳ `last_outbound_at` | string | When the most recent outbound interaction with the contact happened |
+|   ↳ `last_outbound_type` | string | Type of the most recent outbound interaction with the contact |
+|   ↳ `last_inbound_at` | string | When the most recent inbound interaction from the contact happened |
+|   ↳ `last_inbound_type` | string | Type of the most recent inbound interaction from the contact |
+|   ↳ `custom_fields` | json | Custom field values keyed by their `custom_field_&lt;id&gt;` key. Use Get Field Schemas to see what each key means. |
+
+</ReferenceDetails>
+
+### Monaco Create Audience
+
+Create a Monaco audience, optionally seeded with contacts: either an explicit list of contact IDs, or a filters query over the contact field schemas (optionally narrowed by excluded IDs or a source audience). Audiences can be shared across campaigns.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name of the audience to create |
+| `contactIds` | array | No | Contact IDs to add to the audience on creation \(up to 10,000\), as an array or comma-separated list. Provide either contactIds or filters, not both. |
+| `filters` | json | No | Selects the contacts to seed the audience with by query instead of listing every ID: an array of \{"field", "condition", "value"\} rules \(ANDed\), or an \{"operator": "and"\|"or", "filters": \[...\]\} expression. Valid fields, conditions, and values come from the contacts field schemas; a rule on "account_id" selects that account's contacts. At most 10,000 matching contacts \(before exclusions\). Provide either filters or contactIds, not both. An empty list is rejected because Monaco would match every contact. |
+| `excludedIds` | array | No | Contact IDs to exclude from the filtered set \(up to 10,000\). Only valid together with filters. |
+| `sourceAudienceId` | string | No | Restricts the contacts selected by filters to current members of this audience. Only valid together with filters. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `audience` | object | The created audience |
+|   ↳ `id` | string | Unique identifier for the audience |
+|   ↳ `name` | string | Name of the audience |
+|   ↳ `type` | string | Audience type |
+|   ↳ `status` | string | Audience status |
+|   ↳ `contact_count` | number | Number of contacts currently in the audience |
+|   ↳ `created_at` | string | When the audience was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the audience was last updated \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### Monaco Add Audience Contacts
+
+Add contacts to a Monaco audience by ID. Audiences can be attached to multiple campaigns, so adding a contact here enrolls them in every campaign that uses this audience, which can start real email and LinkedIn outreach.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audienceId` | string | Yes | ID of the audience to add contacts to |
+| `contactIds` | array | Yes | IDs of the contacts to add \(1 to 10,000\), as an array or comma-separated list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `failures` | array | Contacts that exist but could not be added or removed, grouped by reason |
+|   ↳ `reason` | string | Reason code for the failure |
+|   ↳ `contact_ids` | array | Contact IDs that failed for this reason |
+| `audienceId` | string | ID of the audience that was modified |
+| `addedCount` | number | Number of contacts this call added to the audience |
+| `unknownContactIds` | array | Contact IDs that do not exist in the organization and were skipped |
+
+</ReferenceDetails>
+
+### Monaco Remove Audience Contacts
+
+Remove contacts from a Monaco audience by ID. Idempotent: IDs not in the audience are ignored. Per-contact failures are returned in failures.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `audienceId` | string | Yes | ID of the audience to remove contacts from |
+| `contactIds` | array | Yes | IDs of the contacts to remove \(1 to 10,000\), as an array or comma-separated list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `failures` | array | Contacts that exist but could not be added or removed, grouped by reason |
+|   ↳ `reason` | string | Reason code for the failure |
+|   ↳ `contact_ids` | array | Contact IDs that failed for this reason |
+| `audienceId` | string | ID of the audience that was modified |
+
+</ReferenceDetails>
+
+### Monaco List Campaigns
+
+List Monaco campaigns with optional filters, sorting, and pagination.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filters` | json | No | Filters as an array of \{"field", "condition", "value"\} rules \(ANDed\), or an \{"operator": "and"\|"or", "filters": \[...\]\} expression for nested logic. Conditions include is, is_not, equals, contains, not_contains, is_empty, is_not_empty, is_before, and is_after. Use Get Field Schemas to find filterable fields. |
+| `sort` | string | No | Field to sort by; prefix with "-" for descending \(e.g. "-created_at"\). Defaults to "-created_at". |
+| `page` | number | No | Page number, starting at 1. Defaults to 1. |
+| `pageSize` | number | No | Results per page, from 1 to 500. Defaults to 50. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pagination` | object | Pagination for the returned page |
+|   ↳ `page` | number | Current page number \(1-indexed\) |
+|   ↳ `page_size` | number | Number of results per page |
+|   ↳ `total_count` | number | Total number of matching records |
+|   ↳ `total_pages` | number | Total number of pages |
+| `campaigns` | array | Campaigns on this page |
+|   ↳ `id` | string | Unique identifier for the campaign |
+|   ↳ `name` | string | Name of the campaign |
+|   ↳ `status` | string | Current lifecycle status of the campaign: active, paused, completed, draft, or archived |
+|   ↳ `prioritized` | boolean | Whether this campaign takes priority over non-prioritized campaigns |
+|   ↳ `end_date` | string | Date the campaign stops enrolling \(YYYY-MM-DD\) |
+|   ↳ `template_id` | string | ID of the template enrolled contacts are placed on |
+|   ↳ `template_name` | string | Title of the template |
+|   ↳ `audiences` | array | Audiences enrolled in this campaign |
+|     ↳ `id` | string | Unique identifier for the audience |
+|     ↳ `name` | string | Name of the audience |
+|   ↳ `enrollment_status` | string | Progress of the async task enrolling this campaign's audiences: pending, running, enriching, completed, or failed |
+|   ↳ `created_at` | string | When the campaign was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the campaign was last updated \(ISO 8601\) |
+
+</ReferenceDetails>
+
+### Monaco Get Campaign
+
+Get one Monaco campaign by ID, including its attached audiences, sender distribution, rules of engagement, and autopilot settings.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `campaignId` | string | Yes | ID of the campaign to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaign` | object | The campaign |
+|   ↳ `id` | string | Unique identifier for the campaign |
+|   ↳ `name` | string | Name of the campaign |
+|   ↳ `status` | string | Current lifecycle status of the campaign: active, paused, completed, draft, or archived |
+|   ↳ `prioritized` | boolean | Whether this campaign takes priority over non-prioritized campaigns |
+|   ↳ `end_date` | string | Date the campaign stops enrolling \(YYYY-MM-DD\) |
+|   ↳ `template_id` | string | ID of the template enrolled contacts are placed on |
+|   ↳ `template_name` | string | Title of the template |
+|   ↳ `audiences` | array | Audiences enrolled in this campaign |
+|     ↳ `id` | string | Unique identifier for the audience |
+|     ↳ `name` | string | Name of the audience |
+|   ↳ `enrollment_status` | string | Progress of the async task enrolling this campaign's audiences: pending, running, enriching, completed, or failed |
+|   ↳ `created_at` | string | When the campaign was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the campaign was last updated \(ISO 8601\) |
+|   ↳ `distribution` | object | How sends are routed across senders \(percentage or account_owner\) |
+|     ↳ `mode` | string | Distribution mode: percentage or account_owner |
+|     ↳ `sender_ids` | array | IDs of the users eligible to send on this campaign |
+|     ↳ `percentages` | array | Per-sender percentages summing to 100; set only in percentage mode |
+|       ↳ `sender_id` | string | ID of the sending user |
+|       ↳ `percentage` | number | Share of sends routed to this sender |
+|     ↳ `fallback_sender_id` | string | Sender used whenever a contact's account is unassigned or its owner is not in sender_ids; set only in account_owner mode |
+|   ↳ `rules_of_engagement` | object | The campaign's effective rules of engagement; null when the campaign uses the org defaults with no campaign-level config |
+|     ↳ `do_not_contact` | object | Skip contacts flagged do-not-contact |
+|       ↳ `enabled` | boolean | Whether this rule is enforced for the campaign |
+|     ↳ `allow_sequence_stop_on_meeting_booked` | object | Stop a contact's sequence once a meeting is booked |
+|       ↳ `enabled` | boolean | Whether this rule is enforced for the campaign |
+|     ↳ `contact_cooldown` | object | Cooldown before re-contacting the same contact |
+|       ↳ `enabled` | boolean | Whether the cooldown is enforced |
+|       ↳ `days` | number | Length of the cooldown window in days \(Monaco defaults to 90\) |
+|     ↳ `account_cooldown` | object | Cooldown before re-contacting any contact at the same account |
+|       ↳ `enabled` | boolean | Whether the cooldown is enforced |
+|       ↳ `days` | number | Length of the cooldown window in days \(Monaco defaults to 90\) |
+|     ↳ `max_contacts_in_sequence` | object | Cap on simultaneously-active contacts per account |
+|       ↳ `enabled` | boolean | Whether the cap is enforced |
+|       ↳ `max_contacts` | number | Maximum contacts per account allowed in sequences simultaneously \(Monaco defaults to 5\) |
+|     ↳ `allow_non_account_owner_campaigns` | object | Allow enrolling contacts whose account owner is not a campaign sender |
+|       ↳ `enabled` | boolean | Whether this rule is enforced for the campaign |
+|     ↳ `allow_stop_and_dismiss_on_account_status` | object | Stop and dismiss sequences when an account changes to certain statuses |
+|       ↳ `enabled` | boolean | Whether the rule is enforced for the trigger statuses |
+|       ↳ `statuses` | array | Account statuses that trigger the rule \(NEW, PROSPECTING, OPPORTUNITY, CUSTOMER, DISQUALIFIED, NURTURE, INBOUND, CHURNED\); null inherits the org's default set |
+|     ↳ `exclude_sequences_on_account_status` | object | Exclude not-yet-started sequences when an account is in \(or transitions into\) certain statuses; already-active sequences are unaffected |
+|       ↳ `enabled` | boolean | Whether the rule is enforced for the trigger statuses |
+|       ↳ `statuses` | array | Account statuses that trigger the rule \(NEW, PROSPECTING, OPPORTUNITY, CUSTOMER, DISQUALIFIED, NURTURE, INBOUND, CHURNED\); null inherits the org's default set |
+|   ↳ `autopilot_mode` | string | `autopilot` when every sender auto-sends, `supervised` when none do, `hybrid` when it is a mix |
+|   ↳ `autopilot_settings` | object | Senders currently on autopilot and their daily send-release cap |
+|     ↳ `sender_rates` | array | Senders on autopilot; senders not listed need manual approval before each send |
+|       ↳ `sender_id` | string | ID of the sending user |
+|       ↳ `daily_rate_target` | number | Daily cap on auto-released sends for this sender |
+|   ↳ `contact_readiness_settings` | object | Checks run on each contact before its sequence starts |
+|     ↳ `email` | object | Email lookup and verification before the sequence starts |
+|       ↳ `check_on_enroll` | boolean | Whether to find and verify each contact's email on enrollment, before the sequence starts |
+|       ↳ `on_failure` | string | What happens when a contact's email can't be found or verified: `exclude` \(the sequence is excluded\) or `skip_channel_steps` \(its email steps are skipped\) |
+
+</ReferenceDetails>
+
+### Monaco Enroll Campaign Contacts
+
+Enroll contacts in a Monaco campaign. This sends real outreach: enrolled contacts are placed on the campaign sequence, which sends real emails and LinkedIn messages. Monaco always creates a new audience with the given name, attaches it to the campaign, and adds the contacts to it. The campaign must be active or paused. Sequences are created asynchronously, so contacts already enrolled are deduplicated later and still count as successes.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `campaignId` | string | Yes | ID of the campaign to enroll contacts in; it must be active or paused |
+| `audienceName` | string | Yes | Name for the new audience created to hold these contacts \(1 to 255 characters\); pick something short and relevant to the enrollment. Must be unique within the organization: a duplicate name is rejected, so vary it and retry. |
+| `contactIds` | array | Yes | IDs of the contacts to enroll \(1 to 10,000\), as an array or comma-separated list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `successCount` | number | Contacts added to the campaign's new audience |
+| `failureCount` | number | Contacts that could not be added \(e.g. not found in the organization\) |
+| `failureReasons` | array | Failure reasons with the number of contacts affected by each |
+|   ↳ `code` | string | Failure reason code \(e.g. contact_has_active_sequence\) |
+|   ↳ `description` | string | Human-readable description of the failure reason |
+|   ↳ `count` | number | Number of contacts that hit this failure |
+
+</ReferenceDetails>
+
+### Monaco Add Campaign Audiences
+
+Attach audiences to a Monaco campaign, keeping its existing ones, and return the refreshed campaign. This sends real outreach: every contact in the attached audiences is enrolled asynchronously and the campaign sequence sends them real emails and LinkedIn messages. Audiences already attached are ignored, so retries are safe.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `campaignId` | string | Yes | ID of the campaign to attach audiences to |
+| `audienceIds` | array | Yes | IDs of the audiences to attach \(at least one\), as an array or comma-separated list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaign` | object | The refreshed campaign with its attached audiences |
+|   ↳ `id` | string | Unique identifier for the campaign |
+|   ↳ `name` | string | Name of the campaign |
+|   ↳ `status` | string | Current lifecycle status of the campaign: active, paused, completed, draft, or archived |
+|   ↳ `prioritized` | boolean | Whether this campaign takes priority over non-prioritized campaigns |
+|   ↳ `end_date` | string | Date the campaign stops enrolling \(YYYY-MM-DD\) |
+|   ↳ `template_id` | string | ID of the template enrolled contacts are placed on |
+|   ↳ `template_name` | string | Title of the template |
+|   ↳ `audiences` | array | Audiences enrolled in this campaign |
+|     ↳ `id` | string | Unique identifier for the audience |
+|     ↳ `name` | string | Name of the audience |
+|   ↳ `enrollment_status` | string | Progress of the async task enrolling this campaign's audiences: pending, running, enriching, completed, or failed |
+|   ↳ `created_at` | string | When the campaign was created \(ISO 8601\) |
+|   ↳ `updated_at` | string | When the campaign was last updated \(ISO 8601\) |
+|   ↳ `distribution` | object | How sends are routed across senders \(percentage or account_owner\) |
+|     ↳ `mode` | string | Distribution mode: percentage or account_owner |
+|     ↳ `sender_ids` | array | IDs of the users eligible to send on this campaign |
+|     ↳ `percentages` | array | Per-sender percentages summing to 100; set only in percentage mode |
+|       ↳ `sender_id` | string | ID of the sending user |
+|       ↳ `percentage` | number | Share of sends routed to this sender |
+|     ↳ `fallback_sender_id` | string | Sender used whenever a contact's account is unassigned or its owner is not in sender_ids; set only in account_owner mode |
+|   ↳ `rules_of_engagement` | object | The campaign's effective rules of engagement; null when the campaign uses the org defaults with no campaign-level config |
+|     ↳ `do_not_contact` | object | Skip contacts flagged do-not-contact |
+|       ↳ `enabled` | boolean | Whether this rule is enforced for the campaign |
+|     ↳ `allow_sequence_stop_on_meeting_booked` | object | Stop a contact's sequence once a meeting is booked |
+|       ↳ `enabled` | boolean | Whether this rule is enforced for the campaign |
+|     ↳ `contact_cooldown` | object | Cooldown before re-contacting the same contact |
+|       ↳ `enabled` | boolean | Whether the cooldown is enforced |
+|       ↳ `days` | number | Length of the cooldown window in days \(Monaco defaults to 90\) |
+|     ↳ `account_cooldown` | object | Cooldown before re-contacting any contact at the same account |
+|       ↳ `enabled` | boolean | Whether the cooldown is enforced |
+|       ↳ `days` | number | Length of the cooldown window in days \(Monaco defaults to 90\) |
+|     ↳ `max_contacts_in_sequence` | object | Cap on simultaneously-active contacts per account |
+|       ↳ `enabled` | boolean | Whether the cap is enforced |
+|       ↳ `max_contacts` | number | Maximum contacts per account allowed in sequences simultaneously \(Monaco defaults to 5\) |
+|     ↳ `allow_non_account_owner_campaigns` | object | Allow enrolling contacts whose account owner is not a campaign sender |
+|       ↳ `enabled` | boolean | Whether this rule is enforced for the campaign |
+|     ↳ `allow_stop_and_dismiss_on_account_status` | object | Stop and dismiss sequences when an account changes to certain statuses |
+|       ↳ `enabled` | boolean | Whether the rule is enforced for the trigger statuses |
+|       ↳ `statuses` | array | Account statuses that trigger the rule \(NEW, PROSPECTING, OPPORTUNITY, CUSTOMER, DISQUALIFIED, NURTURE, INBOUND, CHURNED\); null inherits the org's default set |
+|     ↳ `exclude_sequences_on_account_status` | object | Exclude not-yet-started sequences when an account is in \(or transitions into\) certain statuses; already-active sequences are unaffected |
+|       ↳ `enabled` | boolean | Whether the rule is enforced for the trigger statuses |
+|       ↳ `statuses` | array | Account statuses that trigger the rule \(NEW, PROSPECTING, OPPORTUNITY, CUSTOMER, DISQUALIFIED, NURTURE, INBOUND, CHURNED\); null inherits the org's default set |
+|   ↳ `autopilot_mode` | string | `autopilot` when every sender auto-sends, `supervised` when none do, `hybrid` when it is a mix |
+|   ↳ `autopilot_settings` | object | Senders currently on autopilot and their daily send-release cap |
+|     ↳ `sender_rates` | array | Senders on autopilot; senders not listed need manual approval before each send |
+|       ↳ `sender_id` | string | ID of the sending user |
+|       ↳ `daily_rate_target` | number | Daily cap on auto-released sends for this sender |
+|   ↳ `contact_readiness_settings` | object | Checks run on each contact before its sequence starts |
+|     ↳ `email` | object | Email lookup and verification before the sequence starts |
+|       ↳ `check_on_enroll` | boolean | Whether to find and verify each contact's email on enrollment, before the sequence starts |
+|       ↳ `on_failure` | string | What happens when a contact's email can't be found or verified: `exclude` \(the sequence is excluded\) or `skip_channel_steps` \(its email steps are skipped\) |
+
+</ReferenceDetails>
+
+

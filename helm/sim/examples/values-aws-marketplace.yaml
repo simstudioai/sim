@@ -23,7 +23,8 @@
 #      CloudFormation template creates both in your VPC.
 #   3. An IAM role for the ServiceAccount below that allows license-manager:CheckoutLicense (the
 #      CloudFormation template creates it; AWS's managed AWSLicenseManagerConsumptionPolicy
-#      grants it too).
+#      grants it too). License Manager must be set up in the account: open its console once, or run
+#        aws iam create-service-linked-role --aws-service-name license-manager.amazonaws.com
 #   4. An ACM certificate for the two hostnames below.
 #   5. Two Secrets in the install namespace (no secret ever goes in this file). The template's
 #      DatabasePasswordArn and CacheAuthTokenArn outputs are the ARNs of the Secrets Manager

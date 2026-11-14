@@ -240,6 +240,7 @@ export const ROOTLY_SERVICE_ACCOUNT_PROVIDER_ID = 'rootly-service-account' as co
 export const RESEND_SERVICE_ACCOUNT_PROVIDER_ID = 'resend-service-account' as const
 export const PAGERDUTY_SERVICE_ACCOUNT_PROVIDER_ID = 'pagerduty-service-account' as const
 export const LEMLIST_SERVICE_ACCOUNT_PROVIDER_ID = 'lemlist-service-account' as const
+export const MONACO_SERVICE_ACCOUNT_PROVIDER_ID = 'monaco-service-account' as const
 export const GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID = 'granola-service-account' as const
 export const GRAIN_SERVICE_ACCOUNT_PROVIDER_ID = 'grain-service-account' as const
 export const FATHOM_SERVICE_ACCOUNT_PROVIDER_ID = 'fathom-service-account' as const
@@ -378,6 +379,7 @@ export type TokenServiceAccountProviderId =
   | typeof RESEND_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof PAGERDUTY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof LEMLIST_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof MONACO_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GRAIN_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FATHOM_SERVICE_ACCOUNT_PROVIDER_ID
@@ -1853,6 +1855,27 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/grain',
     helpText:
       'Create a personal or workspace access token in Grain under Settings > Integrations > API. A personal token has the same access you have in Grain.',
+  },
+  [MONACO_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: MONACO_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Monaco',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'mks_...',
+        secret: true,
+        hintPattern: /^mks_/,
+        hintMessage: 'Monaco API keys start with mks_.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/monaco',
+    helpText:
+      'Create an API key in Monaco under Settings > API Keys. Monaco shows the key once, so copy it before closing the dialog. The key acts as the user it is tied to, or as the user who created it.',
+    invalidCredentialsHelp:
+      'Monaco rejected this key. Check that it starts with mks_ and has not been deactivated in Settings > API Keys.',
   },
   [GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID,
