@@ -137,11 +137,41 @@ async function check(name: string, run: () => Promise<void>, page?: Page) {
     logger.info('Check passed', { name })
   } catch (error) {
     if (page) await page.screenshot({ path: resolve(artifactDir, `failure-${checks.length}.png`) })
+    const browserState = await page
+      ?.evaluate(() => {
+        const selection = getSelection()
+        const editable = document.querySelector('.rich-markdown-prose[contenteditable="true"]')
+        return {
+          documentFocused: document.hasFocus(),
+          editorFocused: document.activeElement === editable,
+          activeTag: document.activeElement?.tagName,
+          selection: selection?.toString().slice(0, 160),
+          selectionInEditor: Boolean(
+            editable && selection?.anchorNode && editable.contains(selection.anchorNode)
+          ),
+          textMenus: [...document.querySelectorAll('[aria-label="Text formatting"]')].map(
+            (element) => {
+              const popup = element.parentElement
+              const bounds = popup?.getBoundingClientRect()
+              const style = popup && getComputedStyle(popup)
+              return {
+                connected: element.isConnected,
+                display: style?.display,
+                visibility: style?.visibility,
+                x: bounds?.x,
+                y: bounds?.y,
+                width: bounds?.width,
+              }
+            }
+          ),
+        }
+      })
+      .catch(() => null)
     checks.push({
       name,
       passed: false,
       durationMs: performance.now() - start,
-      error: getErrorMessage(error),
+      error: `${getErrorMessage(error)}${browserState ? `\nBrowser state: ${JSON.stringify(browserState)}` : ''}`,
     })
     logger.error('Check failed', { name, error: getErrorMessage(error) })
   }
@@ -225,10 +255,22 @@ async function proveFeatures(page: Page) {
     .locator('td')
     .first()
   assert(
-    await longCell.evaluate((element) => element.getBoundingClientRect().width <= 321),
+    await longCell.evaluate(
+      (element) =>
+        element.getBoundingClientRect().width <=
+        Math.max(321, element.closest('.tableWrapper')?.clientWidth ?? 0)
+    ),
     'A long token expands its column without a bound'
   )
   const aligned = page.locator('.rich-markdown-prose table').filter({ hasText: 'Escaped | pipe' })
+  assert(
+    await aligned.evaluate(
+      (element) =>
+        element.getBoundingClientRect().width >=
+        (element.closest('.tableWrapper')?.clientWidth ?? Number.POSITIVE_INFINITY) - 1
+    ),
+    'A short table no longer fills the reading column'
+  )
   const alignment = await aligned
     .locator('tr')
     .nth(1)
@@ -332,10 +374,12 @@ async function editLastCell(page: Page, marker: string) {
   await expect(page.locator('.rich-markdown-prose[contenteditable="true"]')).toBeVisible({
     timeout: 120_000,
   })
+  await page.bringToFront()
   await page
     .locator('.rich-markdown-prose strong')
     .filter({ hasText: /^bold$/ })
     .click()
+  await expect(page.locator('.rich-markdown-prose[contenteditable="true"]')).toBeFocused()
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('Shift+ArrowRight')
   assert(
@@ -379,6 +423,7 @@ async function proveCollaborationCursor(page: Page) {
     await page.screenshot({ path: resolve(artifactDir, `collaborator-${checks.length}.png`) })
   } finally {
     await peer.close()
+    await page.bringToFront()
   }
 }
 
@@ -517,6 +562,7 @@ async function proveCollaborationScroll(page: Page) {
     })
   } finally {
     await peer.close()
+    await page.bringToFront()
   }
 }
 

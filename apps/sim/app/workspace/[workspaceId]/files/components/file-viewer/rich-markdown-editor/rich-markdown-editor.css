@@ -393,6 +393,8 @@
 .rich-markdown-nodes .tableWrapper > table {
   table-layout: auto;
   width: max-content;
+  /* Tiptap writes a pixel minimum inline; the reading-column minimum takes precedence. */
+  min-width: 100% !important;
   overflow: visible;
 }
 
