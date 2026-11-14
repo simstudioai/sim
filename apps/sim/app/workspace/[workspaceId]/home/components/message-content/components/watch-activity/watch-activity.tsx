@@ -8,7 +8,8 @@ interface WatchActivityProps {
   task: TaskBlockInfo
 }
 
-function watchLabel(task: TaskBlockInfo, routedWorkspaceId?: string): string {
+/** A task's one-line state, shared by its watch row and the turn its notification opens. */
+export function watchLabel(task: TaskBlockInfo, routedWorkspaceId?: string): string {
   const status = task.status ?? 'pending'
   if (task.kind === 'workflow_run') {
     const workspaceId =

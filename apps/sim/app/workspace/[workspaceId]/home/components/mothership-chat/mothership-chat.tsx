@@ -20,13 +20,16 @@ import {
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn'
+import { Calendar, Clock } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
+import { useParams } from 'next/navigation'
 import {
   AssistantActionReviewMessage,
   useHasAssistantActionReview,
 } from '@/components/assistant-actions'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
+import { parseAutomatedTurn } from '@/lib/mothership/chat/automated-turn'
 import type { TurnOrigin } from '@/lib/mothership/generated/protocol'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
@@ -49,6 +52,7 @@ import {
   parseLastQuestionTag,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { SearchIntegrationConnectionProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
+import { watchLabel } from '@/app/workspace/[workspaceId]/home/components/message-content/components/watch-activity/watch-activity'
 import {
   prepareCopyableMarkdown,
   toCopyableMarkdown,
@@ -204,37 +208,54 @@ interface UserMessageRowProps {
   attachmentWidthClassName: string
 }
 
+function describeAutomatedTurn(
+  origin: TurnOrigin,
+  content: string,
+  workspaceId?: string
+): { label: string; text: string; note?: string } {
+  const turn = parseAutomatedTurn(origin, content)
+  if (turn?.origin === 'task') {
+    return {
+      label: 'Background task',
+      text: watchLabel(turn.task, workspaceId),
+      note: turn.task.note || undefined,
+    }
+  }
+  if (turn?.origin === 'job') return { label: `Scheduled job · ${turn.run}`, text: turn.title }
+  return origin === 'task'
+    ? { label: 'Background task', text: 'Task finished' }
+    : { label: 'Scheduled job', text: 'Run started' }
+}
+
 /**
- * A turn automation opened, never a user bubble — the user did not type it: a muted system chip
- * with one line. A background-task notification (mothership 21-background-tasks.md §6.4) shows
- * its outcome line; a scheduled job's run shows the brief's first line (the job and its run).
+ * A turn automation opened (mothership 21-background-tasks.md §6.4): a message in the user's
+ * lane, labeled with what sent it. A background task shows the same line as its watch row; a
+ * scheduled job shows its title and run.
  */
 interface AutomatedTurnRowProps {
   origin: TurnOrigin
   content: string
   rowClassName: string
+  bubbleClassName: string
 }
 
 const AutomatedTurnRow = memo(function AutomatedTurnRow({
   origin,
   content,
   rowClassName,
+  bubbleClassName,
 }: AutomatedTurnRowProps) {
-  const lines = content.split('\n').filter((line) => line.length > 0)
-  const summary =
-    origin === 'task'
-      ? (lines.find((line) => line.startsWith('Task ')) ?? lines[lines.length - 1] ?? '').replace(
-          /^Task [0-9a-f-]+ /,
-          ''
-        )
-      : (lines[0] ?? '').replace(/^Job: /, '')
+  const params = useParams<{ workspaceId?: string }>()
+  const { label, text, note } = describeAutomatedTurn(origin, content, params?.workspaceId)
+  const Icon = origin === 'task' ? Clock : Calendar
   return (
-    <div className={cn('flex w-full justify-center', rowClassName)}>
-      <div className='max-w-[85%] rounded-full border border-[var(--border)] bg-[var(--bg)] px-3 py-1 text-[12px] text-[var(--text-secondary)]'>
-        <span className='mr-1.5 font-medium text-[var(--text-primary)]'>
-          {origin === 'task' ? 'Background task' : 'Scheduled job'}
-        </span>
-        {summary}
+    <div className={rowClassName}>
+      <div className='flex items-center gap-1.5 text-[12px] text-[var(--text-tertiary)]'>
+        <Icon className='size-[12px]' />
+        {label}
+      </div>
+      <div className={bubbleClassName} title={note}>
+        <UserMessageContent content={text} />
       </div>
     </div>
   )
@@ -995,7 +1016,8 @@ export function MothershipChat({
                           <AutomatedTurnRow
                             origin={msg.origin}
                             content={msg.content}
-                            rowClassName={styles.rowGap}
+                            rowClassName={cn(styles.userRow, styles.rowGap)}
+                            bubbleClassName={styles.userBubble}
                           />
                         ) : (
                           <UserMessageRow
