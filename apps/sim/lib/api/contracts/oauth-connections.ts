@@ -78,28 +78,6 @@ const trelloCallbackQuerySchema = z
 /** Google domain-wide-delegation subject, validated for in-process credential callers. */
 export const impersonateEmailSchema = z.string().email()
 
-const oauthTokenResponseSchema = z.object({
-  accessToken: z.string(),
-  credentialType: z.enum(['oauth', 'managed_oauth', 'service_account']).optional(),
-  idToken: z.string().optional(),
-  instanceUrl: z.string().optional(),
-  /** Zoho Desk — the data-center-scoped Desk REST base for this credential. */
-  apiDomain: z.string().optional(),
-  cloudId: z.string().optional(),
-  domain: z.string().optional(),
-  providerWorkspaceId: z.string().optional(),
-  /** Datadog — the application key sent beside the API key (`accessToken`). */
-  applicationKey: z.string().optional(),
-  realmId: z.string().optional(),
-  quickBooksEnvironment: z.enum(['sandbox', 'production']).optional(),
-  authStyle: z
-    .enum(['x-api-token', 'snowflake-workload-identity', 'snowflake-key-pair', 'basic', 'bearer'])
-    .optional(),
-})
-
-/** Token material a resolved credential yields to its in-process callers. */
-export type OAuthTokenResponse = z.output<typeof oauthTokenResponseSchema>
-
 export const shopifyAuthorizeQuerySchema = z.object({
   shop: z.string().optional(),
   returnUrl: z.string().optional(),

@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { AuthType } from '@/lib/auth/hybrid'
 import { createCopilotManagedOAuthPrincipal } from '@/lib/credentials/application/copilot-managed-oauth-delegation'
 import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
 import { authorizePersonalCredential } from '@/lib/credentials/application/personal-credentials'
@@ -118,11 +117,7 @@ export async function resolveExecutorCredentialToken(
     scopes: params.scopes,
     impersonateEmail: params.impersonateEmail,
     callerUserId: userId && params.enforceCredentialAccess ? userId : undefined,
-    authenticate: () => ({
-      success: true,
-      userId,
-      authType: AuthType.INTERNAL_JWT,
-    }),
+    userId,
     resolveManagedPrincipal,
   })
 

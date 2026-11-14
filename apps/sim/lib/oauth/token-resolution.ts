@@ -2,12 +2,9 @@ import { AuditAction, AuditResourceType, recordAudit, recordAuditRollup } from '
 import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  impersonateEmailSchema,
-  type OAuthTokenResponse,
-} from '@/lib/api/contracts/oauth-connections'
+import { impersonateEmailSchema } from '@/lib/api/contracts/oauth-connections'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
-import { type AuthResult, AuthType } from '@/lib/auth/hybrid'
+import { AuthType } from '@/lib/auth/hybrid'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
@@ -22,6 +19,7 @@ import {
   refreshTokenIfNeeded,
   resolveOAuthAccountId,
   resolveServiceAccountToken,
+  type ServiceAccountTokenResult,
 } from '@/lib/oauth/credential-service'
 import {
   extractMicrosoftDataverseEnvironmentUrl,
@@ -37,6 +35,7 @@ import {
 } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getToolMetadata } from '@/tools/metadata'
+import type { QuickBooksEnvironment } from '@/tools/quickbooks/client'
 import type { OAuthConfig } from '@/tools/types'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
@@ -60,10 +59,18 @@ export interface CredentialAuditRequest {
   headers: { get(name: string): string | null }
 }
 
-/** Token material a resolved credential yields; taken from the contract so it cannot drift. */
-export type CredentialTokenPayload = OAuthTokenResponse
+/**
+ * Token material a resolved credential yields to the tool that consumes it: everything a
+ * service-account mint returns, plus the OAuth-only identity fields.
+ */
+export interface CredentialTokenPayload extends ServiceAccountTokenResult {
+  credentialType?: 'oauth' | 'managed_oauth' | 'service_account'
+  idToken?: string
+  realmId?: string
+  quickBooksEnvironment?: QuickBooksEnvironment
+}
 
-export interface ResolveCredentialTokenInput {
+interface ResolveCredentialTokenInput {
   /** Tool whose canonical provider and credential-kind policy applies before token minting. */
   toolId?: string
   /**
@@ -85,7 +92,11 @@ export interface ResolveCredentialTokenInput {
   impersonateEmail?: string
   /** Acting user whose credential access is enforced; absent when access is not enforced. */
   callerUserId?: string
-  auditRequest?: CredentialAuditRequest
+  /**
+   * User the server-side execution runs as, authorizing non-managed credentials.
+   * Managed OAuth credentials authenticate through delegation instead.
+   */
+  userId?: string
   /** Credential lookup already performed by {@link resolveCredentialAccessToken}'s dispatch. */
   resolvedCredential: ResolvedCredential | null
 }
@@ -236,7 +247,6 @@ export async function completeOAuthCredentialToken(params: {
   workspaceId: string | null
   workflowId?: string
   executionId?: string
-  auditRequest?: CredentialAuditRequest
 }): Promise<ResolveCredentialTokenResult> {
   const {
     requestId,
@@ -246,7 +256,6 @@ export async function completeOAuthCredentialToken(params: {
     workspaceId,
     workflowId,
     executionId,
-    auditRequest,
   } = params
   const contextValidation = validateOAuthCredentialContext(credential)
   if (!contextValidation.ok) {
@@ -265,7 +274,6 @@ export async function completeOAuthCredentialToken(params: {
         credentialType: 'oauth',
         workflowId,
         executionId,
-        auditRequest,
       })
     }
 
@@ -343,15 +351,11 @@ function validateToolCredentialBinding(
 }
 
 /**
- * Resolves a plain OAuth or service-account credential to a token for an
- * authenticated caller. Managed OAuth credentials are dispatched one level up by
- * {@link resolveCredentialAccessToken}, which every server surface goes through,
- * so authorization, refresh, and audit cannot drift between surfaces.
- *
- * @param auth Result of authenticating the caller (session or internal JWT).
+ * Resolves a plain OAuth or service-account credential to a token for server-side
+ * execution. Managed OAuth credentials are dispatched one level up by
+ * {@link resolveCredentialAccessToken}.
  */
-export async function resolveCredentialToken(
-  auth: AuthResult,
+async function resolveCredentialToken(
   input: ResolveCredentialTokenInput
 ): Promise<ResolveCredentialTokenResult> {
   const {
@@ -362,7 +366,7 @@ export async function resolveCredentialToken(
     scopes,
     impersonateEmail,
     callerUserId,
-    auditRequest,
+    userId,
   } = input
 
   try {
@@ -377,24 +381,18 @@ export async function resolveCredentialToken(
     }
 
     const resolved = input.resolvedCredential
-    const authz = await authorizeCredentialUseForAuth(auth, {
-      credentialId,
-      workflowId,
-      callerUserId,
-    })
+    const authz = await authorizeCredentialUseForAuth(
+      { success: true, userId, authType: AuthType.INTERNAL_JWT },
+      {
+        credentialId,
+        workflowId,
+        callerUserId,
+      }
+    )
 
     if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
       if (!authz.ok) {
         return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
-      }
-      // A saved secret never leaves the server: only server-side (internal JWT) callers may resolve it.
-      if (auth.authType !== AuthType.INTERNAL_JWT) {
-        return {
-          ok: false,
-          status: 403,
-          code: 'SERVICE_ACCOUNT_SESSION_FORBIDDEN',
-          error: 'Saved credentials are resolved only during server-side execution',
-        }
       }
 
       // A saved secret is released only to a tool of its own provider, never on a bare ID.
@@ -437,7 +435,6 @@ export async function resolveCredentialToken(
             credentialType: 'service_account',
             workflowId,
             executionId,
-            auditRequest,
           })
         }
 
@@ -585,7 +582,6 @@ export async function resolveCredentialToken(
       workspaceId: authz.workspaceId ?? null,
       workflowId,
       executionId,
-      auditRequest,
     })
   } catch (error) {
     logger.error('Error getting access token', error, { requestId })
@@ -595,11 +591,6 @@ export async function resolveCredentialToken(
 
 export interface ResolveCredentialAccessTokenInput
   extends Omit<ResolveCredentialTokenInput, 'resolvedCredential'> {
-  /**
-   * Authenticates the caller for non-managed credentials. Invoked only when the
-   * credential is not managed OAuth, which authenticates through delegation instead.
-   */
-  authenticate: () => AuthResult | Promise<AuthResult>
   /**
    * Proves a delegation for one managed credential: a workflow execution (the
    * executor binds its delegation origin in-process) or a Chat turn acting as the
@@ -611,33 +602,28 @@ export interface ResolveCredentialAccessTokenInput
 }
 
 /**
- * Authorized application dispatch for a credential token. Every server surface
- * that needs one goes through here, so the managed / service-account / plain-OAuth
- * dispatch, authorization, refresh, audit, and analytics cannot drift between them.
+ * Authorized application dispatch for a credential token during server-side
+ * execution, so the managed / service-account / plain-OAuth dispatch,
+ * authorization, refresh, audit, and analytics run in one place.
  */
 export async function resolveCredentialAccessToken(
   input: ResolveCredentialAccessTokenInput
 ): Promise<ResolveCredentialTokenResult> {
-  const { requestId, credentialId, toolId, auditRequest } = input
+  const { requestId, credentialId, toolId } = input
 
   const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
 
   if (resolved?.credentialType !== 'managed_oauth' || !resolved.credentialId) {
-    const auth = await input.authenticate()
-    return resolveCredentialToken(auth, {
+    return resolveCredentialToken({
       requestId,
       credentialId,
       workflowId: input.workflowId,
       executionId: input.executionId,
       scopes: input.scopes,
-      /**
-       * In-process callers forward raw subblock state, where an untouched
-       * field is '' — treated as absent, matching what the wire contract
-       * (which rejects '') and the old truthy guards always produced.
-       */
+      /** The executor forwards raw subblock state, where an untouched field is '': treated as absent. */
       impersonateEmail: input.impersonateEmail || undefined,
       callerUserId: input.callerUserId,
-      auditRequest,
+      userId: input.userId,
       resolvedCredential: resolved,
       toolId,
       assistantConnectedAccount: input.assistantConnectedAccount,
@@ -713,7 +699,6 @@ export async function resolveCredentialAccessToken(
         requiredScopes,
         toolId,
       },
-      request: auditRequest,
     })
 
     const subject = resolvePrincipalSubject(principal)
