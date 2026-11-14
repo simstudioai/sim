@@ -1,6 +1,7 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
+import { autoUpdate } from '@floating-ui/dom'
 import { posToDOMRect } from '@tiptap/core'
-import { AllSelection, type Selection } from '@tiptap/pm/state'
+import { AllSelection, type PluginKey, type Selection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 
 /**
@@ -35,21 +36,42 @@ function selectionVirtualElement(editor: Editor) {
  * Wires a BubbleMenu's Floating UI concerns — the selection anchor and the portal target — so the
  * text and table toolbars share one source of truth and can't drift.
  *
- * The toolbar is appended into the editor's scroll container (which must be a positioning context)
- * and left at TipTap's default `absolute` strategy, so it becomes an absolutely-positioned child of
- * the scrolled content and tracks the selection through native scrolling — no scroll listener, so no
- * lag or "chase" as the pane scrolls. TipTap's default `flip` still parks it above or below the
- * selection at the pane edges, and the container's overflow clips it once the selection scrolls out.
+ * The toolbar stays inside the editor's scroll container. Its controls can resize after a selection
+ * changes, and a table can scroll independently of the document, so track both through Floating UI.
  */
 export function useBubbleMenuFloating(
   editor: Editor,
-  scrollContainerRef: React.RefObject<HTMLDivElement | null>
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>,
+  pluginKey: PluginKey
 ) {
+  const menuRef = useRef<HTMLDivElement>(null)
   const resolveAnchor = useCallback(() => selectionVirtualElement(editor), [editor])
   const appendTo = useCallback(
     () => scrollContainerRef.current ?? document.body,
     [scrollContainerRef]
   )
 
-  return { resolveAnchor, appendTo }
+  useEffect(() => {
+    const menu = menuRef.current
+    if (!menu) return
+    let stop: (() => void) | undefined
+    const trackSelection = () => {
+      stop?.()
+      const { node } = editor.view.domAtPos(editor.state.selection.from)
+      const reference = node instanceof Element ? node : (node.parentElement ?? editor.view.dom)
+      stop = autoUpdate(reference, menu, () => {
+        if (!editor.isDestroyed && menu.isConnected && menu.style.visibility !== 'hidden') {
+          editor.commands.setMeta(pluginKey, 'updatePosition')
+        }
+      })
+    }
+    trackSelection()
+    editor.on('selectionUpdate', trackSelection)
+    return () => {
+      stop?.()
+      editor.off('selectionUpdate', trackSelection)
+    }
+  }, [editor, pluginKey])
+
+  return { resolveAnchor, appendTo, menuRef }
 }

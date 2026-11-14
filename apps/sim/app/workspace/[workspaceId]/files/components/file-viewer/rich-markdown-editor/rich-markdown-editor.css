@@ -378,19 +378,33 @@
   border-radius: 4px;
 }
 
-/* Borders, padding, typography, and header fill come from document-table.css — the chrome shared
-   with the CSV/XLSX previews. Only the editor-specific bits live here: `table-layout: fixed` is
-   required by prosemirror-tables' column-resizing plugin, and `overflow: visible` lets a
-   collaborator's caret name label escape the table box instead of being clipped (fixed layout means
-   columns can't exceed the table width, so nothing else needs clipping). */
-.rich-markdown-nodes table {
-  table-layout: fixed;
+/* Keep wide tables inside their own viewport. Vertical padding keeps peer labels inside the clip. */
+.rich-markdown-nodes .tableWrapper {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Content sizing avoids dividing many columns into single-character strips. */
+.rich-markdown-nodes .tableWrapper > table {
+  table-layout: auto;
+  width: max-content;
   overflow: visible;
 }
 
-/* The block margin is prose rhythm, so it stays with the type scale. */
-.rich-markdown-prose table {
-  margin: 1rem 0;
+.rich-markdown-nodes .tableWrapper > table > tbody > tr > th,
+.rich-markdown-nodes .tableWrapper > table > tbody > tr > td {
+  min-width: 80px;
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+
+.rich-markdown-prose .tableWrapper {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0;
+}
+
+.rich-markdown-prose .tableWrapper > table {
+  margin: 0;
 }
 
 /* A diff's links are chips, so they keep their own colour instead of the prose link style. */
