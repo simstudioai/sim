@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
 import { SSO_PROVIDER_ID_PATTERN } from '@/lib/auth/sso/callback-provider'
 
+/** SSO provider ID limited to {@link SSO_PROVIDER_ID_PATTERN}, shared by every provider write. */
 export const ssoProviderIdSchema = requiredFieldSchema('Provider ID is required').regex(
   SSO_PROVIDER_ID_PATTERN,
   'Provider ID may only contain letters, numbers, dashes, underscores, periods, and colons (up to 128 characters)'
