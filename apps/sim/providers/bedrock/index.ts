@@ -71,6 +71,9 @@ import {
 
 const logger = createLogger('BedrockProvider')
 
+/** Bedrock Runtime defaults to HTTP/2, which a customer's direct requests keep. */
+const customerRequestHandler = () => organizationAwsRequestHandler({ http2: true })
+
 function enrichLastModelSegmentFromBedrockResponse(
   timeSegments: TimeSegment[],
   response: ConverseResponse,
@@ -138,7 +141,7 @@ function enrichLastModelSegmentFromBedrockResponse(
 function resolveBedrockClientCredentials(request: ProviderRequest): {
   credentials: BedrockRuntimeClientConfig['credentials']
   credentialKey: string | null
-  requestHandler: BedrockRuntimeClientConfig['requestHandler']
+  createRequestHandler: () => BedrockRuntimeClientConfig['requestHandler']
 } {
   const session = request.bedrockSession
   if (session) {
@@ -147,7 +150,7 @@ function resolveBedrockClientCredentials(request: ProviderRequest): {
       return {
         credentials: { accessKeyId, secretAccessKey, sessionToken },
         credentialKey: null,
-        requestHandler: organizationAwsRequestHandler({ http2: true }),
+        createRequestHandler: customerRequestHandler,
       }
     }
     return {
@@ -157,7 +160,7 @@ function resolveBedrockClientCredentials(request: ProviderRequest): {
         session.credentialId,
         sha256Hex([accessKeyId, secretAccessKey].join('\0')),
       ].join(':'),
-      requestHandler: organizationAwsRequestHandler({ http2: true }),
+      createRequestHandler: customerRequestHandler,
     }
   }
 
@@ -179,14 +182,14 @@ function resolveBedrockClientCredentials(request: ProviderRequest): {
         secretAccessKey: request.bedrockSecretKey,
       },
       credentialKey: `${request.bedrockAccessKeyId}:${request.bedrockSecretKey}`,
-      requestHandler: organizationAwsRequestHandler({ http2: true }),
+      createRequestHandler: customerRequestHandler,
     }
   }
   // The deployment's own credentials stay on Sim's network, never an organization's route.
   return {
     credentials: getAwsCredentials(),
     credentialKey: 'default-chain',
-    requestHandler: awsRequestHandler(),
+    createRequestHandler: awsRequestHandler,
   }
 }
 
@@ -219,8 +222,10 @@ export const bedrockProvider: ProviderConfig = {
       region,
     })
 
-    const { credentials, credentialKey, requestHandler } = resolveBedrockClientCredentials(request)
-    const buildClient = () => new BedrockRuntimeClient({ region, credentials, requestHandler })
+    const { credentials, credentialKey, createRequestHandler } =
+      resolveBedrockClientCredentials(request)
+    const buildClient = () =>
+      new BedrockRuntimeClient({ region, credentials, requestHandler: createRequestHandler() })
     const client =
       credentialKey === null
         ? buildClient()

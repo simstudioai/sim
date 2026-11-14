@@ -10,8 +10,7 @@ import { validationErrorResponse } from '@/lib/api/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
-import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { fetchForWorkspace } from '@/lib/core/network/resource-scope.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
@@ -75,11 +74,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
       cache: 'no-store',
     }
-    const response = authorizedWorkspaceId
-      ? await withResourceOutboundScope({ workspaceId: authorizedWorkspaceId }, () =>
-          outboundFetch(MODELS_URL, init)
-        )
-      : await fetch(MODELS_URL, init)
+    const response = await fetchForWorkspace(authorizedWorkspaceId, MODELS_URL, init)
 
     if (!response.ok) {
       logger.warn('Failed to fetch Together models', {

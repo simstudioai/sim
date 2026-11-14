@@ -184,7 +184,7 @@ export function createGatewayDispatcher(
         options
       ).then(
         (socket) => callback(null, socket),
-        (error: OutboundRoutingError) => callback(error, null)
+        (error: Error) => callback(error, null)
       )
     },
   })

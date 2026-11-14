@@ -7,11 +7,11 @@ import {
 } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isRedirectStatus } from '@/lib/core/security/input-validation.server'
 
 type AuthorizationCodeExchange = Parameters<typeof validateAuthorizationCode>[0]
 type GetToken = NonNullable<GenericOAuthConfig['getToken']>
 
-const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 const JSON_MEDIA_TYPE = /^application\/(?:[\w!#$%&*.^`~-]*\+)?json$/i
 const TEXT_MEDIA_TYPES = new Set([
   'image/svg',
@@ -59,13 +59,14 @@ export async function exchangeAuthorizationCode({
     headers,
     redirect: 'manual',
   })
-  if (response.type === 'opaqueredirect' || REDIRECT_STATUSES.has(response.status)) {
+  const redirected = response.type === 'opaqueredirect' || isRedirectStatus(response.status)
+  if (redirected || !response.ok) {
     await response.body?.cancel().catch(() => {})
-    throw new Error(`The OAuth endpoint "${tokenEndpoint}" returned an HTTP redirect`)
-  }
-  if (!response.ok) {
-    await response.body?.cancel().catch(() => {})
-    throw new Error(`OAuth token endpoint responded with ${response.status}`)
+    throw new Error(
+      redirected
+        ? `The OAuth endpoint "${tokenEndpoint}" returned an HTTP redirect`
+        : `OAuth token endpoint responded with ${response.status}`
+    )
   }
   return getOAuth2Tokens(toRecord(await readResponseData(response)))
 }

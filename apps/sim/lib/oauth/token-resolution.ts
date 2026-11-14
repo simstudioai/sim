@@ -83,10 +83,7 @@ export interface ResolveCredentialTokenInput {
   scopes?: string[]
   /** Google domain-wide-delegation subject for service-account credentials. */
   impersonateEmail?: string
-  /**
-   * Asserted acting user. When the caller authenticated with an internal JWT it
-   * must equal the token subject, so a forged assertion cannot widen access.
-   */
+  /** Acting user whose credential access is enforced; absent when access is not enforced. */
   callerUserId?: string
   auditRequest?: CredentialAuditRequest
   /** Credential lookup already performed by {@link resolveCredentialAccessToken}'s dispatch. */

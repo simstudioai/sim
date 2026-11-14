@@ -9,8 +9,7 @@ import {
 import { validationErrorResponse } from '@/lib/api/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
-import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { fetchForWorkspace } from '@/lib/core/network/resource-scope.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
@@ -56,15 +55,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const response = await withResourceOutboundScope({ workspaceId }, () =>
-      outboundFetch('https://ollama.com/api/tags', {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store',
-      })
-    )
+    const response = await fetchForWorkspace(workspaceId, 'https://ollama.com/api/tags', {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    })
 
     if (!response.ok) {
       logger.warn('Failed to fetch Ollama Cloud models', {

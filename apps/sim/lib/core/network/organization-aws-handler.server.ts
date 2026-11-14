@@ -1,19 +1,16 @@
 import type http from 'node:http'
 import type { Duplex } from 'node:stream'
-import { createLogger } from '@sim/logger'
 import { NodeHttp2Handler, NodeHttpHandler } from '@smithy/node-http-handler'
 import { Agent, type AgentConnectOpts } from 'agent-base'
+import { LRUCache } from 'lru-cache'
 import { isOutboundRoutingEnabled, type OutboundGateway } from '@/lib/core/network/config.server'
-import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import { connectThroughGateway } from '@/lib/core/network/gateway.server'
+import { resolveOrganizationRoute } from '@/lib/core/network/outbound-fetch.server'
 import {
   AGENT_OPTIONS,
   type AwsRequestHandlerOptions,
   awsRequestHandler,
 } from '@/lib/core/network/proxy-agent.server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
-
-const logger = createLogger('OrganizationAwsRequestHandler')
 
 type AwsHttpHandler = NodeHttpHandler | NodeHttp2Handler
 type HandleArguments = Parameters<NodeHttpHandler['handle']>
@@ -49,40 +46,36 @@ class GatewayAgent extends Agent {
   }
 }
 
-const gatewayHandlers = new Map<
-  string,
-  { gatewayId: string; agent: GatewayAgent; handler: NodeHttpHandler }
->()
+interface GatewayHandler {
+  gatewayId: string
+  agent: GatewayAgent
+  handler: NodeHttpHandler
+}
 
 /**
- * The organization's shared gateway handler. A reassigned gateway's agent stops keeping
- * sockets alive, so Node closes each one as its in-flight request finishes and none is handed
- * to a request bound for the new gateway.
+ * Stops keeping a retired gateway's sockets alive, so Node closes each one as its in-flight
+ * request finishes and none is handed to a later request.
  */
+function retireGatewayHandler({ agent }: GatewayHandler): void {
+  agent.keepAlive = false
+  for (const sockets of Object.values(agent.freeSockets)) {
+    for (const socket of sockets ?? []) socket.destroy()
+  }
+}
+
+/** One handler per organization with a gateway; bounded like the routing config itself. */
+const gatewayHandlers = new LRUCache<string, GatewayHandler>({
+  max: 1_000,
+  dispose: retireGatewayHandler,
+})
+
 function gatewayHandlerFor(gateway: OutboundGateway): NodeHttpHandler {
   const current = gatewayHandlers.get(gateway.organizationId)
   if (current?.gatewayId === gateway.id) return current.handler
-  if (current) {
-    current.agent.keepAlive = false
-    for (const sockets of Object.values(current.agent.freeSockets)) {
-      for (const socket of sockets ?? []) socket.destroy()
-    }
-  }
   const agent = new GatewayAgent(gateway)
   const handler = new NodeHttpHandler({ httpAgent: agent, httpsAgent: agent })
   gatewayHandlers.set(gateway.organizationId, { gatewayId: gateway.id, agent, handler })
   return handler
-}
-
-/** A request outside any outbound scope goes direct with a warning, as `outboundFetch` does. */
-async function currentRouteOrDirect(host: string) {
-  try {
-    return await resolveCurrentOutboundRoute()
-  } catch (error) {
-    if (!(error instanceof OutboundRoutingError) || error.code !== 'MISSING_SCOPE') throw error
-    logger.warn('AWS request made without an organization scope', { host })
-    return { kind: 'direct' } as const
-  }
 }
 
 /**
@@ -98,7 +91,7 @@ class OrganizationRoutedHandler {
   }
 
   async handle(...[request, options]: HandleArguments) {
-    const route = await currentRouteOrDirect(request.hostname)
+    const route = await resolveOrganizationRoute(request.hostname)
     const handler = route.kind === 'gateway' ? gatewayHandlerFor(route.gateway) : this.direct
     return handler.handle(request, options)
   }
@@ -117,19 +110,12 @@ class OrganizationRoutedHandler {
 }
 
 /**
- * `requestHandler` for an AWS SDK v3 client that signs with a customer's credentials. Inside the
- * outbound scope of an organization with a dedicated egress gateway, each request reaches AWS
- * through that gateway, from the organization's static IPs (passing `aws:SourceIp` conditions).
- * Every other request, including one outside any scope (which also logs a warning), uses the
- * same handler the client gets from {@link awsRequestHandler}: the SDK's own default, or the
- * operator's `HTTPS_PROXY`. A blocked route or an unavailable gateway fails the request with an
- * `OutboundRoutingError`. With routing disabled this is exactly {@link awsRequestHandler}.
- *
- * Pass `http2` for a client whose SDK default is HTTP/2 (Bedrock Runtime), so its direct
- * requests keep it. Gateway requests always use HTTP/1.1 through the tunnel.
- *
- * Never use it for Sim's own AWS usage (its buckets, queues, email, secrets, metrics, or
- * Bedrock on Sim's keys), which must not leave through a customer's gateway.
+ * `requestHandler` for an AWS SDK v3 client that signs with a customer's credentials. In the
+ * outbound scope of an organization with a dedicated egress gateway each request reaches AWS from
+ * the organization's static IPs (passing `aws:SourceIp` conditions); every other request uses
+ * the handler {@link awsRequestHandler} gives the client, and routing disabled is exactly that.
+ * Pass `http2` for a client whose SDK default is HTTP/2 (Bedrock Runtime) so direct requests keep
+ * it. Never use it for Sim's own AWS usage, which must not leave through a customer's gateway.
  */
 export function organizationAwsRequestHandler(
   options?: AwsRequestHandlerOptions & { http2?: boolean }

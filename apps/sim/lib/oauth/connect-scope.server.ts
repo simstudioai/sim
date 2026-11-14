@@ -63,8 +63,8 @@ async function runInOAuthCallbackDraftScope<T>(
  * Wraps a generic OAuth connector's code exchange and identity lookup so their vendor calls
  * leave through the connecting organization's egress gateway. A connector without its own
  * `getToken` gets Better Auth's exchange sent through `outboundFetch`, since the plugin's
- * built-in exchange uses its own fetch. Better Auth still fetches a `discoveryUrl` document and
- * a default `userInfoUrl` itself, unrouted.
+ * built-in exchange uses its own fetch. Better Auth's own discovery reads for the authorize URL
+ * and callback stay unrouted; the exchange resolves its token endpoint through `outboundFetch`.
  */
 export function withConnectDraftOutboundScope(config: GenericOAuthConfig): GenericOAuthConfig {
   const { providerId, getUserInfo } = config

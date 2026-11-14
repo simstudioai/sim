@@ -18,8 +18,7 @@ import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/env-flags'
-import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { fetchForWorkspace } from '@/lib/core/network/resource-scope.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enrichSandboxCapabilities } from '@/lib/execution/remote-sandbox/wand-enricher'
@@ -60,7 +59,7 @@ const wandApiUrl = useWandAzure
  */
 function postWandRequest(workspaceId: string, init: RequestInit): Promise<Response> {
   if (useWandAzure) return fetch(wandApiUrl, init)
-  return withResourceOutboundScope({ workspaceId }, () => outboundFetch(wandApiUrl, init))
+  return fetchForWorkspace(workspaceId, wandApiUrl, init)
 }
 
 interface ChatMessage {
