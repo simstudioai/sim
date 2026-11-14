@@ -537,7 +537,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             : Number(value)
         /** A dedicated limit wins when present, so a reference resolving to 0 still reaches validation. */
         const pickLimit = (dedicated: unknown, toolArg: unknown): unknown =>
-          dedicated === undefined || dedicated === null || dedicated === ''
+          dedicated === undefined || dedicated === null || String(dedicated).trim() === ''
             ? toolCallArg(context, toolArg)
             : dedicated
         const projectsArray = splitGids(params.projects)

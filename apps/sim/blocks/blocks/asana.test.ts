@@ -97,4 +97,13 @@ describe('AsanaBlock canvas limits', () => {
       buildParams({ operation: 'get_task', workspace: 'ws-1', assignee: 'me', getTasks_limit: 0 })
     ).toMatchObject({ limit: 0 })
   })
+
+  it('ignores a whitespace-only limit field so the model limit applies on a tool call', () => {
+    expect(
+      buildParams(
+        { workspace: 'ws-1', assignee: 'me', getTasks_limit: '  ', limit: 25 },
+        { operation: 'get_task' }
+      )
+    ).toMatchObject({ limit: 25 })
+  })
 })
