@@ -680,6 +680,29 @@ describe('organization direct tool targets', () => {
     )
     expect(registry.isComplete()).toBe(true)
   })
+  it('keeps a workspace run’s cap when it names its own workspace as the target', async () => {
+    const handler = vi.fn().mockResolvedValue({ success: true })
+    registerHandler('provider_operation', handler)
+    const result = await executeTool(
+      'provider_operation',
+      {},
+      {
+        userId: 'owner',
+        workflowId: '',
+        workspaceId: 'selected',
+        chatId: 'chat',
+        requestMode: 'agent',
+        targetWorkspaceId: 'selected',
+        userPermission: 'read',
+      }
+    )
+    expect(result).toEqual({
+      success: false,
+      error:
+        "Permission denied: provider_operation requires write access. You have 'read' permission.",
+    })
+    expect(handler).not.toHaveBeenCalled()
+  })
   it('stamps returned organization resources with the actual authorized target', async () => {
     registerHandler(
       'provider_operation',
