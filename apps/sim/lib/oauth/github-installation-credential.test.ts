@@ -11,9 +11,9 @@ vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
 vi.mock('@/lib/oauth/oauth', () => ({
   OAUTH_PROVIDERS: {},
-  refreshOAuthToken: vi.fn(),
   TOKEN_REFRESH_TIMEOUT_MS: 15_000,
 }))
+vi.mock('@/lib/oauth/refresh.server', () => ({ refreshOAuthToken: vi.fn() }))
 
 import { resolveServiceAccountToken } from '@/lib/oauth/credential-service'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'

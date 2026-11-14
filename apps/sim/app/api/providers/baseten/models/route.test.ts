@@ -1,22 +1,25 @@
 import { authMockFns, createMockRequest, resetEnvMock, setEnv } from '@sim/testing'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
-import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import { workspaceContextMock } from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/providers/utils', () => providersUtilsMock)
 
 vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import { GET } from '@/app/api/providers/baseten/models/route'
 
 const mockGetSession = authMockFns.mockGetSession
 const mockGetBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
 const { mockFilterBlacklistedModels, mockIsProviderBlacklisted } = providersUtilsMockFns
-const { mockGetUserEntityPermissions } = permissionsMockFns
+const { mockResolveEffectiveWorkspacePermission } = workspaceAuthzMockFns
 
 function setEnvKey(value: string | undefined): void {
   setEnv({ BASETEN_API_KEY: value })
@@ -38,7 +41,7 @@ describe('GET /api/providers/baseten/models', () => {
     mockFilterBlacklistedModels.mockImplementation((models: string[]) => models)
     mockGetBYOKKey.mockResolvedValue(null)
     mockGetSession.mockResolvedValue(null)
-    mockGetUserEntityPermissions.mockResolvedValue(null)
+    mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     setEnvKey(undefined)
   })
 
@@ -48,8 +51,8 @@ describe('GET /api/providers/baseten/models', () => {
 
   it('uses the BYOK key when workspaceId, session, and permission are present', async () => {
     setEnvKey('env-key')
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    mockGetUserEntityPermissions.mockResolvedValue('admin')
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
     mockGetBYOKKey.mockResolvedValue({ apiKey: 'byok-key', isBYOK: true })
     mockFetch.mockResolvedValueOnce(jsonResponse({ data: [{ id: 'model-a' }] }))
 
@@ -66,8 +69,8 @@ describe('GET /api/providers/baseten/models', () => {
 
   it('falls back to the env key when the user lacks workspace permission', async () => {
     setEnvKey('env-key')
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    mockGetUserEntityPermissions.mockResolvedValue(null)
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     mockFetch.mockResolvedValueOnce(jsonResponse({ data: [{ id: 'model-a' }] }))
 
     const res = await GET(

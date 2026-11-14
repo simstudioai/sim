@@ -52,9 +52,9 @@ function withKieThinkingFlag(
  * are labeled as JSON. Streams are never buffered: they are typed
  * `text/event-stream`, and a failed streaming request comes back as JSON.
  */
-export function createKieFetch(baseFetch?: typeof fetch): typeof fetch {
+export function createKieFetch(baseFetch: typeof fetch): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const response = await (baseFetch ?? fetch)(input, withKieThinkingFlag(input, init))
+    const response = await baseFetch(input, withKieThinkingFlag(input, init))
     const contentType = response.headers.get('content-type')?.toLowerCase()
     if (response.status !== 200 || (contentType && !contentType.includes('application/json'))) {
       return response

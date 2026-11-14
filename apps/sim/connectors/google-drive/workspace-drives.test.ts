@@ -1,6 +1,10 @@
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import type { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 import { listGoogleWorkspaceDrives } from '@/connectors/google-drive/workspace-drives'
+
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
 const mockFetch = vi.fn()
 const json = (body: unknown, status = 200) =>
@@ -16,9 +20,23 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
+  networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
+  networkConfigMockFns.mockResolveOutboundRoute.mockResolvedValue({ kind: 'direct' })
 })
 
 describe('Google Workspace shared-drive enumeration', () => {
+  it('refuses to reach Google outside an outbound scope when egress routing is on', async () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    networkConfigMockFns.mockResolveOutboundRoute.mockImplementation(async (organizationId) => {
+      if (organizationId === undefined) throw new OutboundRoutingError('MISSING_SCOPE')
+      return { kind: 'direct' }
+    })
+    await expect(listGoogleWorkspaceDrives('token')).rejects.toMatchObject({
+      code: 'MISSING_SCOPE',
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
   it('returns one bounded page using only the delegated user token', async () => {
     const controller = new AbortController()
     mockFetch.mockResolvedValueOnce(

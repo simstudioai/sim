@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { isRecordLike } from '@sim/utils/object'
-import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
+import { organizationAwsRequestHandler } from '@/lib/core/network/organization-aws-handler.server'
 import {
   type AwsSessionCredentials,
   buildAwsRoleSessionName,
@@ -70,13 +70,14 @@ export function awsSessionLifetime(
 
 /**
  * SDK client settings for a client built from an operation's key fields: its region,
- * {@link awsClientCredentials}, and the request handler that honors `HTTPS_PROXY`.
+ * {@link awsClientCredentials}, and the request handler that sends through the organization's
+ * egress route (and honors `HTTPS_PROXY` on a direct one).
  */
 export function awsClientConfig(region: string, accessKeyId: string, secretAccessKey: string) {
   return {
     region,
     credentials: awsClientCredentials(accessKeyId, secretAccessKey),
-    requestHandler: awsRequestHandler(),
+    requestHandler: organizationAwsRequestHandler(),
   }
 }
 

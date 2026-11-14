@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type {
   SupabaseStorageUpdateBucketParams,
@@ -43,7 +44,7 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
     })
 
     if (Object.keys(payload).length === 0) {
-      const currentResponse = await fetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
+      const currentResponse = await outboundFetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
         method: 'GET',
         headers,
         redirect: 'error',
@@ -65,7 +66,7 @@ export const executeStorageUpdateBucketOperation: InternalToolOperationImplement
       }
     }
 
-    const updateResponse = await fetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
+    const updateResponse = await outboundFetch(`${baseUrl}/storage/v1/bucket/${bucket}`, {
       method: 'PUT',
       headers,
       body: JSON.stringify(payload),

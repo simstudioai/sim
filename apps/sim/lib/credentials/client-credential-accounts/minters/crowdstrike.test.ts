@@ -1,5 +1,6 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { mintCrowdStrikeServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/crowdstrike'
 
 const FIELDS = {
@@ -160,6 +161,14 @@ describe('CrowdStrike API client token exchange', () => {
     await expect(mintCrowdStrikeServiceAccountToken(FIELDS)).rejects.toMatchObject({
       code: 'provider_unavailable',
     })
+  })
+
+  it('surfaces an unavailable egress route instead of a provider failure', async () => {
+    mockFetch.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(mintCrowdStrikeServiceAccountToken(FIELDS)).rejects.toBeInstanceOf(
+      OutboundRoutingError
+    )
   })
 
   it('refuses a token response without an access token', async () => {

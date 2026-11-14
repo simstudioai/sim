@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraAssignIssueParams, JiraAssignIssueResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
@@ -89,7 +90,7 @@ export const jiraAssignIssueTool: ToolConfig<JiraAssignIssueParams, JiraAssignIs
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
       const assignUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/assignee`
-      const assignResponse = await fetch(assignUrl, {
+      const assignResponse = await outboundFetch(assignUrl, {
         method: 'PUT',
         headers: {
           Accept: 'application/json',

@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import {
   mapAppRoleAssignment,
@@ -17,7 +18,7 @@ export const executeAddUserAppRoleAssignmentOperation: InternalToolOperationImpl
   const { userId, resourceId, appRoleId } = readIdentifiers(params)
   const principalId = await resolveGraphUserObjectId(userId, params.accessToken, signal)
 
-  const response = await fetch(
+  const response = await outboundFetch(
     `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}/appRoleAssignments`,
     {
       method: 'POST',

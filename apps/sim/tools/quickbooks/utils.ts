@@ -1,4 +1,5 @@
 import { omit } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
 import {
@@ -484,7 +485,7 @@ export async function executeQuickBooksFullUpdate<
   const recordId = requiredQuickBooksString(options.recordId, 'recordId')
   const syncToken = requiredQuickBooksString(options.syncToken, 'syncToken')
   const patch = options.buildPatch(options.params)
-  const readResponse = await fetch(
+  const readResponse = await outboundFetch(
     buildQuickBooksEntityUrl(options.params, options.resource, recordId),
     {
       method: 'GET',
@@ -525,7 +526,7 @@ export async function executeQuickBooksFullUpdate<
    * references the item.
    */
   if (options.entity === 'Item') updateUrl.searchParams.set('include', 'donotupdateaccountontxns')
-  const updateResponse = await fetch(updateUrl, {
+  const updateResponse = await outboundFetch(updateUrl, {
     method: 'POST',
     headers: getQuickBooksToolHeaders(options.params.accessToken, 'application/json'),
     body: JSON.stringify(fullBody),

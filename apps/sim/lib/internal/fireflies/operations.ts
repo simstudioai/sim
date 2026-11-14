@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import type { FirefliesUploadAudioInput } from '@/lib/internal/fireflies/schema'
@@ -96,7 +98,7 @@ export async function executeFirefliesUploadAudio(
     if (body.clientReferenceId) input.client_reference_id = body.clientReferenceId
     if (body.attendees !== undefined) input.attendees = body.attendees
 
-    const response = await fetch(FIREFLIES_API_URL, {
+    const response = await outboundFetch(FIREFLIES_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -117,7 +119,7 @@ export async function executeFirefliesUploadAudio(
     })
     return Response.json(data, { status: response.status })
   } catch (error) {
-    if (context.signal?.aborted) throw error
+    if (context.signal?.aborted || isUnavailableFailure(error)) throw error
     logger.error('Fireflies upload failed', {
       requestId: context.requestId,
       error: getErrorMessage(error, 'Unknown error'),

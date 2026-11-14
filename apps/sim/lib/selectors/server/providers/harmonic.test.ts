@@ -10,6 +10,7 @@ const { mockFetch } = vi.hoisted(() => ({
 
 vi.mock('@/lib/selectors/server/providers/credential-bundle', () => selectorCredentialBundleMock)
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { harmonicSelectorAttachments } from '@/lib/selectors/server/providers/harmonic'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
@@ -39,6 +40,14 @@ describe('Harmonic server selector adapter', () => {
   })
 
   afterAll(() => vi.unstubAllGlobals())
+
+  it('surfaces an unavailable egress route instead of unavailable selector options', async () => {
+    mockFetch.mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(
+      harmonicSelectorAttachments['harmonic.savedSearches'].execute(detailArgs('1'))
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+  })
 
   it('hydrates a selected saved search after the list projection cap', async () => {
     const rows = Array.from({ length: 501 }, (_, index) => ({

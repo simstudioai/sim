@@ -34,6 +34,7 @@ vi.mock('@/lib/credential-groups/slack-managed-users', () => ({
   verifySlackUserIdentity: vi.fn(),
 }))
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import {
   SLACK_MANAGED_USER_SCOPES,
@@ -518,5 +519,34 @@ describe('managed OAuth token resolution', () => {
       expect.objectContaining({ managedOauthStatus: 'needs_reauth' })
     )
     expect(mocks.encryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an unavailable egress route during refresh without reauthorizing or writing', async () => {
+    const row = mondayCredentialRow()
+    dbChainMockFns.limit.mockResolvedValueOnce([row]).mockResolvedValueOnce([row])
+    mocks.decryptSecret.mockResolvedValue({
+      decrypted: JSON.stringify({
+        type: 'managed-oauth-token-set',
+        version: 1,
+        tokenType: 'Bearer',
+        accessToken: 'expired-access-token',
+        refreshToken: 'old-refresh-token',
+      }),
+    })
+    mocks.getAdapter.mockReturnValue({
+      getPolicy: vi.fn().mockResolvedValue({
+        authorizationAppId: row.authorizationAppId,
+        scopeVersion: 1,
+        requiredScopes: row.grantedScopes,
+      }),
+      hasRequiredScopes: vi.fn().mockReturnValue(true),
+      refreshToken: vi.fn().mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE')),
+      isTerminalRefreshError: vi.fn().mockReturnValue(true),
+    })
+
+    await expect(resolveManagedOAuthToken(mondayTokenResolutionParams())).rejects.toBeInstanceOf(
+      OutboundRoutingError
+    )
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 })

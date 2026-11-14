@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   AttachmentDownloadBudget,
@@ -45,7 +46,8 @@ export async function downloadAttachments(
   budget = new AttachmentDownloadBudget(),
   options: OutlookAttachmentDownloadOptions = {}
 ): Promise<OutlookAttachment[]> {
-  const fetchImpl = options.fetchImpl ?? ((url: string, init: RequestInit) => fetch(url, init))
+  const fetchImpl =
+    options.fetchImpl ?? ((url: string, init: RequestInit) => outboundFetch(url, init))
   const attachments: OutlookAttachment[] = []
   const path = `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}/attachments`
   const handleError = (error: unknown, attachment?: OutlookDownloadAttachmentMetadata) => {

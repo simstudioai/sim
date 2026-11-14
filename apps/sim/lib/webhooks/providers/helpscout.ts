@@ -5,6 +5,7 @@ import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { toRecord } from '@sim/utils/object'
 import { generateRandomHex } from '@sim/utils/random'
 import { truncate } from '@sim/utils/string'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -131,7 +132,7 @@ export const helpScoutHandler: WebhookProviderHandler = {
     const accessToken = await requireAccessToken(config, requestId)
     const webhookSecret = generateRandomHex(WEBHOOK_SECRET_LENGTH)
 
-    const response = await fetch(`${HELPSCOUT_API_BASE}/webhooks`, {
+    const response = await outboundFetch(`${HELPSCOUT_API_BASE}/webhooks`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -191,7 +192,7 @@ export const helpScoutHandler: WebhookProviderHandler = {
       if (strict) throw new Error('Missing Help Scout token for webhook deletion')
       return
     }
-    const response = await fetch(`${HELPSCOUT_API_BASE}/webhooks/${externalId}`, {
+    const response = await outboundFetch(`${HELPSCOUT_API_BASE}/webhooks/${externalId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${accessToken}` },
       redirect: 'error',

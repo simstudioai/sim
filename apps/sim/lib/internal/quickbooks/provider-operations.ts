@@ -1,4 +1,5 @@
 import { filterUndefined } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   buildQuickBooksCreateBillPaymentBody,
   buildQuickBooksUpdateBillBody,
@@ -178,7 +179,7 @@ export async function executeQuickBooksCreateBillPaymentOperation(
   const paymentAccountId = params.paymentAccountId.trim()
   if (!paymentAccountId) throw new Error('paymentAccountId is required')
 
-  const accountResponse = await fetch(
+  const accountResponse = await outboundFetch(
     buildQuickBooksEntityUrl(params, 'account', paymentAccountId),
     {
       method: 'GET',
@@ -197,7 +198,7 @@ export async function executeQuickBooksCreateBillPaymentOperation(
   assertCompatiblePaymentAccount(account, params.paymentType, paymentAccountId)
   signal?.throwIfAborted()
 
-  const paymentResponse = await fetch(
+  const paymentResponse = await outboundFetch(
     addQuickBooksRequestId(buildQuickBooksEntityUrl(params, 'billpayment'), params.requestId),
     {
       method: 'POST',
@@ -273,7 +274,7 @@ export async function executeQuickBooksUpdateRefundReceiptOperation(
   params: QuickBooksUpdateRefundReceiptParams,
   signal?: AbortSignal
 ) {
-  const response = await fetch(buildQuickBooksEntityUrl(params, 'refundreceipt'), {
+  const response = await outboundFetch(buildQuickBooksEntityUrl(params, 'refundreceipt'), {
     method: 'POST',
     headers: getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: JSON.stringify(buildQuickBooksUpdateSalesDocumentBody(params)),
@@ -301,7 +302,7 @@ export async function executeQuickBooksUpdateCustomerPaymentOperation(
 
   const syncToken = params.syncToken?.trim()
   if (!syncToken) throw new Error('syncToken is required')
-  const readResponse = await fetch(buildQuickBooksEntityUrl(params, 'payment', paymentId), {
+  const readResponse = await outboundFetch(buildQuickBooksEntityUrl(params, 'payment', paymentId), {
     method: 'GET',
     headers: getQuickBooksToolHeaders(params.accessToken),
     signal,
@@ -335,7 +336,7 @@ export async function executeQuickBooksUpdateCustomerPaymentOperation(
     paymentId,
     syncToken
   )
-  const updateResponse = await fetch(buildQuickBooksEntityUrl(params, 'payment'), {
+  const updateResponse = await outboundFetch(buildQuickBooksEntityUrl(params, 'payment'), {
     method: 'POST',
     headers: getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: JSON.stringify(fullBody),

@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
@@ -196,7 +197,7 @@ export const formatRangeTool: ToolConfig<
         const basePath = getItemBasePath(spreadsheetId, driveId)
         const fillUrl = `${buildWorksheetRangeUrl(basePath, params.range, params.sheetName)}/format/fill`
         try {
-          const fillResp = await fetch(fillUrl, {
+          const fillResp = await outboundFetch(fillUrl, {
             method: 'PATCH',
             headers: excelHeaders(params),
             signal: context?.signal,

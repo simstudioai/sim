@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -56,7 +57,7 @@ async function cleanupPagerDutySubscription(
 ): Promise<void> {
   let id = subscriptionId
   if (!id) {
-    const listRes = await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions`, {
+    const listRes = await outboundFetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions`, {
       headers: pagerdutyHeaders(apiKey),
     }).catch(() => null)
     if (!listRes || !listRes.ok) return
@@ -66,7 +67,7 @@ async function cleanupPagerDutySubscription(
     id = body?.webhook_subscriptions?.find((sub) => sub.delivery_method?.url === url)?.id
   }
   if (!id) return
-  await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions/${id}`, {
+  await outboundFetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions/${id}`, {
     method: 'DELETE',
     headers: pagerdutyHeaders(apiKey),
   }).catch(() => null)
@@ -153,7 +154,7 @@ export const pagerdutyHandler: WebhookProviderHandler = {
     }
 
     const { getPagerDutyEvents } = await import('@/triggers/pagerduty/utils')
-    const res = await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions`, {
+    const res = await outboundFetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions`, {
       method: 'POST',
       headers: pagerdutyHeaders(apiKey),
       body: JSON.stringify({
@@ -213,7 +214,7 @@ export const pagerdutyHandler: WebhookProviderHandler = {
       return
     }
 
-    const res = await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions/${externalId}`, {
+    const res = await outboundFetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions/${externalId}`, {
       method: 'DELETE',
       headers: pagerdutyHeaders(apiKey),
     })

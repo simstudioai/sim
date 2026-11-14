@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import {
   readResponseJsonWithLimit,
@@ -19,7 +20,7 @@ export async function requestQuiverSvg(
   signal?: AbortSignal
 ): Promise<unknown> {
   signal?.throwIfAborted()
-  const response = await fetch(`${QUIVER_API_BASE_URL}/${path}`, {
+  const response = await outboundFetch(`${QUIVER_API_BASE_URL}/${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

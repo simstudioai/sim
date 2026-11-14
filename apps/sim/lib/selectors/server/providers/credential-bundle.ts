@@ -1,3 +1,4 @@
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { resolveOrganizationCredentialTokenBundle } from '@/lib/credentials/application/organization-credentials'
 import {
   resolveCredentialTokenBundle,
@@ -61,7 +62,7 @@ export async function resolveSelectorCredentialBundle(input: {
     )
     credential.signal?.throwIfAborted()
   } catch (error) {
-    if (credential.signal?.aborted) throw error
+    if (credential.signal?.aborted || isUnavailableFailure(error)) throw error
     throw new SelectorConnectionUnavailableError()
   }
   if (!bundle?.accessToken) throw new SelectorConnectionUnavailableError()

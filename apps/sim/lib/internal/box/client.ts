@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -46,7 +47,7 @@ export class BoxClient {
       new Blob([new Uint8Array(buffer)], { type: 'application/octet-stream' }),
       fileName
     )
-    const response = await fetch('https://upload.box.com/api/2.0/files/content', {
+    const response = await outboundFetch('https://upload.box.com/api/2.0/files/content', {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.accessToken}` },
       body: formData,

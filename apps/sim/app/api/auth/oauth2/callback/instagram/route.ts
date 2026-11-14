@@ -9,6 +9,7 @@ import { instagramCallbackContract } from '@/lib/api/contracts/oauth-connections
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -19,6 +20,7 @@ import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { resolveConnectDraftOutboundScope } from '@/lib/oauth/connect-scope.server'
 import { safeAccountInsert } from '@/lib/oauth/credential-service'
 import {
   parseInstagramLongLivedToken,
@@ -108,12 +110,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       code: authorizationCode,
     })
 
-    const shortLivedResponse = await fetch('https://api.instagram.com/oauth/access_token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: tokenForm.toString(),
-      signal: request.signal,
+    const inDraftScope = await resolveConnectDraftOutboundScope({
+      draftId,
+      userId: session.user.id,
+      providerId: 'instagram',
     })
+
+    const shortLivedResponse = await inDraftScope(() =>
+      outboundFetch('https://api.instagram.com/oauth/access_token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenForm.toString(),
+        signal: request.signal,
+      })
+    )
 
     if (!shortLivedResponse.ok) {
       const errorText = await readResponseTextWithLimit(shortLivedResponse, {
@@ -148,10 +158,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     exchangeUrl.searchParams.set('client_secret', clientSecret)
     exchangeUrl.searchParams.set('access_token', shortLived.access_token)
 
-    const longLivedResponse = await fetch(exchangeUrl.toString(), {
-      method: 'GET',
-      signal: request.signal,
-    })
+    const longLivedResponse = await inDraftScope(() =>
+      outboundFetch(exchangeUrl.toString(), { method: 'GET', signal: request.signal })
+    )
     if (!longLivedResponse.ok) {
       const errorText = await readResponseTextWithLimit(longLivedResponse, {
         maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -186,10 +195,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const profileUrl = new URL(`${INSTAGRAM_GRAPH_BASE}/me`)
     profileUrl.searchParams.set('fields', 'user_id,username,name,account_type,profile_picture_url')
-    const profileResponse = await fetch(profileUrl, {
-      headers: { Authorization: `Bearer ${longLivedToken}` },
-      signal: request.signal,
-    })
+    const profileResponse = await inDraftScope(() =>
+      outboundFetch(profileUrl, {
+        headers: { Authorization: `Bearer ${longLivedToken}` },
+        signal: request.signal,
+      })
+    )
 
     if (!profileResponse.ok) {
       const errorText = await readResponseTextWithLimit(profileResponse, {

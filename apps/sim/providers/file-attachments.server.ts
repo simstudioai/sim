@@ -2,6 +2,7 @@ import { FileState, GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { assertUserFileContentAccess } from '@/lib/execution/payloads/materialization.server'
 import { resolveExecutorFileMaterializationContext } from '@/lib/internal/file/materialization-context'
 import { StorageService } from '@/lib/uploads'
@@ -148,7 +149,10 @@ export async function uploadLargeFilesToProvider(
   if (groups.length === 0) return
 
   const maxBytes = getProviderAttachmentMaxBytes(providerId)
-  const ai = providerId === 'google' ? new GoogleGenAI({ apiKey: request.apiKey }) : null
+  const ai =
+    providerId === 'google'
+      ? new GoogleGenAI({ apiKey: request.apiKey, httpOptions: { fetch: outboundFetch } })
+      : null
 
   for (const group of groups) {
     const [representative] = group
@@ -250,7 +254,7 @@ async function uploadOpenAIFile(
   form.append('expires_after[seconds]', String(OPENAI_FILE_EXPIRY_SECONDS))
   form.append('file', blob, file.name)
 
-  const response = await fetch(OPENAI_FILES_ENDPOINT, {
+  const response = await outboundFetch(OPENAI_FILES_ENDPOINT, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}` },
     body: form,

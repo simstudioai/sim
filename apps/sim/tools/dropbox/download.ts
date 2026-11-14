@@ -1,4 +1,5 @@
 import { omit } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { httpHeaderSafeJson } from '@/lib/core/utils/validation'
 import type {
   DropboxDownloadParams,
@@ -28,14 +29,17 @@ async function transformDownloadResponse(response: Response, params?: DropboxDow
   let temporaryLink: string | undefined
   if (params?.accessToken) {
     try {
-      const linkResponse = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${params.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ path: params.path.trim() }),
-      })
+      const linkResponse = await outboundFetch(
+        'https://api.dropboxapi.com/2/files/get_temporary_link',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${params.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ path: params.path.trim() }),
+        }
+      )
       if (linkResponse.ok) {
         const linkData = await linkResponse.json()
         temporaryLink = linkData.link

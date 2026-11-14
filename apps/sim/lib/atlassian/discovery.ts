@@ -1,6 +1,7 @@
 import { sha256Hex } from '@sim/security/hash'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { LRUCache } from 'lru-cache'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   type HTTPError,
   isRetryableError,
@@ -158,7 +159,7 @@ export function fetchAtlassianDiscoveryJson<T>(
 ): Promise<T> {
   return retryWithExponentialBackoff(
     async () => {
-      const response = await fetch(url, {
+      const response = await outboundFetch(url, {
         method: 'GET',
         headers,
         signal: AbortSignal.timeout(DISCOVERY_REQUEST_TIMEOUT_MS),

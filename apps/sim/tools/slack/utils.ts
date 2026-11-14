@@ -1,6 +1,7 @@
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { parseRetryAfter } from '@sim/utils/retry'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type {
   SlackAgentSessionStatus,
   SlackCanvasFile,
@@ -258,7 +259,7 @@ export async function fetchSlackMessagesPaginated(
     let response: Response
     let attempt = 0
     while (true) {
-      response = await fetch(url.toString(), {
+      response = await outboundFetch(url.toString(), {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
         signal: opts.signal,

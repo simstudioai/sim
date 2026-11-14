@@ -19,12 +19,6 @@
     "TS2345": 2,
     "TS2554": 5
   },
-  "apps/sim/app/api/auth/oauth/token/route.test.ts": {
-    "TS2322": 1,
-    "TS2345": 1,
-    "TS2554": 11,
-    "TS2739": 2
-  },
   "apps/sim/app/api/auth/oauth2/authorize/route.test.ts": {
     "TS2345": 2
   },
@@ -1171,9 +1165,6 @@
   },
   "apps/sim/lib/credential-groups/slack-managed-users.test.ts": {
     "TS2339": 1
-  },
-  "apps/sim/lib/credential-groups/slack-provider.test.ts": {
-    "TS2741": 2
   },
   "apps/sim/lib/credential-groups/standard-oauth-provider.test.ts": {
     "TS2739": 1,

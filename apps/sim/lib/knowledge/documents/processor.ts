@@ -669,6 +669,7 @@ async function makeOCRRequest(
   const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
 
   try {
+    // egress-direct: Sim's own Azure OCR deployment, configured by the operator
     const response = await fetch(endpoint, {
       method: 'POST',
       headers,

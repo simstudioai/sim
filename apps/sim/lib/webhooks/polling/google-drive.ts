@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
@@ -9,11 +10,11 @@ import {
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
+  isUncountedPollFailure,
   markWebhookFailed,
   markWebhookSuccess,
-  PollAdmissionRefusedError,
   resolveOAuthCredential,
-  skipAdmissionRefusedPoll,
+  skipUncountedPollFailure,
   throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
@@ -167,9 +168,8 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError) {
-        return skipAdmissionRefusedPoll(logger, webhookId)
-      }
+      const skipped = skipUncountedPollFailure(error, logger, webhookId)
+      if (skipped) return skipped
       if (error instanceof Error && error.name === 'DrivePageTokenInvalidError') {
         await updateWebhookProviderConfig(webhookId, { pageToken: undefined }, logger)
         await markWebhookSuccess(webhookId, logger)
@@ -210,7 +210,7 @@ async function getStartPageToken(
   }
 
   const url = `${DRIVE_API_BASE}/changes/startPageToken?${params.toString()}`
-  const response = await fetch(url, {
+  const response = await outboundFetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
 
@@ -257,7 +257,7 @@ async function fetchChanges(
     }
 
     const url = `${DRIVE_API_BASE}/changes?${params.toString()}`
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
 
@@ -413,7 +413,7 @@ async function processChanges(
       )
       processedCount++
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
+      if (isUncountedPollFailure(error) && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(`Error processing change for file ${change.fileId}:`, errorMessage)
       failedCount++

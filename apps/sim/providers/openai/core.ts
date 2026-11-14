@@ -141,11 +141,11 @@ export interface ResponsesProviderConfig {
   headers: Record<string, string>
   logger: Logger
   /**
-   * Optional fetch implementation. Used to pin the connection to a pre-validated
-   * IP (DNS-rebinding/SSRF protection) when the endpoint is user-supplied.
-   * Defaults to the global fetch.
+   * Fetch implementation for the request, chosen by the caller: `outboundFetch` for a vendor
+   * called on the workspace's behalf, a pinned fetch for a user-supplied endpoint
+   * (DNS-rebinding/SSRF protection), or the global `fetch` for Sim's own deployment.
    */
-  fetch?: typeof fetch
+  fetch: typeof fetch
 }
 
 /**
@@ -156,7 +156,7 @@ export async function executeResponsesProviderRequest(
   config: ResponsesProviderConfig
 ): Promise<ProviderResponse | StreamingExecution> {
   const { logger } = config
-  const fetchImpl = config.fetch ?? fetch
+  const fetchImpl = config.fetch
 
   logger.info(`Preparing ${config.providerLabel} request`, {
     model: request.model,

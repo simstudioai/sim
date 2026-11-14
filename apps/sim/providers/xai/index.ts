@@ -4,6 +4,7 @@ import { isRecordLike } from '@sim/utils/object'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -91,6 +92,7 @@ export const xAIProvider: ProviderConfig = {
 
     const xai = new OpenAI({
       ...openAICompatTransport(),
+      fetch: outboundFetch,
       apiKey: request.apiKey,
       baseURL: 'https://api.x.ai/v1',
     })

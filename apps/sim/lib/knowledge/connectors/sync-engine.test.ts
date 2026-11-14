@@ -25,6 +25,8 @@ import {
 import { generateShortId } from '@sim/utils/id'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { EGRESS_UNAVAILABLE_MESSAGE } from '@/lib/core/orchestration/types'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import {
   routeWindowTallies,
@@ -32,8 +34,8 @@ import {
   windowTally,
 } from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
 import {
-  buildSyncDatabaseRetryUpdate,
   buildSyncFailureUpdate,
+  buildSyncTransientRetryUpdate,
   executeSync,
 } from '@/lib/knowledge/connectors/sync-engine'
 import {
@@ -820,6 +822,19 @@ describe('executeSync database failures', () => {
       expect.objectContaining({ status: 'failed', databaseFailureClass: 'capacity' })
     )
   })
+
+  it('does not disable a connector one failure from the breaker over an egress outage', async () => {
+    const { terminal, MAX_CONSECUTIVE_FAILURES } = await failSyncWith(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    expect(terminal).toMatchObject({
+      status: 'error',
+      lastSyncError: EGRESS_UNAVAILABLE_MESSAGE,
+      consecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+    })
+    expect((terminal?.nextSyncAt as Date).getTime()).toBeGreaterThan(NOW.getTime())
+  })
 })
 
 describe('previous complete listing evidence', () => {
@@ -1374,12 +1389,17 @@ describe('buildSyncCapacityUpdate', () => {
   })
 })
 
-describe('buildSyncDatabaseRetryUpdate', () => {
+describe('buildSyncTransientRetryUpdate', () => {
   const now = new Date('2026-08-20T00:00:00.000Z')
   const _minutesAfter = (mins: number) => now.getTime() + mins * 60 * 1000
 
   it('keeps the error visible without advancing the auto-disable counter', async () => {
-    const update = buildSyncDatabaseRetryUpdate(now, MAX_CONSECUTIVE_FAILURES - 1, 'db timeout', 40)
+    const update = buildSyncTransientRetryUpdate(
+      now,
+      MAX_CONSECUTIVE_FAILURES - 1,
+      'db timeout',
+      40
+    )
     expect(update).toMatchObject({
       status: 'error',
       lastSyncError: 'db timeout',
@@ -1393,7 +1413,7 @@ describe('buildSyncDatabaseRetryUpdate', () => {
   it('leaves a later source failure to be judged on source failures alone', async () => {
     let failures = 1
     for (let run = 0; run < 30; run++) {
-      failures = buildSyncDatabaseRetryUpdate(
+      failures = buildSyncTransientRetryUpdate(
         now,
         failures,
         'db timeout',

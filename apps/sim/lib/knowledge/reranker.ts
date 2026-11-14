@@ -5,6 +5,7 @@ import { getBYOKKey } from '@/lib/api-key/byok'
 import { getRotatingApiKey, hasRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   type ProviderIdentity,
   recordProviderCooldown,
@@ -177,7 +178,7 @@ export async function rerank<T extends RerankItem>(
         maxWaitMs: Math.max(0, deadlineAt - Date.now()),
       })
       attempt += 1
-      const res = await fetch('https://api.cohere.com/v2/rerank', {
+      const res = await outboundFetch('https://api.cohere.com/v2/rerank', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,

@@ -5,6 +5,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -217,7 +218,7 @@ export const linearHandler: WebhookProviderHandler = {
     }
 
     try {
-      const response = await fetch('https://api.linear.app/graphql', {
+      const response = await outboundFetch('https://api.linear.app/graphql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -298,7 +299,7 @@ export const linearHandler: WebhookProviderHandler = {
     }
 
     try {
-      const response = await fetch('https://api.linear.app/graphql', {
+      const response = await outboundFetch('https://api.linear.app/graphql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

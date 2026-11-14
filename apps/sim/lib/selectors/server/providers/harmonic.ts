@@ -1,5 +1,7 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
@@ -105,13 +107,13 @@ async function listSavedSearches(
 
   let response: Response
   try {
-    response = await fetch(HARMONIC_URL, {
+    response = await outboundFetch(HARMONIC_URL, {
       headers: { Accept: 'application/json', apikey: accessToken },
       redirect: 'error',
       signal,
     })
   } catch (error) {
-    if (args.signal?.aborted) throw error
+    if (args.signal?.aborted || isUnavailableFailure(error)) throw error
     throw new SelectorOptionsUnavailableError()
   }
   if (!response.ok) {

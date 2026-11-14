@@ -11,6 +11,8 @@ import { SignJWT } from 'jose'
 import { LRUCache } from 'lru-cache'
 import { z } from 'zod'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   MICROSOFT_CLOUD_IDS,
@@ -414,7 +416,7 @@ async function requestEntraToken(
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   let response: Response
   try {
-    response = await fetch(tokenEndpoint(config), {
+    response = await outboundFetch(tokenEndpoint(config), {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
       body,
@@ -422,8 +424,9 @@ async function requestEntraToken(
       redirect: 'error',
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     })
-  } catch {
+  } catch (error) {
     signal?.throwIfAborted()
+    if (isUnavailableFailure(error)) throw error
     throw new MicrosoftAppCredentialError('Could not reach Microsoft Entra. Try again.', 502)
   }
   const payload = (await response.json().catch(() => ({}))) as {
@@ -453,7 +456,7 @@ async function requestEntraToken(
 }
 
 async function getJson(url: string, token: string): Promise<{ status: number; body: unknown }> {
-  const response = await fetch(url, {
+  const response = await outboundFetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/json',
@@ -569,6 +572,7 @@ async function assertFederationPinsSubject(
       error.status !== undefined &&
       providerFailureCode(error.status) === 'invalid_credentials'
     if (refused) return
+    if (isUnavailableFailure(error)) throw error
     throw new MicrosoftAppCredentialError(
       'Sim could not confirm this app trusts only this credential. Try again.'
     )
@@ -660,7 +664,12 @@ export async function verifyAndEncryptMicrosoftAppCredential(
     config.authType === 'federated' ? assertFederationPinsSubject(config, owner) : undefined,
   ])
   if (verified.status === 'rejected') {
-    if (verified.reason instanceof MicrosoftAppCredentialError) throw verified.reason
+    if (
+      verified.reason instanceof MicrosoftAppCredentialError ||
+      isUnavailableFailure(verified.reason)
+    ) {
+      throw verified.reason
+    }
     throw new MicrosoftAppCredentialError(
       `Could not verify the Microsoft app credential: ${getErrorMessage(verified.reason, 'Unknown error')}`
     )

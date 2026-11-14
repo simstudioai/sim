@@ -1,4 +1,5 @@
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { ResendOperationError } from '@/lib/internal/resend/errors'
@@ -20,7 +21,7 @@ export async function sendResendEmail(
   signal?: AbortSignal
 ): Promise<Record<string, unknown>> {
   signal?.throwIfAborted()
-  const response = await fetch('https://api.resend.com/emails', {
+  const response = await outboundFetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,

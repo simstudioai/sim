@@ -153,6 +153,7 @@ export function toScimError(error: unknown): ScimError {
       case 'validation':
         return new ScimError(400, 'invalidValue', orchestration.message)
       case 'locked':
+      case 'unavailable':
         return new ScimError(503, undefined, orchestration.message, { 'Retry-After': '5' })
       default:
         return new ScimError(500, undefined, 'Internal server error')

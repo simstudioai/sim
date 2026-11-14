@@ -98,6 +98,7 @@ async function getLiveViewUrl(sessionId: string, signal?: AbortSignal): Promise<
   const browserbaseApiKey = getBrowserbaseApiKey()
   if (!browserbaseApiKey) return null
   try {
+    // egress-direct: Sim's own Browserbase project, like the Stagehand session itself
     const response = await fetch(`https://api.browserbase.com/v1/sessions/${sessionId}/debug`, {
       method: 'GET',
       headers: { 'X-BB-API-Key': browserbaseApiKey },

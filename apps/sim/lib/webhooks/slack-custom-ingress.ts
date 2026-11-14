@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { cancelWorkflowExecution } from '@/lib/execution/cancel-workflow-execution'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
 import { findWebhooksByRoutingKey, type WebhookDispatchResult } from '@/lib/webhooks/processor'
@@ -163,5 +164,7 @@ export async function handleSlackAgentSessionStopped(
   if (!credential) {
     throw new Error('Slack agent session stop credential is unavailable')
   }
-  await setSlackAgentSessionStatus(credential.botToken, target, 'active')
+  const { botToken, workspaceId } = credential
+  const restoreStatus = () => setSlackAgentSessionStatus(botToken, target, 'active')
+  await (workspaceId ? withResourceOutboundScope({ workspaceId }, restoreStatus) : restoreStatus())
 }

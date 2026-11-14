@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
@@ -56,7 +57,7 @@ export class JiraClient {
     signal?: AbortSignal
   ): Promise<JiraProviderResponse> {
     signal?.throwIfAborted()
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       ...init,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,

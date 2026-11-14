@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { TelegramOperationError } from '@/lib/internal/telegram/errors'
 import {
@@ -100,7 +101,7 @@ export async function sendTelegramDocument(
     form.append('parse_mode', 'HTML')
   }
 
-  const response = await fetch(
+  const response = await outboundFetch(
     `https://api.telegram.org/bot${encodeURIComponent(input.botToken)}/sendDocument`,
     { method: 'POST', body: form, signal: context.signal }
   )

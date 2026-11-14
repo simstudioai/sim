@@ -4,6 +4,7 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   getCredentialAccessToken,
   getNotificationUrl,
@@ -169,7 +170,7 @@ export const attioHandler: WebhookProviderHandler = {
         },
       }
 
-      const attioResponse = await fetch('https://api.attio.com/v2/webhooks', {
+      const attioResponse = await outboundFetch('https://api.attio.com/v2/webhooks', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -273,7 +274,7 @@ export const attioHandler: WebhookProviderHandler = {
         return
       }
 
-      const attioResponse = await fetch(`https://api.attio.com/v2/webhooks/${externalId}`, {
+      const attioResponse = await outboundFetch(`https://api.attio.com/v2/webhooks/${externalId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${accessToken}`,

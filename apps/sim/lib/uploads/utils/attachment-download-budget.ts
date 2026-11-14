@@ -1,3 +1,4 @@
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   assertKnownSizeWithinLimit,
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -63,8 +64,12 @@ export async function readAttachmentJson<T>(
   return JSON.parse(text) as T
 }
 
-/** Partial attachment failures may be skipped, but cancellation and byte limits must stop the call. */
+/**
+ * Partial attachment failures may be skipped, but cancellation, byte limits, and an outage of
+ * Sim's egress route must stop the call: an outage is not the attachment's fault, and skipping it
+ * would deliver the message as if it had none.
+ */
 export function rethrowAttachmentDownloadError(error: unknown, signal?: AbortSignal): void {
   signal?.throwIfAborted()
-  if (isPayloadSizeLimitError(error)) throw error
+  if (isPayloadSizeLimitError(error) || isUnavailableFailure(error)) throw error
 }

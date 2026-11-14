@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/knowledge/application/slack-search/authorization', () => ({
   requireSlackInstallationPrincipal: vi.fn(),
+  withSlackSearchOutboundScope: <T>(useCase: T) => useCase,
   authorizeSlackSearchInstallation: mocks.authorize,
   authorizeSlackSearchRedirect: mocks.redirect,
 }))

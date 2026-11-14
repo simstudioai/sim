@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { isRecordLike, toRecord, toRecordOrNull } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -220,7 +221,7 @@ async function fetchHostedContents(
   const results: ToolFileData[] = []
   try {
     budget.signal?.throwIfAborted()
-    const response = await fetch(path, {
+    const response = await outboundFetch(path, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: budget.signal,
     })
@@ -237,7 +238,7 @@ async function fetchHostedContents(
     for (const item of data.value ?? []) {
       if (!item.id) continue
       budget.signal?.throwIfAborted()
-      const content = await fetch(`${path}/${encodeURIComponent(item.id)}/$value`, {
+      const content = await outboundFetch(`${path}/${encodeURIComponent(item.id)}/$value`, {
         headers: { Authorization: `Bearer ${accessToken}` },
         signal: budget.signal,
       })
@@ -298,7 +299,7 @@ async function downloadReferenceAttachment(
     budget.signal?.throwIfAborted()
     const shareId = `u!${Buffer.from(attachment.contentUrl).toString('base64url')}`
     const path = `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem`
-    const metadataResponse = await fetch(`${path}?$select=name,size,file`, {
+    const metadataResponse = await outboundFetch(`${path}?$select=name,size,file`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: budget.signal,
     })
@@ -313,7 +314,7 @@ async function downloadReferenceAttachment(
       file?: { mimeType?: string }
     }>(metadataResponse, 'Teams attachment metadata', budget.signal)
     if (item.size !== undefined) budget.assertSize(item.size, 'Teams attachments')
-    const content = await fetch(`${path}/content`, {
+    const content = await outboundFetch(`${path}/content`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: budget.signal,
     })
@@ -371,7 +372,7 @@ function parseMentions(content: string): ParsedMention[] {
 }
 
 async function fetchChatMembers(chatId: string, accessToken: string): Promise<TeamMember[]> {
-  const response = await fetch(
+  const response = await outboundFetch(
     `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/members`,
     {
       headers: {
@@ -398,7 +399,7 @@ async function fetchChannelMembers(
   channelId: string,
   accessToken: string
 ): Promise<TeamMember[]> {
-  const response = await fetch(
+  const response = await outboundFetch(
     `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/members`,
     {
       headers: {

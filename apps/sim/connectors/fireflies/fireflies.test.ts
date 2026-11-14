@@ -1,8 +1,14 @@
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
+
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { firefliesConnector } from '@/connectors/fireflies/fireflies'
 
 beforeEach(() => {
   vi.useRealTimers()
+  networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
 })
 
 interface GraphQLCall {
@@ -154,6 +160,26 @@ describe('fireflies listDocuments', () => {
 
     expect(result.documents).toHaveLength(2)
     expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('fireflies outbound scope', () => {
+  it('refuses to call Fireflies outside a sync scope instead of leaving through the shared egress', async () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    networkConfigMockFns.mockResolveOutboundRoute.mockImplementationOnce(async (organizationId) => {
+      if (organizationId === undefined) throw new OutboundRoutingError('MISSING_SCOPE')
+      return { kind: 'direct' }
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const error = await firefliesConnector
+      .listDocuments('key', {}, undefined, {})
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(OutboundRoutingError)
+    expect(error).toMatchObject({ code: 'MISSING_SCOPE' })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import OpenAI from 'openai'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { StreamingExecution } from '@/executor/types'
 import { inheritConversationGenerationContext } from '@/providers/conversation-generation'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -38,6 +39,7 @@ export const ollamaCloudProvider: ProviderConfig = {
         createClient: () =>
           new OpenAI({
             ...openAICompatTransport(),
+            fetch: outboundFetch,
             apiKey,
             baseURL: OLLAMA_CLOUD_BASE_URL,
           }),

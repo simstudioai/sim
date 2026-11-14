@@ -1,6 +1,7 @@
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { parseRetryAfter } from '@sim/utils/retry'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { NotionReadParams, NotionResponse } from '@/tools/notion/types'
 import {
   NOTION_READ_MAX_BLOCK_PAGES,
@@ -41,7 +42,7 @@ async function fetchPageBlocks(
     if (cursor) url.searchParams.set('start_cursor', cursor)
 
     const request = () =>
-      fetch(url.toString(), {
+      outboundFetch(url.toString(), {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,

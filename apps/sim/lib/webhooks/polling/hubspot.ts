@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   getProviderConfig,
   type PollingProviderHandler,
@@ -8,11 +9,11 @@ import {
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
+  isUncountedPollFailure,
   markWebhookFailed,
   markWebhookSuccess,
-  PollAdmissionRefusedError,
   resolveOAuthCredential,
-  skipAdmissionRefusedPoll,
+  skipUncountedPollFailure,
   throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
@@ -209,9 +210,8 @@ export const hubspotPollingHandler: PollingProviderHandler = {
       }
       return await pollSearchBased(ctx, config, accessToken)
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError) {
-        return skipAdmissionRefusedPoll(logger, webhookId)
-      }
+      const skipped = skipUncountedPollFailure(error, logger, webhookId)
+      if (skipped) return skipped
       logger.error(`Error processing HubSpot webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
@@ -459,7 +459,7 @@ async function pollListMembership(
       )
       processedCount++
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
+      if (isUncountedPollFailure(error) && processedCount === 0) throw error
       failedCount++
       logger.error(
         `Error processing HubSpot list membership ${member.recordId}:`,
@@ -676,7 +676,7 @@ async function fetchHubSpotChanges(args: FetchArgs): Promise<HubSpotSearchResult
   }
 
   do {
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -839,7 +839,7 @@ async function processRecords(
           snapshot.values.set(record.id, propertyValue ?? null)
         }
       } catch (error) {
-        if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
+        if (isUncountedPollFailure(error) && processedCount === 0) throw error
         failedCount++
         cursorFrozen = true
         logger.error(
@@ -923,7 +923,9 @@ async function fetchListMembershipPages(
     const params = new URLSearchParams({ limit: String(HUBSPOT_PAGE_LIMIT) })
     if (after) params.set('after', after)
     const url = `https://api.hubapi.com/crm/v3/lists/${encodeURIComponent(listId)}/memberships/join-order?${params.toString()}`
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+    const response = await outboundFetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')

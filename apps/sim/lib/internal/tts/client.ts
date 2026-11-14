@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import {
   assertKnownSizeWithinLimit,
@@ -51,14 +52,14 @@ async function providerFetch(
   timeoutMs?: number
 ): Promise<Response> {
   signal?.throwIfAborted()
-  if (!timeoutMs) return fetch(input, { ...init, signal })
+  if (!timeoutMs) return outboundFetch(input, { ...init, signal })
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(new Error('TTS request timed out')), timeoutMs)
   const abort = () => controller.abort(signal?.reason ?? new Error('Request aborted'))
   signal?.addEventListener('abort', abort, { once: true })
   try {
-    return await fetch(input, { ...init, signal: controller.signal })
+    return await outboundFetch(input, { ...init, signal: controller.signal })
   } finally {
     clearTimeout(timeout)
     signal?.removeEventListener('abort', abort)

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { UptimeRobotOperationError } from '@/lib/internal/uptimerobot/errors'
@@ -24,7 +25,7 @@ export async function requestUptimeRobotPsp(args: {
 }): Promise<UptimeRobotPsp> {
   const { apiKey, method, path, form, signal } = args
   signal?.throwIfAborted()
-  const response = await fetch(`${UPTIMEROBOT_API_BASE}${path}`, {
+  const response = await outboundFetch(`${UPTIMEROBOT_API_BASE}${path}`, {
     method,
     headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
     body: form,

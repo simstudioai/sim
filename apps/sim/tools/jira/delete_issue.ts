@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraDeleteIssueParams, JiraDeleteIssueResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
@@ -72,7 +73,7 @@ export const jiraDeleteIssueTool: ToolConfig<JiraDeleteIssueParams, JiraDeleteIs
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
       const deleteSubtasksParam = params!.deleteSubtasks ? '?deleteSubtasks=true' : ''
       const deleteUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}${deleteSubtasksParam}`
-      const deleteResponse = await fetch(deleteUrl, {
+      const deleteResponse = await outboundFetch(deleteUrl, {
         method: 'DELETE',
         headers: {
           Accept: 'application/json',

@@ -39,6 +39,7 @@ import {
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import {
   asOrchestrationError,
+  isUnavailableFailure,
   messageForOrchestrationError,
   statusForOrchestrationError,
 } from '@/lib/core/orchestration/types'
@@ -61,6 +62,16 @@ export const internalSessionAuth = {
     return { kind: 'session', userId: session.user.id, sessionId }
   },
 } as const
+
+/** The session principal when the request is signed in; returns `null` instead of throwing when unauthenticated, so the route answers with its own response. */
+export async function authenticateOptionalInternalSession(): Promise<SessionPrincipal | null> {
+  try {
+    return await internalSessionAuth.authenticate()
+  } catch (error) {
+    if (error instanceof InternalUnauthenticatedError) return null
+    throw error
+  }
+}
 
 interface InternalSessionOrExecutorAuthOptions {
   audience: string
@@ -201,6 +212,19 @@ export function internalErrorResponse(
     throw new Error(`Internal error responses require a 4xx or 5xx status, received ${status}`)
   }
   return { body, status, headers }
+}
+
+/**
+ * Projects a failure through a route's error policy. An `unavailable` failure always answers
+ * through {@link internalOrchestrationErrorPolicy} first, so no route projector matching the
+ * domain error an outage is wrapped in can turn Sim's outage into a verdict on the caller.
+ */
+export function projectInternalError(
+  policy: InternalErrorPolicy,
+  error: unknown
+): JsonErrorResponseDescriptor | null {
+  if (isUnavailableFailure(error)) return internalOrchestrationErrorPolicy.project(error)
+  return policy.project(error)
 }
 
 export function extendInternalErrorPolicy(
@@ -381,7 +405,7 @@ export function defineInternalJsonRoute<
         try {
           await options.beforeParse({ request, principal, params: rawParams })
         } catch (error) {
-          const response = options.errorPolicy.project(error)
+          const response = projectInternalError(options.errorPolicy, error)
           if (response) return createJsonErrorResponse(response)
           throw error
         }
@@ -432,7 +456,7 @@ export function defineInternalJsonRoute<
           }
         )
       } catch (error) {
-        const response = options.errorPolicy.project(error)
+        const response = projectInternalError(options.errorPolicy, error)
         if (response) return createJsonErrorResponse(response)
         throw error
       }

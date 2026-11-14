@@ -1,11 +1,17 @@
 import { createHmac } from 'node:crypto'
-import { describe, expect, it } from 'vitest'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { queueTableRows } from '@sim/testing/mocks/database.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   handleSlackChallenge,
   resolveSlackEventKey,
   shouldSkipSlackTriggerEvent,
   slackHandler,
 } from '@/lib/webhooks/providers/slack'
+
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 const ctx = (body: unknown) => ({
   webhook: {},
@@ -143,6 +149,51 @@ describe('slackHandler formatInput - Events API', () => {
       })
     )
     expect(eventOf(directMessage.input).context).toEqual({ entities: [] })
+  })
+})
+
+describe('slackHandler formatInput - native app bot token', () => {
+  async function formatNativeAppEvent(event: Record<string, unknown>) {
+    const formatInput = slackHandler.formatInput
+    if (!formatInput) throw new Error('Slack handler has no formatInput')
+    return formatInput({
+      ...ctx({ event }),
+      webhook: { providerConfig: { credentialId: 'cred-1' } },
+      query: {},
+      method: 'POST',
+    })
+  }
+
+  function resolveCredentialOwner() {
+    authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({ accountId: 'acct-1' })
+    queueTableRows(schemaMock.account, [{ userId: 'owner-1' }])
+  }
+
+  it('still runs the event without a bot token when the egress route is down', async () => {
+    resolveCredentialOwner()
+    authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded.mockRejectedValueOnce(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    const { input } = await formatNativeAppEvent({
+      type: 'message',
+      channel: 'C1',
+      user: 'U1',
+      text: 'hi',
+    })
+
+    expect(eventOf(input)).toMatchObject({ event_type: 'message', channel: 'C1', text: 'hi' })
+  })
+
+  it('fails the event on a token error that is not an outage', async () => {
+    resolveCredentialOwner()
+    authOAuthUtilsMockFns.mockRefreshAccessTokenIfNeeded.mockRejectedValueOnce(
+      new Error('decrypt failed')
+    )
+
+    await expect(formatNativeAppEvent({ type: 'message', channel: 'C1' })).rejects.toThrow(
+      'decrypt failed'
+    )
   })
 })
 

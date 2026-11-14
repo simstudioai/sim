@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraRemoveWatcherParams, JiraRemoveWatcherResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
@@ -70,7 +71,7 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
       if (!params?.cloudId) {
         const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
         const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/watchers?accountId=${encodeURIComponent(params!.accountId?.trim() ?? '')}`
-        const watcherResponse = await fetch(watcherUrl, {
+        const watcherResponse = await outboundFetch(watcherUrl, {
           method: 'DELETE',
           headers: {
             Accept: 'application/json',

@@ -8,13 +8,17 @@ import {
   githubInstallationMock,
   githubInstallationMockFns,
 } from '@sim/testing/mocks/github-installation.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { resolveGitHubInstallationReadGrants } from '@/lib/knowledge/access/github-installation'
 import { MAX_KNOWLEDGE_ACCESS_CANDIDATES } from '@/lib/knowledge/access/types'
 
 vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 
 const mocks = {
   token: credentialsManagedOauthMockFns.mockResolveManagedOAuthToken,
@@ -190,6 +194,25 @@ describe('live GitHub installation reader access', () => {
     await expect(resolveGitHubInstallationReadGrants(input)).resolves.toEqual([grant])
     expect(mocks.installation).toHaveBeenCalledTimes(1)
     expect(mocks.token).toHaveBeenCalledTimes(1)
+  })
+
+  describe('with organization egress routing', () => {
+    beforeEach(() => networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true))
+    afterEach(() => {
+      networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
+      networkConfigMockFns.mockResolveOutboundRoute.mockResolvedValue({ kind: 'direct' })
+    })
+
+    it('fails the admission on an unavailable route instead of denying the source', async () => {
+      queueSources()
+      networkConfigMockFns.mockResolveOutboundRoute.mockRejectedValue(
+        new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+      )
+      await expect(
+        runWithOutboundOrganization('org-1', () => resolveGitHubInstallationReadGrants(input))
+      ).rejects.toBeInstanceOf(OutboundRoutingError)
+      expect(mocks.fetch).not.toHaveBeenCalled()
+    })
   })
 
   it('bounds one candidate batch without enumerating all organization sources', async () => {
