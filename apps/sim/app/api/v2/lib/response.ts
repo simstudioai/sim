@@ -1,4 +1,4 @@
-import { getRequestContext, setRequestError } from '@sim/logger'
+import { getRequestContext } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
 import {
@@ -22,6 +22,7 @@ import {
   type OrchestrationErrorCode,
 } from '@/lib/core/orchestration/types'
 import type { HttpError } from '@/lib/core/utils/http-error'
+import { describeResponseError } from '@/lib/core/utils/response-error'
 import type { RateLimitResult } from '@/app/api/v1/middleware'
 
 /**
@@ -211,14 +212,13 @@ export function v2Error(
     message,
   }
   if (options.details !== undefined) error.details = options.details
-  setRequestError({ code, reason: detailCode(options.details) })
   const requestId = getRequestContext()?.requestId
   if (requestId) error.requestId = requestId
   const status = options.status ?? V2_ERROR_STATUS_BY_CODE[code]
   const retryAfterSeconds = options.omitRetryAfter
     ? undefined
     : RETRY_AFTER_SECONDS_BY_STATUS[status]
-  return NextResponse.json(
+  const response = NextResponse.json(
     { error },
     {
       status,
@@ -230,6 +230,9 @@ export function v2Error(
       },
     }
   )
+  const reason = detailCode(options.details)
+  describeResponseError(response, { errorCode: code, ...(reason ? { errorReason: reason } : {}) })
+  return response
 }
 
 /** The cause a refusal names in `details.code`, a closed vocabulary safe to log. */
@@ -277,7 +280,13 @@ export function v2ValidationError(error: ZodError, slice?: RequestSlice): NextRe
   const response = v2Error('BAD_REQUEST', location ? `${location}: ${message}` : message, {
     details: serializeZodIssues(error),
   })
-  if (location) setRequestError({ code: 'BAD_REQUEST', field: location })
+  // Deeper segments can be record keys the caller wrote (an import's CSV headers); no slice is itself a record.
+  const field = [slice, path[0]].filter((part) => part !== undefined && part !== '').join('.')
+  describeResponseError(response, {
+    errorCode: 'BAD_REQUEST',
+    ...(field ? { errorField: field } : {}),
+    ...(error.issues[0] ? { errorReason: error.issues[0].code } : {}),
+  })
   return response
 }
 
