@@ -124,7 +124,7 @@ export const listBusinessPartnersTool: InternalToolConfig<
     data: {
       type: 'json',
       description:
-        'OData v2 envelope `{ d: { results: [...], __count?, __next? } }`. Properties listed below describe each element of `data.d.results`.',
+        'Array of A_BusinessPartner entities, or `{ results, __count?, __next? }` when pagination metadata is present (the integration unwraps the OData v2 `d` envelope). Properties below describe each item.',
       properties: {
         BusinessPartner: { type: 'string', description: 'Business partner key (up to 10 chars)' },
         BusinessPartnerFullName: {

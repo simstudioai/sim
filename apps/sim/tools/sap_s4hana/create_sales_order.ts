@@ -144,37 +144,32 @@ export const createSalesOrderTool: InternalToolConfig<CreateSalesOrderParams, Sa
     status: { type: 'number', description: 'HTTP status code returned by SAP (201 on create)' },
     data: {
       type: 'json',
-      description: 'OData v2 response envelope; created entity at output.data.d',
+      description:
+        'Created A_SalesOrder entity (the integration unwraps the OData v2 `d` envelope)',
       properties: {
-        d: {
+        SalesOrder: { type: 'string', description: 'Newly assigned sales order number' },
+        SalesOrderType: { type: 'string', description: 'Sales document type' },
+        SalesOrganization: { type: 'string', description: 'Sales organization' },
+        DistributionChannel: { type: 'string', description: 'Distribution channel' },
+        OrganizationDivision: { type: 'string', description: 'Division' },
+        SoldToParty: { type: 'string', description: 'Sold-to business partner' },
+        TotalNetAmount: { type: 'string', description: 'Total net amount' },
+        TransactionCurrency: { type: 'string', description: 'Document currency' },
+        CreationDate: { type: 'string', description: 'Creation date' },
+        OverallSDProcessStatus: {
+          type: 'string',
+          description: 'Overall sales document process status',
+          optional: true,
+        },
+        OverallTotalDeliveryStatus: {
+          type: 'string',
+          description: 'Overall total delivery status',
+          optional: true,
+        },
+        to_Item: {
           type: 'json',
-          description: 'Created A_SalesOrder entity',
-          properties: {
-            SalesOrder: { type: 'string', description: 'Newly assigned sales order number' },
-            SalesOrderType: { type: 'string', description: 'Sales document type' },
-            SalesOrganization: { type: 'string', description: 'Sales organization' },
-            DistributionChannel: { type: 'string', description: 'Distribution channel' },
-            OrganizationDivision: { type: 'string', description: 'Division' },
-            SoldToParty: { type: 'string', description: 'Sold-to business partner' },
-            TotalNetAmount: { type: 'string', description: 'Total net amount' },
-            TransactionCurrency: { type: 'string', description: 'Document currency' },
-            CreationDate: { type: 'string', description: 'Creation date' },
-            OverallSDProcessStatus: {
-              type: 'string',
-              description: 'Overall sales document process status',
-              optional: true,
-            },
-            OverallTotalDeliveryStatus: {
-              type: 'string',
-              description: 'Overall total delivery status',
-              optional: true,
-            },
-            to_Item: {
-              type: 'json',
-              description: 'Deep-inserted sales order items as returned by SAP',
-              optional: true,
-            },
-          },
+          description: 'Deep-inserted sales order items as returned by SAP',
+          optional: true,
         },
       },
     },
