@@ -86,12 +86,14 @@ export interface MondayGetItemsParams {
   boardId: string
   groupId?: string
   limit?: number
+  cursor?: string
 }
 
 export interface MondayGetItemsResponse extends ToolResponse {
   output: {
     items: MondayItem[]
     count: number
+    cursor: string | null
   }
 }
 

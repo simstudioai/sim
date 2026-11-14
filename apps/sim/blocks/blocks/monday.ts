@@ -472,9 +472,9 @@ export const MondayBlock: BlockConfig = {
       id: 'cursor',
       title: 'Cursor',
       type: 'short-input',
-      placeholder: 'Pagination cursor from previous search',
+      placeholder: 'Pagination cursor from previous response',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'search_items' },
+      condition: { field: 'operation', value: ['get_items', 'search_items'] },
     },
     ...getTrigger('monday_item_created').subBlocks,
     ...getTrigger('monday_column_changed').subBlocks,
@@ -535,6 +535,7 @@ export const MondayBlock: BlockConfig = {
               boardId: params.boardId,
               groupId: params.groupId || undefined,
               limit: params.limit ? Number(params.limit) : undefined,
+              cursor: params.cursor || undefined,
             }
           case 'search_items':
             return {
@@ -662,7 +663,7 @@ export const MondayBlock: BlockConfig = {
     groupColor: { type: 'string', description: 'Group color hex code' },
     limit: { type: 'number', description: 'Maximum number of results' },
     page: { type: 'number', description: 'Page number for pagination' },
-    cursor: { type: 'string', description: 'Pagination cursor for search' },
+    cursor: { type: 'string', description: 'Pagination cursor for get items or search' },
   },
   outputs: {
     boards: {
@@ -740,8 +741,8 @@ export const MondayBlock: BlockConfig = {
     },
     cursor: {
       type: 'string',
-      description: 'Pagination cursor for fetching the next page of search results',
-      condition: { field: 'operation', value: 'search_items' },
+      description: 'Pagination cursor for fetching the next page of items',
+      condition: { field: 'operation', value: ['get_items', 'search_items'] },
     },
   },
   triggers: {
