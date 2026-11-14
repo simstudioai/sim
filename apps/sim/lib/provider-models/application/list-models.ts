@@ -76,7 +76,7 @@ const MODEL_CATALOGS = {
   },
 } as const satisfies Record<string, ModelCatalogSource>
 
-export type ModelCatalogProvider = keyof typeof MODEL_CATALOGS
+type ModelCatalogProvider = keyof typeof MODEL_CATALOGS
 
 /**
  * Reads a provider's model catalog with `apiKey`. Every failure is logged and answers an empty
@@ -140,8 +140,8 @@ const listWorkspaceProviderModels = defineAuthorizedWorkspaceUseCase({
   },
 })
 
-/** A missing workspace or a caller outside it gets the platform catalog, never an error. */
-function isWorkspaceUnavailable(error: unknown): boolean {
+/** Whether the workspace is missing or the caller is outside it; either reads the platform catalog. */
+function isOutsideWorkspace(error: unknown): boolean {
   return (
     error instanceof OrchestrationError &&
     (error.code === 'not_found' || error.code === 'forbidden')
@@ -163,7 +163,7 @@ export async function listProviderModels(
         input: { provider, workspaceId },
       })
     } catch (error) {
-      if (!isWorkspaceUnavailable(error)) throw error
+      if (!isOutsideWorkspace(error)) throw error
     }
   }
   return fetchModelCatalog(

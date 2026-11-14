@@ -14,8 +14,8 @@ vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 vi.mock('@/lib/credential-groups/availability', () => ({ isCredentialGroupsAvailable: vi.fn() }))
 
 import {
-  buildMemberSyncDatabaseRetryUpdate,
   buildMemberSyncFailureUpdate,
+  buildMemberSyncTransientRetryUpdate,
   deriveMemberActive,
   type MemberSyncResult,
   memberFailureBackoffMs,
@@ -199,12 +199,12 @@ describe('member sync engine decisions', () => {
     })
   })
 
-  describe('buildMemberSyncDatabaseRetryUpdate', () => {
+  describe('buildMemberSyncTransientRetryUpdate', () => {
     const now = new Date('2026-09-01T12:00:00Z')
     const _minutesAfter = (mins: number) => now.getTime() + mins * 60 * 1000
 
     it('keeps the error visible without advancing the breaker', () => {
-      const update = buildMemberSyncDatabaseRetryUpdate(
+      const update = buildMemberSyncTransientRetryUpdate(
         now,
         MAX_CONSECUTIVE_FAILURES - 1,
         'db timeout',

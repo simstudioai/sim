@@ -6,7 +6,7 @@ import { toRecord } from '@sim/utils/object'
 import { and, eq, sql } from 'drizzle-orm'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -111,7 +111,7 @@ async function exchangeToken(
     })
   } catch (error) {
     signal?.throwIfAborted()
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     throw new ShopifyOAuthError('Shopify token response unavailable', 'shopify_token_error')
   }
   const data = await readShopifyResponse(response, requestSignal, signal)
@@ -269,7 +269,7 @@ export async function refreshShopifyInstallation(accountId: string): Promise<str
       try {
         chain = await exchangeToken(shopDomain, { refresh_token: stored.refreshToken })
       } catch (error) {
-        if (error instanceof OutboundRoutingError) throw error
+        if (isUnavailableFailure(error)) throw error
         if (error instanceof ShopifyOAuthError && isTerminalRefreshError(error.errorCode)) {
           await markCredentialDead(identity, error.errorCode ?? 'invalid_grant')
         }
@@ -282,7 +282,7 @@ export async function refreshShopifyInstallation(accountId: string): Promise<str
       return chain.accessToken
     })
   } catch (error) {
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     logger.warn('Shopify installation token refresh unavailable')
     return null
   }

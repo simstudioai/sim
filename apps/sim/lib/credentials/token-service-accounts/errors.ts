@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -209,8 +209,7 @@ export function isHostNotFound(error: unknown): boolean {
  * as raw undici errors — whose `cause` can carry connection details — and are
  * never blamed on the pasted token. DNS-resolution failures can optionally be
  * mapped to a different code via {@link FetchProviderOptions}. A blocked or unavailable
- * organization egress route is Sim's outage, not the provider's, so its
- * {@link OutboundRoutingError} propagates unchanged.
+ * organization egress route is Sim's outage, not the provider's, so it propagates unchanged.
  *
  * Redirects are refused (`redirect: 'error'`) unless `init` names another mode:
  * every caller sends a secret, and fetch replays custom headers and 307/308
@@ -229,7 +228,7 @@ export async function fetchProvider(
     return await outboundFetch(url, { ...init, redirect: init.redirect ?? 'error', signal })
   } catch (error) {
     init.signal?.throwIfAborted()
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     // Only ENOTFOUND proves the host doesn't exist; EAI_AGAIN is a transient
     // resolver failure and stays provider_unavailable.
     if (options?.dnsFailureCode && isHostNotFound(error)) {

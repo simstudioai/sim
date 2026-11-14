@@ -34,8 +34,8 @@ import {
   windowTally,
 } from '@/lib/knowledge/connectors/reconciliation-window.test-helpers'
 import {
-  buildSyncDatabaseRetryUpdate,
   buildSyncFailureUpdate,
+  buildSyncTransientRetryUpdate,
   executeSync,
 } from '@/lib/knowledge/connectors/sync-engine'
 import {
@@ -1389,12 +1389,17 @@ describe('buildSyncCapacityUpdate', () => {
   })
 })
 
-describe('buildSyncDatabaseRetryUpdate', () => {
+describe('buildSyncTransientRetryUpdate', () => {
   const now = new Date('2026-08-20T00:00:00.000Z')
   const _minutesAfter = (mins: number) => now.getTime() + mins * 60 * 1000
 
   it('keeps the error visible without advancing the auto-disable counter', async () => {
-    const update = buildSyncDatabaseRetryUpdate(now, MAX_CONSECUTIVE_FAILURES - 1, 'db timeout', 40)
+    const update = buildSyncTransientRetryUpdate(
+      now,
+      MAX_CONSECUTIVE_FAILURES - 1,
+      'db timeout',
+      40
+    )
     expect(update).toMatchObject({
       status: 'error',
       lastSyncError: 'db timeout',
@@ -1408,7 +1413,7 @@ describe('buildSyncDatabaseRetryUpdate', () => {
   it('leaves a later source failure to be judged on source failures alone', async () => {
     let failures = 1
     for (let run = 0; run < 30; run++) {
-      failures = buildSyncDatabaseRetryUpdate(
+      failures = buildSyncTransientRetryUpdate(
         now,
         failures,
         'db timeout',

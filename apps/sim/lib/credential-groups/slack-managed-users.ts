@@ -17,8 +17,7 @@ import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { isUnavailableFailure, OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -371,7 +370,7 @@ async function callSlackApi(method: string, accessToken: string, body?: URLSearc
       cache: 'no-store',
     })
   } catch (error) {
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     logger.error('Slack API verification failed', { method, error: getErrorMessage(error) })
     throw new SlackManagedUsersError('Slack could not verify the authorization.', 'provider_error')
   }
@@ -488,7 +487,7 @@ export async function exchangeSlackUserAuthorization(params: {
       cache: 'no-store',
     })
   } catch (error) {
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     logger.error('Slack OAuth exchange failed', { error: getErrorMessage(error) })
     throw new SlackManagedUsersError('Slack could not complete authorization.', 'provider_error')
   }

@@ -90,6 +90,7 @@ import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   connectorFailureBackoffMinutes,
+  EGRESS_RETRY_DELAY_MS,
   IMAGES_DEFERRED_NOTICE,
   MAX_CONSECUTIVE_FAILURES,
   MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES,
@@ -352,11 +353,11 @@ export function buildMemberSyncFailureUpdate(
 }
 
 /**
- * The connector row written after the database, not the source, failed a members-mode run. The
- * members-mode counterpart of `buildSyncDatabaseRetryUpdate`: the breaker keeps only the source
- * failures already counted, and the retry waits the delay `resolveDatabaseRetryDelayMs` chose.
+ * The connector row written after the database or the organization's egress route, not the source,
+ * failed a members-mode run. The members-mode counterpart of `buildSyncTransientRetryUpdate`: the
+ * breaker keeps only the source failures already counted, and the retry waits `retryDelayMs`.
  */
-export function buildMemberSyncDatabaseRetryUpdate(
+export function buildMemberSyncTransientRetryUpdate(
   now: Date,
   previousFailures: number | null | undefined,
   errorMessage: string,
@@ -411,7 +412,7 @@ export async function resolveMemberSyncFailureUpdate(
     }
   }
   if (getTransientDatabaseFailure(error)) {
-    return buildMemberSyncDatabaseRetryUpdate(
+    return buildMemberSyncTransientRetryUpdate(
       now,
       failure.previousFailures,
       failure.errorMessage,
@@ -425,11 +426,11 @@ export async function resolveMemberSyncFailureUpdate(
     )
   }
   if (isUnavailableFailure(error)) {
-    return buildMemberSyncDatabaseRetryUpdate(
+    return buildMemberSyncTransientRetryUpdate(
       now,
       failure.previousFailures,
       EGRESS_UNAVAILABLE_MESSAGE,
-      connectorFailureBackoffMinutes(1) * 60 * 1000
+      EGRESS_RETRY_DELAY_MS
     )
   }
   return buildMemberSyncFailureUpdate(

@@ -12,10 +12,12 @@ import { completeProjectFileUploadContract } from '@/lib/api/contracts/project-f
 import {
   defineInternalJsonRoute,
   InternalUnauthenticatedError,
+  internalErrorResponse,
   internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes/internal-json-route'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { EGRESS_UNAVAILABLE_MESSAGE, OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
 
 const mockGetRequestContext = vi.mocked(getRequestContext)
@@ -329,6 +331,51 @@ describe('defineInternalJsonRoute', () => {
 
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({ error: 'Internal server error' })
+  })
+})
+
+describe('internal error projection', () => {
+  class TestDomainError extends Error {}
+  const domainPolicy = {
+    project: (error: unknown) =>
+      error instanceof TestDomainError
+        ? internalErrorResponse(400, { error: error.message })
+        : null,
+  }
+  const routeThrowing = (error: Error) =>
+    defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Error projection regression' }),
+      errorPolicy: domainPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute(): Promise<{ value: string }> {
+          throw error
+        },
+      },
+    })
+
+  it('answers an egress outage wrapped in a domain error with 503, not the policy status', async () => {
+    const outage = new TestDomainError('Could not reach the provider', {
+      cause: new OutboundRoutingError('GATEWAY_UNAVAILABLE'),
+    })
+    const response = await routeThrowing(outage)(
+      new NextRequest('http://localhost/api/test/internal-json-route')
+    )
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({ error: EGRESS_UNAVAILABLE_MESSAGE })
+  })
+
+  it("keeps the policy's status for a domain error that is not an outage", async () => {
+    const response = await routeThrowing(new TestDomainError('Bad input'))(
+      new NextRequest('http://localhost/api/test/internal-json-route')
+    )
+
+    expect(response.status).toBe(400)
   })
 })
 

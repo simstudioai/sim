@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { BufferOperationError } from '@/lib/internal/buffer/errors'
 import { bufferCreatePostInputSchema, bufferEditPostInputSchema } from '@/lib/internal/buffer/input'
 import { createBufferPost, editBufferPost } from '@/lib/internal/buffer/operations'
@@ -34,7 +34,7 @@ export const executeBufferTool: InternalToolOperationHandler = async (request) =
     )
   } catch (error) {
     request.signal?.throwIfAborted()
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     if (error instanceof BufferOperationError) {
       return Response.json({ success: false, error: error.message }, { status: error.status })
     }

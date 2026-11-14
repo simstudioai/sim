@@ -9,13 +9,7 @@ import { isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('OllamaCloudModelsAPI')
 
-/**
- * Get available Ollama Cloud models.
- *
- * Ollama Cloud is BYOK-only — Sim never supplies a hosted key and never bills
- * usage. Models are listed only when the workspace has stored its own Ollama
- * API key, which is used to authenticate against the cloud `/api/tags` endpoint.
- */
+/** Get available Ollama Cloud models. */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   if (isProviderBlacklisted('ollama-cloud')) {
     logger.info('Ollama Cloud provider is blacklisted, returning empty models')

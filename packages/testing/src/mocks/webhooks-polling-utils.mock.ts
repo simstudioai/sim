@@ -44,6 +44,11 @@ class PollFetchError extends Error {
   }
 }
 
+/** Faithful copy of the production `isUncountedPollFailure`. */
+function isUncountedPollFailure(error: unknown): boolean {
+  return error instanceof PollAdmissionRefusedError || isSimOutage(error)
+}
+
 /**
  * Controllable mock functions for `@/lib/webhooks/polling/utils`.
  *
@@ -69,11 +74,9 @@ export const webhooksPollingUtilsMockFns = {
       }
     }
   ),
-  mockIsUncountedPollFailure: vi.fn(
-    (error: unknown): boolean => error instanceof PollAdmissionRefusedError || isSimOutage(error)
-  ),
+  mockIsUncountedPollFailure: vi.fn(isUncountedPollFailure),
   mockSkipUncountedPollFailure: vi.fn((error: unknown, ..._args: unknown[]): 'skipped' | null =>
-    error instanceof PollAdmissionRefusedError || isSimOutage(error) ? 'skipped' : null
+    isUncountedPollFailure(error) ? 'skipped' : null
   ),
   mockReadPollRetryAfterMs: vi.fn((_header: string | null, _body: string): number | null => null),
   mockClearPollBackoff: vi.fn((_providerConfig: unknown): Record<string, undefined> => ({})),

@@ -1,7 +1,7 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { z } from 'zod'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
@@ -113,7 +113,7 @@ async function listSavedSearches(
       signal,
     })
   } catch (error) {
-    if (args.signal?.aborted || error instanceof OutboundRoutingError) throw error
+    if (args.signal?.aborted || isUnavailableFailure(error)) throw error
     throw new SelectorOptionsUnavailableError()
   }
   if (!response.ok) {

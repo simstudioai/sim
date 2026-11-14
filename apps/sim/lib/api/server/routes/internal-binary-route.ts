@@ -11,6 +11,7 @@ import {
   InternalUnauthenticatedError,
   internalErrorResponse,
   type internalSessionAuth,
+  projectInternalError,
 } from '@/lib/api/server/routes/internal-json-route'
 import { responseWithRequestId, withRequestId } from '@/lib/api/server/routes/request-id'
 import type {
@@ -140,7 +141,7 @@ export function defineInternalBinaryRoute<
         }
         return new NextResponse(descriptor.body, { status: successStatus, headers })
       } catch (error) {
-        const response = options.errorPolicy.project(error)
+        const response = projectInternalError(options.errorPolicy, error)
         if (response) return createJsonErrorResponse(response)
         throw error
       }

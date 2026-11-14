@@ -1,8 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
-import { EGRESS_UNAVAILABLE_MESSAGE } from '@/lib/core/orchestration/types'
+import { EGRESS_UNAVAILABLE_MESSAGE, isUnavailableFailure } from '@/lib/core/orchestration/types'
 
 const THROTTLING_ERROR_NAMES = new Set(['Throttling', 'ThrottlingException'])
 
@@ -14,7 +13,7 @@ const THROTTLING_ERROR_NAMES = new Set(['Throttling', 'ThrottlingException'])
  * The SDK has already retried these.
  */
 export function isTransientAwsFailure(error: unknown): boolean {
-  if (error instanceof OutboundRoutingError) return true
+  if (isUnavailableFailure(error)) return true
   if (!isRecordLike(error)) return false
   const status = isRecordLike(error.$metadata) ? error.$metadata.httpStatusCode : undefined
   return (
@@ -32,6 +31,6 @@ export function isTransientAwsFailure(error: unknown): boolean {
  * An egress outage is Sim's, not the credential's, so it reads as that and never names its routing code.
  */
 export function awsCredentialFailureMessage(error: unknown): string {
-  if (error instanceof OutboundRoutingError) return EGRESS_UNAVAILABLE_MESSAGE
+  if (isUnavailableFailure(error)) return EGRESS_UNAVAILABLE_MESSAGE
   return `Could not use the AWS credential: ${getErrorMessage(error, 'Unknown error')}`
 }

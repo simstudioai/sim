@@ -739,14 +739,15 @@ export async function resolveCredentialAccessToken(
       return { ok: false, status: error.statusCode, code: error.code, error: error.message }
     }
 
-    const unavailable = unavailableFailure(error)
-    if (unavailable) return unavailable
     const orchestrationError = asOrchestrationError(error)
     if (orchestrationError) {
       return {
         ok: false,
         status: statusForOrchestrationError(orchestrationError.code),
-        code: 'MANAGED_CREDENTIAL_UNAUTHORIZED',
+        // An outage says nothing about the credential, so it carries no credential code.
+        ...(orchestrationError.code === 'unavailable'
+          ? {}
+          : { code: 'MANAGED_CREDENTIAL_UNAUTHORIZED' }),
         error: orchestrationError.message,
       }
     }

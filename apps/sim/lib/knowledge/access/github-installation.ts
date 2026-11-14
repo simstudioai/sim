@@ -10,8 +10,7 @@ import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { scopedOutboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
@@ -310,7 +309,7 @@ export async function resolveGitHubInstallationReadGrants(input: {
             repositoryId: source.repositoryId,
           })
       } catch (error) {
-        if (asOrchestrationError(error)?.code === 'unavailable') {
+        if (isUnavailableFailure(error)) {
           outage.abort(error)
           throw error
         }
@@ -320,8 +319,8 @@ export async function resolveGitHubInstallationReadGrants(input: {
       }
     }
   }
-  await withResourceOutboundScope(resourceScopeFields(input.scope), () =>
-    Promise.all(Array.from({ length: Math.min(GITHUB_READ_CONCURRENCY, sources.length) }, worker))
+  await Promise.all(
+    Array.from({ length: Math.min(GITHUB_READ_CONCURRENCY, sources.length) }, worker)
   )
   input.signal?.throwIfAborted()
   return [...grants.values()]

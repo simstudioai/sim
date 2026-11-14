@@ -14,14 +14,10 @@ import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWebhooksContract, upsertWebhookContract } from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
+import { unavailableFailureResponse } from '@/lib/api/server/orchestration-response'
 import { getSession } from '@/lib/auth'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { AuthType } from '@/lib/auth/hybrid'
-import {
-  EGRESS_UNAVAILABLE_MESSAGE,
-  isUnavailableFailure,
-  statusForOrchestrationError,
-} from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -574,12 +570,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           }
         }
       } catch (err) {
-        if (isUnavailableFailure(err)) {
+        const unavailable = unavailableFailureResponse(err)
+        if (unavailable) {
           logger.warn('External webhook subscription unavailable during an egress outage')
-          return NextResponse.json(
-            { error: EGRESS_UNAVAILABLE_MESSAGE },
-            { status: statusForOrchestrationError('unavailable') }
-          )
+          return unavailable
         }
         const isConfigurationError = err instanceof WebhookDeploymentConfigurationError
         if (isConfigurationError) {
@@ -758,12 +752,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             err
           )
           await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
-          if (isUnavailableFailure(err)) {
-            return NextResponse.json(
-              { error: EGRESS_UNAVAILABLE_MESSAGE },
-              { status: statusForOrchestrationError('unavailable') }
-            )
-          }
+          const unavailable = unavailableFailureResponse(err)
+          if (unavailable) return unavailable
           return NextResponse.json(
             {
               error: `Failed to configure ${provider} webhook`,

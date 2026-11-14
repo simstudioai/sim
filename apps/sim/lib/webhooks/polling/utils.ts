@@ -73,27 +73,23 @@ export function isUncountedPollFailure(error: unknown): boolean {
 }
 
 /**
- * Reports a poll stopped by a failure that is not the webhook's, so it never counts toward
- * `MAX_CONSECUTIVE_FAILURES`: an execution admission refusal ({@link PollAdmissionRefusedError})
- * or an outage of Sim's own egress route. Returns `null` for any other error, which the poller
- * records as a failure.
+ * Logs and skips an {@link isUncountedPollFailure}, so it never counts toward
+ * `MAX_CONSECUTIVE_FAILURES`; `null` for any other error, which the poller records as a failure.
  */
 export function skipUncountedPollFailure(
   error: unknown,
   logger: Logger,
   webhookId: string
 ): 'skipped' | null {
+  if (!isUncountedPollFailure(error)) return null
   if (error instanceof PollAdmissionRefusedError) {
     logger.info('Execution admission refused the webhook; left its items for a later poll', {
       webhookId,
     })
-    return 'skipped'
-  }
-  if (isUnavailableFailure(error)) {
+  } else {
     logger.warn('Egress route unavailable; left the webhook for a later poll', { webhookId })
-    return 'skipped'
   }
-  return null
+  return 'skipped'
 }
 
 /**

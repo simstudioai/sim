@@ -1,7 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage } from '@/lib/api/server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { mintAtlassianServiceAccountToken } from '@/lib/credentials/atlassian-client-credentials'
 import {
@@ -321,7 +321,7 @@ async function buildSlackCustomBotSecret(
     botUserId = auth.userId
     teamName = auth.teamName
   } catch (error) {
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     throw new ServiceAccountSecretError(
       `Could not verify the Slack bot token: ${getErrorMessage(error)}`
     )
@@ -404,7 +404,7 @@ function throwVerificationFailure(
   ProviderError: abstract new (...args: never[]) => Error,
   label: string
 ): never {
-  if (error instanceof KeylessCredentialRefusedError || error instanceof OutboundRoutingError) {
+  if (error instanceof KeylessCredentialRefusedError || isUnavailableFailure(error)) {
     throw error
   }
   if (error instanceof ProviderError) throw new ServiceAccountSecretError(error.message)

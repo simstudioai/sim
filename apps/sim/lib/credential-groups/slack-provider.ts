@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { credentialGroup } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq } from 'drizzle-orm'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { resourceScopeColumns, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -212,7 +212,7 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
         redirectUri: attempt.redirectUri,
       })
     } catch (error) {
-      if (error instanceof OutboundRoutingError) throw error
+      if (isUnavailableFailure(error)) throw error
       throw new CredentialGroupOAuthError(
         'Slack could not complete authorization. Please try again.',
         502
@@ -267,7 +267,7 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
       }
     } catch (error) {
       await revokeSlackToken(grant.accessToken)
-      if (error instanceof CredentialGroupOAuthError || error instanceof OutboundRoutingError) {
+      if (error instanceof CredentialGroupOAuthError || isUnavailableFailure(error)) {
         throw error
       }
       throw new CredentialGroupOAuthError('Slack could not verify the granted access.', 502)

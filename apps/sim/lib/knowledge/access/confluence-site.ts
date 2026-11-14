@@ -5,8 +5,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { normalizeAtlassianSiteUrl } from '@/lib/atlassian/discovery'
 import { scopedOutboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
@@ -92,11 +91,6 @@ async function readSiteBinding(key: string): Promise<SiteBinding> {
   )
     throw new Error('Confluence site binding is invalid')
   return { cloudId: value.cloudId, domain: value.domain }
-}
-
-/** An unavailable egress route is Sim's outage, so it fails the admission instead of denying a source. */
-function isUnavailable(error: unknown): boolean {
-  return asOrchestrationError(error)?.code === 'unavailable'
 }
 
 /** Space grants do not prove that the reader still has Confluence's site-level Can use permission. */
@@ -324,7 +318,7 @@ export async function resolveConfluenceSiteReadGrants(input: {
       } catch (error) {
         const unavailable =
           error instanceof AggregateError
-            ? error.errors.find((attemptError) => isUnavailable(attemptError))
+            ? error.errors.find((attemptError) => isUnavailableFailure(attemptError))
             : undefined
         if (unavailable) {
           outage.abort(unavailable)
@@ -352,17 +346,15 @@ export async function resolveConfluenceSiteReadGrants(input: {
       }
     }
   }
-  await withResourceOutboundScope(resourceScopeFields(input.scope), () =>
-    Promise.all(
-      Array.from(
-        {
-          length: Math.min(
-            proofCount,
-            CONFLUENCE_READ_CONCURRENCY / CONFLUENCE_READ_ALTERNATIVE_CONCURRENCY
-          ),
-        },
-        worker
-      )
+  await Promise.all(
+    Array.from(
+      {
+        length: Math.min(
+          proofCount,
+          CONFLUENCE_READ_CONCURRENCY / CONFLUENCE_READ_ALTERNATIVE_CONCURRENCY
+        ),
+      },
+      worker
     )
   )
   input.signal?.throwIfAborted()

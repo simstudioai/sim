@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { validateSalesforceInstanceUrl } from '@/lib/core/security/input-validation'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { isSalesforceLoginOrigin, SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
@@ -42,7 +42,7 @@ export async function fetchSalesforceInstanceUrl(
         return origin.sanitized
     }
   } catch (error) {
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     logger.warn('Could not resolve Salesforce account destination', { providerId })
   }
   return undefined

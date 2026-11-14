@@ -10,7 +10,7 @@ import { credential } from '@sim/db/schema'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { organizationAwsRequestHandler } from '@/lib/core/network/organization-aws-handler.server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { failureClause, parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
 import {
@@ -282,7 +282,7 @@ function verificationFailure(config: AwsCredentialConfig, error: unknown): Error
   // A keyless refusal already names its cause and code; wrapping it would lose both.
   if (error instanceof KeylessCredentialRefusedError) return error
   // A refused or unavailable egress route says nothing about the credential.
-  if (error instanceof OutboundRoutingError) return error
+  if (error instanceof Error && isUnavailableFailure(error)) return error
   const detail = failureClause(error)
   if (config.authType === 'oidc_role') {
     return new AwsCredentialError(
@@ -385,7 +385,7 @@ async function assertRolePinsSubject(
   } catch (error) {
     if (error instanceof Error && error.name === 'AccessDenied') return
     if (error instanceof KeylessCredentialRefusedError) throw error
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     throw new AwsCredentialError(
       `Sim could not confirm the role's trust policy limits it to this credential: ${failureClause(error)}. Try again.`
     )

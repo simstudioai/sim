@@ -10,6 +10,7 @@ import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { env } from '@/lib/core/config/env'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { waitWithAbort } from '@/lib/core/utils/concurrency'
 import { mintAtlassianServiceAccountToken } from '@/lib/credentials/atlassian-client-credentials'
@@ -837,7 +838,7 @@ async function resolveMintedServiceAccountToken(
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') throw error
       // Sim's egress route is down: nothing is known about the credential, so nothing is recorded.
-      if (error instanceof OutboundRoutingError) throw error
+      if (isUnavailableFailure(error)) throw error
       if (sharedToken && !isCoordinatedReplay(error)) {
         clientCredentialMintFailureCache.delete(cacheIdentity)
         throw error

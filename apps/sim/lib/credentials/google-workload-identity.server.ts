@@ -4,7 +4,7 @@ import { LRUCache } from 'lru-cache'
 import { z } from 'zod'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   GOOGLE_DELEGATION_SERVICE_NAMES,
@@ -284,7 +284,7 @@ async function postJson(
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
   } catch (error) {
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     throw new GoogleWorkloadIdentityError('Could not reach Google Cloud. Try again.')
   }
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>
@@ -306,7 +306,7 @@ async function getStatus(url: string, bearer: string): Promise<number | undefine
     void response.body?.cancel().catch(() => undefined)
     return response.status
   } catch (error) {
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     return undefined
   }
 }
@@ -550,7 +550,7 @@ async function exchangeDelegationAssertion(
   try {
     response = await exchangeGoogleServiceAccountJwt(OAUTH_TOKEN_URL, assertion)
   } catch (error) {
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     throw new GoogleWorkloadIdentityError('Could not reach Google. Try again.')
   }
   const payload = parsePayload(response.body)
@@ -650,7 +650,7 @@ async function assertSubjectPinned(
       await step()
     } catch (error) {
       if (isRefusal(error)) return true
-      if (error instanceof OutboundRoutingError) throw error
+      if (isUnavailableFailure(error)) throw error
       throw unconfirmed()
     }
     return false
@@ -825,7 +825,7 @@ export async function verifyAndEncryptGoogleWorkloadIdentityCredential(
   if (verified.status === 'rejected') {
     if (
       verified.reason instanceof GoogleWorkloadIdentityError ||
-      verified.reason instanceof OutboundRoutingError
+      isUnavailableFailure(verified.reason)
     ) {
       throw verified.reason
     }

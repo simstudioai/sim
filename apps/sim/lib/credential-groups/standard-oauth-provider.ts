@@ -12,7 +12,7 @@ import {
   type ManagedOAuthConnectorConfig,
 } from '@/lib/auth/connectors/managed-oauth'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { credentialGroupOAuthNonceMatches } from '@/lib/credential-groups/oauth-state'
 import type {
@@ -317,7 +317,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
         })
       } catch (error) {
         // An egress outage is classified once, by asOrchestrationError, not as a provider failure.
-        if (error instanceof OutboundRoutingError) throw error
+        if (isUnavailableFailure(error)) throw error
         throw new CredentialGroupOAuthError(
           `${service.name} could not complete authorization. Please try again.`,
           502
@@ -336,7 +336,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
           clientId: current.connector.clientId,
         })
       } catch (error) {
-        if (error instanceof OutboundRoutingError) throw error
+        if (isUnavailableFailure(error)) throw error
         throw new CredentialGroupOAuthError(
           `${service.name} returned an invalid identity token.`,
           502,

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import type { FirefliesUploadAudioInput } from '@/lib/internal/fireflies/schema'
@@ -119,7 +119,7 @@ export async function executeFirefliesUploadAudio(
     })
     return Response.json(data, { status: response.status })
   } catch (error) {
-    if (context.signal?.aborted || error instanceof OutboundRoutingError) throw error
+    if (context.signal?.aborted || isUnavailableFailure(error)) throw error
     logger.error('Fireflies upload failed', {
       requestId: context.requestId,
       error: getErrorMessage(error, 'Unknown error'),

@@ -6,6 +6,7 @@ import {
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   CONFLUENCE_READ_CREDENTIAL_ALTERNATIVES,
@@ -100,20 +101,14 @@ describe('current Confluence site access', () => {
       networkConfigMockFns.mockResolveOutboundRoute.mockResolvedValue({ kind: 'direct' })
     })
 
-    it("reaches Confluence from the knowledge base owner's route when the caller set none", async () => {
-      queueSources()
-      await expect(resolveConfluenceSiteReadGrants(input)).resolves.toEqual([grant])
-      expect(networkConfigMockFns.mockResolveOutboundRoute).toHaveBeenCalledWith('org-1')
-    })
-
     it('fails the admission on an unavailable route instead of denying the site', async () => {
       queueSources()
       networkConfigMockFns.mockResolveOutboundRoute.mockRejectedValue(
         new OutboundRoutingError('GATEWAY_UNAVAILABLE')
       )
-      await expect(resolveConfluenceSiteReadGrants(input)).rejects.toBeInstanceOf(
-        OutboundRoutingError
-      )
+      await expect(
+        runWithOutboundOrganization('org-1', () => resolveConfluenceSiteReadGrants(input))
+      ).rejects.toBeInstanceOf(OutboundRoutingError)
       expect(mocks.fetch).not.toHaveBeenCalled()
     })
   })

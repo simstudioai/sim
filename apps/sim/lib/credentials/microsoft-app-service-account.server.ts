@@ -12,7 +12,7 @@ import { LRUCache } from 'lru-cache'
 import { z } from 'zod'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
   MICROSOFT_CLOUD_IDS,
@@ -426,7 +426,7 @@ async function requestEntraToken(
     })
   } catch (error) {
     signal?.throwIfAborted()
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     throw new MicrosoftAppCredentialError('Could not reach Microsoft Entra. Try again.', 502)
   }
   const payload = (await response.json().catch(() => ({}))) as {
@@ -572,7 +572,7 @@ async function assertFederationPinsSubject(
       error.status !== undefined &&
       providerFailureCode(error.status) === 'invalid_credentials'
     if (refused) return
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     throw new MicrosoftAppCredentialError(
       'Sim could not confirm this app trusts only this credential. Try again.'
     )
@@ -666,7 +666,7 @@ export async function verifyAndEncryptMicrosoftAppCredential(
   if (verified.status === 'rejected') {
     if (
       verified.reason instanceof MicrosoftAppCredentialError ||
-      verified.reason instanceof OutboundRoutingError
+      isUnavailableFailure(verified.reason)
     ) {
       throw verified.reason
     }

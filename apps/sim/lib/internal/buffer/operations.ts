@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
-import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   secureFetchWithPinnedIP,
@@ -173,7 +173,7 @@ async function executePostMutation(args: {
     result = toRecord(candidate)
   } catch (error) {
     context.signal?.throwIfAborted()
-    if (error instanceof OutboundRoutingError) throw error
+    if (isUnavailableFailure(error)) throw error
     const message = getErrorMessage(error, 'Buffer API request failed')
     logger.error('Buffer post mutation failed', { requestId: context.requestId, error: message })
     throw new BufferOperationError(message, 502)

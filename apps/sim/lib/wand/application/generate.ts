@@ -469,23 +469,15 @@ async function executeWandGeneration<I extends GenerateWandInput>({
   const { workspaceId } = context
   const { prompt, history, generationType, wandContext, requestId } = input
 
-  /** Wand is an interactive action attributed to the authenticated human. */
-  const billingAttribution = await resolveBillingAttribution({
-    actorUserId: principal.userId,
-    workspaceId,
-  })
+  const [billingAttribution, byokResult] = await Promise.all([
+    // Wand is an interactive action attributed to the authenticated human.
+    resolveBillingAttribution({ actorUserId: principal.userId, workspaceId }),
+    useWandAzure ? null : getBYOKKey(workspaceId, 'openai'),
+  ])
 
-  let isBYOK = false
-  let activeOpenAIKey = openaiApiKey
-
-  if (!useWandAzure) {
-    const byokResult = await getBYOKKey(workspaceId, 'openai')
-    if (byokResult) {
-      isBYOK = true
-      activeOpenAIKey = byokResult.apiKey
-      logger.info('Using BYOK OpenAI key for wand generation')
-    }
-  }
+  const isBYOK = Boolean(byokResult)
+  const activeOpenAIKey = byokResult?.apiKey ?? openaiApiKey
+  if (byokResult) logger.info('Using BYOK OpenAI key for wand generation')
 
   if (!useWandAzure && !activeOpenAIKey) {
     logger.error('AI client not initialized. Missing API key.')

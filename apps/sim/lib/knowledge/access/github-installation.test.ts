@@ -10,6 +10,7 @@ import {
 } from '@sim/testing/mocks/github-installation.mock'
 import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { resolveGitHubInstallationReadGrants } from '@/lib/knowledge/access/github-installation'
 import { MAX_KNOWLEDGE_ACCESS_CANDIDATES } from '@/lib/knowledge/access/types'
@@ -202,23 +203,14 @@ describe('live GitHub installation reader access', () => {
       networkConfigMockFns.mockResolveOutboundRoute.mockResolvedValue({ kind: 'direct' })
     })
 
-    it("reaches GitHub from the knowledge base owner's route when the caller set none", async () => {
-      queueSources()
-      await expect(resolveGitHubInstallationReadGrants(input)).resolves.toEqual([grant])
-      expect(networkConfigMockFns.mockResolveOutboundRoute.mock.calls).toEqual([
-        ['org-1'],
-        ['org-1'],
-      ])
-    })
-
     it('fails the admission on an unavailable route instead of denying the source', async () => {
       queueSources()
       networkConfigMockFns.mockResolveOutboundRoute.mockRejectedValue(
         new OutboundRoutingError('GATEWAY_UNAVAILABLE')
       )
-      await expect(resolveGitHubInstallationReadGrants(input)).rejects.toBeInstanceOf(
-        OutboundRoutingError
-      )
+      await expect(
+        runWithOutboundOrganization('org-1', () => resolveGitHubInstallationReadGrants(input))
+      ).rejects.toBeInstanceOf(OutboundRoutingError)
       expect(mocks.fetch).not.toHaveBeenCalled()
     })
   })
