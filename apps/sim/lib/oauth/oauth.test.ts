@@ -36,6 +36,7 @@ beforeAll(() => {
 afterAll(resetEnvMock)
 
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
 import { getPerRequestOAuthLinkScopes, OAUTH_PROVIDERS } from '@/lib/oauth'
 import { refreshOAuthToken } from '@/lib/oauth/refresh.server'
@@ -508,6 +509,13 @@ describe('OAuth Token Refresh', () => {
           'OAuth client zoho-desk is partially configured — missing ZOHO_CLIENT_SECRET. Run npx sim-setup add integration zoho-desk.',
       })
       expect(mockFetch).not.toHaveBeenCalled()
+    })
+    it('throws an unavailable egress route instead of reporting a failed refresh', async () => {
+      const mockFetch = vi.fn().mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+      await expect(
+        withMockFetch(mockFetch, () => refreshOAuthToken('google', 'test_refresh_token'))
+      ).rejects.toBeInstanceOf(OutboundRoutingError)
     })
     it('should return failure with errorCode for HTTP error responses', async () => {
       const mockFetch = vi.fn().mockResolvedValue({

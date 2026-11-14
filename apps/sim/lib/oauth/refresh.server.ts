@@ -7,6 +7,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { redactExactSensitiveValues } from '@/lib/core/security/redaction'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -855,7 +856,9 @@ async function refreshInstagramLongLivedToken(
 /**
  * Exchanges a stored refresh token at its provider's token endpoint. The request
  * leaves through the current outbound scope, so an organization with a dedicated
- * egress gateway refreshes from its own static IPs.
+ * egress gateway refreshes from its own static IPs. An unavailable egress route
+ * throws its `OutboundRoutingError` rather than reporting a failed refresh, so it
+ * is never read as the provider rejecting the token.
  */
 export async function refreshOAuthToken(
   providerId: string,
@@ -1058,6 +1061,7 @@ export async function refreshOAuthToken(
       ...(refreshTokenExpiresIn ? { refreshTokenExpiresIn } : {}),
     }
   } catch (error) {
+    if (error instanceof OutboundRoutingError) throw error
     const normalized = toError(error)
     const message =
       normalized.name === 'PayloadSizeLimitError' || normalized.message.startsWith('OAuth client ')

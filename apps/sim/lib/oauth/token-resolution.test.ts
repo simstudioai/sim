@@ -36,6 +36,7 @@ vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
 vi.unmock('@/lib/oauth/utils')
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
@@ -169,6 +170,28 @@ describe('resolveCredentialToken', () => {
     expect(result).toEqual({ ok: false, status: 401, error: 'Failed to refresh access token' })
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(auditMockFns.mockRecordAuditRollup).not.toHaveBeenCalled()
+  })
+
+  it('reports an unavailable egress route as 503, not a failed credential', async () => {
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+    })
+    mockGetCredential.mockResolvedValue({ providerId: 'google' })
+    mockRefreshTokenIfNeeded.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    const result = await resolveCredentialToken(INTERNAL_AUTH, {
+      requestId: 'req-1',
+      resolvedCredential: null,
+      credentialId: 'cred-1',
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 503,
+      error: "The organization's egress route is unavailable",
+    })
   })
 
   it('authorizes service-account credentials before minting a token', async () => {

@@ -159,6 +159,10 @@ import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/ver
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { formatApolloAuthorizationUrl } from '@/lib/oauth/apollo'
+import {
+  resolveConnectDraftOutboundScope,
+  withConnectDraftOutboundScope,
+} from '@/lib/oauth/connect-scope.server'
 import { clearRecordedRevocation } from '@/lib/oauth/credential-service'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -508,9 +512,14 @@ export const auth = betterAuth({
           }
 
           if (account.accessToken && isSalesforceOAuthProviderId(account.providerId)) {
-            const instanceUrl = await fetchSalesforceInstanceUrl(
-              account.providerId,
-              account.accessToken
+            const { accessToken } = account
+            const inDraftScope = await resolveConnectDraftOutboundScope({
+              draftId: reconnectDraftId,
+              userId: account.userId,
+              providerId: account.providerId,
+            })
+            const instanceUrl = await inDraftScope(() =>
+              fetchSalesforceInstanceUrl(account.providerId, accessToken)
             )
             if (instanceUrl) {
               modifiedAccount.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
@@ -1476,7 +1485,7 @@ export const auth = betterAuth({
       overrideDefaultEmailVerification: true,
     }),
     genericOAuth({
-      config: buildConnectorProviders(),
+      config: buildConnectorProviders().map(withConnectDraftOutboundScope),
     }),
     /**
      * Sim as an OAuth 2.0 authorization server (auth-code + PKCE, refresh

@@ -9,6 +9,7 @@ import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { env } from '@/lib/core/config/env'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { waitWithAbort } from '@/lib/core/utils/concurrency'
 import { mintAtlassianServiceAccountToken } from '@/lib/credentials/atlassian-client-credentials'
@@ -1261,6 +1262,7 @@ function isRevocationReprobeDue(chain: RevocableChain | null | undefined): boole
 type RefreshOutcome =
   | { kind: 'token'; accessToken: string }
   | { kind: 'revoked'; errorCode: string }
+  | { kind: 'egress_unavailable'; error: OutboundRoutingError }
 
 function tokenOutcome(accessToken: string | null): RefreshOutcome | null {
   return accessToken ? { kind: 'token', accessToken } : null
@@ -1851,6 +1853,7 @@ async function performCoalescedRefresh({
             logger.info('Successfully refreshed access token', logContext)
             return { kind: 'token', accessToken: result.accessToken }
           } catch (error) {
+            if (error instanceof OutboundRoutingError) return { kind: 'egress_unavailable', error }
             logger.error('Refresh failed inside leader path', {
               ...logContext,
               ...(privacyMode === 'selector' ? {} : { error: toError(error).message }),
@@ -2136,6 +2139,7 @@ export async function refreshTokenIfNeeded(
       refreshed: result.refreshed,
     }
   }
+  if (result.outcome?.kind === 'egress_unavailable') throw result.outcome.error
   if (result.outcome?.kind === 'revoked') {
     throw new CredentialRevokedError(
       `The ${credential.providerId} credential was revoked by the provider (${result.outcome.errorCode}). Reconnect it to continue.`,

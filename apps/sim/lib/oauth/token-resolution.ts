@@ -8,6 +8,7 @@ import {
 } from '@/lib/api/contracts/oauth-connections'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { type AuthResult, AuthType } from '@/lib/auth/hybrid'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
 import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
@@ -40,6 +41,16 @@ import type { OAuthConfig } from '@/tools/types'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
 const logger = createLogger('OAuthTokenResolution')
+
+/**
+ * The organization's egress gateway is down or refuses the route: an outage on Sim's side,
+ * never a sign the credential is bad, so the caller is told to retry rather than reconnect.
+ */
+const EGRESS_ROUTE_UNAVAILABLE: Extract<ResolveCredentialTokenResult, { ok: false }> = {
+  ok: false,
+  status: 503,
+  error: "The organization's egress route is unavailable",
+}
 
 /**
  * Duck type of the inbound request, used only so audit rows record IP and user agent.
@@ -272,6 +283,10 @@ export async function completeOAuthCredentialToken(params: {
       })
       return { ok: false, status: 401, code: OAUTH_CREDENTIAL_REVOKED, error: error.message }
     }
+    if (error instanceof OutboundRoutingError) {
+      logger.warn('Egress route unavailable for token refresh', { requestId, code: error.code })
+      return EGRESS_ROUTE_UNAVAILABLE
+    }
     logger.error('Failed to refresh access token:', error, { requestId })
     return { ok: false, status: 401, error: 'Failed to refresh access token' }
   }
@@ -444,6 +459,13 @@ export async function resolveCredentialToken(
           },
         }
       } catch (error) {
+        if (error instanceof OutboundRoutingError) {
+          logger.warn('Egress route unavailable for service account token', {
+            requestId,
+            code: error.code,
+          })
+          return EGRESS_ROUTE_UNAVAILABLE
+        }
         logger.error('Service account token error:', error, { requestId })
         if (error instanceof TokenServiceAccountValidationError) {
           // Classified provider outages are infra failures, not bad credentials.
