@@ -24,6 +24,7 @@ export class OpenRouterEmbeddingModelNotFoundError extends Error {
 export async function fetchOpenRouterEmbeddingModelCatalog(
   signal?: AbortSignal
 ): Promise<OpenRouterEmbeddingModelMetadata[]> {
+  // egress-direct: public model catalog, read without a workspace
   const response = await fetch(OPENROUTER_EMBEDDING_MODELS_URL, {
     headers: { 'Content-Type': 'application/json' },
     next: { revalidate: 300 },

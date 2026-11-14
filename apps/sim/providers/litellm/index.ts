@@ -81,6 +81,7 @@ export const litellmProvider: ProviderConfig = {
         headers.Authorization = `Bearer ${env.LITELLM_API_KEY}`
       }
 
+      // egress-direct: operator's own LiteLLM proxy named by the deployment
       const response = await fetch(`${baseUrl}/v1/models`, { headers })
       if (!response.ok) {
         await response.text().catch(() => {})

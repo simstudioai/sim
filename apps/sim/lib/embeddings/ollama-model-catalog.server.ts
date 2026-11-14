@@ -70,6 +70,7 @@ export class OllamaEmbeddingWidthUnknownError extends Error {
 }
 
 async function fetchOllamaJson(path: string, init: RequestInit, signal?: AbortSignal) {
+  // egress-direct: operator-local Ollama server named by the deployment
   const response = await fetch(`${getOllamaUrl().replace(/\/+$/, '')}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     signal,
