@@ -60,6 +60,19 @@ async function runInOAuthCallbackDraftScope<T>(
 }
 
 /**
+ * Whether routing is on, read once while the auth config is built. A routing configuration that
+ * fails to load counts as on, so the connector stays wrapped and the bad configuration surfaces
+ * on its first request like every other routed call, rather than failing the auth module's load.
+ */
+function routingConfiguredAtStartup(): boolean {
+  try {
+    return isOutboundRoutingEnabled()
+  } catch {
+    return true
+  }
+}
+
+/**
  * Wraps a generic OAuth connector's code exchange and identity lookup so their vendor calls
  * leave through the connecting organization's egress gateway. A connector without its own
  * `getToken` gets Better Auth's exchange sent through `outboundFetch`, since the plugin's
@@ -68,7 +81,7 @@ async function runInOAuthCallbackDraftScope<T>(
  * A deployment without outbound routing keeps the connector exactly as configured.
  */
 export function withConnectDraftOutboundScope(config: GenericOAuthConfig): GenericOAuthConfig {
-  if (!isOutboundRoutingEnabled()) return config
+  if (!routingConfiguredAtStartup()) return config
   const { providerId, getUserInfo } = config
   const getToken = config.getToken ?? createOutboundCodeExchange(config)
   return {
