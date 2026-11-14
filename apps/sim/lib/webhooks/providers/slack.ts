@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { NextResponse } from 'next/server'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -963,8 +964,18 @@ export const slackHandler: WebhookProviderHandler = {
           .where(eq(account.id, resolved.accountId))
           .limit(1)
         if (owner?.userId) {
-          botToken =
-            (await refreshAccessTokenIfNeeded(credentialId, owner.userId, requestId)) ?? undefined
+          try {
+            botToken =
+              (await refreshAccessTokenIfNeeded(credentialId, owner.userId, requestId)) ?? undefined
+          } catch (error) {
+            // An egress outage degrades the event (no reaction text or file downloads) rather
+            // than failing it, matching a missing token.
+            if (!isUnavailableFailure(error)) throw error
+            logger.warn('Slack bot token unavailable during an egress outage', {
+              credentialId,
+              requestId,
+            })
+          }
         }
       }
     }

@@ -50,6 +50,8 @@ vi.mock('@/lib/webhooks/utils.server', () => ({
   findConflictingWebhookPathOwner: mocks.findConflictingWebhookPathOwner,
 }))
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { EGRESS_UNAVAILABLE_MESSAGE, OrchestrationError } from '@/lib/core/orchestration/types'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/webhooks/route'
 
@@ -618,4 +620,35 @@ describe('POST /api/webhooks subscription replacement recovery', () => {
       if (!priorCleanupFails) expect(recoveredConfig.externalId).toBe(retainedConfig.externalId)
     }
   )
+})
+
+describe('POST /api/webhooks egress outage', () => {
+  beforeEach(setupUpsertMocks)
+
+  it('reports an outage while creating the external subscription as unavailable', async () => {
+    queueCreatePathRows()
+    mocks.createExternalWebhookSubscription.mockRejectedValue(
+      new OrchestrationError('unavailable', EGRESS_UNAVAILABLE_MESSAGE)
+    )
+
+    const response = await POST(upsertRequest(), {})
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: EGRESS_UNAVAILABLE_MESSAGE })
+  })
+
+  it('reports an outage while configuring polling as unavailable', async () => {
+    queueCreatePathRows()
+    dbChainMockFns.returning.mockImplementationOnce(async () => [
+      { id: 'webhook-1', workflowId: 'workflow-1', path: 'inbound-orders', isActive: true },
+    ])
+    mocks.activateExternalWebhookSubscription.mockResolvedValue(undefined)
+    mocks.configurePolling.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+    mocks.getProviderHandler.mockReturnValue({ configurePolling: mocks.configurePolling })
+
+    const response = await POST(upsertRequest(), {})
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: EGRESS_UNAVAILABLE_MESSAGE })
+  })
 })

@@ -4,6 +4,8 @@ import { knowledgeDocumentsServiceMock } from '@sim/testing/mocks/knowledge-docu
 import { knowledgeMemberAccessMock } from '@sim/testing/mocks/knowledge-member-access.mock'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { EGRESS_UNAVAILABLE_MESSAGE } from '@/lib/core/orchestration/types'
 
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
@@ -269,6 +271,19 @@ describe('member sync engine decisions', () => {
       const update = await resolveMemberSyncFailureUpdate(timeout, failure)
       expect(update).toMatchObject({
         memberSyncStatus: 'error',
+        memberSyncConsecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+      })
+      expect(update.nextMemberSyncAt).not.toBeNull()
+    })
+
+    it('does not disable a connector one failure from the breaker over an egress outage', async () => {
+      const update = await resolveMemberSyncFailureUpdate(
+        new Error('listing failed', { cause: new OutboundRoutingError('GATEWAY_UNAVAILABLE') }),
+        failure
+      )
+      expect(update).toMatchObject({
+        memberSyncStatus: 'error',
+        lastMemberSyncError: EGRESS_UNAVAILABLE_MESSAGE,
         memberSyncConsecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
       })
       expect(update.nextMemberSyncAt).not.toBeNull()

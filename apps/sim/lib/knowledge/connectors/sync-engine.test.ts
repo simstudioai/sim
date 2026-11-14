@@ -25,6 +25,8 @@ import {
 import { generateShortId } from '@sim/utils/id'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { EGRESS_UNAVAILABLE_MESSAGE } from '@/lib/core/orchestration/types'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import {
   routeWindowTallies,
@@ -819,6 +821,19 @@ describe('executeSync database failures', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'failed', databaseFailureClass: 'capacity' })
     )
+  })
+
+  it('does not disable a connector one failure from the breaker over an egress outage', async () => {
+    const { terminal, MAX_CONSECUTIVE_FAILURES } = await failSyncWith(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    expect(terminal).toMatchObject({
+      status: 'error',
+      lastSyncError: EGRESS_UNAVAILABLE_MESSAGE,
+      consecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+    })
+    expect((terminal?.nextSyncAt as Date).getTime()).toBeGreaterThan(NOW.getTime())
   })
 })
 

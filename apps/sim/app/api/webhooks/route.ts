@@ -17,6 +17,11 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { AuthType } from '@/lib/auth/hybrid'
+import {
+  EGRESS_UNAVAILABLE_MESSAGE,
+  isUnavailableFailure,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -569,6 +574,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           }
         }
       } catch (err) {
+        if (isUnavailableFailure(err)) {
+          logger.warn('External webhook subscription unavailable during an egress outage')
+          return NextResponse.json(
+            { error: EGRESS_UNAVAILABLE_MESSAGE },
+            { status: statusForOrchestrationError('unavailable') }
+          )
+        }
         const isConfigurationError = err instanceof WebhookDeploymentConfigurationError
         if (isConfigurationError) {
           logger.warn('Rejected webhook trigger configuration', {
@@ -746,6 +758,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             err
           )
           await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
+          if (isUnavailableFailure(err)) {
+            return NextResponse.json(
+              { error: EGRESS_UNAVAILABLE_MESSAGE },
+              { status: statusForOrchestrationError('unavailable') }
+            )
+          }
           return NextResponse.json(
             {
               error: `Failed to configure ${provider} webhook`,

@@ -3,6 +3,7 @@ import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import type {
   FormatInputContext,
@@ -108,6 +109,7 @@ export const outlookHandler: WebhookProviderHandler = {
       })
       return true
     } catch (error: unknown) {
+      if (isUnavailableFailure(error)) throw error
       const err = error as Error
       logger.error('Failed to configure Outlook polling', {
         requestId,

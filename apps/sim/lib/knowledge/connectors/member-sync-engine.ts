@@ -28,6 +28,7 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/attribution'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { EGRESS_UNAVAILABLE_MESSAGE, isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import {
@@ -382,8 +383,8 @@ export function memberRunMadeProgress(result: MemberSyncResult): boolean {
 
 /**
  * The connector row a failed members-mode run writes. A deterministic capacity rejection waits for
- * an operator, a transient database failure retries without touching the breaker, and anything
- * else climbs the ladder toward auto-disable.
+ * an operator, a transient database failure or an organization egress outage retries without
+ * touching the breaker, and anything else climbs the ladder toward auto-disable.
  */
 export async function resolveMemberSyncFailureUpdate(
   error: unknown,
@@ -421,6 +422,14 @@ export async function resolveMemberSyncFailureUpdate(
         previousFailures: failure.previousFailures,
         madeProgress: failure.madeProgress,
       })
+    )
+  }
+  if (isUnavailableFailure(error)) {
+    return buildMemberSyncDatabaseRetryUpdate(
+      now,
+      failure.previousFailures,
+      EGRESS_UNAVAILABLE_MESSAGE,
+      connectorFailureBackoffMinutes(1) * 60 * 1000
     )
   }
   return buildMemberSyncFailureUpdate(

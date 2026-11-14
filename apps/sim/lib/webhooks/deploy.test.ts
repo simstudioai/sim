@@ -67,6 +67,7 @@ vi.mock('@/lib/webhooks/quickbooks-credentials', () => ({
   getQuickBooksWebhookClientConfigByCredentialId: mockGetQuickBooksWebhookCredential,
 }))
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   buildProviderConfig,
   cleanupInactiveDeploymentWebhooks,
@@ -779,5 +780,11 @@ describe('prepareStableTriggerWebhooksForDeploy failure status', () => {
   it('stays retryable when any candidate failed transiently', async () => {
     const result = await prepare(new AggregateError([rejected, new Error('HTTP 503')]))
     expect(result.error?.status).toBe(500)
+  })
+
+  it('reports an egress outage as unavailable', async () => {
+    const outage = new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    const result = await prepare(new AggregateError([rejected, outage]))
+    expect(result.error?.status).toBe(503)
   })
 })

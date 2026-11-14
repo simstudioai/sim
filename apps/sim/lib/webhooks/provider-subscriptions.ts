@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { omit, toRecord } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { isSensitiveKey } from '@/lib/core/security/redaction'
 import {
   resolveBackgroundWebhookEnv,
@@ -19,12 +20,17 @@ import { OPAQUE_RESOLVED_SECRET_REPLACEMENT } from '@/executor/utils/resolved-se
 
 const logger = createLogger('WebhookProviderSubscriptions')
 
-/** Resolving credentials must not make a provider's exception a durable plaintext export. */
+/**
+ * Resolving credentials must not make a provider's exception a durable plaintext export. An egress
+ * outage keeps its `unavailable` classification (with fixed text) so callers can report it as such.
+ */
 function projectProviderFailure(
   error: unknown,
   secrets: ReadonlyMap<string, string>,
   providerConfig: Record<string, unknown>
 ): Error {
+  const classified = asOrchestrationError(error)
+  if (classified?.code === 'unavailable') return classified
   let message = 'Webhook provider request failed'
   try {
     const matches = [...secrets].map(([name, plaintext]) => ({

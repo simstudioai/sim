@@ -20,6 +20,7 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/attribution'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { EGRESS_UNAVAILABLE_MESSAGE, isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   type ResourceScope,
   resourceScopeFields,
@@ -1645,19 +1646,26 @@ export async function executeSync(
                     madeProgress: result.docsAdded + result.docsUpdated + result.docsDeleted > 0,
                   })
                 )
-              : rateLimited
-                ? buildSyncRateLimitUpdate(
+              : isUnavailableFailure(error)
+                ? buildSyncDatabaseRetryUpdate(
                     new Date(),
                     connector.consecutiveFailures,
-                    errorMessage,
-                    retryAfterMs
+                    EGRESS_UNAVAILABLE_MESSAGE,
+                    connectorFailureBackoffMinutes(1) * 60 * 1000
                   )
-                : buildSyncFailureUpdate(
-                    new Date(),
-                    connector.consecutiveFailures,
-                    errorMessage,
-                    retryAfterMs
-                  )
+                : rateLimited
+                  ? buildSyncRateLimitUpdate(
+                      new Date(),
+                      connector.consecutiveFailures,
+                      errorMessage,
+                      retryAfterMs
+                    )
+                  : buildSyncFailureUpdate(
+                      new Date(),
+                      connector.consecutiveFailures,
+                      errorMessage,
+                      retryAfterMs
+                    )
 
         if (failureUpdate.status === 'disabled') {
           logger.warn('Connector disabled after repeated failures', {

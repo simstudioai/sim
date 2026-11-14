@@ -7,6 +7,7 @@ import { omit, toRecord } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
+import { isUnavailableFailure, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import {
   getSlackBotCredential,
@@ -772,6 +773,7 @@ async function configurePollingIfNeeded(
  */
 function webhookConfigFailureStatus(error: unknown): number {
   const failures = error instanceof AggregateError ? error.errors : [error]
+  if (failures.some(isUnavailableFailure)) return statusForOrchestrationError('unavailable')
   const permanent =
     failures.length > 0 &&
     failures.every((failure) => failure instanceof WebhookDeploymentConfigurationError)
@@ -1012,7 +1014,9 @@ export async function saveTriggerWebhooksForDeploy({
             success: false,
             error: {
               message: getErrorMessage(error, 'Failed to activate webhook subscription'),
-              status: 500,
+              status: isUnavailableFailure(error)
+                ? statusForOrchestrationError('unavailable')
+                : 500,
             },
           }
         }
@@ -1302,7 +1306,7 @@ export async function saveTriggerWebhooksForDeploy({
           (cleanupFailure as Error)?.message ||
           (error as Error)?.message ||
           'Failed to save webhook records',
-        status: 500,
+        status: isUnavailableFailure(error) ? statusForOrchestrationError('unavailable') : 500,
       },
     }
   }
