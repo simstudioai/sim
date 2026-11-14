@@ -1,4 +1,9 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { describe, expect, it, vi } from 'vitest'
+import {
+  withSearchDiagnostics,
+  withSearchProviderDiagnostics,
+} from '@/lib/knowledge/search/diagnostics'
 import { readGitHub, searchGitHub } from '@/lib/sim-search/live/github'
 import { searchCalendar, searchDrive } from '@/lib/sim-search/live/google'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
@@ -514,6 +519,47 @@ describe('Slack channels', () => {
     expect(api.json.mock.calls[1]?.[1]?.body).toMatchObject({
       query: name,
       content_types: ['channels'],
+    })
+  })
+
+  it('counts what each channel lookup concluded on the Slack provider summary', async () => {
+    const api = client()
+    const filtered = (modifiers: string) =>
+      searchSlack(api, {
+        ...input,
+        query: '',
+        scopes,
+        filters: { startDate: '2026-10-30T00:00:00Z' },
+        native: { provider: 'slack', query: '', modifiers },
+      })
+    api.json
+      .mockResolvedValueOnce(rts([channel('C1', 'launch-team'), channel('C2', 'launch-ops')]))
+      .mockResolvedValueOnce(rts([]))
+      .mockResolvedValueOnce(rts([channel('C1', 'launch-team')]))
+      .mockResolvedValueOnce(rts([]))
+      .mockResolvedValueOnce(rts([]))
+      .mockResolvedValueOnce(rts([]))
+      .mockResolvedValueOnce({ ...rts([]), response_metadata: { next_cursor: 'more' } })
+      .mockResolvedValueOnce(rts([]))
+      .mockRejectedValueOnce(new Error('lookup failed'))
+    await withSearchDiagnostics({ surface: 'mcp' }, () =>
+      withSearchProviderDiagnostics({ provider: 'slack', accountIndex: 0 }, async () => {
+        await searchSlack(api, { ...input, scopes, native: { provider: 'slack', query: 'launch' } })
+        await filtered('in:#launch-team')
+        await filtered('in:#launch-tem')
+        await filtered('in:#launch')
+        await filtered('in:#launch-crew')
+      })
+    )
+    const summary = getMockLogger('KnowledgeSearchDiagnostics').info.mock.calls.find(
+      ([message]) => message === 'Live search provider completed'
+    )?.[1]
+    expect(summary?.signals).toEqual({
+      'slack.channels_listed': 2,
+      'slack.channel_filter_exists': 1,
+      'slack.channel_filter_missing': 1,
+      'slack.channel_filter_unresolved': 1,
+      'slack.channel_lookup_failed': 1,
     })
   })
 
