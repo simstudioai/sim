@@ -447,22 +447,21 @@ async function proveToolbarTracking(page: Page) {
     await expect
       .poll(async () => (await popup.boundingBox())?.width ?? 0)
       .toBeGreaterThan(header.width + 20)
-    await expect
-      .poll(async () => {
-        const caret = await page.evaluate(() => {
-          const selection = getSelection()
-          if (!selection?.rangeCount) return null
-          const rect = selection.getRangeAt(0).getBoundingClientRect()
-          return (rect.left + rect.right) / 2
-        })
-        const bounds = await popup.boundingBox()
-        return caret === null || !bounds
-          ? Number.POSITIVE_INFINITY
-          : Math.abs(bounds.x + bounds.width / 2 - caret)
+    const distanceFromSelection = () =>
+      popup.evaluate((element) => {
+        const selection = getSelection()
+        if (!selection?.rangeCount) return Number.POSITIVE_INFINITY
+        const rect = selection.getRangeAt(0).getBoundingClientRect()
+        const bounds = element.getBoundingClientRect()
+        return Math.abs((bounds.left + bounds.right - rect.left - rect.right) / 2)
       })
-      .toBeLessThan(4)
-    const before = await popup.boundingBox()
-    assert(before)
+    await expect
+      .poll(distanceFromSelection, { message: 'Toolbar follows selection after controls resize' })
+      .toBeLessThan(2)
+    await page.setViewportSize({ width: 1400, height: 1000 })
+    await expect
+      .poll(distanceFromSelection, { message: 'Toolbar follows selection after viewport resize' })
+      .toBeLessThan(2)
     const movement = await table.evaluate((element) => {
       const wrapper = element.parentElement
       if (!wrapper) throw new Error('Missing table viewport')
@@ -472,19 +471,13 @@ async function proveToolbarTracking(page: Page) {
     })
     assert(movement.delta > 32, 'The table did not move with its toolbar open')
     await expect
-      .poll(async () =>
-        Math.abs(
-          ((await popup.boundingBox())?.x ?? Number.POSITIVE_INFINITY) - before.x + movement.delta
-        )
-      )
+      .poll(distanceFromSelection, { message: 'Toolbar follows selection after scrolling forward' })
       .toBeLessThan(2)
     await table.evaluate((element, left) => {
       if (element.parentElement) element.parentElement.scrollLeft = left
     }, movement.from)
     await expect
-      .poll(async () =>
-        Math.abs(((await popup.boundingBox())?.x ?? Number.POSITIVE_INFINITY) - before.x)
-      )
+      .poll(distanceFromSelection, { message: 'Toolbar follows selection after scrolling back' })
       .toBeLessThan(2)
     await page.screenshot({ path: resolve(artifactDir, `toolbar-tracking-${checks.length}.png`) })
     await page
