@@ -13,19 +13,21 @@ import {
 } from '@sim/testing'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
 import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetCredentialOwner, mockLoadWorkspaceApplicationContext } = vi.hoisted(() => ({
+const { mockGetCredentialOwner } = vi.hoisted(() => ({
   mockGetCredentialOwner: vi.fn(),
-  mockLoadWorkspaceApplicationContext: vi.fn(),
 }))
+const { mockLoadWorkspaceApplicationContext } = workspaceContextMockFns
 
 vi.mock('@/lib/auth/internal', () => authInternalMock)
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
-vi.mock('@/lib/workspaces/application/context', () => ({
-  loadWorkspaceApplicationContext: mockLoadWorkspaceApplicationContext,
-}))
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
   getCredentialOwner: mockGetCredentialOwner,
   getNotificationUrl: vi.fn(() => 'https://sim.test/api/webhooks/trigger/hook-1'),
@@ -90,7 +92,6 @@ describe('Teams subscription renewal route (fire-and-forget)', () => {
     })
 
     afterEach(() => {
-      vi.unstubAllGlobals()
       networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
     })
 

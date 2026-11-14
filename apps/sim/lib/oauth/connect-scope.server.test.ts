@@ -1,18 +1,20 @@
 import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetActiveConnectDraft, mockLoadWorkspaceApplicationContext } = vi.hoisted(() => ({
+const { mockGetActiveConnectDraft } = vi.hoisted(() => ({
   mockGetActiveConnectDraft: vi.fn(),
-  mockLoadWorkspaceApplicationContext: vi.fn(),
 }))
+const { mockLoadWorkspaceApplicationContext } = workspaceContextMockFns
 
 vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 vi.mock('@/lib/credentials/connect-draft', () => ({
   getActiveConnectDraft: mockGetActiveConnectDraft,
 }))
-vi.mock('@/lib/workspaces/application/context', () => ({
-  loadWorkspaceApplicationContext: mockLoadWorkspaceApplicationContext,
-}))
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import { resolveConnectDraftOutboundScope } from '@/lib/oauth/connect-scope.server'
