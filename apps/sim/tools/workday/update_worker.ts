@@ -46,7 +46,7 @@ export const updateWorkerTool: InternalToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Personal information fields to update as JSON, using Change_Personal_Information_Data element names in schema order (e.g., {"Marital_Status_Reference": {"ID": {"type": "Marital_Status_ID", "_value": "Married"}}})',
+        'Personal information fields to update as JSON, using Change_Personal_Information_Data element names in schema order (e.g., {"Marital_Status_Reference": {"ID": {"attributes": {"wd:type": "Marital_Status_ID"}, "$value": "Married"}}})',
     },
   },
 
