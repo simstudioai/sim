@@ -1,9 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { DesktopPreferenceKey, DesktopPreferences } from '@sim/desktop-bridge'
-import { Label, Switch, toast } from '@sim/emcn'
+import {
+  type DesktopPreferenceKey,
+  type DesktopPreferences,
+  isQuickChatShortcut,
+  QUICK_CHAT_SHORTCUTS,
+  type QuickChatShortcut,
+} from '@sim/desktop-bridge'
+import { ChipSelect, Label, Switch, toast } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
+import { isMacPlatform } from '@/lib/core/utils/platform'
 import { getDesktopBridge, getDesktopShellVersion } from '@/lib/desktop'
 import { ComputerUseSettings } from '@/app/workspace/[workspaceId]/settings/components/desktop/computer-use'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -18,6 +25,14 @@ interface PreferenceRowProps {
   disabled?: boolean
   onCheckedChange: (checked: boolean) => void
 }
+
+const QUICK_CHAT_SHORTCUT_LABELS: Record<QuickChatShortcut, { mac: string; other: string }> = {
+  'Alt+Space': { mac: '⌥ Space', other: 'Alt+Space' },
+  'CommandOrControl+Shift+Space': { mac: '⇧⌘ Space', other: 'Ctrl+Shift+Space' },
+  'CommandOrControl+Shift+J': { mac: '⇧⌘J', other: 'Ctrl+Shift+J' },
+}
+
+const QUICK_CHAT_SHORTCUT_OFF = 'off'
 
 function PreferenceRow({ id, label, checked, disabled, onCheckedChange }: PreferenceRowProps) {
   return (
@@ -82,6 +97,14 @@ export function Desktop() {
       setPreferences
     )
 
+  const { pending: quickChatShortcutPending, mutate: setQuickChatShortcut } =
+    useDesktopPreferenceMutation(
+      async (bridge, shortcut: QuickChatShortcut | null) =>
+        bridge.settings.setQuickChatShortcut?.(shortcut),
+      'Could not update the quick chat shortcut',
+      setPreferences
+    )
+
   if (!preferences) {
     return null
   }
@@ -131,6 +154,40 @@ export function Desktop() {
             disabled={pendingPreference !== null}
             onCheckedChange={(checked) => void updatePreference('trayEnabled', checked)}
           />
+          {preferences.quickChatShortcut !== undefined && (
+            <div className='flex items-center justify-between gap-4'>
+              <div className='flex min-w-0 flex-col gap-1'>
+                <Label>Quick chat shortcut</Label>
+                {preferences.quickChatShortcut &&
+                  preferences.quickChatShortcutAvailable === false && (
+                    <p className='text-[var(--text-muted)] text-caption'>
+                      Another app is using this shortcut
+                    </p>
+                  )}
+              </div>
+              <div className='w-[240px] max-w-[55%] shrink-0 md:max-w-none'>
+                <ChipSelect
+                  aria-label='Quick chat shortcut'
+                  align='start'
+                  fullWidth
+                  dropdownWidth='trigger'
+                  value={preferences.quickChatShortcut ?? QUICK_CHAT_SHORTCUT_OFF}
+                  onChange={(next) =>
+                    void setQuickChatShortcut(isQuickChatShortcut(next) ? next : null)
+                  }
+                  disabled={quickChatShortcutPending}
+                  options={[
+                    { label: 'Off', value: QUICK_CHAT_SHORTCUT_OFF },
+                    ...QUICK_CHAT_SHORTCUTS.map((shortcut) => ({
+                      label:
+                        QUICK_CHAT_SHORTCUT_LABELS[shortcut][isMacPlatform() ? 'mac' : 'other'],
+                      value: shortcut,
+                    })),
+                  ]}
+                />
+              </div>
+            </div>
+          )}
           <PreferenceRow
             id='desktop-auto-download-updates'
             label='Automatically download updates'

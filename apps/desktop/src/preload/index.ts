@@ -46,6 +46,7 @@ import type {
   DesktopZoomPercent,
   LocalFilesystemRequest,
   LocalFilesystemResponse,
+  QuickChatShortcut,
   SimDesktopApi,
   TerminalShortcutCommand,
   TerminalThemeProfile,
@@ -217,6 +218,8 @@ const api: SimDesktopApi = {
     },
     setPreventSleepWhileRunning: (enabled: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set-prevent-sleep', enabled),
+    setQuickChatShortcut: (shortcut: QuickChatShortcut | null): Promise<DesktopPreferences> =>
+      ipcRenderer.invoke('desktop:settings:set-quick-chat-shortcut', shortcut),
     setBrowserSearchSuggestionsEnabled: (enabled: boolean): Promise<DesktopPreferences> =>
       ipcRenderer.invoke('desktop:settings:set-browser-search-suggestions', enabled),
     notify: (payload: DesktopNotificationPayload): Promise<boolean> =>

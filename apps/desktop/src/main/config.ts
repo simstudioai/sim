@@ -1,5 +1,9 @@
 import { readFileSync } from 'node:fs'
-import type { DesktopZoomPercent, TerminalAppearanceTheme } from '@sim/desktop-bridge'
+import type {
+  DesktopZoomPercent,
+  QuickChatShortcut,
+  TerminalAppearanceTheme,
+} from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/ssrf'
 import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
@@ -109,6 +113,8 @@ export interface DesktopSettings {
   fullFileAccess?: boolean
   /** Keep the machine awake while a chat is running desktop work in the background. */
   preventSleepWhileRunning?: boolean
+  /** Global shortcut for the quick chat window; null is off, absent is the platform default. */
+  quickChatShortcut?: QuickChatShortcut | null
   /** Native app access is opt-in and cleared when the signed-in account changes. */
   computerUseEnabled?: boolean
   /** Ask before operating an app for the first time; by default every unprotected app is allowed. */

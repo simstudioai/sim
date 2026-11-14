@@ -28,7 +28,7 @@ import {
   retryAccountDataTeardown,
   waitForAccountDataMutations,
 } from '@/main/account-data-generation'
-import { newChatRoute, settingsRoute } from '@/main/app-routes'
+import { newChatRoute, quickChatRoute, settingsRoute } from '@/main/app-routes'
 import {
   activateBrowserScope as activateAgentBrowserScope,
   cancelTool as cancelAgentBrowserTool,
@@ -97,6 +97,7 @@ import {
 import { installApplicationMenu } from '@/main/menu'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import { createEventLog, installMainProcessFailureObservers } from '@/main/observability'
+import { createQuickChat } from '@/main/quick-chat'
 import { ScopedEventRouter } from '@/main/scoped-event-router'
 import { installGlobalGuards } from '@/main/security-guards'
 import { createServerWindow, relaunchApp } from '@/main/server-window'
@@ -433,6 +434,8 @@ function main(): void {
             },
           },
           { label: 'task resource state', clear: clearDesktopChatSessions },
+          // The quick chat page belongs to the signed-out account and holds its chat.
+          { label: 'quick chat', clear: () => quickChat.close() },
           { label: 'local filesystem grants', clear: clearLocalFileAccess },
           { label: 'computer use', clear: () => computerUse.reset() },
         ]
@@ -641,6 +644,29 @@ function main(): void {
     showMainWindow(win)
   }
 
+  const quickChat = createQuickChat({
+    appOrigin,
+    partition: () => {
+      // Configures the partition's permission and header handlers on first use, as a full window does.
+      ensureAppSession()
+      return appPartition()
+    },
+    startRoute: () => quickChatRoute(config.get('lastRoute')),
+    themeBackground: () => config.get('themeBackground'),
+    isPackaged: app.isPackaged,
+    windowPolicy: {
+      appOrigin,
+      // The macOS panel never activates Sim, so a window it opens must bring the app forward itself.
+      openAppWindow: (url) => {
+        const route = routeFromAppUrl(url)
+        if (route) void createAndLoadAppWindow({ route }).then(showMainWindow)
+      },
+      allowHttpLocalhost: allowHttpLocalhost(),
+      isCommittedRelaunchPending: () => committedRelaunchPending,
+    },
+    contextMenu: { isDev: !app.isPackaged, allowHttpLocalhost: allowHttpLocalhost() },
+  })
+
   /** Installs or removes the menu-bar status item; safe to call repeatedly. */
   function setTrayEnabled(enabled: boolean): void {
     if (!enabled) {
@@ -654,6 +680,7 @@ function main(): void {
         appOrigin,
         lastRoute: () => config.get('lastRoute'),
         openMainWindow: (route) => void openMainWindowAt(route),
+        openQuickChat: quickChat.toggle,
       })
     }
   }
@@ -685,6 +712,8 @@ function main(): void {
       desktopExecutor.refreshRegistration()
     },
     setPreventSleepWhileRunning: () => sleepBlocker.refresh(),
+    setQuickChatShortcut: (shortcut) => quickChat.bindShortcut(shortcut),
+    isQuickChatShortcutAvailable: () => quickChat.isShortcutAvailable(),
     setBrowserTheme: setAgentBrowserTheme,
     setBrowserDefaultZoom: setAgentBrowserDefaultZoom,
     setTerminalDefaultZoom: (zoom) => {
@@ -895,6 +924,7 @@ function main(): void {
     tray = null
     computerUse.cancel()
     if (computerStopShortcutRegistered) globalShortcut.unregister(computerStopShortcut)
+    quickChat.bindShortcut(null)
     localFilesystem.close()
     quiesceBrowserSessions()
     terminal.dispose()
@@ -1148,6 +1178,7 @@ function main(): void {
       },
       newWindow: () => void createAndLoadAppWindow(),
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
+      openQuickChat: quickChat.toggle,
       handleFocusedResourceShortcut: (win, shortcut) =>
         handleFocusedBrowserShortcut(shortcut, win) ||
         terminal.handleFocusedShortcut(win, shortcut),
@@ -1160,6 +1191,7 @@ function main(): void {
     })
     installDocumentationHelpSearch()
     setTrayEnabled(config.get('trayEnabled') ?? true)
+    quickChat.bindShortcut(desktopSettings.getPreferences().quickChatShortcut ?? null)
     updater = initUpdater({
       getWindow: getMainWindow,
       events,
