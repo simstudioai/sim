@@ -518,3 +518,17 @@ export function generateUniqueTableName(existingNames: string[]): string {
   const suffix = randomInt(100, 1000)
   return `${adj.toLowerCase()}_${noun.toLowerCase()}_${suffix}`
 }
+
+/**
+ * How a cell rides out lost database connections. A reset takes individual sockets and a fresh one
+ * works, but resets arrive in bursts of about a second, so backoff totals about four seconds to
+ * outlast one. A reset can also stall the replacement connection until `connect_timeout`, so
+ * `maxElapsedMs` leaves room to try again after such a stall. It only decides whether another attempt
+ * starts, so one operation can hold the cell's concurrency slot and cascade lock for up to
+ * `maxElapsedMs` plus a final stall, about 70 seconds.
+ */
+export const CELL_DATABASE_RETRY = {
+  maxAttempts: 5,
+  backoff: { baseMs: 250, maxMs: 2_000 },
+  maxElapsedMs: 40_000,
+} as const
