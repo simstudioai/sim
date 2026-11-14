@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { wandGenerateContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { authenticateOptionalInternalSession } from '@/lib/api/server/routes'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -145,6 +145,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       },
     })
   } catch (error) {
+    const orchestrationError = asOrchestrationError(error)
+    if (orchestrationError?.code === 'unavailable') {
+      logger.error('Wand generation unavailable', { ...errorDetails(error), ...WAND_DEPLOYMENT })
+      return wandError(orchestrationError.message, 503)
+    }
     return (target && refusalResponse(error, target)) || generationFailedResponse(error)
   }
 })

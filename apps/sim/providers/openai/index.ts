@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { StreamingExecution } from '@/executor/types'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
@@ -33,6 +34,7 @@ export const openaiProvider: ProviderConfig = {
         'OpenAI-Beta': 'responses=v1',
       },
       logger,
+      fetch: outboundFetch,
     })
   },
 }

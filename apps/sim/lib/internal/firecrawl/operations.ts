@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   isPayloadSizeLimitError,
@@ -120,6 +121,7 @@ export async function executeFirecrawlParse(
     })
   } catch (error) {
     context.signal?.throwIfAborted()
+    if (error instanceof OutboundRoutingError) throw error
     const notReady = docNotReadyResponse(error)
     if (notReady) return notReady
     logger.error('Firecrawl parse failed', {

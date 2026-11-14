@@ -14,7 +14,9 @@
  * clients, tools, webhooks, providers and connectors), a call to the global `fetch` fails this
  * check. A call that rightly goes direct (an operator-local server such as Ollama, or a public
  * catalog read with no workspace behind it) takes `// egress-direct: <reason>` on one of the two
- * lines above it. A method named `fetch` on a client class is not the global and is ignored.
+ * lines above it. A method named `fetch` on a client class is not the global and is ignored. A
+ * `fetch` imported from another module (undici, node-fetch) bypasses the gateway just the same and
+ * is reported at its import; only `outboundFetch` may be imported under that name.
  *
  * Parsed with the TypeScript AST, so `fetch` inside strings, comments and tool descriptions is
  * never reported. The tree was swept when this landed, so there is no baseline.
@@ -61,6 +63,8 @@ const SKIP_DIRS = new Set([
 ])
 const ANNOTATION = '// egress-direct:'
 const ANNOTATION_REACH = 2
+/** The only module a binding of `fetch` may be imported from: it is the router itself. */
+const ROUTED_FETCH_MODULE = '@/lib/core/network/outbound-fetch.server'
 
 export interface DirectFetch {
   line: number
@@ -164,6 +168,34 @@ function refersToGlobalFetch(node: ts.Identifier): boolean {
 }
 
 /**
+ * Import bindings of a `fetch` from anywhere but {@link ROUTED_FETCH_MODULE}, such as undici's
+ * or node-fetch's: each is the global's bypass under another name, whatever it is called locally.
+ * Uses of the binding are then local and are not reported again.
+ */
+function importedFetchBindings(declaration: ts.ImportDeclaration): ts.Node[] {
+  const clause = declaration.importClause
+  if (!clause || clause.isTypeOnly) return []
+  if (
+    ts.isStringLiteral(declaration.moduleSpecifier) &&
+    declaration.moduleSpecifier.text === ROUTED_FETCH_MODULE
+  ) {
+    return []
+  }
+  const bindings: ts.Node[] = []
+  if (clause.name?.text === 'fetch') bindings.push(clause.name)
+  const named = clause.namedBindings
+  if (named && ts.isNamespaceImport(named) && named.name.text === 'fetch') bindings.push(named)
+  if (named && ts.isNamedImports(named)) {
+    for (const element of named.elements) {
+      if (element.isTypeOnly) continue
+      const imported = element.propertyName ?? element.name
+      if (imported.text === 'fetch' || element.name.text === 'fetch') bindings.push(element)
+    }
+  }
+  return bindings
+}
+
+/**
  * Every reference to the global `fetch` (a call, an alias, `globalThis.fetch`, `window['fetch']`)
  * without an `egress-direct` annotation on one of the two lines above it.
  */
@@ -182,8 +214,11 @@ export function findDirectFetches(file: string, source: string): DirectFetch[] {
   }
 
   const visit = (node: ts.Node): void => {
-    if (ts.isIdentifier(node) && node.text === 'fetch' && refersToGlobalFetch(node)) report(node)
-    else if (
+    if (ts.isImportDeclaration(node)) {
+      for (const binding of importedFetchBindings(node)) report(binding)
+    } else if (ts.isIdentifier(node) && node.text === 'fetch' && refersToGlobalFetch(node)) {
+      report(node)
+    } else if (
       (ts.isPropertyAccessExpression(node) && node.name.text === 'fetch') ||
       (ts.isElementAccessExpression(node) &&
         ts.isStringLiteralLike(node.argumentExpression) &&

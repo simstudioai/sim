@@ -6,11 +6,7 @@ import { LRUCache } from 'lru-cache'
 import { isOutboundRoutingEnabled, type OutboundGateway } from '@/lib/core/network/config.server'
 import { connectThroughGateway } from '@/lib/core/network/gateway.server'
 import { resolveOrganizationRoute } from '@/lib/core/network/outbound-fetch.server'
-import {
-  AGENT_OPTIONS,
-  type AwsRequestHandlerOptions,
-  awsRequestHandler,
-} from '@/lib/core/network/proxy-agent.server'
+import { AGENT_OPTIONS, awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 
 type AwsHttpHandler = NodeHttpHandler | NodeHttp2Handler
 type HandleArguments = Parameters<NodeHttpHandler['handle']>
@@ -118,19 +114,17 @@ class OrganizationRoutedHandler {
  * Pass `http2` for a client whose SDK default is HTTP/2 (Bedrock Runtime) so direct requests keep
  * it. Never use it for Sim's own AWS usage, which must not leave through a customer's gateway.
  */
-export function organizationAwsRequestHandler(
-  options?: AwsRequestHandlerOptions & { http2?: boolean }
-): ReturnType<typeof awsRequestHandler> | OrganizationRoutedHandler {
-  const { http2, ...rest } = options ?? {}
-  // No options stays `undefined`, so the client keeps its SDK default handler and settings.
-  const handlerOptions = Object.keys(rest).length > 0 ? rest : undefined
-  const configured = awsRequestHandler(handlerOptions)
+export function organizationAwsRequestHandler(options?: {
+  http2?: boolean
+}): ReturnType<typeof awsRequestHandler> | OrganizationRoutedHandler {
+  // `undefined` without an environment proxy, so the client keeps its SDK default handler.
+  const configured = awsRequestHandler()
   if (!isOutboundRoutingEnabled()) return configured
   const direct =
     configured instanceof NodeHttpHandler
       ? configured
-      : http2
-        ? new NodeHttp2Handler({ ...handlerOptions, disableConcurrentStreams: true })
-        : new NodeHttpHandler(handlerOptions)
+      : options?.http2
+        ? new NodeHttp2Handler({ disableConcurrentStreams: true })
+        : new NodeHttpHandler()
   return new OrganizationRoutedHandler(direct)
 }

@@ -34,8 +34,22 @@ new Anthropic({ fetch: outboundFetch })`)
     expect(
       lines(`class Client { async fetch(path: string) { return this.fetch(path) } }
 await client.fetch(url)
-async function run(fetch: typeof globalThis.fetch) { return fetch(url) }
-import { fetch } from 'undici'
+async function run(fetch: typeof globalThis.fetch) { return fetch(url) }`)
+    ).toEqual([])
+  })
+
+  it('reports a fetch imported from anywhere but the outbound router, at its import', () => {
+    expect(
+      lines(`import { fetch } from 'undici'
+await fetch(url)
+import nodeFetch, { fetch as undiciFetch } from 'undici'
+import fetch from 'node-fetch'`)
+    ).toEqual([1, 3, 4])
+  })
+
+  it('accepts outboundFetch imported under the name fetch', () => {
+    expect(
+      lines(`import { outboundFetch as fetch } from '@/lib/core/network/outbound-fetch.server'
 await fetch(url)`)
     ).toEqual([])
   })

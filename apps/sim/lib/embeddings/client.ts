@@ -544,6 +544,9 @@ async function callEmbeddingAPI(
 ): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> {
   const admissionWaitMs = bulk ? KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS : EMBEDDING_RETRY_BUDGET_MS
   const admissionIdentity = embeddingAdmissionIdentity({ providerId, quotaCircuitIdentity, isBYOK })
+  const operatorOwned = providerId === 'ollama' || providerId === 'azure-openai'
+  // egress-direct: Ollama and the Azure OpenAI override are the operator's own deployments
+  const requestFetch = operatorOwned ? fetch : outboundFetch
   return retryWithExponentialBackoff(
     async (operationSignal, deadlineAt) => {
       if (await isEmbeddingQuotaCircuitOpen(admissionIdentity)) {
@@ -582,9 +585,6 @@ async function callEmbeddingAPI(
       const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
 
       try {
-        const operatorOwned = providerId === 'ollama' || providerId === 'azure-openai'
-        // egress-direct: Ollama and the Azure OpenAI override are the operator's own deployments
-        const requestFetch = operatorOwned ? fetch : outboundFetch
         const response = await requestFetch(request.apiUrl, {
           method: 'POST',
           headers: request.headers,

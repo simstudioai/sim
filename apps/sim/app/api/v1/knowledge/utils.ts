@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { validationErrorResponseFromError } from '@/lib/api/server'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createUserKnowledgeAccessProvider,
   WORKSPACE_ACCESS_SCOPE,
@@ -123,5 +124,9 @@ export function handleError(
   }
 
   logger.error(`${defaultMessage}:`, error, { requestId })
+  const orchestrationError = asOrchestrationError(error)
+  if (orchestrationError?.code === 'unavailable') {
+    return NextResponse.json({ error: orchestrationError.message }, { status: 503 })
+  }
   return NextResponse.json({ error: defaultMessage }, { status: 500 })
 }

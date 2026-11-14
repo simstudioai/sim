@@ -121,14 +121,14 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
       expect(responsesConfig().fetch).toBe(sentinelFetch)
     })
 
-    it('passes no custom fetch when the endpoint comes from trusted server env', async () => {
+    it("sends Sim's trusted env endpoint direct, not through the organization router", async () => {
       setEnv({ AZURE_OPENAI_ENDPOINT: 'https://trusted.openai.azure.com' })
 
       await azureOpenAIProvider.executeRequest(request({ azureEndpoint: undefined }))
 
       expect(mockValidate).not.toHaveBeenCalled()
       expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-      expect(responsesConfig().fetch).toBeUndefined()
+      expect(responsesConfig().fetch).toBe(globalThis.fetch)
     })
 
     it.each([false, true])(

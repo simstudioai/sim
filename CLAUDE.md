@@ -60,7 +60,7 @@ Build order **Tools** → **Block** → **Icon** → optional **Trigger**, from 
 
 - **Tool IDs are `snake_case`** (`service_action`), registered in `tools/registry.ts`; blocks register alphabetically in `blocks/registry-maps.ts`.
 - **Type coercions go in `tools.config.params`** (runs at execution), never `tools.config.tool` (runs at serialization, where `Number()` destroys `<Block.output>` references).
-- **Requests made for a workspace use `outboundFetch`** (`@/lib/core/network/outbound-fetch.server`), never the global `fetch`, so an organization with a dedicated egress gateway keeps its static IPs; AWS SDK clients signing with customer credentials take `organizationAwsRequestHandler()`. Sim's own infrastructure stays direct (`check:organization-egress`).
+- **Requests made for a workspace use `outboundFetch`** (`@/lib/core/network/outbound-fetch.server`), never the global `fetch` or another imported `fetch`, so an organization with a dedicated egress gateway keeps its static IPs; `check:organization-egress` enforces this, and a request that rightly goes direct (Sim's own infrastructure, an operator-local server) takes `// egress-direct: <reason>`. AWS SDK clients signing with customer credentials take `organizationAwsRequestHandler()`: no audit catches a missing one, so reviewers check it.
 - A surface listing integrations to a viewer reads `useIntegrationAccess`, never a raw catalog (`check:integration-access`).
 - Table column types are registry entries in `apps/sim/lib/table/column-types/`; never add a per-type `case` elsewhere except the one documented import-path switch (`coerceValue` in `lib/table/import.ts`), which every new type extends: a missed arm fails silently. Use `/add-column-type`.
 

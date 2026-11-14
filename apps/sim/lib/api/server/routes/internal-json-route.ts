@@ -62,7 +62,7 @@ export const internalSessionAuth = {
   },
 } as const
 
-/** The session principal when the request is signed in, otherwise `null`, for routes that also serve anonymous callers. */
+/** The session principal when the request is signed in; returns `null` instead of throwing when unauthenticated, so the route answers with its own response. */
 export async function authenticateOptionalInternalSession(): Promise<SessionPrincipal | null> {
   try {
     return await internalSessionAuth.authenticate()

@@ -151,7 +151,8 @@ async function fetchFalAIBillingEvent(
 
   let response: Response
   try {
-    // egress-direct: Sim's own fal billing account, not a request for the workspace
+    // egress-direct: meters Sim's own fal billing account; the generation call itself is the
+    // workspace's request and is routed whichever key it carries
     response = await fetch(url, {
       headers: {
         Authorization: `Key ${apiKey}`,
@@ -200,7 +201,8 @@ async function estimateFalAICallCost(
 ): Promise<{ costDollars?: number; error?: string }> {
   let response: Response
   try {
-    // egress-direct: Sim's own fal billing account, not a request for the workspace
+    // egress-direct: meters Sim's own fal billing account; the generation call itself is the
+    // workspace's request and is routed whichever key it carries
     response = await fetch('https://api.fal.ai/v1/models/pricing/estimate', {
       method: 'POST',
       headers: {

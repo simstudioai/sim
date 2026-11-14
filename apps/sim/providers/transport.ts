@@ -54,9 +54,11 @@ export interface OpenAICompatTransport {
  * what makes them safe to set in a constructor that {@link getCachedProviderClient}
  * memoises — anything varying per request must be passed per call instead.
  *
- * Deliberately stamps no `fetch`: a wrapper would turn the SDK's header-only timer
- * into a total deadline that truncates a live stream, and would drop the caller's
- * abort signal.
+ * Stamps no `fetch`. A wrapper that adds its own deadline would turn the SDK's
+ * header-only timer into a total one that truncates a live stream, and could drop the
+ * caller's abort signal. A pass-through router such as `outboundFetch` does neither and
+ * is fine, but providers add it per constructor rather than here: operator-local
+ * providers (Ollama, vLLM) share this transport and must stay direct.
  */
 export const openAICompatTransport = (): OpenAICompatTransport => ({
   timeout: PROVIDER_HEADERS_TIMEOUT_MS,

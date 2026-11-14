@@ -8,11 +8,31 @@ vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 const { mockResolveFileInputToUrl } = fileUtilsServerMockFns
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { executeBufferTool } from '@/lib/internal/buffer/execute-tool'
 import { createBufferPost } from '@/lib/internal/buffer/operations'
 import bufferPostFixture from '@/tools/buffer/__fixtures__/post.json'
 
 describe('Buffer operations', () => {
+  it('surfaces an egress routing failure instead of a provider error', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(
+      executeBufferTool({
+        toolId: 'buffer_create_post',
+        input: {
+          apiKey: 'buffer-key',
+          channelId: 'channel-1',
+          mode: 'addToQueue',
+          text: 'Caption',
+        },
+        headers: new Headers(),
+        context: { workflowId: 'workflow-1', userId: 'user-1' },
+        requestId: 'request-1',
+      })
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+  })
+
   it('creates a text post when optional assets are null', async () => {
     const providerInputs: Record<string, unknown>[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
