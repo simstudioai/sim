@@ -3,7 +3,7 @@ import { BoxCompanyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, toolCallArg } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 
 /** Canonical pair for the upload payload: file picker in basic mode, file reference in advanced. */
 const UPLOAD_FILE_FIELD = ['uploadFile', 'fileRef'] as const
@@ -534,8 +534,8 @@ export const BoxBlock = {
         if (normalizedFile) {
           params.file = normalizedFile
         }
-        const { credential, operation: storedOperation, ...rest } = params
-        const operation = storedOperation ?? context?.operation
+        const { credential, ...rest } = params
+        const operation = mapperOperation(params, context)
 
         const baseParams: Record<string, unknown> = {
           accessToken: credential,

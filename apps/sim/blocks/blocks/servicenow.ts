@@ -1,7 +1,13 @@
 import { ServiceNowIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { isToolCall, normalizeFileInput, toolCallArg, withSavedCredential } from '@/blocks/utils'
+import {
+  isToolCall,
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 import {
   APPROVAL_DECISION_OPTIONS,
   APPROVAL_STATE,
@@ -1624,7 +1630,6 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       tool: (params) => params.operation,
       params: (params, context?: BlockToolParamsContext) => {
         const {
-          operation: storedOperation,
           fields,
           readFields,
           returnFields,
@@ -1644,7 +1649,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
           knowledgeQuery,
           ...rest
         } = params
-        const operation = context?.operation ?? storedOperation
+        const operation = mapperOperation(params, context)
         /**
          * A dedicated subblock's value, or on a tool call where it is blank, the
          * model's arg under the tool param name. Without a model arg the subblock

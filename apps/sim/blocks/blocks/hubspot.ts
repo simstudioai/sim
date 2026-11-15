@@ -2,7 +2,7 @@ import { HubspotIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { toolCallArg } from '@/blocks/utils'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const HubSpotBlock: BlockConfig = {
@@ -1635,7 +1635,6 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
       params: (params, context) => {
         const {
           oauthCredential,
-          operation: storedOperation,
           propertiesToSet,
           properties,
           searchProperties,
@@ -1647,7 +1646,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
           archived,
           ...rest
         } = params
-        const operation = storedOperation ?? context?.operation
+        const operation = mapperOperation(params, context)
 
         const cleanParams: Record<string, any> = {
           oauthCredential,
