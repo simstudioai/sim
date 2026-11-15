@@ -1630,7 +1630,6 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       tool: (params) => params.operation,
       params: (params, context?: BlockToolParamsContext) => {
         const {
-          operation: _operation,
           fields,
           readFields,
           returnFields,

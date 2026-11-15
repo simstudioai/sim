@@ -1635,7 +1635,6 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
       params: (params, context) => {
         const {
           oauthCredential,
-          operation: _operation,
           propertiesToSet,
           properties,
           searchProperties,

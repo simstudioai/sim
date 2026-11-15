@@ -97,10 +97,27 @@ function findLocalFn(source: ts.SourceFile, name: string): Fn | undefined {
   return found
 }
 
-/** Identifier uses of `name` inside `scope`, excluding declarations and property-name positions. */
+/** Names a binding pattern or identifier declares. */
+function boundNames(name: ts.BindingName, into: Set<string> = new Set()): Set<string> {
+  if (ts.isIdentifier(name)) into.add(name.text)
+  else
+    for (const element of name.elements)
+      if (!ts.isOmittedExpression(element)) boundNames(element.name, into)
+  return into
+}
+
+/** Names a nested function's own parameters declare, which shadow the outer ones in its body. */
+function shadowedBy(node: ts.Node): Set<string> {
+  const names = new Set<string>()
+  if (isFn(node)) for (const parameter of node.parameters) boundNames(parameter.name, names)
+  return names
+}
+
+/** Identifier uses of `name` inside `scope`, excluding declarations, property names, and shadowed scopes. */
 function referencesOf(scope: ts.Node, name: string, declaration: ts.Node): number {
   let count = 0
   const visit = (node: ts.Node) => {
+    if (node !== scope && shadowedBy(node).has(name)) return
     if (ts.isIdentifier(node) && node.text === name && node !== declaration) {
       const parent = node.parent
       const isPropertyName =
@@ -143,62 +160,95 @@ function restAlias(pattern: ts.ObjectBindingPattern): string | undefined {
   return rest && ts.isIdentifier(rest.name) ? rest.name.text : undefined
 }
 
-function operationReads(source: ts.SourceFile, fn: Fn, seen: Set<Fn>): number {
-  if (seen.has(fn)) return 0
-  seen.add(fn)
-  const first = fn.parameters[0]
-  if (!first) return 0
-  if (ts.isObjectBindingPattern(first.name)) return usedOperationBindings(first.name)
-  if (!ts.isIdentifier(first.name) || !fn.body) return 0
+/**
+ * Counts operation reads from parameter `index` of `fn`: through aliases of it, and through
+ * same-file helpers it is handed to (at whichever argument position), whose returned value is
+ * treated as an alias too. Names a nested function rebinds are not aliases inside it.
+ */
+function operationReads(source: ts.SourceFile, fn: Fn, index: number, seen: Set<string>): number {
+  const key = `${fn.pos}:${index}`
+  if (seen.has(key)) return 0
+  seen.add(key)
+  const parameter = fn.parameters[index]
+  if (!parameter || !fn.body) return 0
 
-  const aliases = new Set([first.name.text])
   let reads = 0
-  const visit = (node: ts.Node) => {
+  const initial = new Set<string>()
+  if (ts.isIdentifier(parameter.name)) initial.add(parameter.name.text)
+  else if (ts.isObjectBindingPattern(parameter.name)) {
+    reads += usedOperationBindings(parameter.name)
+    const rest = restAlias(parameter.name)
+    if (rest) initial.add(rest)
+  }
+  if (initial.size === 0) return reads
+
+  const isAlias = (expression: ts.Expression, aliases: Set<string>) => {
+    const value = unwrap(expression)
+    return ts.isIdentifier(value) && aliases.has(value.text)
+  }
+
+  /** Same-file helper calls that receive an alias; reads inside them are counted once per position. */
+  const helperCall = (node: ts.Expression, aliases: Set<string>): boolean => {
+    const call = unwrap(node)
+    if (!ts.isCallExpression(call) || !ts.isIdentifier(call.expression)) return false
+    const helper = findLocalFn(source, call.expression.text)
+    if (!helper) return false
+    let passed = false
+    call.arguments.forEach((argument, position) => {
+      if (!isAlias(argument, aliases)) return
+      passed = true
+      reads += operationReads(source, helper, position, seen)
+    })
+    return passed
+  }
+
+  const visit = (node: ts.Node, inherited: Set<string>) => {
+    let aliases = inherited
+    if (node !== fn) {
+      const shadowed = shadowedBy(node)
+      if (shadowed.size) aliases = new Set([...inherited].filter((name) => !shadowed.has(name)))
+    }
     if (ts.isVariableDeclaration(node) && node.initializer) {
       const init = unwrap(node.initializer)
-      const fromAlias = ts.isIdentifier(init) && aliases.has(init.text)
+      const fromAlias = isAlias(init, aliases)
       const spreadsAlias =
         ts.isObjectLiteralExpression(init) &&
-        init.properties.some((property) => {
-          if (!ts.isSpreadAssignment(property)) return false
-          const spread = unwrap(property.expression)
-          return ts.isIdentifier(spread) && aliases.has(spread.text)
-        })
-      if (fromAlias && ts.isObjectBindingPattern(node.name)) {
+        init.properties.some(
+          (property) => ts.isSpreadAssignment(property) && isAlias(property.expression, aliases)
+        )
+      const fromHelper = helperCall(init, aliases)
+      if ((fromAlias || fromHelper) && ts.isObjectBindingPattern(node.name)) {
         reads += usedOperationBindings(node.name)
         const rest = restAlias(node.name)
-        if (rest) aliases.add(rest)
-      } else if ((fromAlias || spreadsAlias) && ts.isIdentifier(node.name)) {
-        aliases.add(node.name.text)
+        if (rest) inherited.add(rest)
+      } else if ((fromAlias || spreadsAlias || fromHelper) && ts.isIdentifier(node.name)) {
+        inherited.add(node.name.text)
+      }
+      if (fromHelper) {
+        visit(node.name, aliases)
+        return
       }
     }
     if (ts.isPropertyAccessExpression(node) && node.name.text === 'operation') {
-      const target = unwrap(node.expression)
-      if (ts.isIdentifier(target) && aliases.has(target.text)) reads++
+      if (isAlias(node.expression, aliases)) reads++
     }
     if (ts.isElementAccessExpression(node)) {
-      const target = unwrap(node.expression)
       const argument = node.argumentExpression
       if (
-        ts.isIdentifier(target) &&
-        aliases.has(target.text) &&
+        isAlias(node.expression, aliases) &&
         ts.isStringLiteralLike(argument) &&
         argument.text === 'operation'
       ) {
         reads++
       }
     }
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      const passesParams = node.arguments.some((argument) => {
-        const value = unwrap(argument)
-        return ts.isIdentifier(value) && aliases.has(value.text)
-      })
-      const helper = passesParams ? findLocalFn(source, node.expression.text) : undefined
-      if (helper) reads += operationReads(source, helper, seen)
+    if (ts.isCallExpression(node) && helperCall(node, aliases)) {
+      for (const argument of node.arguments) visit(argument, aliases)
+      return
     }
-    ts.forEachChild(node, visit)
+    ts.forEachChild(node, (child) => visit(child, aliases))
   }
-  visit(fn.body)
+  visit(fn.body, initial)
   return reads
 }
 
@@ -228,7 +278,7 @@ export function countMapperOperationReads(fileName: string, text: string): numbe
         } else if (ts.isShorthandPropertyAssignment(property)) {
           mapper = findLocalFn(source, property.name.text)
         }
-        if (mapper) reads += operationReads(source, mapper, new Set())
+        if (mapper) reads += operationReads(source, mapper, 0, new Set())
       }
     }
     ts.forEachChild(node, visit)

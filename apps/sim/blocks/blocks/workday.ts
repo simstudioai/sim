@@ -410,15 +410,7 @@ Output: {"Marital_Status_Reference":{"ID":{"attributes":{"wd:type":"Marital_Stat
     config: {
       tool: (params) => `workday_${params.operation}`,
       params: (params, context) => {
-        const {
-          operation: _operation,
-          orgType,
-          fields,
-          jobProfileId,
-          locationId,
-          supervisoryOrgId,
-          ...rest
-        } = params
+        const { orgType, fields, jobProfileId, locationId, supervisoryOrgId, ...rest } = params
         /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
         const operation = mapperOperation(params, context)
 

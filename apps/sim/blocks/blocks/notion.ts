@@ -629,7 +629,6 @@ export const NotionBlock: BlockConfig = {
       params: (params, context) => {
         const {
           oauthCredential,
-          operation: _operation,
           properties,
           filter,
           sorts,

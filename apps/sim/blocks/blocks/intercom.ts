@@ -43,7 +43,6 @@ type IntercomParamsMapper = NonNullable<NonNullable<BlockConfig['tools']['config
 /** Maps Intercom block fields to tool params; shared by every Intercom block version. */
 const mapIntercomParams: IntercomParamsMapper = (params, context) => {
   const {
-    operation: _operation,
     message_type_msg,
     company_name,
     contact_company_id,

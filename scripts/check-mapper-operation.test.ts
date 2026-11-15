@@ -45,6 +45,47 @@ describe('countMapperOperationReads', () => {
     expect(count(block('mapX', `const mapX = (params) => (params.operation ? {} : {})`))).toBe(1)
   })
 
+  it('tracks the argument position a helper receives params at, a destructured rest, and helper results', () => {
+    expect(
+      count(
+        block(
+          '(params) => build({}, params)',
+          `function build(options, input) { return input.operation === 'a' ? options : {} }`
+        )
+      )
+    ).toBe(1)
+    expect(
+      count(
+        block(
+          '(params) => build(params, {})',
+          `function build(input, options) { return options.operation === 'a' ? input : {} }`
+        )
+      )
+    ).toBe(0)
+    expect(count(block(`({ credential, ...rest }) => (rest.operation === 'a' ? {} : {})`))).toBe(1)
+    expect(
+      count(
+        block(
+          `(params) => { const normalized = normalize(params); return normalized.operation === 'a' ? {} : {} }`,
+          'function normalize(input) { return { ...input } }'
+        )
+      )
+    ).toBe(1)
+  })
+
+  it('does not count a nested callback parameter that reuses an alias name', () => {
+    expect(
+      count(block(`(params) => ({ items: params.items.map((params) => params.operation) })`))
+    ).toBe(0)
+    expect(
+      count(
+        block(
+          `(params) => { const { operation, ...rest } = params; return { list: rest.items.map((operation) => operation) } }`
+        )
+      )
+    ).toBe(0)
+  })
+
   it('does not flag strip-only destructuring, the helper, or the tool selector', () => {
     expect(count(block(`(params) => { const { operation, ...rest } = params; return rest }`))).toBe(
       0
