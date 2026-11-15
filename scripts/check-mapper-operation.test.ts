@@ -97,6 +97,14 @@ describe('countMapperOperationReads', () => {
         )
       )
     ).toBe(0)
+    expect(
+      count(
+        block(
+          `(params) => { const result = normalize(params); return result.operation === 'a' ? {} : {} }`,
+          'function normalize(input) { const copy = { ...input }; return copy }'
+        )
+      )
+    ).toBe(1)
   })
 
   it('does not count a nested callback parameter that reuses an alias name', () => {

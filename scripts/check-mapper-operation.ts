@@ -162,16 +162,17 @@ function restAlias(pattern: ts.ObjectBindingPattern): string | undefined {
 }
 
 /**
- * Whether `fn` returns its parameter `index` itself, or an object literal spreading it, so the
+ * Whether `fn` returns its parameter `index` itself, a local copy of it, or an object literal spreading
+ * either, so the
  * caller's result still carries the input's `operation`.
  */
 function returnsInput(fn: Fn, index: number): boolean {
   const parameter = fn.parameters[index]
   if (!parameter || !ts.isIdentifier(parameter.name) || !fn.body) return false
-  const name = parameter.name.text
+  const names = new Set([parameter.name.text])
   const carries = (expression: ts.Expression): boolean => {
     const value = unwrap(expression)
-    if (ts.isIdentifier(value)) return value.text === name
+    if (ts.isIdentifier(value)) return names.has(value.text)
     return (
       ts.isObjectLiteralExpression(value) &&
       value.properties.some(
@@ -183,6 +184,14 @@ function returnsInput(fn: Fn, index: number): boolean {
   let found = false
   const visit = (node: ts.Node) => {
     if (found || (node !== fn.body && isFn(node))) return
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      carries(node.initializer)
+    ) {
+      names.add(node.name.text)
+    }
     if (ts.isReturnStatement(node) && node.expression && carries(node.expression)) found = true
     ts.forEachChild(node, visit)
   }
