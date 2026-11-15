@@ -949,6 +949,20 @@ export function toolCallArg<T>(
 }
 
 /**
+ * The operation a block's `tools.config.params` mapper runs for. A tool call passes it only in
+ * `context`: a stored tool row keeps its operation outside its params, and a tool that declares its
+ * own `operation` param (Slack `edit_canvas`) gets the model's value there. The canvas passes no
+ * context, so the block's serialized `operation` input is used.
+ */
+export function mapperOperation(
+  params: { operation?: unknown },
+  context: BlockToolParamsContext | undefined
+): string | undefined {
+  if (context?.operation) return context.operation
+  return typeof params.operation === 'string' ? params.operation : undefined
+}
+
+/**
  * Parses an optional boolean block input value.
  * Returns `undefined` for empty or unrecognized values.
  */

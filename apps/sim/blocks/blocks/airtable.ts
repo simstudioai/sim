@@ -3,7 +3,7 @@ import { AirtableIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { toolCallArg } from '@/blocks/utils'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** Canonical account pair — an advanced-mode card only fills `manualCredential`. */
@@ -429,7 +429,7 @@ Return ONLY the valid JSON array of record ID strings - no explanations, no mark
           ...rest
         } = params
         /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
-        const operation = params.operation ?? context?.operation
+        const operation = mapperOperation(params, context)
         let parsedRecords: unknown
         let parsedFields: unknown
         let parsedFieldsToMergeOn: unknown

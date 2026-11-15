@@ -1,6 +1,6 @@
 import { HiggsfieldIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { parseOptionalNumberInput } from '@/blocks/utils'
+import { mapperOperation, parseOptionalNumberInput } from '@/blocks/utils'
 
 const GENERATE_OPERATIONS = ['higgsfield_generate', 'higgsfield_generate_soul_image']
 const REQUEST_OPERATIONS = [
@@ -315,7 +315,7 @@ export const HiggsfieldBlock: BlockConfig = {
     config: {
       tool: (params) => params.operation,
       params: (params, context) => {
-        const operation = context?.operation ?? params.operation
+        const operation = mapperOperation(params, context)
         const isSoul = operation === SOUL
         const isGenerate = GENERATE_OPERATIONS.includes(operation)
         const isList = operation === 'higgsfield_list_characters'
