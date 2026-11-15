@@ -525,9 +525,7 @@ export const MondayBlock: BlockConfig = {
         const baseParams: Record<string, unknown> = {
           oauthCredential: params.oauthCredential,
         }
-        /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
-        const rawOperation = mapperOperation(params, context)
-        const op = typeof rawOperation === 'string' ? rawOperation.trim() : 'list_boards'
+        const op = mapperOperation(params, context).trim() || 'list_boards'
 
         switch (op) {
           case 'list_boards':

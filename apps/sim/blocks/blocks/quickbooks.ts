@@ -2526,7 +2526,7 @@ export const QuickBooksBlock: BlockConfig = {
         return operation
       },
       params: (params, context) => {
-        const operation = String(mapperOperation(params, context))
+        const operation = mapperOperation(params, context)
         const oauthCredentialValue = params.oauthCredential
         /**
          * Resolves a tool param filled by a differently-named subBlock. On an agent tool call
