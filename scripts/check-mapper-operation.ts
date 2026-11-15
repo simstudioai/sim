@@ -26,7 +26,8 @@
  * - A file whose count rises, or a file that gains its first read, fails.
  * - A file whose count drops fails until the baseline is rewritten, so the baseline only shrinks.
  *
- * Regenerate after fixing mappers: `bun run scripts/check-mapper-operation.ts --update`.
+ * Regenerate after fixing mappers: `bun run scripts/check-mapper-operation.ts --update` (it refuses to
+ * raise any file's count).
  *
  * Run: `bun run check:mapper-operation`
  */
@@ -161,6 +162,35 @@ function restAlias(pattern: ts.ObjectBindingPattern): string | undefined {
 }
 
 /**
+ * Whether `fn` returns its parameter `index` itself, or an object literal spreading it, so the
+ * caller's result still carries the input's `operation`.
+ */
+function returnsInput(fn: Fn, index: number): boolean {
+  const parameter = fn.parameters[index]
+  if (!parameter || !ts.isIdentifier(parameter.name) || !fn.body) return false
+  const name = parameter.name.text
+  const carries = (expression: ts.Expression): boolean => {
+    const value = unwrap(expression)
+    if (ts.isIdentifier(value)) return value.text === name
+    return (
+      ts.isObjectLiteralExpression(value) &&
+      value.properties.some(
+        (property) => ts.isSpreadAssignment(property) && carries(property.expression)
+      )
+    )
+  }
+  if (!ts.isBlock(fn.body)) return carries(fn.body)
+  let found = false
+  const visit = (node: ts.Node) => {
+    if (found || (node !== fn.body && isFn(node))) return
+    if (ts.isReturnStatement(node) && node.expression && carries(node.expression)) found = true
+    ts.forEachChild(node, visit)
+  }
+  visit(fn.body)
+  return found
+}
+
+/**
  * Counts operation reads from parameter `index` of `fn`: through aliases of it, and through
  * same-file helpers it is handed to (at whichever argument position), whose returned value is
  * treated as an alias too. Names a nested function rebinds are not aliases inside it.
@@ -187,19 +217,23 @@ function operationReads(source: ts.SourceFile, fn: Fn, index: number, seen: Set<
     return ts.isIdentifier(value) && aliases.has(value.text)
   }
 
-  /** Same-file helper calls that receive an alias; reads inside them are counted once per position. */
+  /**
+   * Counts reads inside a same-file helper at each argument position that receives an alias.
+   * Returns whether the helper hands one of those inputs back (see {@link returnsInput}), which
+   * makes its result an alias too.
+   */
   const helperCall = (node: ts.Expression, aliases: Set<string>): boolean => {
     const call = unwrap(node)
     if (!ts.isCallExpression(call) || !ts.isIdentifier(call.expression)) return false
     const helper = findLocalFn(source, call.expression.text)
     if (!helper) return false
-    let passed = false
+    let carriesInput = false
     call.arguments.forEach((argument, position) => {
       if (!isAlias(argument, aliases)) return
-      passed = true
       reads += operationReads(source, helper, position, seen)
+      if (returnsInput(helper, position)) carriesInput = true
     })
-    return passed
+    return carriesInput
   }
 
   const visit = (node: ts.Node, inherited: Set<string>) => {
@@ -217,15 +251,19 @@ function operationReads(source: ts.SourceFile, fn: Fn, index: number, seen: Set<
           (property) => ts.isSpreadAssignment(property) && isAlias(property.expression, aliases)
         )
       const fromHelper = helperCall(init, aliases)
-      if ((fromAlias || fromHelper) && ts.isObjectBindingPattern(node.name)) {
+      if ((fromAlias || spreadsAlias || fromHelper) && ts.isObjectBindingPattern(node.name)) {
         reads += usedOperationBindings(node.name)
         const rest = restAlias(node.name)
         if (rest) inherited.add(rest)
       } else if ((fromAlias || spreadsAlias || fromHelper) && ts.isIdentifier(node.name)) {
         inherited.add(node.name.text)
       }
-      if (fromHelper) {
-        visit(node.name, aliases)
+      if (
+        ts.isCallExpression(init) &&
+        ts.isIdentifier(init.expression) &&
+        findLocalFn(source, init.expression.text)
+      ) {
+        for (const argument of init.arguments) visit(argument, aliases)
         return
       }
     }
@@ -242,9 +280,12 @@ function operationReads(source: ts.SourceFile, fn: Fn, index: number, seen: Set<
         reads++
       }
     }
-    if (ts.isCallExpression(node) && helperCall(node, aliases)) {
-      for (const argument of node.arguments) visit(argument, aliases)
-      return
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      if (findLocalFn(source, node.expression.text)) {
+        helperCall(node, aliases)
+        for (const argument of node.arguments) visit(argument, aliases)
+        return
+      }
     }
     ts.forEachChild(node, (child) => visit(child, aliases))
   }
@@ -300,16 +341,33 @@ function collect(): Record<string, number> {
 
 if (import.meta.main) {
   const current = collect()
+  const init = process.argv.includes('--init')
+  if (!existsSync(BASELINE) && !init) {
+    console.error(
+      `✗ ${path.relative(ROOT, BASELINE)} is missing. Restore it from git; create one only with --update --init.`
+    )
+    process.exit(1)
+  }
+  const baseline: Record<string, number> = existsSync(BASELINE)
+    ? JSON.parse(readFileSync(BASELINE, 'utf8'))
+    : current
+
   if (process.argv.includes('--update')) {
+    const raised = Object.entries(current).filter(([file, count]) => count > (baseline[file] ?? 0))
+    if (raised.length) {
+      console.error(
+        `✗ Refused to raise the baseline for ${raised.length} file(s); fix them instead:`
+      )
+      for (const [file, count] of raised)
+        console.error(`  ${file}: ${count} (baseline ${baseline[file] ?? 0})`)
+      process.exit(1)
+    }
     writeFileSync(BASELINE, `${JSON.stringify(current, null, 2)}\n`)
     const total = Object.values(current).reduce((sum, count) => sum + count, 0)
     console.log(`Wrote ${Object.keys(current).length} files (${total} reads) to ${BASELINE}`)
     process.exit(0)
   }
 
-  const baseline: Record<string, number> = existsSync(BASELINE)
-    ? JSON.parse(readFileSync(BASELINE, 'utf8'))
-    : {}
   const rose: string[] = []
   const dropped: string[] = []
   for (const file of new Set([...Object.keys(baseline), ...Object.keys(current)])) {

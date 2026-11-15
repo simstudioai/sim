@@ -73,6 +73,32 @@ describe('countMapperOperationReads', () => {
     ).toBe(1)
   })
 
+  it('reads helper arguments, destructures from spread aliases, and trusts helpers that build a new object', () => {
+    expect(
+      count(
+        block(
+          '(params) => { const built = build(params, params.operation); return built }',
+          'function build(input, extra) { return { input, extra } }'
+        )
+      )
+    ).toBe(1)
+    expect(
+      count(
+        block(
+          `(params) => { const { operation } = { ...params }; return operation === 'a' ? {} : {} }`
+        )
+      )
+    ).toBe(1)
+    expect(
+      count(
+        block(
+          `(params) => { const built = build(params); return built.operation === 'a' ? {} : {} }`,
+          `function build(input) { return { operation: 'derived', mode: input.mode } }`
+        )
+      )
+    ).toBe(0)
+  })
+
   it('does not count a nested callback parameter that reuses an alias name', () => {
     expect(
       count(block(`(params) => ({ items: params.items.map((params) => params.operation) })`))
