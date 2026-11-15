@@ -61,6 +61,11 @@ USER pii
 # 5001 avoids colliding with the app's 3000 in local/compose runs on one host.
 EXPOSE 5001
 
+# glibc gives each threadpool thread its own malloc arena and rarely returns their
+# memory, so a worker's footprint ratchets up to one NER pass's peak per thread
+# that ran one. Two arenas keep it near a single pass.
+ENV MALLOC_ARENA_MAX=2
+
 # Per-pattern regex match timeout (Presidio's `regex`-module `finditer(timeout=...)`),
 # an interactive backstop against a catastrophic user-supplied custom regex. Presidio
 # logs and skips a pattern that exceeds it — the request stays up rather than hanging.
