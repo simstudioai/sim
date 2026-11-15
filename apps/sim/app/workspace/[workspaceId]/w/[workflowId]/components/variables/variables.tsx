@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
@@ -223,6 +223,7 @@ interface VariablesProps {
 }
 
 export function Variables({ readOnly = false }: VariablesProps) {
+  const pendingFocusIdRef = useRef<string | null>(null)
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
 
   const { isOpen, position, width, height, setIsOpen, setPosition, setDimensions } =
@@ -342,13 +343,21 @@ export function Variables({ readOnly = false }: VariablesProps) {
 
   const handleAddVariable = useCallback(() => {
     if (!activeWorkflowId || readOnly) return
-    collaborativeAddVariable({
+    pendingFocusIdRef.current = collaborativeAddVariable({
       name: '',
       type: 'plain',
       value: '',
       workflowId: activeWorkflowId,
     })
   }, [activeWorkflowId, collaborativeAddVariable, readOnly])
+
+  // The new row's input only exists after the next render, so focus it from its ref callback.
+  const focusIfPending = useCallback((variableId: string, element: HTMLInputElement | null) => {
+    if (!element || pendingFocusIdRef.current !== variableId) return
+    pendingFocusIdRef.current = null
+    element.focus()
+    element.select()
+  }, [])
 
   const handleRemoveVariable = useCallback(
     (variableId: string) => {
@@ -522,6 +531,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
                       <div className='flex flex-col gap-1'>
                         <Label className='text-small'>{STRINGS.labels.name}</Label>
                         <Input
+                          ref={(element) => focusIfPending(variable.id, element)}
                           name='name'
                           autoComplete='off'
                           value={localNames[variable.id] ?? variable.name}
