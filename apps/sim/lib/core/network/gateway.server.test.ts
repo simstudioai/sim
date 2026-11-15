@@ -7,18 +7,29 @@ import { join } from 'node:path'
 import { getCACertificates, setDefaultCACertificates } from 'node:tls'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts'
+import { resolveHostAddresses } from '@sim/security/dns'
 import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { OutboundGateway, ResolvedOutboundRoute } from '@/lib/core/network/config.server'
 
 vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
+/** The synthetic origin's name resolves to the one address the local gateway admits. */
+vi.mock('@sim/security/dns', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/security/dns')>()),
+  resolveHostAddresses: vi.fn(async () => ({ addresses: ['1.1.1.1'], preferred: '1.1.1.1' })),
+}))
 
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { openGatewayTunnel, secureOutboundTunnel } from '@/lib/core/network/gateway.server'
+import { organizationAwsRequestHandler } from '@/lib/core/network/organization-aws-handler.server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   createPinnedFetchWithDispatcher,
   secureFetchWithPinnedIP,
 } from '@/lib/core/security/input-validation.server'
+import { isHostNotFound } from '@/lib/credentials/token-service-accounts/errors'
 
 const state = { gateways: new Map<string, OutboundGateway>() }
 
@@ -296,6 +307,67 @@ describe('organization gateways over real TLS CONNECT sockets', () => {
       await transport.dispatcher.destroy()
     }
   })
+  it('fails an unresolvable destination as a missing host, not as an unavailable gateway', async () => {
+    vi.mocked(resolveHostAddresses).mockRejectedValueOnce(
+      Object.assign(new Error('getaddrinfo ENOTFOUND missing.invalid'), { code: 'ENOTFOUND' })
+    )
+    const start = admissions.length
+    const failure = await runWithOutboundOrganization('org_a', () =>
+      outboundFetch('https://missing.invalid', { redirect: 'error' })
+    ).catch((error: unknown) => error)
+    expect(isHostNotFound(failure)).toBe(true)
+    expect(isUnavailableFailure(failure)).toBe(false)
+    expect(admissions.length).toBe(start)
+  })
+  it("sends outboundFetch through the scoped organization's gateway", async () => {
+    const start = admissions.length
+    await runWithOutboundOrganization('org_b', async () => {
+      const response = await outboundFetch(url(), {
+        method: 'POST',
+        body: 'grant_type=client_credentials',
+        redirect: 'error',
+      })
+      expect(response.headers.get('x-via-proxy')).toBe('yes')
+      await response.body?.cancel()
+    })
+    expect(admissions.slice(start)).toEqual([
+      { token: 'Bearer bravo', destination: '1.1.1.1:443', sni: 'gateway.invalid' },
+    ])
+  })
+  describe('AWS SDK clients signing with customer credentials', () => {
+    const sts = new STSClient({
+      region: 'us-east-1',
+      endpoint: url(),
+      maxAttempts: 1,
+      credentials: { accessKeyId: 'AKIDEXAMPLE', secretAccessKey: 'secret' },
+      requestHandler: organizationAwsRequestHandler(),
+    })
+    afterAll(() => sts.destroy())
+
+    /** The origin echoes the signed query body, which STS cannot parse; only the route matters. */
+    const viaProxy = async (organizationId: string) => {
+      const error = await runWithOutboundOrganization(organizationId, () =>
+        sts.send(new GetCallerIdentityCommand({}))
+      ).then(
+        () => undefined,
+        (failure: { $response?: { headers: Record<string, string> } }) => failure
+      )
+      return error?.$response?.headers['x-via-proxy']
+    }
+
+    it('tunnels each organization with its own credential and never shares its pooled socket', async () => {
+      const start = admissions.length
+      expect(await viaProxy('org_a')).toBe('yes')
+      expect(await viaProxy('org_b')).toBe('yes')
+      expect(await viaProxy('org_a')).toBe('yes')
+      expect(await viaProxy('org_b')).toBe('yes')
+      expect(admissions.slice(start)).toEqual([
+        { token: 'Bearer alpha', destination: '1.1.1.1:443', sni: 'gateway.invalid' },
+        { token: 'Bearer bravo', destination: '1.1.1.1:443', sni: 'gateway.invalid' },
+      ])
+    })
+  })
+
   it('fails closed on denied proxy credentials without contacting the origin', async () => {
     state.gateways.set('denied', {
       ...state.gateways.get('org_a')!,

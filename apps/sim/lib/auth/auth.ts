@@ -75,7 +75,8 @@ import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
-import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
+import { refuseSsoCallbackEmailOutsideProviderDomain } from '@/lib/auth/sso/callback-email-domain'
+import { isSsoCallbackPath, resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
 import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
 import {
   assertPersonalCheckoutAllowed,
@@ -159,6 +160,10 @@ import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/ver
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { formatApolloAuthorizationUrl } from '@/lib/oauth/apollo'
+import {
+  resolveConnectDraftOutboundScope,
+  withConnectDraftOutboundScope,
+} from '@/lib/oauth/connect-scope.server'
 import { clearRecordedRevocation } from '@/lib/oauth/credential-service'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -170,7 +175,11 @@ import {
   MICROSOFT_DATAVERSE_PROVIDER_ID,
 } from '@/lib/oauth/microsoft-dataverse'
 import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
-import { isSalesforceOAuthProviderId, withSalesforceInstanceScope } from '@/lib/oauth/salesforce'
+import {
+  extractSalesforceInstanceUrl,
+  isSalesforceOAuthProviderId,
+  withSalesforceInstanceScope,
+} from '@/lib/oauth/salesforce'
 import { fetchSalesforceInstanceUrl } from '@/lib/oauth/salesforce-instance.server'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
@@ -260,6 +269,20 @@ function resolveStripeBilling() {
 }
 
 const stripeBilling = resolveStripeBilling()
+
+/**
+ * Resolves a connecting Salesforce token's instance from the egress route of the workspace or
+ * organization whose connect draft started the callback.
+ */
+async function fetchConnectingSalesforceInstanceUrl(params: {
+  draftId: string | undefined
+  userId: string
+  providerId: string
+  accessToken: string
+}): Promise<string | undefined> {
+  const inDraftScope = await resolveConnectDraftOutboundScope(params)
+  return inDraftScope(() => fetchSalesforceInstanceUrl(params.providerId, params.accessToken))
+}
 
 /**
  * A fresh Slack connect re-issues the installation's rotating token chain,
@@ -364,6 +387,7 @@ export const auth = betterAuth({
             throw new Error('Sign-ups from this email are not allowed.')
           }
           if (isHosted) await refuseDisposableAccountEmail(user.email, context?.path)
+          await refuseSsoCallbackEmailOutsideProviderDomain(user.email, context)
           return { data: user }
         },
         after: async (user, context) => {
@@ -460,6 +484,10 @@ export const auth = betterAuth({
         },
       },
       update: {
+        before: async (user, context) => {
+          if (user.email) await refuseSsoCallbackEmailOutsideProviderDomain(user.email, context)
+          return { data: user }
+        },
         after: async (user) => {
           if (user.banned) {
             await disableUserResources(user.id)
@@ -508,10 +536,12 @@ export const auth = betterAuth({
           }
 
           if (account.accessToken && isSalesforceOAuthProviderId(account.providerId)) {
-            const instanceUrl = await fetchSalesforceInstanceUrl(
-              account.providerId,
-              account.accessToken
-            )
+            const instanceUrl = await fetchConnectingSalesforceInstanceUrl({
+              draftId: reconnectDraftId,
+              userId: account.userId,
+              providerId: account.providerId,
+              accessToken: account.accessToken,
+            })
             if (instanceUrl) {
               modifiedAccount.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
             }
@@ -718,11 +748,14 @@ export const auth = betterAuth({
               updates.accessTokenExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000)
             }
 
-            if (account.accessToken) {
-              const instanceUrl = await fetchSalesforceInstanceUrl(
-                account.providerId,
-                account.accessToken
-              )
+            // The before hook already stored the instance when its lookup succeeded.
+            if (account.accessToken && !extractSalesforceInstanceUrl(account.scope)) {
+              const instanceUrl = await fetchConnectingSalesforceInstanceUrl({
+                draftId: credentialDraftBinding?.draftId,
+                userId: account.userId,
+                providerId: account.providerId,
+                accessToken: account.accessToken,
+              })
               if (instanceUrl) {
                 updates.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
               }
@@ -1278,19 +1311,16 @@ export const auth = betterAuth({
         routeProviderId: ctx.params?.providerId,
         stateProviderId: oauthState?.ssoProviderId,
       })
-      if (!providerId) {
-        await recordFinalAuthenticationResult()
-        return
-      }
-
       const newSession = ctx.context.newSession
-      if (!newSession?.session || !newSession.user) {
+      if (!isSsoCallbackPath(ctx.path) || !newSession?.session || !newSession.user) {
         await recordFinalAuthenticationResult(providerId)
         return
       }
 
       let admissionErrorCode: string | null = null
       try {
+        if (!providerId)
+          throw new Error('SSO callback minted a session without a resolvable provider')
         const admission = await admitSsoUser.execute({
           principal: {
             kind: 'session',
@@ -1476,7 +1506,7 @@ export const auth = betterAuth({
       overrideDefaultEmailVerification: true,
     }),
     genericOAuth({
-      config: buildConnectorProviders(),
+      config: buildConnectorProviders().map(withConnectDraftOutboundScope),
     }),
     /**
      * Sim as an OAuth 2.0 authorization server (auth-code + PKCE, refresh

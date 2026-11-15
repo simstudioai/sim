@@ -1375,6 +1375,9 @@ Create or update a catalog object such as an item, variation, or category
 |   ↳ `item_variation_data` | json | Variation-specific data \(when type is ITEM_VARIATION\) |
 |   ↳ `category_data` | json | Category-specific data \(when type is CATEGORY\) |
 |   ↳ `image_data` | json | Image-specific data \(when type is IMAGE\) |
+| `id_mappings` | array | Mapping from each temporary #-prefixed client ID to its permanent Square ID |
+|   ↳ `client_object_id` | string | Client-supplied temporary #-prefixed ID |
+|   ↳ `object_id` | string | Permanent ID Square assigned to the object |
 | `metadata` | json | Catalog object summary metadata |
 |   ↳ `id` | string | Square catalog object ID |
 |   ↳ `type` | string | Catalog object type |
@@ -1400,6 +1403,17 @@ Retrieve a single catalog object by its ID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `object` | object | Square CatalogObject |
+|   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
+|   ↳ `id` | string | Unique ID for the catalog object |
+|   ↳ `version` | number | Optimistic concurrency version of the object |
+|   ↳ `updated_at` | string | Timestamp when the object was last updated \(RFC 3339\) |
+|   ↳ `is_deleted` | boolean | Whether the object is deleted |
+|   ↳ `present_at_all_locations` | boolean | Whether the object is present at all locations |
+|   ↳ `item_data` | json | Item-specific data \(when type is ITEM\) |
+|   ↳ `item_variation_data` | json | Variation-specific data \(when type is ITEM_VARIATION\) |
+|   ↳ `category_data` | json | Category-specific data \(when type is CATEGORY\) |
+|   ↳ `image_data` | json | Image-specific data \(when type is IMAGE\) |
+| `related_objects` | array | Catalog objects referenced by the retrieved object \(returned when Include Related Objects is true\) |
 |   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
 |   ↳ `id` | string | Unique ID for the catalog object |
 |   ↳ `version` | number | Optimistic concurrency version of the object |

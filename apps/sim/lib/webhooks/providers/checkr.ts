@@ -6,6 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, toArray, toRecord } from '@sim/utils/object'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
@@ -77,7 +78,7 @@ function isValidCheckrSignature(apiKey: string, signature: string, rawBody: stri
  * adopts the live registration instead of creating another.
  */
 async function findCheckrWebhookForUrl(apiKey: string, url: string): Promise<string | null> {
-  const response = await fetch(CHECKR_WEBHOOKS_URL, { headers: checkrAuthHeaders(apiKey) })
+  const response = await outboundFetch(CHECKR_WEBHOOKS_URL, { headers: checkrAuthHeaders(apiKey) })
   if (!response.ok) return null
   const body = await readCheckrResponse(response, 'Checkr webhook list response')
   const match = toArray(body.data)
@@ -219,7 +220,7 @@ export const checkrHandler: WebhookProviderHandler = {
       triggerId: providerConfig.triggerId,
     })
 
-    const response = await fetch(CHECKR_WEBHOOKS_URL, {
+    const response = await outboundFetch(CHECKR_WEBHOOKS_URL, {
       method: 'POST',
       headers: checkrAuthHeaders(apiKey),
       body: JSON.stringify({
@@ -279,10 +280,13 @@ export const checkrHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(`${CHECKR_WEBHOOKS_URL}/${encodeURIComponent(externalId)}`, {
-        method: 'DELETE',
-        headers: checkrAuthHeaders(apiKey),
-      })
+      const response = await outboundFetch(
+        `${CHECKR_WEBHOOKS_URL}/${encodeURIComponent(externalId)}`,
+        {
+          method: 'DELETE',
+          headers: checkrAuthHeaders(apiKey),
+        }
+      )
 
       if (response.ok) {
         logger.info(`Deleted Checkr webhook ${externalId}`, { requestId: ctx.requestId })

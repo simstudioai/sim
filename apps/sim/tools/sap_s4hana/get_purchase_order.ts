@@ -106,74 +106,63 @@ export const getPurchaseOrderTool: InternalToolConfig<GetPurchaseOrderParams, Sa
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {
       type: 'json',
-      description: 'OData v2 response envelope; entity at output.data.d',
+      description: 'A_PurchaseOrder entity (the integration unwraps the OData v2 `d` envelope)',
       properties: {
-        d: {
+        PurchaseOrder: { type: 'string', description: 'Purchase order number' },
+        PurchaseOrderType: { type: 'string', description: 'PO document type' },
+        CompanyCode: { type: 'string', description: 'Company code' },
+        PurchasingOrganization: { type: 'string', description: 'Purchasing organization' },
+        PurchasingGroup: { type: 'string', description: 'Purchasing group' },
+        Supplier: { type: 'string', description: 'Supplier business partner key' },
+        DocumentCurrency: {
+          type: 'string',
+          description: 'Document currency',
+          optional: true,
+        },
+        CreationDate: {
+          type: 'string',
+          description: 'Creation date (OData /Date(ms)/)',
+          optional: true,
+        },
+        CreatedByUser: {
+          type: 'string',
+          description: 'User who created the PO',
+          optional: true,
+        },
+        PurchaseOrderDate: {
+          type: 'string',
+          description: 'Purchase order date',
+          optional: true,
+        },
+        ValidityStartDate: {
+          type: 'string',
+          description: 'Validity start date',
+          optional: true,
+        },
+        ValidityEndDate: {
+          type: 'string',
+          description: 'Validity end date',
+          optional: true,
+        },
+        IncotermsClassification: {
+          type: 'string',
+          description: 'Incoterms classification (e.g., FOB)',
+          optional: true,
+        },
+        PaymentTerms: {
+          type: 'string',
+          description: 'Payment terms key',
+          optional: true,
+        },
+        LastChangeDateTime: {
+          type: 'string',
+          description: 'Last change timestamp (OData /Date(ms)/)',
+          optional: true,
+        },
+        to_PurchaseOrderItem: {
           type: 'json',
-          description: 'A_PurchaseOrder entity',
-          properties: {
-            PurchaseOrder: { type: 'string', description: 'Purchase order number' },
-            PurchaseOrderType: { type: 'string', description: 'PO document type' },
-            CompanyCode: { type: 'string', description: 'Company code' },
-            PurchasingOrganization: { type: 'string', description: 'Purchasing organization' },
-            PurchasingGroup: { type: 'string', description: 'Purchasing group' },
-            Supplier: { type: 'string', description: 'Supplier business partner key' },
-            DocumentCurrency: {
-              type: 'string',
-              description: 'Document currency',
-              optional: true,
-            },
-            NetAmount: {
-              type: 'string',
-              description: 'Net amount of the purchase order',
-              optional: true,
-            },
-            CreationDate: {
-              type: 'string',
-              description: 'Creation date (OData /Date(ms)/)',
-              optional: true,
-            },
-            CreatedByUser: {
-              type: 'string',
-              description: 'User who created the PO',
-              optional: true,
-            },
-            PurchaseOrderDate: {
-              type: 'string',
-              description: 'Purchase order date',
-              optional: true,
-            },
-            ValidityStartDate: {
-              type: 'string',
-              description: 'Validity start date',
-              optional: true,
-            },
-            ValidityEndDate: {
-              type: 'string',
-              description: 'Validity end date',
-              optional: true,
-            },
-            IncotermsClassification: {
-              type: 'string',
-              description: 'Incoterms classification (e.g., FOB)',
-              optional: true,
-            },
-            PaymentTerms: {
-              type: 'string',
-              description: 'Payment terms key',
-              optional: true,
-            },
-            LastChangeDateTime: {
-              type: 'string',
-              description: 'Last change timestamp (OData /Date(ms)/)',
-              optional: true,
-            },
-            to_PurchaseOrderItem: {
-              type: 'json',
-              description: 'Expanded PO items (when $expand=to_PurchaseOrderItem)',
-              optional: true,
-            },
-          },
+          description: 'Expanded PO items (when $expand=to_PurchaseOrderItem)',
+          optional: true,
         },
       },
     },

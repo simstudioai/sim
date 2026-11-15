@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateSalesforceInstanceUrl } from '@/lib/core/security/input-validation'
 import { isSalesforceLoginOrigin } from '@/lib/oauth/salesforce'
+import { assertNoDotPathSegments, safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('SalesforceUtils')
 
@@ -68,6 +69,46 @@ export function requireId(value: string | undefined, label: string): string {
     throw new Error(`${label} is required. Please provide a valid Salesforce ${label}.`)
   }
   return trimmed
+}
+
+/**
+ * Trims a record, report, dashboard, or object identifier and returns it as one
+ * encoded URL path segment, rejecting empty, dot, and separator values.
+ * @param value - The raw ID value from params
+ * @param label - Human-readable field name used in the error message
+ * @returns The encoded path segment
+ */
+export function idPathSegment(value: string | undefined, label: string): string {
+  return safeUrlPathSegment(requireId(value, label), label)
+}
+
+/**
+ * Resolves a query `nextRecordsUrl` to a path on the connected instance. Salesforce
+ * returns it relative (`/services/data/vXX.X/query/01g...-2000`); an absolute URL on
+ * the same instance is accepted too, so a value copied from a browser or log works.
+ * @param value - The nextRecordsUrl from a previous query response
+ * @param instanceUrl - The connected org's https origin
+ * @returns The path (with query string) to request on `instanceUrl`
+ * @throws Error if the URL points at another host or outside the REST data API
+ * @see https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_query.htm
+ */
+export function resolveNextRecordsPath(value: string, instanceUrl: string): string {
+  let path = value.trim()
+  if (/^https?:\/\//i.test(path)) {
+    const parsed = new URL(path)
+    if (parsed.origin !== new URL(instanceUrl).origin) {
+      throw new Error('Next Records URL must belong to the connected Salesforce instance.')
+    }
+    path = `${parsed.pathname}${parsed.search}`
+  }
+  if (!path.startsWith('/')) path = `/${path}`
+  if (!path.startsWith('/services/data/')) {
+    throw new Error(
+      'Next Records URL must be the nextRecordsUrl from a query response (e.g., /services/data/v59.0/query/01g...).'
+    )
+  }
+  assertNoDotPathSegments(path)
+  return path
 }
 
 /**

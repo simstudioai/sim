@@ -65,3 +65,16 @@ export function settingsRoute(lastRoute: string | undefined): string {
   const organizationId = organizationIdFromRoute(lastRoute)
   return organizationId ? `/o/${organizationId}/settings/general` : SETTINGS_ENTRY_ROUTE
 }
+
+/**
+ * Route for the quick chat window: the web app's compact chat surface (the one the browser
+ * extension's side panel frames), scoped to the workspace or organization the user was last in.
+ */
+export function quickChatRoute(lastRoute: string | undefined): string {
+  const workspaceId = workspaceIdFromRoute(lastRoute)
+  if (workspaceId) {
+    return `/extension/${workspaceId}`
+  }
+  const organizationId = organizationIdFromRoute(lastRoute)
+  return organizationId ? `/extension/o/${organizationId}` : '/extension'
+}

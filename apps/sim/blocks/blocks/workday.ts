@@ -112,7 +112,7 @@ export const WorkdayBlock: BlockConfig = {
       id: 'workerId',
       title: 'Worker ID',
       type: 'short-input',
-      placeholder: 'e.g., 3aa5550b7fe348b98d7b5741afc65534',
+      placeholder: 'Employee ID (e.g., 21001); WID for onboarding',
       condition: {
         field: 'operation',
         value: [
@@ -183,7 +183,7 @@ export const WorkdayBlock: BlockConfig = {
       id: 'address',
       title: 'Address',
       type: 'short-input',
-      placeholder: '123 Main St, City, State',
+      placeholder: '123 Main St',
       condition: { field: 'operation', value: 'create_prehire' },
       mode: 'advanced',
     },
@@ -274,7 +274,7 @@ export const WorkdayBlock: BlockConfig = {
       placeholder:
         '{\n  "Marital_Status_Reference": {\n    "ID": { "attributes": { "wd:type": "Marital_Status_ID" }, "$value": "Married" }\n  }\n}',
       description:
-        'Demographic fields supported by Workday Change_Personal_Information (e.g. Date_of_Birth, Gender_Reference, Marital_Status_Reference, Ethnicity_Reference, Citizenship_Status_Reference). Does not update business title or work contact info.',
+        'Demographic fields supported by Workday Change_Personal_Information (e.g. Date_of_Birth, Gender_Reference, Marital_Status_Reference, Ethnicity_Reference, Citizenship_Reference). Does not update business title or work contact info.',
       condition: { field: 'operation', value: 'update_worker' },
       required: { field: 'operation', value: 'update_worker' },
       wandConfig: {
@@ -286,8 +286,8 @@ export const WorkdayBlock: BlockConfig = {
 - Date_of_Birth: ISO date string (YYYY-MM-DD)
 - Gender_Reference: { ID: { attributes: { "wd:type": "Gender_Code" }, $value: "Male" | "Female" | ... } }
 - Marital_Status_Reference: { ID: { attributes: { "wd:type": "Marital_Status_ID" }, $value: "Married" | "Single" | ... } }
+- Citizenship_Reference: same reference shape, with the tenant's citizenship status ID
 - Ethnicity_Reference: { ID: { attributes: { "wd:type": "Ethnicity_ID" }, $value: "..." } }
-- Citizenship_Status_Reference: same shape
 
 ### NOT SUPPORTED BY THIS OPERATION
 - Business title (use Change_Job)
@@ -296,6 +296,7 @@ export const WorkdayBlock: BlockConfig = {
 ### RULES
 - Output ONLY valid JSON starting with { and ending with }
 - Include only fields that need updating
+- Keep keys in the order listed above (Workday rejects out-of-order elements)
 
 ### EXAMPLE
 User: "Mark marital status as Married"
@@ -407,9 +408,18 @@ Output: {"Marital_Status_Reference":{"ID":{"attributes":{"wd:type":"Marital_Stat
     ],
     config: {
       tool: (params) => `workday_${params.operation}`,
-      params: (params) => {
-        const { operation, orgType, fields, jobProfileId, locationId, supervisoryOrgId, ...rest } =
-          params
+      params: (params, context) => {
+        const {
+          operation: storedOperation,
+          orgType,
+          fields,
+          jobProfileId,
+          locationId,
+          supervisoryOrgId,
+          ...rest
+        } = params
+        /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
+        const operation = storedOperation ?? context?.operation
 
         if (rest.limit != null && rest.limit !== '') rest.limit = Number(rest.limit)
         if (rest.offset != null && rest.offset !== '') rest.offset = Number(rest.offset)

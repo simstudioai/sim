@@ -6,6 +6,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   getCredentialAccessToken,
   getNotificationUrl,
@@ -71,7 +72,7 @@ function bitbucketHooksUrl(workspaceSlug: string, repoSlug: string): string {
 }
 
 function fetchBitbucketManagement(url: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(url, {
+  return outboundFetch(url, {
     ...init,
     signal: AbortSignal.timeout(BITBUCKET_MANAGEMENT_REQUEST_TIMEOUT_MS),
   })

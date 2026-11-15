@@ -2,6 +2,7 @@ import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { htmlToText } from 'html-to-text'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { AttachmentDownloadBudget } from '@/lib/uploads/utils/attachment-download-budget'
 import {
@@ -11,11 +12,11 @@ import {
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
+  isUncountedPollFailure,
   markWebhookFailed,
   markWebhookSuccess,
-  PollAdmissionRefusedError,
   resolveOAuthCredential,
-  skipAdmissionRefusedPoll,
+  skipUncountedPollFailure,
   throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
@@ -195,9 +196,8 @@ export const outlookPollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError) {
-        return skipAdmissionRefusedPoll(logger, webhookId)
-      }
+      const skipped = skipUncountedPollFailure(error, logger, webhookId)
+      if (skipped) return skipped
       logger.error(`Error processing Outlook webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
@@ -438,6 +438,7 @@ async function processOutlookEmails(
                 }
               )
             } catch (error) {
+              if (isUnavailableFailure(error)) throw error
               logger.error(`Error downloading attachments for email ${email.id}:`, error)
             }
           }
@@ -515,7 +516,10 @@ async function processOutlookEmails(
       logger.info(`Successfully processed email ${email.id} for webhook ${webhookData.id}`)
       processedCount++
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
+      // An outage leaves the cursor where it is even after earlier emails succeeded; those
+      // emails already saved their duplicate checks, so the next poll skips them.
+      if (isUnavailableFailure(error)) throw error
+      if (isUncountedPollFailure(error) && processedCount === 0) throw error
       logger.error(`Error processing email ${email.id}:`, error)
       failedCount++
     }

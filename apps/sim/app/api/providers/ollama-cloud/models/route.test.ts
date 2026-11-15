@@ -1,7 +1,8 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
-import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import { workspaceContextMock } from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch } = vi.hoisted(() => ({
@@ -12,7 +13,9 @@ vi.mock('@/providers/utils', () => providersUtilsMock)
 
 vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import { GET } from '@/app/api/providers/ollama-cloud/models/route'
 
@@ -20,7 +23,7 @@ const { mockGetBYOKKey } = apiKeyByokMockFns
 
 const mockGetSession = authMockFns.mockGetSession
 const { mockFilterBlacklistedModels, mockIsProviderBlacklisted } = providersUtilsMockFns
-const { mockGetUserEntityPermissions } = permissionsMockFns
+const { mockResolveEffectiveWorkspacePermission } = workspaceAuthzMockFns
 
 /**
  * Builds a request whose query string carries the given workspaceId. Passing
@@ -36,8 +39,8 @@ const requestWithWorkspace = (workspaceId?: string) => {
 
 /** Grants a session + workspace permission so the BYOK lookup is reached. */
 const grantWorkspaceAccess = () => {
-  mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-  mockGetUserEntityPermissions.mockResolvedValue('admin')
+  mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+  mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
 }
 
 describe('GET /api/providers/ollama-cloud/models', () => {
@@ -48,7 +51,7 @@ describe('GET /api/providers/ollama-cloud/models', () => {
     mockFilterBlacklistedModels.mockImplementation((models: string[]) => models)
     mockGetBYOKKey.mockResolvedValue(null)
     mockGetSession.mockResolvedValue(null)
-    mockGetUserEntityPermissions.mockResolvedValue(null)
+    mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
   })
 
   it('returns empty models when the workspace has no stored BYOK key (never falls back to a hosted key)', async () => {
@@ -64,8 +67,8 @@ describe('GET /api/providers/ollama-cloud/models', () => {
   })
 
   it('does not call getBYOKKey when the session user lacks workspace permission', async () => {
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    mockGetUserEntityPermissions.mockResolvedValue(null)
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
 
     const res = await GET(requestWithWorkspace('ws-1'))
 

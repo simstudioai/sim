@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -447,7 +448,7 @@ async function sendSuiteTalkRequest(
       headers['X-NetSuite-PropertyNameValidation'] = 'error'
     }
   }
-  return fetch(url, {
+  return outboundFetch(url, {
     method: request.method,
     headers,
     ...(serializedBody !== undefined ? { body: serializedBody } : {}),

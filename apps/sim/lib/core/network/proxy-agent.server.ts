@@ -11,7 +11,7 @@ import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 
 /** Matches the AWS SDK's own default agent, so swapping it in changes routing and nothing else. */
-const AGENT_OPTIONS: http.AgentOptions = { keepAlive: true, maxSockets: 50 }
+export const AGENT_OPTIONS: http.AgentOptions = { keepAlive: true, maxSockets: 50 }
 
 /**
  * A Node agent for SDKs that bring their own HTTP stack (the AWS SDK, the OTLP exporters) and so
@@ -52,7 +52,7 @@ function environmentProxyAgent(): EnvironmentProxyAgent {
   return sharedAgent
 }
 
-interface AwsRequestHandlerOptions {
+export interface AwsRequestHandlerOptions {
   connectionTimeout?: number
   requestTimeout?: number
   throwOnRequestTimeout?: boolean

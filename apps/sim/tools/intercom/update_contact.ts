@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('IntercomUpdateContact')
 
@@ -123,7 +124,8 @@ const intercomUpdateContactBase = {
   },
 
   request: {
-    url: (params) => buildIntercomUrl(`/contacts/${params.contactId}`),
+    url: (params) =>
+      buildIntercomUrl(`/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}`),
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

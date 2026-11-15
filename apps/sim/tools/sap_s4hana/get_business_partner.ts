@@ -109,7 +109,7 @@ export const getBusinessPartnerTool: InternalToolConfig<
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {
       type: 'json',
-      description: 'A_BusinessPartner entity (under d in OData v2)',
+      description: 'A_BusinessPartner entity (the integration unwraps the OData v2 `d` envelope)',
       properties: {
         BusinessPartner: { type: 'string', description: 'Business partner key (up to 10 chars)' },
         BusinessPartnerFullName: {

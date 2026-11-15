@@ -12,6 +12,7 @@ import {
 } from '@/tools/servicenow/utils'
 import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const orderCatalogItemTool: ToolConfig<
   ServiceNowOrderCatalogItemParams,
@@ -62,7 +63,7 @@ export const orderCatalogItemTool: ToolConfig<
       if (!itemSysId) {
         throw new Error('A catalog item sys_id is required')
       }
-      return `${baseUrl}/api/sn_sc/servicecatalog/items/${itemSysId}/order_now`
+      return `${baseUrl}/api/sn_sc/servicecatalog/items/${safeUrlPathSegment(itemSysId, 'catalogItemSysId')}/order_now`
     },
     method: 'POST',
     headers: (params) => buildServiceNowHeaders(params, { json: true }),

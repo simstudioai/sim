@@ -33,9 +33,12 @@ function withChat<T extends { chatId?: string }>(changes: T[], context?: ServerT
     : changes
 }
 
+const CHANGELOG_READ_ACTIONS = new Set(['list', 'get'])
+
 export const changelogServerTool: BaseServerTool = {
   name: 'changelog',
   inputSchema: mothershipChangelogInputSchema,
+  writes: (args) => !CHANGELOG_READ_ACTIONS.has(mothershipChangelogInputSchema.parse(args).action),
   async execute(raw, context) {
     const input = mothershipChangelogInputSchema.parse(raw)
     const workspaceId = workspaceFor(input, context)

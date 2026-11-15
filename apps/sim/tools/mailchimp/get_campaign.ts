@@ -5,6 +5,7 @@ import {
 } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpGetCampaignParams {
   apiKey: string
@@ -45,7 +46,11 @@ export const mailchimpGetCampaignTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/campaigns/${params.campaignId}`),
+    url: (params) =>
+      buildMailchimpUrl(
+        params.apiKey,
+        `/campaigns/${safeUrlPathSegment(params.campaignId, 'campaignId')}`
+      ),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

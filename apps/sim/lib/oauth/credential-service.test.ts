@@ -60,8 +60,11 @@ vi.mock('@/lib/oauth/microsoft', () => ({
 
 vi.mock('@/lib/oauth/oauth', () => ({
   OAUTH_PROVIDERS: {},
-  refreshOAuthToken: hoisted.refreshOAuthToken,
   TOKEN_REFRESH_TIMEOUT_MS: 15_000,
+}))
+
+vi.mock('@/lib/oauth/refresh.server', () => ({
+  refreshOAuthToken: hoisted.refreshOAuthToken,
 }))
 
 vi.mock('@/lib/oauth/quickbooks-client-config', () => ({
@@ -88,6 +91,7 @@ vi.mock('@/lib/oauth/refresh-error-codes', () => ({
   isTerminalRefreshError: vi.fn(() => false),
 }))
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import {
   getCredentialTerminalRefreshError,
@@ -902,6 +906,19 @@ describe('OAuth access-token refresh headroom', () => {
       expect.objectContaining({ refreshRevokedCode: 'invalid_grant' })
     )
   })
+
+  it.each(readers)(
+    '$name rethrows an unavailable egress route instead of a missing, revoked or failed token',
+    async ({ read }) => {
+      mocks.refreshOAuthToken.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+      const row = createOAuthAccount(WAITED_GOOGLE_REMAINING_MS)
+      queueTableRows(account, [row])
+      await expect(read(row)).rejects.toBeInstanceOf(OutboundRoutingError)
+      expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ refreshRevokedCode: expect.anything() })
+      )
+    }
+  )
 
   it('answers a Microsoft caller from its valid token while refresh-token aging refreshes', async () => {
     vi.mocked(isMicrosoftProvider).mockReturnValue(true)

@@ -164,7 +164,9 @@ export const asanaGetTaskBodySchema = z.object({
   taskGid: z.string().nullish(),
   workspace: z.string().nullish(),
   project: z.string().nullish(),
+  assignee: z.string().nullish(),
   limit: z.union([z.string(), z.number()]).nullish(),
+  offset: z.string().nullish(),
 })
 
 export const asanaSearchTasksBodySchema = z.object({
@@ -174,6 +176,7 @@ export const asanaSearchTasksBodySchema = z.object({
   assignee: z.string().nullish(),
   projects: z.array(z.string()).nullish(),
   completed: z.boolean().nullish(),
+  limit: z.union([z.string(), z.number()]).nullish(),
 })
 
 export const asanaUpdateTaskBodySchema = z.object({

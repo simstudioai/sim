@@ -1,4 +1,5 @@
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { BoxDeleteFolderParams } from './types'
 
 export const boxDeleteFolderTool: ToolConfig<BoxDeleteFolderParams, ToolResponse> = {
@@ -38,7 +39,7 @@ export const boxDeleteFolderTool: ToolConfig<BoxDeleteFolderParams, ToolResponse
       const queryParams = new URLSearchParams()
       if (params.recursive) queryParams.set('recursive', 'true')
       const qs = queryParams.toString()
-      return `https://api.box.com/2.0/folders/${params.folderId.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.box.com/2.0/folders/${safeUrlPathSegment(params.folderId, 'folderId')}${qs ? `?${qs}` : ''}`
     },
     method: 'DELETE',
     headers: (params) => ({

@@ -4,6 +4,7 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   getCredentialAccessToken,
   getNotificationUrl,
@@ -87,7 +88,7 @@ function parseOptionalStringId(value: unknown): string | undefined {
 }
 
 async function deleteClickUpWebhook(accessToken: string, externalId: string): Promise<Response> {
-  return fetch(`${CLICKUP_API_BASE_URL}/webhook/${externalId}`, {
+  return outboundFetch(`${CLICKUP_API_BASE_URL}/webhook/${externalId}`, {
     method: 'DELETE',
     headers: { Authorization: clickupAuthorizationHeader(accessToken) },
   })
@@ -184,7 +185,7 @@ export const clickupHandler: WebhookProviderHandler = {
       if (listId !== undefined) requestBody.list_id = listId
       if (taskId !== undefined) requestBody.task_id = taskId
 
-      const clickupResponse = await fetch(
+      const clickupResponse = await outboundFetch(
         `${CLICKUP_API_BASE_URL}/team/${encodeURIComponent(workspaceId)}/webhook`,
         {
           method: 'POST',

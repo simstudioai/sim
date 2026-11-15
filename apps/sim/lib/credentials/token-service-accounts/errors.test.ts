@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   fetchProvider,
   isHostNotFound,
@@ -53,6 +54,14 @@ describe('token service-account error helpers', () => {
       expect(error.code).toBe('provider_unavailable')
       expect(error.status).toBe(502)
       expect(error.logDetail).toEqual({ step: 'self', reason: 'network error reaching provider' })
+    })
+
+    it("surfaces an unavailable egress route as Sim's outage, not the provider's", async () => {
+      mockFetch.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+      await expect(fetchProvider(PROVIDER_URL, {}, 'self')).rejects.toBeInstanceOf(
+        OutboundRoutingError
+      )
     })
 
     it('never includes the URL in logDetail', async () => {

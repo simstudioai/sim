@@ -164,11 +164,14 @@ export interface AmplitudeUserProfileResponse extends ToolResponse {
  */
 export interface AmplitudeEventSegmentationParams extends AmplitudeBasicAuthParams {
   eventType: string
+  /** Second event (`e2`), referenced as B in a formula. */
+  secondEventType?: string
   start: string
   end: string
   metric?: string
   interval?: string
   groupBy?: string
+  /** Sent as a repeated `g` parameter. */
   groupBy2?: string
   limit?: string
   /** JSON array of filter objects applied to the event (subprop_type, subprop_key, subprop_op, subprop_value). */

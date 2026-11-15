@@ -16,6 +16,7 @@ import {
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 
 const hoisted = vi.hoisted(() => ({
   test: vi.fn(),
@@ -240,6 +241,15 @@ describe('organization data drain application boundary', () => {
       [expect.objectContaining({ metadata: expect.objectContaining({ outcome: 'failed' }) })],
       'org'
     )
+  })
+  it("surfaces an egress outage during a connection test as Sim's outage, not a failed test", async () => {
+    allow()
+    dbChainMockFns.limit.mockResolvedValueOnce([row])
+    mocks.test.mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+    await expect(testDataDrain.execute({ principal, input })).rejects.toBeInstanceOf(
+      OutboundRoutingError
+    )
+    expect(mocks.audit).not.toHaveBeenCalled()
   })
   it('bounds history and removes error, locator and cursor content from model output', async () => {
     allow()

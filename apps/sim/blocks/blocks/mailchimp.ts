@@ -63,6 +63,10 @@ export const MailchimpBlock: BlockConfig = {
           { text: 'Delete member', field: 'subscriberEmail', core: true },
           { text: 'from audience', field: 'listId' },
         ],
+        delete_member_permanent: [
+          { text: 'Permanently delete member', field: 'subscriberEmail', core: true },
+          { text: 'from audience', field: 'listId' },
+        ],
         archive_member: [
           { text: 'Archive member', field: 'subscriberEmail', core: true },
           { text: 'in audience', field: 'listId' },
@@ -322,6 +326,7 @@ export const MailchimpBlock: BlockConfig = {
         { label: 'Add or Update Member', id: 'add_or_update_member' },
         { label: 'Update Member', id: 'update_member' },
         { label: 'Delete Member', id: 'delete_member' },
+        { label: 'Permanently Delete Member', id: 'delete_member_permanent' },
         { label: 'Archive Member', id: 'archive_member' },
         { label: 'Unarchive Member', id: 'unarchive_member' },
         // Campaign operations
@@ -425,6 +430,7 @@ export const MailchimpBlock: BlockConfig = {
           'add_or_update_member',
           'update_member',
           'delete_member',
+          'delete_member_permanent',
           'archive_member',
           'unarchive_member',
           'get_segments',
@@ -467,6 +473,7 @@ export const MailchimpBlock: BlockConfig = {
           'add_or_update_member',
           'update_member',
           'delete_member',
+          'delete_member_permanent',
           'archive_member',
           'unarchive_member',
           'get_segments',
@@ -630,19 +637,30 @@ Return ONLY the JSON object - no explanations or markdown.`,
       id: 'emailTypeOption',
       title: 'Email Type Option',
       type: 'dropdown',
-      options: [
+      dependsOn: ['operation'],
+      /**
+       * Create Audience offers True/False. Every other context leads with "Keep current" so an
+       * update leaves the setting alone; that includes agent tool rows, where the operation is not
+       * in the values. `value` seeds API-built blocks per operation and returns undefined without
+       * one, so the editor falls back to the first option; `dependsOn` reseeds on an operation switch.
+       */
+      options: (params) => [
+        ...(params?.values.operation === 'create_audience'
+          ? []
+          : [{ label: 'Keep current', id: '' }]),
         { label: 'True', id: 'true' },
         { label: 'False', id: 'false' },
       ],
-      required: {
-        field: 'operation',
-        value: ['create_audience'],
-      },
+      value: (params) =>
+        params?.operation === 'create_audience'
+          ? 'true'
+          : params?.operation === 'update_audience'
+            ? ''
+            : undefined,
       condition: {
         field: 'operation',
         value: ['create_audience', 'update_audience'],
       },
-      value: () => 'true',
     },
     // Member fields
     {
@@ -656,6 +674,7 @@ Return ONLY the JSON object - no explanations or markdown.`,
           'get_member',
           'update_member',
           'delete_member',
+          'delete_member_permanent',
           'archive_member',
           'unarchive_member',
           'get_member_tags',
@@ -671,6 +690,7 @@ Return ONLY the JSON object - no explanations or markdown.`,
           'get_member',
           'update_member',
           'delete_member',
+          'delete_member_permanent',
           'archive_member',
           'unarchive_member',
           'get_member_tags',
@@ -1536,7 +1556,8 @@ Return ONLY the landing page title - no explanations.`,
       type: 'dropdown',
       options: [
         { label: 'Signup', id: 'signup' },
-        { label: 'Click Through', id: 'click-through' },
+        { label: 'Product', id: 'product' },
+        { label: 'Click Through (legacy)', id: 'click-through' },
       ],
       required: {
         field: 'operation',
@@ -1660,6 +1681,7 @@ Return ONLY the JSON array - no explanations or markdown.`,
       'mailchimp_add_or_update_member',
       'mailchimp_update_member',
       'mailchimp_delete_member',
+      'mailchimp_delete_member_permanent',
       'mailchimp_archive_member',
       'mailchimp_unarchive_member',
       'mailchimp_get_campaigns',

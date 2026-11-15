@@ -1,9 +1,12 @@
-import { createLogger } from '@sim/logger'
-import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import {
+  buildMailchimpUrl,
+  buildMemberTags,
+  handleMailchimpError,
+  mailchimpMemberSegment,
+} from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('MailchimpRemoveMemberTags')
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpRemoveMemberTagsParams {
   apiKey: string
@@ -53,7 +56,7 @@ export const mailchimpRemoveMemberTagsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON array of tag objects with inactive status (e.g., [{"name": "VIP", "status": "inactive"}])',
+        'JSON array of tag objects with inactive status (e.g., [{"name": "VIP", "status": "inactive"}]) or a comma-separated list of tag names; status defaults to "inactive"',
     },
   },
 
@@ -61,23 +64,14 @@ export const mailchimpRemoveMemberTagsTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/members/${params.subscriberEmail}/tags`
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/members/${mailchimpMemberSegment(params.subscriberEmail)}/tags`
       ),
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      let tags = []
-      try {
-        tags = JSON.parse(params.tags)
-      } catch (error) {
-        logger.warn('Failed to parse tags', { error })
-      }
-
-      return { tags }
-    },
+    body: (params) => ({ tags: buildMemberTags(params.tags, 'inactive') }),
   },
 
   transformResponse: async (response: Response) => {

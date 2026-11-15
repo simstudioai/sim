@@ -33,7 +33,7 @@ function projectUpdateAudit(
   patch: WorkspaceUpdatePatch,
   { previous, updated }: WorkspaceUpdateResult
 ): WorkspaceUseCaseAuditEntry {
-  const { name, logoUrl, allowPersonalApiKeys, billedAccountUserId } = patch
+  const { name, logoUrl, allowPersonalApiKeys } = patch
   return {
     action: AuditAction.WORKSPACE_UPDATED,
     resourceType: AuditResourceType.WORKSPACE,
@@ -47,18 +47,15 @@ function projectUpdateAudit(
         ...(allowPersonalApiKeys !== undefined && {
           allowPersonalApiKeys: { from: previous.allowPersonalApiKeys, to: allowPersonalApiKeys },
         }),
-        ...(billedAccountUserId !== undefined && {
-          billedAccountUserId: { from: previous.billedAccountUserId, to: billedAccountUserId },
-        }),
       },
     },
   }
 }
 
 /**
- * The full workspace settings update: name, logo, personal-key policy and
- * billed account. An inactive or unreachable workspace is refused the same way
- * as a non-admin, so the caller cannot tell the two apart.
+ * The full workspace settings update: name, logo and personal-key policy.
+ * An inactive or unreachable workspace is refused the same way as a
+ * non-admin, so the caller cannot tell the two apart.
  */
 export const updateWorkspace = defineAuthorizedWorkspaceUseCase({
   operation: workspaceUpdateOperations.update,

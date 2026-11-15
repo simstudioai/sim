@@ -95,13 +95,18 @@ export const zendeskUpdateTicketsBulkTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated tags to add to all tickets (e.g., "bulk-update, processed")',
+      description:
+        'Comma-separated tags that replace the existing tags on all tickets (e.g., "bulk-update, processed")',
     },
   },
 
   request: {
     url: (params) => {
-      const ids = params.ticketIds.split(',').map((id) => id.trim())
+      const ids = params.ticketIds
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean)
+        .map((id) => encodeURIComponent(id))
       return buildZendeskUrl(params.subdomain, `/tickets/update_many?ids=${ids.join(',')}`)
     },
     method: 'PUT',

@@ -14,6 +14,8 @@ import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { providersMock, providersMockFns } from '@sim/testing/mocks/providers.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { EGRESS_UNAVAILABLE_MESSAGE } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
   authorizeCredential: vi.fn(),
@@ -130,6 +132,26 @@ describe('executeLlmProviderOperation', () => {
       expect.objectContaining({ apiKey: 'vertex-token' }),
       expect.anything()
     )
+  })
+
+  it('reports a Vertex credential the egress outage kept from resolving as unavailable', async () => {
+    mockExecuteProviderRequest.mockClear()
+    mocks.resolveVertexAccessToken.mockRejectedValueOnce(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    await expect(
+      executeLlmProviderOperation(
+        {
+          provider: 'vertex',
+          model: 'vertex/gemini-2.5-pro',
+          vertexCredential: 'credential-1',
+          workspaceId: 'workspace-1',
+        },
+        { actorUserId: 'user-1', headers: new Headers(), requestId: 'request-1' }
+      )
+    ).rejects.toMatchObject({ status: 503, body: { error: EGRESS_UNAVAILABLE_MESSAGE } })
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 
   it("signs a Bedrock call with the selected AWS credential's session for the caller", async () => {

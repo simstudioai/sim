@@ -3,7 +3,9 @@ import { credential } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { EgressRefusedError } from '@/lib/core/network/transport.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
@@ -162,7 +164,7 @@ async function requestWorkspaceToken(
   const url = `${workspaceOrigin(host)}/oidc/v1/token`
   let response: Response
   try {
-    response = await fetch(url, {
+    response = await outboundFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
       body,
@@ -170,8 +172,9 @@ async function requestWorkspaceToken(
       redirect: 'error',
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     })
-  } catch {
+  } catch (error) {
     signal?.throwIfAborted()
+    if (isUnavailableFailure(error)) throw error
     // A network failure, timeout, or refused redirect says nothing about the credential.
     throw new DatabricksCredentialError('Could not reach the Databricks workspace', 502)
   }
@@ -308,10 +311,10 @@ function databricksRefusalReason(body: string): string | undefined {
 }
 
 /**
- * Proves a configuration by calling the workspace's SCIM `Me` with the resolved
- * token. The call goes through the egress guard, which also routes it through
- * the organization's outbound gateway, so a workspace whose IP access list
- * allows only the organization's dedicated egress addresses accepts it.
+ * Proves a configuration by minting a workspace token and calling the workspace's
+ * SCIM `Me` with it. Both requests leave through the organization's outbound
+ * gateway when it has one, so a workspace whose IP access list allows only the
+ * organization's dedicated egress addresses accepts them.
  */
 async function verifyWorkspaceIdentity(
   config: DatabricksCredentialConfig,
@@ -352,6 +355,7 @@ async function verifyWorkspaceIdentity(
   } catch (error) {
     // A keyless refusal already names its cause and code; wrapping it would lose both.
     if (error instanceof KeylessCredentialRefusedError) throw error
+    if (isUnavailableFailure(error)) throw error
     if (error instanceof EgressRefusedError) {
       throw new DatabricksCredentialError(
         'Could not verify the Databricks credential: the workspace host is not allowed'
@@ -388,6 +392,7 @@ async function assertPolicyPinsSubject(
       providerFailureCode(error.status) === 'invalid_credentials'
     if (refused) return
     if (error instanceof KeylessCredentialRefusedError) throw error
+    if (isUnavailableFailure(error)) throw error
     throw new DatabricksCredentialError(
       `Sim could not confirm the federation policy limits this service principal to this credential: ${failureClause(error)}. Try again.`
     )

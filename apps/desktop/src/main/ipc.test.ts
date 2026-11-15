@@ -341,6 +341,7 @@ describe('registerIpcHandlers', () => {
         setBrowserSearchSuggestionsEnabled: vi.fn(),
         setFullFileAccess: vi.fn(),
         setPreventSleepWhileRunning: vi.fn(),
+        setQuickChatShortcut: vi.fn(),
         setAppearancePreference: vi.fn(),
         setBrowserDefaultZoom: vi.fn(),
         setTerminalDefaultZoom: vi.fn(),

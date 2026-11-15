@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getOAuthToken } from '@/lib/oauth/credential-service'
 import {
@@ -104,7 +105,7 @@ export const webflowHandler: WebhookProviderHandler = {
         }
       }
 
-      const webflowResponse = await fetch(webflowApiUrl, {
+      const webflowResponse = await outboundFetch(webflowApiUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -213,7 +214,7 @@ export const webflowHandler: WebhookProviderHandler = {
 
       const webflowApiUrl = `https://api.webflow.com/v2/sites/${siteId}/webhooks/${externalId}`
 
-      const webflowResponse = await fetch(webflowApiUrl, {
+      const webflowResponse = await outboundFetch(webflowApiUrl, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${accessToken}`,

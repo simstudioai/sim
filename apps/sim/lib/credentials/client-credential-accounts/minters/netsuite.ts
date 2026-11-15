@@ -2,6 +2,8 @@ import { createPrivateKey, type KeyObject } from 'node:crypto'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { SignJWT } from 'jose'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -109,7 +111,7 @@ async function exchangeNetSuiteToken(
   const signal = AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS)
   let response: Response
   try {
-    response = await fetch(tokenUrl, {
+    response = await outboundFetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -120,7 +122,8 @@ async function exchangeNetSuiteToken(
       redirect: 'error',
       signal,
     })
-  } catch {
+  } catch (error) {
+    if (isUnavailableFailure(error)) throw error
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: TOKEN_MINT_STEP,
       reason: 'network error reaching provider',

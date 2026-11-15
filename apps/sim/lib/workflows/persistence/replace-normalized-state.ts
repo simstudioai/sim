@@ -2,6 +2,8 @@ import { db } from '@sim/db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
+import { preserveProtectedWorkflowBlocks } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
@@ -288,10 +290,13 @@ export async function replaceWorkflowNormalizedState(
     }
 
     const resolved = typeof state === 'function' ? await state(tx) : state
-    const prepared = prepareWorkflowStateForPersistence({
-      blocks: resolved.blocks,
-      edges: resolved.edges,
-    })
+    const stored = await loadWorkflowFromNormalizedTablesRaw(workflowId, tx)
+    if (!stored) {
+      throw new Error('Failed to read the stored workflow graph')
+    }
+    // Block locks are admin-only and this write is not, so the stored lock state wins.
+    const { blocks, edges } = preserveProtectedWorkflowBlocks(stored, resolved)
+    const prepared = prepareWorkflowStateForPersistence({ blocks, edges })
     preparedState = prepared.state
     warnings = prepared.warnings
     workflowState = {

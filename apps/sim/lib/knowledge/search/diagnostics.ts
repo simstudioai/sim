@@ -2,7 +2,13 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
-import type { LiveSearchProvider } from '@/lib/api/contracts/mothership-assistant-tools'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
+import type {
+  LiveSearchProvider,
+  NativeSearchQuery,
+} from '@/lib/api/contracts/mothership-assistant-tools'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { nativeDateBounds } from '@/lib/sim-search/live/dates'
 
 const logger = createLogger('KnowledgeSearchDiagnostics', { logLevel: 'INFO' })
 const PROGRESS_INTERVAL_MS = 5000
@@ -109,6 +115,85 @@ export interface SearchDiagnosticMetadata {
   accountCount?: number
   searchedAccountCount?: number
   nativeQueryCount?: number
+  /** Words in the plain query; the words themselves are never logged. */
+  queryTermCount?: number
+  sortBy?: WorkspaceSearchFilters['sortBy']
+  /** Days between a date filter's bounds, when it has both. */
+  dateWindowDays?: number
+  /** One entry per native query, in request order, so `queryIndex` resolves to a provider. */
+  nativeQueries?: NativeQueryShape[]
+  /** The source a read came from; a search reports its sources on each provider summary. */
+  provider?: LiveSearchProvider
+  /** The provider's type for the document read, such as `message` or `file`. */
+  documentKind?: string
+  /** Characters in the whole document text a read found, not just the window it returned. */
+  contentCharacters?: number
+  returnedCharacters?: number
+  /** Whether a read continued from an earlier window rather than starting at the beginning. */
+  continued?: boolean
+  hasMore?: boolean
+}
+
+/** What a native query asked for, without its text, modifiers, cursor, or account. */
+interface NativeQueryShape {
+  provider: LiveSearchProvider
+  kind?: NativeSearchQuery['kind']
+  browse?: NativeSearchQuery['browse']
+  hasText: boolean
+  hasModifiers: boolean
+  hasCursor: boolean
+  hasProject: boolean
+  targetsAccount: boolean
+  keywordOnly: boolean
+  termClauseCount: number
+}
+
+const DAY_MS = 86_400_000
+
+/** The content-free shape of a search request: counts, flags, and the enums it selected. */
+export function describeSearchRequest(input: {
+  query: string
+  filters?: WorkspaceSearchFilters
+  nativeQueries?: readonly NativeSearchQuery[]
+}): SearchDiagnosticMetadata {
+  const { start, end } = nativeDateBounds({ filters: input.filters })
+  return {
+    queryTermCount: input.query.split(/\s+/).filter(Boolean).length,
+    sortBy: input.filters?.sortBy,
+    ...(start && end
+      ? { dateWindowDays: Math.round(((Date.parse(end) - Date.parse(start)) / DAY_MS) * 10) / 10 }
+      : {}),
+    ...(input.nativeQueries?.length
+      ? {
+          nativeQueries: input.nativeQueries.map((query) => ({
+            provider: query.provider,
+            kind: query.kind,
+            browse: query.browse,
+            hasText: Boolean(query.query),
+            hasModifiers: Boolean(query.modifiers?.trim()),
+            hasCursor: Boolean(query.cursor),
+            hasProject: Boolean(query.project),
+            targetsAccount: Boolean(query.accountId),
+            keywordOnly: Boolean(query.keywordOnly),
+            termClauseCount: query.termClauses?.length ?? 0,
+          })),
+        }
+      : {}),
+  }
+}
+
+/** Lowercase type names such as `message` or `merge_requests`, as provider adapters define them. */
+const DOCUMENT_KIND = /^[a-z][a-z0-9_]{0,31}$/
+/** A registered MIME type, which Drive reports as a file's kind. */
+const MIME_TYPE = /^(application|audio|font|image|model|text|video)\/[a-z0-9][a-z0-9.+-]{0,79}$/
+
+/**
+ * A provider's document type when it is a type name or MIME type. A kind passed through from a
+ * provider in any other form, which could carry free text, becomes `other`.
+ */
+export function documentKindLabel(kind: string | undefined): string | undefined {
+  if (!kind) return undefined
+  return DOCUMENT_KIND.test(kind) || MIME_TYPE.test(kind) ? kind : 'other'
 }
 
 interface StageTiming {
@@ -123,6 +208,8 @@ interface SearchTrace {
   startedAt: number
   metadata: SearchDiagnosticMetadata
   stages: Partial<Record<SearchStage, StageTiming>>
+  /** The first failure thrown through the trace, kept even when an outer caller swallows it. */
+  failure?: ReturnType<typeof describeFailure>
   active: Map<
     symbol,
     { stage: SearchStage; startedAt: number; provider?: LiveSearchProvider; accountIndex?: number }
@@ -136,6 +223,23 @@ const currentQueries = new AsyncLocalStorage<number | undefined>()
 const roundMs = (value: number) => Math.round(value * 100) / 100
 
 const MAX_PROVIDER_REQUEST_DIAGNOSTICS = 128
+
+/**
+ * Events a provider adapter reports while it searches, counted on its provider summary. Each is
+ * a fixed code; an adapter never passes provider data through one.
+ */
+type SearchProviderSignal =
+  /** Channels a Slack search with text listed alongside its messages. */
+  | 'slack.channels_listed'
+  /** An empty search filtered with `in:#name` named a channel that exists. */
+  | 'slack.channel_filter_exists'
+  /** An empty search filtered with `in:#name` named no searchable channel. */
+  | 'slack.channel_filter_missing'
+  /** The channel lookup had another page and no exact match, so it ruled nothing out. */
+  | 'slack.channel_filter_unresolved'
+  /** The channel lookup failed; the search kept its results without a note. */
+  | 'slack.channel_lookup_failed'
+
 const FAILURE_REASONS = [
   'provider_validation',
   'provider_access_denied',
@@ -148,6 +252,10 @@ const FAILURE_REASONS = [
   'mcp_payload_too_large',
   'mcp_payload_unreadable',
   'mcp_account_required',
+  /** A read failed in a way the same read may get past if retried, such as a timeout. */
+  'provider_retryable',
+  /** A read failed in a way retrying the same read will not change. */
+  'provider_error',
   /** The account never got to search: no slot freed with enough of the search deadline left. */
   'not_started',
 ] as const
@@ -181,7 +289,8 @@ const ERROR_CODES = new Set([
 
 interface ProviderMetadata {
   provider: LiveSearchProvider
-  accountIndex: number
+  /** The account's position among those a search fanned out to; a read has one account. */
+  accountIndex?: number
 }
 
 interface ProviderResult {
@@ -234,6 +343,22 @@ interface ProviderTrace {
   requests: RequestDiagnostic[]
   requestCount: number
   failedRequestCount: number
+  signals: Partial<Record<SearchProviderSignal, number>>
+}
+
+/** Failure classes recognized by error name when no diagnostic code or domain class applies. */
+const NAMED_FAILURES: Record<string, string> = {
+  AbortError: 'aborted',
+  PayloadSizeLimitError: 'response_size_limit',
+  SyntaxError: 'invalid_json',
+  TimeoutError: 'timeout',
+}
+
+function failureReason(error: unknown, record: Record<string, unknown>): string {
+  const coded = FAILURE_REASONS.find((candidate) => candidate === record.diagnosticCode)
+  if (coded) return coded
+  if (error instanceof OrchestrationError) return error.code
+  return (typeof record.name === 'string' && NAMED_FAILURES[record.name]) || 'unexpected_error'
 }
 
 /** Error messages, stacks, response bodies, and arbitrary provider codes never enter logs. */
@@ -246,17 +371,7 @@ function describeFailure(error: unknown) {
           [-32700, -32600, -32601, -32602, -32603, -32000, -32001].includes(value)
         ? value
         : undefined
-  const reason =
-    FAILURE_REASONS.find((candidate) => candidate === record.diagnosticCode) ??
-    (record.name === 'AbortError'
-      ? 'aborted'
-      : record.name === 'PayloadSizeLimitError'
-        ? 'response_size_limit'
-        : record.name === 'SyntaxError'
-          ? 'invalid_json'
-          : record.name === 'TimeoutError'
-            ? 'timeout'
-            : 'unexpected_error')
+  const reason = failureReason(error, record)
   const httpStatus =
     typeof record.httpStatus === 'number' &&
     Number.isInteger(record.httpStatus) &&
@@ -292,6 +407,7 @@ export async function withSearchProviderDiagnostics<T>(
     requests: [],
     requestCount: 0,
     failedRequestCount: 0,
+    signals: {},
   }
   return providers.run(provider, async () => {
     let failure: ReturnType<typeof describeFailure> | undefined
@@ -304,6 +420,7 @@ export async function withSearchProviderDiagnostics<T>(
       provider.closed = true
       logger.info('Live search provider completed', {
         searchId: root.searchId,
+        operation: root.metadata.operation,
         ...metadata,
         startedAfterMs: roundMs(provider.startedAt - root.startedAt),
         elapsedMs: roundMs(performance.now() - provider.startedAt),
@@ -320,6 +437,7 @@ export async function withSearchProviderDiagnostics<T>(
         failedRequestCount: provider.failedRequestCount,
         pendingRequestCount: provider.pendingRequestCount,
         omittedRequestCount: provider.requestCount - provider.requests.length,
+        ...(Object.keys(provider.signals).length ? { signals: provider.signals } : {}),
       })
     }
   })
@@ -331,6 +449,12 @@ export function recordSearchProviderResult(result: ProviderResult, error?: unkno
     ...result,
     ...(error === undefined ? {} : { failure: describeFailure(error) }),
   })
+}
+
+/** Counts a provider adapter's event on the summary of the provider it runs under. */
+export function recordSearchProviderSignal(signal: SearchProviderSignal, count = 1): void {
+  const provider = providers.getStore()
+  if (provider) provider.signals[signal] = (provider.signals[signal] ?? 0) + count
 }
 
 /** Native query ordinals distinguish parallel requests without retaining their query text. */
@@ -436,9 +560,15 @@ export async function withSearchDiagnostics<T>(
   metadata: SearchDiagnosticMetadata,
   run: () => Promise<T>
 ): Promise<T> {
-  if (traces.getStore()) {
+  const outer = traces.getStore()
+  if (outer) {
     annotateSearchDiagnostics(metadata)
-    return run()
+    try {
+      return await run()
+    } catch (error) {
+      outer.failure ??= describeFailure(error)
+      throw error
+    }
   }
   const trace: SearchTrace = {
     searchId: generateId(),
@@ -472,9 +602,16 @@ export async function withSearchDiagnostics<T>(
             ? 'partial'
             : 'success'
       return result
+    } catch (error) {
+      trace.failure ??= describeFailure(error)
+      throw error
     } finally {
       clearInterval(timer)
-      logger.info('Knowledge search completed', { ...snapshot(), outcome })
+      logger.info('Knowledge search completed', {
+        ...snapshot(),
+        outcome,
+        ...(trace.failure ? { failure: trace.failure } : {}),
+      })
     }
   })
 }

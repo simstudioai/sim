@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
@@ -9,11 +10,11 @@ import {
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
+  isUncountedPollFailure,
   markWebhookFailed,
   markWebhookSuccess,
-  PollAdmissionRefusedError,
   resolveOAuthCredential,
-  skipAdmissionRefusedPoll,
+  skipUncountedPollFailure,
   throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
@@ -185,9 +186,8 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
       )
       return 'success'
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError) {
-        return skipAdmissionRefusedPoll(logger, webhookId)
-      }
+      const skipped = skipUncountedPollFailure(error, logger, webhookId)
+      if (skipped) return skipped
       logger.error(`Error processing Google Calendar webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
@@ -225,7 +225,7 @@ async function fetchChangedEvents(
     const encodedCalendarId = encodeURIComponent(calendarId)
     const url = `${CALENDAR_API_BASE}/calendars/${encodedCalendarId}/events?${params.toString()}`
 
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
 
@@ -370,7 +370,7 @@ async function processEvents(
       logger.info(`Successfully processed event ${event.id} for webhook ${webhookData.id}`)
       processedCount++
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
+      if (isUncountedPollFailure(error) && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(`Error processing event ${event.id}:`, errorMessage)
       failedCount++

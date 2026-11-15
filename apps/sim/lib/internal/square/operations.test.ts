@@ -64,6 +64,7 @@ describe('executeSquareCreateCatalogImage', () => {
       idempotency_key: 'stable-key',
       object_id: 'item-1',
     })
+    expect(formData.get('image_file')).toBeInstanceOf(Blob)
     expect(vi.mocked(fetch).mock.calls[0][0]).toBe('https://connect.squareup.com/v2/catalog/images')
   })
 

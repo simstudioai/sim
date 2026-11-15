@@ -9,7 +9,7 @@ import {
   STSClient,
   type Tag,
 } from '@aws-sdk/client-sts'
-import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
+import { organizationAwsRequestHandler } from '@/lib/core/network/organization-aws-handler.server'
 import { awsClientConfig } from '@/lib/internal/aws/credentials'
 import type { STSConnectionConfig } from '@/tools/sts/types'
 
@@ -35,7 +35,7 @@ export function createUnauthenticatedSTSClient(region: string): STSClient {
   return new STSClient({
     region,
     credentials: { accessKeyId: 'anonymous', secretAccessKey: 'anonymous' },
-    requestHandler: awsRequestHandler(),
+    requestHandler: organizationAwsRequestHandler(),
   })
 }
 

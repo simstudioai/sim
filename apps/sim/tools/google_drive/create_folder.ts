@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type {
   GoogleDriveFile,
@@ -96,7 +97,7 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
     const authHeader = `Bearer ${params?.accessToken || ''}`
 
     // Fetch complete folder metadata with all fields
-    const metadataResponse = await fetch(
+    const metadataResponse = await outboundFetch(
       `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(folderId, 'folderId')}?supportsAllDrives=true&fields=${ALL_FILE_FIELDS}`,
       {
         headers: {

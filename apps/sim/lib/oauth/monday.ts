@@ -1,6 +1,7 @@
 import type { OAuth2Tokens } from 'better-auth/oauth2'
 import { decodeJwt } from 'jose'
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -73,7 +74,7 @@ export async function exchangeMondayAuthorizationCode({
   redirectUri,
 }: ExchangeMondayAuthorizationCodeParams): Promise<OAuth2Tokens> {
   const signal = AbortSignal.timeout(MONDAY_OAUTH_TOKEN_TIMEOUT_MS)
-  const response = await fetch(MONDAY_OAUTH_TOKEN_URL, {
+  const response = await outboundFetch(MONDAY_OAUTH_TOKEN_URL, {
     method: 'POST',
     headers: {
       Accept: 'application/json',

@@ -2,6 +2,7 @@ import { generateKeyPairSync } from 'node:crypto'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { jwtVerify } from 'jose'
 import { describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { mintNetSuiteServiceAccountToken } from '@/lib/credentials/client-credential-accounts/minters/netsuite'
 
 const ORIGIN = 'https://1234567-sb1.suitetalk.api.netsuite.com'
@@ -256,5 +257,13 @@ describe('mintNetSuiteServiceAccountToken', () => {
       status: 502,
       logDetail: { step: 'netsuite_token_mint', reason: 'network error reaching provider' },
     })
+  })
+
+  it('surfaces an unavailable egress route instead of a provider outage', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new OutboundRoutingError('ROUTE_BLOCKED')))
+
+    await expect(mintNetSuiteServiceAccountToken(FIELDS)).rejects.toBeInstanceOf(
+      OutboundRoutingError
+    )
   })
 })

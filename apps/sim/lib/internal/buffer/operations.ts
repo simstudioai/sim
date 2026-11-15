@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   secureFetchWithPinnedIP,
@@ -92,6 +94,7 @@ async function resolveMediaKind(args: {
     }
   } catch (error) {
     context.signal?.throwIfAborted()
+    if (isUnavailableFailure(error)) throw error
     logger.warn('Media content-type probe was inconclusive', {
       requestId: context.requestId,
       error: getErrorMessage(error, 'probe failed'),
@@ -160,7 +163,7 @@ async function executePostMutation(args: {
   const { apiKey, mutation, input, context } = args
   let result: Record<string, unknown>
   try {
-    const response = await fetch(BUFFER_API_URL, {
+    const response = await outboundFetch(BUFFER_API_URL, {
       method: 'POST',
       headers: bufferHeaders(apiKey),
       body: JSON.stringify({ query: mutation, variables: { input } }),
@@ -171,6 +174,7 @@ async function executePostMutation(args: {
     result = toRecord(candidate)
   } catch (error) {
     context.signal?.throwIfAborted()
+    if (isUnavailableFailure(error)) throw error
     const message = getErrorMessage(error, 'Buffer API request failed')
     logger.error('Buffer post mutation failed', { requestId: context.requestId, error: message })
     throw new BufferOperationError(message, 502)

@@ -4,6 +4,7 @@ import {
   MONDAY_API_URL,
   mondayHeaders,
   sanitizeNumericId,
+  toGraphqlJsonArg,
 } from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -65,7 +66,7 @@ export const mondayCreateItemTool: ToolConfig<MondayCreateItemParams, MondayCrea
         args.push(`group_id: ${JSON.stringify(params.groupId)}`)
       }
       if (params.columnValues) {
-        args.push(`column_values: ${JSON.stringify(params.columnValues)}`)
+        args.push(`column_values: ${toGraphqlJsonArg(params.columnValues)}`)
       }
       return {
         query: `mutation { create_item(${args.join(', ')}) { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } }`,

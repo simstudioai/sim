@@ -20,6 +20,7 @@ import type {
   DocuSignSendEnvelopeParams,
   DocuSignVoidEnvelopeParams,
 } from '@/tools/docusign/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('DocuSignOperations')
 const MAX_LEGACY_INLINE_DOCUMENT_BYTES = 7 * 1024 * 1024
@@ -35,6 +36,14 @@ export interface DocuSignOperationContext {
 
 function jsonBody(data: Record<string, unknown>): RequestInit {
   return { method: 'POST', body: JSON.stringify(data) }
+}
+
+function pathSegment(value: string, paramName: string): string {
+  try {
+    return safeUrlPathSegment(value, paramName)
+  } catch (error) {
+    throw new DocuSignOperationError(getErrorMessage(error, `Invalid ${paramName}`), 400)
+  }
 }
 
 async function client(
@@ -141,6 +150,7 @@ export async function executeDocuSignSendEnvelope(
                 anchorUnits: 'pixels',
                 anchorXOffset: '0',
                 anchorYOffset: '0',
+                anchorIgnoreIfNotPresent: 'true',
               },
             ],
             dateSignedTabs: [
@@ -149,6 +159,7 @@ export async function executeDocuSignSendEnvelope(
                 anchorUnits: 'pixels',
                 anchorXOffset: '0',
                 anchorYOffset: '0',
+                anchorIgnoreIfNotPresent: 'true',
               },
             ],
           },
@@ -191,9 +202,10 @@ export async function executeDocuSignGetEnvelope(
   input: DocuSignGetEnvelopeParams,
   context: DocuSignOperationContext
 ) {
+  const envelopeId = pathSegment(input.envelopeId, 'envelopeId')
   const provider = await client(input, context.signal)
   return provider.json(
-    `/envelopes/${input.envelopeId.trim()}?include=recipients,documents`,
+    `/envelopes/${envelopeId}?include=recipients,documents`,
     {},
     'DocuSign envelope response',
     'Failed to get envelope',
@@ -216,6 +228,7 @@ export async function executeDocuSignListEnvelopes(
   if (input.envelopeStatus) query.append('status', input.envelopeStatus)
   if (input.searchText) query.append('search_text', input.searchText)
   if (input.count) query.append('count', input.count)
+  if (input.startPosition) query.append('start_position', input.startPosition)
   const provider = await client(input, context.signal)
   return provider.json(
     `/envelopes?${query}`,
@@ -230,9 +243,10 @@ export async function executeDocuSignVoidEnvelope(
   input: DocuSignVoidEnvelopeParams,
   context: DocuSignOperationContext
 ) {
+  const envelopeId = pathSegment(input.envelopeId, 'envelopeId')
   const provider = await client(input, context.signal)
   await provider.json(
-    `/envelopes/${input.envelopeId.trim()}`,
+    `/envelopes/${envelopeId}`,
     { method: 'PUT', body: JSON.stringify({ status: 'voided', voidedReason: input.voidedReason }) },
     'DocuSign void envelope response',
     'Failed to void envelope',
@@ -245,10 +259,11 @@ export async function executeDocuSignDownloadDocument(
   input: DocuSignDownloadDocumentParams,
   context: DocuSignOperationContext
 ) {
-  const documentId = input.documentId || 'combined'
+  const envelopeId = pathSegment(input.envelopeId, 'envelopeId')
+  const documentId = pathSegment(input.documentId || 'combined', 'documentId')
   const provider = await client(input, context.signal)
   const { buffer, contentType, fileName } = await provider.document(
-    input.envelopeId.trim(),
+    envelopeId,
     documentId,
     context.signal
   )
@@ -281,6 +296,7 @@ export async function executeDocuSignListTemplates(
   const query = new URLSearchParams()
   if (input.searchText) query.append('search_text', input.searchText)
   if (input.count) query.append('count', input.count)
+  if (input.startPosition) query.append('start_position', input.startPosition)
   const suffix = query.size ? `?${query}` : ''
   const provider = await client(input, context.signal)
   return provider.json(
@@ -296,9 +312,10 @@ export async function executeDocuSignListRecipients(
   input: DocuSignListRecipientsParams,
   context: DocuSignOperationContext
 ) {
+  const envelopeId = pathSegment(input.envelopeId, 'envelopeId')
   const provider = await client(input, context.signal)
   return provider.json(
-    `/envelopes/${input.envelopeId.trim()}/recipients`,
+    `/envelopes/${envelopeId}/recipients`,
     {},
     'DocuSign recipients response',
     'Failed to list recipients',

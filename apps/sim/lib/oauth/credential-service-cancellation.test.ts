@@ -3,6 +3,7 @@ import { createDeferred } from '@sim/testing/helpers/deferred'
 import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
   RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -283,6 +284,22 @@ describe('client credential token refresh after a failed mint', () => {
 
     await expect(resolveFor('ramp-refused-then-outage')).resolves.toEqual({
       error: expect.objectContaining({ code: 'provider_unavailable' }),
+    })
+  })
+
+  it("records nothing about the credential when Sim's egress route is down, so it asks again at once", async () => {
+    const mint = minter()
+    mint.mockResolvedValueOnce({ accessToken: 'current-token', expiresInSeconds: 600 })
+    await resolveFor('ramp-egress-outage')
+    mint.mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+    vi.advanceTimersByTime(6 * 60_000)
+
+    await expect(resolveFor('ramp-egress-outage')).resolves.toEqual({
+      error: expect.any(OutboundRoutingError),
+    })
+    mint.mockResolvedValueOnce({ accessToken: 'next-token', expiresInSeconds: 600 })
+    await expect(resolveFor('ramp-egress-outage')).resolves.toEqual({
+      value: { accessToken: 'next-token' },
     })
   })
 

@@ -1,6 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomGetTicketParams {
   accessToken: string
@@ -43,7 +44,8 @@ const getTicketBase = {
     },
   },
   request: {
-    url: (params: IntercomGetTicketParams) => buildIntercomUrl(`/tickets/${params.ticketId}`),
+    url: (params: IntercomGetTicketParams) =>
+      buildIntercomUrl(`/tickets/${safeUrlPathSegment(params.ticketId, 'ticketId')}`),
     method: 'GET',
     headers: (params: IntercomGetTicketParams) => ({
       Authorization: `Bearer ${params.accessToken}`,

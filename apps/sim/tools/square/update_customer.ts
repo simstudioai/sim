@@ -98,18 +98,27 @@ export const squareUpdateCustomerTool: ToolConfig<UpdateCustomerParams, Customer
       `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/customers/${encodeURIComponent(params.customerId)}`,
     method: 'PUT',
     headers: (params) => squareHeaders(params.apiKey),
+    /**
+     * Square treats a `null` field as "remove this value", and the canvas hands
+     * untouched inputs over as `null`, so only filled-in fields are sent.
+     */
     body: (params) => {
+      const fields = {
+        given_name: params.givenName,
+        family_name: params.familyName,
+        company_name: params.companyName,
+        nickname: params.nickname,
+        email_address: params.emailAddress,
+        phone_number: params.phoneNumber,
+        birthday: params.birthday,
+        note: params.note,
+        reference_id: params.referenceId,
+        address: params.address,
+      }
       const body: Record<string, unknown> = {}
-      if (params.givenName !== undefined) body.given_name = params.givenName
-      if (params.familyName !== undefined) body.family_name = params.familyName
-      if (params.companyName !== undefined) body.company_name = params.companyName
-      if (params.nickname !== undefined) body.nickname = params.nickname
-      if (params.emailAddress !== undefined) body.email_address = params.emailAddress
-      if (params.phoneNumber !== undefined) body.phone_number = params.phoneNumber
-      if (params.birthday !== undefined) body.birthday = params.birthday
-      if (params.note !== undefined) body.note = params.note
-      if (params.referenceId !== undefined) body.reference_id = params.referenceId
-      if (params.address !== undefined) body.address = params.address
+      for (const [key, value] of Object.entries(fields)) {
+        if (value !== undefined && value !== null && value !== '') body[key] = value
+      }
       return body
     },
   },

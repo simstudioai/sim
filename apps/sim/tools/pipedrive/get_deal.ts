@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { PipedriveGetDealParams, PipedriveGetDealResponse } from '@/tools/pipedrive/types'
 import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('PipedriveGetDeal')
 
@@ -39,7 +40,8 @@ export const pipedriveGetDealTool: ToolConfig<PipedriveGetDealParams, PipedriveG
   },
 
   request: {
-    url: (params) => `https://api.pipedrive.com/api/v2/deals/${params.deal_id}`,
+    url: (params) =>
+      `https://api.pipedrive.com/api/v2/deals/${safeUrlPathSegment(params.deal_id, 'deal_id')}`,
     method: 'GET',
     headers: (params) => getPipedriveAuthHeaders(params),
   },

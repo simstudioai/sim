@@ -28,6 +28,7 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/attribution'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { EGRESS_UNAVAILABLE_MESSAGE, isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import {
@@ -89,6 +90,7 @@ import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   connectorFailureBackoffMinutes,
+  EGRESS_RETRY_DELAY_MS,
   IMAGES_DEFERRED_NOTICE,
   MAX_CONSECUTIVE_FAILURES,
   MEMBER_CHANGE_FEED_FULL_RECRAWL_MINUTES,
@@ -351,11 +353,11 @@ export function buildMemberSyncFailureUpdate(
 }
 
 /**
- * The connector row written after the database, not the source, failed a members-mode run. The
- * members-mode counterpart of `buildSyncDatabaseRetryUpdate`: the breaker keeps only the source
- * failures already counted, and the retry waits the delay `resolveDatabaseRetryDelayMs` chose.
+ * The connector row written after the database or the organization's egress route, not the source,
+ * failed a members-mode run. The members-mode counterpart of `buildSyncTransientRetryUpdate`: the
+ * breaker keeps only the source failures already counted, and the retry waits `retryDelayMs`.
  */
-export function buildMemberSyncDatabaseRetryUpdate(
+export function buildMemberSyncTransientRetryUpdate(
   now: Date,
   previousFailures: number | null | undefined,
   errorMessage: string,
@@ -382,8 +384,8 @@ export function memberRunMadeProgress(result: MemberSyncResult): boolean {
 
 /**
  * The connector row a failed members-mode run writes. A deterministic capacity rejection waits for
- * an operator, a transient database failure retries without touching the breaker, and anything
- * else climbs the ladder toward auto-disable.
+ * an operator, a transient database failure or an organization egress outage retries without
+ * touching the breaker, and anything else climbs the ladder toward auto-disable.
  */
 export async function resolveMemberSyncFailureUpdate(
   error: unknown,
@@ -410,7 +412,7 @@ export async function resolveMemberSyncFailureUpdate(
     }
   }
   if (getTransientDatabaseFailure(error)) {
-    return buildMemberSyncDatabaseRetryUpdate(
+    return buildMemberSyncTransientRetryUpdate(
       now,
       failure.previousFailures,
       failure.errorMessage,
@@ -421,6 +423,14 @@ export async function resolveMemberSyncFailureUpdate(
         previousFailures: failure.previousFailures,
         madeProgress: failure.madeProgress,
       })
+    )
+  }
+  if (isUnavailableFailure(error)) {
+    return buildMemberSyncTransientRetryUpdate(
+      now,
+      failure.previousFailures,
+      EGRESS_UNAVAILABLE_MESSAGE,
+      EGRESS_RETRY_DELAY_MS
     )
   }
   return buildMemberSyncFailureUpdate(

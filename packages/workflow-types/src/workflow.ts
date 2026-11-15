@@ -244,6 +244,84 @@ export function isWorkflowBlockProtected(
   return Boolean(block.locked || isWorkflowBlockAncestorLocked(blockId, blocks))
 }
 
+interface WorkflowLockGraph<B, E> {
+  blocks: Record<string, B>
+  edges: E[]
+}
+
+/**
+ * Merges a caller-supplied full-graph replacement into the stored graph without
+ * letting it change anything the block lock protects.
+ *
+ * Locking is admin-only (`batch-toggle-locked`) while a full replace needs only
+ * `write`, so the lock flag is never taken from `incoming`:
+ * - a block protected in `stored` (locked, or inside a locked container) is kept
+ *   exactly as stored, even when `incoming` changes or omits it, and so are the
+ *   edges into it, matching the edge rules that refuse adding or removing them;
+ * - a protected block whose unlocked ancestor `incoming` removes goes with that
+ *   ancestor, as it does when the ancestor is deleted directly;
+ * - every other block is written unlocked;
+ * - an incoming block that would land inside a locked container is dropped,
+ *   together with the edges that touch it.
+ *
+ * Blocks and edges are keyed by their own `id`, never the record key, because
+ * that is the value persistence writes.
+ */
+export function preserveProtectedWorkflowBlocks<
+  B extends WorkflowLockBlock & { id: string },
+  E extends WorkflowEdgeEndpoints & { id: string },
+>(
+  stored: WorkflowLockGraph<B, E>,
+  incoming: WorkflowLockGraph<B, E>
+): WorkflowLockGraph<B, E> & { keptBlockIds: Set<string> } {
+  const protectedBlockIds = new Set(
+    Object.keys(stored.blocks).filter((id) => isWorkflowBlockProtected(id, stored.blocks))
+  )
+
+  const blocks: Record<string, B> = {}
+  for (const block of Object.values(incoming.blocks)) {
+    if (!protectedBlockIds.has(block.id)) blocks[block.id] = { ...block, locked: false }
+  }
+
+  const hasRemovedAncestor = (id: string) => {
+    const visited = new Set<string>()
+    let parentId = getWorkflowBlockParentId(stored.blocks[id])
+    while (parentId && !visited.has(parentId)) {
+      visited.add(parentId)
+      if (!protectedBlockIds.has(parentId) && !blocks[parentId]) return true
+      parentId = getWorkflowBlockParentId(stored.blocks[parentId])
+    }
+    return false
+  }
+  const keptBlockIds = new Set([...protectedBlockIds].filter((id) => !hasRemovedAncestor(id)))
+  for (const id of keptBlockIds) blocks[id] = stored.blocks[id]
+
+  const removedBlockIds = new Set([
+    ...[...protectedBlockIds].filter((id) => !keptBlockIds.has(id)),
+    ...Object.keys(blocks).filter(
+      (id) => !keptBlockIds.has(id) && isWorkflowBlockAncestorLocked(id, blocks)
+    ),
+  ])
+  for (const id of removedBlockIds) delete blocks[id]
+
+  const keptEdges = stored.edges.filter(
+    (edge) => keptBlockIds.has(edge.target) && blocks[edge.source]
+  )
+  const keptEdgeIds = new Set(keptEdges.map((edge) => edge.id))
+  const edges = [
+    ...incoming.edges.filter(
+      (edge) =>
+        !keptEdgeIds.has(edge.id) &&
+        !protectedBlockIds.has(edge.target) &&
+        !removedBlockIds.has(edge.source) &&
+        !removedBlockIds.has(edge.target)
+    ),
+    ...keptEdges,
+  ]
+
+  return { blocks, edges, keptBlockIds }
+}
+
 export interface WorkflowEdgeEndpoints {
   source: string
   target: string

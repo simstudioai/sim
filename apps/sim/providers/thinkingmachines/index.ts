@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import OpenAI from 'openai'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { StreamingExecution } from '@/executor/types'
 import {
   getProviderDefaultModel,
@@ -65,6 +66,7 @@ export const thinkingMachinesProvider: ProviderConfig = {
     if (!request.apiKey) throw new Error('API key is required for Thinking Machines')
     const client = new OpenAI({
       ...openAICompatTransport(),
+      fetch: outboundFetch,
       apiKey: request.apiKey,
       baseURL: TINKER_BASE_URL,
     })

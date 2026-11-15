@@ -2,6 +2,7 @@ import { MondayIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const BOARD_OPS = [
@@ -469,10 +470,18 @@ export const MondayBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_boards' },
     },
     {
+      id: 'getItemsCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Pagination cursor from previous response',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_items' },
+    },
+    {
       id: 'cursor',
       title: 'Cursor',
       type: 'short-input',
-      placeholder: 'Pagination cursor from previous search',
+      placeholder: 'Pagination cursor from previous response',
       mode: 'advanced',
       condition: { field: 'operation', value: 'search_items' },
     },
@@ -512,11 +521,13 @@ export const MondayBlock: BlockConfig = {
         const op = typeof params.operation === 'string' ? params.operation.trim() : 'list_boards'
         return `monday_${op}`
       },
-      params: (params) => {
+      params: (params, context) => {
         const baseParams: Record<string, unknown> = {
           oauthCredential: params.oauthCredential,
         }
-        const op = typeof params.operation === 'string' ? params.operation.trim() : 'list_boards'
+        /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
+        const rawOperation = params.operation ?? context?.operation
+        const op = typeof rawOperation === 'string' ? rawOperation.trim() : 'list_boards'
 
         switch (op) {
           case 'list_boards':
@@ -535,12 +546,13 @@ export const MondayBlock: BlockConfig = {
               boardId: params.boardId,
               groupId: params.groupId || undefined,
               limit: params.limit ? Number(params.limit) : undefined,
+              cursor: params.getItemsCursor || toolCallArg(context, params.cursor) || undefined,
             }
           case 'search_items':
             return {
               ...baseParams,
               boardId: params.boardId,
-              columns: params.searchColumns,
+              columns: params.searchColumns || toolCallArg(context, params.columns),
               limit: params.limit ? Number(params.limit) : undefined,
               cursor: params.cursor || undefined,
             }
@@ -565,7 +577,7 @@ export const MondayBlock: BlockConfig = {
               boardId: params.boardId,
               itemId: params.itemId,
               columnId: params.columnId,
-              value: params.columnValue,
+              value: params.columnValue || toolCallArg(context, params.value),
               createLabelsIfMissing: Boolean(params.createLabelsIfMissing),
             }
           case 'duplicate_item':
@@ -580,7 +592,8 @@ export const MondayBlock: BlockConfig = {
               ...baseParams,
               boardName: params.boardName,
               boardKind: params.boardKind || 'public',
-              description: params.boardDescription || undefined,
+              description:
+                params.boardDescription || toolCallArg(context, params.description) || undefined,
               workspaceId: params.workspaceId || undefined,
               folderId: params.folderId || undefined,
             }
@@ -616,7 +629,7 @@ export const MondayBlock: BlockConfig = {
             return {
               ...baseParams,
               itemId: params.itemId,
-              body: params.updateBody,
+              body: params.updateBody || toolCallArg(context, params.body),
             }
           case 'create_group':
             return {
@@ -662,7 +675,8 @@ export const MondayBlock: BlockConfig = {
     groupColor: { type: 'string', description: 'Group color hex code' },
     limit: { type: 'number', description: 'Maximum number of results' },
     page: { type: 'number', description: 'Page number for pagination' },
-    cursor: { type: 'string', description: 'Pagination cursor for search' },
+    getItemsCursor: { type: 'string', description: 'Pagination cursor for get items' },
+    cursor: { type: 'string', description: 'Pagination cursor for search items' },
   },
   outputs: {
     boards: {
@@ -740,8 +754,8 @@ export const MondayBlock: BlockConfig = {
     },
     cursor: {
       type: 'string',
-      description: 'Pagination cursor for fetching the next page of search results',
-      condition: { field: 'operation', value: 'search_items' },
+      description: 'Pagination cursor for fetching the next page of items',
+      condition: { field: 'operation', value: ['get_items', 'search_items'] },
     },
   },
   triggers: {

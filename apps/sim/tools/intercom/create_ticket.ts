@@ -122,7 +122,7 @@ const createTicketBase = {
       if (params.conversation_to_link_id)
         ticket.conversation_to_link_id = params.conversation_to_link_id
       if (params.disable_notifications !== undefined)
-        ticket.disable_notifications = params.disable_notifications
+        ticket.skip_notifications = params.disable_notifications
 
       return ticket
     },

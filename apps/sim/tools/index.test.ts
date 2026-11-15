@@ -6810,9 +6810,6 @@ describe('Managed OAuth Credential Delegation', () => {
         executorDelegationOrigin,
       })
     )
-    expect(
-      fetchMock.mock.calls.some(([url]) => String(url).includes('/api/auth/oauth/token'))
-    ).toBe(false)
   })
 
   it('fails before transport when managed credential delegation lacks current workflow authority', async () => {

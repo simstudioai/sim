@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
@@ -68,7 +69,7 @@ export const lemlistHandler: WebhookProviderHandler = {
         requestBody.campaignId = campaignId
       }
 
-      const lemlistResponse = await fetch(lemlistApiUrl, {
+      const lemlistResponse = await outboundFetch(lemlistApiUrl, {
         method: 'POST',
         headers: {
           Authorization: `Basic ${authString}`,
@@ -149,7 +150,7 @@ export const lemlistHandler: WebhookProviderHandler = {
         }
 
         const lemlistApiUrl = `https://api.lemlist.com/api/hooks/${id}`
-        const lemlistResponse = await fetch(lemlistApiUrl, {
+        const lemlistResponse = await outboundFetch(lemlistApiUrl, {
           method: 'DELETE',
           headers: {
             Authorization: `Basic ${authString}`,
@@ -184,7 +185,7 @@ export const lemlistHandler: WebhookProviderHandler = {
       }
 
       const notificationUrl = getNotificationUrl(webhook)
-      const listResponse = await fetch('https://api.lemlist.com/api/hooks', {
+      const listResponse = await outboundFetch('https://api.lemlist.com/api/hooks', {
         method: 'GET',
         headers: {
           Authorization: `Basic ${authString}`,

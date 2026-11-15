@@ -2,6 +2,7 @@ import type { MailchimpSegment } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpGetSegmentParams {
   apiKey: string
@@ -50,7 +51,10 @@ export const mailchimpGetSegmentTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildMailchimpUrl(params.apiKey, `/lists/${params.listId}/segments/${params.segmentId}`),
+      buildMailchimpUrl(
+        params.apiKey,
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/segments/${safeUrlPathSegment(params.segmentId, 'segmentId')}`
+      ),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

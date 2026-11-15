@@ -320,13 +320,6 @@ export function getMainCSPPolicy(): string {
 }
 
 /**
- * Permissive CSP for workflow execution endpoints
- */
-export function getWorkflowExecutionCSPPolicy(): string {
-  return "default-src * 'unsafe-inline' 'unsafe-eval'; connect-src *;"
-}
-
-/**
  * CSP for embeddable chat pages.
  * Extends the shared embed policy with Microsoft Office.js sources so the
  * chat page can serve as an Office (Excel/Word/Outlook) add-in surface

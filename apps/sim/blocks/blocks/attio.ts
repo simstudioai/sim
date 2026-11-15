@@ -1609,11 +1609,11 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
     ],
     config: {
       tool: (params) => `attio_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const cleanParams: Record<string, unknown> = {
           oauthCredential: params.oauthCredential,
         }
-        const op = params.operation
+        const op = params.operation ?? context?.operation
 
         // Record params — each field is only sent for the operations whose subBlock condition
         // actually exposes it, so a stale value left over from switching operations never leaks

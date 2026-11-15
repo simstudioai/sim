@@ -6,6 +6,7 @@ import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { OAuth2Client, type TokenPayload } from 'google-auth-library'
 import { createRemoteJWKSet, type JWTPayload, jwtVerify } from 'jose'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { boundedAccountSites } from '@/lib/credential-groups/account-sites'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
@@ -207,7 +208,7 @@ function httpsOrigin(value: string): string | null {
  */
 async function listAtlassianSites(accessToken: string): Promise<ManagedOAuthSite[] | undefined> {
   try {
-    const response = await fetch(ATLASSIAN_SITES_URL, {
+    const response = await outboundFetch(ATLASSIAN_SITES_URL, {
       headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
       signal: AbortSignal.timeout(ATLASSIAN_USER_INFO_TIMEOUT_MS),
     })
@@ -246,7 +247,7 @@ export function createAtlassianManagedOAuthConnector(
         throw new Error('Atlassian returned an incomplete authorization')
       }
       const sites = listAtlassianSites(tokens.accessToken)
-      const response = await fetch(ATLASSIAN_USER_INFO_URL, {
+      const response = await outboundFetch(ATLASSIAN_USER_INFO_URL, {
         headers: {
           Accept: 'application/json',
           Authorization: `Bearer ${tokens.accessToken}`,
@@ -354,7 +355,7 @@ function requireMicrosoftIdentityClaims(payload: JWTPayload): MicrosoftIdentityC
  * not consented to Graph.
  */
 async function fetchMicrosoftAccessTokenSubject(accessToken: string): Promise<string> {
-  const response = await fetch(MICROSOFT_OIDC_USER_INFO_URL, {
+  const response = await outboundFetch(MICROSOFT_OIDC_USER_INFO_URL, {
     headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
     signal: AbortSignal.timeout(MICROSOFT_OIDC_USER_INFO_TIMEOUT_MS),
   })
@@ -500,7 +501,7 @@ async function fetchManagedOAuthProfile(
 ): Promise<unknown> {
   const { providerId, userInfo } = options
   const url = typeof userInfo.url === 'function' ? userInfo.url(tokens) : userInfo.url
-  const response = await fetch(url, {
+  const response = await outboundFetch(url, {
     method: userInfo.method ?? 'GET',
     headers: {
       Accept: 'application/json',
@@ -706,7 +707,7 @@ function createAttioManagedOAuthConnector(): ManagedOAuthConnectorConfig {
         Accept: 'application/json',
         Authorization: `Bearer ${tokens.accessToken}`,
       }
-      const selfResponse = await fetch('https://api.attio.com/v2/self', {
+      const selfResponse = await outboundFetch('https://api.attio.com/v2/self', {
         headers,
         signal: AbortSignal.timeout(USER_INFO_TIMEOUT_MS),
       })
@@ -722,7 +723,7 @@ function createAttioManagedOAuthConnector(): ManagedOAuthConnectorConfig {
         identity.authorized_by_workspace_member_id,
         'Attio workspace member id'
       )
-      const memberResponse = await fetch(
+      const memberResponse = await outboundFetch(
         `https://api.attio.com/v2/workspace_members/${encodeURIComponent(memberId)}`,
         { headers, signal: AbortSignal.timeout(USER_INFO_TIMEOUT_MS) }
       )
@@ -791,7 +792,7 @@ function createBitbucketManagedOAuthConnector(): ManagedOAuthConnectorConfig {
         Accept: 'application/json',
         Authorization: `Bearer ${tokens.accessToken}`,
       }
-      const userResponse = await fetch(`${BITBUCKET_API_BASE}/user`, {
+      const userResponse = await outboundFetch(`${BITBUCKET_API_BASE}/user`, {
         headers,
         signal: AbortSignal.timeout(USER_INFO_TIMEOUT_MS),
       })
@@ -804,7 +805,7 @@ function createBitbucketManagedOAuthConnector(): ManagedOAuthConnectorConfig {
       }
       const user = asProfileRecord(userBody, 'Bitbucket')
       const accountId = requireIdentityField(user.account_id, 'Bitbucket account id')
-      const emailsResponse = await fetch(`${BITBUCKET_API_BASE}/user/emails`, {
+      const emailsResponse = await outboundFetch(`${BITBUCKET_API_BASE}/user/emails`, {
         headers,
         signal: AbortSignal.timeout(USER_INFO_TIMEOUT_MS),
       })

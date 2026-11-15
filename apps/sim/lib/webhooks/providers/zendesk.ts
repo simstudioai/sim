@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -46,7 +47,7 @@ async function deleteZendeskWebhookQuietly(
   authHeader: string,
   webhookId: string
 ): Promise<void> {
-  await fetch(`${apiBase}/webhooks/${webhookId}`, {
+  await outboundFetch(`${apiBase}/webhooks/${webhookId}`, {
     method: 'DELETE',
     headers: { Authorization: authHeader },
   }).catch(() => {})
@@ -198,7 +199,7 @@ export const zendeskHandler: WebhookProviderHandler = {
     const apiBase = zendeskApiBase(subdomain)
     const authHeader = zendeskAuthHeader(email, apiToken)
 
-    const createRes = await fetch(`${apiBase}/webhooks`, {
+    const createRes = await outboundFetch(`${apiBase}/webhooks`, {
       method: 'POST',
       headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -231,7 +232,7 @@ export const zendeskHandler: WebhookProviderHandler = {
     const externalId = toRecord(created.webhook).id as string | undefined
     if (!externalId) throw new Error('Zendesk webhook created but no webhook ID was returned.')
 
-    const secretRes = await fetch(`${apiBase}/webhooks/${externalId}/signing_secret`, {
+    const secretRes = await outboundFetch(`${apiBase}/webhooks/${externalId}/signing_secret`, {
       headers: { Authorization: authHeader },
     })
     if (!secretRes.ok) {
@@ -278,7 +279,7 @@ export const zendeskHandler: WebhookProviderHandler = {
       return
     }
 
-    const res = await fetch(`${zendeskApiBase(subdomain)}/webhooks/${externalId}`, {
+    const res = await outboundFetch(`${zendeskApiBase(subdomain)}/webhooks/${externalId}`, {
       method: 'DELETE',
       headers: { Authorization: zendeskAuthHeader(email, apiToken) },
     })

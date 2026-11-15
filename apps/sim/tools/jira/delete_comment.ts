@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraDeleteCommentParams, JiraDeleteCommentResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
@@ -71,7 +72,7 @@ export const jiraDeleteCommentTool: ToolConfig<JiraDeleteCommentParams, JiraDele
         const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
         // Make the actual request with the resolved cloudId
         const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params?.issueKey ?? '', 'issueKey')}/comment/${safeUrlPathSegment(params?.commentId ?? '', 'commentId')}`
-        const commentResponse = await fetch(commentUrl, {
+        const commentResponse = await outboundFetch(commentUrl, {
           method: 'DELETE',
           headers: {
             Accept: 'application/json',

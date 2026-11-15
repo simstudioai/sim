@@ -848,14 +848,20 @@ async function executeTask(request, executionId) {
       admitTimer(fnRef, true)
       const id = nextTimerId++
       const delay = Math.max(1, Math.min(Number(unwrapPrimitive(msRef)) || 1, timeoutMs))
+      // A tick is skipped while the previous one is still in flight, so a busy isolate
+      // cannot pile undelivered callbacks onto the worker heap.
+      let tickInFlight = false
+      const settleTick = () => {
+        tickInFlight = false
+      }
       const nodeTimer = setInterval(() => {
-        const entry = timers.get(id)
-        if (!entry) return
+        if (tickInFlight || !timers.has(id)) return
         try {
-          fnRef.applyIgnored(undefined, [], { timeout: timeoutMs })
+          fnRef.apply(undefined, [], { timeout: timeoutMs }).then(settleTick, settleTick)
+          tickInFlight = true
         } catch {
-          // isolate disposed — callback silently dropped; the sweep on dispose
-          // clears the Node interval and releases the fn ref.
+          // isolate disposed — the sweep on dispose clears the Node interval and
+          // releases the fn ref.
         }
       }, delay)
       timers.set(id, { nodeTimer, fnRef, recurring: true })
@@ -969,7 +975,10 @@ async function executeTask(request, executionId) {
           if (typeof fn !== 'function') {
             throw new TypeError('setInterval requires a function callback');
           }
-          return __setIntervalRef.applySync(undefined, [fn, ms], {
+          // Each tick resolves back to the host, so the wrapper keeps the callback's
+          // return value inside the isolate.
+          const tick = () => { fn(); };
+          return __setIntervalRef.applySync(undefined, [tick, ms], {
             arguments: { reference: true },
           });
         };

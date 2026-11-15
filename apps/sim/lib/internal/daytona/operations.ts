@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { DaytonaOperationError } from '@/lib/internal/daytona/errors'
 import { isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
@@ -96,7 +97,7 @@ export async function uploadDaytonaFile(
     new Blob([new Uint8Array(fileBuffer)], { type: 'application/octet-stream' }),
     fileName
   )
-  const response = await fetch(
+  const response = await outboundFetch(
     daytonaToolboxUrl(
       input.sandboxId,
       `/files/upload-v2?path=${encodeURIComponent(destinationPath)}`

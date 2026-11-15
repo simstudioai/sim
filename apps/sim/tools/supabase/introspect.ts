@@ -15,20 +15,19 @@ import type { ToolConfig } from '@/tools/types'
  * PostgREST (which powers `/rest/v1`) has no generic "run arbitrary SQL"
  * endpoint, so schema introspection is derived from the project's
  * auto-generated OpenAPI spec (`GET /rest/v1/` with an OpenAPI `Accept`
- * header) rather than a live `information_schema` query. Primary-key
- * detection is a best-effort naming heuristic (`id` column), and
- * foreign-key detection only succeeds if the table owner has added a
- * matching `references table.column` SQL comment — the OpenAPI spec does
- * not expose constraint metadata directly. Index information is not
- * available via this API at all. `nullable` is also best-effort: PostgREST
- * only lists a column under `required` when it's NOT NULL *and* has no
- * default, so a NOT NULL column with a default is reported as nullable.
+ * header) rather than a live `information_schema` query. PostgREST marks
+ * primary-key columns with `<pk/>` and foreign-key columns with
+ * `<fk table='t' column='c'/>` in each column's description, which is how
+ * keys are detected. Index information is not available via this API at
+ * all. `nullable` is best-effort: PostgREST only lists a column under
+ * `required` when it's NOT NULL *and* has no default, so a NOT NULL column
+ * with a default is reported as nullable.
  */
 export const introspectTool: ToolConfig<SupabaseIntrospectParams, SupabaseIntrospectResponse> = {
   id: 'supabase_introspect',
   name: 'Supabase Introspect',
   description:
-    'Introspect Supabase database schema from its OpenAPI spec to get table and column structures (best-effort primary/foreign key detection)',
+    'Introspect Supabase database schema from its OpenAPI spec to get table and column structures, primary keys, and foreign keys',
   version: '1.0.0',
   oauth: SUPABASE_CREDENTIAL_OAUTH,
 
@@ -101,11 +100,10 @@ export const introspectTool: ToolConfig<SupabaseIntrospectParams, SupabaseIntros
 /**
  * Parse a PostgREST-generated OpenAPI spec into table schemas.
  *
- * `isPrimaryKey` is a naming heuristic (`id` column) — PostgREST does not
- * expose real constraint metadata in the spec. `isForeignKey`/`references`
- * only populate when the table owner has added a `references table.column`
- * SQL comment on the column. `indexes` is always empty: index definitions
- * are not part of the OpenAPI spec.
+ * Keys come from the markers PostgREST appends to column descriptions
+ * (`<pk/>`, `<fk table='t' column='c'/>`); a `references table.column` SQL
+ * comment is also honored for foreign keys. `indexes` is always empty:
+ * index definitions are not part of the OpenAPI spec.
  */
 function parseOpenApiSpec(spec: any, filterSchema?: string): SupabaseTableSchema[] {
   const tables: SupabaseTableSchema[] = []
@@ -128,8 +126,11 @@ function parseOpenApiSpec(spec: any, filterSchema?: string): SupabaseTableSchema
 
     for (const [colName, colDef] of Object.entries(properties)) {
       const col = colDef as any
-      const isPK = colName === 'id'
-      const fkMatch = col.description?.match(/references\s+(\w+)\.(\w+)/)
+      const description = typeof col.description === 'string' ? col.description : ''
+      const isPK = description.includes('<pk/>')
+      const fkMatch =
+        description.match(/<fk table='([^']+)' column='([^']+)'\/>/) ??
+        description.match(/references\s+(\w+)\.(\w+)/)
 
       const column: SupabaseColumnSchema = {
         name: colName,

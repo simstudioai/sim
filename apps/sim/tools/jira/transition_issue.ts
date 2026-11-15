@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraTransitionIssueParams, JiraTransitionIssueResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseJiraFieldMap, toAdf } from '@/tools/jira/utils'
@@ -97,7 +98,7 @@ export const jiraTransitionIssueTool: ToolConfig<
     const performTransition = async (cloudId: string) => {
       // First, fetch available transitions to get the name and target status
       const transitionsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey, 'issueKey')}/transitions`
-      const transitionsResp = await fetch(transitionsUrl, {
+      const transitionsResp = await outboundFetch(transitionsUrl, {
         method: 'GET',
         headers: {
           Accept: 'application/json',
@@ -122,7 +123,7 @@ export const jiraTransitionIssueTool: ToolConfig<
       }
 
       // Perform the transition
-      const transitionResponse = await fetch(transitionsUrl, {
+      const transitionResponse = await outboundFetch(transitionsUrl, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -167,7 +168,7 @@ export const jiraTransitionIssueTool: ToolConfig<
       // Fetch transition metadata for the response
       try {
         const transitionsUrl = `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey, 'issueKey')}/transitions`
-        const transitionsResp = await fetch(transitionsUrl, {
+        const transitionsResp = await outboundFetch(transitionsUrl, {
           method: 'GET',
           headers: {
             Accept: 'application/json',

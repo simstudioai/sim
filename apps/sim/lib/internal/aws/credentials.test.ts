@@ -24,6 +24,8 @@ import {
   IDPRejectedClaimException,
   InvalidIdentityTokenException,
 } from '@aws-sdk/client-sts'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { EGRESS_UNAVAILABLE_MESSAGE } from '@/lib/core/orchestration/types'
 import { awsClientCredentials, withAwsCredential } from '@/lib/internal/aws/credentials'
 
 function call(overrides: Partial<InternalToolOperationCall> = {}): InternalToolOperationCall {
@@ -211,5 +213,25 @@ describe('withAwsCredential', () => {
 
     expect(response.status).toBe(status)
     expect(handler).not.toHaveBeenCalled()
+  })
+
+  it("reports an egress outage as Sim's, without naming its routing code", async () => {
+    mockGetAwsCredentialConfig.mockResolvedValue({ config: {}, owner: { workspaceId: 'ws-1' } })
+    mockResolveAwsSessionCredentials.mockRejectedValue(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+
+    const response = (await withAwsCredential(vi.fn())(
+      call({
+        context: {
+          workflowId: 'wf-1',
+          workspaceId: 'ws-1',
+          authorizedServiceAccountCredential: { credentialId: 'cred-1', service: 'aws' },
+        },
+      })
+    )) as Response
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({ error: EGRESS_UNAVAILABLE_MESSAGE })
   })
 })

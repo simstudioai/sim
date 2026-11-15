@@ -9,6 +9,11 @@ import {
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/attribution'
 import {
+  EGRESS_UNAVAILABLE_MESSAGE,
+  isUnavailableFailure,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
+import {
   inspectModelInputProjectionState,
   inspectModelInputProvenanceRequest,
 } from '@/lib/execution/model-input-provenance'
@@ -157,6 +162,13 @@ async function prepareProviderRequest(
     }
     if (error instanceof BedrockCredentialError && error.reason === 'unavailable') {
       fail(503, error.message)
+    }
+    if (isUnavailableFailure(error)) {
+      logger.warn('Provider credential unavailable during an egress outage', {
+        requestId: context.requestId,
+        provider: input.provider,
+      })
+      fail(statusForOrchestrationError('unavailable'), EGRESS_UNAVAILABLE_MESSAGE)
     }
     logger.error('Failed to resolve provider credential', {
       requestId: context.requestId,

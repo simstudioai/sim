@@ -14,9 +14,10 @@ import {
   knowledgeAvailabilityMock,
   knowledgeAvailabilityMockFns,
 } from '@sim/testing/mocks/knowledge-availability.mock'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { eq, inArray } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGitHubReadGrants, mockConfluenceReadGrants, mockCsvGrants, mockLiveSources } =
   vi.hoisted(() => ({
@@ -31,6 +32,7 @@ const { mockGitHubReadGrants, mockConfluenceReadGrants, mockCsvGrants, mockLiveS
   }))
 
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/knowledge/access/confluence-site', () => ({
   resolveConfluenceSiteReadGrants: mockConfluenceReadGrants,
@@ -47,6 +49,7 @@ vi.mock('@/lib/knowledge/access/connector-permissions', () => ({
   loadConnectorPermissionGroupTokens: mockCsvGrants,
 }))
 
+import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import { MAX_EXTERNAL_GROUP_TOKENS } from '@/lib/knowledge/access/group-membership'
 import {
   createKnowledgeAccessProvider,
@@ -323,6 +326,43 @@ describe('organization document ACL scope', () => {
     const provider = createKnowledgeAccessProvider(SESSION, organization)
     expect(await provider.getForConnectors(['confluence-source'])).toMatchObject({ tokens: [] })
     expect(mockConfluenceReadGrants).not.toHaveBeenCalled()
+  })
+  describe('with organization egress routing', () => {
+    beforeEach(() => networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true))
+    afterEach(() => networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false))
+
+    it("checks live sources from the knowledge base owner's route when the caller set none", async () => {
+      queueTableRows(schemaMock.member, [{ id: 'membership-1' }])
+      queueSubjects([
+        {
+          credentialId: 'personal-github',
+          providerId: 'github-repositories',
+          providerSubjectId: 'alice',
+          providerTenantId: null,
+        },
+        {
+          credentialId: 'personal-confluence',
+          providerId: 'confluence',
+          providerSubjectId: 'alice',
+          providerTenantId: null,
+        },
+      ])
+      const reachProvider = async () => {
+        await resolveCurrentOutboundRoute()
+        return []
+      }
+      mockGitHubReadGrants.mockImplementationOnce(reachProvider)
+      mockConfluenceReadGrants.mockImplementationOnce(reachProvider)
+
+      await createKnowledgeAccessProvider(SESSION, organization).getForConnectors(['source-1'])
+
+      expect(mockGitHubReadGrants).toHaveBeenCalledOnce()
+      expect(mockConfluenceReadGrants).toHaveBeenCalledOnce()
+      expect(networkConfigMockFns.mockResolveOutboundRoute.mock.calls).toEqual([
+        ['org-1'],
+        ['org-1'],
+      ])
+    })
   })
   it('binds org indexing identities to the enrolled Sim user rather than a matching email', async () => {
     queueTableRows(schemaMock.member, [{ id: 'membership-1' }])

@@ -1,6 +1,7 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpGetSegmentsParams {
   apiKey: string
@@ -62,7 +63,10 @@ export const mailchimpGetSegmentsTool: ToolConfig<
       if (params.offset) queryParams.append('offset', params.offset)
 
       const query = queryParams.toString()
-      const url = buildMailchimpUrl(params.apiKey, `/lists/${params.listId}/segments`)
+      const url = buildMailchimpUrl(
+        params.apiKey,
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/segments`
+      )
       return query ? `${url}?${query}` : url
     },
     method: 'GET',

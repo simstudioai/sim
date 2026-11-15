@@ -93,7 +93,7 @@ function setup(id: string, role: string) {
 describe('workflow operation ACL', () => {
   beforeEach(() => {
     mockAssertMutable.mockResolvedValue(undefined)
-    mockPersist.mockResolvedValue(undefined)
+    mockPersist.mockResolvedValue({ reconcile: false })
   })
 
   describe('read-only member', () => {

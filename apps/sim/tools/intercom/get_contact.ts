@@ -5,6 +5,7 @@ import {
 } from '@/tools/intercom/types'
 import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomGetContactParams {
   accessToken: string
@@ -39,7 +40,8 @@ const intercomGetContactBase = {
   },
 
   request: {
-    url: (params: IntercomGetContactParams) => buildIntercomUrl(`/contacts/${params.contactId}`),
+    url: (params: IntercomGetContactParams) =>
+      buildIntercomUrl(`/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}`),
     method: 'GET',
     headers: (params: IntercomGetContactParams) => ({
       Authorization: `Bearer ${params.accessToken}`,

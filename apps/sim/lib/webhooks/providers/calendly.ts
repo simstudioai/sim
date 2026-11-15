@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -88,7 +89,7 @@ export const calendlyHandler: WebhookProviderHandler = {
         scope: 'organization',
       }
 
-      const calendlyResponse = await fetch(calendlyApiUrl, {
+      const calendlyResponse = await outboundFetch(calendlyApiUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -191,7 +192,7 @@ export const calendlyHandler: WebhookProviderHandler = {
 
       const calendlyApiUrl = `https://api.calendly.com/webhook_subscriptions/${externalId}`
 
-      const calendlyResponse = await fetch(calendlyApiUrl, {
+      const calendlyResponse = await outboundFetch(calendlyApiUrl, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${apiKey}`,

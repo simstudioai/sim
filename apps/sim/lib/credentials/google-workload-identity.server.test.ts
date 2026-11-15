@@ -17,6 +17,7 @@ vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
     `sim-oidc|${audience}|${subject}`,
 }))
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   resolveGoogleWorkloadIdentityToken,
   verifyAndEncryptGoogleWorkloadIdentityCredential,
@@ -302,6 +303,32 @@ describe('saving a keyless Google Cloud credential', () => {
     })
 
     await expect(save({})).rejects.toThrow(/could not confirm this service account trusts only/)
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      label: 'exchanging this credential’s token',
+      fails: (url: string, body: string) =>
+        url === 'https://sts.googleapis.com/v1/token' && body.includes(SUBJECT),
+    },
+    {
+      label: 'confirming the subject is pinned',
+      fails: (url: string, _body: string, auth: string) =>
+        url.startsWith('https://iamcredentials.') && auth !== `Bearer fed:${SUBJECT}`,
+    },
+  ])('surfaces an unavailable egress route while $label', async ({ fails }) => {
+    fakeGoogle(fetch, { canImpersonate: (subject) => subject === SUBJECT })
+    const google = fetch.getMockImplementation()
+    fetch.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      const auth = new Headers(init.headers).get('authorization') ?? ''
+      if (fails(url, String(init.body ?? ''), auth)) {
+        throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+      }
+      return google?.(url, init)
+    })
+
+    await expect(save({})).rejects.toBeInstanceOf(OutboundRoutingError)
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
 
@@ -669,6 +696,21 @@ describe('saving a keyless credential with domain-wide delegation', () => {
     expect(error.message).toMatch(copy)
     expect(error.message).toContain(`(${code})`)
     expect(error.message).not.toContain('Manage Domain Wide Delegation')
+  })
+
+  it.each([
+    { label: 'exchanging the delegated assertion', url: 'https://oauth2.googleapis.com/token' },
+    { label: 'reading as the delegated user', url: GMAIL_PROFILE },
+  ])('surfaces an unavailable egress route while $label', async ({ url: failing }) => {
+    fakeGoogle(fetch, { canImpersonate: (subject) => subject === SUBJECT })
+    const google = fetch.getMockImplementation()
+    fetch.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      if (url === failing) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+      return google?.(url, init)
+    })
+
+    await expect(save({ delegation })).rejects.toBeInstanceOf(OutboundRoutingError)
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
 
   it('names the API to enable when a delegated read is refused', async () => {

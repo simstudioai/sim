@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
@@ -165,7 +166,7 @@ export async function resolveGraphUserObjectId(
   const identifier = userId.trim()
   if (isGraphObjectId(identifier)) return identifier
 
-  const response = await fetch(
+  const response = await outboundFetch(
     `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(identifier, 'userId')}?$select=id`,
     { headers: { Authorization: `Bearer ${accessToken}` }, signal }
   )

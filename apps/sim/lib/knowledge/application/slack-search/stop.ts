@@ -9,6 +9,7 @@ import { getSlackSearchSender } from '@/lib/internal/slack/search-client'
 import {
   authorizeSlackSearchInstallation,
   requireSlackInstallationPrincipal,
+  withSlackSearchOutboundScope,
 } from '@/lib/knowledge/application/slack-search/authorization'
 import {
   resolveSlackSearchChatRecord,
@@ -51,7 +52,7 @@ export const stopSlackSearchThread: OperationUseCase<
   typeof operation,
   z.infer<typeof slackSearchStopSchema>,
   void
-> = {
+> = withSlackSearchOutboundScope({
   operation,
   async execute({ principal, input }) {
     requireSlackInstallationPrincipal(principal)
@@ -168,4 +169,4 @@ export const stopSlackSearchThread: OperationUseCase<
         AbortSignal.timeout(10_000)
       )
   },
-}
+})

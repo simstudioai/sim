@@ -14,6 +14,7 @@ import {
 } from '@/tools/servicenow/utils'
 import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const searchCisTool: ToolConfig<ServiceNowSearchCisParams, ServiceNowRecordListResponse> = {
   id: 'servicenow_search_cis',
@@ -51,7 +52,9 @@ export const searchCisTool: ToolConfig<ServiceNowSearchCisParams, ServiceNowReco
   request: {
     url: (params) => {
       const baseUrl = normalizeInstanceUrl(params.instanceUrl)
-      const table = params.ciClass?.trim() || SERVICENOW_TABLES.CI
+      const table = params.ciClass?.trim()
+        ? safeUrlPathSegment(params.ciClass, 'ciClass')
+        : SERVICENOW_TABLES.CI
       const searchParams = new URLSearchParams()
       appendReadParams(searchParams, {
         query: buildEncodedQuery(

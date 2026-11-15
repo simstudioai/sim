@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('IntercomUpdateTicket')
 
@@ -80,7 +81,8 @@ const updateTicketBase = {
   },
 
   request: {
-    url: (params: IntercomUpdateTicketParams) => buildIntercomUrl(`/tickets/${params.ticketId}`),
+    url: (params: IntercomUpdateTicketParams) =>
+      buildIntercomUrl(`/tickets/${safeUrlPathSegment(params.ticketId, 'ticketId')}`),
     method: 'PUT',
     headers: (params: IntercomUpdateTicketParams) => ({
       Authorization: `Bearer ${params.accessToken}`,

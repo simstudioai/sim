@@ -1189,6 +1189,60 @@ describe('authorized live retrieval', () => {
       })
     ).rejects.toBe('user_stop:test')
   })
+  describe('read diagnostics', () => {
+    async function searchedDocumentId() {
+      const [result] = (await searchLiveKnowledge.execute({ principal, input })).results
+      if (!result) throw new Error('Expected the search fixture to return a result')
+      diagnosticsLogger.info.mockClear()
+      return result.documentId
+    }
+    const logged = (message: string) =>
+      diagnosticsLogger.info.mock.calls.filter(([logged]) => logged === message).map(([, f]) => f)
+
+    it('logs the source, kind, and size of each read without its title or text', async () => {
+      const documentId = await searchedDocumentId()
+      mocks.read.mockResolvedValue({
+        ...document,
+        kind: 'file',
+        title: 'Private roadmap',
+        content: 'private text '.repeat(2_500),
+      })
+      await readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          surface: 'mcp',
+          documentId,
+          limit: 3,
+          scaledWindow: true,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+      expect(logged('Knowledge search completed')).toEqual([
+        expect.objectContaining({
+          operation: 'read_document',
+          surface: 'mcp',
+          continued: false,
+          provider: 'google_drive',
+          documentKind: 'file',
+          contentCharacters: 32_500,
+          returnedCharacters: 20_000,
+          hasMore: true,
+          outcome: 'success',
+          stages: expect.objectContaining({
+            document_read: expect.objectContaining({ count: 1 }),
+          }),
+        }),
+      ])
+      expect(logged('Live search provider completed')).toEqual([
+        expect.objectContaining({ operation: 'read_document', provider: 'google_drive' }),
+      ])
+      const text = JSON.stringify(diagnosticsLogger.info.mock.calls)
+      expect(text).not.toContain('Private roadmap')
+      expect(text).not.toContain('private text')
+    })
+  })
+
   describe('read window', () => {
     const content = 'x'.repeat(30_000)
     async function readWindow(extra: Record<string, unknown>, text = content) {

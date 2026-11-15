@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { GoogleSlidesToolParams, GoogleSlidesWriteResponse } from '@/tools/google_slides/types'
 import { batchUpdateUrl, slidesPresentationUrl } from '@/tools/google_slides/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -77,7 +78,7 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
 
     try {
       // Get the presentation data from the initial read
-      const presentationData = await fetch(slidesPresentationUrl(presentationId), {
+      const presentationData = await outboundFetch(slidesPresentationUrl(presentationId), {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${params.accessToken}`,
@@ -158,7 +159,7 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
       ]
 
       // Make the batchUpdate request
-      const updateResponse = await fetch(batchUpdateUrl(presentationId), {
+      const updateResponse = await outboundFetch(batchUpdateUrl(presentationId), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${params.accessToken}`,

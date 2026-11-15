@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { validateMondayNumericId } from '@/lib/core/security/input-validation'
 import { getOAuthToken } from '@/lib/oauth/credential-service'
 import {
@@ -106,7 +107,7 @@ export const mondayHandler: WebhookProviderHandler = {
     const notificationUrl = getNotificationUrl(ctx.webhook)
 
     try {
-      const response = await fetch(MONDAY_API_URL, {
+      const response = await outboundFetch(MONDAY_API_URL, {
         method: 'POST',
         headers: mondayHeaders(accessToken),
         body: JSON.stringify({
@@ -216,7 +217,7 @@ export const mondayHandler: WebhookProviderHandler = {
     }
 
     try {
-      const response = await fetch(MONDAY_API_URL, {
+      const response = await outboundFetch(MONDAY_API_URL, {
         method: 'POST',
         headers: mondayHeaders(accessToken),
         body: JSON.stringify({

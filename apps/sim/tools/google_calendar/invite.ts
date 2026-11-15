@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   CALENDAR_API_BASE,
   type CalendarAttendee,
@@ -80,7 +81,7 @@ async function inviteAttendees(
   queryParams.append('sendUpdates', params?.sendUpdates ?? 'all')
   const putUrl = `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(params?.eventId ?? '', 'eventId')}?${queryParams.toString()}`
 
-  const putResponse = await fetch(putUrl, {
+  const putResponse = await outboundFetch(putUrl, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${params?.accessToken}`,

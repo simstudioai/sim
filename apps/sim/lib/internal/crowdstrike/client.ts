@@ -1,5 +1,6 @@
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { throttledRetryAfterMs } from '@/lib/credentials/token-service-accounts/errors'
@@ -244,7 +245,7 @@ export async function requestCrowdStrikeToken(
   })
   if (request.memberCid) body.set('member_cid', request.memberCid)
 
-  const response = await fetch(`${getCloudBaseUrl(request.cloud)}/oauth2/token`, {
+  const response = await outboundFetch(`${getCloudBaseUrl(request.cloud)}/oauth2/token`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -347,7 +348,7 @@ export async function callCrowdStrike(
     headers['Content-Type'] = 'application/json'
   }
 
-  const response = await fetch(buildUrl(baseUrl, options), {
+  const response = await outboundFetch(buildUrl(baseUrl, options), {
     method: options.method,
     headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),

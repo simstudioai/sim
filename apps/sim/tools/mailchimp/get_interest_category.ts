@@ -2,6 +2,7 @@ import type { MailchimpInterestCategory } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpGetInterestCategoryParams {
   apiKey: string
@@ -52,7 +53,7 @@ export const mailchimpGetInterestCategoryTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/interest-categories/${params.interestCategoryId}`
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/interest-categories/${safeUrlPathSegment(params.interestCategoryId, 'interestCategoryId')}`
       ),
     method: 'GET',
     headers: (params) => ({

@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   isPayloadSizeLimitError,
@@ -85,7 +87,7 @@ export async function executeFirecrawlParse(
       formData.append('options', JSON.stringify(input.options))
     }
 
-    const response = await fetch('https://api.firecrawl.dev/v2/parse', {
+    const response = await outboundFetch('https://api.firecrawl.dev/v2/parse', {
       method: 'POST',
       headers: { Authorization: `Bearer ${input.apiKey}` },
       body: formData,
@@ -119,6 +121,7 @@ export async function executeFirecrawlParse(
     })
   } catch (error) {
     context.signal?.throwIfAborted()
+    if (isUnavailableFailure(error)) throw error
     const notReady = docNotReadyResponse(error)
     if (notReady) return notReady
     logger.error('Firecrawl parse failed', {

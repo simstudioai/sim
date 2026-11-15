@@ -1,6 +1,7 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpScheduleCampaignParams {
   apiKey: string
@@ -45,7 +46,10 @@ export const mailchimpScheduleCampaignTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildMailchimpUrl(params.apiKey, `/campaigns/${params.campaignId}/actions/schedule`),
+      buildMailchimpUrl(
+        params.apiKey,
+        `/campaigns/${safeUrlPathSegment(params.campaignId, 'campaignId')}/actions/schedule`
+      ),
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

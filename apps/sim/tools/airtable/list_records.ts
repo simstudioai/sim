@@ -35,13 +35,33 @@ export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableLis
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of records to return (default: all records)',
+      description:
+        'Maximum total number of records to return. Each request returns at most one page (pageSize, up to 100); use offset to fetch the next page',
     },
     filterFormula: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Formula to filter records (e.g., "({Field Name} = \'Value\')")',
+    },
+    pageSize: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of records per page (max 100, default 100)',
+    },
+    offset: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination offset from a previous response, to fetch the next page of records',
+    },
+    view: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'View name or ID. Only records in the view are returned, sorted in the view order',
     },
   },
 
@@ -50,10 +70,17 @@ export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableLis
       const url = `https://api.airtable.com/v0/${params.baseId?.trim()}/${params.tableId?.trim()}`
       const queryParams = new URLSearchParams()
       if (params.maxRecords) queryParams.append('maxRecords', Number(params.maxRecords).toString())
-      if (params.filterFormula) {
-        const encodedFormula = params.filterFormula.replace(/'/g, "'")
-        queryParams.append('filterByFormula', encodedFormula)
+      if (params.filterFormula) queryParams.append('filterByFormula', params.filterFormula)
+      const pageSize = Number(params.pageSize)
+      if (
+        params.pageSize != null &&
+        String(params.pageSize).trim() !== '' &&
+        Number.isFinite(pageSize)
+      ) {
+        queryParams.append('pageSize', String(Math.min(Math.max(Math.trunc(pageSize), 1), 100)))
       }
+      if (params.offset) queryParams.append('offset', params.offset.trim())
+      if (params.view) queryParams.append('view', params.view.trim())
       const queryString = queryParams.toString()
       const finalUrl = queryString ? `${url}?${queryString}` : url
       return finalUrl

@@ -1,4 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { icypeasHosting } from '@/tools/icypeas/hosting'
 import type {
   IcypeasFindEmailOutput,
@@ -142,14 +143,17 @@ export const icypeasFindEmailTool: ToolConfig<IcypeasFindEmailParams, IcypeasFin
       await sleep(POLL_INTERVAL_MS)
       elapsed += POLL_INTERVAL_MS
 
-      const pollResponse = await fetch('https://app.icypeas.com/api/bulk-single-searchs/read', {
-        method: 'POST',
-        headers: {
-          Authorization: params.apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id: searchId }),
-      })
+      const pollResponse = await outboundFetch(
+        'https://app.icypeas.com/api/bulk-single-searchs/read',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: params.apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ id: searchId }),
+        }
+      )
 
       if (!pollResponse.ok) {
         const errorText = await pollResponse.text()

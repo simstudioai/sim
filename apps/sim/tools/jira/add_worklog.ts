@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraAddWorklogParams, JiraAddWorklogResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
 import {
@@ -136,7 +137,7 @@ export const jiraAddWorklogTool: ToolConfig<JiraAddWorklogParams, JiraAddWorklog
 
     const makeRequest = async (cloudId: string) => {
       const worklogUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/worklog`
-      const worklogResponse = await fetch(worklogUrl, {
+      const worklogResponse = await outboundFetch(worklogUrl, {
         method: 'POST',
         headers: {
           Accept: 'application/json',

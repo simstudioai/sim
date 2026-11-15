@@ -7,8 +7,6 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const MANAGED_OAUTH_DELEGATION_HEADER = 'x-sim-managed-oauth-delegation'
-
 export const oauthAccountSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -77,83 +75,8 @@ const trelloCallbackQuerySchema = z
   })
   .passthrough()
 
-/** Google domain-wide-delegation subject. Also applied by in-process credential callers. */
+/** Google domain-wide-delegation subject, validated for in-process credential callers. */
 export const impersonateEmailSchema = z.string().email()
-
-export const oauthTokenRequestBodySchema = z
-  .object({
-    credentialId: z.string().min(1).optional(),
-    credentialAccountUserId: z.string().min(1).optional(),
-    providerId: z.string().min(1).optional(),
-    toolId: z.string().min(1).optional(),
-    workflowId: z.string().min(1).nullish(),
-    scopes: z.array(z.string()).optional(),
-    impersonateEmail: impersonateEmailSchema.optional(),
-  })
-  .refine(
-    (data) => data.credentialId || (data.credentialAccountUserId && data.providerId),
-    'Either credentialId or (credentialAccountUserId + providerId) is required'
-  )
-
-export const oauthTokenGetQuerySchema = z.object({
-  credentialId: z
-    .string({
-      error: 'Credential ID is required',
-    })
-    .min(1, 'Credential ID is required'),
-})
-
-export const oauthTokenPostQuerySchema = z.object({
-  userId: z.string().min(1).optional(),
-})
-
-export const oauthTokenPostHeadersSchema = z.object({
-  [MANAGED_OAUTH_DELEGATION_HEADER]: z.string().min(1).optional(),
-})
-
-const oauthTokenResponseSchema = z.object({
-  accessToken: z.string(),
-  credentialType: z.enum(['oauth', 'managed_oauth', 'service_account']).optional(),
-  idToken: z.string().optional(),
-  instanceUrl: z.string().optional(),
-  /** Zoho Desk — the data-center-scoped Desk REST base for this credential. */
-  apiDomain: z.string().optional(),
-  cloudId: z.string().optional(),
-  domain: z.string().optional(),
-  providerWorkspaceId: z.string().optional(),
-  /** Datadog — the application key sent beside the API key (`accessToken`). */
-  applicationKey: z.string().optional(),
-  realmId: z.string().optional(),
-  quickBooksEnvironment: z.enum(['sandbox', 'production']).optional(),
-  authStyle: z
-    .enum(['x-api-token', 'snowflake-workload-identity', 'snowflake-key-pair', 'basic', 'bearer'])
-    .optional(),
-})
-
-/** Token material a resolved credential yields, on the wire and in-process alike. */
-export type OAuthTokenResponse = z.output<typeof oauthTokenResponseSchema>
-
-export const oauthTokenGetContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/auth/oauth/token',
-  query: oauthTokenGetQuerySchema,
-  response: {
-    mode: 'json',
-    schema: oauthTokenResponseSchema,
-  },
-})
-
-export const oauthTokenPostContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/auth/oauth/token',
-  query: oauthTokenPostQuerySchema,
-  headers: oauthTokenPostHeadersSchema,
-  body: oauthTokenRequestBodySchema,
-  response: {
-    mode: 'json',
-    schema: oauthTokenResponseSchema,
-  },
-})
 
 export const shopifyAuthorizeQuerySchema = z.object({
   shop: z.string().optional(),

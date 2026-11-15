@@ -85,7 +85,7 @@ const createMessageBase = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Recipient type: "contact"',
+      description: 'Recipient role: "user" or "lead"',
     },
     to_id: {
       type: 'string',

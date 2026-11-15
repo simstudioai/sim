@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike, toRecord, toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
@@ -170,7 +171,7 @@ export const instantlyHandler: WebhookProviderHandler = {
       webhookId: webhook.id,
     })
 
-    const response = await fetch(instantlyUrl('/api/v2/webhooks'), {
+    const response = await outboundFetch(instantlyUrl('/api/v2/webhooks'), {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey.trim()}`,
@@ -235,7 +236,7 @@ export const instantlyHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(
+      const response = await outboundFetch(
         instantlyUrl(`/api/v2/webhooks/${encodeURIComponent(externalId.trim())}`),
         {
           method: 'DELETE',

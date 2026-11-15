@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { AgentParams, AgentResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -119,7 +120,7 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
-        const statusResponse = await fetch(`https://api.firecrawl.dev/v2/agent/${jobId}`, {
+        const statusResponse = await outboundFetch(`https://api.firecrawl.dev/v2/agent/${jobId}`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${params.apiKey}`,

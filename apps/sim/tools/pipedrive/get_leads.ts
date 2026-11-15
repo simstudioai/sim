@@ -3,6 +3,7 @@ import type { PipedriveGetLeadsParams, PipedriveGetLeadsResponse } from '@/tools
 import { PIPEDRIVE_LEAD_OUTPUT_PROPERTIES } from '@/tools/pipedrive/types'
 import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('PipedriveGetLeads')
 
@@ -80,7 +81,7 @@ export const pipedriveGetLeadsTool: ToolConfig<PipedriveGetLeadsParams, Pipedriv
       url: (params) => {
         // If lead_id is provided, get specific lead
         if (params.lead_id) {
-          return `https://api.pipedrive.com/v1/leads/${params.lead_id}`
+          return `https://api.pipedrive.com/v1/leads/${safeUrlPathSegment(params.lead_id, 'lead_id')}`
         }
 
         // Get archived or active leads with optional filters

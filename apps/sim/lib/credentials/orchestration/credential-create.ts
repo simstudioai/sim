@@ -8,7 +8,10 @@ import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { normalizeCredentialEnvKey } from '@/lib/api/contracts/credentials'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
-import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
+import {
+  isUnavailableFailure,
+  type OrchestrationRequestContext,
+} from '@/lib/core/orchestration/types'
 import {
   type ResourceOwner,
   resourceScopeColumns,
@@ -664,6 +667,8 @@ export async function createCredentialRecord(
       return failure('Credential source data failed validation checks', 'validation')
     }
 
+    // Sim's egress route is down: the surface answers 503, never a verdict on the credential.
+    if (isUnavailableFailure(error)) throw error
     const errAsRecord =
       typeof error === 'object' && error !== null ? (error as Record<string, unknown>) : {}
     logger.error('Credential create failure details', {

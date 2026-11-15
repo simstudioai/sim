@@ -1,6 +1,11 @@
-import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import {
+  buildMailchimpUrl,
+  handleMailchimpError,
+  mailchimpMemberSegment,
+} from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpArchiveMemberParams {
   apiKey: string
@@ -22,7 +27,7 @@ export const mailchimpArchiveMemberTool: ToolConfig<
   id: 'mailchimp_archive_member',
   name: 'Archive Member from Mailchimp Audience',
   description:
-    'Request permanent deletion of a member and their identifying data. This targets delete-permanent, despite the Archive Member label; provider acceptance of the current HTTP method is unverified.',
+    'Archive a member in a Mailchimp audience. Archived contacts keep their data and can be restored with Unarchive Member.',
   version: '1.0.0',
   oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
@@ -51,7 +56,7 @@ export const mailchimpArchiveMemberTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/members/${params.subscriberEmail}/actions/delete-permanent`
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/members/${mailchimpMemberSegment(params.subscriberEmail)}`
       ),
     method: 'DELETE',
     headers: (params) => ({
@@ -78,7 +83,7 @@ export const mailchimpArchiveMemberTool: ToolConfig<
     success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
-      description: 'Permanent-deletion request confirmation',
+      description: 'Archive confirmation',
       properties: {
         success: { type: 'boolean', description: 'Operation success' },
       },

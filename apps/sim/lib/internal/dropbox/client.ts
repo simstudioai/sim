@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -35,7 +36,7 @@ export class DropboxClient {
     }
   ): Promise<Record<string, unknown>> {
     this.signal?.throwIfAborted()
-    const response = await fetch('https://content.dropboxapi.com/2/files/upload', {
+    const response = await outboundFetch('https://content.dropboxapi.com/2/files/upload', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.accessToken}`,

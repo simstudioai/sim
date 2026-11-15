@@ -26,7 +26,6 @@ vi.mock('@/lib/credentials/application/managed-oauth-delegation', () => ({
       this.name = 'InvalidManagedOAuthDelegationError'
     }
   },
-  authenticateManagedOAuthDelegation: vi.fn(),
 }))
 
 vi.mock('@/lib/credentials/application/resolve-managed-oauth-token', () => ({
@@ -37,10 +36,11 @@ vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
 vi.unmock('@/lib/oauth/utils')
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
-import { resolveCredentialAccessToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
+import { resolveCredentialAccessToken } from '@/lib/oauth/token-resolution'
 import type { OAuthService } from '@/lib/oauth/types'
 import { getToolMetadata } from '@/tools/metadata'
 
@@ -54,18 +54,20 @@ const {
   mockResolveServiceAccountToken,
 } = authOAuthUtilsMockFns
 
-const INTERNAL_AUTH = { success: true, userId: 'user-1', authType: 'internal_jwt' } as const
+describe('resolveCredentialAccessToken for plain credentials', () => {
+  beforeEach(() => {
+    mockResolveOAuthAccountId.mockResolvedValue(null)
+  })
 
-describe('resolveCredentialToken', () => {
   it('fails closed when the credential is not authorized', async () => {
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({
       ok: false,
       error: 'You do not have access to this credential.',
     })
 
-    const result = await resolveCredentialToken(INTERNAL_AUTH, {
+    const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
-      resolvedCredential: null,
+      userId: 'user-1',
       credentialId: 'cred-1',
     })
 
@@ -95,9 +97,9 @@ describe('resolveCredentialToken', () => {
     })
     mockRefreshTokenIfNeeded.mockResolvedValue({ accessToken: 'fresh', refreshed: true })
 
-    const result = await resolveCredentialToken(INTERNAL_AUTH, {
+    const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
-      resolvedCredential: null,
+      userId: 'user-1',
       credentialId: 'cred-1',
       workflowId: 'wf-1',
     })
@@ -106,6 +108,10 @@ describe('resolveCredentialToken', () => {
       ok: true,
       token: { accessToken: 'fresh', credentialType: 'oauth', idToken: 'id-token' },
     })
+    expect(mockAuthorizeCredentialUseForAuth).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({ credentialId: 'cred-1', workflowId: 'wf-1' })
+    )
     expect(mockGetCredential).toHaveBeenCalledWith('req-1', 'account-1', 'owner-1')
     expect(auditMockFns.mockRecordAuditRollup).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -135,9 +141,9 @@ describe('resolveCredentialToken', () => {
     mockRefreshTokenIfNeeded.mockResolvedValue({ accessToken: 'fresh', refreshed: false })
 
     await expect(
-      resolveCredentialToken(INTERNAL_AUTH, {
+      resolveCredentialAccessToken({
         requestId: 'req-1',
-        resolvedCredential: null,
+        userId: 'user-1',
         credentialId: 'cred-1',
       })
     ).resolves.toEqual({
@@ -161,9 +167,9 @@ describe('resolveCredentialToken', () => {
     mockGetCredential.mockResolvedValue({ providerId: 'google' })
     mockRefreshTokenIfNeeded.mockRejectedValue(new Error('refresh token revoked'))
 
-    const result = await resolveCredentialToken(INTERNAL_AUTH, {
+    const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
-      resolvedCredential: null,
+      userId: 'user-1',
       credentialId: 'cred-1',
     })
 
@@ -172,20 +178,44 @@ describe('resolveCredentialToken', () => {
     expect(auditMockFns.mockRecordAuditRollup).not.toHaveBeenCalled()
   })
 
+  it('reports an unavailable egress route as 503, not a failed credential', async () => {
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+    })
+    mockGetCredential.mockResolvedValue({ providerId: 'google' })
+    mockRefreshTokenIfNeeded.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      userId: 'user-1',
+      credentialId: 'cred-1',
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 503,
+      error: "The organization's egress route is unavailable",
+    })
+  })
+
   it('authorizes service-account credentials before minting a token', async () => {
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({ ok: false, error: 'Unauthorized' })
 
-    const result = await resolveCredentialToken(INTERNAL_AUTH, {
+    mockResolveOAuthAccountId.mockResolvedValue({
+      credentialType: 'service_account',
+      credentialId: 'sa-1',
+      providerId: 'google',
+      workspaceId: 'ws-1',
+      accountId: '',
+      usedCredentialTable: true,
+    })
+
+    const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
+      userId: 'user-1',
       credentialId: 'cred-1',
-      resolvedCredential: {
-        credentialType: 'service_account',
-        credentialId: 'sa-1',
-        providerId: 'google',
-        workspaceId: 'ws-1',
-        accountId: '',
-        usedCredentialTable: true,
-      },
     })
 
     expect(result).toEqual({ ok: false, status: 403, error: 'Unauthorized' })
@@ -193,9 +223,9 @@ describe('resolveCredentialToken', () => {
   })
 
   it('rejects a malformed impersonation subject before touching the credential', async () => {
-    const result = await resolveCredentialToken(INTERNAL_AUTH, {
+    const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
-      resolvedCredential: null,
+      userId: 'user-1',
       credentialId: 'cred-1',
       impersonateEmail: 'not-an-email',
     })
@@ -222,13 +252,11 @@ const EXECUTOR_PRINCIPAL = {
 } as never
 
 describe('resolveCredentialAccessToken', () => {
-  const authenticate = vi.fn()
   const resolveManagedPrincipal = vi.fn()
 
   beforeEach(() => {
     mockExecuteManagedToken.mockReset()
     mockResolveOAuthAccountId.mockResolvedValue(null)
-    authenticate.mockResolvedValue(INTERNAL_AUTH)
     resolveManagedPrincipal.mockResolvedValue(EXECUTOR_PRINCIPAL)
     mockGetToolMetadata.mockReturnValue({
       id: 'gmail_send',
@@ -244,7 +272,7 @@ describe('resolveCredentialAccessToken', () => {
       requestId: 'req-1',
       credentialId: 'cred-1',
       toolId: 'gmail_send',
-      authenticate,
+      userId: 'user-1',
     })
 
     expect(result).toEqual({
@@ -253,7 +281,7 @@ describe('resolveCredentialAccessToken', () => {
       code: 'MANAGED_CREDENTIAL_DELEGATION_REQUIRED',
       error: 'Managed credentials can only be used by an authenticated workflow execution',
     })
-    expect(authenticate).not.toHaveBeenCalled()
+    expect(mockAuthorizeCredentialUseForAuth).not.toHaveBeenCalled()
   })
 
   it('maps an invalid delegation to 401 with its message', async () => {
@@ -264,7 +292,7 @@ describe('resolveCredentialAccessToken', () => {
       requestId: 'req-1',
       credentialId: 'cred-1',
       toolId: 'gmail_send',
-      authenticate,
+      userId: 'user-1',
       resolveManagedPrincipal,
     })
 
@@ -283,7 +311,7 @@ describe('resolveCredentialAccessToken', () => {
     const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
       credentialId: 'cred-1',
-      authenticate,
+      userId: 'user-1',
       resolveManagedPrincipal,
     })
 
@@ -303,7 +331,7 @@ describe('resolveCredentialAccessToken', () => {
       requestId: 'req-1',
       credentialId: 'cred-1',
       toolId: 'http_request',
-      authenticate,
+      userId: 'user-1',
       resolveManagedPrincipal,
     })
 
@@ -337,7 +365,7 @@ describe('resolveCredentialAccessToken', () => {
       requestId: 'req-1',
       credentialId: 'cred-1',
       toolId: 'slack_add_bookmark',
-      authenticate,
+      userId: 'user-1',
       resolveManagedPrincipal,
     })
 
@@ -362,7 +390,7 @@ describe('resolveCredentialAccessToken', () => {
       requestId: 'req-1',
       credentialId: 'cred-1',
       toolId: 'gmail_send',
-      authenticate,
+      userId: 'user-1',
       resolveManagedPrincipal,
     })
 
@@ -377,14 +405,11 @@ describe('resolveCredentialAccessToken', () => {
   it("scopes a managed credential to the tool's required scopes", async () => {
     mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
     mockExecuteManagedToken.mockResolvedValue({ accessToken: 'managed-token', idToken: 'id-1' })
-    const auditRequest = { headers: { get: () => null } }
-
     const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
       credentialId: 'cred-1',
       toolId: 'gmail_send',
-      auditRequest,
-      authenticate,
+      userId: 'user-1',
       resolveManagedPrincipal,
     })
 
@@ -404,9 +429,8 @@ describe('resolveCredentialAccessToken', () => {
         requiredScopes: ['scope-a'],
         toolId: 'gmail_send',
       },
-      request: auditRequest,
     })
-    expect(authenticate).not.toHaveBeenCalled()
+    expect(mockAuthorizeCredentialUseForAuth).not.toHaveBeenCalled()
   })
 
   it('projects orchestration failures as managed unauthorized', async () => {
@@ -419,7 +443,7 @@ describe('resolveCredentialAccessToken', () => {
       requestId: 'req-1',
       credentialId: 'cred-1',
       toolId: 'gmail_send',
-      authenticate,
+      userId: 'user-1',
       resolveManagedPrincipal,
     })
 
@@ -430,10 +454,28 @@ describe('resolveCredentialAccessToken', () => {
       error: 'Managed credential not found',
     })
   })
+
+  it('reports a managed refresh blocked by the egress route as a retryable 503, not unauthorized', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
+    mockExecuteManagedToken.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      toolId: 'gmail_send',
+      userId: 'user-1',
+      resolveManagedPrincipal,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 503,
+      error: "The organization's egress route is unavailable",
+    })
+  })
 })
 
 describe('ordinary tool credential binding', () => {
-  const authenticate = async () => INTERNAL_AUTH
   const serviceAccount = {
     credentialType: 'service_account',
     credentialId: 'service-account-1',
@@ -459,33 +501,11 @@ describe('ordinary tool credential binding', () => {
     })
   })
 
-  it.each([
-    ['a session', { success: true, userId: 'user-1', authType: 'session' }],
-    ['an API key', { success: true, userId: 'user-1', authType: 'api_key' }],
-  ] as const)(
-    'releases a saved secret to server-side callers only, never %s',
-    async (_label, auth) => {
-      const result = await resolveCredentialAccessToken({
-        requestId: 'binding-test',
-        credentialId: 'credential-1',
-        toolId: 'oracle_fusion_financials_list_payables_invoices',
-        authenticate: async () => auth,
-      })
-
-      expect(result).toMatchObject({
-        ok: false,
-        status: 403,
-        code: 'SERVICE_ACCOUNT_SESSION_FORBIDDEN',
-      })
-      expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
-    }
-  )
-
   it('refuses to release a service-account secret without a tool to bind it to', async () => {
     const result = await resolveCredentialAccessToken({
       requestId: 'binding-test',
       credentialId: 'credential-1',
-      authenticate,
+      userId: 'user-1',
     })
 
     expect(result).toMatchObject({ ok: false, status: 400, code: 'SERVICE_ACCOUNT_TOOL_REQUIRED' })
@@ -500,7 +520,7 @@ describe('ordinary tool credential binding', () => {
         requestId: 'binding-test',
         credentialId: 'credential-1',
         toolId: 'oracle_fusion_financials_list_payables_invoices',
-        authenticate,
+        userId: 'user-1',
       })
       expect(result).toMatchObject({ ok: false, status: 400, code: 'CREDENTIAL_PROVIDER_MISMATCH' })
       expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
@@ -528,7 +548,7 @@ describe('ordinary tool credential binding', () => {
         requestId: 'binding-test',
         credentialId: 'credential-1',
         toolId: 'dynamodb_get',
-        authenticate,
+        userId: 'user-1',
       })
       expect(result).toMatchObject({ ok: true })
       expect(mockResolveServiceAccountToken).toHaveBeenCalled()
@@ -542,7 +562,7 @@ describe('ordinary tool credential binding', () => {
           requestId: 'binding-test',
           credentialId: 'credential-1',
           toolId: 'dynamodb_get',
-          authenticate,
+          userId: 'user-1',
         })
         expect(result).toMatchObject({
           ok: false,
@@ -562,7 +582,7 @@ describe('ordinary tool credential binding', () => {
         requestId: 'binding-test',
         credentialId: 'credential-1',
         toolId: 'oracle_fusion_financials_list_payables_invoices',
-        authenticate,
+        userId: 'user-1',
       })
     ).toEqual({ ok: false, status: 403, error: 'Unauthorized' })
     expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
@@ -576,7 +596,7 @@ describe('ordinary tool credential binding', () => {
         requestId: 'binding-test',
         credentialId: 'credential-1',
         toolId: 'oracle_fusion_financials_list_payables_invoices',
-        authenticate,
+        userId: 'user-1',
       })
     ).toMatchObject({ ok: false, status: 400, code: 'CREDENTIAL_TYPE_MISMATCH' })
     expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
@@ -603,7 +623,7 @@ describe('ordinary tool credential binding', () => {
         requestId: 'binding-test',
         credentialId: 'credential-1',
         toolId: 'fixture-tool',
-        authenticate,
+        userId: 'user-1',
       })
     ).toMatchObject({
       ok: true,
@@ -641,7 +661,7 @@ describe('ordinary tool credential binding', () => {
           requestId: 'binding-test',
           credentialId: 'credential-1',
           toolId: 'fixture-tool',
-          authenticate,
+          userId: 'user-1',
         })
       ).toMatchObject({
         ok: true,
@@ -668,7 +688,7 @@ describe('ordinary tool credential binding', () => {
         requestId: 'binding-test',
         credentialId: 'credential-1',
         toolId: 'fixture-tool',
-        authenticate,
+        userId: 'user-1',
       })
       expect(result.ok).toBe(allowed)
       if (!allowed) {
@@ -680,7 +700,6 @@ describe('ordinary tool credential binding', () => {
 })
 
 describe('Microsoft app credential binding', () => {
-  const authenticate = async () => INTERNAL_AUTH
   const appCredential = {
     credentialType: 'service_account',
     credentialId: 'microsoft-app-1',
@@ -724,7 +743,7 @@ describe('Microsoft app credential binding', () => {
         requestId: 'microsoft-app',
         credentialId: 'microsoft-app-1',
         toolId: `${provider}-tool`,
-        authenticate,
+        userId: 'user-1',
       })
       expect(result).toMatchObject({ ok: false, status: 400, code: 'CREDENTIAL_PROVIDER_MISMATCH' })
       expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
@@ -739,7 +758,7 @@ describe('Microsoft app credential binding', () => {
         requestId: 'microsoft-app',
         credentialId: 'microsoft-app-1',
         toolId: `${provider}-tool`,
-        authenticate,
+        userId: 'user-1',
       })
       expect(result).toMatchObject({ ok: true, token: { credentialType: 'service_account' } })
       expect(mockResolveServiceAccountToken).toHaveBeenCalledWith(
@@ -759,7 +778,7 @@ describe('Microsoft app credential binding', () => {
       requestId: 'microsoft-app',
       credentialId: 'microsoft-app-1',
       toolId: resetPasswordTool.id,
-      authenticate,
+      userId: 'user-1',
     })
     expect(result).toMatchObject({ ok: false, status: 400, code: 'CREDENTIAL_TYPE_MISMATCH' })
     expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
@@ -767,8 +786,6 @@ describe('Microsoft app credential binding', () => {
 })
 
 describe('keyless Google Cloud credential refusals', () => {
-  const authenticate = async () => INTERNAL_AUTH
-
   beforeEach(() => {
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({
       ok: true,
@@ -799,7 +816,7 @@ describe('keyless Google Cloud credential refusals', () => {
       requestId: 'google-keyless',
       credentialId: 'google-keyless-1',
       toolId: 'google-drive-tool',
-      authenticate,
+      userId: 'user-1',
     })
     expect(result).toMatchObject({
       ok: false,
@@ -817,15 +834,13 @@ describe('keyless Google Cloud credential refusals', () => {
       requestId: 'servicenow-host',
       credentialId: 'google-keyless-1',
       toolId: 'google-drive-tool',
-      authenticate,
+      userId: 'user-1',
     })
     expect(result).toMatchObject({ ok: false, status: 400, code: 'host_not_allowed' })
   })
 })
 
 describe('Microsoft app credential cloud refusals', () => {
-  const authenticate = async () => INTERNAL_AUTH
-
   beforeEach(() => {
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({
       ok: true,
@@ -856,7 +871,7 @@ describe('Microsoft app credential cloud refusals', () => {
       requestId: 'microsoft-cloud',
       credentialId: 'microsoft-app-gov',
       toolId: 'powerbi-tool',
-      authenticate,
+      userId: 'user-1',
     })
     expect(result).toMatchObject({ ok: false, status: 400, code: 'cloud_mismatch' })
     expect(result.ok ? '' : result.error).toMatch(/Microsoft cloud/)

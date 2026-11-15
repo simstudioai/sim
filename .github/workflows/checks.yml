@@ -312,6 +312,7 @@ jobs:
             ${{ runner.temp }}/e2e/**/*.json
             ${{ runner.temp }}/e2e/browser-extension*/**/*.png
             ${{ runner.temp }}/e2e/*-ui-report.json.artifacts/*.png
+            ${{ runner.temp }}/e2e/markdown-viewer-ui-report.json.artifacts/fixture.md
           if-no-files-found: ignore
           retention-days: 7
 

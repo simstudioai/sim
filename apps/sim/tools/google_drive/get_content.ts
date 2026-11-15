@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   assertKnownSizeWithinLimit,
   consumeOrCancelBody,
@@ -123,7 +124,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       const exportFormat = params?.mimeType || DEFAULT_EXPORT_FORMATS[mimeType] || 'text/plain'
       logger.info('Exporting Google Workspace file', { fileId, mimeType, exportFormat })
 
-      const exportResponse = await fetch(
+      const exportResponse = await outboundFetch(
         `https://www.googleapis.com/drive/v3/files/${encodedFileId}/export?mimeType=${encodeURIComponent(exportFormat)}&supportsAllDrives=true`,
         { headers: { Authorization: authHeader }, signal }
       )
@@ -152,7 +153,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
         `Google Drive file ${fileId}`
       )
 
-      const downloadResponse = await fetch(
+      const downloadResponse = await outboundFetch(
         `https://www.googleapis.com/drive/v3/files/${encodedFileId}?alt=media&supportsAllDrives=true`,
         { headers: { Authorization: authHeader }, signal }
       )
@@ -178,7 +179,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
     const canReadRevisions = metadata.capabilities?.canReadRevisions === true
     if (includeRevisions && canReadRevisions) {
       try {
-        const revisionsResponse = await fetch(
+        const revisionsResponse = await outboundFetch(
           `https://www.googleapis.com/drive/v3/files/${encodedFileId}/revisions?fields=revisions(${ALL_REVISION_FIELDS})&pageSize=100`,
           { headers: { Authorization: authHeader }, signal }
         )

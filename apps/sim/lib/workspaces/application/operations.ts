@@ -98,7 +98,7 @@ export const workspaceUpdateOperations = {
     delegatedServices: ['copilot'],
   }),
   /**
-   * Name and logo only. Billing payer and the personal-key policy stay on
+   * Name and logo only. The personal-key policy stays on
    * {@link workspaceUpdateOperations.update}, which only a signed-in session
    * reaches; this narrower operation is the one Copilot and the public API get.
    *

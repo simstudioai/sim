@@ -6,6 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { generateRandomHex } from '@sim/utils/random'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
@@ -57,7 +58,7 @@ async function fivetranRequest(
   method: string,
   body?: Record<string, unknown>
 ): Promise<Response> {
-  return fetch(url, {
+  return outboundFetch(url, {
     method,
     headers: fivetranAuthHeaders(credentials),
     body: body === undefined ? undefined : JSON.stringify(body),

@@ -1,30 +1,26 @@
-import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { wandGenerateContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
-import { getBYOKKey } from '@/lib/api-key/byok'
-import { getSession } from '@/lib/auth'
+import { authenticateOptionalInternalSession } from '@/lib/api/server/routes'
 import {
-  type BillingAttributionSnapshot,
-  checkAttributedBillingBlocks,
-  checkAttributedUsageLimits,
-  resolveBillingAttribution,
-  toBillingContext,
-} from '@/lib/billing/core/attribution'
-import { recordUsage } from '@/lib/billing/core/usage-log'
-import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
-import { env } from '@/lib/core/config/env'
-import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/env-flags'
+  asOrchestrationError,
+  OrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { enrichSandboxCapabilities } from '@/lib/execution/remote-sandbox/wand-enricher'
-import { enrichTableSchema } from '@/lib/table/llm/wand'
-import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
-import { extractResponseText, parseResponsesUsage } from '@/providers/openai/utils'
-import { getModelPricing } from '@/providers/utils'
+import {
+  generateWandForWorkflow,
+  generateWandInWorkspace,
+  WAND_DEPLOYMENT,
+  WandBillingRefusedError,
+  WandEmptyResponseError,
+  WandNotConfiguredError,
+  WandStreamStartError,
+  WandWorkflowDetachedError,
+  WandWorkflowNotFoundError,
+} from '@/lib/wand/application/generate'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -32,639 +28,132 @@ export const maxDuration = 60
 
 const logger = createLogger('WandGenerateAPI')
 
-const azureApiKey = env.AZURE_OPENAI_API_KEY
-const azureEndpoint = env.AZURE_OPENAI_ENDPOINT
-const azureApiVersion = env.AZURE_OPENAI_API_VERSION
-const wandModelName = env.WAND_OPENAI_MODEL_NAME || 'gpt-4o'
-const openaiApiKey = env.OPENAI_API_KEY
+const WORKSPACE_REQUIRED = 'Workspace context is required.'
 
-const useWandAzure = azureApiKey && azureEndpoint && azureApiVersion
-
-if (!useWandAzure && !openaiApiKey) {
-  logger.warn(
-    'Neither Azure OpenAI nor OpenAI API key found. Wand generation API will not function.'
-  )
-} else {
-  logger.info(`Using ${useWandAzure ? 'Azure OpenAI' : 'OpenAI'} for wand generation`)
+function wandError(error: string, status: number, extra: Record<string, unknown> = {}) {
+  return NextResponse.json({ success: false, error, ...extra }, { status })
 }
 
-interface ChatMessage {
-  role: 'user' | 'assistant' | 'system'
-  content: string
+function errorDetails(error: unknown) {
+  if (!(error instanceof Error)) return { message: 'Unknown error' }
+  return {
+    name: error.name,
+    message: error.message || 'Unknown error',
+    code: 'code' in error ? error.code : undefined,
+    status: 'status' in error ? error.status : undefined,
+    stack: error.stack,
+  }
 }
 
-/**
- * Wand enricher function type.
- * Enrichers add context to the system prompt based on generationType.
- */
-type WandEnricher = (
-  workspaceId: string | null,
-  context: Record<string, unknown>
-) => Promise<string | null>
-
-/**
- * Registry of wand enrichers by generationType.
- * Each enricher returns additional context to append to the system prompt.
- */
-const wandEnrichers: Partial<Record<string, WandEnricher>> = {
-  timestamp: async () => {
-    const now = new Date()
-    return `Current date and time context for reference:
-- Current UTC timestamp: ${now.toISOString()}
-- Current Unix timestamp (seconds): ${Math.floor(now.getTime() / 1000)}
-- Current Unix timestamp (milliseconds): ${now.getTime()}
-- Current date (UTC): ${now.toISOString().split('T')[0]}
-- Current year: ${now.getUTCFullYear()}
-- Current month: ${now.getUTCMonth() + 1}
-- Current day of month: ${now.getUTCDate()}
-- Current day of week: ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getUTCDay()]}
-
-Use this context to calculate relative dates like "yesterday", "last week", "beginning of this month", etc.`
-  },
-
-  'table-schema': enrichTableSchema,
-  /** JavaScript, Python, and Shell swap prompt text while retaining sandbox enrichment. */
-  'javascript-function-body': enrichSandboxCapabilities,
+/** Projects a refusal the use case raised, or `null` for a generation failure. */
+function refusalResponse(error: unknown, target: 'workflow' | 'workspace'): NextResponse | null {
+  if (error instanceof WandWorkflowNotFoundError) return wandError(error.message, 404)
+  if (error instanceof WandWorkflowDetachedError) return wandError(error.message, 403)
+  if (
+    error instanceof OrchestrationError &&
+    (error.code === 'forbidden' || error.code === 'not_found')
+  ) {
+    if (target === 'workspace') return wandError(WORKSPACE_REQUIRED, 400)
+    logger.warn('Wand caller lacks write access to the workflow workspace')
+    return wandError('Unauthorized', 403)
+  }
+  if (error instanceof WandNotConfiguredError) return wandError(error.message, 503)
+  if (error instanceof WandBillingRefusedError) {
+    return wandError(error.message, 402, { scope: error.scope })
+  }
+  if (error instanceof WandEmptyResponseError) {
+    return wandError('Failed to generate content. AI response was empty.', 500)
+  }
+  if (error instanceof WandStreamStartError) {
+    logger.error('Failed to create stream', { ...errorDetails(error.cause), ...WAND_DEPLOYMENT })
+    return wandError('An error occurred during wand generation streaming.', 500)
+  }
+  return null
 }
 
-async function updateUserStatsForWand(
-  billingAttribution: BillingAttributionSnapshot,
-  usage: {
-    prompt_tokens?: number
-    completion_tokens?: number
-    total_tokens?: number
-  },
-  requestId: string,
-  isBYOK = false
-): Promise<void> {
-  if (!isBillingEnabled) {
-    return
+function generationFailedResponse(error: unknown): NextResponse {
+  logger.error('Wand generation failed', { ...errorDetails(error), ...WAND_DEPLOYMENT })
+
+  let clientErrorMessage = 'Wand generation failed. Please try again later.'
+  let status =
+    error instanceof Error && 'status' in error && typeof error.status === 'number'
+      ? error.status
+      : 500
+
+  if (
+    WAND_DEPLOYMENT.useWandAzure &&
+    error instanceof Error &&
+    error.message.includes('DeploymentNotFound')
+  ) {
+    clientErrorMessage =
+      'Azure OpenAI deployment not found. Please check your model deployment configuration.'
+    status = 404
+  } else if (status === 401) {
+    clientErrorMessage = 'Authentication failed. Please check your API key configuration.'
+  } else if (status === 429) {
+    clientErrorMessage = 'Rate limit exceeded. Please try again later.'
+  } else if (status >= 500) {
+    clientErrorMessage =
+      'The wand generation service is currently unavailable. Please try again later.'
   }
 
-  if (!usage.total_tokens || usage.total_tokens <= 0) {
-    return
-  }
-
-  try {
-    const promptTokens = usage.prompt_tokens || 0
-    const completionTokens = usage.completion_tokens || 0
-
-    const modelName = useWandAzure ? wandModelName : 'gpt-4o'
-    let costToStore = 0
-
-    if (!isBYOK) {
-      const pricing = getModelPricing(modelName)
-      const costMultiplier = getCostMultiplier()
-      let modelCost = 0
-
-      if (pricing) {
-        const inputCost = (promptTokens / 1000000) * pricing.input
-        const outputCost = (completionTokens / 1000000) * pricing.output
-        modelCost = inputCost + outputCost
-      } else {
-        modelCost = (promptTokens / 1000000) * 0.005 + (completionTokens / 1000000) * 0.015
-      }
-
-      costToStore = modelCost * costMultiplier
-    }
-
-    await recordUsage({
-      userId: billingAttribution.actorUserId,
-      workspaceId: billingAttribution.workspaceId ?? undefined,
-      ...toBillingContext(billingAttribution),
-      entries: [
-        {
-          category: 'model',
-          source: 'wand',
-          description: modelName,
-          cost: costToStore,
-          sourceReference: `wand:${requestId}`,
-          metadata: { inputTokens: promptTokens, outputTokens: completionTokens },
-        },
-      ],
-    })
-
-    await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
-  } catch (error) {
-    logger.error('Failed to update user stats for wand usage', error, { requestId })
-  }
+  return wandError(clientErrorMessage, status)
 }
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   logger.info('Received wand generation request')
 
-  const session = await getSession()
-  if (!session?.user?.id) {
+  const principal = await authenticateOptionalInternalSession()
+  if (!principal) {
     logger.warn('Unauthorized wand generation attempt')
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    return wandError('Unauthorized', 401)
   }
 
+  let target: 'workflow' | 'workspace' | undefined
   try {
     const parsed = await parseRequest(wandGenerateContract, req, {})
     if (!parsed.success) return parsed.response
-    const { body } = parsed.data
+    const { workflowId, workspaceId, ...generation } = parsed.data.body
+    const request = { ...generation, requestId }
 
-    const {
-      prompt,
-      systemPrompt,
-      stream = false,
-      history = [],
-      workflowId,
-      workspaceId: requestedWorkspaceId,
-      generationType,
-      wandContext = {},
-    } = body
-
-    if (!prompt) {
-      logger.warn('Invalid request: Missing prompt.')
-      return NextResponse.json(
-        { success: false, error: 'Missing required field: prompt.' },
-        { status: 400 }
-      )
-    }
-
-    let workspaceId: string | null = null
+    let result
     if (workflowId) {
-      const [workflowRecord] = await db
-        .select({ workspaceId: workflow.workspaceId })
-        .from(workflow)
-        .where(eq(workflow.id, workflowId))
-        .limit(1)
-
-      if (!workflowRecord) {
-        logger.warn(`Workflow not found: ${workflowId}`)
-        return NextResponse.json({ success: false, error: 'Workflow not found' }, { status: 404 })
-      }
-
-      workspaceId = workflowRecord.workspaceId
-
-      if (workflowRecord.workspaceId) {
-        const permission = await verifyWorkspaceMembership(
-          session.user.id,
-          workflowRecord.workspaceId
-        )
-        if (!permission || (permission !== 'admin' && permission !== 'write')) {
-          logger.warn(
-            `User ${session.user.id} does not have write access to workspace for workflow ${workflowId}`
-          )
-          return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 })
-        }
-      } else {
-        logger.warn(`Workflow ${workflowId} has no workspaceId; wand request blocked`)
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot be accessed.',
-          },
-          { status: 403 }
-        )
-      }
-    } else if (requestedWorkspaceId) {
-      // No workflow entity to resolve from (e.g. table-schema wand or an
-      // unhydrated editor); attribute to the workspace the wand is running in,
-      // but only when the caller is a member so usage can't be misattributed.
-      const permission = await verifyWorkspaceMembership(session.user.id, requestedWorkspaceId)
-      if (permission) {
-        workspaceId = requestedWorkspaceId
-      }
-    }
-
-    // Per-member usage must be attributable to an org workspace. The editor always
-    // supplies a workflow or a workspace the caller belongs to; refuse to run rather
-    // than stamp usage workspace-less (which would silently skip the per-member cap).
-    if (!workspaceId) {
-      return NextResponse.json(
-        { success: false, error: 'Workspace context is required.' },
-        { status: 400 }
-      )
-    }
-
-    /** Wand is an interactive action attributed to the authenticated human. */
-    const actorUserId = session.user.id
-    const billingAttribution = await resolveBillingAttribution({
-      actorUserId,
-      workspaceId,
-    })
-
-    let isBYOK = false
-    let activeOpenAIKey = openaiApiKey
-
-    if (workspaceId && !useWandAzure) {
-      const byokResult = await getBYOKKey(workspaceId, 'openai')
-      if (byokResult) {
-        isBYOK = true
-        activeOpenAIKey = byokResult.apiKey
-        logger.info('Using BYOK OpenAI key for wand generation')
-      }
-    }
-
-    if (!useWandAzure && !activeOpenAIKey) {
-      logger.error('AI client not initialized. Missing API key.')
-      return NextResponse.json(
-        { success: false, error: 'Wand generation service is not configured.' },
-        { status: 503 }
-      )
-    }
-
-    /**
-     * BYOK skips metered caps but still checks the actor and exact workspace
-     * payer. Non-BYOK applies the complete attributed gate.
-     */
-    if (isBYOK) {
-      const blocked = await checkAttributedBillingBlocks(billingAttribution)
-      if (blocked.blocked) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: blocked.message || 'Account is not in good standing. Please contact support.',
-          },
-          { status: 402 }
-        )
-      }
+      target = 'workflow'
+      result = await generateWandForWorkflow.execute({
+        principal,
+        input: { ...request, workflowId },
+      })
+    } else if (workspaceId) {
+      target = 'workspace'
+      result = await generateWandInWorkspace.execute({
+        principal,
+        input: { ...request, workspaceId },
+      })
     } else {
-      const usage = await checkAttributedUsageLimits(billingAttribution)
-      if (usage.isExceeded) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
-            scope: usage.scope,
-          },
-          { status: 402 }
-        )
-      }
+      // Per-member usage must be attributable to an org workspace. The editor always
+      // supplies a workflow or a workspace the caller belongs to; refuse to run rather
+      // than stamp usage workspace-less (which would silently skip the per-member cap).
+      return wandError(WORKSPACE_REQUIRED, 400)
     }
 
-    let finalSystemPrompt =
-      systemPrompt ||
-      'You are a helpful AI assistant. Generate content exactly as requested by the user.'
-
-    // Apply enricher if one exists for this generationType
-    if (generationType) {
-      const enricher = wandEnrichers[generationType]
-      if (enricher) {
-        const enrichment = await enricher(workspaceId, wandContext)
-        if (enrichment) {
-          finalSystemPrompt += `\n\n${enrichment}`
-        }
-      }
+    if (result.kind === 'content') {
+      return NextResponse.json({ success: true, content: result.content })
     }
-
-    if (generationType === 'cron-expression') {
-      finalSystemPrompt +=
-        '\n\nIMPORTANT: Return ONLY the raw cron expression (e.g., "0 9 * * 1-5"). Do NOT wrap it in markdown code blocks, backticks, or quotes. Do NOT include any explanation or text before or after the expression.'
-    }
-
-    // Both the JavaScript and Python function-body prompts share this type, so
-    // the reinforcement stays language-neutral.
-    if (generationType === 'javascript-function-body') {
-      finalSystemPrompt +=
-        '\n\nIMPORTANT: Return ONLY the raw function body. Do NOT wrap it in markdown code blocks (no ```javascript, no ```python, no ```). Do NOT include any explanation before or after the code.'
-    }
-
-    if (generationType === 'json-object') {
-      finalSystemPrompt +=
-        '\n\nIMPORTANT: Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks (no ```json or ```). Do NOT include any explanation or text before or after the JSON. The response must start with { and end with }.'
-    }
-
-    // Separate from json-object: that reinforcement demands braces, which would
-    // fight a field whose contract is an array.
-    if (generationType === 'json-array') {
-      finalSystemPrompt +=
-        '\n\nIMPORTANT: Return ONLY the raw JSON array. Do NOT wrap it in markdown code blocks (no ```json or ```). Do NOT include any explanation or text before or after the JSON. The response must start with [ and end with ].'
-    }
-
-    const messages: ChatMessage[] = [{ role: 'system', content: finalSystemPrompt }]
-
-    messages.push(...history.filter((msg) => msg.role !== 'system'))
-
-    messages.push({ role: 'user', content: prompt })
-
-    if (stream) {
-      try {
-        logger.info(`About to create stream with model: ${useWandAzure ? wandModelName : 'gpt-4o'}`)
-
-        const apiUrl = useWandAzure
-          ? `${azureEndpoint?.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
-          : 'https://api.openai.com/v1/responses'
-
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          'OpenAI-Beta': 'responses=v1',
-        }
-
-        if (useWandAzure) {
-          headers['api-key'] = azureApiKey!
-        } else {
-          headers.Authorization = `Bearer ${activeOpenAIKey}`
-        }
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            model: useWandAzure ? wandModelName : 'gpt-4o',
-            input: messages,
-            temperature: 0.2,
-            max_output_tokens: 10000,
-            stream: true,
-          }),
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          logger.error('API request failed', {
-            status: response.status,
-            statusText: response.statusText,
-            error: errorText,
-          })
-          throw new Error(`API request failed: ${response.status} ${response.statusText}`)
-        }
-
-        logger.info('Stream response received, starting processing')
-
-        const encoder = new TextEncoder()
-        const decoder = new TextDecoder()
-
-        const readable = new ReadableStream({
-          async start(controller) {
-            const reader = response.body?.getReader()
-            if (!reader) {
-              controller.close()
-              return
-            }
-
-            let finalUsage: any = null
-            let usageRecorded = false
-
-            const flushUsage = async () => {
-              if (usageRecorded || !finalUsage) {
-                return
-              }
-
-              usageRecorded = true
-              await updateUserStatsForWand(billingAttribution, finalUsage, requestId, isBYOK)
-            }
-
-            try {
-              let buffer = ''
-              let chunkCount = 0
-              let activeEventType: string | undefined
-
-              while (true) {
-                const { done, value } = await reader.read()
-
-                if (done) {
-                  logger.info(`Stream completed. Total chunks: ${chunkCount}`)
-                  await flushUsage()
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
-                  controller.close()
-                  break
-                }
-
-                buffer += decoder.decode(value, { stream: true })
-
-                const lines = buffer.split('\n')
-                buffer = lines.pop() || ''
-
-                for (const line of lines) {
-                  const trimmed = line.trim()
-                  if (!trimmed) {
-                    continue
-                  }
-
-                  if (trimmed.startsWith('event:')) {
-                    activeEventType = trimmed.slice(6).trim()
-                    continue
-                  }
-
-                  if (!trimmed.startsWith('data:')) {
-                    continue
-                  }
-
-                  const data = trimmed.slice(5).trim()
-                  if (data === '[DONE]') {
-                    logger.info('Received [DONE] signal')
-
-                    await flushUsage()
-
-                    controller.enqueue(
-                      encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`)
-                    )
-                    controller.close()
-                    return
-                  }
-
-                  let parsed: any
-                  try {
-                    parsed = JSON.parse(data)
-                  } catch {
-                    continue
-                  }
-
-                  const eventType = parsed?.type ?? activeEventType
-
-                  if (
-                    eventType === 'response.error' ||
-                    eventType === 'error' ||
-                    eventType === 'response.failed'
-                  ) {
-                    throw new Error(parsed?.error?.message || 'Responses stream error')
-                  }
-
-                  if (
-                    eventType === 'response.output_text.delta' ||
-                    eventType === 'response.output_json.delta'
-                  ) {
-                    let content = ''
-                    if (typeof parsed.delta === 'string') {
-                      content = parsed.delta
-                    } else if (parsed.delta && typeof parsed.delta.text === 'string') {
-                      content = parsed.delta.text
-                    } else if (parsed.delta && parsed.delta.json !== undefined) {
-                      content = JSON.stringify(parsed.delta.json)
-                    } else if (parsed.json !== undefined) {
-                      content = JSON.stringify(parsed.json)
-                    } else if (typeof parsed.text === 'string') {
-                      content = parsed.text
-                    }
-
-                    if (content) {
-                      chunkCount++
-                      if (chunkCount === 1) {
-                        logger.info('Received first content chunk')
-                      }
-
-                      controller.enqueue(
-                        encoder.encode(`data: ${JSON.stringify({ chunk: content })}\n\n`)
-                      )
-                    }
-                  }
-
-                  if (eventType === 'response.completed') {
-                    const usage = parseResponsesUsage(parsed?.response?.usage ?? parsed?.usage)
-                    if (usage) {
-                      finalUsage = {
-                        prompt_tokens: usage.promptTokens,
-                        completion_tokens: usage.completionTokens,
-                        total_tokens: usage.totalTokens,
-                      }
-                      logger.info(`Received usage data: ${JSON.stringify(finalUsage)}`)
-                    }
-                  }
-                }
-              }
-            } catch (streamError: any) {
-              logger.error('Streaming error', {
-                name: streamError?.name,
-                message: streamError?.message || 'Unknown error',
-                stack: streamError?.stack,
-              })
-
-              try {
-                await flushUsage()
-              } catch (usageError) {
-                logger.warn('Failed to record usage after stream error', usageError)
-              }
-
-              const errorData = `data: ${JSON.stringify({ error: 'Streaming failed', done: true })}\n\n`
-              controller.enqueue(encoder.encode(errorData))
-              controller.close()
-            } finally {
-              reader.releaseLock()
-            }
-          },
-          cancel() {},
-        })
-
-        return new Response(readable, {
-          headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache, no-transform',
-            Connection: 'keep-alive',
-            'X-Accel-Buffering': 'no',
-          },
-        })
-      } catch (error: any) {
-        logger.error('Failed to create stream', {
-          name: error?.name,
-          message: error?.message || 'Unknown error',
-          code: error?.code,
-          status: error?.status,
-          stack: error?.stack,
-          useWandAzure,
-          model: useWandAzure ? wandModelName : 'gpt-4o',
-          endpoint: useWandAzure ? azureEndpoint : 'api.openai.com',
-          apiVersion: useWandAzure ? azureApiVersion : 'N/A',
-        })
-
-        return NextResponse.json(
-          { success: false, error: 'An error occurred during wand generation streaming.' },
-          { status: 500 }
-        )
-      }
-    }
-
-    const apiUrl = useWandAzure
-      ? `${azureEndpoint?.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
-      : 'https://api.openai.com/v1/responses'
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'OpenAI-Beta': 'responses=v1',
-    }
-
-    if (useWandAzure) {
-      headers['api-key'] = azureApiKey!
-    } else {
-      headers.Authorization = `Bearer ${activeOpenAIKey}`
-    }
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: useWandAzure ? wandModelName : 'gpt-4o',
-        input: messages,
-        temperature: 0.2,
-        max_output_tokens: 10000,
-      }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      const apiError = new Error(
-        `API request failed: ${response.status} ${response.statusText} - ${errorText}`
-      )
-      ;(apiError as any).status = response.status
-      throw apiError
-    }
-
-    const completion = await response.json()
-    const generatedContent = extractResponseText(completion.output)?.trim()
-
-    if (!generatedContent) {
-      logger.error(`${useWandAzure ? 'Azure OpenAI' : 'OpenAI'} response was empty or invalid.`)
-      return NextResponse.json(
-        { success: false, error: 'Failed to generate content. AI response was empty.' },
-        { status: 500 }
-      )
-    }
-
-    logger.info('Wand generation successful')
-
-    const usage = parseResponsesUsage(completion.usage)
-    if (usage) {
-      await updateUserStatsForWand(
-        billingAttribution,
-        {
-          prompt_tokens: usage.promptTokens,
-          completion_tokens: usage.completionTokens,
-          total_tokens: usage.totalTokens,
-        },
-        requestId,
-        isBYOK
-      )
-    }
-
-    return NextResponse.json({ success: true, content: generatedContent })
-  } catch (error: any) {
-    logger.error('Wand generation failed', {
-      name: error?.name,
-      message: error?.message || 'Unknown error',
-      code: error?.code,
-      status: error?.status,
-      stack: error?.stack,
-      useWandAzure,
-      model: useWandAzure ? wandModelName : 'gpt-4o',
-      endpoint: useWandAzure ? azureEndpoint : 'api.openai.com',
-      apiVersion: useWandAzure ? azureApiVersion : 'N/A',
-    })
-
-    let clientErrorMessage = 'Wand generation failed. Please try again later.'
-    let status = typeof (error as any)?.status === 'number' ? (error as any).status : 500
-
-    if (useWandAzure && error?.message?.includes('DeploymentNotFound')) {
-      clientErrorMessage =
-        'Azure OpenAI deployment not found. Please check your model deployment configuration.'
-      status = 404
-    } else if (status === 401) {
-      clientErrorMessage = 'Authentication failed. Please check your API key configuration.'
-    } else if (status === 429) {
-      clientErrorMessage = 'Rate limit exceeded. Please try again later.'
-    } else if (status >= 500) {
-      clientErrorMessage =
-        'The wand generation service is currently unavailable. Please try again later.'
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: clientErrorMessage,
+    return new Response(result.body, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
       },
-      { status }
-    )
+    })
+  } catch (error) {
+    const orchestrationError = asOrchestrationError(error)
+    if (orchestrationError?.code === 'unavailable') {
+      logger.error('Wand generation unavailable', { ...errorDetails(error), ...WAND_DEPLOYMENT })
+      return wandError(orchestrationError.message, statusForOrchestrationError('unavailable'))
+    }
+    return (target && refusalResponse(error, target)) || generationFailedResponse(error)
   }
 })

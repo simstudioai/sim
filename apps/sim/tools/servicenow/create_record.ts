@@ -9,6 +9,7 @@ import {
 } from '@/tools/servicenow/utils'
 import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ServiceNowCreateRecordTool')
 
@@ -57,7 +58,7 @@ export const createRecordTool: ToolConfig<ServiceNowCreateParams, ServiceNowCrea
   request: {
     url: (params) => {
       const baseUrl = normalizeInstanceUrl(params.instanceUrl)
-      return `${baseUrl}/api/now/table/${params.tableName.trim()}`
+      return `${baseUrl}/api/now/table/${safeUrlPathSegment(params.tableName, 'tableName')}`
     },
     method: 'POST',
     headers: (params) => buildServiceNowHeaders(params, { json: true }),

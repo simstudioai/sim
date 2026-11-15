@@ -59,7 +59,7 @@ List all bases the authenticated user has access to
 | `bases` | array | Array of Airtable bases with id, name, and permissionLevel |
 |   ↳ `id` | string | Base ID \(starts with "app"\) |
 |   ↳ `name` | string | Base name |
-|   ↳ `permissionLevel` | string | Permission level \(none, read, comment, edit, create\) |
+|   ↳ `permissionLevel` | string | Permission level \(none, read, comment, edit, create, interfaceOnly, permissionSetOnly\) |
 | `metadata` | json | Pagination and count metadata |
 |   ↳ `offset` | string | Offset for next page of results |
 |   ↳ `totalBases` | number | Number of bases returned |
@@ -111,8 +111,11 @@ Read records from an Airtable table
 | --------- | ---- | -------- | ----------- |
 | `baseId` | string | Yes | Airtable base ID \(starts with "app", e.g., "appXXXXXXXXXXXXXX"\) |
 | `tableId` | string | Yes | Table ID \(starts with "tbl"\) or table name |
-| `maxRecords` | number | No | Maximum number of records to return \(default: all records\) |
+| `maxRecords` | number | No | Maximum total number of records to return. Each request returns at most one page \(pageSize, up to 100\); use offset to fetch the next page |
 | `filterFormula` | string | No | Formula to filter records \(e.g., "\(\{Field Name\} = 'Value'\)"\) |
+| `pageSize` | number | No | Number of records per page \(max 100, default 100\) |
+| `offset` | string | No | Pagination offset from a previous response, to fetch the next page of records |
+| `view` | string | No | View name or ID. Only records in the view are returned, sorted in the view order |
 
 #### Output
 

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { parseRetryAfter } from '@sim/utils/retry'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   isRetryableError,
   readBoundedHttpErrorPayload,
@@ -61,7 +62,7 @@ export async function exchangeGoogleServiceAccountJwt(
         stage = 'awaiting_response'
         currentStatus = undefined
         lastResponse = undefined
-        const response = await fetch(tokenUri, {
+        const response = await outboundFetch(tokenUri, {
           method: 'POST',
           redirect: 'error',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

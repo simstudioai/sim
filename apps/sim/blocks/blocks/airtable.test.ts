@@ -91,4 +91,37 @@ describe('AirtableBlock typecast', () => {
       })
     ).not.toHaveProperty('typecast')
   })
+
+  it.each(operationCases)(
+    'accepts already-parsed $operation values from a tool call or a second mapping pass',
+    ({ operation, payload }) => {
+      expect(buildParams({ ...baseParams, operation, ...payload })).toMatchObject(payload)
+    }
+  )
+
+  it('accepts already-parsed record IDs for delete', () => {
+    expect(
+      buildParams({ ...baseParams, operation: 'delete', recordIds: ['rec123'] })
+    ).toMatchObject({ recordIds: ['rec123'] })
+  })
+})
+
+describe('Airtable pagination offsets', () => {
+  const mapParams = AirtableBlock.tools.config?.params
+  if (!mapParams) throw new Error('Airtable block is missing its params mapper')
+
+  it('does not send a List Bases offset to List Records on the canvas', () => {
+    const mapped = mapParams({ ...baseParams, operation: 'list', basesOffset: 'itrBases' })
+    expect(mapped.offset).toBeUndefined()
+  })
+
+  it('keeps the model offset on a List Records tool call', () => {
+    const mapped = mapParams({ ...baseParams, offset: 'itrModel' }, { operation: 'list' })
+    expect(mapped.offset).toBe('itrModel')
+  })
+
+  it('maps an offset the user set on the tool when the operation arrives only on the context', () => {
+    const mapped = mapParams({ ...baseParams, recordsOffset: 'itrUser' }, { operation: 'list' })
+    expect(mapped.offset).toBe('itrUser')
+  })
 })

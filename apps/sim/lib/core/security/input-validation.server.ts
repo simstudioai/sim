@@ -464,7 +464,8 @@ export const MAX_JSON_API_RESPONSE_BYTES = 10 * 1024 * 1024
  */
 const FOLLOWED_REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308])
 
-function isRedirectStatus(status: number): boolean {
+/** Whether `status` names a redirect target (301, 302, 303, 307 or 308). */
+export function isRedirectStatus(status: number): boolean {
   return FOLLOWED_REDIRECT_STATUSES.has(status)
 }
 

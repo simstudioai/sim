@@ -24,6 +24,7 @@ vi.mock('@aws-sdk/client-sts', async (importActual) => ({
 
 import { AssumeRoleWithWebIdentityCommand, GetCallerIdentityCommand } from '@aws-sdk/client-sts'
 import { credential } from '@sim/db/schema'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   getAwsCredentialConfig,
   resolveAwsSessionCredentials,
@@ -132,6 +133,23 @@ describe('saving a keyless AWS role', () => {
     await expect(
       verifyAndEncryptAwsCredential(keylessReconnect.serialized, keylessReconnect.owner)
     ).rejects.toThrow()
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an unavailable egress route during the any-subject check instead of asking to retry', async () => {
+    roleTrusting(true)
+    const pinned = hoisted.send.getMockImplementation()
+    hoisted.send.mockImplementation(async (command: unknown) => {
+      const probesUnboundSubject =
+        command instanceof AssumeRoleWithWebIdentityCommand &&
+        command.input.WebIdentityToken !== `token-for:${SUBJECT}`
+      if (probesUnboundSubject) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+      return pinned?.(command)
+    })
+
+    await expect(
+      verifyAndEncryptAwsCredential(keylessReconnect.serialized, keylessReconnect.owner)
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
 })

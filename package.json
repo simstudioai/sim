@@ -26,6 +26,7 @@
     "lint:all": "bun run lint && bun run lint:helm",
     "check": "bun run format:check",
     "check:egress-boundary": "bun run scripts/check-egress-boundary.ts",
+    "check:organization-egress": "bun run scripts/check-organization-egress.ts",
     "check:boundaries": "bun run scripts/check-monorepo-boundaries.ts",
     "check:api-validation": "bun run scripts/check-api-validation-contracts.ts --check",
     "check:api-contract-routes": "bun run scripts/check-api-contract-routes.ts",

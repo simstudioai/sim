@@ -348,42 +348,6 @@ spec:
       port: 443
 {{- end }}
 
-{{- if .Values.pii.enabled }}
----
-# Network Policy for the PII (Presidio) service
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: {{ include "sim.fullname" . }}-pii
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "sim.pii.labels" . | nindent 4 }}
-spec:
-  podSelector:
-    matchLabels:
-      {{- include "sim.pii.selectorLabels" . | nindent 6 }}
-  policyTypes:
-  - Ingress
-  - Egress
-  ingress:
-  # Allow ingress from main application
-  - from:
-    - podSelector:
-        matchLabels:
-          {{- include "sim.app.selectorLabels" . | nindent 10 }}
-    ports:
-    - protocol: TCP
-      port: {{ .Values.pii.service.targetPort }}
-  egress:
-  # Allow DNS resolution. Models are baked into the image, so no external egress.
-  - to: []
-    ports:
-    - protocol: UDP
-      port: 53
-    - protocol: TCP
-      port: 53
-{{- end }}
-
 {{- if .Values.telemetry.enabled }}
 ---
 # Network Policy for OpenTelemetry Collector
@@ -514,4 +478,40 @@ spec:
     - protocol: TCP
       port: 53
 {{- end }}
+{{- end }}
+
+{{- if .Values.pii.enabled }}
+---
+# Network Policy for the PII (Presidio) service. Outside the networkPolicy.enabled guard: the service has no auth.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sim.fullname" . }}-pii
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.pii.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sim.pii.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress from main application
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.app.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: {{ .Values.pii.service.targetPort }}
+  egress:
+  # Allow DNS resolution. Models are baked into the image, so no external egress.
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
 {{- end }}

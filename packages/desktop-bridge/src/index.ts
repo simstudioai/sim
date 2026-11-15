@@ -1000,6 +1000,13 @@ export interface DesktopPreferences {
    */
   preventSleepWhileRunning?: boolean
   /**
+   * Global shortcut that shows or hides the quick chat window, or null when it is off. Absent
+   * on installed shells that predate quick chat.
+   */
+  quickChatShortcut?: QuickChatShortcut | null
+  /** False when another app already holds `quickChatShortcut`, so pressing it reaches that app. */
+  quickChatShortcutAvailable?: boolean
+  /**
    * Appearance used by browser pages on this device. `app` follows Sim's
    * current preference; explicit values override it.
    */
@@ -1012,6 +1019,19 @@ export interface DesktopPreferences {
   terminalTheme: TerminalAppearanceTheme
   /** Default canvas zoom used by current and future built-in terminal tabs. */
   terminalDefaultZoom: DesktopZoomPercent
+}
+
+/** Accelerators the quick chat window can be bound to; the user picks one in desktop settings. */
+export const QUICK_CHAT_SHORTCUTS = [
+  'Alt+Space',
+  'CommandOrControl+Shift+Space',
+  'CommandOrControl+Shift+J',
+] as const
+
+export type QuickChatShortcut = (typeof QUICK_CHAT_SHORTCUTS)[number]
+
+export function isQuickChatShortcut(value: unknown): value is QuickChatShortcut {
+  return (QUICK_CHAT_SHORTCUTS as readonly unknown[]).includes(value)
 }
 
 export const DESKTOP_ZOOM_PERCENTS = [67, 75, 80, 90, 100, 110, 125, 150, 175, 200] as const
@@ -1097,6 +1117,11 @@ interface SimDesktopSettingsApi {
    * compatibility with installed shells that predate the background executor.
    */
   setPreventSleepWhileRunning?(enabled: boolean): Promise<DesktopPreferences>
+  /**
+   * Binds the quick chat window to a global shortcut, or unbinds it with null. Optional for
+   * installed shells that predate quick chat.
+   */
+  setQuickChatShortcut?(shortcut: QuickChatShortcut | null): Promise<DesktopPreferences>
   /** Optional for installed shells that predate the explicit full-file-access setting. */
   setFullFileAccess?(enabled: boolean): Promise<DesktopPreferences>
   /** Keeps settings in sync when folder consent changes access in the native shell. */

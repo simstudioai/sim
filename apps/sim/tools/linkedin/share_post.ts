@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type {
   LinkedInProfileOutput,
   ProfileIdExtractor,
@@ -104,7 +105,7 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
         },
       }
 
-      const response = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+      const response = await outboundFetch('https://api.linkedin.com/v2/ugcPosts', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${params.accessToken}`,

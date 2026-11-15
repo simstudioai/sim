@@ -18,6 +18,7 @@ import { authorizeOrganizationOperation } from '@/lib/core/application/organizat
 import { isBillingEnabled, isDataDrainsEnabled } from '@/lib/core/config/env-flags'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import {
+  isUnavailableFailure,
   OrchestrationError,
   type OrchestrationRequestContext,
 } from '@/lib/core/orchestration/types'
@@ -393,6 +394,8 @@ export const testDataDrain = defineDrainUseCase({
         destinationType: drain.destinationType,
         error: message,
       })
+      // Sim's egress outage says nothing about the destination: surface it rather than a failed test.
+      if (isUnavailableFailure(error)) throw error
       return { drain: publicDrain(drain), ok: false as const, error: message }
     } finally {
       clearTimeout(timeout)

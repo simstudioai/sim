@@ -307,7 +307,11 @@ export function EditorBubbleMenu({
     editor.commands.focus()
   }
 
-  const { resolveAnchor, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
+  const { resolveAnchor, appendTo, menuRef } = useBubbleMenuFloating(
+    editor,
+    scrollContainerRef,
+    bubbleMenuKey
+  )
   const canFocus = useCallback(
     () => hasFormattableSelection(editor, editor.state.selection.from, editor.state.selection.to),
     [editor]
@@ -334,6 +338,7 @@ export function EditorBubbleMenu({
 
   return (
     <BubbleMenu
+      ref={menuRef}
       editor={editor}
       pluginKey={bubbleMenuKey}
       getReferencedVirtualElement={resolveAnchor}

@@ -10,7 +10,14 @@ interface AirtableRecord {
 interface AirtableBase {
   id: string
   name: string
-  permissionLevel: 'none' | 'read' | 'comment' | 'edit' | 'create'
+  permissionLevel:
+    | 'none'
+    | 'read'
+    | 'comment'
+    | 'edit'
+    | 'create'
+    | 'interfaceOnly'
+    | 'permissionSetOnly'
 }
 
 interface AirtableFieldOption {
@@ -88,6 +95,9 @@ export interface AirtableListTablesResponse extends ToolResponse {
 export interface AirtableListParams extends AirtableBaseParams {
   maxRecords?: number
   filterFormula?: string
+  pageSize?: number
+  offset?: string
+  view?: string
 }
 
 export interface AirtableListResponse extends ToolResponse {

@@ -52,6 +52,28 @@ export const TEMPLATE_OUTPUT_PROPERTIES = {
   lastModified: { type: 'string', description: 'ISO 8601 last modified date' },
 } as const satisfies Record<string, OutputProperty>
 
+/** Pagination outputs shared by the envelope and template list tools */
+export const LIST_PAGINATION_OUTPUTS = {
+  startPosition: {
+    type: 'number',
+    description: 'Zero-based index of the first result in this page',
+    optional: true,
+    nullable: true,
+  },
+  endPosition: {
+    type: 'number',
+    description: 'Zero-based index of the last result in this page',
+    optional: true,
+    nullable: true,
+  },
+  nextUri: {
+    type: 'string',
+    description: 'URI of the next page of results; null on the last page',
+    optional: true,
+    nullable: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
 export const ENVELOPES_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of DocuSign envelopes',
@@ -117,6 +139,7 @@ export interface DocuSignListEnvelopesParams {
   envelopeStatus?: string
   searchText?: string
   count?: string
+  startPosition?: string
 }
 
 export interface DocuSignVoidEnvelopeParams {
@@ -138,6 +161,7 @@ export interface DocuSignListTemplatesParams {
   instanceUrl?: string
   searchText?: string
   count?: string
+  startPosition?: string
 }
 
 export interface DocuSignListRecipientsParams {
@@ -193,6 +217,9 @@ export interface DocuSignListEnvelopesResponse extends ToolResponse {
     }>
     totalSetSize: number
     resultSetSize: number
+    startPosition: number | null
+    endPosition: number | null
+    nextUri: string | null
   }
 }
 
@@ -224,6 +251,9 @@ export interface DocuSignListTemplatesResponse extends ToolResponse {
     }>
     totalSetSize: number
     resultSetSize: number
+    startPosition: number | null
+    endPosition: number | null
+    nextUri: string | null
   }
 }
 

@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraGetWorklogsParams, JiraGetWorklogsResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT, WORKLOG_ITEM_PROPERTIES } from '@/tools/jira/types'
 import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
@@ -96,7 +97,7 @@ export const jiraGetWorklogsTool: ToolConfig<JiraGetWorklogsParams, JiraGetWorkl
       const startAt = params?.startAt ?? 0
       const maxResults = params?.maxResults ?? 50
       const worklogsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/worklog?startAt=${startAt}&maxResults=${maxResults}`
-      const worklogsResponse = await fetch(worklogsUrl, {
+      const worklogsResponse = await outboundFetch(worklogsUrl, {
         method: 'GET',
         headers: {
           Accept: 'application/json',

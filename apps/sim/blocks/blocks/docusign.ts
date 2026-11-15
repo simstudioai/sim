@@ -2,7 +2,7 @@ import { DocuSignIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, toolCallArg } from '@/blocks/utils'
 
 const DOCUMENT_FIELD = ['uploadDocument', 'documentRef'] as const
 
@@ -287,7 +287,15 @@ export const DocuSignBlock: BlockConfig = {
       id: 'count',
       title: 'Max Results',
       type: 'short-input',
-      placeholder: '25',
+      placeholder: '100',
+      condition: { field: 'operation', value: ['list_envelopes', 'list_templates'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'startPosition',
+      title: 'Start Position',
+      type: 'short-input',
+      placeholder: '0',
       condition: { field: 'operation', value: ['list_envelopes', 'list_templates'] },
       mode: 'advanced',
     },
@@ -306,7 +314,7 @@ export const DocuSignBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `docusign_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const { oauthCredential, operation, documentFile, listEnvelopeStatus, ...rest } = params
 
         const cleanParams: Record<string, unknown> = {
@@ -318,8 +326,14 @@ export const DocuSignBlock: BlockConfig = {
           cleanParams.file = file
         }
 
-        if (listEnvelopeStatus && operation === 'list_envelopes') {
-          cleanParams.envelopeStatus = listEnvelopeStatus
+        /**
+         * The Send/Template status dropdown stores `sent` on every new block, and the executor
+         * merges raw inputs under this result, so the list filter is always assigned explicitly:
+         * otherwise that stored `sent` reached List Envelopes and "All" listed only sent envelopes.
+         */
+        if ((operation ?? context?.operation) === 'list_envelopes') {
+          cleanParams.envelopeStatus =
+            listEnvelopeStatus || toolCallArg(context, rest.envelopeStatus) || undefined
         }
 
         if (operation === 'create_from_template') {
@@ -359,6 +373,7 @@ export const DocuSignBlock: BlockConfig = {
     toDate: { type: 'string', description: 'End date filter' },
     searchText: { type: 'string', description: 'Search text filter' },
     count: { type: 'string', description: 'Max results to return' },
+    startPosition: { type: 'string', description: 'Zero-based index of the first result' },
   },
   outputs: {
     envelopeId: { type: 'string', description: 'Envelope ID' },
@@ -404,6 +419,18 @@ export const DocuSignBlock: BlockConfig = {
     fileName: { type: 'string', description: 'Document file name' },
     totalSetSize: { type: 'number', description: 'Total matching results' },
     resultSetSize: { type: 'number', description: 'Results returned in this response' },
+    startPosition: {
+      type: 'number',
+      description: 'Zero-based index of the first result in this page',
+    },
+    endPosition: {
+      type: 'number',
+      description: 'Zero-based index of the last result in this page',
+    },
+    nextUri: {
+      type: 'string',
+      description: 'URI of the next page of results (null on the last page)',
+    },
   },
 }
 

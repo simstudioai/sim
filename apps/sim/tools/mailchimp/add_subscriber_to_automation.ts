@@ -2,6 +2,7 @@ import type { MailchimpMember } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpAddSubscriberToAutomationParams {
   apiKey: string
@@ -59,7 +60,7 @@ export const mailchimpAddSubscriberToAutomationTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/automations/${params.workflowId}/emails/${params.workflowEmailId}/queue`
+        `/automations/${safeUrlPathSegment(params.workflowId, 'workflowId')}/emails/${safeUrlPathSegment(params.workflowEmailId, 'workflowEmailId')}/queue`
       ),
     method: 'POST',
     headers: (params) => ({

@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -100,7 +101,7 @@ export const jiraGetAttachmentsTool: ToolConfig<
     context?.signal?.throwIfAborted()
     const fetchAttachments = async (cloudId: string) => {
       const attachmentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}?fields=attachment`
-      const attachmentsResponse = await fetch(attachmentsUrl, {
+      const attachmentsResponse = await outboundFetch(attachmentsUrl, {
         method: 'GET',
         signal: context?.signal,
         headers: {

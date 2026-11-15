@@ -1,6 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
 import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomGetConversationParams {
   accessToken: string
@@ -50,7 +51,9 @@ const getConversationBase = {
   },
   request: {
     url: (params: IntercomGetConversationParams) => {
-      const url = buildIntercomUrl(`/conversations/${params.conversationId}`)
+      const url = buildIntercomUrl(
+        `/conversations/${safeUrlPathSegment(params.conversationId, 'conversationId')}`
+      )
       const queryParams = new URLSearchParams()
 
       if (params.display_as) queryParams.append('display_as', params.display_as)

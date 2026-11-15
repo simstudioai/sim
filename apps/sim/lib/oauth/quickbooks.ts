@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -150,7 +151,7 @@ export async function revokeQuickBooksToken(
 
   let response: Response
   try {
-    response = await fetch(QUICKBOOKS_REVOCATION_URL, {
+    response = await outboundFetch(QUICKBOOKS_REVOCATION_URL, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -183,7 +184,7 @@ export async function fetchQuickBooksConnectionProfile(
   clientConfig: Pick<QuickBooksOAuthClientConfig, 'clientId' | 'environment'>
 ): Promise<QuickBooksConnectionProfile> {
   const realmId = normalizeQuickBooksRealmId(callbackRealmId)
-  const response = await fetch(getQuickBooksUserInfoUrl(clientConfig.environment), {
+  const response = await outboundFetch(getQuickBooksUserInfoUrl(clientConfig.environment), {
     headers: buildQuickBooksHeaders(accessToken),
     signal: AbortSignal.timeout(QUICKBOOKS_OAUTH_REQUEST_TIMEOUT_MS),
   })
@@ -254,7 +255,7 @@ export async function exchangeQuickBooksAuthorizationCode(params: {
   signal?: AbortSignal
 }): Promise<QuickBooksTokenExchangeResult> {
   const clientConfig = normalizeQuickBooksOAuthClientConfig(params.clientConfig)
-  const response = await fetch(QUICKBOOKS_TOKEN_URL, {
+  const response = await outboundFetch(QUICKBOOKS_TOKEN_URL, {
     method: 'POST',
     headers: {
       Accept: 'application/json',

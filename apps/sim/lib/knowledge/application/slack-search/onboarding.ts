@@ -10,6 +10,7 @@ import {
   type OperationUseCase,
 } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { postSlackMessage, requestSlackApi, slackString } from '@/lib/internal/slack/client'
 import { getSlackSearchSender } from '@/lib/internal/slack/search-client'
@@ -232,11 +233,13 @@ async function resolveOnboarding(principal: Principal, token: string) {
       'forbidden',
       'Slack Search is disabled. Ask your administrator to reconnect it.'
     )
-  const sender = await getSlackSearchSender(
-    context.secret.botToken,
-    job.message.userId,
-    job.message.teamId,
-    AbortSignal.timeout(10_000)
+  const sender = await runWithOutboundOrganization(context.installation.organizationId, () =>
+    getSlackSearchSender(
+      context.secret.botToken,
+      job.message.userId,
+      job.message.teamId,
+      AbortSignal.timeout(10_000)
+    )
   )
   if (!sender || sender.email !== state.email)
     return { view: { status: 'identity_conflict' } as OnboardingBlocked }

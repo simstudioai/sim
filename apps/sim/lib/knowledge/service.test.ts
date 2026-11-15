@@ -296,7 +296,9 @@ describe('knowledge base counts with live source permissions', () => {
         createdAt: new Date('2026-01-01'),
       },
     ])
-    queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-1', docCount: 2, tokenCount: 10 }])
+    queueTableRows(schemaMock.knowledgeBase, [
+      { knowledgeBaseId: 'kb-1', docCount: 2, tokenCount: 10 },
+    ])
     const result = await getWorkspaceKnowledgeBases('ws-1', 'archived', { countsFor: access })
     expect(result.data[0]).toMatchObject({ docCount: 2, tokenCount: 10 })
     expect(getForConnectors).not.toHaveBeenCalled()
@@ -307,9 +309,9 @@ describe('knowledge base counts with live source permissions', () => {
 
   it('does not retain stale totals when a live source no longer authorizes its documents', async () => {
     const { access, getForConnectors } = reader()
-    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.knowledgeBase, [])
     queueTableRows(schemaMock.knowledgeConnector, [{ connectorId: 'confluence-source' }])
-    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.knowledgeBase, [])
     const base = { id: 'kb-1', docCount: 5, tokenCount: 50 } as KnowledgeBaseWithCounts
     await expect(attachKnowledgeBaseConnectors(base, access)).resolves.toMatchObject({
       docCount: 0,

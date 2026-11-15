@@ -1,6 +1,7 @@
 import { generateId } from '@sim/utils/id'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 
 export const APOLLO_TOKEN_URL = 'https://app.apollo.io/api/v1/oauth/token'
@@ -39,8 +40,7 @@ export function createApolloProvider(
     tokenUrl: APOLLO_TOKEN_URL,
     authentication: 'post',
     getUserInfo: async (tokens) => {
-      // boundary-raw-fetch: Apollo's external current-user endpoint verifies the OAuth token's identity.
-      const response = await fetch('https://app.apollo.io/api/v1/users/api_profile', {
+      const response = await outboundFetch('https://app.apollo.io/api/v1/users/api_profile', {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
         redirect: 'error',
         signal: AbortSignal.timeout(15_000),

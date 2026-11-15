@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { HubSpotGetListParams, HubSpotGetListResponse } from '@/tools/hubspot/types'
 import { LIST_OUTPUT_PROPERTIES } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotGetList')
 
@@ -32,7 +33,8 @@ export const hubspotGetListTool: ToolConfig<HubSpotGetListParams, HubSpotGetList
   },
 
   request: {
-    url: (params) => `https://api.hubapi.com/crm/v3/lists/${params.listId.trim()}`,
+    url: (params) =>
+      `https://api.hubapi.com/crm/v3/lists/${safeUrlPathSegment(params.listId, 'listId')}`,
     method: 'GET',
     headers: (params) => {
       if (!params.accessToken) {

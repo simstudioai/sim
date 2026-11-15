@@ -2,17 +2,42 @@ import {
   fileUtilsServerMock,
   fileUtilsServerMockFns,
 } from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const { mockResolveFileInputToUrl } = fileUtilsServerMockFns
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { executeBufferTool } from '@/lib/internal/buffer/execute-tool'
 import { createBufferPost } from '@/lib/internal/buffer/operations'
 import bufferPostFixture from '@/tools/buffer/__fixtures__/post.json'
 
 describe('Buffer operations', () => {
+  it('surfaces an egress routing failure instead of a provider error', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(
+      executeBufferTool({
+        toolId: 'buffer_create_post',
+        input: {
+          apiKey: 'buffer-key',
+          channelId: 'channel-1',
+          mode: 'addToQueue',
+          text: 'Caption',
+        },
+        headers: new Headers(),
+        context: { workflowId: 'workflow-1', userId: 'user-1' },
+        requestId: 'request-1',
+      })
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+  })
+
   it('creates a text post when optional assets are null', async () => {
     const providerInputs: Record<string, unknown>[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
@@ -238,5 +263,35 @@ describe('Buffer operations', () => {
     expect(JSON.parse(request.body).variables.input.assets).toEqual([
       { image: { url: 'https://files.example/image.png' } },
     ])
+  })
+
+  it('surfaces an egress outage during the media-kind probe instead of asking for mediaType', async () => {
+    mockResolveFileInputToUrl.mockResolvedValue({ fileUrl: 'https://media.example/asset' })
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockRejectedValue(
+      new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    )
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      createBufferPost(
+        {
+          apiKey: 'buffer-key',
+          channelId: 'channel-1',
+          mode: 'addToQueue',
+          schedulingType: 'automatic',
+          mediaType: 'auto',
+          media: 'https://media.example/asset',
+          assets: [],
+          needsApproval: false,
+        },
+        { userId: 'user-1', requestId: 'request-1' }
+      )
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

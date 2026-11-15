@@ -8,6 +8,7 @@ import {
 } from '@/tools/servicenow/utils'
 import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ServiceNowDeleteRecordTool')
 
@@ -55,7 +56,7 @@ export const deleteRecordTool: ToolConfig<ServiceNowDeleteParams, ServiceNowDele
   request: {
     url: (params) => {
       const baseUrl = normalizeInstanceUrl(params.instanceUrl)
-      return `${baseUrl}/api/now/table/${params.tableName.trim()}/${params.sysId.trim()}`
+      return `${baseUrl}/api/now/table/${safeUrlPathSegment(params.tableName, 'tableName')}/${safeUrlPathSegment(params.sysId, 'sysId')}`
     },
     method: 'DELETE',
     headers: (params) => buildServiceNowHeaders(params),

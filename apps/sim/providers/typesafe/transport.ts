@@ -1,5 +1,6 @@
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
 import { consumeOrCancelBody, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
@@ -39,7 +40,7 @@ export async function requestJevEvaluation(
     let response: Response | undefined
     try {
       signal.throwIfAborted()
-      response = await fetch('https://api.typesafe.ai/v1/systemone', {
+      response = await outboundFetch('https://api.typesafe.ai/v1/systemone', {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: payload,

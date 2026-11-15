@@ -6,6 +6,7 @@ import { toRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm'
 import { getDeterministicAdmissionRejectionCode } from '@/lib/core/admission/rejection'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import {
   getOAuthToken,
   refreshAccessTokenIfNeeded,
@@ -62,11 +63,32 @@ export function throwIfAdmissionRefused(result: PolledWebhookEventResult): void 
   if (getDeterministicAdmissionRejectionCode(result)) throw new PollAdmissionRefusedError(result)
 }
 
-/** Logs a poll stopped by {@link PollAdmissionRefusedError} and reports it as skipped. */
-export function skipAdmissionRefusedPoll(logger: Logger, webhookId: string): 'skipped' {
-  logger.info('Execution admission refused the webhook; left its items for a later poll', {
-    webhookId,
-  })
+/**
+ * Whether a poll stopped by `error` is stopped by something that is not the webhook's fault: an
+ * execution admission refusal ({@link PollAdmissionRefusedError}) or an outage of Sim's own egress
+ * route. A poller rethrows it out of its batch while no item has completed, as it does a refusal.
+ */
+export function isUncountedPollFailure(error: unknown): boolean {
+  return error instanceof PollAdmissionRefusedError || isUnavailableFailure(error)
+}
+
+/**
+ * Logs and skips an {@link isUncountedPollFailure}, so it never counts toward
+ * `MAX_CONSECUTIVE_FAILURES`; `null` for any other error, which the poller records as a failure.
+ */
+export function skipUncountedPollFailure(
+  error: unknown,
+  logger: Logger,
+  webhookId: string
+): 'skipped' | null {
+  if (!isUncountedPollFailure(error)) return null
+  if (error instanceof PollAdmissionRefusedError) {
+    logger.info('Execution admission refused the webhook; left its items for a later poll', {
+      webhookId,
+    })
+  } else {
+    logger.warn('Egress route unavailable; left the webhook for a later poll', { webhookId })
+  }
   return 'skipped'
 }
 
@@ -109,7 +131,8 @@ export function clearPollBackoff(providerConfig: unknown): Record<string, undefi
  * measured from the failed poll's start so a slow poll does not also cost the next
  * tick, or longer when the source's `Retry-After`, counted from its answer, asks.
  * Skipped polls do not count toward `MAX_CONSECUTIVE_FAILURES`, so a source failing
- * nonstop reaches the auto-disable after roughly four days instead of 100 minutes.
+ * nonstop reaches the auto-disable after roughly four days instead of 100 minutes. An
+ * outage of Sim's own egress route backs off the same way but never counts.
  */
 export async function recordPollSourceFailure(
   webhookData: Pick<WebhookRecord, 'id' | 'providerConfig'>,
@@ -144,7 +167,7 @@ export async function recordPollSourceFailure(
     },
     logger
   )
-  await markWebhookFailed(webhookData.id, logger)
+  if (!isUnavailableFailure(error)) await markWebhookFailed(webhookData.id, logger)
 }
 
 /**

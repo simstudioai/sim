@@ -50,6 +50,7 @@ import {
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
+import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-tool-adapter'
 import { createProjectFile } from '@/lib/projects/files/application'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
@@ -399,6 +400,42 @@ check('sim_cli services for a callerless run refuse the writes they route', asyn
     const written = await service(name, input, attributed)
     expect(written.success, `${name}: ${written.error}`).toBe(true)
   }
+  expect(await inboxSecretScope()).toBe(widen)
+})
+
+check('server tools for a callerless run refuse the writes they route', async () => {
+  const f = await fixture()
+  const settings = createServerToolHandler('settings')
+  const inboxSecretScope = async () =>
+    (
+      await db
+        .select({ scope: workspace.inboxSecretScope })
+        .from(workspace)
+        .where(eq(workspace.id, f.workspaceId))
+    )[0]?.scope
+  const before = await inboxSecretScope()
+  const widen = before === 'all' ? 'selected' : 'all'
+  const update = {
+    scope: 'workspace',
+    action: 'update',
+    section: 'inbox',
+    changes: { secretScope: widen },
+  }
+
+  const callerless: ToolExecutionContext = { ...f.context, workflowId: '', secretActorUserId: null }
+  const refused = await settings(update, callerless)
+  expect(refused.success).toBe(false)
+  expect(refused.error).toContain('api:write')
+  expect(await inboxSecretScope()).toBe(before)
+  const read = await settings({ scope: 'workspace', action: 'get', section: 'inbox' }, callerless)
+  expect(read.success, read.error).toBe(true)
+
+  const written = await settings(update, {
+    ...f.context,
+    workflowId: '',
+    secretActorUserId: f.userId,
+  })
+  expect(written.success, written.error).toBe(true)
   expect(await inboxSecretScope()).toBe(widen)
 })
 

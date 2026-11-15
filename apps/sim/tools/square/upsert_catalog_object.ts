@@ -7,6 +7,7 @@ import {
 } from '@/tools/square/idempotency'
 import type { CatalogObjectResponse, UpsertCatalogObjectParams } from '@/tools/square/types'
 import {
+  CATALOG_ID_MAPPING_OUTPUT_PROPERTIES,
   CATALOG_OBJECT_METADATA_OUTPUT_PROPERTIES,
   CATALOG_OBJECT_OUTPUT,
   SQUARE_ENVIRONMENTS,
@@ -72,6 +73,7 @@ export const squareUpsertCatalogObjectTool: ToolConfig<
       success: true,
       output: {
         object,
+        id_mappings: data.id_mappings ?? [],
         metadata: {
           id: object.id,
           type: object.type ?? null,
@@ -83,6 +85,12 @@ export const squareUpsertCatalogObjectTool: ToolConfig<
 
   outputs: {
     object: { ...CATALOG_OBJECT_OUTPUT, description: 'The created or updated catalog object' },
+    id_mappings: {
+      type: 'array',
+      description: 'Mapping from each temporary #-prefixed client ID to its permanent Square ID',
+      optional: true,
+      items: { type: 'object', properties: CATALOG_ID_MAPPING_OUTPUT_PROPERTIES },
+    },
     metadata: {
       type: 'json',
       description: 'Catalog object summary metadata',

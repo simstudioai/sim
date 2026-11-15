@@ -1,6 +1,11 @@
-import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import {
+  buildMailchimpUrl,
+  handleMailchimpError,
+  mailchimpMemberSegment,
+} from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpRemoveSegmentMemberParams {
   apiKey: string
@@ -57,7 +62,7 @@ export const mailchimpRemoveSegmentMemberTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/segments/${params.segmentId}/members/${params.subscriberEmail}`
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/segments/${safeUrlPathSegment(params.segmentId, 'segmentId')}/members/${mailchimpMemberSegment(params.subscriberEmail)}`
       ),
     method: 'DELETE',
     headers: (params) => ({

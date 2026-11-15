@@ -1,95 +1,49 @@
 ---
 slug: can-ai-agents-talk-to-each-other-multi-agent-communication-explained
-title: 'Can AI Agents Talk to Each Other? Multi-Agent Communication Explained'
-description: 'Yes — AI agents can talk to each other. Learn the four core multi-agent communication patterns, when to split one agent into several, and how to choose single-agent vs multi-agent.'
+title: 'AI Agent Communication: Can AI Agents Talk to Each Other?'
+description: 'AI agents can talk to each other through five communication methods. Learn how shared context, agent calls, handoffs, MCP, and A2A coordinate multi-agent systems.'
 seoTitle: 'Can AI Agents Talk to Each Other? Multi-Agent Guide'
-seoDescription: 'Yes. Learn the four multi-agent communication patterns, how A2A and MCP differ, when to split one agent into several, and where multi-agent systems break.'
+seoDescription: 'Learn five AI agent communication methods, how agent-as-tool, MCP, and A2A differ, and how to make multi-agent systems reliable and secure.'
 date: 2026-09-07
-updated: 2026-10-24
+updated: 2026-11-14
 authors:
   - andrew
-readingTime: 24
+readingTime: 26
 tags: [AI Agents, Multi-Agent Systems, Agent Orchestration, Sim]
 ogImage: /library/can-ai-agents-talk-to-each-other-multi-agent-communication-explained/cover.jpg
 draft: false
 faq:
-  - q: "What is an Agent2Agent protocol?"
-    a: "An Agent2Agent protocol defines how independent AI agents identify capabilities, exchange structured messages, and report task status. Sim supports agent-to-agent communication through multi-agent orchestration and workflows that agents can call as tools. A defined protocol lets agents cooperate without relying on free-form conversation."
-  - q: "Is multi-agent orchestration worth the added cost?"
-    a: "Multi-agent orchestration can justify its added latency and model usage when specialized agents make failures easier to isolate and debug. Sim records workflow runs block by block, so you can inspect each handoff and identify where an execution failed. A single agent usually remains the better choice when one prompt and tool set handle the task reliably."
   - q: "What tools or frameworks support multi-agent systems?"
-    a: "Multi-agent tools typically provide routing, shared state, message passing, tool calling, and execution logs. Sim provides a visual workflow builder for coordinating agents and exposing one workflow as a tool for another. Choose a tool that supports your required communication pattern and records enough execution detail to trace failures."
-  - q: "What is A2A in AI agents?"
-    a: "A2A is an agent-to-agent protocol for discovering independent agents and exchanging messages, tasks, status updates, artifacts, and results between them."
-  - q: "What is MCP in AI agents?"
-    a: "MCP is the Model Context Protocol, a standard interface through which AI applications and agents can access tools, resources, prompts, and contextual data."
-  - q: "What is the difference between A2A and MCP?"
-    a: "A2A connects agents to other agents for delegated work, while MCP connects AI applications or agents to tools and contextual resources."
-  - q: "Is A2A a replacement for MCP?"
-    a: "A2A is not a replacement for MCP because A2A handles agent delegation and MCP handles access to tools and context."
-  - q: "Can A2A and MCP be used together?"
-    a: "A2A and MCP can be used together when an agent receives delegated work through A2A and uses MCP tools or resources to complete that work."
-  - q: "Which platforms support agent-to-agent communication protocols?"
-    a: "Google Agent Development Kit documents A2A integration, while official A2A SDKs provide another implementation path for platforms and custom agents."
+    a: "Multi-agent tools typically provide routing, shared state, message passing, tool calling, and execution logs. Sim provides a visual workflow builder for coordinating agents and exposing one workflow as a tool for another."
   - q: "Does n8n support A2A or MCP?"
-    a: "n8n documents MCP client and server nodes as of October 2026, but those MCP capabilities alone do not establish native A2A protocol support."
+    a: "n8n documents MCP client and server nodes as of November 2026, but those MCP capabilities alone do not establish native A2A protocol support."
   - q: "Can Sim hand off tasks between AI agents?"
     a: "Sim can represent handoffs between specialized agent stages in its visual builder, but an internal workflow handoff is not automatically an A2A protocol exchange."
-  - q: "Does an agent handoff require A2A?"
-    a: "An agent handoff does not require A2A when the agents run inside the same orchestrated workflow, but A2A is useful across independent agent services and organizational boundaries."
   - q: "Can AI agents talk to each other without A2A?"
     a: "AI agents can talk to each other without A2A through internal workflow state, direct APIs, queues, events, or platform-specific messaging, although those methods are not necessarily interoperable."
-  - q: "How do AI agents hand off tasks mid-workflow?"
-    a: "AI agents hand off tasks mid-workflow by transferring a bounded objective, required context, execution state, expected output, and responsibility to a designated receiving agent."
-  - q: "What information should pass during an agent handoff?"
-    a: "An agent handoff should pass the task, minimum required context, output contract, authorization scope, provenance, deadline, and correlation identifiers."
-  - q: "How do you secure agent-to-agent communication?"
-    a: "Agent-to-agent communication should use authenticated identities, scoped authorization, encrypted transport, input and output validation, audit logs, timeouts, and explicit approval for high-impact actions."
-  - q: "How can buyers verify A2A support?"
-    a: "Buyers can verify A2A support by checking first-party documentation for agent discovery, agent cards, protocol-defined tasks and messages, artifacts, status updates, authentication, and A2A client or server endpoints."
-  - q: "Can AI agents talk to each other?"
-    a: "AI agents can talk to each other by exchanging structured messages, delegating tasks, and returning results through workflows, APIs, queues, or protocols such as A2A."
-  - q: "How do AI agents communicate with each other?"
-    a: "AI agents communicate with each other through structured messages that identify the task, context, expected output, status, and sender or recipient."
-  - q: "What is multi agent communication?"
-    a: "Multi agent communication is the controlled exchange of tasks, messages, context, status, and results among two or more AI agents."
   - q: "What protocol do AI agents use to communicate?"
     a: "AI agents can use ordinary APIs, queues, and workflow state or protocols such as A2A, while MCP is commonly used to connect agents and AI applications to tools and context."
-  - q: "Is MCP an agent to agent protocol?"
-    a: "MCP is primarily a protocol for connecting AI applications to tools and context rather than a complete protocol for collaboration between independent agents."
-  - q: "Can one AI agent call another AI agent?"
-    a: "One AI agent can call another AI agent through an API, workflow step, queue, or A2A task as long as the system defines identity, permissions, inputs, outputs, and failure behavior."
-  - q: "How do AI agents discover each other?"
-    a: "AI agents discover each other through configuration, registries, service directories, or protocol metadata such as an A2A Agent Card."
   - q: "What is an A2A Agent Card?"
     a: "An A2A Agent Card is metadata that describes an agent's identity, endpoint, capabilities, supported interactions, and authentication requirements."
-  - q: "Do AI agents share memory with each other?"
-    a: "AI agents do not automatically share memory, and secure systems expose only the task state or context that each agent is authorized to use."
   - q: "Do communicating AI agents need to use the same language model?"
     a: "Communicating AI agents do not need to use the same language model because they exchange messages through software interfaces rather than model weights."
   - q: "How do AI agents pass context to each other?"
     a: "AI agents pass context through message fields, workflow state, references to approved resources, or shared stores governed by access controls."
   - q: "How do you prevent AI agents from calling each other forever?"
     a: "AI agent systems prevent endless delegation by enforcing call limits, delegation depth, deadlines, budgets, task state transitions, and duplicate detection."
-  - q: "Is a multi agent system better than one AI agent?"
-    a: "A multi agent system is better only when specialization, independent review, parallel work, or permission separation creates more value than the added latency and complexity."
-  - q: "Can Sim build multi agent systems?"
-    a: "Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, including workflows that coordinate specialized agent steps and review paths."
-  - q: "How does Sim compare with n8n for multi agent communication?"
-    a: "Sim centers visual AI agent building and management, while n8n centers workflow automation with application integrations and AI nodes."
   - q: "Is Sim open source?"
-    a: "Sim's core is open source under the OSI approved Apache License 2.0, while apps/sim/ee uses the separate Sim Enterprise License and requires an Enterprise subscription for production use."
+    a: "Sim's core is open source under the Apache License 2.0. Enterprise features use the separate Sim Enterprise License and require an active subscription for production use."
   - q: "Is n8n open source?"
     a: "n8n uses the source available Sustainable Use License, which is not an OSI approved open source license."
   - q: "What is the simplest multi agent architecture?"
     a: "The simplest multi agent architecture uses one coordinator agent, one specialist agent, a structured task contract, and a defined result or failure path."
-  - q: "When should you not use multiple AI agents?"
-    a: "Teams should not use multiple AI agents when one agent can complete the task with the same context and permissions because extra agents add latency, cost, and failure points."
+  - q: "Can agents from different vendors communicate with each other?"
+    a: "Agents from different vendors can communicate when both sides support compatible APIs, message schemas, or standards such as A2A, and when their authentication and task models are aligned. A protocol can standardize the exchange, but teams still need compatible permissions, data contracts, and failure handling."
 ---
 
 ## TL;DR
 
-AI agents can talk to each other by exchanging structured requests, results, and state through defined communication patterns.
+AI agents can talk to each other by exchanging messages, sharing state, calling one another as tools, or handing tasks across standardized interfaces. AI agent communication works best when teams choose the simplest pattern that provides the required autonomy, interoperability, and control.
 
 - **A2A and MCP are complementary:** A2A exchanges work between independent agents, while MCP connects an AI application or agent to tools and context.
 - **Agent-as-tool** lets one agent call a specialized agent with structured inputs and outputs, which separates responsibilities.
@@ -122,7 +76,17 @@ Multi agent communication commonly supports delegation, collaboration, independe
 
 ## How do AI agents communicate with each other?
 
-AI agents communicate through structured messages sent by workflow state, API calls, event systems, queues, or agent communication protocols. A typical exchange follows this sequence:
+AI agents communicate through shared context, direct tool calls, explicit handoffs, MCP connections, or A2A task exchanges. Each method solves a different coordination problem:
+
+| Communication method | How it works | When to use it | Main tradeoff |
+|---|---|---|---|
+| Shared context | Agents read or write approved state in a database, memory layer, queue, or workflow state | Several agents need the same facts but do not need direct conversation | Shared state can become stale or inconsistent without ownership rules |
+| Agent as tool | A coordinating agent calls a specialist agent and receives a bounded result | One agent should remain in control while delegating research, analysis, or transformation | The coordinator can become a bottleneck |
+| Handoff | One agent transfers the task, context, and responsibility to another agent | A different specialist should own the next stage of work | Poorly defined handoffs can lose context or create loops |
+| MCP | An agent connects to standardized tools, resources, or reusable capabilities through an MCP server | Agents need a consistent way to access external systems or exposed workflows | MCP access does not automatically provide peer-agent coordination |
+| A2A | Agents exchange task information, status, and results through an agent-to-agent protocol | Independently built agents need interoperable discovery and task coordination | Protocol support and compatible task semantics are required on both sides |
+
+Shared context is usually the simplest choice when agents only need the same facts. Agent-as-tool calls fit cases where a coordinator should keep control, while handoffs fit cases where responsibility genuinely moves to a specialist. A typical exchange follows this sequence:
 
 ```text
 User request
@@ -146,7 +110,7 @@ AI agents communicate by exchanging structured messages, tool calls, or shared s
 
 A single LLM call with tools does not necessarily create a multi-agent system. In a tool-using agent, one model controls the reasoning loop and calls functions that perform bounded operations. A multi-agent system gives separate agents their own instructions, execution loops, or state, then defines how they pass work or information between those boundaries.
 
-An agent-to-agent protocol specifies the format and rules for those exchanges. Implementations may exchange a direct request and response or transfer control through an orchestrator. They may instead coordinate through a common record or messages published for later processing. Choose the pattern based on the coordination requirement. Direct calls provide immediate results, shared state preserves context, and message passing supports independent execution. Platforms such as [Sim](https://www.sim.ai) provide an [AI agent orchestration](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained) layer that coordinates these exchanges without treating them as an unstructured conversation.
+An agent-to-agent protocol specifies the format and rules for those exchanges. Implementations may exchange a direct request and response or transfer control through an orchestrator. They may instead coordinate through a common record or messages published for later processing. Choose the pattern based on the coordination requirement. Direct calls provide immediate results, shared state preserves context, and message passing supports independent execution. Platforms such as [Sim](https://www.sim.ai) provide an [AI agent orchestration](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained) layer that coordinates these exchanges without treating them as an unstructured conversation. The guide to [how AI agents use tools and APIs](https://www.sim.ai/library/how-ai-agents-use-tools-and-apis) explains where bounded tool calls fit within that design.
 
 ## What communication patterns do AI agents use?
 
@@ -166,7 +130,15 @@ An orchestrator assigns work to specialized agents based on the current task. A 
 
 The orchestrator may remain in control and collect the result, or it may transfer control to the specialist for part of the interaction. A triage agent, for example, can send a billing question to a billing agent while preserving the user's account context. This pattern fits cases where routing or task decomposition changes at runtime.
 
-A handoff gives the specialist more autonomy than an agent-as-tool call. The specialist may decide which tools to use and how many steps to take before returning control. Clear completion conditions prevent the specialist from continuing indefinitely or returning an answer that the orchestrator cannot use.
+A concrete billing-support handoff can work as follows:
+
+1. A triage agent reads an incoming request and classifies it as a billing dispute.
+2. The triage agent creates a handoff with the ticket ID, customer-approved context, classification, urgency, and requested outcome.
+3. A billing specialist agent accepts responsibility and retrieves only the permitted billing information.
+4. The billing agent returns a draft resolution with its status, evidence, and recommended next action.
+5. The workflow routes high-risk refunds or unresolved cases to a human reviewer instead of allowing repeated handoffs.
+
+A handoff gives the specialist more autonomy than an agent-as-tool call. The specialist may decide which tools to use and how many steps to take before returning control. The handoff acts as a contract that defines ownership, required inputs, expected outputs, permissions, and failure behavior. Clear completion conditions prevent the specialist from continuing indefinitely or returning an answer that the orchestrator cannot use.
 
 ### Shared memory and state
 
@@ -259,7 +231,7 @@ A single agent usually fits better when one prompt can handle the task reliably 
 
 ## What is MCP in AI agent communication?
 
-[Model Context Protocol](https://modelcontextprotocol.io/docs/getting-started/intro), or MCP, is an open standard for connecting AI applications to external tools, resources, and reusable prompts. As of October 2026, MCP uses a client and server architecture. A client inside an AI application connects to a server that exposes approved capabilities.
+[Model Context Protocol](https://modelcontextprotocol.io/docs/getting-started/intro), or MCP, is an open standard for connecting AI applications to external tools, resources, and reusable prompts. As of November 2026, MCP uses a client and server architecture. A client inside an AI application connects to a server that exposes approved capabilities.
 
 ```text
 AI agent or application
@@ -270,11 +242,11 @@ MCP server
     → Prompt
 ```
 
-MCP is useful in a multi agent system because several agents can use consistent interfaces to reach approved capabilities. It does not define a complete collaboration model between independent agents. Teams evaluating it can also read [What Is an MCP Server?](https://www.sim.ai/library/what-is-an-mcp-server) and [MCP Security: A Practical Guide to Secure MCP Server Development](https://www.sim.ai/library/mcp-security).
+MCP is useful in a multi agent system because several agents can use consistent interfaces to reach approved capabilities. It does not define a complete collaboration model between independent agents. Teams evaluating it can also read [What Is an MCP Server?](https://www.sim.ai/library/what-is-an-mcp-server), [How to Connect an MCP Server to an AI Agent Workflow](https://www.sim.ai/library/connect-mcp-server-to-ai-agent-workflow), and [MCP Security: A Practical Guide to Secure MCP Server Development](https://www.sim.ai/library/mcp-security).
 
 ## What is A2A in AI agent communication?
 
-[A2A](https://a2a-protocol.org/latest/specification/) is an open standard for communication and task coordination between independent AI agents. As of October 2026, it defines agent discovery, messages, tasks, status updates, and artifacts. An agent can describe its capabilities through an Agent Card, receive a task, exchange messages during execution, and return results without exposing its private implementation.
+[A2A](https://a2a-protocol.org/latest/specification/) is an open standard for communication and task coordination between independent AI agents. As of November 2026, it defines agent discovery, messages, tasks, status updates, and artifacts. An agent can describe its capabilities through an Agent Card, receive a task, exchange messages during execution, and return results without exposing its private implementation.
 
 ```text
 Client agent
@@ -292,7 +264,15 @@ A2A fits cases where one agent collaborates with another agent rather than merel
 
 ## What is the difference between A2A and MCP?
 
-A2A lets independent AI agents exchange tasks and results, while MCP lets an AI application connect to tools, data sources, prompts, and other contextual resources through a standard interface.
+A2A lets independent AI agents exchange tasks and results, while MCP lets an AI application connect to tools, data sources, prompts, and other contextual resources through a standard interface. Agent-as-tool is a separate delegation pattern in which a coordinator invokes a specialist for a bounded result.
+
+| Approach | Primary relationship | Best fit | Does control transfer? |
+|---|---|---|---|
+| Agent as tool | Coordinator to specialist | Bounded delegation inside an orchestrated workflow | Usually no; the coordinator retains control |
+| MCP | Agent to tool, resource, or exposed capability | Standardized access to external systems and reusable functions | Not inherently |
+| A2A | Agent to agent | Cross-agent discovery, task exchange, status updates, and results | It can, depending on the task model |
+
+A system can combine these approaches. A coordinator may call a specialist workflow as a tool, the specialist may use MCP to access an approved data source, and an A2A connection may let an independently operated agent accept and manage a task.
 
 The protocols are complementary rather than interchangeable:
 
@@ -348,9 +328,9 @@ In this architecture, A2A carries the delegated task and returned artifact. MCP 
 
 [Google ADK](https://adk.dev/a2a/) provides documented A2A integration, while platforms such as [n8n](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp/) document MCP connectivity that should not be mistaken for native A2A support.
 
-As of October 2026, buyers should distinguish documented protocol support from general multi-agent orchestration. A platform can pass data between agent steps without implementing the A2A protocol, and it can support MCP without supporting agent-to-agent task exchange.
+As of November 2026, buyers should distinguish documented protocol support from general multi-agent orchestration. A platform can pass data between agent steps without implementing the A2A protocol, and it can support MCP without supporting agent-to-agent task exchange.
 
-| Platform or implementation path | Documented mechanism as of October 2026 | What the mechanism supports |
+| Platform or implementation path | Documented mechanism as of November 2026 | What the mechanism supports |
 |---|---|---|
 | [Google Agent Development Kit](https://adk.dev/a2a/) | A2A integration | Communication and task delegation between A2A-compatible agents |
 | [Official A2A SDKs](https://a2a-protocol.org/latest/sdk/) | A2A protocol implementation | Building clients, servers, agent cards, messages, tasks, and artifacts around the specification |
@@ -373,14 +353,6 @@ Look for first-party documentation covering:
 - Error handling and cancellation across the protocol boundary
 
 A platform that only routes output from one internal agent node into another may support useful multi-agent orchestration, but that does not make the platform A2A-compatible.
-
-### Where does Sim fit in multi-agent communication?
-
-Sim, the open-source AI workspace, lets teams represent specialized agents, routing logic, tool access, and handoffs as visible stages in the visual builder.
-
-That approach is useful when the agents belong to one controlled workflow and the team wants explicit execution paths. A2A becomes relevant when Sim needs to delegate work to, or receive work from, an independently deployed agent through a standard protocol boundary. MCP addresses a different requirement: connecting an agent to reusable tools and context.
-
-For deeper comparisons, see [Best Multi-Agent Frameworks for Production in 2026](https://www.sim.ai/library/best-multi-agent-frameworks-2026), [AI Agent Orchestration Frameworks Explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained), and [Best AI Agent Builders with MCP Support](https://www.sim.ai/library/best-ai-agent-builders-with-mcp-support).
 
 ## How do AI agents hand off tasks mid-workflow?
 
@@ -474,18 +446,19 @@ Use one agent when the task is simple, the same context and tools apply througho
 
 Reliable communication requires structured contracts, bounded delegation, explicit failure handling, and complete observability. A production design should include:
 
-1. Stable agent and task identifiers
-2. Structured input and output schemas
-3. Authentication for every remote connection
-4. Authorization based on the requested action
-5. Timeouts and limited retries
-6. Duplicate protection for actions with side effects
-7. Delegation depth and call limits
-8. Token, time, and cost budgets
-9. Validation before an artifact becomes trusted input
-10. Human approval for consequential actions
-11. Traces connecting messages, tool calls, and outcomes
-12. Tests for malformed messages, unavailable agents, and partial results
+1. Stable agent, task, and correlation identifiers
+2. Structured input, output, status, and error schemas
+3. Only the context the receiving agent needs
+4. Authentication for every remote connection
+5. Separate scoped credentials and tool permissions for each agent
+6. Timeouts, limited retries, and explicit fallback paths
+7. Idempotency and duplicate protection for actions with side effects
+8. Delegation depth, call limits, and loop prevention
+9. Token, time, and cost budgets
+10. Validation before an artifact becomes trusted input
+11. Human approval for consequential actions
+12. Traces connecting messages, tool calls, data access, and outcomes
+13. Tests for malformed messages, unavailable agents, conflicting state, and partial results
 
 Multi agent failures are often coordination failures rather than model failures. A trace should show which agent made each decision, what context it received, which capability it invoked, and why execution stopped or continued. [What Is AI Agent Observability? Traces, Metrics, and Evals Explained](https://www.sim.ai/library/ai-agent-observability) covers this monitoring layer.
 
@@ -499,17 +472,19 @@ Controls should cover transport encryption, service authentication, authorizatio
 
 Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, including workflows that coordinate specialized agent steps, tools, and review paths. A visual workflow makes communication boundaries explicit, including which step receives an earlier result, what context moves forward, where external capabilities enter, and where a person must review an outcome.
 
-Sim is a direct fit when teams want coordination to remain visible and testable rather than hiding every delegation decision inside one large prompt. Readers comparing approaches can review [AI Agent Orchestration Frameworks Explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained) and [Best Multi Agent Frameworks for Production in 2026](https://www.sim.ai/library/best-multi-agent-frameworks-2026).
+Sim fits teams that want coordination to remain visible and testable rather than hiding every delegation decision inside one large prompt. Sim's Agent block can use another workflow as a tool, and agents can connect to configured MCP servers for standardized access to approved capabilities. These documented patterns support bounded delegation and MCP tool access, but they should not be described as A2A interoperability unless the connected endpoints implement A2A.
+
+Readers comparing implementation approaches can review [AI Agent Orchestration Frameworks Explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained), [Best Multi-Agent Frameworks for Production in 2026](https://www.sim.ai/library/best-multi-agent-frameworks-2026), [Best AI Agent Platforms That Support the A2A Protocol in 2026](https://www.sim.ai/library/best-ai-agent-platforms-a2a-protocol-2026), and [Best AI Agent Builders with MCP Support](https://www.sim.ai/library/best-ai-agent-builders-with-mcp-support).
 
 ## How does Sim compare with n8n for multi agent communication?
 
 Sim centers agent building and management in an open-source AI workspace, while n8n centers workflow automation with AI nodes and integrations.
 
-As of October 2026, Sim's core uses the OSI approved Apache License 2.0 and can be self hosted, with [enterprise features governed separately](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Code in `apps/sim/ee` uses the Sim Enterprise License. It is free for development, testing, and internal use outside production, while production use requires an active Sim Enterprise subscription. [Workspace bring your own key support](https://docs.sim.ai/platform/costs#bring-your-own-key-byok) is available on every Sim Cloud plan, while organization keys require Pro for Teams, Max for Teams, or Enterprise. Hosted model usage is recorded at the applicable Sim rate.
+As of November 2026, Sim's core uses the OSI approved Apache License 2.0 and can be self hosted, with [enterprise features governed separately](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Code in `apps/sim/ee` uses the Sim Enterprise License. It is free for development, testing, and internal use outside production, while production use requires an active Sim Enterprise subscription. [Workspace bring your own key support](https://docs.sim.ai/platform/costs#bring-your-own-key-byok) is available on every Sim Cloud plan, while organization keys require Pro for Teams, Max for Teams, or Enterprise.
 
-As of October 2026, n8n is available for self hosting under its [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source available but not OSI approved. According to the [n8n pricing page](https://n8n.io/pricing/), n8n Cloud pricing uses workflow executions as a primary usage measure.
+As of November 2026, n8n is available for self hosting under its [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source available but not OSI approved. According to the [n8n pricing page](https://n8n.io/pricing/), n8n Cloud pricing uses workflow executions as a primary usage measure.
 
-Sim is the more direct fit when the central job is visually building and managing AI agents. n8n is an established option when the central job is connecting application automation steps and adding AI behavior to those workflows.
+Sim fits teams whose central job is visually building and managing AI agents. n8n remains an incumbent option when the central job is connecting application automation steps and adding AI behavior to those workflows.
 
 ## What are the key facts about multi agent communication?
 

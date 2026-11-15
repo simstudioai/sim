@@ -28,13 +28,9 @@ const pipedrivePageSchema = z.object({
   ),
   additional_data: z
     .object({
-      pagination: z
-        .object({
-          more_items_in_collection: z.boolean().optional(),
-          next_start: z.number().int().nonnegative().optional(),
-        })
-        .optional(),
+      next_cursor: z.string().min(1).nullable().optional(),
     })
+    .nullable()
     .optional(),
 })
 
@@ -53,12 +49,12 @@ export const pipedriveSelectorAttachments = {
         protectedValues: args.protectedValues,
       })
       const items: SafeSelectorOption[] = []
-      let start = 0
+      let cursor: string | undefined
       let truncated = false
       for (let page = 0; page < MAX_PAGES; page++) {
-        const url = new URL('https://api.pipedrive.com/v1/pipelines')
-        url.searchParams.set('start', String(start))
+        const url = new URL('https://api.pipedrive.com/api/v2/pipelines')
         url.searchParams.set('limit', String(PAGE_SIZE))
+        if (cursor) url.searchParams.set('cursor', cursor)
         const body = await fetchProviderJson<unknown>(url, {
           headers: getPipedriveAuthHeaders({
             accessToken: token.accessToken,
@@ -77,8 +73,8 @@ export const pipedriveSelectorAttachments = {
             label: pipeline.name,
           }))
         )
-        const pagination = data.additional_data?.pagination
-        if (!pagination?.more_items_in_collection || typeof pagination.next_start !== 'number') {
+        const nextCursor = data.additional_data?.next_cursor
+        if (!nextCursor) {
           if (appended.overflow) truncated = true
           break
         }
@@ -86,7 +82,7 @@ export const pipedriveSelectorAttachments = {
           truncated = true
           break
         }
-        start = pagination.next_start
+        cursor = nextCursor
         if (page === MAX_PAGES - 1) truncated = true
       }
       return flatSelectorResult(

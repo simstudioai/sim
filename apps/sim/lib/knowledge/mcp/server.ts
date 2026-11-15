@@ -297,6 +297,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
               principal,
               input: {
                 ...options,
+                surface: 'mcp',
                 documentId: id,
                 organizationId,
                 scaledWindow: true,

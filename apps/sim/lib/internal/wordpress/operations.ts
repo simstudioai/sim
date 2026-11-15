@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -96,7 +97,7 @@ export async function uploadWordPressMedia(
   if (input.altText) formData.append('alt_text', input.altText)
   if (input.description) formData.append('description', input.description)
 
-  const response = await fetch(`${WORDPRESS_COM_API_BASE}/${input.siteId}/media`, {
+  const response = await outboundFetch(`${WORDPRESS_COM_API_BASE}/${input.siteId}/media`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${input.accessToken}` },
     body: formData,

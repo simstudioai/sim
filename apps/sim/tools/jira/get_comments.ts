@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraGetCommentsParams, JiraGetCommentsResponse } from '@/tools/jira/types'
 import { COMMENT_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
@@ -106,7 +107,7 @@ export const jiraGetCommentsTool: ToolConfig<JiraGetCommentsParams, JiraGetComme
       const maxResults = params?.maxResults ?? 50
       const orderBy = params?.orderBy ?? '-created'
       const commentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/comment?startAt=${startAt}&maxResults=${maxResults}&orderBy=${orderBy}`
-      const commentsResponse = await fetch(commentsUrl, {
+      const commentsResponse = await outboundFetch(commentsUrl, {
         method: 'GET',
         headers: {
           Accept: 'application/json',

@@ -1,7 +1,7 @@
 import { ServiceNowIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
+import { isToolCall, normalizeFileInput, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import {
   APPROVAL_DECISION_OPTIONS,
   APPROVAL_STATE,
@@ -1622,9 +1622,9 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context?: BlockToolParamsContext) => {
         const {
-          operation,
+          operation: storedOperation,
           fields,
           readFields,
           returnFields,
@@ -1644,11 +1644,23 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
           knowledgeQuery,
           ...rest
         } = params
+        const operation = context?.operation ?? storedOperation
+        /**
+         * A dedicated subblock's value, or on a tool call where it is blank, the
+         * model's arg under the tool param name. Without a model arg the subblock
+         * value stands exactly, so an explicit "Any" (`''`) is not replaced.
+         */
+        const dedicatedOrToolArg = (dedicated: unknown, toolArg: unknown) =>
+          isToolCall(context) &&
+          toolArg !== undefined &&
+          (dedicated === undefined || dedicated === null || dedicated === '')
+            ? toolArg
+            : dedicated
         const isCreateOrUpdate =
           operation === 'servicenow_create_record' || operation === 'servicenow_update_record'
 
         if (SEMANTIC_DISPLAY_VALUE_OPS.has(operation)) {
-          rest.displayValue = semanticDisplayValue
+          rest.displayValue = dedicatedOrToolArg(semanticDisplayValue, rest.displayValue)
         }
 
         /**
@@ -1659,7 +1671,9 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
          * query — so each gets its own subblock and is republished here for the
          * operations that own it. Assign explicitly rather than conditionally:
          * `finalInputs` merges this result over the raw inputs, so a key left
-         * off is not dropped, it keeps whatever the raw input held.
+         * off is not dropped, it keeps whatever the raw input held. On a tool
+         * call the model supplies these under the tool param names, so a blank
+         * dedicated subblock falls back to the model's value instead of wiping it.
          */
         const stateSource =
           operation === 'servicenow_update_change_state'
@@ -1669,12 +1683,24 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
               : CHANGE_STATE_OPS.has(operation)
                 ? changeState
                 : incidentState
-        rest.state = SEMANTIC_STATE_OPS.has(operation) ? stateSource : undefined
-        rest.comments =
-          operation === 'servicenow_update_approval' ? approvalComments : incidentComments
-        rest.closeCode = CHANGE_CLOSE_OPS.has(operation) ? changeCloseCode : resolutionCode
-        rest.closeNotes = CHANGE_CLOSE_OPS.has(operation) ? changeCloseNotes : resolutionNotes
-        if (operation === 'servicenow_search_knowledge') rest.query = knowledgeQuery
+        rest.state = SEMANTIC_STATE_OPS.has(operation)
+          ? dedicatedOrToolArg(stateSource, rest.state)
+          : undefined
+        rest.comments = dedicatedOrToolArg(
+          operation === 'servicenow_update_approval' ? approvalComments : incidentComments,
+          rest.comments
+        )
+        rest.closeCode = dedicatedOrToolArg(
+          CHANGE_CLOSE_OPS.has(operation) ? changeCloseCode : resolutionCode,
+          rest.closeCode
+        )
+        rest.closeNotes = dedicatedOrToolArg(
+          CHANGE_CLOSE_OPS.has(operation) ? changeCloseNotes : resolutionNotes,
+          rest.closeNotes
+        )
+        if (operation === 'servicenow_search_knowledge') {
+          rest.query = dedicatedOrToolArg(knowledgeQuery, rest.query)
+        }
 
         /**
          * `attachmentLimit` exists as a separate subblock precisely so a limit
@@ -1684,8 +1710,8 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
          * Every paginated operation reads exactly one of the two.
          */
         if (operation === 'servicenow_list_attachments') {
-          rest.limit =
-            attachmentLimit != null && attachmentLimit !== '' ? Number(attachmentLimit) : undefined
+          const limit = dedicatedOrToolArg(attachmentLimit, rest.limit)
+          rest.limit = limit != null && limit !== '' ? Number(limit) : undefined
         } else if (rest.limit != null) {
           rest.limit = rest.limit === '' ? undefined : Number(rest.limit)
         }
@@ -1741,7 +1767,12 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         }
 
         const projection = operation === 'servicenow_read_record' ? readFields : returnFields
-        return { ...rest, fields: projection || undefined }
+        const toolFields = toolCallArg(context, fields)
+        const toolProjection =
+          typeof toolFields === 'string' && !toolFields.trim().startsWith('{')
+            ? toolFields
+            : undefined
+        return { ...rest, fields: projection || toolProjection || undefined }
       },
     },
   },

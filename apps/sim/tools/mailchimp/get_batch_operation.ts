@@ -2,6 +2,7 @@ import type { MailchimpBatchOperation } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpGetBatchOperationParams {
   apiKey: string
@@ -42,7 +43,8 @@ export const mailchimpGetBatchOperationTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/batches/${params.batchId}`),
+    url: (params) =>
+      buildMailchimpUrl(params.apiKey, `/batches/${safeUrlPathSegment(params.batchId, 'batchId')}`),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

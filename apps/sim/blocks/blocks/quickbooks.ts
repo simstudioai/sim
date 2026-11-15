@@ -2,7 +2,7 @@ import { QuickBooksIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta, OutputCondition, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, toolCallArg } from '@/blocks/utils'
 import {
   getQuickBooksReportTypesSupporting,
   type QuickBooksReportControl,
@@ -2525,25 +2525,35 @@ export const QuickBooksBlock: BlockConfig = {
         }
         return operation
       },
-      params: (params) => {
-        const operation = String(params.operation)
+      params: (params, context) => {
+        const operation = String(params.operation ?? context?.operation)
         const oauthCredentialValue = params.oauthCredential
+        /**
+         * Resolves a tool param filled by a differently-named subBlock. On an agent tool call
+         * the model's argument arrives under the tool param name, so it is the fallback when
+         * the dedicated subBlock is empty instead of being overwritten with `undefined`.
+         */
+        const pick = (dedicated: unknown, toolParam: string): unknown =>
+          optionalValue(dedicated) ?? optionalValue(toolCallArg(context, params[toolParam]))
+        /** {@link pick} for a dropdown whose `'default'` option means "omit". */
+        const pickChoice = (dedicated: unknown, toolParam: string): unknown =>
+          pick(dedicated === 'default' ? undefined : dedicated, toolParam)
 
         if (operation === EMAIL_TRANSACTION_OPERATION) {
           return {
             credential: oauthCredentialValue,
-            transactionType: params.documentTransactionType,
-            transactionId: optionalValue(params.documentTransactionId),
-            recipient: optionalValue(params.recipientOverride),
+            transactionType: pick(params.documentTransactionType, 'transactionType'),
+            transactionId: pick(params.documentTransactionId, 'transactionId'),
+            recipient: pick(params.recipientOverride, 'recipient'),
             confirmSend: parseConfirmation(params.confirmSend, 'confirmSend'),
           }
         }
         if (operation === DOWNLOAD_TRANSACTION_PDF_OPERATION) {
           return {
             credential: oauthCredentialValue,
-            transactionType: params.documentTransactionType,
-            transactionId: optionalValue(params.documentTransactionId),
-            fileName: optionalValue(params.documentFileName),
+            transactionType: pick(params.documentTransactionType, 'transactionType'),
+            transactionId: pick(params.documentTransactionId, 'transactionId'),
+            fileName: pick(params.documentFileName, 'fileName'),
           }
         }
         if (operation === READ_ATTACHMENTS_OPERATION) {
@@ -2557,8 +2567,8 @@ export const QuickBooksBlock: BlockConfig = {
           return {
             credential: oauthCredentialValue,
             readMode: 'list',
-            targetType: params.attachmentTargetType,
-            targetId: optionalValue(params.attachmentTargetId),
+            targetType: pick(params.attachmentTargetType, 'targetType'),
+            targetId: pick(params.attachmentTargetId, 'targetId'),
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
@@ -2568,26 +2578,31 @@ export const QuickBooksBlock: BlockConfig = {
           return {
             credential: oauthCredentialValue,
             attachmentKind,
-            targetType: params.attachmentTargetType,
-            targetId: optionalValue(params.attachmentTargetId),
+            targetType: pick(params.attachmentTargetType, 'targetType'),
+            targetId: pick(params.attachmentTargetId, 'targetId'),
             file:
               attachmentKind === 'file'
-                ? normalizeFileInput(params.attachmentFile, { single: true })
+                ? (normalizeFileInput(params.attachmentFile, { single: true }) ??
+                  normalizeFileInput(toolCallArg(context, params.file), { single: true }))
                 : undefined,
             fileName:
-              attachmentKind === 'file' ? optionalValue(params.attachmentFileName) : undefined,
+              attachmentKind === 'file' ? pick(params.attachmentFileName, 'fileName') : undefined,
             contentType:
-              attachmentKind === 'file' ? optionalValue(params.attachmentContentType) : undefined,
+              attachmentKind === 'file'
+                ? pick(params.attachmentContentType, 'contentType')
+                : undefined,
             description:
-              attachmentKind === 'file' ? optionalValue(params.attachmentDescription) : undefined,
-            note: attachmentKind === 'note' ? optionalValue(params.attachmentNote) : undefined,
+              attachmentKind === 'file'
+                ? pick(params.attachmentDescription, 'description')
+                : undefined,
+            note: attachmentKind === 'note' ? pick(params.attachmentNote, 'note') : undefined,
           }
         }
         if (operation === DOWNLOAD_ATTACHMENT_OPERATION) {
           return {
             credential: oauthCredentialValue,
             attachmentId: optionalValue(params.attachmentId),
-            fileName: optionalValue(params.downloadAttachmentFileName),
+            fileName: pick(params.downloadAttachmentFileName, 'fileName'),
           }
         }
 
@@ -2604,7 +2619,7 @@ export const QuickBooksBlock: BlockConfig = {
             credential: oauthCredentialValue,
             recordType: params.recordType,
             readMode: params.readMode,
-            activeStatus: params.readActiveStatus ?? 'default',
+            activeStatus: pickChoice(params.readActiveStatus, 'activeStatus') ?? 'default',
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
@@ -2615,16 +2630,16 @@ export const QuickBooksBlock: BlockConfig = {
               credential: oauthCredentialValue,
               transactionType: params.transactionType,
               readMode: params.readMode,
-              transactionId: optionalValue(params.readTransactionId),
+              transactionId: pick(params.readTransactionId, 'transactionId'),
             }
           }
           return {
             credential: oauthCredentialValue,
             transactionType: params.transactionType,
             readMode: params.readMode,
-            startDate: optionalValue(params.readStartDate),
-            endDate: optionalValue(params.readEndDate),
-            customerId: optionalValue(params.readCustomerId),
+            startDate: pick(params.readStartDate, 'startDate'),
+            endDate: pick(params.readEndDate, 'endDate'),
+            customerId: pick(params.readCustomerId, 'customerId'),
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
@@ -2633,21 +2648,21 @@ export const QuickBooksBlock: BlockConfig = {
           if (params.readMode === 'by_id') {
             return {
               credential: oauthCredentialValue,
-              transactionType: params.purchasingTransactionType,
+              transactionType: pick(params.purchasingTransactionType, 'transactionType'),
               readMode: params.readMode,
-              transactionId: optionalValue(params.readTransactionId),
+              transactionId: pick(params.readTransactionId, 'transactionId'),
             }
           }
           return {
             credential: oauthCredentialValue,
-            transactionType: params.purchasingTransactionType,
+            transactionType: pick(params.purchasingTransactionType, 'transactionType'),
             readMode: params.readMode,
-            startDate: optionalValue(params.readStartDate),
-            endDate: optionalValue(params.readEndDate),
+            startDate: pick(params.readStartDate, 'startDate'),
+            endDate: pick(params.readEndDate, 'endDate'),
             vendorId:
-              params.purchasingTransactionType === 'purchase'
+              pick(params.purchasingTransactionType, 'transactionType') === 'purchase'
                 ? undefined
-                : optionalValue(params.readVendorId),
+                : pick(params.readVendorId, 'vendorId'),
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
@@ -2656,98 +2671,116 @@ export const QuickBooksBlock: BlockConfig = {
           if (params.readMode === 'by_id') {
             return {
               credential: oauthCredentialValue,
-              transactionType: params.accountingTransactionType,
+              transactionType: pick(params.accountingTransactionType, 'transactionType'),
               readMode: params.readMode,
-              transactionId: optionalValue(params.readTransactionId),
+              transactionId: pick(params.readTransactionId, 'transactionId'),
             }
           }
           return {
             credential: oauthCredentialValue,
-            transactionType: params.accountingTransactionType,
+            transactionType: pick(params.accountingTransactionType, 'transactionType'),
             readMode: params.readMode,
-            startDate: optionalValue(params.readStartDate),
-            endDate: optionalValue(params.readEndDate),
+            startDate: pick(params.readStartDate, 'startDate'),
+            endDate: pick(params.readEndDate, 'endDate'),
             startPosition: parsePaginationInteger(params.startPosition, 'startPosition', 1),
             maxResults: parsePaginationInteger(params.maxResults, 'maxResults', 25),
           }
         }
         if (operation === REPORT_OPERATION) {
           const reportType = params.reportType
+          const reportTransactionType = pickChoice(params.reportTransactionType, 'transactionType')
+          const reportGroupBy = pickChoice(params.reportGroupBy, 'groupBy')
+          const reportAccountsPayablePaid = pickChoice(
+            params.reportAccountsPayablePaid,
+            'accountsPayablePaid'
+          )
+          const reportAccountsReceivablePaid = pickChoice(
+            params.reportAccountsReceivablePaid,
+            'accountsReceivablePaid'
+          )
+          const reportClearedStatus = pickChoice(params.reportClearedStatus, 'clearedStatus')
+          const reportSourceAccountType = pickChoice(
+            params.reportSourceAccountType,
+            'sourceAccountType'
+          )
           return {
             credential: oauthCredentialValue,
             reportType,
             startDate: reportSupports(reportType, 'startDate')
-              ? optionalValue(params.reportStartDate)
+              ? pick(params.reportStartDate, 'startDate')
               : undefined,
-            endDate: optionalValue(params.reportEndDate),
+            endDate: pick(params.reportEndDate, 'endDate'),
             dateMacro: reportSupports(reportType, 'dateMacro')
-              ? (params.reportDateMacro ?? 'default')
+              ? (pickChoice(params.reportDateMacro, 'dateMacro') ?? 'default')
               : undefined,
             accountingMethod: reportSupports(reportType, 'accountingMethod')
-              ? (params.reportAccountingMethod ?? 'default')
+              ? (pickChoice(params.reportAccountingMethod, 'accountingMethod') ?? 'default')
               : undefined,
             summarizeBy: reportSupports(reportType, 'summarizeBy')
-              ? (params.reportSummarizeBy ?? 'default')
+              ? (pickChoice(params.reportSummarizeBy, 'summarizeBy') ?? 'default')
               : undefined,
             quickZoomUrl: reportSupports(reportType, 'quickZoomUrl')
-              ? parseOptionalBoolean(params.reportQuickZoomUrl, 'quickZoomUrl')
+              ? parseOptionalBoolean(
+                  pick(params.reportQuickZoomUrl, 'quickZoomUrl'),
+                  'quickZoomUrl'
+                )
               : undefined,
             customerId: reportSupports(reportType, 'customerId')
-              ? optionalValue(params.reportCustomerId)
+              ? pick(params.reportCustomerId, 'customerId')
               : undefined,
             vendorId: reportSupports(reportType, 'vendorId')
-              ? optionalValue(params.reportVendorId)
+              ? pick(params.reportVendorId, 'vendorId')
               : undefined,
             accountId: reportSupports(reportType, 'accountId')
-              ? optionalValue(params.reportAccountId)
+              ? pick(params.reportAccountId, 'accountId')
               : undefined,
             employeeId: reportSupports(reportType, 'employeeId')
-              ? optionalValue(params.reportEmployeeId)
+              ? pick(params.reportEmployeeId, 'employeeId')
               : undefined,
             itemId: reportSupports(reportType, 'itemId')
-              ? optionalValue(params.reportItemId)
+              ? pick(params.reportItemId, 'itemId')
               : undefined,
             classId: reportSupports(reportType, 'classId')
-              ? optionalValue(params.reportClassId)
+              ? pick(params.reportClassId, 'classId')
               : undefined,
             departmentId: reportSupports(reportType, 'departmentId')
-              ? optionalValue(params.reportDepartmentId)
+              ? pick(params.reportDepartmentId, 'departmentId')
               : undefined,
             agingMethod: reportSupports(reportType, 'agingMethod')
-              ? (params.reportAgingMethod ?? 'default')
+              ? (pickChoice(params.reportAgingMethod, 'agingMethod') ?? 'default')
               : undefined,
             agingDays: reportSupports(reportType, 'agingPeriod')
-              ? parseOptionalPositiveInteger(params.reportAgingDays, 'agingDays')
+              ? parseOptionalPositiveInteger(pick(params.reportAgingDays, 'agingDays'), 'agingDays')
               : undefined,
             transactionType:
-              reportType === 'transaction_list' && params.reportTransactionType !== 'default'
-                ? params.reportTransactionType
+              reportType === 'transaction_list' && reportTransactionType !== 'default'
+                ? reportTransactionType
                 : undefined,
             groupBy:
-              reportSupports(reportType, 'groupBy') && params.reportGroupBy !== 'default'
-                ? params.reportGroupBy
+              reportSupports(reportType, 'groupBy') && reportGroupBy !== 'default'
+                ? reportGroupBy
                 : undefined,
             accountsPayablePaid:
               reportSupports(reportType, 'accountsPayablePaid') &&
-              params.reportAccountsPayablePaid !== 'default'
-                ? params.reportAccountsPayablePaid
+              reportAccountsPayablePaid !== 'default'
+                ? reportAccountsPayablePaid
                 : undefined,
             accountsReceivablePaid:
               reportSupports(reportType, 'accountsReceivablePaid') &&
-              params.reportAccountsReceivablePaid !== 'default'
-                ? params.reportAccountsReceivablePaid
+              reportAccountsReceivablePaid !== 'default'
+                ? reportAccountsReceivablePaid
                 : undefined,
             clearedStatus:
-              reportType === 'transaction_list' && params.reportClearedStatus !== 'default'
-                ? params.reportClearedStatus
+              reportType === 'transaction_list' && reportClearedStatus !== 'default'
+                ? reportClearedStatus
                 : undefined,
             documentNumber:
               reportType === 'transaction_list'
-                ? optionalValue(params.reportDocumentNumber)
+                ? pick(params.reportDocumentNumber, 'documentNumber')
                 : undefined,
             sourceAccountType:
-              reportType === 'transaction_list' && params.reportSourceAccountType !== 'default'
-                ? params.reportSourceAccountType
+              reportType === 'transaction_list' && reportSourceAccountType !== 'default'
+                ? reportSourceAccountType
                 : undefined,
           }
         }
@@ -2800,7 +2833,7 @@ export const QuickBooksBlock: BlockConfig = {
           const isCreate = operation === 'quickbooks_create_customer_payment'
           return {
             credential: oauthCredentialValue,
-            paymentId: isCreate ? undefined : optionalValue(params.transactionId),
+            paymentId: isCreate ? undefined : pick(params.transactionId, 'paymentId'),
             syncToken: isCreate ? undefined : optionalValue(params.syncToken),
             customerId: optionalValue(params.customerId),
             totalAmount: parseOptionalNumber(params.totalAmount, 'totalAmount'),
@@ -2843,13 +2876,18 @@ export const QuickBooksBlock: BlockConfig = {
           return {
             credential: oauthCredentialValue,
             purchaseOrderId:
-              !isCreate && isPurchaseOrder ? optionalValue(params.transactionId) : undefined,
-            billId: !isCreate && isBill ? optionalValue(params.transactionId) : undefined,
+              !isCreate && isPurchaseOrder
+                ? pick(params.transactionId, 'purchaseOrderId')
+                : undefined,
+            billId: !isCreate && isBill ? pick(params.transactionId, 'billId') : undefined,
             billPaymentId:
-              !isCreate && isBillPayment ? optionalValue(params.transactionId) : undefined,
+              !isCreate && isBillPayment ? pick(params.transactionId, 'billPaymentId') : undefined,
             vendorCreditId:
-              !isCreate && isVendorCredit ? optionalValue(params.transactionId) : undefined,
-            purchaseId: !isCreate && isPurchase ? optionalValue(params.transactionId) : undefined,
+              !isCreate && isVendorCredit
+                ? pick(params.transactionId, 'vendorCreditId')
+                : undefined,
+            purchaseId:
+              !isCreate && isPurchase ? pick(params.transactionId, 'purchaseId') : undefined,
             syncToken: isCreate ? undefined : optionalValue(params.syncToken),
             vendorId: optionalValue(params.vendorId),
             apAccountId:
@@ -2858,7 +2896,7 @@ export const QuickBooksBlock: BlockConfig = {
                 : undefined,
             lines:
               isCreate && (isPurchaseOrder || isBill || isVendorCredit || isPurchase)
-                ? parseJsonArrayInput(params.purchasingLines, 'lines')
+                ? parseJsonArrayInput(pick(params.purchasingLines, 'lines'), 'lines')
                 : undefined,
             totalAmount:
               isCreate && isBillPayment
@@ -2866,9 +2904,9 @@ export const QuickBooksBlock: BlockConfig = {
                 : undefined,
             paymentType:
               isCreate && isBillPayment
-                ? optionalValue(params.billPaymentType)
+                ? pick(params.billPaymentType, 'paymentType')
                 : isCreate && isPurchase
-                  ? optionalValue(params.purchasePaymentType)
+                  ? pick(params.purchasePaymentType, 'paymentType')
                   : undefined,
             paymentAccountId:
               isCreate && (isBillPayment || isPurchase)
@@ -2908,15 +2946,17 @@ export const QuickBooksBlock: BlockConfig = {
           return {
             credential: oauthCredentialValue,
             journalEntryId:
-              !isCreate && isJournalEntry ? optionalValue(params.transactionId) : undefined,
+              !isCreate && isJournalEntry
+                ? pick(params.transactionId, 'journalEntryId')
+                : undefined,
             depositId:
-              !isCreate && !isJournalEntry ? optionalValue(params.transactionId) : undefined,
+              !isCreate && !isJournalEntry ? pick(params.transactionId, 'depositId') : undefined,
             syncToken: isCreate ? undefined : optionalValue(params.syncToken),
             lines:
               isCreate && isJournalEntry
-                ? parseJsonArrayInput(params.journalLines, 'lines')
+                ? parseJsonArrayInput(pick(params.journalLines, 'lines'), 'lines')
                 : isCreate
-                  ? parseJsonArrayInput(params.depositLines, 'lines')
+                  ? parseJsonArrayInput(pick(params.depositLines, 'lines'), 'lines')
                   : undefined,
             confirmPosting: isJournalEntry
               ? parseConfirmation(params.confirmPosting, 'confirmPosting')

@@ -26,6 +26,12 @@ import AppKit
         expectError("unsupported_key") { _ = try parseKey("F99") }
         expectError("invalid_arguments") { _ = try parseKey("Hyper+A") }
         expectError("invalid_arguments") { _ = try required(Optional<String>.none, "example") }
+        var finitePoint = CGPoint(x: 10, y: 20), infinitePoint = CGPoint(x: CGFloat.infinity, y: -CGFloat.infinity)
+        var size = CGSize(width: 30, height: 40)
+        let sizeValue = AXValueCreate(.cgSize, &size)
+        precondition(axRect(position: AXValueCreate(.cgPoint, &finitePoint), size: sizeValue) == CGRect(x: 10, y: 20, width: 30, height: 40))
+        precondition(axRect(position: AXValueCreate(.cgPoint, &infinitePoint), size: sizeValue) == nil)
+        expectError("reply_unencodable") { _ = try encodeReply(["id": "nonfinite", "result": ["x": Double.infinity]]) }
         for bundle in ["com.apple.systempreferences", "com.apple.Terminal", "COM.GOOGLECODE.ITERM2", "net.kovidgoyal.kitty", "com.1password.1password", "com.apple.Passwords", "com.bitwarden.desktop", "ai.sim.desktop", "com.simstudio.computer-use", "com.apple.ScriptEditor2", "com.apple.Automator", "com.apple.shortcuts"] {
             precondition(isProtectedApp(bundle), bundle)
         }

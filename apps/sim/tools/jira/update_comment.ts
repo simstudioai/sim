@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraUpdateCommentParams, JiraUpdateCommentResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
 import { extractAdfText, getJiraCloudId, toAdf, transformUser } from '@/tools/jira/utils'
@@ -108,7 +109,7 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
 
       const makeRequest = async (cloudId: string) => {
         const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/comment/${safeUrlPathSegment(params!.commentId ?? '', 'commentId')}`
-        const commentResponse = await fetch(commentUrl, {
+        const commentResponse = await outboundFetch(commentUrl, {
           method: 'PUT',
           headers: {
             Accept: 'application/json',

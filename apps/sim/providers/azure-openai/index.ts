@@ -767,6 +767,8 @@ export const azureOpenAIProvider: ProviderConfig = {
       }
       pinnedFetch = createPinnedFetch(validation.resolvedIP, { profile: 'configuredEndpoint' })
     }
+    // egress-direct: without a user endpoint this is Sim's own Azure deployment
+    const responsesFetch = pinnedFetch ?? fetch
 
     const apiKey = request.apiKey
     if (!apiKey) {
@@ -826,7 +828,7 @@ export const azureOpenAIProvider: ProviderConfig = {
           'api-key': apiKey,
         },
         logger,
-        fetch: pinnedFetch,
+        fetch: responsesFetch,
       })
     }
 
@@ -848,7 +850,7 @@ export const azureOpenAIProvider: ProviderConfig = {
         'api-key': apiKey,
       },
       logger,
-      fetch: pinnedFetch,
+      fetch: responsesFetch,
     })
   },
 }

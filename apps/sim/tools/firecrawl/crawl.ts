@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { escapeRegExp } from '@sim/utils/string'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import {
   applyFirecrawlFormatModelInput,
@@ -240,7 +241,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
 
     while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
-        const statusResponse = await fetch(`https://api.firecrawl.dev/v2/crawl/${jobId}`, {
+        const statusResponse = await outboundFetch(`https://api.firecrawl.dev/v2/crawl/${jobId}`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${params.apiKey}`,

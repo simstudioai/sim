@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
@@ -147,7 +148,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       const basePath = getItemBasePath(spreadsheetId, driveId)
       const rangeUrl = `${basePath}/workbook/worksheets('${encodeURIComponent(escapeODataString(firstSheetName))}')/${usedRangePath(params?.valuesOnly)}`
 
-      const rangeResp = await fetch(rangeUrl, {
+      const rangeResp = await outboundFetch(rangeUrl, {
         headers: excelHeaders({ accessToken, sessionId: params?.sessionId }),
         signal: context?.signal,
       })

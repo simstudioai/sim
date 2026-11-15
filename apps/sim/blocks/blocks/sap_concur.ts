@@ -1,7 +1,7 @@
 import { SapConcurIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, toolCallArg } from '@/blocks/utils'
 import type { UserFileLike } from '@/tools/sap_concur/types'
 
 const toBool = (v: unknown): boolean | undefined => {
@@ -2029,7 +2029,8 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = params.operation ?? context?.operation
         const auth = {
           datacenter: params.datacenter || undefined,
           grantType: params.grantType || undefined,
@@ -2045,13 +2046,13 @@ Return ONLY the JSON object - no explanations, no extra text.`,
         const start = params.start ? Number(params.start) : undefined
         const count = params.count ? Number(params.count) : undefined
         const page = params.page ? Number(params.page) : undefined
-        const contextType = clampContextType(params.operation, params.contextType)
+        const contextType = clampContextType(operation, params.contextType)
 
-        switch (params.operation) {
+        switch (operation) {
           case 'sap_concur_list_expense_reports':
             return {
               ...auth,
-              user: params.expenseReportUser || undefined,
+              user: params.expenseReportUser || toolCallArg(context, params.user),
               submitDateBefore: params.submitDateBefore || undefined,
               submitDateAfter: params.submitDateAfter || undefined,
               paidDateBefore: params.paidDateBefore || undefined,
@@ -2116,8 +2117,8 @@ Return ONLY the JSON object - no explanations, no extra text.`,
               ...auth,
               userId: params.userId,
               contextType: 'MANAGER',
-              sort: params.reportsToApproveSort || undefined,
-              order: params.reportsToApproveOrder || undefined,
+              sort: params.reportsToApproveSort || toolCallArg(context, params.sort),
+              order: params.reportsToApproveOrder || toolCallArg(context, params.order),
               includeDelegateApprovals: toBool(params.includeDelegateApprovals),
             }
           case 'sap_concur_list_expenses':
@@ -2241,32 +2242,40 @@ Return ONLY the JSON object - no explanations, no extra text.`,
               view: params.view || undefined,
               limit,
               start,
-              userId: params.travelRequestUserId || undefined,
-              approvedBefore: params.travelRequestApprovedBefore || undefined,
-              approvedAfter: params.travelRequestApprovedAfter || undefined,
-              modifiedBefore: params.travelRequestModifiedBefore || undefined,
-              modifiedAfter: params.travelRequestModifiedAfter || undefined,
-              sortField: params.travelRequestSortField || undefined,
+              userId: params.travelRequestUserId || toolCallArg(context, params.userId),
+              approvedBefore:
+                params.travelRequestApprovedBefore || toolCallArg(context, params.approvedBefore),
+              approvedAfter:
+                params.travelRequestApprovedAfter || toolCallArg(context, params.approvedAfter),
+              modifiedBefore:
+                params.travelRequestModifiedBefore || toolCallArg(context, params.modifiedBefore),
+              modifiedAfter:
+                params.travelRequestModifiedAfter || toolCallArg(context, params.modifiedAfter),
+              sortField: params.travelRequestSortField || toolCallArg(context, params.sortField),
               sortOrder:
                 params.travelRequestSortOrder === 'asc' || params.travelRequestSortOrder === 'desc'
                   ? params.travelRequestSortOrder
-                  : undefined,
+                  : toolCallArg(context, params.sortOrder),
             }
           case 'sap_concur_get_travel_request':
           case 'sap_concur_delete_travel_request':
             return {
               ...auth,
               requestUuid: params.requestUuid,
-              userId: params.travelRequestUserId || undefined,
+              userId: params.travelRequestUserId || toolCallArg(context, params.userId),
             }
           case 'sap_concur_create_travel_request':
-            return { ...auth, body: params.body, userId: params.travelRequestUserId || undefined }
+            return {
+              ...auth,
+              body: params.body,
+              userId: params.travelRequestUserId || toolCallArg(context, params.userId),
+            }
           case 'sap_concur_update_travel_request':
             return {
               ...auth,
               requestUuid: params.requestUuid,
               body: params.body,
-              userId: params.travelRequestUserId || undefined,
+              userId: params.travelRequestUserId || toolCallArg(context, params.userId),
             }
           case 'sap_concur_move_travel_request':
             return {
@@ -2274,10 +2283,12 @@ Return ONLY the JSON object - no explanations, no extra text.`,
               requestUuid: params.requestUuid,
               action: params.action,
               body: params.body || undefined,
-              userId: params.travelRequestUserId || undefined,
+              userId: params.travelRequestUserId || toolCallArg(context, params.userId),
               companyID: params.companyID || undefined,
               comment:
-                params.action === 'sendback' ? params.sendbackComment || undefined : undefined,
+                params.action === 'sendback'
+                  ? params.sendbackComment || toolCallArg(context, params.comment)
+                  : undefined,
             }
           case 'sap_concur_list_travel_request_comments':
             return { ...auth, requestUuid: params.requestUuid }
@@ -2285,7 +2296,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
             return {
               ...auth,
               requestUuid: params.requestUuid,
-              userId: params.expectedExpenseUserId || undefined,
+              userId: params.expectedExpenseUserId || toolCallArg(context, params.userId),
             }
           case 'sap_concur_get_request_cash_advance':
             return { ...auth, cashAdvanceUuid: params.cashAdvanceUuid }
@@ -2294,21 +2305,21 @@ Return ONLY the JSON object - no explanations, no extra text.`,
               ...auth,
               requestUuid: params.requestUuid,
               body: params.body,
-              userId: params.expectedExpenseUserId || undefined,
+              userId: params.expectedExpenseUserId || toolCallArg(context, params.userId),
             }
           case 'sap_concur_get_expected_expense':
           case 'sap_concur_delete_expected_expense':
             return {
               ...auth,
               expenseUuid: params.expenseUuid,
-              userId: params.expectedExpenseUserId || undefined,
+              userId: params.expectedExpenseUserId || toolCallArg(context, params.userId),
             }
           case 'sap_concur_update_expected_expense':
             return {
               ...auth,
               expenseUuid: params.expenseUuid,
               body: params.body,
-              userId: params.expectedExpenseUserId || undefined,
+              userId: params.expectedExpenseUserId || toolCallArg(context, params.userId),
             }
           case 'sap_concur_create_cash_advance':
             return { ...auth, body: params.body }
@@ -2330,15 +2341,21 @@ Return ONLY the JSON object - no explanations, no extra text.`,
               useridValue: params.useridValue || undefined,
               itemsPerPage: params.itineraryItemsPerPage
                 ? Number(params.itineraryItemsPerPage)
-                : undefined,
-              page: params.itineraryPage ? Number(params.itineraryPage) : undefined,
+                : toolCallArg(
+                    context,
+                    params.itemsPerPage ? Number(params.itemsPerPage) : undefined
+                  ),
+              page: params.itineraryPage
+                ? Number(params.itineraryPage)
+                : toolCallArg(context, page),
               includeMetadata: toBool(params.includeMetadata),
               includeCanceledTrips: toBool(params.includeCanceledTrips),
               includeVirtualTrip: params.includeVirtualTrip || undefined,
               includeGuestBookings: toBool(params.includeGuestBookings),
               createdAfterDate: params.createdAfterDate || undefined,
               createdBeforeDate: params.createdBeforeDate || undefined,
-              lastModifiedDate: params.itineraryLastModifiedDate || undefined,
+              lastModifiedDate:
+                params.itineraryLastModifiedDate || toolCallArg(context, params.lastModifiedDate),
             }
           case 'sap_concur_get_itinerary':
             return {
@@ -2352,7 +2369,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
             return {
               ...auth,
               count,
-              cursor: params.usersCursor || undefined,
+              cursor: params.usersCursor || toolCallArg(context, params.cursor),
               attributes: params.attributes || undefined,
               excludedAttributes: params.excludedAttributes || undefined,
             }
@@ -2375,7 +2392,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
             return {
               ...auth,
               page,
-              sortBy: clampSortBy(params.operation, params.sortBy),
+              sortBy: clampSortBy(operation, params.sortBy),
               sortDirection: params.sortDirection || undefined,
               value: params.value || undefined,
               categoryType: params.categoryType || undefined,
@@ -2389,7 +2406,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
               ...auth,
               listId: params.listId,
               page,
-              sortBy: clampSortBy(params.operation, params.sortBy),
+              sortBy: clampSortBy(operation, params.sortBy),
               sortDirection: params.sortDirection || undefined,
               hasChildren: toBool(params.hasChildren),
               isDeleted: params.isDeleted || undefined,
@@ -2435,7 +2452,9 @@ Return ONLY the JSON object - no explanations, no extra text.`,
             return {
               ...auth,
               lastModifiedDate: params.lastModifiedDate,
-              page: params.travelProfilePage ? Number(params.travelProfilePage) : undefined,
+              page: params.travelProfilePage
+                ? Number(params.travelProfilePage)
+                : toolCallArg(context, page),
               itemsPerPage: params.itemsPerPage ? Number(params.itemsPerPage) : undefined,
               travelConfigs: params.travelConfigs || undefined,
               active: params.active || undefined,
@@ -2474,7 +2493,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
             }
           }
           default:
-            throw new Error(`Unsupported SAP Concur operation: ${params.operation}`)
+            throw new Error(`Unsupported SAP Concur operation: ${operation}`)
         }
       },
     },

@@ -110,7 +110,7 @@ export interface TokenServiceAccountDescriptor {
    * HTTP auth scheme the pasted token requires at execution time. Defaults to
    * `bearer` (`Authorization: Bearer <token>`); `x-api-token` providers (e.g.
    * Pipedrive) send the token in an `x-api-token` header instead, and the
-   * token route surfaces this so tool header builders can switch schemes.
+   * resolved credential token carries this so tool header builders can switch schemes.
    */
   authStyle?: 'bearer' | 'x-api-token'
   /**

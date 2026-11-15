@@ -1,6 +1,7 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
 import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpDeleteInterestCategoryParams {
   apiKey: string
@@ -47,7 +48,7 @@ export const mailchimpDeleteInterestCategoryTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/interest-categories/${params.interestCategoryId}`
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/interest-categories/${safeUrlPathSegment(params.interestCategoryId, 'interestCategoryId')}`
       ),
     method: 'DELETE',
     headers: (params) => ({

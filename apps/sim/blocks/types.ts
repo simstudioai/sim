@@ -416,7 +416,11 @@ export interface SubBlockConfig {
   description?: string
   tooltip?: string // Tooltip text displayed via info icon next to the title
   modalId?: string // Registry key when type is 'modal'; see sub-block/components/modal-registry.ts
-  value?: (params: Record<string, any>) => string
+  /**
+   * Default value. Returning `undefined` (for example when the default depends on an operation
+   * the caller did not pass) defers to the field's own default, such as a dropdown's first option.
+   */
+  value?: (params: Record<string, any>) => string | undefined
   grouped?: boolean
   scrollable?: boolean
   maxHeight?: number

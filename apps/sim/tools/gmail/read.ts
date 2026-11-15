@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -163,7 +164,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
         try {
           // Get the first message details
           const messageId = data.messages[0].id
-          const messageResponse = await fetch(
+          const messageResponse = await outboundFetch(
             `${GMAIL_API_BASE}/messages/${encodeURIComponent(messageId)}?format=full`,
             {
               headers: {
@@ -210,7 +211,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
           const messages: GmailMessage[] = []
           for (const msg of data.messages.slice(0, maxResults)) {
             context?.signal?.throwIfAborted()
-            const messageResponse = await fetch(
+            const messageResponse = await outboundFetch(
               `${GMAIL_API_BASE}/messages/${encodeURIComponent(msg.id)}?format=full`,
               {
                 headers: { Authorization: `Bearer ${params?.accessToken || ''}` },

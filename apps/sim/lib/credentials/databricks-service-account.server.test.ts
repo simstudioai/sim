@@ -25,6 +25,7 @@ vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
 }))
 
 import { credential } from '@sim/db/schema'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
@@ -107,6 +108,14 @@ describe('saving a Databricks connection', () => {
       expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
     }
   )
+
+  it('surfaces an unavailable egress route instead of failing verification', async () => {
+    secureFetch.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(
+      verifyAndEncryptDatabricksCredential(patConfig(HOST), owner)
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+  })
 
   it('reports a host the egress policy refuses as not allowed', async () => {
     secureFetch.mockRejectedValue(new EgressRefusedError('url resolves to a private address'))
@@ -222,6 +231,22 @@ describe('saving a keyless Databricks connection', () => {
     await expect(
       verifyAndEncryptDatabricksCredential(JSON.stringify(config), reconnectOwner)
     ).rejects.toThrow(/this credential: Could not reach the Databricks workspace\. Try again\.$/)
+  })
+
+  it('surfaces an unavailable egress route during the any-subject check instead of asking to retry', async () => {
+    principalTrusting(true)
+    const trusted = fetch.getMockImplementation()
+    fetch.mockImplementation(async (url: string, init: RequestInit) => {
+      const body = new URLSearchParams(String(init?.body))
+      if (url.endsWith('/oidc/v1/token') && body.get('subject_token') !== `token-for:${SUBJECT}`) {
+        throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+      }
+      return trusted?.(url, init)
+    })
+
+    await expect(
+      verifyAndEncryptDatabricksCredential(JSON.stringify(config), reconnectOwner)
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
   })
 })
 
@@ -434,6 +459,14 @@ describe('getting a Databricks token for a run', () => {
     await expect(resolveDatabricksCredentialToken('cred-1')).rejects.toMatchObject({
       code: 'provider_unavailable',
     })
+  })
+
+  it('surfaces an unavailable egress route instead of an unreachable workspace', async () => {
+    fetch.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(resolveDatabricksCredentialToken('cred-1')).rejects.toBeInstanceOf(
+      OutboundRoutingError
+    )
   })
 
   it('reports a token reply over the size cap as oversized, not as a refused request', async () => {

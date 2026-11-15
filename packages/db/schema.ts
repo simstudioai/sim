@@ -3277,6 +3277,13 @@ export const workspaceFiles = pgTable(
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
+    /** Serves a workspace's live file list most recently modified first, the file browser's default. */
+    workspaceActiveUpdatedIdx: index('workspace_files_workspace_active_updated_idx')
+      .on(table.workspaceId, table.updatedAt, table.id)
+      .concurrently()
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
     /**
      * Serves a folder page by upload date: `(workspace_id, coalesce(folder_id, ''))` equality,
      * then the raw `(uploaded_at, id)` keyset the file sorts order on, and seeks a folder's live
@@ -8449,6 +8456,8 @@ export const mothershipInboxTask = pgTable(
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
     fromEmail: text('from_email').notNull(),
+    /** Whether the receiving provider authenticated `fromEmail`'s domain (SPF, DKIM, or DMARC). */
+    senderAuthenticated: boolean('sender_authenticated').notNull().default(false),
     fromName: text('from_name'),
     subject: text('subject').notNull(),
     bodyPreview: text('body_preview'),

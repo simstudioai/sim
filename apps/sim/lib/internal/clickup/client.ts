@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { ClickUpOperationError } from '@/lib/internal/clickup/errors'
@@ -14,7 +15,7 @@ export async function uploadClickUpAttachment(
   signal?: AbortSignal
 ): Promise<unknown> {
   signal?.throwIfAborted()
-  const response = await fetch(
+  const response = await outboundFetch(
     `${CLICKUP_API_BASE_URL}/task/${encodeURIComponent(taskId)}/attachment`,
     {
       method: 'POST',

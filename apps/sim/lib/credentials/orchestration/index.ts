@@ -11,7 +11,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { isUnavailableFailure, OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeColumns, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
@@ -618,6 +618,8 @@ export async function updateCredentialRecord(
         errorCode: 'conflict',
       }
     }
+    // Sim's egress route is down: the surface answers 503, never a verdict on the credential.
+    if (isUnavailableFailure(error)) throw error
     logger.error('Failed to update credential', { error })
     return { success: false, error: 'Internal server error', errorCode: 'internal' }
   }

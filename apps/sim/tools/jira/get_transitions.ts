@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraGetTransitionsParams, JiraGetTransitionsResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
@@ -67,13 +68,16 @@ export const jiraGetTransitionsTool: ToolConfig<
 
   transformResponse: async (response: Response, params?: JiraGetTransitionsParams) => {
     const fetchTransitions = async (cloudId: string) => {
-      const transitionsResponse = await fetch(buildTransitionsUrl(cloudId, params!.issueKey), {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${params!.accessToken}`,
-        },
-      })
+      const transitionsResponse = await outboundFetch(
+        buildTransitionsUrl(cloudId, params!.issueKey),
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${params!.accessToken}`,
+          },
+        }
+      )
 
       if (!transitionsResponse.ok) {
         const errorText = await transitionsResponse.text()
