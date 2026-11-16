@@ -9,16 +9,22 @@
  * - a standalone advanced field holding a value with the advanced toggle off;
  * - an error edge out of every block that can have one;
  * - tool-input lists with two tools of one type (every tool-input field);
- * - structural cases: condition/router title variants, `null` rows and 3+ branches, legacy
- *   normalized-name collisions, every loop and parallel type including nesting, inputFormat
- *   fields with duplicate and empty names, workflow variables, and stored types the registry does
- *   not know (retired and custom blocks), which must still print and compile (contract
- *   amendment 6).
+ * - structural cases: condition/router title variants, `null` rows, 3+ and 6+ branches and
+ *   reordered rows, legacy normalized-name collisions, every loop and parallel type including
+ *   nesting and one workflow holding all six, a condition inside a parallel inside a loop,
+ *   disabled containers, an empty workflow and a notes-only one, inputFormat fields with duplicate
+ *   and empty names, workflow variables of every type, emoji/RTL/CJK block names, CRLF inside
+ *   stored text, agent MCP and workflow-as-tool entries, and stored types the registry does not
+ *   know (retired and custom blocks), which must still print and compile (contract amendment 6).
+ *
+ * {@link generateRejectedCorpus} holds the stored shapes source cannot express: each must fail to
+ * compile with its named diagnostic instead of round-tripping.
  *
  * Deterministic: each case draws from a PRNG seeded by `(seed, case id)`, so the corpus is the
  * same on every machine and adding a block does not reshuffle the others.
  */
 
+import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import {
   type BlockFixture,
   buildBlockFixture,
@@ -50,6 +56,10 @@ type CorpusCaseKind =
   | 'input-format'
   | 'variables'
   | 'unknown-type'
+  | 'shape'
+  | 'unicode-names'
+  | 'crlf-text'
+  | 'agent-tools'
 
 export interface CorpusCase {
   /** Stable and unique: `<kind>:<block type>:<detail>`. */
@@ -135,22 +145,25 @@ class CaseBuilder {
 
   build(
     kind: CorpusCaseKind,
-    extras: Pick<CorpusCase, 'unknownTypes' | 'storedQuirk'> = {}
+    extras: Pick<CorpusCase, 'unknownTypes' | 'storedQuirk'> = {},
+    { withVariable = true }: { withVariable?: boolean } = {}
   ): CorpusCase {
-    const variableId = this.newId()
+    const variableId = withVariable ? this.newId() : null
     const state: WorkflowState = {
       blocks: this.blocks,
       edges: this.edges,
       loops: this.loops,
       parallels: this.parallels,
-      variables: {
-        [variableId]: {
-          id: variableId,
-          name: CORPUS_VARIABLE_NAME,
-          type: 'string',
-          value: CORPUS_TEXT,
-        },
-      },
+      variables: variableId
+        ? {
+            [variableId]: {
+              id: variableId,
+              name: CORPUS_VARIABLE_NAME,
+              type: 'string',
+              value: CORPUS_TEXT,
+            },
+          }
+        : {},
     }
     const blockTypes = [...new Set(Object.values(this.blocks).map((b) => b.type))].sort()
     return { id: this.id, kind, blockTypes, state, ...extras }
@@ -340,8 +353,34 @@ function blockCases(config: BlockConfig, registry: Registry, seed: number): Corp
   return cases
 }
 
-function rowsJson(rows: Array<{ id: string; title: string; value: string }>, asArray = false) {
+type BranchRow = { id: string; title: string; value: string }
+
+function rowsJson(rows: BranchRow[], asArray = false) {
   return asArray ? rows : JSON.stringify(rows)
+}
+
+/** `count` condition rows: `if`, `count - 2` × `else if`, `else`. */
+function manyConditionRows(builder: CaseBuilder, count: number): BranchRow[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: builder.newId(),
+    title: i === 0 ? 'if' : i === count - 1 ? 'else' : 'else if',
+    value: i === count - 1 ? '' : `<start.input> > ${i * 10}`,
+  }))
+}
+
+/**
+ * Condition rows after the editor moved them (`moveBlock` in condition-input.tsx): every row but
+ * `else` reversed, `else` pinned last, and titles recomputed by position. Edges and targets keep
+ * their creation order.
+ */
+function reorderedConditionRows(rows: BranchRow[]): BranchRow[] {
+  const elseRow = rows[rows.length - 1]
+  const moved = rows.slice(0, -1).reverse()
+  const ordered = elseRow ? [...moved, elseRow] : moved
+  return ordered.map((row, i) => ({
+    ...row,
+    title: i === 0 ? 'if' : i === ordered.length - 1 ? 'else' : 'else if',
+  }))
 }
 
 function branchCases(registry: Registry, seed: number): CorpusCase[] {
@@ -353,8 +392,8 @@ function branchCases(registry: Registry, seed: number): CorpusCase[] {
 
   const conditionCase = (
     detail: string,
-    makeRows: (b: CaseBuilder) => Array<{ id: string; title: string; value: string }> | null,
-    options: { asArray?: boolean; implicitHandle?: boolean } = {}
+    makeRows: (b: CaseBuilder) => BranchRow[] | null,
+    options: { asArray?: boolean; reorder?: boolean } = {}
   ) => {
     if (!condition) return
     const builder = new CaseBuilder(seed, `branches:condition:${detail}`)
@@ -362,17 +401,18 @@ function branchCases(registry: Registry, seed: number): CorpusCase[] {
     const { block } = subject(builder, registry, condition, { name: 'Decide' })
     builder.connect(start, block.id)
     const rows = makeRows(builder)
-    const conditions = block.subBlocks.conditions
-    if (conditions) {
-      conditions.value = (
-        rows === null ? null : rowsJson(rows, options.asArray)
-      ) as typeof conditions.value
-    }
     const targets = rows ?? [{ id: `${block.id}-if`, title: 'if', value: '' }]
     targets.forEach((row, i) => {
       const target = subject(builder, registry, fn, { name: `Branch ${i}` })
       builder.connect(block.id, target.block.id, `condition-${row.id}`)
     })
+    const stored = rows && options.reorder ? reorderedConditionRows(rows) : rows
+    const conditions = block.subBlocks.conditions
+    if (conditions) {
+      conditions.value = (
+        stored === null ? null : rowsJson(stored, options.asArray)
+      ) as typeof conditions.value
+    }
     cases.push(
       builder.build('branches', rows === null ? { storedQuirk: 'implicit-branch-handle' } : {})
     )
@@ -390,6 +430,8 @@ function branchCases(registry: Registry, seed: number): CorpusCase[] {
     { id: b.newId(), title: 'Fallback', value: '' },
   ])
   conditionCase('null-rows', () => null)
+  conditionCase('seven-branches', (b) => manyConditionRows(b, 7))
+  conditionCase('seven-branches-reordered', (b) => manyConditionRows(b, 7), { reorder: true })
   conditionCase(
     'array-encoded',
     (b) => [
@@ -401,7 +443,8 @@ function branchCases(registry: Registry, seed: number): CorpusCase[] {
 
   const routerCase = (
     detail: string,
-    rows: ((b: CaseBuilder) => Array<{ id: string; title: string; value: string }>) | null
+    rows: ((b: CaseBuilder) => BranchRow[]) | null,
+    options: { reorder?: boolean } = {}
   ) => {
     if (!router) return
     const builder = new CaseBuilder(seed, `branches:router_v2:${detail}`)
@@ -409,13 +452,15 @@ function branchCases(registry: Registry, seed: number): CorpusCase[] {
     const { block } = subject(builder, registry, router, { name: 'Pick Route' })
     builder.connect(start, block.id)
     const routeRows = rows ? rows(builder) : null
-    const routes = block.subBlocks.routes
-    if (routes)
-      routes.value = (routeRows === null ? null : JSON.stringify(routeRows)) as typeof routes.value
     for (const [i, row] of (routeRows ?? []).entries()) {
       const target = subject(builder, registry, fn, { name: `Route Target ${i}` })
       builder.connect(block.id, target.block.id, `router-${row.id}`)
     }
+    // Router titles are user text, so a reorder moves rows without renaming them.
+    const stored = routeRows && options.reorder ? [...routeRows].reverse() : routeRows
+    const routes = block.subBlocks.routes
+    if (routes)
+      routes.value = (stored === null ? null : JSON.stringify(stored)) as typeof routes.value
     cases.push(builder.build('branches'))
   }
 
@@ -429,6 +474,14 @@ function branchCases(registry: Registry, seed: number): CorpusCase[] {
     { id: b.newId(), title: 'Support', value: CORPUS_TEXT },
   ])
   routerCase('null-rows', null)
+  const sixRoutes = (b: CaseBuilder) =>
+    ['Sales', 'Support', 'Billing', 'Legal', 'Security', 'Everything else'].map((title, i) => ({
+      id: b.newId(),
+      title,
+      value: i === 0 ? CORPUS_TEXT : `${title} questions`,
+    }))
+  routerCase('six-routes', sixRoutes)
+  routerCase('six-routes-reordered', sixRoutes, { reorder: true })
 
   return cases
 }
@@ -460,7 +513,8 @@ function containerBlock(
   builder: CaseBuilder,
   spec: ContainerSpec,
   name: string,
-  parentId?: string
+  parentId?: string,
+  enabled = true
 ): string {
   const id = builder.newId()
   const parent = parentId ? { parentId, extent: 'parent' as const } : {}
@@ -477,7 +531,7 @@ function containerBlock(
       forEachItems,
       whileCondition,
       doWhileCondition,
-      enabled: true,
+      enabled,
     }
     builder.add({
       id,
@@ -486,7 +540,7 @@ function containerBlock(
       position: builder.nextPosition(),
       subBlocks: {},
       outputs: {},
-      enabled: true,
+      enabled,
       data: {
         ...parent,
         width: 500,
@@ -509,7 +563,7 @@ function containerBlock(
       distribution,
       parallelType,
       batchSize: 2,
-      enabled: true,
+      enabled,
     }
     builder.add({
       id,
@@ -518,7 +572,7 @@ function containerBlock(
       position: builder.nextPosition(),
       subBlocks: {},
       outputs: {},
-      enabled: true,
+      enabled,
       data: {
         ...parent,
         width: 500,
@@ -647,6 +701,213 @@ function variableCases(registry: Registry, seed: number): CorpusCase[] {
   return [built]
 }
 
+/** Every subflow kind, for one workflow that holds them all. */
+const EVERY_CONTAINER: ContainerSpec[] = [
+  { kind: 'loop', loopType: 'for' },
+  { kind: 'loop', loopType: 'forEach' },
+  { kind: 'loop', loopType: 'while' },
+  { kind: 'loop', loopType: 'doWhile' },
+  { kind: 'parallel', parallelType: 'count' },
+  { kind: 'parallel', parallelType: 'collection' },
+]
+
+/**
+ * Whole-workflow shapes: an empty workflow, notes only (no Start), disabled containers as the
+ * editor's `batchToggleEnabled` leaves them (the container and its descendants, then one child
+ * re-enabled), a condition inside a parallel inside a loop, and every subflow kind in one
+ * workflow.
+ */
+function shapeCases(registry: Registry, seed: number): CorpusCase[] {
+  const fn = registry.byType.get('function')
+  const note = registry.byType.get('note')
+  const condition = registry.byType.get('condition')
+  if (!fn || !note || !condition) return []
+  const cases: CorpusCase[] = []
+
+  cases.push(
+    new CaseBuilder(seed, 'shape:empty:zero-blocks').build('shape', {}, { withVariable: false })
+  )
+
+  const notes = new CaseBuilder(seed, 'shape:note:notes-only')
+  subject(notes, registry, note, { name: 'Read Me' })
+  subject(notes, registry, note, { name: 'Read Me Too' })
+  cases.push(notes.build('shape'))
+
+  const disabledCase = (detail: string, spec: ContainerSpec, reenableSecondChild: boolean) => {
+    const builder = new CaseBuilder(seed, `shape:${spec.kind}:${detail}`)
+    const start = startBlock(builder, registry)
+    const container = containerBlock(builder, spec, `Disabled ${spec.kind}`, undefined, false)
+    builder.connect(start, container)
+    const first = subject(builder, registry, fn, { name: 'Body', parentId: container })
+    const second = subject(builder, registry, fn, { name: 'Body Two', parentId: container })
+    first.block.enabled = false
+    second.block.enabled = reenableSecondChild
+    builder.connect(container, first.block.id, `${spec.kind}-start-source`)
+    builder.connect(first.block.id, second.block.id)
+    const after = subject(builder, registry, fn, { name: 'After Subflow' })
+    builder.connect(container, after.block.id, `${spec.kind}-end-source`)
+    cases.push(builder.build('shape'))
+  }
+  disabledCase('disabled-cascade', { kind: 'loop', loopType: 'for' }, false)
+  disabledCase('disabled-child-reenabled', { kind: 'parallel', parallelType: 'count' }, true)
+
+  const nested = new CaseBuilder(seed, 'shape:loop>parallel>condition:nested-branches')
+  const nestedStart = startBlock(nested, registry)
+  const loop = containerBlock(nested, { kind: 'loop', loopType: 'forEach' }, 'Outer Loop')
+  nested.connect(nestedStart, loop)
+  const parallel = containerBlock(
+    nested,
+    { kind: 'parallel', parallelType: 'collection' },
+    'Inner Parallel',
+    loop
+  )
+  nested.connect(loop, parallel, 'loop-start-source')
+  const decide = subject(nested, registry, condition, { name: 'Decide', parentId: parallel })
+  nested.connect(parallel, decide.block.id, 'parallel-start-source')
+  const rows: BranchRow[] = [
+    { id: nested.newId(), title: 'if', value: '<parallel.currentItem> > <loop.index>' },
+    { id: nested.newId(), title: 'else', value: '' },
+  ]
+  const conditions = decide.block.subBlocks.conditions
+  if (conditions) conditions.value = rowsJson(rows) as typeof conditions.value
+  rows.forEach((row, i) => {
+    const target = subject(nested, registry, fn, { name: `Branch ${i}`, parentId: parallel })
+    nested.connect(decide.block.id, target.block.id, `condition-${row.id}`)
+  })
+  const afterLoop = subject(nested, registry, fn, { name: 'After Loop' })
+  nested.connect(loop, afterLoop.block.id, 'loop-end-source')
+  cases.push(nested.build('shape'))
+
+  const every = new CaseBuilder(seed, 'shape:loop>parallel:every-subflow-kind')
+  let upstream = startBlock(every, registry)
+  let upstreamHandle = 'source'
+  EVERY_CONTAINER.forEach((spec, i) => {
+    const container = containerBlock(every, spec, `${spec.kind} ${i}`)
+    every.connect(upstream, container, upstreamHandle)
+    const body = subject(every, registry, fn, { name: `Body ${i}`, parentId: container })
+    every.connect(container, body.block.id, `${spec.kind}-start-source`)
+    upstream = container
+    upstreamHandle = `${spec.kind}-end-source`
+  })
+  const last = subject(every, registry, fn, { name: 'After Every Subflow' })
+  every.connect(upstream, last.block.id, upstreamHandle)
+  cases.push(every.build('shape'))
+
+  return cases
+}
+
+/**
+ * Block names in emoji (a ZWJ sequence and a flag), right-to-left scripts and CJK. Each block's
+ * code reads the previous block by its normalized key, so references cross those names too.
+ */
+const UNICODE_NAMES = [
+  '🚀 Launch',
+  '👩‍💻 Dev Team',
+  '🇯🇵 Flag',
+  'مرحبا بالعالم',
+  'שלום 2',
+  '数据处理',
+  'データ 変換',
+  '한국어 블록',
+]
+
+function unicodeNameCases(registry: Registry, seed: number): CorpusCase[] {
+  const fn = registry.byType.get('function')
+  if (!fn) return []
+  const builder = new CaseBuilder(seed, 'unicode-names:function:emoji-rtl-cjk')
+  let upstream = startBlock(builder, registry)
+  let upstreamKey = 'start'
+  for (const name of UNICODE_NAMES) {
+    const { block } = subject(builder, registry, fn, { name })
+    const code = block.subBlocks.code
+    if (code) code.value = `const previous = <${upstreamKey}.result>\nreturn { previous }`
+    builder.connect(upstream, block.id)
+    upstream = block.id
+    upstreamKey = normalizeWorkflowBlockName(name)
+  }
+  return [builder.build('unicode-names')]
+}
+
+/** {@link CORPUS_TEXT} as a Windows editor or `core.autocrlf` stores it, plus a lone CR. */
+export const CORPUS_CRLF_TEXT = `${CORPUS_TEXT.replaceAll('\n', '\r\n')}\rlone carriage return`
+
+/** CRLF inside stored text: function code, a note and a variable value. */
+function crlfCases(registry: Registry, seed: number): CorpusCase[] {
+  const fn = registry.byType.get('function')
+  const note = registry.byType.get('note')
+  if (!fn || !note) return []
+  const builder = new CaseBuilder(seed, 'crlf-text:function:stored-crlf')
+  const start = startBlock(builder, registry)
+  const { block } = subject(builder, registry, fn, { name: 'Windows Code' })
+  const code = block.subBlocks.code
+  if (typeof code?.value === 'string') code.value = code.value.replaceAll('\n', '\r\n')
+  builder.connect(start, block.id)
+  const memo = subject(builder, registry, note, { name: 'Windows Note' })
+  const content = memo.block.subBlocks.content
+  if (content) content.value = CORPUS_CRLF_TEXT
+  const built = builder.build('crlf-text')
+  for (const variable of Object.values(built.state.variables ?? {})) {
+    variable.value = CORPUS_CRLF_TEXT
+  }
+  return [built]
+}
+
+/**
+ * Agent tool entries the editor's tool picker writes (tool-input.tsx): an MCP server tool with its
+ * input schema snapshot, and a deployed workflow as a tool (`workflow_input`).
+ */
+function agentToolCases(registry: Registry, seed: number): CorpusCase[] {
+  const agent = registry.byType.get('agent')
+  if (!agent) return []
+  const toolCase = (detail: string, makeTools: (b: CaseBuilder) => unknown[]) => {
+    const builder = new CaseBuilder(seed, `agent-tools:agent:${detail}`)
+    const start = startBlock(builder, registry)
+    const { block } = subject(builder, registry, agent, { name: 'Agent' })
+    const tools = block.subBlocks.tools
+    if (tools) tools.value = makeTools(builder) as typeof tools.value
+    builder.connect(start, block.id)
+    return builder.build('agent-tools')
+  }
+  const mcpTool = (b: CaseBuilder) => {
+    const serverId = b.newId()
+    return {
+      type: 'mcp',
+      title: 'search_docs',
+      toolId: `mcp-${serverId}-search_docs`,
+      params: {
+        serverId,
+        serverUrl: 'https://mcp.example.com/mcp',
+        toolName: 'search_docs',
+        serverName: 'Docs Server',
+      },
+      isExpanded: false,
+      usageControl: 'auto',
+      schema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'What to search for' },
+          limit: { type: 'number', description: 'Most results to return' },
+        },
+        required: ['query'],
+        description: 'Search the documentation',
+      },
+    }
+  }
+  const workflowTool = (b: CaseBuilder) => ({
+    type: 'workflow_input',
+    title: 'Workflow',
+    toolId: 'workflow_executor',
+    params: { workflowId: b.newId() },
+    isExpanded: false,
+    usageControl: 'auto',
+  })
+  return [
+    toolCase('mcp', (b) => [mcpTool(b)]),
+    toolCase('workflow-input', (b) => [workflowTool(b)]),
+    toolCase('mcp-and-workflow-input', (b) => [mcpTool(b), workflowTool(b)]),
+  ]
+}
+
 function unknownTypeCases(registry: Registry, seed: number): CorpusCase[] {
   return ['retired_block_corpus', 'custom_block_corpus-slug'].map((type) => {
     const builder = new CaseBuilder(seed, `unknown-type:${type}:stored`)
@@ -673,12 +934,7 @@ function unknownTypeCases(registry: Registry, seed: number): CorpusCase[] {
   })
 }
 
-/**
- * Generates the registry corpus. Pure apart from reading the registry: the same seed and the same
- * registry give the same cases in the same order.
- */
-export function generateRegistryCorpus(options: CorpusOptions = {}): CorpusCase[] {
-  const seed = options.seed ?? DEFAULT_CORPUS_SEED
+function buildRegistry(options: CorpusOptions): { configs: BlockConfig[]; registry: Registry } {
   const configs = options.blocks ?? Object.values(getBlockRegistry())
   const all = Object.values(getBlockRegistry())
   const byType = new Map(all.map((config) => [config.type, config]))
@@ -687,20 +943,65 @@ export function generateRegistryCorpus(options: CorpusOptions = {}): CorpusCase[
   const toolCandidate =
     byType.get('slack') ??
     all.find((config) => config.tools.access.length > 0 && operationsOf(config).length > 1)
-  const registry: Registry = {
-    byType,
-    toolType: toolCandidate
-      ? { type: toolCandidate.type, operations: operationsOf(toolCandidate) }
-      : null,
+  return {
+    configs,
+    registry: {
+      byType,
+      toolType: toolCandidate
+        ? { type: toolCandidate.type, operations: operationsOf(toolCandidate) }
+        : null,
+    },
   }
+}
 
+/**
+ * Generates the registry corpus. Pure apart from reading the registry: the same seed and the same
+ * registry give the same cases in the same order.
+ */
+export function generateRegistryCorpus(options: CorpusOptions = {}): CorpusCase[] {
+  const seed = options.seed ?? DEFAULT_CORPUS_SEED
+  const { configs, registry } = buildRegistry(options)
   return [
     ...configs.flatMap((config) => blockCases(config, registry, seed)),
     ...branchCases(registry, seed),
     ...collisionCases(registry, seed),
     ...subflowCases(registry, seed),
+    ...shapeCases(registry, seed),
     ...inputFormatCases(registry, seed),
     ...variableCases(registry, seed),
+    ...unicodeNameCases(registry, seed),
+    ...crlfCases(registry, seed),
+    ...agentToolCases(registry, seed),
     ...unknownTypeCases(registry, seed),
   ]
+}
+
+/** A stored shape source cannot express: print and compile must fail with `code`. */
+interface RejectedCase {
+  id: string
+  /** The diagnostic compile must report. */
+  code: string
+  state: WorkflowState
+}
+
+/**
+ * Stored shapes the round trip must reject rather than reproduce. An error edge from a loop child
+ * to a block outside the loop crosses a subflow scope, which source has no way to write
+ * (`E_EDGE_SCOPE`).
+ */
+export function generateRejectedCorpus(options: CorpusOptions = {}): RejectedCase[] {
+  const seed = options.seed ?? DEFAULT_CORPUS_SEED
+  const { registry } = buildRegistry(options)
+  const fn = registry.byType.get('function')
+  if (!fn) return []
+  const builder = new CaseBuilder(seed, 'reject:loop:child-error-edge-out')
+  const start = startBlock(builder, registry)
+  const loop = containerBlock(builder, { kind: 'loop', loopType: 'for' }, 'Loop')
+  builder.connect(start, loop)
+  const child = subject(builder, registry, fn, { name: 'Body', parentId: loop })
+  builder.connect(loop, child.block.id, 'loop-start-source')
+  const outside = subject(builder, registry, fn, { name: 'Outside Handler' })
+  builder.connect(child.block.id, outside.block.id, 'error')
+  const { state } = builder.build('subflow')
+  return [{ id: builder.id, code: 'E_EDGE_SCOPE', state }]
 }

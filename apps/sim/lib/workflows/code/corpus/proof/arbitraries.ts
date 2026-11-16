@@ -70,7 +70,8 @@ function adversarialStringArbitrary(): fc.Arbitrary<string> {
 }
 
 /**
- * Display names with dots, runs of spaces, mixed case and non-ASCII letters, plus the exact
+ * Display names with dots, runs of spaces, mixed case, non-ASCII letters, emoji (one a ZWJ
+ * sequence), right-to-left scripts and CJK, plus the exact
  * `Object.prototype` member names, always with a usable normalized key. Two draws can still
  * collide after normalization; use {@link uniqueBlockNamesArbitrary} when they must not.
  */
@@ -86,7 +87,13 @@ function blockNameArbitrary(): fc.Arbitrary<string> {
         'Trigger.dev',
         'Ünïcode',
         'x',
-        'Loop Body'
+        'Loop Body',
+        '🚀 Launch',
+        '👩‍💻',
+        'مرحبا',
+        'שלום',
+        '数据处理',
+        'データ'
       ),
       fc.constantFrom('', ' ', '.', '  ', '\t'),
       fc.nat(30)
@@ -177,7 +184,8 @@ const PARALLEL_TYPES = ['count', 'collection'] as const
 
 /**
  * A random workflow: a `start_trigger` at the root, then function, note, loop and parallel blocks,
- * containers nested up to `maxDepth`, forward `source`/`error` edges within a scope, and a
+ * about one in seven disabled (a disabled container's children keep their own flag, as after the
+ * editor re-enables one), containers nested up to `maxDepth`, forward `source`/`error` edges within a scope, and a
  * `*-start-source` edge from every non-empty container into its first child.
  */
 export function workflowStateArbitrary(
@@ -254,7 +262,7 @@ function buildPlannedState(plan: WorkflowPlan, maxDepth: number): WorkflowState 
       position: { x: i * 240, y: (depth[i] ?? 0) * 160 },
       subBlocks: {},
       outputs: {},
-      enabled: true,
+      enabled: i === 0 || variant % 7 !== 6,
       ...(parentId ? { data: { parentId, extent: 'parent' as const } } : {}),
     }
 
@@ -285,7 +293,7 @@ function buildPlannedState(plan: WorkflowPlan, maxDepth: number): WorkflowState 
         forEachItems: loopType === 'forEach' ? '<start.input>' : '',
         whileCondition: loopType === 'while' ? '<start.input> <3' : '',
         doWhileCondition: loopType === 'doWhile' ? '<start.input> <3' : '',
-        enabled: true,
+        enabled: base.enabled,
       })
     } else if (kind === 'parallel') {
       const parallelType = PARALLEL_TYPES[variant % PARALLEL_TYPES.length] ?? 'count'
@@ -301,7 +309,7 @@ function buildPlannedState(plan: WorkflowPlan, maxDepth: number): WorkflowState 
         count: (variant % 4) + 1,
         distribution: parallelType === 'collection' ? '<start.input>' : '',
         parallelType,
-        enabled: true,
+        enabled: base.enabled,
       })
     }
 

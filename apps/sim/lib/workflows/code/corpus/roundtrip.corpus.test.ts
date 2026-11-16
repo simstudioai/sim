@@ -34,6 +34,7 @@ import {
 } from '@sim/workflow-code'
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
+import { generateRejectedCorpus } from '@/lib/workflows/code/corpus'
 import {
   corpusBudgetMs,
   type ProofSubject,
@@ -348,6 +349,12 @@ describe(`round-trip corpus (${subjects.length} workflows)`, () => {
       corpusBudgetMs(subjects.length, PROPERTY_BUDGET_MS)
     )
   }
+
+  it.each(generateRejectedCorpus())('rejects $id with $code instead of round-tripping', (c) => {
+    const subject: ProofSubject = { id: c.id, blockTypes: [], state: c.state }
+    const codes = sourceRun(engines, subject).compiled.diagnostics.map((d) => d.code)
+    expect(codes).toContain(c.code)
+  })
 
   it('writes the report when a report path is set', () => {
     const target = process.env[reportPathVariable(SUITE)]
