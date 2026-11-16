@@ -8,6 +8,17 @@
  * Block builders (`slack.sendMessage`, `agent`, `trigger.gmail.poller`, ...) are not declared here:
  * they are generated from the block catalog into `blocks/{type}.d.ts`, which augment this module.
  * The generic `block(type, name, params)` covers any stored type without a builder.
+ *
+ * Every workflow file starts with the SDK header line, before any import:
+ *
+ * ```ts
+ * // @sim-sdk 1
+ * import { agent, trigger, workflow } from '@sim/workflow-sdk'
+ * ```
+ *
+ * The number is the SDK major version the file is written against. A file without the header is
+ * refused with `E_SDK_HEADER`, and one written for a newer major than the server supports with
+ * `E_SDK_MAJOR`.
  */
 
 /** Plain JSON. */
@@ -238,11 +249,23 @@ export interface BlockMeta {
   errorPort?: boolean
   /** The block-level advanced toggle (`advancedMode`). */
   advancedMode?: boolean
+  /**
+   * Runs the block as its trigger (`triggerMode`). Trigger builders (`trigger.gmail.poller`) set
+   * it themselves; write it on any other builder only for a block stored in trigger mode.
+   */
+  triggerMode?: boolean
   retry?: { enabled: boolean; maxTries: number; waitBetweenTriesMs: number }
   /** Pair modes that cannot be derived from the value written. */
   modes?: Record<string, 'basic' | 'advanced'>
+  /**
+   * Per branch key of a condition or router, the row's display `title` and any stored fields the
+   * SDK has no syntax for (`extra`, plain JSON).
+   */
+  branches?: Record<string, { title?: string; extra?: Record<string, Json> }>
   /** Stale values under hidden conditions, kept verbatim. */
   inactive?: Record<string, unknown>
+  /** Stored block data the SDK has no syntax for, kept verbatim (plain JSON). */
+  $unknown?: Record<string, Json>
 }
 
 /** Anything an edge can point at. */
