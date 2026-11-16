@@ -71,6 +71,7 @@
     "check:icon-path-precision": "bun run scripts/check-icon-path-precision.ts",
     "check:migrations": "bun run scripts/check-migrations-safety.ts",
     "check:native-typecheck": "bun run scripts/check-native-typecheck.ts",
+    "check:workflow-code-golden": "bun run scripts/check-workflow-code-golden.ts",
     "check:source-text": "bun run scripts/check-source-text.ts",
     "check:comment-hygiene": "bun run scripts/check-comment-hygiene.ts",
     "check:site-urls": "bun run scripts/check-site-urls.ts",

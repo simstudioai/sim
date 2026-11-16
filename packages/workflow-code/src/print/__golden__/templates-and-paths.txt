@@ -1,0 +1,21 @@
+// @sim-sdk 1
+import { agent, t, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: [] })
+  const writer = agent('Writer', {
+    model: 'gpt-5.5',
+    messages: [
+      {
+        role: 'user',
+        content: t`Items: ${start.items[0].id} / ${start.items['0']} / ${start['some-field']} / ${start.a.b}
+next`,
+      },
+    ],
+    systemPrompt: `Line one
+Line two without refs`,
+    conversationId: start.conversationId,
+  })
+
+  start.to(writer)
+})

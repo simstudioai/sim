@@ -1,0 +1,14 @@
+// @sim-sdk 1
+import { api, condition, edge, js, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: [] })
+  const gate = condition('Gate', { if: js`true`, else: true })
+  const a = api('A', { url: 'https://a.test' })
+  const b = api('B', { url: 'https://b.test' })
+
+  start.to(gate)
+  edge(gate, 'source', a)
+  gate.if.to(b)
+  edge(a, 'right-legacy', b)
+})
