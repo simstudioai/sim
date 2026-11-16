@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { GetWorkflowParams, WorkflowResponse } from '@/tools/github/types'
 import { WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -40,7 +41,7 @@ export const getWorkflowTool: ToolConfig<GetWorkflowParams, WorkflowResponse> = 
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/actions/workflows/${params.workflow_id}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/actions/workflows/${githubPathSegment(params.workflow_id, 'workflow_id')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

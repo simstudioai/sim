@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { BaseGitHubParams, RepoInfoResponse } from '@/tools/github/types'
 import {
   LICENSE_OUTPUT,
@@ -38,7 +39,7 @@ export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}`,
+    url: (params) => `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

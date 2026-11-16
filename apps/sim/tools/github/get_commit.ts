@@ -1,3 +1,4 @@
+import { githubRefPath, githubRepoPath } from '@/tools/github/request-path'
 import {
   COMMIT_DATA_OUTPUT,
   COMMIT_FILE_OUTPUT_PROPERTIES,
@@ -77,7 +78,7 @@ export const getCommitTool: ToolConfig<GetCommitParams, GetCommitResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/commits/${params.ref}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/commits/${githubRefPath(params.ref, 'ref')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import {
   PARENT_OWNER_OUTPUT_PROPERTIES,
   PARENT_REPO_OUTPUT_PROPERTIES,
@@ -83,7 +84,8 @@ export const forkRepoTool: ToolConfig<ForkRepoParams, ForkRepoResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/forks`,
+    url: (params) =>
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/forks`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { GetReadmeParams, ReadmeResponse } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -40,7 +41,7 @@ export const getReadmeTool: ToolConfig<GetReadmeParams, ReadmeResponse> = {
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.github.com/repos/${params.owner}/${params.repo}/readme`
+      const baseUrl = `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/readme`
       return params.ref ? `${baseUrl}?ref=${encodeURIComponent(params.ref)}` : baseUrl
     },
     method: 'GET',

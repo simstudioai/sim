@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -65,7 +66,7 @@ export const deleteCommentReactionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/comments/${params.comment_id}/reactions/${params.reaction_id}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues/comments/${githubPathSegment(params.comment_id, 'comment_id')}/reactions/${githubPathSegment(params.reaction_id, 'reaction_id')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github.squirrel-girl-preview+json',
