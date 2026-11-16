@@ -27,7 +27,8 @@ sim workflows source apply <workflowId> --dir ./wf --yes       # 4. save the dra
    fingerprint that makes the next apply safe.
 6. **New workflow**: write `workflow.ts` in an empty directory and run
    `sim workflows source create --dir ./wf [--name <name>] [--folder <path>] --yes`. It prints the
-   new workflow id and writes the lock files back; continue with the loop above.
+   new workflow id and writes the full tree a `get` writes: the `.sim/sdk` types, `tsconfig.json`,
+   `.sim/AGENTS.md` and the lock files. Continue with the loop above.
 
 `apply` and `create` ask for confirmation on a terminal; elsewhere pass `--yes` (without it they
 refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
@@ -44,7 +45,7 @@ refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
 | `.sim/sdk/operations/{type}/{operation}.d.ts` | One operation's params and outputs, 1-2 KB. Read these to learn a block. |
 | `.sim/sdk/workspace.d.ts` | This workspace's tables (with columns), knowledge bases, credentials, workflows (with inputs) and env var names, so `table('tickets')`, `credential('support-slack')` and `env.X` are checked. |
 | `tsconfig.json` | Resolves `@sim/workflow-sdk` to `.sim/sdk`. |
-| `.sim/AGENTS.md` | A pointer to this guide. A top-level `AGENTS.md` of your own is never touched. |
+| `.sim/AGENTS.md` | The authoring guide for agents, linking [the docs](https://docs.sim.ai/workflows/code). A top-level `AGENTS.md` of your own is never touched. |
 | `.gitattributes` | `text eol=lf` for the source files, merged into any file already there. |
 
 `sim workflows source resources <workspaceId>` lists the resource keys source can name.

@@ -287,9 +287,10 @@ export interface BlockMeta {
   retry?: BlockRetryConfig
   /**
    * Per branch key of a condition or router, the row's display `title` and any stored fields the
-   * SDK has no syntax for (`extra`, plain JSON).
+   * SDK has no syntax for (`extra`, plain JSON). `title: null` keeps a row stored with no title,
+   * which the executor never takes for `else`.
    */
-  branches?: Record<string, { title?: string; extra?: Record<string, Json> }>
+  branches?: Record<string, { title?: string | null; extra?: Record<string, Json> }>
   /**
    * Stored params that run but have no SDK syntax: a schema-agnostic custom block's inputs, the
    * agent's legacy prompt fields, a container's stored params. Values the block keeps but never
@@ -408,11 +409,18 @@ export interface WorkflowRef<Key extends string = string> extends ResourceRef<'w
   asTool(options?: ToolUsage): Tool
 }
 
-/** Declares a workflow. The body wires blocks; it never runs. */
+/**
+ * Declares a workflow. The body wires blocks; it never runs. With no description or variables the
+ * options may be left out: `workflow('Name', () => { ... })`.
+ */
 export declare function workflow<const V extends VariableDeclarations = Record<never, never>>(
   name: string,
   options: { description?: string; variables?: V },
   body: (scope: { vars: VarRefs<V> }) => void
+): WorkflowDef
+export declare function workflow(
+  name: string,
+  body: (scope: { vars: VarRefs<Record<never, never>> }) => void
 ): WorkflowDef
 /** A child workflow by key: `childWorkflow('enrich-lead')`. */
 export declare function childWorkflow<K extends WorkflowKey>(key: K): WorkflowRef<K>
@@ -521,6 +529,11 @@ type SpecialOutput<K extends string> = K extends keyof SpecialBuilderTypes
 /** A condition expression, or `true` for the `else` branch. */
 export type BranchExpression = Template | string | true
 
+/** A condition's branches: every key holds an expression, and only `else` may be `true`. */
+type ConditionBranches<B> = {
+  [K in keyof B]: K extends 'else' ? BranchExpression : Template | string
+}
+
 /**
  * Keys of a condition written with no rows (`condition('Name', {})`, the source form of rows
  * that were never persisted): the implicit `if` and `else` ports stay addressable.
@@ -531,7 +544,7 @@ type RouterKeys<R> = keyof R extends never ? 'route0' : Extract<keyof R, string>
 /** A condition: named branches, the last one `else` when there are two or more. */
 export declare function condition<const B extends Record<string, BranchExpression>>(
   name: string,
-  branches: B,
+  branches: B & ConditionBranches<B>,
   meta?: BlockMeta
 ): Block<SpecialOutput<'condition'>> & Branches<ConditionKeys<B>>
 

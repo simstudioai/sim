@@ -7,7 +7,7 @@ import { compileWorkflow } from './index'
 import { TEST_CATALOG } from './test-catalog'
 
 const IMPORTS =
-  "import { agent, api, childWorkflow, customTool, credential, mail, mcp, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
+  "import { agent, api, childWorkflow, condition, customTool, credential, fn, human, js, mail, mcp, parallel, raw, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
 
 function source(body: string, header = '// @sim-sdk 1'): string {
   return `${header}\n${IMPORTS}\n\nexport default workflow('Test', {}, () => {\n${body}\n})\n`
@@ -123,6 +123,96 @@ describe('tool params', () => {
 
   it('refuse stored() where the stored tool holds no value', () => {
     expect(codes(run(tools('{ apiKey: stored() }')))).toContain('E_STORED_VALUE_MISSING')
+  })
+
+  describe('stored() follows the tool, not its position', () => {
+    const list = (...entries: string[]) =>
+      source(
+        `  agent('A', { model: 'm', tools: [${entries.map((e) => `mail.tool(${e})`).join(', ')}] })`
+      )
+    const storedWorkflow = compiled(
+      list("{ apiKey: 'sk-A', to: 'a@x.y' }", "{ apiKey: 'sk-B', to: 'b@x.y' }")
+    )
+    const keys = (workflow: CanonicalWorkflow) => {
+      const param = workflow.blocks.a?.params.tools
+      return param?.kind === 'tools' ? param.tools.map((tool) => tool.params.apiKey) : []
+    }
+
+    it('keeps each secret with its tool when the first tool is deleted', () => {
+      const next = compiled(list("{ apiKey: stored(), to: 'b@x.y' }"), storedWorkflow)
+      expect(keys(next)).toEqual(['sk-B'])
+    })
+
+    it('keeps each secret with its tool when the tools are reordered', () => {
+      const next = compiled(
+        list("{ apiKey: stored(), to: 'b@x.y' }", "{ apiKey: stored(), to: 'a@x.y' }"),
+        storedWorkflow
+      )
+      expect(keys(next)).toEqual(['sk-B', 'sk-A'])
+    })
+
+    it('matches by position while the list keeps its stored shape', () => {
+      const next = compiled(
+        list("{ apiKey: stored(), to: 'a2@x.y' }", "{ apiKey: stored(), to: 'b2@x.y' }"),
+        storedWorkflow
+      )
+      expect(keys(next)).toEqual(['sk-A', 'sk-B'])
+    })
+
+    it('refuses an edited tool that no longer identifies one stored tool', () => {
+      expect(codes(run(list("{ apiKey: stored(), to: 'c@x.y' }"), storedWorkflow))).toContain(
+        'E_STORED_VALUE_MISSING'
+      )
+    })
+
+    it('keeps a stored() param in the place source wrote it, so the print is a fixed point', () => {
+      const text = printed(storedWorkflow)
+      expect(text).toContain("mail.tool({ apiKey: stored(), to: 'a@x.y' })")
+      expect(printed(compiled(text, storedWorkflow))).toBe(text)
+    })
+  })
+
+  it('redact a secret inside raw(tool) as stored() and keep it on compile', () => {
+    // A stored key spelled like an alias (`credential`) has no builder form, so it prints raw().
+    const storedWorkflow = compiled(
+      source(
+        "  agent('A', { model: 'm', tools: [raw({ type: 'mail', params: { credential: 'c1', apiKey: 'sk-raw-1', to: 'a@x.y' }, modes: {} })] })"
+      )
+    )
+    const text = printed(storedWorkflow)
+    expect(text).toContain('apiKey: stored()')
+    expect(text).not.toContain('sk-raw-1')
+    const next = compiled(text, storedWorkflow)
+    expect(next.blocks.a?.params.tools).toEqual(storedWorkflow.blocks.a?.params.tools)
+    expect(printed(next)).toBe(text)
+  })
+})
+
+describe('condition rows stored with no title', () => {
+  it('round-trip as title: null, so the last row never becomes the else branch', () => {
+    const workflow = compiled(source("  condition('Gate', { if: js`x > 1`, else: true })"))
+    const rows = workflow.blocks.gate?.branches?.rows
+    if (!rows?.[1]) throw new Error('expected two rows')
+    rows[1].titleMissing = true
+    const text = printed(workflow)
+    expect(text).toContain('else: { title: null }')
+    expect(compiled(text).blocks.gate?.branches).toEqual(workflow.blocks.gate?.branches)
+  })
+})
+
+describe('a raw edge into a container child', () => {
+  it('prints where both ends are visible and compiles back to the same raw port', () => {
+    const workflow = compiled(
+      source(
+        "  parallel.count('L', { count: 3 }, (p) => {\n    const f = fn('F', { code: js`return 1` })\n    p.to(f)\n  })"
+      )
+    )
+    workflow.edges = workflow.edges.map((edge) =>
+      edge.from === 'l' && edge.to === 'f'
+        ? { ...edge, port: { kind: 'raw', handle: 'loop-start-source' } }
+        : edge
+    )
+    expect(compiled(printed(workflow)).edges).toEqual(workflow.edges)
   })
 })
 
@@ -271,6 +361,21 @@ describe('JSON field literals', () => {
       )
     )
     expect(codes(result)).toEqual(['W_JSON_REF_UNTYPED'])
+  })
+
+  it("types a human form's fields under submission, as the SDK does", () => {
+    const workflow = compiled(
+      source(
+        [
+          "  const h = human('Approve', { inputFormat: { ok: 'boolean', note: 'string' } })",
+          "  table.insertRow('Row', { data: { ok: h.submission.ok, note: h.submission.note } })",
+        ].join('\n')
+      )
+    )
+    expect(workflow.blocks.row?.params.data).toEqual({
+      kind: 'value',
+      value: '{\n  "ok": <approve.submission.ok>,\n  "note": "<approve.submission.note>"\n}',
+    })
   })
 
   it('keeps text a literal cannot reproduce as text', () => {

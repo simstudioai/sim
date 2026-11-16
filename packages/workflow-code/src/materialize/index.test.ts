@@ -181,6 +181,18 @@ describe('materialize: params keep prev bytes unless they changed', () => {
     )
   })
 
+  it('writes a __proto__ key in a value as data, not as the stored object prototype', () => {
+    const state = workflowState([blockState('a1', 'agent', 'Agent', { model: 'gpt-4o' })])
+    const message = JSON.parse('{"role":"user","__proto__":{"polluted":true}}')
+    const target = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.agent.params.messages = { kind: 'value', value: [message] }
+    })
+    const stored = subBlockValue(run(target, null, { prev: state }).state, 'a1', 'messages')
+    const [written] = Array.isArray(stored) ? stored : []
+    expect(Object.hasOwn(written, '__proto__')).toBe(true)
+    expect(Object.getPrototypeOf(written)).toBe(Object.prototype)
+  })
+
   it('uses catalog storage for a param prev never stored, and writes a removed param as null', () => {
     const state = workflowState([blockState('k1', 'knowledge', 'KB', { knowledgeBaseIds: 'kb-1' })])
     const target = edit(canonical(state).workflow, (draft) => {
@@ -812,6 +824,20 @@ describe('materialize: preserved UI state comes from prev', () => {
     const result = run(target, null, { prev: state })
     expect(subBlockValue(result.state, 's1', 'notify')).toBe(false)
     expect(subBlockValue(result.state, 's1', 'text')).toBe('stale message')
+  })
+
+  it('clears a standalone advanced field that source emptied instead of restoring it', () => {
+    const state = workflowState([
+      blockState('s1', 'slack', 'Post', { operation: 'send', text: 'hi', threadTs: '123.456' }),
+    ])
+    const removed = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.post.params = omit(draft.blocks.post.params, ['threadTs'])
+    })
+    const emptied = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.post.params.threadTs = { kind: 'value', value: '' }
+    })
+    expect(subBlockValue(run(removed, null, { prev: state }).state, 's1', 'threadTs')).toBeNull()
+    expect(subBlockValue(run(emptied, null, { prev: state }).state, 's1', 'threadTs')).toBe('')
   })
 
   it("keeps a forEach loop's stored count through a collection edit", () => {

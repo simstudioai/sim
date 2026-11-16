@@ -24,6 +24,20 @@ const LEGACY_AGENT_FIELDS = new Set(['systemPrompt', 'userPrompt', 'memories'])
 /** A custom block's computed wiring; the serializer recomputes it and never forwards it. */
 const CUSTOM_BLOCK_WIRING = new Set(['workflowId', 'inputMapping'])
 /**
+ * A custom block's structural ids, never a mapped input (`RESERVED_PARAMS`,
+ * blocks/custom/build-config.ts).
+ */
+const CUSTOM_BLOCK_RESERVED = new Set([...CUSTOM_BLOCK_WIRING, 'triggerMode', 'advancedMode'])
+
+/**
+ * `customBlockHasDeclaredInputs` (serializer/index.ts): a custom block that declares an input
+ * drops every stored field it does not declare, as a deleted input. Only a schema-agnostic one
+ * (legacy, no curated inputs) forwards them all.
+ */
+function declaresCustomInputs(block: CatalogBlock): boolean {
+  return block.subBlocks.some((subBlock) => !CUSTOM_BLOCK_RESERVED.has(subBlock.id))
+}
+/**
  * Trigger fields deploy never copies into the webhook provider config (`SYSTEM_SUBBLOCK_IDS`,
  * triggers/constants.ts). `triggerCredentials` is one of them but is read on its own as the
  * credential reference, so it is not listed.
@@ -149,7 +163,7 @@ function serializes(subBlock: CatalogSubBlock, inputs: ActivityInputs): boolean 
  * deploy (`deployReadIds`) under the block's current values. Mirrors the include rule in
  * `extractBlockParams`: a param with declarations is active when
  * any declaration serializes; one with none is inactive except for the serializer's legacy
- * agent fields and for a custom block, whose stored fields may be its inputs.
+ * agent fields and for a schema-agnostic custom block, whose stored fields are its inputs.
  */
 export function isInactive(id: SubBlockId, inputs: ActivityInputs): boolean {
   if (inputs.deployRead.has(id)) return false
@@ -157,7 +171,7 @@ export function isInactive(id: SubBlockId, inputs: ActivityInputs): boolean {
   if (isCustom && CUSTOM_BLOCK_WIRING.has(id)) return true
   const declarations = inputs.block.subBlocks.filter((subBlock) => subBlock.id === id)
   if (declarations.length === 0) {
-    if (isCustom) return false
+    if (isCustom) return declaresCustomInputs(inputs.block)
     return !(inputs.blockType === 'agent' && LEGACY_AGENT_FIELDS.has(id))
   }
   return !declarations.some((subBlock) => serializes(subBlock, inputs))

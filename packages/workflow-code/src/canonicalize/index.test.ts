@@ -283,6 +283,14 @@ const CATALOG: BlockCatalog = {
       ],
       { custom: { sourceWorkflowId: 'wf-src' } }
     ),
+    custom_block_legacy: block(
+      'custom_block_legacy',
+      [
+        sb({ id: 'workflowId', type: 'short-input' }),
+        sb({ id: 'inputMapping', type: 'short-input' }),
+      ],
+      { custom: { sourceWorkflowId: 'wf-src' } }
+    ),
   },
 }
 
@@ -808,15 +816,17 @@ describe('canonicalize: inactive annotation', () => {
     }
   })
 
-  it('marks tool-input-only and undeclared fields inactive, except on custom blocks', () => {
+  it('marks tool-input-only and undeclared fields inactive, except on schema-agnostic custom blocks', () => {
     const result = run(
       workflow([
         blockState('b1', 'slack', 'Slack', { operation: 'send', scopeNote: 'x', legacyField: 'y' }),
         blockState('b2', 'custom_block_acme', 'Acme', { undeclared: 'z', workflowId: 'wf' }),
+        blockState('b3', 'custom_block_legacy', 'Legacy', { undeclared: 'z', workflowId: 'wf' }),
       ])
     )
     expect(result.workflow.annotations.inactive.slack).toEqual(['scopeNote', 'legacyField'])
-    expect(result.workflow.annotations.inactive.acme).toEqual(['workflowId'])
+    expect(result.workflow.annotations.inactive.acme).toEqual(['undeclared', 'workflowId'])
+    expect(result.workflow.annotations.inactive.legacy).toEqual(['workflowId'])
   })
 })
 

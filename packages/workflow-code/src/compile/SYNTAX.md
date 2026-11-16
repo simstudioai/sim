@@ -105,7 +105,7 @@ The value kind alone picks the member of a basic/advanced pair; there is no `met
 | `retry: { enabled, maxTries, waitBetweenTriesMs }` | The stored `BlockRetryConfig`, written whole. |
 | `advancedMode: boolean` | The block-level advanced toggle; it changes what serializes. |
 | `triggerMode: boolean` | Runs the block as its trigger. Trigger builders set it; any other builder writes it only for a block stored in trigger mode. |
-| `branches: { <key>: { title?, extra? } }` | Per condition/router row, the display title and stored row fields with no syntax. |
+| `branches: { <key>: { title?, extra? } }` | Per condition/router row, the display title and stored row fields with no syntax. `title: null` is a row stored with no title, which the executor never takes for `else`. |
 | `extra: { <subBlockId>: value }` | Stored params that run but have no SDK syntax (a schema-agnostic custom block's inputs, the agent's legacy prompt fields, a container's stored params). A key the block's params can name is `E_UNSUPPORTED_SYNTAX`. |
 | `subflowData: { <key>: json }` | Loop or parallel only: `block.data` subflow keys (`count`, `collection`, `loopType`, `whileCondition`, `doWhileCondition`, `parallelType`, `batchSize`) canonicalize could not read as config. Any other key, or on another block, is `E_UNSUPPORTED_SYNTAX`. |
 
@@ -164,11 +164,17 @@ no live resource is `E_MAT_UNKNOWN_RESOURCE` on apply.
 ### `stored()`
 
 The printer writes `stored()` for literal text in a `password` field (a secret is never printed;
-`{{ENV}}` and references print as themselves), in params and tool params alike (a tool by position
-and type). It compiles to the value `CompileInput.stored` (the stored workflow the file continues)
-holds for the same block key, type and param, a pair's members and mode included. A new block,
-another type or an empty field is `E_STORED_VALUE_MISSING`; inside a value it is
-`E_UNSUPPORTED_SYNTAX`.
+`{{ENV}}` and references print as themselves), in params and tool params alike. It compiles to the
+value `CompileInput.stored` (the stored workflow the file continues) holds for the same block key,
+type and param, a pair's members and mode included. A new block, another type or an empty field is
+`E_STORED_VALUE_MISSING`; inside a value it is `E_UNSUPPORTED_SYNTAX`.
+
+A tool's `stored()` takes the value of the stored tool it continues, matched by identity: the one
+stored tool of the same type and operation whose params agree with every param the source writes.
+Failing that, a lone candidate wins while the list holds as many tools of that kind as stored, and
+position decides while the list keeps its stored length and types. A tool no rule settles (two
+candidates after the list's count or order changed) is `E_STORED_VALUE_MISSING`, so a deleted or
+reordered tool never takes another tool's secret.
 
 ### References
 
@@ -226,7 +232,9 @@ template.
     `toolId: 'workflow_executor'`). One with fixed inputs prints through `runWorkflow.tool(…)`;
   - `raw(tool)`: any other stored tool, including an MCP or child-workflow tool whose stored fields
     drifted from what the picker writes (a renamed title, a foreign `toolId`, explicit modes) and a
-    tool keyed by an alias name.
+    tool keyed by an alias name. A password param holding literal text prints as
+    `params: { key: stored() }`, resolved like a builder tool's `stored()`; `stored()` anywhere
+    else in the literal is refused.
 
   `mcp().tool()` and `asTool()` print only when compiling them reproduces the stored tool exactly
   (`agent-tools.ts`).
@@ -289,10 +297,12 @@ cannot round-trip through a file, the printer writes it inline as `` js`…` `` 
 | `container.to(x)` | the port taken after the container finishes |
 | `edge(a, 'handle', b)` | a raw handle (`W_RAW_HANDLE`) |
 
-`edge()` maps `'source'` to the out port (how the printer writes it for a condition, router or
-container), `'loop-start-source'`/`'parallel-start-source'` to the start port and
-`'loop-end-source'`/`'parallel-end-source'` to the end port; anything else stays a raw port. The
-start and end child checks do not apply to `edge()`.
+`edge()` reads a handle as canonicalize reads a stored one: `'source'` is the out port (how the
+printer writes it for a condition, router or container), `'error'` the error port, and a loop's
+`'loop-start-source'`/`'loop-end-source'` (a parallel's `'parallel-…'`) its start and end ports.
+Anything else stays a raw port, a subflow handle on another kind of block included. The start and
+end child checks do not apply to `edge()`. The printer writes an `edge()` into a container's child
+inside the container's callback, where both names are visible.
 
 Refused: `.to()` on a condition or router (`E_NO_DEFAULT_OUTPUT`), an unknown branch
 (`E_UNKNOWN_BRANCH`), an edge into a trigger (`E_TARGET_TRIGGER`), `onError` on a block with no

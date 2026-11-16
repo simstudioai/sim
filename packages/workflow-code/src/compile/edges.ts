@@ -1,6 +1,7 @@
 import type { CallExpression, Expression, Node } from '@babel/types'
 import {
   getWorkflowEdgeScopeDropReason,
+  parseWorkflowSourceHandle,
   type WorkflowEdgeScopeBlock,
 } from '@sim/workflow-types/workflow'
 import { portKey } from '../anchors'
@@ -28,23 +29,15 @@ interface Endpoint {
 }
 
 /**
- * The port `edge(a, handle, b)` denotes. The printer writes `edge()` for edges with no fluent form:
- * the `out` port of a condition, router or container (`'source'`), and subflow ports on a block
- * that is not a container. Every other handle is kept verbatim as a raw port.
+ * The port `edge(a, handle, b)` denotes, read as canonicalize reads a stored handle
+ * (`parseWorkflowSourceHandle`): a subflow handle is a subflow port only on a container of its own
+ * kind, so `'loop-start-source'` on a parallel stays a raw port. The printer writes `edge()` for
+ * edges with no fluent form: the `out` port of a condition, router or container (`'source'`), and
+ * raw handles. Branch handles name stored row ids, which source never holds, so they stay raw.
  */
-function portForHandle(handle: string): Port {
-  switch (handle) {
-    case 'source':
-      return { kind: 'out' }
-    case 'loop-start-source':
-    case 'parallel-start-source':
-      return { kind: 'subflowStart' }
-    case 'loop-end-source':
-    case 'parallel-end-source':
-      return { kind: 'subflowEnd' }
-    default:
-      return { kind: 'raw', handle }
-  }
+function portForHandle(handle: string, from: BlockDecl): Port {
+  const parsed = parseWorkflowSourceHandle(handle, containerKindOf(from) ?? undefined, undefined)
+  return parsed.kind === 'branch' ? { kind: 'raw', handle } : parsed
 }
 
 /** Implicit branch keys of a never-persisted branch list. */
@@ -166,6 +159,8 @@ export class EdgeCollector {
       ? branches.rows.map((row) => row.key)
       : IMPLICIT_BRANCHES[branches.kind]
     if (!keys.includes(key)) {
+      // The branch was refused where it was declared; that error already covers this wiring.
+      if (this.ctx.refusedBranches.get(decl.key)?.has(key)) return null
       this.error(
         'E_UNKNOWN_BRANCH',
         `${decl.name} has no branch ${key}.`,
@@ -328,7 +323,7 @@ export class EdgeCollector {
       )
       return null
     }
-    if (this.add(from, portForHandle(handle), to, statement, anchors, true)) {
+    if (this.add(from, portForHandle(handle, from), to, statement, anchors, true)) {
       this.ctx.reporter.report(
         'W_RAW_HANDLE',
         `The handle ${handle} is kept verbatim.`,

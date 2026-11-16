@@ -73,6 +73,7 @@ export const TEST_CATALOG: BlockCatalog = {
     'slack.listChannels': { type: 'slack', operation: 'list_channels' },
     'table.insertRow': { type: 'table', operation: 'insert_row' },
     mail: { type: 'mail' },
+    human: { type: 'human_in_the_loop_v2' },
   },
   blocks: {
     start_trigger: block(
@@ -116,6 +117,12 @@ export const TEST_CATALOG: BlockCatalog = {
         status: { type: 'number' },
         headers: { type: 'json', properties: { contentType: TEXT } },
       }
+    ),
+    human_in_the_loop_v2: block(
+      'human_in_the_loop_v2',
+      [sub('inputFormat', 'input-format', 'array', { structured: 'inputFormat' })],
+      { url: TEXT, submission: ANY },
+      { dynamicOutputs: { source: 'humanForm', param: 'inputFormat' } }
     ),
     condition: block(
       'condition',

@@ -1,7 +1,7 @@
 // @sim-sdk 1
 import { agent, knowledge, knowledgeBase, response, t, trigger, workflow } from '@sim/workflow-sdk'
 
-export default workflow('Doc QA', {}, () => {
+export default workflow('Doc QA', () => {
   const start = trigger.start('Start', { inputFormat: { question: 'string' } })
   const search = knowledge.search('Search docs', {
     knowledgeBaseId: knowledgeBase('docs'),

@@ -856,7 +856,7 @@ export function nestedValue(
       ctx,
       node,
       'codeFile() holds a whole code param.',
-      "Write code: codeFile('./fns/x.js').",
+      "Write code: codeFile('./functions/x.js').",
       site.decl.key
     )
     return undefined

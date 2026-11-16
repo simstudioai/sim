@@ -1,5 +1,6 @@
 import { positionalKeys, positionalTitle } from '../canonicalize/branches'
 import type { BranchKey, CanonicalBranches } from '../model'
+import { setOwn } from '../records'
 import type { MaterializeContext } from './context'
 
 interface BranchWrite {
@@ -41,7 +42,7 @@ export function writeBranches(
     else if (!row.titleMissing) entry.title = positionalTitle(branches.kind, index, rows.length)
     entry.value = row.value
     if (row.key !== defaults[index]) entry.key = row.key
-    for (const [field, value] of Object.entries(row.extra ?? {})) entry[field] = value
+    for (const [field, value] of Object.entries(row.extra ?? {})) setOwn(entry, field, value)
     return entry
   })
   return { value: JSON.stringify(stored), ids }

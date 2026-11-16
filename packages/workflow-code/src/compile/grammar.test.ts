@@ -798,6 +798,12 @@ describe('errors, each with its code, location and hint', () => {
     expect(result.workflow).toBeNull()
   })
 
+  it('reads the header behind a leading byte order mark', () => {
+    const result = run(`\uFEFF${source("const a = api('A', { url: 'x' })")}`)
+    expect(errorsOf(result)).toEqual([])
+    expect(result.sdkMajor).toBe(1)
+  })
+
   it('reports a missing header, a newer major and a missing or repeated default export', () => {
     const noHeader = `${IMPORTS}\nexport default workflow('X', {}, () => {})\n`
     expectDiagnostic(
@@ -823,7 +829,7 @@ describe('rejected constructs', () => {
     'Only blocks can be named. Inline the value, or declare a workflow variable and use vars.x.'
   const DESTRUCTURE = 'Bind the block and use blk.field.'
   const HELPERS =
-    "Helpers aren't supported in workflow files; put logic in a function block with code: codeFile('./fns/x.js')."
+    "Helpers aren't supported in workflow files; put logic in a function block with code: codeFile('./functions/x.js')."
   const CONTROL =
     "Control flow can't create blocks. Use condition()/router() for branching and loop()/parallel() for iteration."
   const SPREAD = 'Write each field explicitly.'
@@ -838,7 +844,7 @@ describe('rejected constructs', () => {
     "Regex and BigInt literals aren't values; write the pattern or number as a string."
   const ELEMENT = "Use a literal key: blk['key'] or blk[0]."
   const IMPORT =
-    "Only '@sim/workflow-sdk' is importable; reference function files with codeFile('./fns/x.js')."
+    "Only '@sim/workflow-sdk' is importable; reference function files with codeFile('./functions/x.js')."
   const EXTRA =
     'A workflow file holds imports and one export default workflow(...); move this inside the workflow body or delete it.'
   const NAMED_EXPORT = 'Only export default workflow(...) is allowed; remove this export.'
@@ -1000,5 +1006,32 @@ describe('defaults rule: an omitted param is the editor default', () => {
       loopType: 'doWhile',
       iterations: 3,
     })
+  })
+})
+
+describe('a condition branch refused where it is declared', () => {
+  const codesOf = (body: string) => run(source(body)).diagnostics.map((d) => d.code)
+
+  it('is reported once, not again where it is wired or annotated', () => {
+    const codes = codesOf(
+      [
+        "const pick = condition('Pick', { yes: js`1 > 0`, no: true }, { branches: { no: { title: 'No' } } })",
+        "const a = api('A', { url: 'x' })",
+        'pick.no.to(a)',
+      ].join('\n')
+    )
+    expect(codes).toContain('E_UNSUPPORTED_SYNTAX')
+    expect(codes).not.toContain('E_UNKNOWN_BRANCH')
+  })
+
+  it('still reports a branch that was never declared', () => {
+    const codes = codesOf(
+      [
+        "const pick = condition('Pick', { yes: js`1 > 0`, no: true })",
+        "const a = api('A', { url: 'x' })",
+        'pick.maybe.to(a)',
+      ].join('\n')
+    )
+    expect(codes).toContain('E_UNKNOWN_BRANCH')
   })
 })
