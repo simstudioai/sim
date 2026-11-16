@@ -189,8 +189,7 @@ function compileToolCall(
     const param = paramOf.get(key) ?? key
     const compiled = compileValue(ctx, property.value, site)
     if (!compiled) return null
-    const written = Object.hasOwn(params, param) || pending.some((entry) => entry.param === param)
-    if (written && !Object.hasOwn(builder.fixed ?? {}, param)) {
+    if (Object.hasOwn(params, param) && !Object.hasOwn(builder.fixed ?? {}, param)) {
       return unsupported(
         ctx,
         property,
@@ -200,6 +199,8 @@ function compileToolCall(
       )
     }
     if (compiled.kind === 'stored') {
+      // Holds the param's place, so the resolved value keeps the order source wrote.
+      setOwn(params, param, null)
       pending.push({ param, key, node: property.value })
       continue
     }
@@ -351,10 +352,11 @@ function countOf(list: readonly CanonicalTool[], tool: CanonicalTool): number {
   return list.filter((entry) => sameKind(entry, tool)).length
 }
 
-/** Whether every param `tool` writes holds the same value in `stored`. */
-function writtenParamsAgree(tool: CanonicalTool, stored: CanonicalTool): boolean {
-  return Object.entries(tool.params).every(([param, value]) =>
-    deepEqual(getOwn(stored.params, param), value)
+/** Whether every param a call writes, other than its `stored()` ones, holds the same value in `stored`. */
+function writtenParamsAgree(call: CompiledToolCall, stored: CanonicalTool): boolean {
+  const pending = new Set(call.pending.map((entry) => entry.param))
+  return Object.entries(call.tool.params).every(
+    ([param, value]) => pending.has(param) || deepEqual(getOwn(stored.params, param), value)
   )
 }
 
@@ -389,14 +391,14 @@ function matchStoredTools(
   }
   for (const { call, index } of needing) {
     const agreeing = candidatesOf(call.tool).filter(({ stored }) =>
-      writtenParamsAgree(call.tool, stored)
+      writtenParamsAgree(call, stored)
     )
     if (agreeing.length === 1 && agreeing[0]) claim(index, agreeing[0].index)
   }
   for (const { call, index } of needing) {
     if (matches.has(index)) continue
     const candidates = candidatesOf(call.tool)
-    const agreeing = candidates.filter(({ stored }) => writtenParamsAgree(call.tool, stored))
+    const agreeing = candidates.filter(({ stored }) => writtenParamsAgree(call, stored))
     const pool = agreeing.length > 0 ? agreeing : candidates
     const positional = pool.find((candidate) => candidate.index === index)
     const only = pool.length === 1 ? pool[0] : undefined

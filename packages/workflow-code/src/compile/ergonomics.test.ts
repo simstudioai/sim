@@ -164,6 +164,12 @@ describe('tool params', () => {
         'E_STORED_VALUE_MISSING'
       )
     })
+
+    it('keeps a stored() param in the place source wrote it, so the print is a fixed point', () => {
+      const text = printed(storedWorkflow)
+      expect(text).toContain("mail.tool({ apiKey: stored(), to: 'a@x.y' })")
+      expect(printed(compiled(text, storedWorkflow))).toBe(text)
+    })
   })
 })
 
