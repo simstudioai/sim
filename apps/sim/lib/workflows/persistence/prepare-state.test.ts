@@ -21,6 +21,34 @@ function block(overrides: Partial<BlockState> & { id: string }): BlockState {
 }
 
 describe('prepareWorkflowStateForPersistence', () => {
+  it('keeps an agent with no tools as it is, without a note', () => {
+    const agent = block({
+      id: 'a',
+      type: 'agent',
+      subBlocks: { tools: { id: 'tools', type: 'tool-input', value: null } },
+    })
+
+    const { state, warnings } = prepareWorkflowStateForPersistence({
+      blocks: { a: agent },
+      edges: [],
+    })
+
+    expect(warnings).toEqual([])
+    expect(state.blocks.a.subBlocks.tools?.value ?? null).toBeNull()
+  })
+
+  it('still resets an agent tools value that is neither empty nor a list, and says so', () => {
+    const agent = block({
+      id: 'a',
+      type: 'agent',
+      subBlocks: { tools: { id: 'tools', type: 'tool-input', value: 7 as never } },
+    })
+
+    const { warnings } = prepareWorkflowStateForPersistence({ blocks: { a: agent }, edges: [] })
+
+    expect(warnings).toEqual(['Block Block a: tools value is not an array; resetting'])
+  })
+
   it('drops edges whose endpoints do not resolve', () => {
     const { state, warnings } = prepareWorkflowStateForPersistence({
       blocks: { a: block({ id: 'a' }), b: block({ id: 'b' }) },
