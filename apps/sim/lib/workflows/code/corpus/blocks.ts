@@ -5,6 +5,10 @@
  * type, hidden ones `null`, and `data.canonicalModes` explicit for every pair.
  */
 
+import {
+  evaluateSubBlockCondition,
+  isCanonicalPair,
+} from '@sim/workflow-code/catalog/canonical-index'
 import type { SeededRandom } from '@sim/workflow-code/proof/random'
 import {
   type FillContext,
@@ -14,8 +18,6 @@ import {
 import {
   buildCanonicalIndexForSurface,
   buildDefaultCanonicalModes,
-  evaluateSubBlockCondition,
-  isCanonicalPair,
   withCanonicalModes,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'

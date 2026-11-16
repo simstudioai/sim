@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
-import { remapConditionBlockIds } from '@/lib/workflows/condition-ids'
-import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import {
   type CanonicalModeOverrides,
   resolveCanonicalMode,
-} from '@/lib/workflows/subblocks/visibility'
+} from '@sim/workflow-code/catalog/canonical-index'
+import { remapConditionBlockIds } from '@/lib/workflows/condition-ids'
+import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('WorkflowRemapInternalIds')

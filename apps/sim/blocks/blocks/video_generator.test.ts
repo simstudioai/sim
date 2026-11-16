@@ -1,5 +1,5 @@
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { describe, expect, it } from 'vitest'
-import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 
 const frame = { id: 'f', name: 'frame.png', url: '', size: 3, type: 'image/png', key: 'k' }

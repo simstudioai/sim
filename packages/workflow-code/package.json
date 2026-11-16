@@ -18,6 +18,10 @@
       "types": "./src/catalog/canonical-index/index.ts",
       "default": "./src/catalog/canonical-index/index.ts"
     },
+    "./sdk": {
+      "types": "./src/sdk.ts",
+      "default": "./src/sdk.ts"
+    },
     "./proof": {
       "types": "./src/proof/index.ts",
       "default": "./src/proof/index.ts"

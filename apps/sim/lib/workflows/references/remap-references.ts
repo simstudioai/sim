@@ -1,6 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, omit, toRecord } from '@sim/utils/object'
+import {
+  buildCanonicalIndex,
+  type CanonicalModeOverrides,
+  evaluateSubBlockCondition,
+  isCanonicalPair,
+  isNonEmptyValue,
+  reindexCanonicalModesByPosition,
+  resolveCanonicalMode,
+  scopeCanonicalModesForTool,
+} from '@sim/workflow-code/catalog/canonical-index'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import type { WorkflowResourceKind } from '@sim/workflow-types/resources'
 import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
@@ -28,17 +38,9 @@ import {
   getTransitiveSubBlockDependents,
 } from '@/lib/workflows/subblocks/dependencies'
 import {
-  buildCanonicalIndex,
   buildSubBlockValues,
-  type CanonicalModeOverrides,
-  evaluateSubBlockCondition,
   getCanonicalSubBlocksForSurface,
-  isCanonicalPair,
-  isNonEmptyValue,
-  reindexCanonicalModesByPosition,
   resolveActiveCanonicalValue,
-  resolveCanonicalMode,
-  scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import {
   buildToolParamVisibilityMap,

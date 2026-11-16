@@ -2,6 +2,7 @@ import { folder as folderTable, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -26,7 +27,6 @@ import {
   replaceCustomBlockInputs,
   type SubBlockTransform,
 } from '@/lib/workflows/references/remap-references'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   deriveForkBlockId,
   type ForkBlockIdResolver,

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toRecordOrNull } from '@sim/utils/object'
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
 import {
   extractFieldsFromSchema,
   parseResponseFormatSafely,
@@ -14,7 +15,6 @@ import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
 import { getJevAnswerOutput } from '@/lib/workflows/blocks/jev-outputs'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { containsReference } from '@/lib/workflows/sanitization/references'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import { classifyStartBlockType, StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
 import {

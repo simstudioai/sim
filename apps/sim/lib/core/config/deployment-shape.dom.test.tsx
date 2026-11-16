@@ -26,6 +26,7 @@ vi.unmock('@/lib/core/config/env-flags')
 vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 vi.mock('@/providers/utils', () => providersUtilsMock)
 
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import {
   getDeploymentShape,
@@ -35,7 +36,6 @@ import {
   useDeploymentShape,
 } from '@/lib/core/config/deployment-shape'
 import { PUBLIC_ENV_ATTRIBUTE } from '@/lib/core/config/env'
-import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { getApiKeyCondition } from '@/blocks/utils'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true

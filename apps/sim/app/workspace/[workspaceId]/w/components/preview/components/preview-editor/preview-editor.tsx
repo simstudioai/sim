@@ -27,12 +27,12 @@ import {
   X,
 } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { ReactFlowProvider } from '@xyflow/react'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndexForSurface,
-  evaluateSubBlockCondition,
   hasAdvancedValues,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,

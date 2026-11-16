@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { SDK_CORE_EXPORTS } from '@sim/workflow-code'
+import { SDK_CORE_EXPORTS } from '@sim/workflow-code/sdk'
 import { describe, expect, it } from 'vitest'
 import * as runtimeModule from './runtime'
 import { SimSdkNotExecutable } from './runtime'

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { generateId, isValidUuid } from '@sim/utils/id'
 import { sortObjectKeysDeep } from '@sim/utils/object'
+import { buildCanonicalIndex, isCanonicalPair } from '@sim/workflow-code/catalog/canonical-index'
 import {
   type BlockRetryConfig,
   normalizeBlockRetryTries,
@@ -21,11 +22,7 @@ import {
 } from '@/lib/permission-groups/operation-access'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
-import {
-  buildCanonicalIndex,
-  buildDefaultCanonicalModes,
-  isCanonicalPair,
-} from '@/lib/workflows/subblocks/visibility'
+import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { getBlock } from '@/blocks/registry'

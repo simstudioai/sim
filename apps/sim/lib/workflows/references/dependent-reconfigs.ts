@@ -1,4 +1,11 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import {
+  buildCanonicalIndex,
+  type CanonicalModeOverrides,
+  evaluateSubBlockCondition,
+  isNonEmptyValue,
+  scopeCanonicalModesForTool,
+} from '@sim/workflow-code/catalog/canonical-index'
 import type { ForkDependentReconfig, ForkResourceUsage } from '@/lib/api/contracts/workspace-fork'
 import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 import {
@@ -18,14 +25,7 @@ import {
   getDependsOnFields,
   getTransitiveSubBlockDependents,
 } from '@/lib/workflows/subblocks/dependencies'
-import {
-  buildCanonicalIndex,
-  buildSubBlockValues,
-  type CanonicalModeOverrides,
-  evaluateSubBlockCondition,
-  isNonEmptyValue,
-  scopeCanonicalModesForTool,
-} from '@/lib/workflows/subblocks/visibility'
+import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import {
   buildToolParamVisibilityMap,
   resolveToolParamRequired,

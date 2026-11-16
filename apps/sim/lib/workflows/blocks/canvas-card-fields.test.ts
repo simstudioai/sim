@@ -4,13 +4,11 @@
  * `@/blocks/registry` is globally mocked for import cost, so these read `BLOCK_REGISTRY`
  * directly — the point of the sweep is that it sees the actual shipped block definitions.
  */
+
+import { buildCanonicalIndex, isCanonicalPair } from '@sim/workflow-code/catalog/canonical-index'
 import { describe, expect, it } from 'vitest'
 import { getCardSubBlocks } from '@/lib/workflows/blocks/canvas-card-fields'
-import {
-  buildCanonicalIndex,
-  isCanonicalPair,
-  shouldUseSubBlockForTriggerModeCanonicalIndex,
-} from '@/lib/workflows/subblocks/visibility'
+import { shouldUseSubBlockForTriggerModeCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig } from '@/blocks/types'
 

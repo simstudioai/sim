@@ -1,6 +1,13 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
+import {
+  buildCanonicalIndex,
+  type CanonicalGroup,
+  type CanonicalModeOverrides,
+  isCanonicalPair,
+  scopeCanonicalModesForTool,
+} from '@sim/workflow-code/catalog/canonical-index'
 import type OpenAI from 'openai'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
@@ -13,14 +20,7 @@ import {
 } from '@/lib/core/utils/records'
 import type { CustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { isFileFieldType, type WorkflowInputField } from '@/lib/workflows/input-format'
-import {
-  buildCanonicalIndex,
-  type CanonicalGroup,
-  type CanonicalModeOverrides,
-  isCanonicalPair,
-  resolveActiveCanonicalValue,
-  scopeCanonicalModesForTool,
-} from '@/lib/workflows/subblocks/visibility'
+import { resolveActiveCanonicalValue } from '@/lib/workflows/subblocks/visibility'
 import { resolveBlockToolId } from '@/lib/workflows/tool-input/identity'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockToolParamsContext, SubBlockConfig } from '@/blocks/types'

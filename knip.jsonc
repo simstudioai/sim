@@ -176,12 +176,9 @@
     },
     "packages/sim-setup": { "includeEntryExports": false },
     // The workflow-code contract is built ahead of its consumers (the catalog projection, the
-    // source use cases and @sim/workflow-sdk codegen), and the parser lands with its compiler.
-    // Wave 3 of the workflow-code build removes both settings once those import it.
-    "packages/workflow-code": {
-      "includeEntryExports": false,
-      "ignoreDependencies": ["@babel/parser"]
-    },
+    // source use cases and @sim/workflow-sdk codegen). Wave 3 of the workflow-code build removes
+    // this setting once those import it.
+    "packages/workflow-code": { "includeEntryExports": false },
     // The SDK's codegen is consumed by the catalog route and `sim types` in Wave 3.
     "packages/workflow-sdk": {
       "includeEntryExports": false,

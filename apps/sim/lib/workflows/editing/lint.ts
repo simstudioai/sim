@@ -1,5 +1,6 @@
 import { toRecordOrNull } from '@sim/utils/object'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
 import { MCP_STRUCTURED_CONTENT_OUTPUT } from '@/lib/mcp/output-schema'
 import {
   collectPredicateFieldNames,
@@ -12,7 +13,6 @@ import {
   getResponseFormatOutputs,
 } from '@/lib/workflows/blocks/outputs'
 import { quotedBlockLabel } from '@/lib/workflows/labels'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import type { ManualRunEntryIssue } from '@/lib/workflows/triggers/manual-run'
 import { getBlock } from '@/blocks'
 import {

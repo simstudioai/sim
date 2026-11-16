@@ -1,5 +1,5 @@
 import { compareStrings, stripVersionSuffix } from '@sim/utils/string'
-import { SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from '@sim/workflow-code'
+import { SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from '@sim/workflow-code/sdk'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 
 /**

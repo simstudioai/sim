@@ -4,7 +4,9 @@
  * map, splits each dotted path into namespaces, and names the generated type aliases after it.
  */
 
-import { type BlockCatalog, type CatalogBuilder, SDK_CORE_EXPORTS } from '@sim/workflow-code'
+import { compareStrings } from '@sim/utils/string'
+import type { BlockCatalog, CatalogBuilder } from '@sim/workflow-code'
+import { SDK_CORE_EXPORTS } from '@sim/workflow-code/sdk'
 import { isIdentifier, pascal, RESERVED_WORDS } from './emit'
 
 /**
@@ -65,17 +67,13 @@ export interface BuilderEntry {
   typeName: string
 }
 
-function compareKeys(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0
-}
-
 /**
  * Validates the builders map and returns its entries sorted by key. Throws on a name the emitter
  * cannot declare: a non-identifier or reserved segment, a root that redeclares a core value, a
  * `tool` segment that would hide the tool form, or a builder whose block type is missing.
  */
 export function builderEntries(catalog: BlockCatalog): BuilderEntry[] {
-  const keys = Object.keys(catalog.builders).sort(compareKeys)
+  const keys = Object.keys(catalog.builders).sort(compareStrings)
   const entries: BuilderEntry[] = []
   const namespaces = new Set<string>()
   for (const key of keys) {

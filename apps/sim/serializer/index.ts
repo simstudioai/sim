@@ -1,6 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
+import {
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+  getCanonicalValues,
+  isCanonicalPair,
+  isNonEmptyValue,
+  resolveCanonicalMode,
+} from '@sim/workflow-code/catalog/canonical-index'
 import {
   generateLoopBlocks,
   generateParallelBlocks,
@@ -9,17 +18,10 @@ import { resolveBlockRetryConfig } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import { migrateGreenhouseAgentInputs } from '@/lib/workflows/migrations/greenhouse-agent-inputs'
 import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
-  buildCanonicalIndex,
   buildSubBlockValues,
-  evaluateSubBlockCondition,
-  getCanonicalValues,
-  isCanonicalPair,
-  isNonEmptyValue,
   isSubBlockHidden,
   isToolInputOnlySubBlock,
-  resolveCanonicalMode,
   withCanonicalModes,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'

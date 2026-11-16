@@ -6,10 +6,6 @@ const { mockLoadAllSelectorOptions } = vi.hoisted(() => ({
   mockLoadAllSelectorOptions: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/subblocks/visibility', () => ({
-  isNonEmptyValue: (v: unknown) => v !== null && v !== undefined && v !== '',
-}))
-
 vi.mock('@/triggers/constants', () => ({
   SYSTEM_SUBBLOCK_IDS: [],
   TRIGGER_RUNTIME_SUBBLOCK_IDS: [],

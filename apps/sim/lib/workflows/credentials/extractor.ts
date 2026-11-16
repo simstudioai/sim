@@ -1,11 +1,14 @@
 import { isPlainRecord } from '@sim/utils/object'
+import {
+  evaluateSubBlockCondition,
+  isNonEmptyValue,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { isWholeEnvVarReference } from '@/lib/workflows/blocks/fallback-models'
 import { isRemovedSubblockId } from '@/lib/workflows/migrations/subblock-migrations'
 import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
 import { setValueAtPath } from '@/lib/workflows/search-replace/value-walker'
-import { evaluateSubBlockCondition, isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
 import { parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'

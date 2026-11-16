@@ -7,6 +7,7 @@ import {
 } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { principalAuditSource } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -29,10 +30,7 @@ import {
 } from '@/lib/workflows/persistence/replace-normalized-state'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
-import {
-  buildSubBlockValues,
-  evaluateSubBlockCondition,
-} from '@/lib/workflows/subblocks/visibility'
+import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import {
   getToolBindingAuthoringSchema,
   validateToolBindingAuthoring,

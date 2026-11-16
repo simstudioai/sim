@@ -15,23 +15,6 @@ import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import type { SubBlockConfig } from '@/blocks/types'
 
-export {
-  buildCanonicalIndex,
-  type CanonicalGroup,
-  type CanonicalIndex,
-  type CanonicalMode,
-  type CanonicalModeOverrides,
-  type CanonicalValueSelection,
-  evaluateSubBlockCondition,
-  getCanonicalValues,
-  isCanonicalPair,
-  isNonEmptyValue,
-  reindexCanonicalModesByPosition,
-  resolveCanonicalMode,
-  type SubBlockCondition,
-  scopeCanonicalModesForTool,
-} from '@sim/workflow-code/catalog/canonical-index'
-
 interface TriggerVisibilityBlockConfig {
   category?: string
   triggers?: {

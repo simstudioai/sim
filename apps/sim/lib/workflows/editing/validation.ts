@@ -2,6 +2,12 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isPlainRecord, omit } from '@sim/utils/object'
+import {
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+  isCanonicalPair,
+  resolveCanonicalMode,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { mcpOperationPolicySchema } from '@/lib/mcp/operation-policy'
@@ -27,12 +33,8 @@ import {
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
-  buildCanonicalIndex,
   buildSubBlockValues,
-  evaluateSubBlockCondition,
   getCanonicalSubBlocksForSurface,
-  isCanonicalPair,
-  resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { validateToolBindingAuthoring } from '@/lib/workflows/tool-input/authoring'
 import { getBlock } from '@/blocks/registry'

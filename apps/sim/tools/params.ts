@@ -4,11 +4,13 @@ import {
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   isCanonicalPair,
+  resolveCanonicalMode,
+  type SubBlockCondition,
+} from '@sim/workflow-code/catalog/canonical-index'
+import {
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isTriggerModeSubBlock,
-  resolveCanonicalMode,
-  type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
 import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
 import type {
