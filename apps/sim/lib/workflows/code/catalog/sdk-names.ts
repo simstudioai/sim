@@ -10,7 +10,7 @@ import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
  * afterwards only ever added to. The stored operation id is never renamed by any of this.
  */
 interface SdkNamesBlockEntry {
-  /** Dotted builder namespace (`slack`, `legacy.slackV1`). */
+  /** Dotted builder namespace (`slack`, `legacy.slackV1`, `trigger.webhook`). */
   namespace: string
   /** Operation dropdown id → method name, for blocks with an `operation` dropdown. */
   methods?: Record<string, string>
@@ -39,6 +39,11 @@ export interface SdkNameSource {
   type: string
   /** Hidden from the toolbar: a superseded version or a sunset block. */
   hidden: boolean
+  /**
+   * A trigger block (registry `category: 'triggers'`): its builder is itself a trigger, named under
+   * `trigger.` (`trigger.start`, `trigger.webhook`; s2 §2), with no per-trigger methods.
+   */
+  triggerBlock: boolean
   operations: Array<{ id: string; label: string }>
   triggers: Array<{ id: string; provider: string }>
   params: Record<SdkSurface, SdkParamSource[]>
@@ -83,7 +88,12 @@ const NAMESPACE_SEEDS: Record<string, string> = {
   workflow_input: 'runWorkflow',
   human_in_the_loop_v2: 'human',
   variables: 'setVariables',
+  generic_webhook: 'webhook',
 }
+
+/** The root a visible trigger block's namespace sits under. */
+const TRIGGER_ROOT = 'trigger'
+const TRIGGER_TYPE_SUFFIX = /_trigger$/
 
 /** Members a generated namespace declares besides its methods (s2 §2: `const tool`). */
 const NAMESPACE_MEMBERS = new Set<string>(['tool'])
@@ -138,21 +148,30 @@ function pickFree(candidates: string[], taken: ReadonlySet<string>, fallback: st
 
 /**
  * A visible block takes its seed, else its unversioned camelCased type, else the full type; a
+ * visible trigger block takes the same under `trigger.`, with a `_trigger` suffix dropped; a
  * toolbar-hidden one (superseded or sunset) lives under `legacy.` by its full type. The first free
  * usable candidate wins, else the first candidate with a numeric suffix.
  */
 function defaultNamespace(source: SdkNameSource, taken: ReadonlySet<string>): string {
   const full = toCamelIdentifier(source.type)
-  const prefix = source.hidden ? 'legacy.' : ''
+  const underTrigger = source.triggerBlock && !source.hidden
+  const prefix = source.hidden ? 'legacy.' : underTrigger ? `${TRIGGER_ROOT}.` : ''
+  const unversioned = stripVersionSuffix(source.type)
   const candidates = (
     source.hidden
       ? [full]
-      : [NAMESPACE_SEEDS[source.type], toCamelIdentifier(stripVersionSuffix(source.type)), full]
+      : [
+          NAMESPACE_SEEDS[source.type],
+          toCamelIdentifier(
+            underTrigger ? unversioned.replace(TRIGGER_TYPE_SUFFIX, '') : unversioned
+          ),
+          full,
+        ]
   ).filter(
     (candidate): candidate is string =>
       candidate !== undefined &&
       isUsableIdentifier(candidate) &&
-      (source.hidden || !SDK_OWNED_ROOTS.has(candidate))
+      (source.hidden || underTrigger || !SDK_OWNED_ROOTS.has(candidate))
   )
   const base = candidates[0] ?? `${full.replace(/^(?=\d)/, '_')}Block`
   for (const candidate of [...candidates, base]) {
@@ -278,7 +297,7 @@ function namespaceIsValid(namespace: string): boolean {
   const segments = namespace.split('.')
   if (segments.some((segment) => !isUsableIdentifier(segment))) return false
   if (segments.length === 1) return !SDK_OWNED_ROOTS.has(namespace)
-  return segments.length === 2 && segments[0] === 'legacy'
+  return segments.length === 2 && (segments[0] === 'legacy' || segments[0] === TRIGGER_ROOT)
 }
 
 /**
@@ -312,11 +331,29 @@ export function validateSdkNames(names: SdkNamesFile, sources: readonly SdkNameS
     }
   }
 
+  const triggerMethodRoots = new Map<string, string>()
+  for (const [type, entry] of Object.entries(names.blocks)) {
+    if (entry.triggers && Object.keys(entry.triggers).length > 0) {
+      triggerMethodRoots.set(`${TRIGGER_ROOT}.${entry.namespace}`, type)
+    }
+  }
+  for (const [type, entry] of Object.entries(names.blocks)) {
+    const owner = triggerMethodRoots.get(entry.namespace)
+    if (owner) {
+      issues.push(
+        `${type}: namespace "${entry.namespace}" collides with ${owner}'s trigger methods`
+      )
+    }
+  }
+
   for (const source of sources) {
     const entry = names.blocks[source.type]
     if (!entry) {
       issues.push(`${source.type}: missing entry`)
       continue
+    }
+    if (entry.namespace.startsWith(`${TRIGGER_ROOT}.`) && !source.triggerBlock) {
+      issues.push(`${source.type}: namespace "${entry.namespace}" is only for trigger blocks`)
     }
     for (const operation of source.operations) {
       if (!entry.methods || !Object.hasOwn(entry.methods, operation.id)) {
@@ -390,15 +427,18 @@ export function sdkNameSource(
         : { name: subBlock.id, identity: `id:${subBlock.id}` }
     )
   }
-  const triggers = block.triggers?.enabled
-    ? block.triggers.available.flatMap((id) => {
-        const provider = triggerProvider(id)
-        return provider === undefined ? [] : [{ id, provider }]
-      })
-    : []
+  const triggerBlock = block.category === 'triggers'
+  const triggers =
+    block.triggers?.enabled && !triggerBlock
+      ? block.triggers.available.flatMap((id) => {
+          const provider = triggerProvider(id)
+          return provider === undefined ? [] : [{ id, provider }]
+        })
+      : []
   return {
     type: block.type,
     hidden: block.hideFromToolbar === true,
+    triggerBlock,
     operations: operationOptions(block),
     triggers,
     params,

@@ -116,6 +116,7 @@ export interface CatalogSubBlock {
   paramVisibility?: string
   emptyIsValid?: boolean
   language?: string
+  /** Holds a list: a multi-file upload, or a dropdown/combobox with registry `multiSelect`. */
   multiple?: boolean
   min?: number
   max?: number

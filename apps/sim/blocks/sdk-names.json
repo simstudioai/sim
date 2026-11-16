@@ -4199,10 +4199,7 @@
       }
     },
     "generic_webhook": {
-      "namespace": "genericWebhook",
-      "triggers": {
-        "generic_webhook": "webhook"
-      }
+      "namespace": "trigger.webhook"
     },
     "github": {
       "namespace": "legacy.github",
@@ -6043,10 +6040,7 @@
       "namespace": "imageGenerator"
     },
     "imap": {
-      "namespace": "imap",
-      "triggers": {
-        "imap_poller": "poller"
-      }
+      "namespace": "trigger.imap"
     },
     "incidentio": {
       "namespace": "legacy.incidentio",
@@ -10692,10 +10686,7 @@
       "namespace": "router"
     },
     "rss": {
-      "namespace": "rss",
-      "triggers": {
-        "rss_poller": "poller"
-      }
+      "namespace": "trigger.rss"
     },
     "s3": {
       "namespace": "legacy.s3",
@@ -11006,7 +10997,7 @@
       }
     },
     "schedule": {
-      "namespace": "schedule"
+      "namespace": "trigger.schedule"
     },
     "search": {
       "namespace": "search"
@@ -11526,10 +11517,7 @@
       }
     },
     "sim_workspace_event": {
-      "namespace": "simWorkspaceEvent",
-      "triggers": {
-        "sim_workspace_event": "workspaceEvent"
-      }
+      "namespace": "trigger.simWorkspaceEvent"
     },
     "similarweb": {
       "namespace": "legacy.similarweb",
@@ -12725,7 +12713,7 @@
       }
     },
     "start_trigger": {
-      "namespace": "startTrigger"
+      "namespace": "trigger.start"
     },
     "starter": {
       "namespace": "legacy.starter"

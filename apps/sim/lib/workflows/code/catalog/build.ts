@@ -117,8 +117,9 @@ function addBuilder(
 /**
  * Builder entries for one block from its frozen names: one per operation (`slack.sendMessage`),
  * or the bare namespace for a block without an operation dropdown, plus one per trigger
- * (`trigger.gmail.poller`) pinning `selectedTriggerId` where the block stores it. A block with no
- * names entry gets none; the SDK's generic `block(type, …)` builder reaches it.
+ * (`trigger.gmail.poller`) pinning `selectedTriggerId` where the block stores it. A trigger block
+ * (`category: 'triggers'`) is its own trigger: its namespace already sits under `trigger.`. A block
+ * with no names entry gets none; the SDK's generic `block(type, …)` builder reaches it.
  */
 function addBlockBuilders(
   builders: Record<string, CatalogBuilder>,
@@ -140,7 +141,7 @@ function addBlockBuilders(
   } else {
     addBuilder(builders, namespace, { type: block.type })
   }
-  if (!block.triggers?.enabled || !triggerMethods) return
+  if (!block.triggers?.enabled || !triggerMethods || block.category === 'triggers') return
   const pinsTrigger = block.subBlocks.some((subBlock) => subBlock.id === 'selectedTriggerId')
   for (const triggerId of block.triggers.available) {
     const method = triggerMethods[triggerId]
@@ -202,10 +203,9 @@ export function buildBlockCatalog(
     if (block.triggers?.enabled) for (const id of block.triggers.available) triggerIds.add(id)
   }
 
-  for (const type of ['loop', 'parallel'] as const) {
-    blocks.push([type, containerBlock(type)])
-    addBuilder(builders, type, { type })
-  }
+  // `core.d.ts` declares the container builders (`loop.forEach`, `parallel.collection`, ...), and
+  // print and compile resolve them without the builders map.
+  for (const type of ['loop', 'parallel'] as const) blocks.push([type, containerBlock(type)])
 
   const triggers: Array<[string, CatalogTrigger]> = []
   for (const id of triggerIds) {

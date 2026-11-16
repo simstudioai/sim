@@ -15,6 +15,7 @@ const EMPTY: SdkNamesFile = { version: 1, blocks: {} }
 function source(overrides: Partial<SdkNameSource> & { type: string }): SdkNameSource {
   return {
     hidden: false,
+    triggerBlock: false,
     operations: [],
     triggers: [],
     params: { action: [], trigger: [] },
@@ -83,6 +84,19 @@ describe('extendSdkNames', () => {
     expect(names.blocks.condition.namespace).toBe('condition')
   })
 
+  it('names visible trigger blocks under trigger, and hidden ones under legacy', () => {
+    const { names } = extendSdkNames(EMPTY, [
+      source({ type: 'start_trigger', triggerBlock: true }),
+      source({ type: 'generic_webhook', triggerBlock: true }),
+      source({ type: 'schedule', triggerBlock: true }),
+      source({ type: 'api_trigger', triggerBlock: true, hidden: true }),
+    ])
+    expect(names.blocks.start_trigger.namespace).toBe('trigger.start')
+    expect(names.blocks.generic_webhook.namespace).toBe('trigger.webhook')
+    expect(names.blocks.schedule.namespace).toBe('trigger.schedule')
+    expect(names.blocks.api_trigger.namespace).toBe('legacy.apiTrigger')
+  })
+
   it('aliases oauthCredential to credential per surface, unless that surface has a credential', () => {
     const { names } = extendSdkNames(EMPTY, [
       source({
@@ -148,6 +162,26 @@ describe('validateSdkNames', () => {
       'a: method "go" names both x and y',
       'b: action param "credential" names id:credential, pair:oauthCredential',
       'b: namespace "shared" collides with a',
+    ])
+  })
+
+  it('keeps trigger namespaces to trigger blocks and clear of trigger methods', () => {
+    const names: SdkNamesFile = {
+      version: 1,
+      blocks: {
+        crm: { namespace: 'trigger.crm' },
+        mail: { namespace: 'mail', triggers: { mail_poller: 'poller' } },
+        mail_watch: { namespace: 'trigger.mail' },
+      },
+    }
+    expect(
+      validateSdkNames(names, [
+        source({ type: 'crm' }),
+        source({ type: 'mail_watch', triggerBlock: true }),
+      ])
+    ).toEqual([
+      'crm: namespace "trigger.crm" is only for trigger blocks',
+      'mail_watch: namespace "trigger.mail" collides with mail\'s trigger methods',
     ])
   })
 

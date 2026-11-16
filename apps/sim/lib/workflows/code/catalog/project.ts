@@ -272,7 +272,7 @@ function projectSubBlock(subBlock: SubBlockConfig, ctx: SubBlockContext): Catalo
   assign(projected, 'paramVisibility', subBlock.paramVisibility)
   assign(projected, 'emptyIsValid', subBlock.emptyIsValid)
   assign(projected, 'language', subBlock.language)
-  assign(projected, 'multiple', subBlock.multiple)
+  if (subBlock.multiple === true || subBlock.multiSelect === true) projected.multiple = true
   assign(projected, 'min', subBlock.min)
   assign(projected, 'max', subBlock.max)
   assign(projected, 'step', subBlock.step)
@@ -408,12 +408,15 @@ function projectGraph(block: BlockConfig): CatalogBlockGraph {
 /**
  * Outputs derived from params at run time, mirroring `getEffectiveBlockOutputs`: the agent's
  * `responseFormat`, the human-in-the-loop resume form, and any block whose Start-style
- * `input-format` field adds outputs.
+ * `input-format` field adds outputs. A trigger block (`category: 'triggers'`, such as the generic
+ * webhook) declares that field on the trigger surface, and it still adds outputs.
  */
 function projectDynamicOutputs(block: BlockConfig): CatalogBlock['dynamicOutputs'] {
   if (block.type === 'agent') return { source: 'responseFormat', param: 'responseFormat' }
   const inputFormat = block.subBlocks.find(
-    (subBlock) => subBlock.type === 'input-format' && subBlockSurface(subBlock) === 'action'
+    (subBlock) =>
+      subBlock.type === 'input-format' &&
+      (subBlockSurface(subBlock) === 'action' || block.category === 'triggers')
   )
   if (!inputFormat) return undefined
   return isHumanInTheLoopBlock(block.type)
