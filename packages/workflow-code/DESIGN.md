@@ -264,3 +264,7 @@ instead of failing at run time.
   - `CompileInput.knownKeys` (the lock's block keys) gates the new `meta.key` override, which is
     how source carries a legacy `name~n` collision key or a reserved name (`Loop`, `Parallel`)
     without being able to introduce one. A violation is `E_KEY_OVERRIDE`.
+  - Wave 4D: it is stored in the `workflow_code_meta(workflow_id pk → workflow on delete
+    cascade, meta jsonb, updated_at)` side table, not on the `workflow` row, so no `select()` of
+    the hot row loads it. Only source get/apply, duplicate, fork/promote copy and the prune on
+    block or variable delete read it. An empty value deletes the row.

@@ -13,8 +13,8 @@ import {
 } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { isEmptyCodeMeta, remapCodeMeta } from '@sim/workflow-code/code-meta'
-import { readCodeMetaValue } from '@sim/workflow-persistence/code-meta'
+import { remapCodeMeta } from '@sim/workflow-code/code-meta'
+import { readWorkflowCodeMeta, writeWorkflowCodeMeta } from '@sim/workflow-persistence/code-meta'
 import {
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
@@ -459,18 +459,16 @@ export async function duplicateWorkflow(
     }
 
     // The copy keeps the source's bindings, order and comments under its new block ids.
-    const sourceCodeMeta = readCodeMetaValue(sourceWorkflowId, source.codeMeta)
-    const codeMeta = sourceCodeMeta
-      ? remapCodeMeta(sourceCodeMeta, blockIdMapping, varIdMapping)
-      : null
+    const sourceCodeMeta = await readWorkflowCodeMeta(tx, sourceWorkflowId)
+    if (sourceCodeMeta) {
+      await writeWorkflowCodeMeta(
+        tx,
+        newWorkflowId,
+        remapCodeMeta(sourceCodeMeta, blockIdMapping, varIdMapping)
+      )
+    }
 
-    await tx
-      .update(workflow)
-      .set({
-        updatedAt: now,
-        codeMeta: codeMeta && !isEmptyCodeMeta(codeMeta) ? codeMeta : null,
-      })
-      .where(eq(workflow.id, newWorkflowId))
+    await tx.update(workflow).set({ updatedAt: now }).where(eq(workflow.id, newWorkflowId))
 
     const finalWorkspaceId = workspaceId || source.workspaceId
     if (!finalWorkspaceId) {

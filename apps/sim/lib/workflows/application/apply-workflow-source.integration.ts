@@ -19,6 +19,7 @@ import {
   webhook,
   workflow,
   workflowBlocks,
+  workflowCodeMeta,
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
@@ -433,10 +434,10 @@ check(
 
     expect(result.lock.blocks.score.binding).toBe('scoring')
     const [row] = await db
-      .select({ codeMeta: workflow.codeMeta })
-      .from(workflow)
-      .where(eq(workflow.id, seeded.workflowId))
-    expect(row.codeMeta).toMatchObject({ v: 1, bindings: { [seeded.scoreId]: 'scoring' } })
+      .select({ meta: workflowCodeMeta.meta })
+      .from(workflowCodeMeta)
+      .where(eq(workflowCodeMeta.workflowId, seeded.workflowId))
+    expect(row.meta).toMatchObject({ v: 1, bindings: { [seeded.scoreId]: 'scoring' } })
     const again = await getSource(seeded.workflowId)
     expect(again.lock.blocks.score.binding).toBe('scoring')
     expect(again.files['workflow.ts']).toContain('const scoring = ')

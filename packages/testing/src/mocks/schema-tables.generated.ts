@@ -90,8 +90,8 @@ export const GENERATED_SCHEMA_TABLES = {
     'lastRunAt',
     'variables',
     'archivedAt',
-    'codeMeta',
   ],
+  workflowCodeMeta: ['workflowId', 'meta', 'updatedAt'],
   workflowBlocks: [
     'id',
     'workflowId',
