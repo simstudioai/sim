@@ -5,6 +5,7 @@ import {
 } from '@/tools/incidentio/types'
 import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const actionsUpdateTool: ToolConfig<
   IncidentioActionsUpdateParams,
@@ -53,7 +54,7 @@ export const actionsUpdateTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/actions/${encodeURIComponent(params.id.trim())}`,
+    url: (params) => `https://api.incident.io/v3/actions/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/json',

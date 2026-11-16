@@ -2,9 +2,10 @@ import type {
   GitLabListPipelineJobsParams,
   GitLabListPipelineJobsResponse,
 } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabListPipelineJobsTool: ToolConfig<
   GitLabListPipelineJobsParams,
@@ -70,7 +71,7 @@ export const gitlabListPipelineJobsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
+      const encodedId = encodeGitLabResourceId(params.projectId)
       const queryParams = new URLSearchParams()
 
       if (params.scope) queryParams.append('scope', params.scope)
@@ -79,7 +80,7 @@ export const gitlabListPipelineJobsTool: ToolConfig<
       if (params.page) queryParams.append('page', String(params.page))
 
       const query = queryParams.toString()
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipelines/${params.pipelineId}/jobs${query ? `?${query}` : ''}`
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipelines/${safeUrlPathSegment(params.pipelineId, 'pipelineId')}/jobs${query ? `?${query}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

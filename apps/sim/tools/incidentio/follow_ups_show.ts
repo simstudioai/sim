@@ -1,9 +1,12 @@
-import type {
-  IncidentioFollowUpsShowParams,
-  IncidentioFollowUpsShowResponse,
+import {
+  INCIDENTIO_FOLLOW_UP_SUMMARY_OUTPUT_PROPERTIES,
+  type IncidentioFollowUpsShowParams,
+  type IncidentioFollowUpsShowResponse,
 } from '@/tools/incidentio/types'
+import { mapIncidentioFollowUpSummary } from '@/tools/incidentio/utils'
 import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const followUpsShowTool: ToolConfig<
   IncidentioFollowUpsShowParams,
@@ -31,7 +34,7 @@ export const followUpsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/follow_ups/${params.id.trim()}`,
+    url: (params) => `https://api.incident.io/v3/follow_ups/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -45,46 +48,7 @@ export const followUpsShowTool: ToolConfig<
     return {
       success: true,
       output: {
-        follow_up: {
-          id: data.follow_up.id,
-          title: data.follow_up.title || '',
-          description: data.follow_up.description,
-          assignee: data.follow_up.assignee
-            ? {
-                id: data.follow_up.assignee.id,
-                name: data.follow_up.assignee.name,
-                email: data.follow_up.assignee.email,
-              }
-            : undefined,
-          status: data.follow_up.status,
-          priority: data.follow_up.priority
-            ? {
-                id: data.follow_up.priority.id,
-                name: data.follow_up.priority.name,
-                description: data.follow_up.priority.description,
-                rank: data.follow_up.priority.rank,
-              }
-            : undefined,
-          created_at: data.follow_up.created_at,
-          updated_at: data.follow_up.updated_at,
-          incident_id: data.follow_up.incident_id,
-          creator: data.follow_up.creator
-            ? {
-                id: data.follow_up.creator.id,
-                name: data.follow_up.creator.name,
-                email: data.follow_up.creator.email,
-              }
-            : undefined,
-          completed_at: data.follow_up.completed_at,
-          labels: data.follow_up.labels || [],
-          external_issue_reference: data.follow_up.external_issue_reference
-            ? {
-                provider: data.follow_up.external_issue_reference.provider,
-                issue_name: data.follow_up.external_issue_reference.issue_name,
-                issue_permalink: data.follow_up.external_issue_reference.issue_permalink,
-              }
-            : undefined,
-        },
+        follow_up: mapIncidentioFollowUpSummary(data.follow_up),
       },
     }
   },
@@ -93,59 +57,7 @@ export const followUpsShowTool: ToolConfig<
     follow_up: {
       type: 'object',
       description: 'Follow-up details',
-      properties: {
-        id: { type: 'string', description: 'Follow-up ID' },
-        title: { type: 'string', description: 'Follow-up title' },
-        description: { type: 'string', description: 'Follow-up description' },
-        assignee: {
-          type: 'object',
-          description: 'Assigned user',
-          properties: {
-            id: { type: 'string', description: 'User ID' },
-            name: { type: 'string', description: 'User name' },
-            email: { type: 'string', description: 'User email' },
-          },
-        },
-        status: { type: 'string', description: 'Follow-up status' },
-        priority: {
-          type: 'object',
-          description: 'Follow-up priority',
-          optional: true,
-          properties: {
-            id: { type: 'string', description: 'Priority ID' },
-            name: { type: 'string', description: 'Priority name' },
-            description: { type: 'string', description: 'Priority description' },
-            rank: { type: 'number', description: 'Priority rank' },
-          },
-        },
-        created_at: { type: 'string', description: 'Creation timestamp' },
-        updated_at: { type: 'string', description: 'Last update timestamp' },
-        incident_id: { type: 'string', description: 'Associated incident ID' },
-        creator: {
-          type: 'object',
-          description: 'User who created the follow-up',
-          properties: {
-            id: { type: 'string', description: 'User ID' },
-            name: { type: 'string', description: 'User name' },
-            email: { type: 'string', description: 'User email' },
-          },
-        },
-        completed_at: { type: 'string', description: 'Completion timestamp' },
-        labels: {
-          type: 'array',
-          description: 'Labels associated with the follow-up',
-          items: { type: 'string' },
-        },
-        external_issue_reference: {
-          type: 'object',
-          description: 'External issue tracking reference',
-          properties: {
-            provider: { type: 'string', description: 'External provider name' },
-            issue_name: { type: 'string', description: 'External issue name or ID' },
-            issue_permalink: { type: 'string', description: 'Permalink to external issue' },
-          },
-        },
-      },
+      properties: INCIDENTIO_FOLLOW_UP_SUMMARY_OUTPUT_PROPERTIES,
     },
   },
 }

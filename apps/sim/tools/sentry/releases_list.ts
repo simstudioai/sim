@@ -2,6 +2,7 @@ import type { SentryListReleasesParams, SentryListReleasesResponse } from '@/too
 import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListReleasesResponse> = {
   id: 'sentry_releases_list',
@@ -29,8 +30,7 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Filter releases by numeric project ID (e.g., "4501234"). This organization-scoped endpoint requires the numeric project ID, not the project slug.',
+      description: 'Filter releases by project ID or slug (e.g., "4501234" or "my-project")',
     },
     query: {
       type: 'string',
@@ -54,7 +54,7 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
 
   request: {
     url: (params) => {
-      const baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${params.organizationSlug}/releases/`
+      const baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/releases/`
       const queryParams: string[] = []
 
       if (params.projectSlug && params.projectSlug !== null && params.projectSlug !== '') {
@@ -166,6 +166,8 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
           nextCursor,
           hasMore,
         },
+        nextCursor,
+        hasMore,
       },
     }
   },
@@ -296,6 +298,16 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
           description: 'Whether there are more results available',
         },
       },
+    },
+    nextCursor: {
+      type: 'string',
+      description:
+        'Cursor for the next page of results; pass it as the Pagination Cursor to fetch that page',
+      optional: true,
+    },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether there are more results available',
     },
   },
 }

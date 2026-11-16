@@ -123,7 +123,8 @@ ${files
               filename: { type: 'string', description: 'File path' },
               status: {
                 type: 'string',
-                description: 'Change type (added/modified/deleted/renamed)',
+                description:
+                  'Change type (added, removed, modified, renamed, copied, changed, unchanged)',
               },
               additions: { type: 'number', description: 'Lines added' },
               deletions: { type: 'number', description: 'Lines deleted' },
@@ -134,7 +135,7 @@ ${files
             },
           },
         },
-        total_count: { type: 'number', description: 'Total number of files changed' },
+        total_count: { type: 'number', description: 'Number of files in this page' },
       },
     },
   },
@@ -170,6 +171,6 @@ export const getPRFilesV2Tool: ToolConfig<GetPRFilesParams, any> = {
         properties: PR_FILE_OUTPUT_PROPERTIES,
       },
     },
-    count: { type: 'number', description: 'Total number of files' },
+    count: { type: 'number', description: 'Number of files in this page' },
   },
 }

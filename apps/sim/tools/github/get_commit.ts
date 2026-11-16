@@ -43,7 +43,8 @@ interface GetCommitResponse {
 export const getCommitTool: ToolConfig<GetCommitParams, GetCommitResponse> = {
   id: 'github_get_commit',
   name: 'GitHub Get Commit',
-  description: 'Get detailed information about a specific commit including files changed and stats',
+  description:
+    'Get detailed information about a specific commit including files changed and stats. GitHub returns at most the first 300 changed files of a larger commit.',
   version: '1.0.0',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 

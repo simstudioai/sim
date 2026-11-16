@@ -1,3 +1,4 @@
+import { encodeContentPath } from '@/tools/github/content-path'
 import type { CreateFileParams, FileOperationResponse } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -57,7 +58,7 @@ export const createFileTool: ToolConfig<CreateFileParams, FileOperationResponse>
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/contents/${params.path}`,
+      `https://api.github.com/repos/${params.owner}/${params.repo}/contents/${encodeContentPath(params.path)}`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

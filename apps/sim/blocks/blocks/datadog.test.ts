@@ -99,3 +99,48 @@ describe('datadog numeric coercion', () => {
     expect(params[key]).toBe(0)
   })
 })
+
+/**
+ * On a tool call (Agent tool row, Pi, Human-in-the-loop) the operation arrives only in
+ * `context`, and the model's args are keyed by the tool's param names. The mapper's result is
+ * spread over those args, so a branch that renames a block field onto a tool param must keep
+ * the model's value when the block field is blank.
+ */
+function toolCallParams(
+  operation: string,
+  modelArgs: Record<string, unknown>
+): Record<string, unknown> {
+  const params = { ...baseInputs, ...modelArgs }
+  return { ...params, ...(mapParams?.(params, { operation }) as Record<string, unknown>) }
+}
+
+describe('datadog tool-call params', () => {
+  it.each([
+    ['datadog_create_monitor', { query: 'avg:cpu{*} > 90', tags: 'team:a', priority: 2 }],
+    ['datadog_mute_monitor', { monitorId: '123' }],
+    ['datadog_query_logs', { query: 'status:error', from: 'now-1h', to: 'now', limit: 20 }],
+    ['datadog_create_incident', { title: 'DB down', customerImpacted: true }],
+    ['datadog_update_security_signal_state', { signalId: 's1', state: 'archived' }],
+    ['datadog_trigger_synthetics_tests', { publicIds: 'abc-def-ghi' }],
+    ['datadog_list_monitors', { name: 'cpu', monitorTags: 'env:prod', page: 0 }],
+  ])('keeps the model args for %s', (operation, modelArgs) => {
+    const params = toolCallParams(operation, modelArgs)
+
+    expect(params).toMatchObject(modelArgs)
+  })
+
+  it('drops a non-numeric model page size instead of sending it to Datadog', () => {
+    const params = toolCallParams('datadog_list_monitors', { pageSize: 'fifty' })
+
+    expect(params.pageSize).toBeUndefined()
+  })
+
+  it('reads a model switch value sent as a string', () => {
+    const params = toolCallParams('datadog_unmute_monitor', {
+      monitorId: '123',
+      allScopes: 'false',
+    })
+
+    expect(params.allScopes).toBe(false)
+  })
+})

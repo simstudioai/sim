@@ -2,9 +2,10 @@ import type {
   GitLabMergeMergeRequestParams,
   GitLabMergeMergeRequestResponse,
 } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabMergeMergeRequestTool: ToolConfig<
   GitLabMergeMergeRequestParams,
@@ -72,12 +73,19 @@ export const gitlabMergeMergeRequestTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Merge when pipeline succeeds',
     },
+    sha: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'HEAD SHA of the source branch; the merge fails if it does not match. Required when the group or instance requires a commit SHA on the merge requests API.',
+    },
   },
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${params.mergeRequestIid}/merge`
+      const encodedId = encodeGitLabResourceId(params.projectId)
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${safeUrlPathSegment(params.mergeRequestIid, 'mergeRequestIid')}/merge`
     },
     method: 'PUT',
     headers: (params) => ({
@@ -85,7 +93,7 @@ export const gitlabMergeMergeRequestTool: ToolConfig<
       'PRIVATE-TOKEN': params.accessToken,
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const body: Record<string, unknown> = {}
 
       if (params.mergeCommitMessage) body.merge_commit_message = params.mergeCommitMessage
       if (params.squashCommitMessage) body.squash_commit_message = params.squashCommitMessage
@@ -99,6 +107,7 @@ export const gitlabMergeMergeRequestTool: ToolConfig<
         body.auto_merge = params.mergeWhenPipelineSucceeds
         body.merge_when_pipeline_succeeds = params.mergeWhenPipelineSucceeds
       }
+      if (params.sha) body.sha = params.sha
 
       return body
     },

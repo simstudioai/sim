@@ -1,7 +1,11 @@
-import type {
-  IncidentioActionsListParams,
-  IncidentioActionsListResponse,
+import {
+  INCIDENTIO_ACTION_SUMMARY_OUTPUT_PROPERTIES,
+  INCIDENTIO_CURSOR_PAGINATION_OUTPUT,
+  INCIDENTIO_V3_MAX_PAGE_SIZE,
+  type IncidentioActionsListParams,
+  type IncidentioActionsListResponse,
 } from '@/tools/incidentio/types'
+import { collectIncidentioPages, mapIncidentioActionSummary } from '@/tools/incidentio/utils'
 import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -11,7 +15,8 @@ export const actionsListTool: ToolConfig<
 > = {
   id: 'incidentio_actions_list',
   name: 'incident.io Actions List',
-  description: 'List actions from incident.io. Optionally filter by incident ID.',
+  description:
+    'List actions from incident.io, optionally filtered by incident ID. Without page_size or after, follows pages automatically and returns up to 2,500 actions, oldest first; if more remain, pagination_meta.after is set. Pass page_size or after to fetch a single page.',
   version: '1.0.0',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
@@ -33,13 +38,27 @@ export const actionsListTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Filter actions by incident mode (standard, retrospective, test, tutorial, or stream)',
+        'Filter actions by incident mode (standard, retrospective, test, tutorial, or stream). When omitted, actions from standard and retrospective incidents are returned.',
+    },
+    page_size: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Number of actions per page, 1-250. Setting it fetches a single page instead of following pages automatically',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Pagination cursor from a previous page\'s pagination_meta.after (e.g., "01FDAG4SAP5TYPT98WGR2N7W91")',
     },
   },
 
   request: {
     url: (params) => {
-      const url = new URL('https://api.incident.io/v2/actions')
+      const url = new URL('https://api.incident.io/v3/actions')
 
       if (params.incident_id) {
         url.searchParams.append('incident_id', params.incident_id.trim())
@@ -47,6 +66,12 @@ export const actionsListTool: ToolConfig<
 
       if (params.incident_mode) {
         url.searchParams.append('incident_mode', params.incident_mode)
+      }
+
+      url.searchParams.append('page_size', String(params.page_size || INCIDENTIO_V3_MAX_PAGE_SIZE))
+
+      if (params.after) {
+        url.searchParams.append('after', params.after.trim())
       }
 
       return url.toString()
@@ -64,38 +89,37 @@ export const actionsListTool: ToolConfig<
     return {
       success: true,
       output: {
-        actions:
-          data.actions?.map((action: any) => ({
-            id: action.id,
-            description: action.description || '',
-            assignee: action.assignee
-              ? {
-                  id: action.assignee.id,
-                  name: action.assignee.name,
-                  email: action.assignee.email,
-                }
-              : undefined,
-            status: action.status,
-            due_at: action.due_at,
-            created_at: action.created_at,
-            updated_at: action.updated_at,
-            incident_id: action.incident_id,
-            creator: action.creator
-              ? {
-                  id: action.creator.id,
-                  name: action.creator.name,
-                  email: action.creator.email,
-                }
-              : undefined,
-            completed_at: action.completed_at,
-            external_issue_reference: action.external_issue_reference
-              ? {
-                  provider: action.external_issue_reference.provider,
-                  issue_name: action.external_issue_reference.issue_name,
-                  issue_permalink: action.external_issue_reference.issue_permalink,
-                }
-              : undefined,
-          })) || [],
+        actions: Array.isArray(data.actions) ? data.actions.map(mapIncidentioActionSummary) : [],
+        pagination_meta: data.pagination_meta,
+      },
+    }
+  },
+
+  postProcess: async (result, params, executeTool) => {
+    const firstAfter = result.output.pagination_meta?.after
+    if (params.page_size || params.after || !firstAfter) return result
+
+    const collected = await collectIncidentioPages(
+      { items: result.output.actions, after: firstAfter },
+      'actions',
+      (after) =>
+        executeTool('incidentio_actions_list', {
+          ...params,
+          after,
+          page_size: INCIDENTIO_V3_MAX_PAGE_SIZE,
+        })
+    )
+    if ('error' in collected) {
+      return { success: false, output: result.output, error: collected.error }
+    }
+    return {
+      success: true,
+      output: {
+        actions: collected.items,
+        pagination_meta: result.output.pagination_meta && {
+          ...result.output.pagination_meta,
+          after: collected.after,
+        },
       },
     }
   },
@@ -106,48 +130,9 @@ export const actionsListTool: ToolConfig<
       description: 'List of actions',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Action ID' },
-          description: { type: 'string', description: 'Action description' },
-          assignee: {
-            type: 'object',
-            description: 'Assigned user',
-            properties: {
-              id: { type: 'string', description: 'User ID' },
-              name: { type: 'string', description: 'User name' },
-              email: { type: 'string', description: 'User email' },
-            },
-          },
-          status: { type: 'string', description: 'Action status' },
-          due_at: { type: 'string', description: 'Due date/time' },
-          created_at: { type: 'string', description: 'Creation timestamp' },
-          updated_at: { type: 'string', description: 'Last update timestamp' },
-          incident_id: { type: 'string', description: 'Associated incident ID' },
-          creator: {
-            type: 'object',
-            description: 'User who created the action',
-            properties: {
-              id: { type: 'string', description: 'User ID' },
-              name: { type: 'string', description: 'User name' },
-              email: { type: 'string', description: 'User email' },
-            },
-          },
-          completed_at: { type: 'string', description: 'Completion timestamp' },
-          external_issue_reference: {
-            type: 'object',
-            description: 'External issue tracking reference',
-            optional: true,
-            properties: {
-              provider: {
-                type: 'string',
-                description: 'Issue tracking provider (e.g., Jira, Linear)',
-              },
-              issue_name: { type: 'string', description: 'Issue identifier' },
-              issue_permalink: { type: 'string', description: 'URL to the external issue' },
-            },
-          },
-        },
+        properties: INCIDENTIO_ACTION_SUMMARY_OUTPUT_PROPERTIES,
       },
     },
+    pagination_meta: INCIDENTIO_CURSOR_PAGINATION_OUTPUT,
   },
 }

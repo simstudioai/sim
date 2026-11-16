@@ -3,8 +3,10 @@ import {
   type IncidentioFollowUpsUpdateParams,
   type IncidentioFollowUpsUpdateResponse,
 } from '@/tools/incidentio/types'
+import { parseIncidentioList } from '@/tools/incidentio/utils'
 import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const followUpsUpdateTool: ToolConfig<
   IncidentioFollowUpsUpdateParams,
@@ -82,8 +84,7 @@ export const followUpsUpdateTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://api.incident.io/v2/follow_ups/${encodeURIComponent(params.id.trim())}`,
+    url: (params) => `https://api.incident.io/v3/follow_ups/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -104,12 +105,7 @@ export const followUpsUpdateTool: ToolConfig<
       if (params.follow_up_priority_option_id) {
         body.follow_up_priority_option_id = params.follow_up_priority_option_id.trim()
       }
-      if (params.labels) {
-        body.labels = params.labels
-          .split(',')
-          .map((label) => label.trim())
-          .filter(Boolean)
-      }
+      if (params.labels) body.labels = parseIncidentioList(params.labels)
 
       return body
     },
