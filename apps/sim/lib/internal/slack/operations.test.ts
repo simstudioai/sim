@@ -18,6 +18,7 @@ vi.mock('@/lib/internal/slack/file-input', () => ({
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
+import { assertSlackFileHost } from '@/lib/internal/slack/file-download'
 import { executeSlackDownload } from '@/lib/internal/slack/operations'
 import { executeSlackGetChannelHistoryOperation } from '@/lib/internal/slack/operations/get-channel-history'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
@@ -55,6 +56,7 @@ describe('Slack operations', () => {
           name: 'report.pdf',
           mimetype: 'application/pdf',
           url_private: 'https://files.slack.com/report.pdf',
+          url_private_download: 'https://files.slack.com/download/report.pdf',
         },
       })
     )
@@ -66,13 +68,14 @@ describe('Slack operations', () => {
     )
 
     expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
-      'https://files.slack.com/report.pdf',
+      'https://files.slack.com/download/report.pdf',
       '93.184.216.34',
       {
         headers: { Authorization: 'Bearer token' },
         profile: 'contentFetch',
         maxResponseBytes: MAX_FILE_SIZE,
         signal: controller.signal,
+        assertRedirectTarget: assertSlackFileHost,
       }
     )
     assert(isInternalToolFileResult(result))
@@ -90,6 +93,25 @@ describe('Slack operations', () => {
       context: 'execution',
     }
     expect(result.present([storedFile])).toEqual({ success: true, output: { file: storedFile } })
+  })
+
+  it('never sends the token to a file hosted outside Slack', async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      slackResponse({
+        ok: true,
+        file: {
+          name: 'plan.pdf',
+          is_external: true,
+          url_private: 'https://files.example.com/plan.pdf',
+        },
+      })
+    )
+
+    await expect(executeSlackDownload({ accessToken: 'token', fileId: 'F1' })).rejects.toThrow(
+      'File has no Slack-hosted download URL'
+    )
+    expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 
   it('stops following history cursors at the page ceiling whatever maxPages asks for', async () => {

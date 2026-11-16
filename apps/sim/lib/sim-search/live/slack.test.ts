@@ -51,6 +51,18 @@ describe('Slack file reads', () => {
       expect.objectContaining({ service: 'slackFiles' })
     )
   })
+  it('downloads from the Slack download URL when the file has one', async () => {
+    const api = fileClient({
+      mimetype: 'text/plain',
+      url_private_download: 'https://files.slack.com/files-pri/T1-F123/download/plan',
+    })
+    expect((await readSlack(api, 'F123', undefined, 'file')).content).toBe('Full text')
+    expect(api.bytes).toHaveBeenCalledWith(
+      '/files-pri/T1-F123/download/plan',
+      {},
+      expect.objectContaining({ service: 'slackFiles' })
+    )
+  })
   it('reads the full text of a text snippet', async () => {
     const api = fileClient(
       { filetype: 'text', mimetype: 'text/plain' },
@@ -75,7 +87,6 @@ describe('Slack file reads', () => {
   it('never sends the token to a file host other than Slack', async () => {
     for (const file of [
       { mimetype: 'text/plain', url_private: 'https://files.example.com/plan.txt' },
-      { mimetype: 'text/plain', url_private: 'http://files.slack.com/files-pri/T1-F123/plan' },
       { mimetype: 'text/plain', is_external: true },
     ]) {
       const api = fileClient(file)
