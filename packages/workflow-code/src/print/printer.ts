@@ -5,7 +5,6 @@
  * point.
  */
 
-import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import {
@@ -32,6 +31,8 @@ import {
 import { CODE_FILE_EXTENSIONS, type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
+import { printsAsElseTrue } from '../forms/condition'
+import { type ResponseForm, readResponseForm } from '../forms/response'
 import {
   JsonRef,
   type JsonTree,
@@ -191,11 +192,6 @@ function inputFormatSugar(
   return items
 }
 
-interface ScopeInfo {
-  /** Declaration order of the scope's members. */
-  members: BlockKey[]
-}
-
 /**
  * A value in a password field that holds literal text: anything but `null`, `''` or text made
  * only of reference and `{{ENV}}` tokens. It prints as `stored()`, never as the secret.
@@ -237,7 +233,8 @@ class WorkflowPrinter {
   private usesVars = false
   private readonly blocks: Map<BlockKey, CanonicalBlock>
   private readonly parentOf = new Map<BlockKey, BlockKey | null>()
-  private readonly scopes = new Map<BlockKey | null, ScopeInfo>()
+  /** Each scope's members in declaration order. */
+  private readonly scopeMembers = new Map<BlockKey | null, BlockKey[]>()
   private readonly position = new Map<BlockKey, number>()
   private readonly preorder: BlockKey[] = []
   private readonly preorderIndex = new Map<BlockKey, number>()
@@ -391,7 +388,7 @@ class WorkflowPrinter {
         }),
         dependencies
       )
-      this.scopes.set(scope, { members: order })
+      this.scopeMembers.set(scope, order)
       order.forEach((key, index) => {
         this.position.set(key, index)
         this.preorderIndex.set(key, this.preorder.length)
@@ -905,64 +902,30 @@ class WorkflowPrinter {
   }
 
   /**
-   * The `response(name, { body, status?, headers? })` form, for a response block in the editor's
-   * JSON mode whose params it carries exactly: `status` text that is a canonical integer prints
-   * as a number, header rows as a record. `null` keeps the block's own params.
+   * The params of a response block printed in the `response(name, { body, status?, headers? })`
+   * form (`forms/response.ts`): a numeric status as a number, header rows as a record.
    */
-  private responseBody(
-    block: CanonicalBlock,
-    collected: { params: ParamEntry[]; extra: ParamEntry[] }
-  ): ParamEntry[] | null {
-    const allowed = new Set(['dataMode', 'data', 'status', 'headers'])
-    if (collected.extra.length > 0 || collected.params.some((entry) => !allowed.has(entry.key))) {
-      return null
-    }
-    const value = (id: string): Value | undefined => {
-      const param = getOwn(block.params, id)
-      return param?.kind === 'value' ? param.value : undefined
-    }
-    const data = value('data')
-    const status = value('status')
-    const headers = value('headers')
-    if (value('dataMode') !== 'json' || typeof data !== 'string') return null
-    if (status !== undefined && typeof status !== 'string') return null
-    const rows = headers === undefined ? [] : headers
-    if (!Array.isArray(rows)) return null
-    const names = new Set<string>()
-    const headerProps: Property[] = []
-    for (const row of rows) {
-      const cells = isRecordLike(row) && Object.keys(row).join() === 'cells' ? row.cells : null
-      if (!isRecordLike(cells) || Object.keys(cells).sort().join() !== 'Key,Value') return null
-      const { Key, Value: text } = cells
-      if (typeof Key !== 'string' || typeof text !== 'string' || names.has(Key)) return null
-      names.add(Key)
-      headerProps.push({
-        key: printKey(Key),
-        value: this.values.value(text, { tag: 't', from: block.key }),
-      })
-    }
+  private responseFormParams(block: CanonicalBlock, form: ResponseForm): ParamEntry[] {
+    const text = (value: string): Expr => this.values.value(value, { tag: 't', from: block.key })
     const entry = (key: string, expr: Expr): ParamEntry => ({
       key,
       anchor: anchors.param(block.key, key),
       value: expr,
     })
-    const entries = [
-      entry(
-        'body',
-        this.printJsonField(block, data) ?? this.values.value(data, { tag: 't', from: block.key })
-      ),
-    ]
-    if (status !== undefined) {
+    const entries = [entry('body', this.printJsonField(block, form.data) ?? text(form.data))]
+    if (form.status) {
+      const { text: status, numeric } = form.status
       entries.push(
-        entry(
-          'status',
-          /^[1-9][0-9]{0,14}$/.test(status)
-            ? { doc: status, shape: 'number', numeric: true }
-            : this.values.value(status, { tag: 't', from: block.key })
-        )
+        entry('status', numeric ? { doc: status, shape: 'number', numeric: true } : text(status))
       )
     }
-    if (headers !== undefined) entries.push(entry('headers', objectExpr(headerProps)))
+    if (form.headers) {
+      const headers = form.headers.map(({ name, value }) => ({
+        key: printKey(name),
+        value: text(value),
+      }))
+      entries.push(entry('headers', objectExpr(headers)))
+    }
     return entries
   }
 
@@ -1035,15 +998,12 @@ class WorkflowPrinter {
     const meta: Property[] = []
     const rows = branches.rows
     rows.forEach((row, index) => {
-      const isElse =
-        branches.kind === 'condition' && row.key === 'else' && index === rows.length - 1
-      const value: Expr =
-        isElse && row.value === ''
-          ? { doc: 'true', shape: 'literal' }
-          : this.values.value(row.value, {
-              tag: branches.kind === 'condition' ? 'js' : 't',
-              from: block.key,
-            })
+      const value: Expr = printsAsElseTrue(branches.kind, row, index, rows.length)
+        ? { doc: 'true', shape: 'literal' }
+        : this.values.value(row.value, {
+            tag: branches.kind === 'condition' ? 'js' : 't',
+            from: block.key,
+          })
       entries.push({ key: printMember(row.key).slice(1), value })
       const rowMeta: Property[] = []
       if (row.titleOverride !== undefined) {
@@ -1066,9 +1026,15 @@ class WorkflowPrinter {
     const pinned = pinnedIds(found?.builder)
     const collected = this.collectParams(block, catalogBlock, pinned)
     const { extra } = collected
-    const body =
-      found?.builder.type === RESPONSE_BLOCK_TYPE ? this.responseBody(block, collected) : null
-    const params = body ?? collected.params
+    const form =
+      found?.builder.type === RESPONSE_BLOCK_TYPE
+        ? readResponseForm(
+            block,
+            collected.params.map((entry) => entry.key),
+            extra.length > 0
+          )
+        : null
+    const params = form ? this.responseFormParams(block, form) : collected.params
     const paramProps = this.paramProperties(params)
     const extraProps = this.paramProperties(extra)
     const branchKind = catalogBlock?.graph.branches?.kind ?? block.branches?.kind
@@ -1223,7 +1189,7 @@ class WorkflowPrinter {
       }
     }
 
-    for (const source of this.scopes.get(scope)?.members ?? []) {
+    for (const source of this.scopeMembers.get(scope) ?? []) {
       const block = this.blocks.get(source)
       if (!block) continue
       const ident = this.idents.get(source) ?? source
@@ -1300,7 +1266,7 @@ class WorkflowPrinter {
 
   /** Declarations then wiring for one scope (the workflow body or a container callback). */
   private scopeStatements(scope: BlockKey | null): Doc[] {
-    const members = this.scopes.get(scope)?.members ?? []
+    const members = this.scopeMembers.get(scope) ?? []
     const calls = members.map((key) => {
       const block = this.blocks.get(key)
       return block ? { key, call: this.blockCall(block) } : null
@@ -1382,7 +1348,8 @@ class WorkflowPrinter {
     const footer = this.comments.take(anchors.footer)
     this.comments.dropRemaining()
 
-    const importNames = [...this.imports].sort(compareImportNames)
+    // compareStrings is the order Biome's organizeImports keeps import specifiers in.
+    const importNames = [...this.imports].sort(compareStrings)
     const importLine = group([
       'import {',
       indent([line, join([',', line], importNames)]),
@@ -1430,11 +1397,6 @@ function needsKeyOverride(block: CanonicalBlock): boolean {
   return (
     block.key !== normalizeWorkflowBlockName(block.name) || isReservedWorkflowBlockName(block.key)
   )
-}
-
-/** Import specifiers in the order Biome's organizeImports keeps them. */
-function compareImportNames(a: string, b: string): number {
-  return compareStrings(a, b)
 }
 
 /**

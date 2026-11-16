@@ -289,7 +289,7 @@ print compiles with zero errors.
 - References inside strings become interpolations when they resolve in lexical scope; anything else
   stays literal text that compiles back to the same bytes (`print/refs.ts`).
 - Strings escape bidi and zero-width characters (`‮`).
-- `functionCode: 'files'` writes function code to `codeDir` (see "Code files"); `'inline'` uses
+- `functionCode: 'files'` writes function code to `functions/` (see "Code files"); `'inline'` uses
   `js` templates.
 - An agent tool prints in the first form whose compile reproduces it exactly: `mcp('k').tool()`
   and `childWorkflow('k').asTool()` (`agent-tools.ts` pairs each reader with the builder compile

@@ -1,6 +1,6 @@
 import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
-import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
+import type { BlockRetryConfig, WorkflowBranchKind } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
 import { DEFAULT_LOOP_ITERATIONS, SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { editorDefaults } from '../catalog/defaults'
@@ -12,6 +12,8 @@ import {
   fromCodeFile,
 } from '../code-files'
 import { isIdentifierName } from '../code-files/ref-path'
+import { ELSE_KEY, isElseTrue } from '../forms/condition'
+import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { utf8Bytes } from '../limits'
 import {
   type AnchorKey,
@@ -28,7 +30,6 @@ import {
   type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
-import { RESPONSE_BLOCK_TYPE } from '../sdk'
 import {
   type BlockDecl,
   type CompileContext,
@@ -40,7 +41,6 @@ import {
 import { didYouMean } from './hints'
 import { bracketDepthOverflow } from './parse'
 import type { Range } from './report'
-import { compileResponseParam } from './response'
 import { compileToolList } from './tools'
 import {
   buildFieldIndex,
@@ -416,7 +416,7 @@ function fieldSite(site: ValueSite, sub: CatalogSubBlock | undefined): ValueSite
 function compileBranchRows(
   ctx: CompileContext,
   entries: Array<[string, ObjectProperty]>,
-  kind: 'condition' | 'router',
+  kind: WorkflowBranchKind,
   block: CatalogBlock | undefined,
   site: ValueSite
 ): CanonicalBranchRow[] {
@@ -444,14 +444,7 @@ function compileBranchRows(
       )
       continue
     }
-    const isLast = index === entries.length - 1
-    if (
-      kind === 'condition' &&
-      key === 'else' &&
-      isLast &&
-      property.value.type === 'BooleanLiteral' &&
-      property.value.value
-    ) {
+    if (isElseTrue(kind, key, index === entries.length - 1, property.value)) {
       rows.push({ key, value: '' })
       continue
     }
@@ -470,7 +463,7 @@ function compileBranchRows(
     )
   }
   const last = entries[entries.length - 1]
-  if (kind === 'condition' && entries.length >= 2 && last && last[0] !== 'else') {
+  if (kind === 'condition' && entries.length >= 2 && last && last[0] !== ELSE_KEY) {
     ctx.reporter.report(
       'E_BRANCH_ELSE_LAST',
       'A condition with two or more branches ends with else.',
@@ -770,8 +763,10 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     const writtenFields = new Set<CatalogField>()
     responseBody =
       builder.kind === 'catalog' &&
-      builder.type === RESPONSE_BLOCK_TYPE &&
-      entries.some(([key]) => key === 'body')
+      usesResponseForm(
+        builder.type,
+        entries.map(([key]) => key)
+      )
     for (const [key, property] of entries) {
       const field = index ? fieldFor(index, key) : undefined
       const name = field?.name ?? key
