@@ -129,6 +129,11 @@ export interface CompileContext {
    * they reference (`json-fields.ts`), so it is written once every block is compiled.
    */
   jsonFields: JsonFieldEntry[]
+  /**
+   * Branch keys already refused with an error, by block key. Wiring and branch meta that name one
+   * stay quiet instead of adding `E_UNKNOWN_BRANCH` for the same mistake.
+   */
+  refusedBranches: Map<BlockKey, Set<string>>
 }
 
 /** A JSON code field written as a literal, and where each bare reference in it was written. */

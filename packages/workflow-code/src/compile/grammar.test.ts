@@ -1002,3 +1002,30 @@ describe('defaults rule: an omitted param is the editor default', () => {
     })
   })
 })
+
+describe('a condition branch refused where it is declared', () => {
+  const codesOf = (body: string) => run(source(body)).diagnostics.map((d) => d.code)
+
+  it('is reported once, not again where it is wired or annotated', () => {
+    const codes = codesOf(
+      [
+        "const pick = condition('Pick', { yes: js`1 > 0`, no: true }, { branches: { no: { title: 'No' } } })",
+        "const a = api('A', { url: 'x' })",
+        'pick.no.to(a)',
+      ].join('\n')
+    )
+    expect(codes).toContain('E_UNSUPPORTED_SYNTAX')
+    expect(codes).not.toContain('E_UNKNOWN_BRANCH')
+  })
+
+  it('still reports a branch that was never declared', () => {
+    const codes = codesOf(
+      [
+        "const pick = condition('Pick', { yes: js`1 > 0`, no: true })",
+        "const a = api('A', { url: 'x' })",
+        'pick.maybe.to(a)',
+      ].join('\n')
+    )
+    expect(codes).toContain('E_UNKNOWN_BRANCH')
+  })
+})

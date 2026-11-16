@@ -395,6 +395,7 @@ export function compileWorkflow(input: CompileInput): CompileResult {
     knownKeys: input.knownKeys ?? new Set(),
     stored: input.stored,
     jsonFields: [],
+    refusedBranches: new Map(),
   }
 
   const moduleScope: Scope = { parent: null, bindings: new Map(), container: null }

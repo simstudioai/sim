@@ -529,6 +529,11 @@ type SpecialOutput<K extends string> = K extends keyof SpecialBuilderTypes
 /** A condition expression, or `true` for the `else` branch. */
 export type BranchExpression = Template | string | true
 
+/** A condition's branches: every key holds an expression, and only `else` may be `true`. */
+type ConditionBranches<B> = {
+  [K in keyof B]: K extends 'else' ? BranchExpression : Template | string
+}
+
 /**
  * Keys of a condition written with no rows (`condition('Name', {})`, the source form of rows
  * that were never persisted): the implicit `if` and `else` ports stay addressable.
@@ -539,7 +544,7 @@ type RouterKeys<R> = keyof R extends never ? 'route0' : Extract<keyof R, string>
 /** A condition: named branches, the last one `else` when there are two or more. */
 export declare function condition<const B extends Record<string, BranchExpression>>(
   name: string,
-  branches: B,
+  branches: B & ConditionBranches<B>,
   meta?: BlockMeta
 ): Block<SpecialOutput<'condition'>> & Branches<ConditionKeys<B>>
 

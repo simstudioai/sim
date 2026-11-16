@@ -428,6 +428,8 @@ function compileBranchRows(
   const { decl } = site
   const outputs = new Set(Object.keys(block?.outputs ?? {}))
   const rows: CanonicalBranchRow[] = []
+  const refused = new Set<string>()
+  ctx.refusedBranches.set(decl.key, refused)
   for (const [index, [key, property]] of entries.entries()) {
     recordSpan(ctx, { kind: 'param', block: decl.key, param: key }, property)
     if (!isIdentifierName(key)) {
@@ -438,6 +440,7 @@ function compileBranchRows(
         'Branch keys are JS identifiers.',
         decl.key
       )
+      refused.add(key)
       continue
     }
     if (outputs.has(key) || EDGE_METHOD_NAMES.has(key)) {
@@ -447,25 +450,40 @@ function compileBranchRows(
         rangeOf(ctx, property),
         { hint: 'Rename the branch.', blockKey: decl.key }
       )
+      refused.add(key)
       continue
     }
     if (isElseTrue(kind, key, index === entries.length - 1, property.value)) {
       rows.push({ key, value: '' })
       continue
     }
+    if (kind === 'condition' && property.value.type === 'BooleanLiteral') {
+      refused.add(key)
+      unsupported(
+        ctx,
+        property.value,
+        `Only the last branch, else, is true; ${key} needs a condition.`,
+        key === ELSE_KEY
+          ? 'Move else to the end.'
+          : `Write ${key}: js\`...\`, or rename it else and move it to the end.`,
+        decl.key
+      )
+      continue
+    }
     const compiled = compileValue(ctx, property.value, site)
-    if (!compiled) continue
-    if (compiled.kind === 'value' && typeof compiled.value === 'string') {
+    if (compiled?.kind === 'value' && typeof compiled.value === 'string') {
       rows.push({ key, value: compiled.value })
       continue
     }
-    unsupported(
-      ctx,
-      property.value,
-      'A branch value is text.',
-      'Write a string or a js`` template.',
-      decl.key
-    )
+    if (compiled)
+      unsupported(
+        ctx,
+        property.value,
+        'A branch value is text.',
+        'Write a string or a js`` template.',
+        decl.key
+      )
+    refused.add(key)
   }
   const last = entries[entries.length - 1]
   if (kind === 'condition' && entries.length >= 2 && last && last[0] !== ELSE_KEY) {
@@ -491,6 +509,7 @@ function applyBranchMeta(
 ): void {
   for (const [key, property] of entries) {
     const row = rows?.find((candidate) => candidate.key === key)
+    if (!row && ctx.refusedBranches.get(site.decl.key)?.has(key)) continue
     if (!row) {
       ctx.reporter.report(
         'E_UNKNOWN_BRANCH',

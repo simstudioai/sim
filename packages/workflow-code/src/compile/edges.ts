@@ -159,6 +159,8 @@ export class EdgeCollector {
       ? branches.rows.map((row) => row.key)
       : IMPLICIT_BRANCHES[branches.kind]
     if (!keys.includes(key)) {
+      // The branch was refused where it was declared; that error already covers this wiring.
+      if (this.ctx.refusedBranches.get(decl.key)?.has(key)) return null
       this.error(
         'E_UNKNOWN_BRANCH',
         `${decl.name} has no branch ${key}.`,

@@ -2,6 +2,7 @@
 // Each `@ts-expect-error` must see an error, or the type-check fails with "unused directive".
 import {
   agent,
+  condition,
   credential,
   env,
   gmail,
@@ -67,6 +68,11 @@ export default workflow('Rejected', {}, () => {
   knowledgeBase('dosc')
   // @ts-expect-error `CRM_KYE` is not a workspace environment variable
   t`${env.CRM_KYE}`
+
+  // `true` on a branch other than else.
+  // @ts-expect-error only the else branch may be `true`
+  condition('Pick', { yes: js`1 > 0`, no: true })
+  condition('Gate', { yes: js`1 > 0`, maybe: 'x', else: true })
 
   // An operation that does not exist.
   // @ts-expect-error `sendMesage` is not a Slack operation
