@@ -177,6 +177,13 @@ export interface CanonicalBranchRow {
    * (condition-input.tsx:395-401), s1 quirk 4.
    */
   titleOverride?: string
+  /**
+   * Set when the stored row has no title at all (rows written by the edit engine or copilot can
+   * omit it). Distinct from a positional title: a last row without a title is not found as `else`
+   * by the executor (condition/handler.ts:474), so materialize writes no title for such a row.
+   * Never set together with `titleOverride`.
+   */
+  titleMissing?: true
   /** Unknown non-UI keys. UI state (`showTags`, `searchTerm`, ...) is stripped (s1 quirk 6). */
   extra?: Record<string, Json>
 }
