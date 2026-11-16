@@ -74,6 +74,19 @@ export default workflow('Rejected', {}, () => {
   condition('Pick', { yes: js`1 > 0`, no: true })
   condition('Gate', { yes: js`1 > 0`, maybe: 'x', else: true })
 
+  // A table filter in the legacy operator-object grammar the runtime refuses.
+  table.queryRows('Open', {
+    tableId: table('leads'),
+    // @ts-expect-error `{ column: { $eq } }` is not a filter rule list or a predicate
+    filterInput: { status: { $eq: 'open' } },
+  })
+  table.updateRowsByFilter('Close', {
+    tableId: table('leads'),
+    data: { status: 'closed' },
+    // @ts-expect-error a predicate names its column as `field`, not `column`
+    filterInput: { column: 'status', op: 'eq', value: 'open' },
+  })
+
   // An operation that does not exist.
   // @ts-expect-error `sendMesage` is not a Slack operation
   slack.sendMesage('Typo', {})

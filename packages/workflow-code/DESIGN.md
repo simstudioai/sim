@@ -486,6 +486,7 @@ everything. Every property must hold for every case.
 | P4 | printed code compiles with zero errors |
 | P5 | files mode compiles to the same workflow as inline mode |
 | P6 | `materialize(compile(print(c)), prev x)` deep-equals `x`: a no-op apply changes nothing |
+| P7 | `diffCanonical(c, materialize(compile(print(c)), prev x).workflow)` is a no-op: an unchanged directory applies as `noop: true` |
 | O1 | `materialize(canonicalize(x), prev x)` deep-equals `x` |
 | O2 | lockless execution parity: the serialized workflow, compared through the loops/parallels maps the executor runs |
 | O3 | `canonicalize(materialize(c))` equals `c` |

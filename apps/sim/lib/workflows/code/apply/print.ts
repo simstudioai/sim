@@ -37,6 +37,11 @@ interface PrintStoredSourceInput extends StoredSource {
    * the submitted lock. Omitted, the stored state's own keys print.
    */
   identity?: LockIdentity
+  /**
+   * Function-code file paths by block key: the ones the submission wrote, so a write answers
+   * with the author's file names instead of deriving new ones from the idents.
+   */
+  codeFiles?: Record<string, string>
 }
 
 export interface PrintedSource {
@@ -72,6 +77,10 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
       )
     : lockless
   const metaInputs = hintsFromSourceMeta(sourceMeta, canonical)
+  for (const [key, codeFile] of Object.entries(input.codeFiles ?? {})) {
+    if (!Object.hasOwn(canonical.identity.blocks, key)) continue
+    metaInputs.hints.blocks[key] = { ...metaInputs.hints.blocks[key], codeFile }
+  }
   const printed = printWorkflow({
     workflow: {
       ...canonical.workflow,

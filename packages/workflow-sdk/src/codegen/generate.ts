@@ -67,6 +67,7 @@ const CORE_TYPE_NAMES = [
   'SkillRef',
   'Sort',
   'TableData',
+  'TablePredicate',
   'TableRef',
   'TableRow',
   'TagFilter',
@@ -300,6 +301,21 @@ function typeParameterList(plan: DynamicOutputPlan | null, withConst: boolean): 
   return `<${withConst && isConst ? 'const ' : ''}${name} extends ${constraint} = ${fallback}>`
 }
 
+/**
+ * A filter builder paired with a JSON editor (`table_v2`'s `filterInput`): the runtime reads an
+ * array as builder rules and anything else as a predicate (`resolveFilter`), so the param takes
+ * those two shapes or JSON text, never the JSON member's loose `JsonWithRefs`.
+ */
+function isTableFilterPair(members: readonly CatalogSubBlock[]): boolean {
+  return (
+    members.some((member) => member.type === 'filter-builder') &&
+    members.every(
+      (member) =>
+        member.type === 'filter-builder' || (member.type === 'code' && member.language === 'json')
+    )
+  )
+}
+
 function buildParams(
   block: CatalogBlock,
   entry: BuilderEntry,
@@ -325,6 +341,7 @@ function buildParams(
         return mapped ? [mapped.type] : []
       })
     )
+    if (isTableFilterPair(members)) type = 'Filter | TablePredicate | Template | string'
     if (plan && plan.param.name === name) type = plan.param.type
     else if (plan?.paramOverrides[name]) type = plan.paramOverrides[name]
     params.push({

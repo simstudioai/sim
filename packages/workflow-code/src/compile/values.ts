@@ -567,6 +567,17 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
           site.decl.key
         )
       }
+      if (ctx.envNames && !ctx.envNames.has(name)) {
+        ctx.reporter.report(
+          'W_ENV_UNKNOWN',
+          `The workspace has no env variable ${name}, so it resolves to nothing at run time.`,
+          rangeOf(ctx, first),
+          {
+            hint: `Add ${name} under the workspace's or your environment variables, or use a name .sim/sdk/workspace.d.ts lists.`,
+            blockKey: site.decl.key,
+          }
+        )
+      }
       return `{{${name}}}`
     }
     case 'subflowScope':

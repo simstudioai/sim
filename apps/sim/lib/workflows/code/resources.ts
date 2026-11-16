@@ -1,4 +1,8 @@
+import { db } from '@sim/db'
+import { credential } from '@sim/db/schema'
+import { compareStrings } from '@sim/utils/string'
 import type { ResourceKeyResolver, ResourceKind } from '@sim/workflow-code'
+import { and, eq, or } from 'drizzle-orm'
 import {
   type ResourceIdRef,
   type ResourceKeyMap,
@@ -55,4 +59,20 @@ export async function loadResourceKeyResolver(
     toKey: (kind, id) => lookup(keysById, kind, id) ?? lookup(keysByIdFromKeys, kind, id),
     toId: (kind, key) => lookup(idsByKey, kind, key) ?? lookup(idsByKeyFromIds, kind, key),
   }
+}
+
+/** Env names the caller's runs resolve: the workspace's, plus the caller's personal ones. */
+export async function loadEnvNames(
+  workspaceId: string,
+  userId: string | undefined
+): Promise<string[]> {
+  const scope = userId
+    ? or(
+        and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'env_workspace')),
+        and(eq(credential.type, 'env_personal'), eq(credential.envOwnerUserId, userId))
+      )
+    : and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'env_workspace'))
+  const rows = await db.select({ envKey: credential.envKey }).from(credential).where(scope)
+  const names = new Set(rows.flatMap((row) => (row.envKey ? [row.envKey] : [])))
+  return [...names].sort(compareStrings)
 }

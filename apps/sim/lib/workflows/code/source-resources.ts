@@ -9,9 +9,8 @@ import {
   workflow as workflowTable,
 } from '@sim/db/schema'
 import { isRecordLike } from '@sim/utils/object'
-import { compareStrings } from '@sim/utils/string'
 import type { ResourceKind } from '@sim/workflow-code'
-import { and, asc, eq, inArray, isNull, notInArray, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, notInArray } from 'drizzle-orm'
 import type { SourceResources } from '@/lib/api/contracts/v2/source-resources'
 import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
 import {
@@ -23,6 +22,7 @@ import { SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
 import { credentialAccessClause, credentialMembershipJoin } from '@/lib/credentials/queries'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
+import { loadEnvNames } from '@/lib/workflows/code/resources'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { INPUT_DEFINITION_TRIGGER_TYPES } from '@/lib/workflows/triggers/input-definition-triggers'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
@@ -103,19 +103,6 @@ async function loadWorkflowInputs(
     )
   }
   return inputs
-}
-
-/** Env names the caller's runs resolve: the workspace's, plus the caller's personal ones. */
-async function loadEnvNames(workspaceId: string, userId: string | undefined): Promise<string[]> {
-  const scope = userId
-    ? or(
-        and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'env_workspace')),
-        and(eq(credential.type, 'env_personal'), eq(credential.envOwnerUserId, userId))
-      )
-    : and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'env_workspace'))
-  const rows = await db.select({ envKey: credential.envKey }).from(credential).where(scope)
-  const names = new Set(rows.flatMap((row) => (row.envKey ? [row.envKey] : [])))
-  return [...names].sort(compareStrings)
 }
 
 /**

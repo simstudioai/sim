@@ -35,6 +35,8 @@ import {
   SOURCE_BASE_FILE,
   SOURCE_GITATTRIBUTES_FILE,
   SOURCE_LOCK_FILE,
+  type SourceDirChange,
+  updateSourceDir,
   writeBack,
 } from './workflow-source-layout'
 
@@ -110,7 +112,7 @@ function writeCachedCatalog(workspaceId: string, catalog: BlockCatalog): void {
  */
 async function loadCatalog(
   client: OperationClient<'getSourceCatalog'>,
-  source: Pick<WorkflowSource, 'workspaceId' | 'workflowId' | 'blockTypes'>
+  source: Pick<WorkflowSource, 'workspaceId' | 'blockTypes'> & { workflowId?: string }
 ): Promise<BlockCatalog> {
   const cached = readCachedCatalog(source.workspaceId)
   let catalog: BlockCatalog
@@ -126,7 +128,12 @@ async function loadCatalog(
     if (!cached || !(error instanceof SimApiError) || error.status !== 304) throw error
     catalog = cached
   }
-  if (source.blockTypes.every((type) => catalogBlock(catalog, type) !== undefined)) return catalog
+  if (
+    source.workflowId === undefined ||
+    source.blockTypes.every((type) => catalogBlock(catalog, type) !== undefined)
+  ) {
+    return catalog
+  }
   return catalogFrom(
     await client.request<{ data: unknown }>('getSourceCatalog', {
       params: { workspaceId: source.workspaceId },
@@ -240,7 +247,7 @@ This directory is a Sim workflow written as TypeScript. The server compiles \`${
 
 Lines starting \`note:\` explain something the write did differently than the source says (a renamed workflow keeps its stored name, for example); read them.
 
-A new workflow: write \`${SOURCE_ENTRY_FILE}\` in an empty directory and run \`sim workflows source create --dir <dir> --yes\`. It prints the new workflow id and writes these types, \`tsconfig.json\` and this guide beside the file. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`.
+A new workflow: \`sim workflows source create --dir <new dir>\` on a directory without \`${SOURCE_ENTRY_FILE}\` writes a starter \`${SOURCE_ENTRY_FILE}\`, these types, \`tsconfig.json\` and this guide, and creates nothing. Edit the starter, then run \`sim workflows source create --dir <dir> --yes\`: it prints the new workflow id and writes the lock files. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`.
 
 ## File shape
 
@@ -321,13 +328,45 @@ async function writeSourceTree(
   catalog: BlockCatalog,
   workspaceTypes: string | null
 ): Promise<SourceTree> {
+  const [previousLock, tree] = await Promise.all([
+    readPreviousLock(dir),
+    sourceTreeChange(dir, catalog, workspaceTypes),
+  ])
+  const written = await writeBack(dir, source, previousLock, tree.change)
+  return finishTree(dir, written, workspaceTypes, tree.ownsTsconfig)
+}
+
+/** Reports a `tsconfig.json` the CLI left alone and summarizes a tree write. */
+function finishTree(
+  dir: string,
+  written: number,
+  workspaceTypes: string | null,
+  ownsTsconfig: boolean
+): SourceTree {
+  if (!ownsTsconfig) {
+    printError(
+      `note: ${TSCONFIG_FILE} in ${dir} is not the CLI's, so it was left as it is. To type-check the source, map "@sim/workflow-sdk" to ["./${SDK_DIR}/core.d.ts"] in its compilerOptions.paths.`
+    )
+  }
+  return { written, workspaceTypes: workspaceTypes !== null, tsconfig: ownsTsconfig }
+}
+
+/**
+ * Everything beside the printed source that makes a directory editable: the agent guide, the
+ * declarations (regenerated only when the catalog or generator changed), `workspace.d.ts`, the
+ * CLI's `tsconfig.json` and the LF lines.
+ */
+async function sourceTreeChange(
+  dir: string,
+  catalog: BlockCatalog,
+  workspaceTypes: string | null
+): Promise<{ change: SourceDirChange; ownsTsconfig: boolean }> {
   const write: Array<readonly [string, string]> = [
     [SOURCE_AGENTS_FILE, AGENTS_GUIDE],
     [`${SDK_DIR}/core.d.ts`, CORE_DTS],
   ]
   const remove: string[] = []
-  const [previousLock, gitattributes, index, tsconfig] = await Promise.all([
-    readPreviousLock(dir),
+  const [gitattributes, index, tsconfig] = await Promise.all([
     readSourceText(dir, SOURCE_GITATTRIBUTES_FILE),
     readSourceText(dir, SDK_INDEX_FILE),
     readSourceText(dir, TSCONFIG_FILE),
@@ -343,13 +382,40 @@ async function writeSourceTree(
   }
   if (workspaceTypes === null) remove.push(WORKSPACE_TYPES_FILE)
   else write.push([WORKSPACE_TYPES_FILE, workspaceTypes])
-  const written = await writeBack(dir, source, previousLock, { write, remove })
-  if (!ownsTsconfig) {
-    printError(
-      `note: ${TSCONFIG_FILE} in ${dir} is not the CLI's, so it was left as it is. To type-check the source, map "@sim/workflow-sdk" to ["./${SDK_DIR}/core.d.ts"] in its compilerOptions.paths.`
-    )
-  }
-  return { written, workspaceTypes: workspaceTypes !== null, tsconfig: ownsTsconfig }
+  return { change: { write, remove }, ownsTsconfig }
+}
+
+/** The `workflow.ts` a new directory starts from: the smallest workflow that compiles. */
+const STARTER_SOURCE = `// @sim-sdk 1
+import { response, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('New workflow', { description: 'Describe what this workflow does.' }, () => {
+  const start = trigger.start('Start', { inputFormat: { message: 'string' } })
+  const done = response('Done', { body: { received: start.message } })
+
+  start.to(done)
+})
+`
+
+/**
+ * Starts a new source directory: a starter `workflow.ts` plus the tree a get writes (the
+ * declarations for the workspace catalog and its resources, `tsconfig.json`, the agent guide),
+ * with no lock or base, since no workflow exists yet. Only for a directory with no `workflow.ts`.
+ */
+export async function writeSourceScaffold(
+  client: OperationClient<'getSourceCatalog' | 'getSourceResources'>,
+  dir: string,
+  workspaceId: string
+): Promise<SourceTree> {
+  const [catalog, workspaceTypes] = await Promise.all([
+    loadCatalog(client, { workspaceId, blockTypes: [] }),
+    loadWorkspaceTypes(client, workspaceId),
+  ])
+  assertSdkMajor(catalog)
+  const tree = await sourceTreeChange(dir, catalog, workspaceTypes)
+  const write = [[SOURCE_ENTRY_FILE, STARTER_SOURCE] as const, ...tree.change.write]
+  await updateSourceDir(dir, { ...tree.change, write })
+  return finishTree(dir, write.length, workspaceTypes, tree.ownsTsconfig)
 }
 
 /**

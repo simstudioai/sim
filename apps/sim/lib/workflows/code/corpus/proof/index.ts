@@ -8,6 +8,7 @@ export { workflowStateArbitrary } from './arbitraries'
 export { findDifferences } from './diff'
 export {
   assertNoErrors,
+  assertNoopDiff,
   assertNoopIdentity,
   executionParity,
   idempotence,

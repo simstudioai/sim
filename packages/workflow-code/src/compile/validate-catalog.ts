@@ -6,7 +6,6 @@ import type {
   CatalogBuilder,
   CatalogOutput,
   CatalogSubBlock,
-  CatalogValueKind,
 } from '../catalog/types'
 import { catalogTrigger } from '../catalog/view'
 import { type CanonicalParamId, isPlainRecord, type SubBlockId, type Value } from '../model'
@@ -180,12 +179,24 @@ function isRequired(sub: CatalogSubBlock, values: ReadonlyMap<string, Value>): b
 }
 
 /**
- * Whether a literal value has the JSON type its field's `valueKind` expects. Never coerced: a
- * mismatch is `W_VALUE_KIND` and the exact value is kept.
+ * Free-text inputs whose stored value the runtime takes as a string or a number: a canvas or API
+ * write may store `200` in a short input, and the tools that read one coerce it (`Number()`).
  */
-export function valueKindMatches(kind: CatalogValueKind, value: Value): boolean {
-  switch (kind) {
+const NUMERIC_TEXT_TYPES: ReadonlySet<string> = new Set(['short-input', 'long-input'])
+
+/**
+ * Whether a literal value has the JSON type its field expects (`valueKind`; a free-text input
+ * also takes a number). Never coerced: a mismatch is `W_VALUE_KIND` and the exact value is kept.
+ */
+export function valueKindMatches(
+  sub: Pick<CatalogSubBlock, 'type' | 'valueKind'>,
+  value: Value
+): boolean {
+  switch (sub.valueKind) {
     case 'string':
+      return (
+        typeof value === 'string' || (NUMERIC_TEXT_TYPES.has(sub.type) && typeof value === 'number')
+      )
     case 'code':
     case 'picked':
       return typeof value === 'string'

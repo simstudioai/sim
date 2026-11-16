@@ -1,6 +1,7 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { compileWorkflow } from '@sim/workflow-code'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -39,7 +40,12 @@ function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[]; notes?:
       applied: !dryRun,
       diff: {
         noop: false,
-        blocks: { added: [{ id: 'b-1', key: 'start' }], removed: [], renamed: [], modified: [] },
+        blocks: {
+          added: [{ id: 'b-1', key: 'start' }],
+          removed: [],
+          renamed: [],
+          modified: [] as Array<{ id: string; key: string; fields: string[] }>,
+        },
         edges: { added: 1, removed: 0 },
         variables: { added: [], removed: [], modified: [] },
       },
@@ -217,6 +223,64 @@ describe('sim workflows source apply', () => {
     expect(process.exitCode).toBe(7)
   })
 
+  it('names each modified block and its changed fields in the result and the preview', async () => {
+    setTerminal(true)
+    const modified = outcome({ dryRun: true })
+    modified.data.diff.blocks.added = []
+    modified.data.diff.blocks.modified = [{ id: 'b-2', key: 'eachticket', fields: ['subflow'] }]
+    request.mockResolvedValue(modified)
+    prompt.question.mockResolvedValue('n')
+
+    await apply(WORKFLOW_ID, '--dir', dir).catch(() => {})
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    expect(stderrLines().some((line) => line.includes('Modified: eachticket (subflow)'))).toBe(true)
+    const printed = vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? ''
+    expect(JSON.parse(printed)).toMatchObject({
+      blocksModified: 1,
+      modified: [{ block: 'eachticket', fields: ['subflow'] }],
+    })
+  })
+
+  it('folds info findings into one line per code and keeps frames on warnings', async () => {
+    setTerminal(false)
+    const layout = (key: string, line: number) => ({
+      code: 'I_MAT_NEEDS_LAYOUT',
+      severity: 'info',
+      message: `Block "${key}" has no stored or lock position; it is placed by autolayout`,
+      file: 'workflow.ts',
+      line,
+      column: 3,
+      frame: `> ${line} |   const ${key} = agent(...)`,
+    })
+    const warning = {
+      code: 'W_REQUIRED_MISSING',
+      severity: 'warning',
+      message: 'apiKey is required.',
+      file: 'workflow.ts',
+      line: 9,
+      column: 5,
+      frame: '> 9 |   apiKey: undefined',
+    }
+    request.mockResolvedValue(
+      outcome({
+        dryRun: true,
+        diagnostics: [layout('a', 4), layout('b', 6), layout('c', 8), warning],
+      })
+    )
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    const lines = stderrLines()
+    const layoutLines = lines.filter((line) => line.includes('I_MAT_NEEDS_LAYOUT'))
+    expect(layoutLines).toHaveLength(1)
+    expect(layoutLines[0]).toContain('3 blocks')
+    expect(layoutLines[0]).not.toContain('> 4 |')
+    expect(
+      lines.some((line) => line.includes('W_REQUIRED_MISSING') && line.includes('> 9 |'))
+    ).toBe(true)
+  })
+
   it('prints every note on a dry run, so a kept name or a dropped tool is never silent', async () => {
     setTerminal(false)
     const note = "The workflow name 'New' differs from the stored one and was not changed."
@@ -339,5 +403,58 @@ describe('the code files an apply sends', () => {
 
     expect(sentCodeFiles()).toEqual(['functions/run.sh'])
     expect(JSON.stringify(request.mock.calls[0][1].body)).not.toContain('SECRET')
+  })
+})
+
+describe('sim workflows source create on a directory with no workflow.ts', () => {
+  const CATALOG = JSON.parse(
+    readFileSync(join(__dirname, '../../../../workflow-sdk/test/fixtures/catalog.json'), 'utf8')
+  )
+  const MANIFEST = {
+    data: {
+      workspaceId: WORKSPACE_ID,
+      tables: [],
+      knowledgeBases: [],
+      credentials: [],
+      workflows: [],
+      env: ['OPENAI_API_KEY'],
+      truncated: false,
+    },
+  }
+
+  async function create(...argv: string[]): Promise<void> {
+    await program().parseAsync(['node', 'sim', 'workflows', 'source', 'create', ...argv])
+  }
+
+  it('writes a starter workflow.ts, the types, tsconfig and the guide, and creates nothing', async () => {
+    setTerminal(false)
+    vi.stubEnv('SIM_CONFIG_DIR', join(dir, 'config'))
+    const empty = join(dir, 'new')
+    request.mockImplementation(async (path: string) => {
+      if (path.endsWith('/workflows/source/catalog')) return { data: CATALOG }
+      if (path.endsWith('/workflows/source/resources')) return MANIFEST
+      throw new Error(`unexpected request ${path}`)
+    })
+
+    await create('--dir', empty)
+
+    const starter = readFileSync(join(empty, 'workflow.ts'), 'utf8')
+    expect(existsSync(join(empty, '.sim/AGENTS.md'))).toBe(true)
+    expect(existsSync(join(empty, '.sim/sdk/core.d.ts'))).toBe(true)
+    expect(existsSync(join(empty, '.sim/sdk/workspace.d.ts'))).toBe(true)
+    expect(existsSync(join(empty, 'tsconfig.json'))).toBe(true)
+    expect(existsSync(join(empty, '.sim/lock.json'))).toBe(false)
+    expect(request.mock.calls.map((call) => call[0])).not.toContain(
+      `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source`
+    )
+    const compiled = compileWorkflow({
+      entry: { path: 'workflow.ts', text: starter },
+      files: new Map(),
+      catalog: CATALOG,
+      sdkMajor: CATALOG.sdkMajor,
+      knownKeys: new Set(),
+    })
+    expect(compiled.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    expect(stderrLines().join('\n')).toContain('Edit')
   })
 })

@@ -418,6 +418,11 @@ async function runSourceApply(
     if ('refused' in evaluation) return refuse(evaluation.refused)
     const { plan } = evaluation
     const { diff, diagnostics, mintedIds } = plan
+    /** The function files the submission named, kept so a write never renames the author's. */
+    const submittedCodeFiles: Record<string, string> = {}
+    for (const [key, hint] of Object.entries(plan.compiled.hints.blocks)) {
+      if (hint.codeFile !== undefined) submittedCodeFiles[key] = hint.codeFile
+    }
     /** Prints a state under the keys the submission bound, as the next `source get` will. */
     const print = (
       state: WorkflowState,
@@ -432,6 +437,7 @@ async function runSourceApply(
         sourceMeta,
         functionCode: plan.functionCode,
         identity: plan.identity,
+        codeFiles: submittedCodeFiles,
         ...(lockless ? { lockless } : {}),
       })
     const printWritten = (written: Omit<WorkflowState, 'variables'>) =>

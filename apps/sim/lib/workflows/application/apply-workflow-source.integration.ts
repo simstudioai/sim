@@ -49,6 +49,7 @@ import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.
 import {
   type ApplyWorkflowSourceInput,
   applyWorkflowSource,
+  createWorkflowFromSource,
 } from '@/lib/workflows/application/apply-workflow-source'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
@@ -152,7 +153,7 @@ function getSource(workflowId: string): Promise<ReadWorkflowSourceResult> {
 }
 
 function apply(
-  source: ReadWorkflowSourceResult,
+  source: Pick<ReadWorkflowSourceResult, 'workflowId' | 'lock' | 'base'>,
   files: Record<string, string>,
   extra: Partial<ApplyWorkflowSourceInput> = {}
 ) {
@@ -283,6 +284,104 @@ check('get → apply unchanged is a no-op that writes, audits and notifies nothi
   expect(await snapshot(seeded.workflowId)).toEqual(before)
   expect(await settledAuditRows(seeded.workflowId, 0)).toHaveLength(0)
   expect(notifiedFor(seeded.workflowId)).toBe(0)
+})
+
+check('create → apply the files it wrote is a no-op for a forEach loop', async () => {
+  const created = await withPermissionGroupScope(() =>
+    createWorkflowFromSource.execute({
+      principal,
+      input: {
+        workspaceId,
+        name: `Source create ${generateId()}`,
+        files: {
+          'workflow.ts': `// @sim-sdk 1
+import { fn, loop, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Each item', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { items: 'array' } })
+  const each = loop.forEach('Each Item', { collection: start.items }, (item) => {
+    const echo = fn('Echo', { code: 'return 1' })
+    item.to(echo)
+  })
+  start.to(each)
+})
+`,
+        },
+      },
+    })
+  )
+  expect(created.applied).toBe(true)
+  const stored = await loadWorkflowFromNormalizedTables(created.workflowId)
+  const loopBlock = Object.values(stored?.blocks ?? {}).find((block) => block.type === 'loop')
+  expect(loopBlock?.data?.whileCondition).toBe('')
+
+  const result = await apply(created, created.files, { dryRun: true })
+
+  expect(result.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+  expect(result.diff.blocks.modified).toEqual([])
+  expect(result.diff.noop).toBe(true)
+})
+
+check('create keeps the function file name the source wrote', async () => {
+  const created = await withPermissionGroupScope(() =>
+    createWorkflowFromSource.execute({
+      principal,
+      input: {
+        workspaceId,
+        name: `Source create ${generateId()}`,
+        files: {
+          'workflow.ts': `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Normalize', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { email: 'string' } })
+  const normalize = fn('Normalize Domain', { code: codeFile('./functions/normalize-domain.js') })
+  start.to(normalize)
+})
+`,
+          'functions/normalize-domain.js': "return String($ref.start.email ?? '').toLowerCase()\n",
+        },
+      },
+    })
+  )
+
+  expect(created.applied).toBe(true)
+  expect(Object.keys(created.files).sort()).toEqual([
+    'functions/normalize-domain.js',
+    'workflow.ts',
+  ])
+  expect(created.files['workflow.ts']).toContain("codeFile('./functions/normalize-domain.js')")
+  expect(Object.values(created.lock.blocks).map((block) => block.codeFile)).toContain(
+    'functions/normalize-domain.js'
+  )
+})
+
+check('a create warns on an env name the workspace and the caller do not hold', async () => {
+  const result = await withPermissionGroupScope(() =>
+    createWorkflowFromSource.execute({
+      principal,
+      input: {
+        workspaceId,
+        name: `Source create ${generateId()}`,
+        dryRun: true,
+        files: {
+          'workflow.ts': `// @sim-sdk 1
+import { env, response, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Env', {}, () => {
+  const start = trigger.start('Start', {})
+  const done = response('Done', { body: { key: env.SOURCE_APPLY_UNSET_KEY } })
+  start.to(done)
+})
+`,
+        },
+      },
+    })
+  )
+
+  const unknown = result.diagnostics.filter((d) => d.code === 'W_ENV_UNKNOWN')
+  expect(unknown).toHaveLength(1)
+  expect(unknown[0]).toMatchObject({ severity: 'warning', file: 'workflow.ts', line: 6 })
 })
 
 check('a legacy ~n key block keeps its stored secret through get → apply unchanged', async () => {

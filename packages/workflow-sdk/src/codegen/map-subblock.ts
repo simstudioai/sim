@@ -80,7 +80,7 @@ export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
   switch (type) {
     case 'short-input':
     case 'long-input':
-      return { type: 'Value<string>', doc }
+      return { type: 'Value<string | number>', doc }
     case 'dropdown':
       return { type: dropdownType(subBlock), doc: [...doc, ...selectorDoc(subBlock)] }
     case 'combobox': {

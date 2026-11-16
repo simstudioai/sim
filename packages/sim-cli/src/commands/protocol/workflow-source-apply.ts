@@ -17,7 +17,7 @@ import type {
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
-import { writeSourceDirectory } from './workflow-source-get'
+import { writeSourceDirectory, writeSourceScaffold } from './workflow-source-get'
 import {
   SOURCE_BASE_FILE as BASE_FILE,
   SOURCE_LOCK_FILE as LOCK_FILE,
@@ -126,6 +126,32 @@ function formatDiagnostic(diagnostic: Diagnostic): string {
   return lines.join('\n')
 }
 
+/**
+ * Prints a write's findings: every error and warning with its location, frame and hint, and each
+ * info code folded into one line (a new workflow places every block by autolayout, which is no
+ * reason to print a frame per block and bury the warnings).
+ */
+function printDiagnostics(diagnostics: Diagnostic[]): void {
+  const infos = new Map<string, Diagnostic[]>()
+  for (const diagnostic of diagnostics) {
+    if (diagnostic.severity !== 'info') {
+      printError(formatDiagnostic(diagnostic))
+      continue
+    }
+    const group = infos.get(diagnostic.code)
+    if (group) group.push(diagnostic)
+    else infos.set(diagnostic.code, [diagnostic])
+  }
+  for (const [code, group] of infos) {
+    const [first] = group
+    printError(
+      group.length === 1
+        ? formatDiagnostic({ ...first, frame: undefined })
+        : `info ${code} on ${group.length} blocks: ${first.message} (and ${group.length - 1} more like it)`
+    )
+  }
+}
+
 /** Prints the notes a write carries (a name the source changed but the apply kept, a dropped tool). */
 function printNotes(data: SourceApplyData): void {
   for (const note of data.notes) printError(`note: ${note}`)
@@ -150,9 +176,10 @@ function diffSummary(data: SourceApplyData): string {
   ]
   const variableCount =
     variables.added.length + variables.removed.length + variables.modified.length
+  const modified = blocks.modified.map(({ key, fields }) => `${key} (${fields.join(', ')})`)
   return `Blocks: ${parts.join(', ')}. Connections: +${edges.added} -${edges.removed}.${
     variableCount > 0 ? ` Variables changed: ${variableCount}.` : ''
-  }`
+  }${modified.length > 0 ? `\nModified: ${modified.join('; ')}` : ''}`
 }
 
 /** Whether a person is at a terminal to answer a prompt: never for an embedded run. */
@@ -229,7 +256,7 @@ function printRefusal(error: unknown): never {
   const details = toRecord(error.details)
   const diagnostics = details.diagnostics
   const printed = isDiagnosticList(diagnostics)
-  if (printed) for (const diagnostic of diagnostics) printError(formatDiagnostic(diagnostic))
+  if (printed) printDiagnostics(diagnostics)
   const nameTaken = error.status === 409 && details.code === 'SOURCE_NAME_TAKEN'
   throw new SimApiError(
     nameTaken
@@ -282,7 +309,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   }
   if (!options.dryRun && !options.yes) {
     const preview = await send(true)
-    for (const diagnostic of preview.diagnostics) printError(formatDiagnostic(diagnostic))
+    printDiagnostics(preview.diagnostics)
     printNotes(preview)
     if (preview.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
       setSoftExitCode(refusedExitCode(preview.diagnostics))
@@ -296,7 +323,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   }
 
   const data = await send(options.dryRun === true)
-  for (const diagnostic of data.diagnostics) printError(formatDiagnostic(diagnostic))
+  printDiagnostics(data.diagnostics)
   printNotes(data)
   const refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
   if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
@@ -376,7 +403,10 @@ export function attachWorkflowSourceCreate(source: Command): void {
     'getSourceResources',
   ])
   command
-    .requiredOption('--dir <dir>', 'Source directory: workflow.ts and functions/*')
+    .requiredOption(
+      '--dir <dir>',
+      'Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead'
+    )
     .option('--dry-run', 'Check the source and show the outcome without creating anything')
     .option('--name <name>', "The workflow name (default: the source's)")
     .option('--folder <path>', 'The folder to create it in (default: the root)')
@@ -385,6 +415,15 @@ export function attachWorkflowSourceCreate(source: Command): void {
     .description('Create a workflow from a workflow source directory')
     .addHelpText('after', EXIT_CODES_HELP)
     .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) => {
+      if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
+        const { client, profile } = connectCreate()
+        const tree = await writeSourceScaffold(client, options.dir, client.requireWorkspace())
+        printError(
+          `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types, tsconfig.json and .sim/AGENTS.md were written and nothing was created. Edit ${ENTRY_FILE}, then run \`sim workflows source create --dir ${options.dir} --yes\`.`
+        )
+        printProtocolResult(profile.output, { created: false, scaffolded: true, ...tree })
+        return
+      }
       requireConsent(options, 'creates a workflow')
       const { client, profile } = connectCreate()
       const workspaceId = client.requireWorkspace()
@@ -423,6 +462,9 @@ function summarize(data: SourceApplyData, created: boolean) {
     blocksAdded: data.diff.blocks.added.length,
     blocksRemoved: data.diff.blocks.removed.length,
     blocksModified: data.diff.blocks.modified.length,
+    ...(data.diff.blocks.modified.length > 0 && {
+      modified: data.diff.blocks.modified.map(({ key, fields }) => ({ block: key, fields })),
+    }),
     edgesAdded: data.diff.edges.added,
     edgesRemoved: data.diff.edges.removed,
     errors: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,

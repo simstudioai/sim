@@ -555,7 +555,7 @@ export const cases: PrintCase[] = [
           params: {
             operation: 'query_rows',
             tableSelector: { $sim: 'resource', kind: 'table', key: 'tickets' },
-            filterBuilder: [{ field: 'status', op: 'eq', value: 'open' }],
+            filterBuilder: [{ column: 'status', operator: 'eq', value: 'open' }],
           },
           modes: { tableId: 'basic', filterInput: 'basic' },
         }),

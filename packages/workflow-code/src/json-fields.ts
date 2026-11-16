@@ -139,7 +139,7 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
   if (declared.dynamicOutputs) {
     const { source, param } = declared.dynamicOutputs
     const field = dynamicFieldName(source, segments)
-    // A human form stores its fields as an input format; they surface under `submission`.
+    // A human form stores its fields as an input format; they surface at the top level and under `submission`.
     const type =
       field === undefined
         ? undefined
@@ -150,14 +150,14 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
 }
 
 /**
- * The dynamic field a ref path names: `<key.field>`, or for a human form `<key.submission.field>`,
- * where the SDK types its fields (`human()` in core.d.ts).
+ * The dynamic field a ref path names: `<key.field>`, or for a human form also
+ * `<key.submission.field>`; the runtime copies a submission's fields to the block's top level,
+ * and the SDK types both paths (`human()` in core.d.ts).
  */
 function dynamicFieldName(source: string, segments: readonly RefSegment[]): string | undefined {
   const [first, second] = segments
-  if (source !== 'humanForm') {
-    return segments.length === 1 && first?.kind === 'name' ? first.name : undefined
-  }
+  if (segments.length === 1 && first?.kind === 'name') return first.name
+  if (source !== 'humanForm') return undefined
   const underSubmission =
     segments.length === 2 && first?.kind === 'name' && first.name === 'submission'
   return underSubmission && second?.kind === 'name' ? second.name : undefined

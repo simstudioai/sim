@@ -132,6 +132,13 @@ export interface MaterializeOptions {
 
 export interface MaterializeResult {
   state: WorkflowState
+  /**
+   * The CWM that was written: the input with renamed references rewritten and every matched
+   * block's preserved state restored from prev (a param or subflow field that never executes,
+   * a pair's stored member). Diff this, not the input, against the stored CWM to learn what a
+   * write changes: an unchanged print differs from the stored CWM only in what this restores.
+   */
+  workflow: CanonicalWorkflow
   identity: LockIdentity
   entries: IdentityEntry[]
   /** New blocks with neither a prev nor a lock position, for targeted autolayout. */
@@ -345,6 +352,7 @@ export function materialize(
 
   return {
     state,
+    workflow,
     identity,
     entries: [
       ...[...resolution.blocks.values()].map((block) => block.entry),

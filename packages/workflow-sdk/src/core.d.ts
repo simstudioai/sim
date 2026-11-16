@@ -569,12 +569,20 @@ export declare function runWorkflow(
   meta?: BlockMeta
 ): Block<SpecialOutput<'runWorkflow'>>
 
-/** Pauses for a person; the form in `inputFormat` types `submission`. */
+/**
+ * Pauses for a person; the form in `inputFormat` types `submission`. A resumed block also holds
+ * each form field at its top level (the runtime copies the submission up, over any output of the
+ * same name), so `approval.approved` and `approval.submission.approved` both read it.
+ */
 export declare function human<const F extends InputFields = Record<never, never>>(
   name: string,
   params: SpecialParams<'human'> & { inputFormat?: F },
   meta?: BlockMeta
-): Block<Omit<SpecialOutput<'human'>, 'submission'> & { submission: InputFieldsOutput<F> }>
+): Block<
+  Omit<SpecialOutput<'human'>, 'submission' | keyof F> & {
+    submission: InputFieldsOutput<F>
+  } & InputFieldsOutput<F>
+>
 
 /**
  * A response's body, status and headers: the editor's JSON mode. An object or array `body` is
@@ -681,8 +689,56 @@ export interface VariableAssignment {
 /** Child workflow inputs by name (`input-mapping`, `workflow-input-mapper`). */
 export type InputMapping = Record<string, JsonWithRefs>
 
-/** A table filter by column: `{ status: { $eq: 'new' } }`. */
-export type Filter = Record<string, JsonWithRefs>
+/** An operator a table filter condition or builder rule can use. */
+export type FilterOperator = LiteralUnion<
+  | 'eq'
+  | 'ne'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'in'
+  | 'nin'
+  | 'like'
+  | 'ilike'
+  | 'nlike'
+  | 'nilike'
+  | 'contains'
+  | 'ncontains'
+  | 'startsWith'
+  | 'endsWith'
+  | 'isNull'
+  | 'isNotNull'
+  | 'isEmpty'
+  | 'isNotEmpty'
+>
+
+/** One row of the editor's filter builder, as it stores it. */
+export interface FilterRule {
+  id?: string
+  /** How this row joins the rows before it; `and` when omitted. */
+  logicalOperator?: 'and' | 'or'
+  column: string
+  operator: FilterOperator
+  value: Value<string | number | boolean>
+  collapsed?: boolean
+}
+
+/** A filter-builder value: the editor's rows, `[{ column: 'status', operator: 'eq', value: 'new' }]`. */
+export type Filter = FilterRule[]
+
+/** One table filter condition: `{ field: 'status', op: 'eq', value: 'new' }`. */
+export interface TableCondition {
+  field: string
+  op: FilterOperator
+  value?: JsonWithRefs
+}
+
+/**
+ * A table predicate: a condition, or an `all` (and) / `any` (or) group of predicates. The
+ * `{ status: { $eq: 'new' } }` operator-object grammar is not one: the runtime refuses it.
+ */
+export type TablePredicate = TableCondition | { all: TablePredicate[] } | { any: TablePredicate[] }
 
 /** A table sort by column: `{ createdAt: 'desc' }`. */
 export type Sort =
