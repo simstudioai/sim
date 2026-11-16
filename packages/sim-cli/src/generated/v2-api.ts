@@ -8385,6 +8385,71 @@ export type GetWorkflowRunResponse = {
   data: GetWorkflowRunResponseRef4
 }
 
+/** `GET /api/v2/workflows/[workflowId]/source` */
+export type GetWorkflowSourceParams = {
+  workflowId: string
+}
+
+export type GetWorkflowSourceQuery = {
+  annotateIds?: boolean
+  functionCode?: 'inline' | 'files'
+}
+
+export type GetWorkflowSourceResponse = {
+  data: {
+    workflowId: string
+    workspaceId: string
+    files: Record<string, string>
+    lock: {
+      lockVersion: 1
+      blocks: Record<
+        string,
+        {
+          id: string
+          parent: string | null
+          branches?: Record<string, string>
+          items?: Record<
+            string,
+            Array<{
+              name: string
+              id: string
+            }>
+          >
+          binding: string
+          order: number
+          layout?: {
+            x: number
+            y: number
+            w?: number
+            h?: number
+            height?: number
+            horizontalHandles?: boolean
+          }
+          codeFile?: string
+        }
+      >
+      variables: Record<string, string>
+    }
+    lockBase: {
+      workspaceId: string
+      baseFingerprint: string
+      catalogHash: string
+    }
+    fingerprint: string
+    canonicalHash: string
+    catalogVersion: string
+    sdkMajor: number
+    warnings: Array<{
+      code: string
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      blockKey?: string
+      param?: string
+    }>
+  }
+}
+
 /** `GET /api/v2/workflows/[workflowId]/state` */
 export type GetWorkflowStateParams = {
   workflowId: string
@@ -20494,6 +20559,26 @@ export const V2_OPERATIONS = {
         kind: 'integer',
         maximum: 16777216,
         describe: 'Per-file inline ceiling, lowering but never raising the server limit of 16 MiB.',
+      },
+    },
+  },
+  getWorkflowSource: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/source',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Get workflow source',
+    query: {
+      annotateIds: {
+        kind: 'boolean',
+        describe: "Print each block's id as a trailing `// id:` comment on its declaration.",
+      },
+      functionCode: {
+        kind: 'enum',
+        values: ['inline', 'files'] as const,
+        describe:
+          'Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `file()`; `inline` prints it in tagged templates.',
       },
     },
   },

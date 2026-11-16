@@ -295,6 +295,7 @@ import {
   v2UndeployWorkflowMcpToolContract,
   v2UpdateWorkflowMcpServerContract,
 } from '@/lib/api/contracts/v2/workflow-mcp-servers'
+import { v2GetWorkflowSourceContract } from '@/lib/api/contracts/v2/workflow-source'
 import {
   v2ActivateWorkflowVersionContract,
   v2ApplyWorkflowOperationsContract,
@@ -1691,6 +1692,14 @@ export const V2_MCP_OPERATIONS = {
       'Read current run state with workspace read access. Request final output and files with `includeOutput`, or block outputs with `selectedOutputs`. Organization permission groups can hide output, files, or cost. A paused run lists every pause point in `paused.points`, with the fields a human pause asks for and its content with resolved secrets redacted; resume one with Resume workflow run.\n\n`includeFileBase64` inlines file bytes. A file or the total above 16 MiB returns `413` naming a download path; download large files individually. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/route').then((route) => route.GET),
+  },
+  getWorkflowSource: {
+    contract: v2GetWorkflowSourceContract,
+    summary: 'Get workflow source',
+    description:
+      'Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `lockBase` records the fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/source/route').then((route) => route.GET),
   },
   getWorkflowState: {
     contract: v2GetWorkflowStateContract,

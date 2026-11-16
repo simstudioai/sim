@@ -70,6 +70,20 @@ export const workflowOperations = {
     contentDelivery: 'none',
     ...WORKFLOW_READ_PRINCIPAL_POLICY,
   }),
+  /**
+   * The draft as workflow source (TypeScript), its identity lock and freshness fingerprint. The
+   * same read as `read`, projected through the code-first canonical model.
+   */
+  // permission-group-exempt: workflow source is the workflow definition in another form, governed by workspace role like `read`
+  readSource: defineWorkspaceOperation({
+    id: 'workflows.source.read',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...WORKFLOW_READ_PRINCIPAL_POLICY,
+  }),
   /** Full diagnostics retain the caller's subject for protected reference and secret reads. */
   // permission-group-exempt: lint reads workflow content under the existing workflow and secret authorization policies
   readLint: defineWorkspaceOperation({
