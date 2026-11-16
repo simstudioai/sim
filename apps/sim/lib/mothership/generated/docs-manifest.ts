@@ -499,6 +499,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'workflows/blocks/wait.mdx',
   'workflows/blocks/webhook.mdx',
   'workflows/blocks/workflow.mdx',
+  'workflows/code.mdx',
   'workflows/connections.mdx',
   'workflows/data-flow.mdx',
   'workflows/deployment.mdx',
