@@ -48,7 +48,7 @@ function parseRows(value: unknown): { rows: unknown[] | null; parsed: boolean } 
 }
 
 /** Positional default keys mirror the copilot handles (validation.ts:1091-1130), quirk 8. */
-function positionalKeys(kind: CanonicalBranches['kind'], count: number): BranchKey[] {
+export function positionalKeys(kind: CanonicalBranches['kind'], count: number): BranchKey[] {
   if (kind === 'router') return Array.from({ length: count }, (_, index) => `route${index}`)
   let elseIf = 0
   return Array.from({ length: count }, (_, index) => {
@@ -59,7 +59,11 @@ function positionalKeys(kind: CanonicalBranches['kind'], count: number): BranchK
 }
 
 /** The title the canvas shows (condition-input.tsx:395-401, 686-693; router line 921). */
-function positionalTitle(kind: CanonicalBranches['kind'], index: number, count: number): string {
+export function positionalTitle(
+  kind: CanonicalBranches['kind'],
+  index: number,
+  count: number
+): string {
   if (kind === 'router') return `Route ${index + 1}`
   if (index === 0) return 'if'
   if (index === count - 1) return 'else'
@@ -70,7 +74,10 @@ function positionalTitle(kind: CanonicalBranches['kind'], index: number, count: 
  * Ids a never-persisted (or unparseable, or empty) branch list answers to, keyed by default key:
  * `getConditionRows` / `getRouterRows` fallbacks (dynamic-handle-topology.ts:57-100), quirk 7.
  */
-function implicitIds(kind: CanonicalBranches['kind'], blockId: string): Record<BranchKey, string> {
+export function implicitIds(
+  kind: CanonicalBranches['kind'],
+  blockId: string
+): Record<BranchKey, string> {
   return kind === 'router'
     ? { route0: `${blockId}-route1` }
     : { if: `${blockId}-if`, else: `${blockId}-else` }
