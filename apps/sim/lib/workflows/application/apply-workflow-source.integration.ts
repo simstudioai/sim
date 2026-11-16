@@ -958,14 +958,25 @@ describe('source apply edge cases', () => {
     return outcomes
   }
 
-  /** Waits until `count` sessions queue behind the holder; throws if an apply settles first. */
+  /**
+   * Waits until `count` sessions queue behind the holder; throws if an apply settles first. A
+   * second waiter on the same row queues on the first waiter's tuple lock, so Postgres reports it
+   * blocked by that waiter, not by the holder: the queue is followed transitively.
+   */
   function waitForQueued(holderPid: number, count: number, settled: () => boolean): Promise<void> {
     return runOutsideTransactionContext(async () => {
       for (let attempt = 0; attempt < 400; attempt++) {
         if (settled()) throw new Error('An apply finished before reaching the row lock')
         const [row] = await db.execute<{ blocked: number }>(sql`
-          SELECT count(*)::int AS blocked FROM pg_stat_activity
-          WHERE ${holderPid} = ANY(pg_blocking_pids(pid))`)
+          WITH RECURSIVE queued(pid) AS (
+            SELECT pid FROM pg_stat_activity
+            WHERE datname = current_database() AND ${holderPid}::int = ANY(pg_blocking_pids(pid))
+            UNION
+            SELECT activity.pid FROM pg_stat_activity AS activity
+            JOIN queued ON queued.pid = ANY(pg_blocking_pids(activity.pid))
+            WHERE activity.datname = current_database()
+          )
+          SELECT count(*)::int AS blocked FROM queued`)
         if ((row?.blocked ?? 0) >= count) return
         await sleep(25)
       }
