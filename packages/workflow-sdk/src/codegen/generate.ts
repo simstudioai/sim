@@ -12,15 +12,8 @@
  */
 
 import { compareStrings } from '@sim/utils/string'
-import {
-  type BlockCatalog,
-  type CatalogBlock,
-  type CatalogOutput,
-  type CatalogSubBlock,
-  catalogBlock,
-  catalogBlockTypes,
-  catalogTrigger,
-} from '@sim/workflow-code'
+import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from '@sim/workflow-code'
+import { catalogBlock, catalogBlockTypes, catalogTrigger } from '@sim/workflow-code/catalog/view'
 import { indentLines, jsdoc, literal, pascal, propertyKey, quote, union } from './emit'
 import { mapSubBlock } from './map-subblock'
 import { type BuilderEntry, builderEntries, TOOL_NAMESPACE } from './names'

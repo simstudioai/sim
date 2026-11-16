@@ -1,7 +1,13 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, posix } from 'node:path'
 import { isRecordLike } from '@sim/utils/object'
-import type { BlockCatalog } from '@sim/workflow-code'
+import type { BlockCatalog, CatalogBlock, CatalogBuilder, CatalogTrigger } from '@sim/workflow-code'
+import {
+  catalogBlock,
+  catalogBuilder,
+  catalogBuilderPaths,
+  catalogTrigger,
+} from '@sim/workflow-code/catalog/view'
 import { CORE_DTS, generateSdkTypes } from '@sim/workflow-sdk/codegen'
 import type { Command } from 'commander'
 import { embedStore } from '../../embed-context'
@@ -81,25 +87,27 @@ function readSource(raw: unknown): WorkflowSource {
 
 /**
  * The catalog narrowed to the block types the workflow uses: their blocks, the builders that
- * create them, and the triggers they can run. Core declarations come from `core.d.ts`, so this is
+ * create them, and the triggers they can run, read through the catalog view (an expanded entry is
+ * a valid core-shard entry). Core declarations come from `core.d.ts`, so this is
  * all an editor or agent needs to type-check the file.
  */
 function narrowCatalog(catalog: BlockCatalog, types: readonly string[]): BlockCatalog {
-  const used = new Set(types)
-  const blocks = Object.fromEntries(Object.entries(catalog.blocks).filter(([t]) => used.has(t)))
-  const triggerIds = new Set(
-    Object.values(blocks).flatMap((block) => block.triggers?.available ?? [])
-  )
-  return {
-    ...catalog,
-    blocks,
-    builders: Object.fromEntries(
-      Object.entries(catalog.builders).filter(([, builder]) => used.has(builder.type))
-    ),
-    triggers: Object.fromEntries(
-      Object.entries(catalog.triggers).filter(([id]) => triggerIds.has(id))
-    ),
+  const blocks: Record<string, CatalogBlock> = {}
+  for (const type of types) {
+    const block = catalogBlock(catalog, type)
+    if (block) blocks[type] = block
   }
+  const triggers: Record<string, CatalogTrigger> = {}
+  for (const id of Object.values(blocks).flatMap((block) => block.triggers?.available ?? [])) {
+    const trigger = catalogTrigger(catalog, id)
+    if (trigger) triggers[id] = trigger
+  }
+  const builders: Record<string, CatalogBuilder> = {}
+  for (const path of catalogBuilderPaths(catalog)) {
+    const builder = catalogBuilder(catalog, path)
+    if (builder && Object.hasOwn(blocks, builder.type)) builders[path] = builder
+  }
+  return { ...catalog, blocks, triggers, builders }
 }
 
 /** Standalone runs only: an embedded run has no local disk of its own to cache on. */

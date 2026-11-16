@@ -5,13 +5,8 @@
  */
 
 import { compareStrings } from '@sim/utils/string'
-import {
-  type BlockCatalog,
-  type CatalogBuilder,
-  catalogBlock,
-  catalogBuilder,
-  catalogBuilderPaths,
-} from '@sim/workflow-code'
+import type { BlockCatalog, CatalogBuilder } from '@sim/workflow-code'
+import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '@sim/workflow-code/catalog/view'
 import { SDK_CORE_EXPORTS } from '@sim/workflow-code/sdk'
 import { isIdentifier, pascal, RESERVED_WORDS } from './emit'
 

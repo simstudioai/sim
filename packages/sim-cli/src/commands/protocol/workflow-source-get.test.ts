@@ -59,17 +59,19 @@ async function get(...argv: string[]): Promise<void> {
   await program().parseAsync(['node', 'sim', 'workflows', 'source', 'get', WORKFLOW_ID, ...argv])
 }
 
+let rootDir: string
 let outDir: string
 
 beforeEach(() => {
   contextMockState.output = 'json'
   request.mockReset()
-  outDir = mkdtempSync(join(tmpdir(), 'sim-source-'))
+  rootDir = mkdtempSync(join(tmpdir(), 'sim-source-'))
+  outDir = join(rootDir, 'out')
   vi.spyOn(console, 'log').mockImplementation(() => {})
 })
 
 afterEach(() => {
-  rmSync(outDir, { recursive: true, force: true })
+  rmSync(rootDir, { recursive: true, force: true })
 })
 
 describe('sim workflows source get --out', () => {
@@ -128,7 +130,7 @@ describe('sim workflows source get --out', () => {
     )
 
     await expect(get('--out', outDir)).rejects.toThrow('unsafe file path')
-    expect(existsSync(join(outDir, '..', 'escape.js'))).toBe(false)
+    expect(existsSync(join(rootDir, 'escape.js'))).toBe(false)
     expect(request).toHaveBeenCalledTimes(1)
   })
 
