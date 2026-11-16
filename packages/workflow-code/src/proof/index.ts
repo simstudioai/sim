@@ -17,6 +17,7 @@ export {
 export { type Difference, findDifferences, firstTextDifference } from './diff'
 export {
   alignWorkflowIds,
+  assertNoErrors,
   assertNoopIdentity,
   decodeStructured,
   type ExecutionParityInput,

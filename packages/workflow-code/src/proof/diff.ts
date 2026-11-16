@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 
 /**
  * Exact structural differences between two JSON-like values, reported as RFC 6901 paths so a
@@ -32,7 +33,7 @@ function preview(value: unknown): string {
       text = String(value)
     }
   }
-  return text.length > PREVIEW_LIMIT ? `${text.slice(0, PREVIEW_LIMIT)}…` : text
+  return truncate(text, PREVIEW_LIMIT, '…')
 }
 
 function kindOf(value: unknown): string {

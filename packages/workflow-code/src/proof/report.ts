@@ -40,7 +40,8 @@ export interface BlockTypeParity extends Tally {
 
 export interface ProofReport {
   suite: string
-  status: 'passed' | 'failed'
+  /** `incomplete` when nothing failed but some property was skipped wholesale. */
+  status: 'passed' | 'failed' | 'incomplete'
   generatedAt: string
   caseCount: number
   totals: Record<ProofProperty, Tally>
@@ -109,7 +110,8 @@ export function createProofReport(
 
       return {
         suite,
-        status: failures.length === 0 ? 'passed' : 'failed',
+        status:
+          failures.length > 0 ? 'failed' : skippedProperties.length > 0 ? 'incomplete' : 'passed',
         generatedAt,
         caseCount: cases.size,
         totals,

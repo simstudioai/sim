@@ -15,7 +15,8 @@ import { normalizeWorkflowBlockName, type WorkflowState } from '@sim/workflow-ty
 import type { CanonicalWorkflow } from '../model'
 import { type Difference, findDifferences, firstTextDifference } from './diff'
 
-export type OracleName = 'O1' | 'O2' | 'O3' | 'P3'
+/** The property or oracle a verdict belongs to (s3 §5 P1–P5, s1 §6 O1–O3). */
+export type OracleName = 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'O1' | 'O2' | 'O3'
 
 export type OracleResult =
   | { ok: true; oracle: OracleName }
@@ -43,7 +44,7 @@ export function assertNoopIdentity(input: {
  * given (for CWMs, `canonicalEquals`), else exactly.
  */
 export function idempotence<T>(input: {
-  oracle: 'O3' | 'P3'
+  oracle: 'P1' | 'P3' | 'P5' | 'O3'
   value: T
   step: (value: T) => T
   equals?: (expected: T, actual: T) => boolean
@@ -103,6 +104,8 @@ export interface ExecutionParityInput {
   candidate: WorkflowState
   serialize: (state: WorkflowState) => SerializedWorkflowLike
   hasWorkflowChanged: (current: WorkflowState, deployed: WorkflowState) => boolean
+  /** `P2` when the candidate went through print and compile too. Default `O2`. */
+  oracle?: 'O2' | 'P2'
 }
 
 /**
@@ -124,7 +127,26 @@ export function executionParity(input: ExecutionParityInput): OracleResult {
       actual: 'true',
     })
   }
-  return verdict('O2', differences)
+  return verdict(input.oracle ?? 'O2', differences)
+}
+
+/**
+ * P4: printed code compiles with zero errors (s3 D12). Warnings and info do not count; each error
+ * is reported by code and message.
+ */
+export function assertNoErrors(
+  diagnostics: ReadonlyArray<{ code: string; severity: string; message: string }>
+): OracleResult {
+  return verdict(
+    'P4',
+    diagnostics
+      .filter((diagnostic) => diagnostic.severity === 'error')
+      .map((diagnostic) => ({
+        path: diagnostic.code,
+        kind: 'value' as const,
+        actual: diagnostic.message,
+      }))
+  )
 }
 
 function executionView(serialized: SerializedWorkflowLike) {
