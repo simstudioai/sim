@@ -108,7 +108,7 @@ describe('Slack operations', () => {
         file: {
           name: 'plan.pdf',
           is_external: true,
-          url_private: 'https://files.example.com/plan.pdf',
+          url_private: 'https://files.slack.com/files-pri/T1-F1/plan.pdf',
         },
       })
     )

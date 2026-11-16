@@ -9,13 +9,17 @@ const SLACK_FILE_ORIGIN = 'https://files.slack.com'
  * external, or any URL off Slack's file host, never receives a token.
  */
 export function slackFileDownloadUrl(file: Record<string, unknown>): URL | undefined {
-  if (file.is_external === true || file.mode === 'external' || file.filetype === 'remote')
-    return undefined
+  if (isExternalSlackFile(file)) return undefined
   const candidate = [file.url_private_download, file.url_private].find(
     (value): value is string => typeof value === 'string' && value.length > 0
   )
   const url = candidate ? URL.parse(candidate) : null
   return url?.origin === SLACK_FILE_ORIGIN ? url : undefined
+}
+
+/** Whether a file was shared from another app, whose URL is that app's own host. */
+export function isExternalSlackFile(file: Record<string, unknown>): boolean {
+  return file.is_external === true || file.mode === 'external' || file.filetype === 'remote'
 }
 
 /**

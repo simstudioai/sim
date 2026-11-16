@@ -94,13 +94,46 @@ describe('Slack file reads', () => {
       expect(api.bytes).not.toHaveBeenCalled()
     }
   })
-  it('keeps the preview, with the reason Slack gave, when Slack will not serve the file', async () => {
+  it('keeps the preview when Slack will not serve the file, without suggesting a reconnect', async () => {
+    const tooLarge = fileClient({ mimetype: 'application/pdf' }, async () => {
+      throw new NativeSearchError('unavailable', 'This file exceeds the 4 MiB live-read limit.')
+    })
+    const large = await readSlack(tooLarge, 'F123', undefined, 'file')
+    expect(large.content).toContain(
+      'Full text unavailable: This file exceeds the 4 MiB live-read limit.'
+    )
+    expect(large.content).toContain('Short preview')
     const denied = fileClient({ mimetype: 'text/plain' }, async () => {
-      throw new NativeSearchError('reconnect', 'The provider denied access.', undefined, 403)
+      throw new NativeSearchError(
+        'reconnect',
+        'The provider denied access. Reconnect your account with search and read permissions.',
+        undefined,
+        403
+      )
     })
     const read = await readSlack(denied, 'F123', undefined, 'file')
-    expect(read.content).toContain('Full text unavailable: The provider denied access.')
+    expect(read.content).toContain(
+      "Full text unavailable: Slack did not serve this file's contents"
+    )
+    expect(read.content).not.toContain('Reconnect')
     expect(read.content).toContain('Short preview')
+    const throttled = fileClient({ mimetype: 'text/plain' }, async () => {
+      throw new NativeSearchError(
+        'rate_limited',
+        'Provider rate limit reached. Try again later.',
+        30,
+        403
+      )
+    })
+    expect((await readSlack(throttled, 'F123', undefined, 'file')).content).toContain(
+      'Full text unavailable: Provider rate limit reached. Try again later.'
+    )
+    const relink = fileClient({ mimetype: 'text/plain' }, async () => {
+      throw new NativeSearchError('reconnect', 'Reconnect this provider to restore its API host.')
+    })
+    expect((await readSlack(relink, 'F123', undefined, 'file')).content).toContain(
+      'Full text unavailable: Reconnect this provider to restore its API host.'
+    )
     for (const failure of [
       new Error('Too many redirects (max: 0)'),
       new DOMException('The operation timed out.', 'TimeoutError'),
