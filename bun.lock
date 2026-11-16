@@ -853,8 +853,10 @@
         "@sim/workflow-types": "workspace:*",
       },
       "devDependencies": {
+        "@babel/types": "7.29.8",
         "@sim/tsconfig": "workspace:*",
         "@xyflow/react": "12.12.1",
+        "fast-check": "3.23.2",
         "typescript": "^7.0.2",
         "vitest": "^5.1.0",
       },
