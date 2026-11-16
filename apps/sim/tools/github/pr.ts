@@ -3,7 +3,6 @@ import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import {
   nullableBoolean,
   nullableString,
@@ -166,7 +165,7 @@ async function fetchPullRequestFiles(
   for (let page = 1; page <= maxPages; page += 1) {
     signal?.throwIfAborted()
     const response = await outboundFetch(
-      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${pullNumber}/files?per_page=${PULL_REQUEST_FILES_PER_PAGE}&page=${page}`,
+      `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${pullNumber}/files?per_page=${PULL_REQUEST_FILES_PER_PAGE}&page=${page}`,
       {
         headers: {
           Accept: 'application/vnd.github+json',
@@ -249,7 +248,7 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${githubPathSegment(params.pullNumber, 'pullNumber')}`,
+      `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

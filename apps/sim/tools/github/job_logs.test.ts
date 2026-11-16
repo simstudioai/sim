@@ -31,14 +31,15 @@ describe('github_job_logs', () => {
     expect(url).toBe('https://api.github.com/repos/octo/demo/actions/jobs/42/logs')
   })
 
-  it('refuses coordinates that would redirect the authenticated request', () => {
-    const url = jobLogsTool.request.url as (params: JobLogsParams) => string
+  it('escapes coordinates so they cannot redirect the authenticated request', () => {
+    const url = (jobLogsTool.request.url as (params: JobLogsParams) => string)({
+      ...BASE_PARAMS,
+      owner: '../../orgs/secret',
+      repo: 'demo?ref=x',
+    })
 
-    expect(() => url({ ...BASE_PARAMS, owner: '../../orgs/secret' })).toThrow(
-      /owner cannot contain a path separator/
-    )
-    expect(url({ ...BASE_PARAMS, repo: 'demo?ref=x' })).toBe(
-      'https://api.github.com/repos/octo/demo%3Fref%3Dx/actions/jobs/42/logs'
+    expect(url).toBe(
+      'https://api.github.com/repos/..%2F..%2Forgs%2Fsecret/demo%3Fref%3Dx/actions/jobs/42/logs'
     )
   })
 

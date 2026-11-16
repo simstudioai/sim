@@ -1,4 +1,3 @@
-import { githubRepoPath } from '@/tools/github/request-path'
 import type { CreatePRParams, PRResponse } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -62,8 +61,7 @@ export const createPRTool: ToolConfig<CreatePRParams, PRResponse> = {
   },
 
   request: {
-    url: (params) =>
-      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls`,
+    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/pulls`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

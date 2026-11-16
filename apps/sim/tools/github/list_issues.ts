@@ -1,4 +1,3 @@
-import { githubRepoPath } from '@/tools/github/request-path'
 import type { IssuesListResponse, ListIssuesParams } from '@/tools/github/types'
 import {
   ISSUE_OUTPUT_PROPERTIES,
@@ -93,9 +92,7 @@ export const listIssuesTool: ToolConfig<ListIssuesParams, IssuesListResponse> = 
 
   request: {
     url: (params) => {
-      const url = new URL(
-        `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues`
-      )
+      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/issues`)
       if (params.state) url.searchParams.append('state', params.state)
       if (params.assignee) url.searchParams.append('assignee', params.assignee)
       if (params.creator) url.searchParams.append('creator', params.creator)

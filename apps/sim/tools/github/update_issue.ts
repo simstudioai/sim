@@ -1,4 +1,3 @@
-import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { IssueResponse, UpdateIssueParams } from '@/tools/github/types'
 import {
   ISSUE_OUTPUT_PROPERTIES,
@@ -75,7 +74,7 @@ export const updateIssueTool: ToolConfig<UpdateIssueParams, IssueResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues/${githubPathSegment(params.issue_number, 'issue_number')}`,
+      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/${params.issue_number}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

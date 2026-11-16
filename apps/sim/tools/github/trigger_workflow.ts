@@ -1,5 +1,4 @@
 import { isRecordLike } from '@sim/utils/object'
-import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { TriggerWorkflowParams, TriggerWorkflowResponse } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -76,7 +75,7 @@ export const triggerWorkflowTool: ToolConfig<TriggerWorkflowParams, TriggerWorkf
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/actions/workflows/${githubPathSegment(params.workflow_id, 'workflow_id')}/dispatches`,
+      `https://api.github.com/repos/${params.owner}/${params.repo}/actions/workflows/${params.workflow_id}/dispatches`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

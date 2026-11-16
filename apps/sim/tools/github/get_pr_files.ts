@@ -1,4 +1,3 @@
-import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { GetPRFilesParams, PRFilesListResponse } from '@/tools/github/types'
 import { PR_FILE_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -55,7 +54,7 @@ export const getPRFilesTool: ToolConfig<GetPRFilesParams, PRFilesListResponse> =
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${githubPathSegment(params.pullNumber, 'pullNumber')}/files`
+        `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/files`
       )
       if (params.per_page) url.searchParams.append('per_page', Number(params.per_page).toString())
       if (params.page) url.searchParams.append('page', Number(params.page).toString())

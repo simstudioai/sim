@@ -1,4 +1,3 @@
-import { githubRefPath, githubRepoPath } from '@/tools/github/request-path'
 import type { BranchResponse, GetBranchParams } from '@/tools/github/types'
 import { BRANCH_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -41,7 +40,7 @@ export const getBranchTool: ToolConfig<GetBranchParams, BranchResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/branches/${githubRefPath(params.branch, 'branch')}`,
+      `https://api.github.com/repos/${params.owner}/${params.repo}/branches/${params.branch}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

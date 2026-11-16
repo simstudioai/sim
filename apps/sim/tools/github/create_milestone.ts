@@ -1,4 +1,3 @@
-import { githubRepoPath } from '@/tools/github/request-path'
 import { MILESTONE_CREATOR_OUTPUT, MILESTONE_V2_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -86,8 +85,7 @@ export const createMilestoneTool: ToolConfig<CreateMilestoneParams, CreateMilest
   },
 
   request: {
-    url: (params) =>
-      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/milestones`,
+    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/milestones`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

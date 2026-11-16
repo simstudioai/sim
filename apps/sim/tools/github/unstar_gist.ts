@@ -1,4 +1,3 @@
-import { githubPathSegment } from '@/tools/github/request-path'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -41,8 +40,7 @@ export const unstarGistTool: ToolConfig<UnstarGistParams, UnstarGistResponse> = 
   },
 
   request: {
-    url: (params) =>
-      `https://api.github.com/gists/${githubPathSegment(params.gist_id, 'gist_id')}/star`,
+    url: (params) => `https://api.github.com/gists/${params.gist_id?.trim()}/star`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

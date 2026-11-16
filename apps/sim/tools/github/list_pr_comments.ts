@@ -1,5 +1,4 @@
 import { truncate } from '@sim/utils/string'
-import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { CommentsListResponse, ListPRCommentsParams } from '@/tools/github/types'
 import { PR_COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -75,7 +74,7 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${githubPathSegment(params.pullNumber, 'pullNumber')}/comments`
+      const baseUrl = `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/comments`
       const queryParams = new URLSearchParams()
 
       if (params.sort) queryParams.append('sort', params.sort)

@@ -1,4 +1,3 @@
-import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { MergePRParams, MergeResultResponse } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -58,7 +57,7 @@ export const mergePRTool: ToolConfig<MergePRParams, MergeResultResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${githubPathSegment(params.pullNumber, 'pullNumber')}/merge`,
+      `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/merge`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',
