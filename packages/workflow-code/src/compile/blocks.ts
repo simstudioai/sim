@@ -1062,7 +1062,7 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
         }
       )
     }
-    if (entry.checked && !valueKindMatches(sub.valueKind, entry.value)) {
+    if (entry.checked && !valueKindMatches(sub, entry.value)) {
       ctx.reporter.report(
         'W_VALUE_KIND',
         `${entry.param} expects a ${sub.valueKind} value; the value is kept as written.`,
