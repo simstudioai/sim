@@ -45,6 +45,7 @@ export {
 export { executableView } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
 export {
+  isJson,
   type LockIdentity,
   parseWorkflowLock,
   type SourceBase,

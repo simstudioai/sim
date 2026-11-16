@@ -1,15 +1,16 @@
-import type {
-  CatalogBlock,
-  CatalogBlockGraph,
-  CatalogCondition,
-  CatalogLegacyId,
-  CatalogOption,
-  CatalogOutput,
-  CatalogSubBlock,
-  CatalogTool,
-  CatalogTrigger,
-  Json,
-  SubBlockConditionClause,
+import {
+  type CatalogBlock,
+  type CatalogBlockGraph,
+  type CatalogCondition,
+  type CatalogLegacyId,
+  type CatalogOption,
+  type CatalogOutput,
+  type CatalogSubBlock,
+  type CatalogTool,
+  type CatalogTrigger,
+  isJson,
+  type Json,
+  type SubBlockConditionClause,
 } from '@sim/workflow-code'
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { isTriggerSurface } from '@sim/workflow-code/catalog/surface'
@@ -274,23 +275,6 @@ function projectOptions(subBlock: SubBlockConfig): CatalogSubBlock['options'] {
   if (probe.reads.size > 0) return OPAQUE
   const resolved = resolveSubBlockOptions(subBlock)
   return resolved === undefined ? OPAQUE : copyOptions(resolved)
-}
-
-function isJson(value: unknown): value is Json {
-  if (value === null) return true
-  switch (typeof value) {
-    case 'string':
-    case 'boolean':
-      return true
-    case 'number':
-      return Number.isFinite(value)
-    case 'object':
-      return Array.isArray(value)
-        ? value.every(isJson)
-        : Object.values(value as Record<string, unknown>).every(isJson)
-    default:
-      return false
-  }
 }
 
 /**
