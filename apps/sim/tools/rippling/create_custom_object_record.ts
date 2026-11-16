@@ -49,6 +49,9 @@ export const ripplingCreateCustomObjectRecordTool: ToolConfig<RipplingCreateCust
         Accept: 'application/json',
       }),
       body: (params) => {
+        if (params.data == null || params.data === '') {
+          throw new Error('data is required: the field values of the record to create')
+        }
         const body: Record<string, unknown> = { ...customObjectRecordFields(params.data) }
         if (params.externalId != null && params.externalId !== '')
           body.external_id = params.externalId

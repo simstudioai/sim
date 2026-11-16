@@ -1034,7 +1034,7 @@ export const MicrosoftDynamics365Block: BlockConfig = {
                 'Opportunity ID'
               ),
               outcome: requiredString(
-                isToolCall(context) ? params.outcome : (params.opportunityOutcome ?? 'won'),
+                isToolCall(context) ? params.outcome : firstSet(params.opportunityOutcome, 'won'),
                 'Outcome'
               ),
               ...(subject && { subject }),

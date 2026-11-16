@@ -100,7 +100,7 @@ describe('Snowflake integration contracts', () => {
   })
 
   it('coerces stored tool-row text on a tool call, where the operation arrives only in context', () => {
-    const mapParams = SnowflakeBlock.tools.config.params
+    const mapParams = SnowflakeBlock.tools.config?.params
     if (!mapParams) throw new Error('Snowflake block must map tool parameters')
 
     expect(
@@ -121,7 +121,7 @@ describe('Snowflake integration contracts', () => {
   })
 
   it('keeps case-variant string switches a model sends on a tool call', () => {
-    const mapParams = SnowflakeBlock.tools.config.params
+    const mapParams = SnowflakeBlock.tools.config?.params
     if (!mapParams) throw new Error('Snowflake block must map tool parameters')
 
     const unload = {
@@ -145,7 +145,7 @@ describe('Snowflake integration contracts', () => {
   })
 
   it('keeps the semantic source the model filled when the tool row seeded the dropdown', () => {
-    const mapParams = SnowflakeBlock.tools.config.params
+    const mapParams = SnowflakeBlock.tools.config?.params
     if (!mapParams) throw new Error('Snowflake block must map tool parameters')
 
     const toolCall = {

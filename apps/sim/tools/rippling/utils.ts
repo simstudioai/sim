@@ -15,13 +15,6 @@ export function nextCursorFromLink(nextLink: unknown): string | null {
   }
 }
 
-/** The output entry every Rippling list tool declares for {@link nextCursorFromLink}. */
-export const NEXT_CURSOR_OUTPUT = {
-  type: 'string',
-  description: 'Cursor for the next page; pass it back as the cursor param (null on the last page)',
-  optional: true,
-} as const
-
 /** `?cursor=<cursor>` for a list endpoint that takes no other query params, or `''` without one. */
 export function cursorQuery(cursor: string | undefined): string {
   return cursor ? `?${new URLSearchParams({ cursor }).toString()}` : ''

@@ -1,6 +1,6 @@
 import type { RipplingListTitlesParams } from '@/tools/rippling/types'
 import { TITLE_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
-import { NEXT_CURSOR_OUTPUT, nextCursorFromLink } from '@/tools/rippling/utils'
+import { nextCursorFromLink } from '@/tools/rippling/utils'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -73,7 +73,13 @@ export const ripplingListTitlesTool: ToolConfig<RipplingListTitlesParams> = {
     },
     totalCount: { type: 'number', description: 'Number of items returned' },
     nextLink: { type: 'string', description: 'Link to next page of results', optional: true },
-    nextCursor: NEXT_CURSOR_OUTPUT,
+    nextCursor: {
+      type: 'string',
+      description:
+        'Cursor for the next page; pass it back as the cursor param (null on the last page)',
+      optional: true,
+      nullable: true,
+    },
     __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

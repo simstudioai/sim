@@ -88,6 +88,7 @@ List all workers with optional filtering and pagination
 |   ↳ `country_fields` | json | Country-specific fields |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -195,6 +196,7 @@ List all users with optional pagination
 |   ↳ `photos` | json | Array of photo objects |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -268,6 +270,7 @@ List all companies
 |   ↳ `legal_entities` | json | Expanded legal entities \(expand=legal_entities\) |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -352,6 +355,7 @@ List all departments
 |   ↳ `department_hierarchy` | json | Expanded department hierarchy |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -474,6 +478,7 @@ List all teams
 |   ↳ `parent` | json | Expanded parent team |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -533,6 +538,7 @@ List all employment types
 |   ↳ `amount_worked` | string | Amount worked \(PART-TIME, FULL-TIME, TEMPORARY\) |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -589,6 +595,7 @@ List all titles
 |   ↳ `name` | string | Title name |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -712,6 +719,7 @@ List all custom fields
 |   ↳ `options` | json | Choice values for SELECT and RADIO fields \(null for other types\) |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -740,6 +748,7 @@ List all job functions
 |   ↳ `name` | string | Job function name |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -793,6 +802,7 @@ List all work locations
 |   ↳ `address` | json | Address object |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -935,6 +945,7 @@ List all business partners
 |   ↳ `client_group_member_count` | number | Client group member count |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -1045,6 +1056,7 @@ List all business partner groups
 |   ↳ `default_business_partner_id` | string | Default business partner ID |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -1164,6 +1176,7 @@ List all supergroups
 |   ↳ `ignore_prov_group_matching` | boolean | Whether to ignore provisioning group matching |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -1236,6 +1249,7 @@ List members of a supergroup
 |   ↳ `worker` | json | Expanded worker object |
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -1269,6 +1283,7 @@ List inclusion members of a supergroup
 |   ↳ `worker` | json | Expanded worker object |
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -1302,6 +1317,7 @@ List exclusion members of a supergroup
 |   ↳ `worker` | json | Expanded worker object |
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -1379,6 +1395,7 @@ List all custom objects
 |   ↳ `enable_history` | boolean | Whether history is enabled |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 
 </ReferenceDetails>
 
@@ -1535,6 +1552,7 @@ List all fields for a custom object
 |   ↳ `managed_package_install_id` | string | Package install ID |
 | `totalCount` | number | Number of fields returned |
 | `nextLink` | string | Next page link |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 
 </ReferenceDetails>
 
@@ -1709,6 +1727,7 @@ List all records for a custom object
 |   ↳ `data` | json | Full record data including dynamic fields |
 | `totalCount` | number | Number of records returned |
 | `nextLink` | string | Next page link |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 
 </ReferenceDetails>
 
@@ -2266,6 +2285,7 @@ List all custom settings
 |   ↳ `boolean_value` | boolean | Boolean value |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 </ReferenceDetails>
@@ -2415,6 +2435,7 @@ List all object categories
 |   ↳ `description` | string | Description |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+| `nextCursor` | string | Cursor for the next page; pass it back as the cursor param \(null on the last page\) |
 
 </ReferenceDetails>
 

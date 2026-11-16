@@ -5,7 +5,7 @@ import type {
   OktaListUserGroupsParams,
   OktaListUserGroupsResponse,
 } from '@/tools/okta/types'
-import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { oktaHeaders, parseOktaPagination, throwOktaError } from '@/tools/okta/utils'
 import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -19,7 +19,7 @@ export const oktaListUserGroupsTool: ToolConfig<
   id: 'okta_list_user_groups',
   name: 'List User Groups from Okta',
   description:
-    'List every group a user is a member of. Use it for access reviews and offboarding instead of scanning the members of each group.',
+    'List the groups a user is a member of, one page at a time (pass nextCursor back as after while hasMore is true). Use it for access reviews and offboarding instead of scanning the members of each group.',
   version: '1.0.0',
   oauth: OKTA_CREDENTIAL_OAUTH,
 
@@ -42,12 +42,29 @@ export const oktaListUserGroupsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'User ID or login whose groups to list',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque pagination cursor returned as nextCursor by a previous call',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum number of groups to return per page (Okta default: 200)',
+    },
   },
 
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/groups`
+      const queryParams = new URLSearchParams()
+      if (params.after) queryParams.append('after', params.after)
+      if (params.limit) queryParams.append('limit', params.limit.toString())
+      const queryString = queryParams.toString()
+      const base = `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/groups`
+      return queryString ? `${base}?${queryString}` : base
     },
     method: 'GET',
     headers: (params) => oktaHeaders(params.apiKey),
@@ -58,6 +75,7 @@ export const oktaListUserGroupsTool: ToolConfig<
       await throwOktaError(response, logger, 'Failed to list user groups from Okta')
     }
 
+    const { nextCursor, hasMore } = parseOktaPagination(response)
     const data: OktaGroup[] = await response.json()
 
     const groups = data.map((group) => ({
@@ -75,6 +93,8 @@ export const oktaListUserGroupsTool: ToolConfig<
       output: {
         groups,
         count: groups.length,
+        nextCursor,
+        hasMore,
         success: true,
       },
     }
@@ -102,6 +122,13 @@ export const oktaListUserGroupsTool: ToolConfig<
       },
     },
     count: { type: 'number', description: 'Number of groups returned' },
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for the next page, or null on the last page',
+      optional: true,
+      nullable: true,
+    },
+    hasMore: { type: 'boolean', description: 'Whether more groups are available' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

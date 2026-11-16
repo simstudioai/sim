@@ -575,8 +575,9 @@ describe('okta create_group_rule id lists', () => {
 
 describe('okta path segments', () => {
   it('refuses a dot segment that would retarget a membership delete at the group', () => {
-    expect(() =>
-      builtUrl(oktaRemoveUserFromGroupTool.request.url, { ...AUTH, groupId: '00g1', userId: '..' })
-    ).toThrow(/userId/)
+    const build = oktaRemoveUserFromGroupTool.request.url
+    if (typeof build !== 'function')
+      throw new Error('remove_user_from_group defines no url builder')
+    expect(() => builtUrl(build, { ...AUTH, groupId: '00g1', userId: '..' })).toThrow(/userId/)
   })
 })

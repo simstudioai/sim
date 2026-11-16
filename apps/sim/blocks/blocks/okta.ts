@@ -32,6 +32,7 @@ const CURSOR_FIELD_BY_OPERATION: Record<string, string> = {
   okta_list_users: 'after',
   okta_list_groups: 'groupsAfter',
   okta_list_group_members: 'groupMembersAfter',
+  okta_list_user_groups: 'userGroupsAfter',
   okta_get_logs: 'logsAfter',
   okta_list_apps: 'appsAfter',
   okta_list_app_users: 'appUsersAfter',
@@ -84,7 +85,10 @@ export const OktaBlock: BlockConfig = {
         okta_suspend_user: [{ text: 'Suspend user', field: 'userId', core: true }],
         okta_unsuspend_user: [{ text: 'Unsuspend user', field: 'userId', core: true }],
         okta_unlock_user: [{ text: 'Unlock user', field: 'userId', core: true }],
-        okta_list_user_groups: [{ text: 'List the groups of user', field: 'userId', core: true }],
+        okta_list_user_groups: [
+          { text: 'List the groups of user', field: 'userId', core: true },
+          { text: ', up to', field: 'limit' },
+        ],
         okta_reset_password: [{ text: 'Reset the password of user', field: 'userId', core: true }],
         okta_delete_user: [{ text: 'Permanently delete user', field: 'userId', core: true }],
         okta_list_groups: [
@@ -933,6 +937,7 @@ export const OktaBlock: BlockConfig = {
           'okta_list_users',
           'okta_list_groups',
           'okta_list_group_members',
+          'okta_list_user_groups',
           'okta_get_logs',
           'okta_list_apps',
           'okta_list_app_users',
@@ -973,6 +978,14 @@ export const OktaBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'nextCursor from a previous run',
       condition: { field: 'operation', value: 'okta_list_group_members' },
+      mode: 'advanced',
+    },
+    {
+      id: 'userGroupsAfter',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from a previous run',
+      condition: { field: 'operation', value: 'okta_list_user_groups' },
       mode: 'advanced',
     },
     {
@@ -1181,6 +1194,7 @@ export const OktaBlock: BlockConfig = {
     after: { type: 'string', description: 'Cursor for the next page of users' },
     groupsAfter: { type: 'string', description: 'Cursor for the next page of groups' },
     groupMembersAfter: { type: 'string', description: 'Cursor for the next page of group members' },
+    userGroupsAfter: { type: 'string', description: 'Cursor for the next page of user groups' },
     logsAfter: { type: 'string', description: 'Cursor for the next page of System Log events' },
     appsAfter: { type: 'string', description: 'Cursor for the next page of applications' },
     appUsersAfter: {

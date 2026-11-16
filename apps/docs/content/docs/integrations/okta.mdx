@@ -566,7 +566,7 @@ List all members of a specific group in your Okta organization
 
 ### List User Groups from Okta
 
-List every group a user is a member of. Use it for access reviews and offboarding instead of scanning the members of each group.
+List the groups a user is a member of, one page at a time (pass nextCursor back as after while hasMore is true). Use it for access reviews and offboarding instead of scanning the members of each group.
 
 <ReferenceDetails>
 
@@ -575,6 +575,8 @@ List every group a user is a member of. Use it for access reviews and offboardin
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `userId` | string | Yes | User ID or login whose groups to list |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of groups to return per page \(Okta default: 200\) |
 
 #### Output
 
@@ -589,6 +591,8 @@ List every group a user is a member of. Use it for access reviews and offboardin
 |   ↳ `lastUpdated` | string | Last update timestamp |
 |   ↳ `lastMembershipUpdated` | string | Last membership change timestamp |
 | `count` | number | Number of groups returned |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether more groups are available |
 | `success` | boolean | Operation success status |
 
 </ReferenceDetails>

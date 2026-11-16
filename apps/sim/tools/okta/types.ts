@@ -344,12 +344,16 @@ export interface OktaUnlockUserResponse extends ToolResponse {
 
 export interface OktaListUserGroupsParams extends OktaBaseParams {
   userId: string
+  after?: string
+  limit?: number
 }
 
 export interface OktaListUserGroupsResponse extends ToolResponse {
   output: {
     groups: OktaGroupOutput[]
     count: number
+    nextCursor: string | null
+    hasMore: boolean
     success: boolean
   }
 }

@@ -213,6 +213,7 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
         },
         required: ['id', 'type'],
       },
+      maxItems: 10,
       required: false,
       visibility: 'user-or-llm',
       description:

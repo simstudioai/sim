@@ -1,6 +1,6 @@
 import type { RipplingListCustomObjectFieldsParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_FIELD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
-import { cursorQuery, NEXT_CURSOR_OUTPUT, nextCursorFromLink } from '@/tools/rippling/utils'
+import { cursorQuery, nextCursorFromLink } from '@/tools/rippling/utils'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -80,6 +80,12 @@ export const ripplingListCustomObjectFieldsTool: ToolConfig<RipplingListCustomOb
       },
       totalCount: { type: 'number', description: 'Number of fields returned' },
       nextLink: { type: 'string', description: 'Next page link', optional: true },
-      nextCursor: NEXT_CURSOR_OUTPUT,
+      nextCursor: {
+        type: 'string',
+        description:
+          'Cursor for the next page; pass it back as the cursor param (null on the last page)',
+        optional: true,
+        nullable: true,
+      },
     },
   }
