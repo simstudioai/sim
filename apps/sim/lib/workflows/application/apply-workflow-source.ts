@@ -30,17 +30,17 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { loadWorkflowGraph } from '@/lib/workflows/application/read-workflow-graph'
 import {
+  commitSourceCreate,
+  commitSourceReplace,
+  previewSourceCommit,
+} from '@/lib/workflows/application/source-commit'
+import {
   type WorkflowSourceDiagnostic,
   WorkflowSourceRejectedError,
   WorkflowSourceStaleError,
 } from '@/lib/workflows/application/source-error'
-import {
-  commitSourceCreate,
-  commitSourceReplace,
-  previewSourceCommit,
-} from '@/lib/workflows/code/apply/commit'
-import { evaluateSource } from '@/lib/workflows/code/apply/evaluate'
-import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/code/apply/locate'
+import { evaluateSource } from '@/lib/workflows/application/source-evaluate'
+import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-locate'
 import {
   type PrintedSource,
   printStoredSource,

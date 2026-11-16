@@ -30,9 +30,6 @@ import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-sco
 import { layoutChangedBlocks } from '@/lib/workflows/application/graph-write'
 import { snapshotMcpToolOutputSchemas } from '@/lib/workflows/application/mcp-output-schemas'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
-import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
-import { gateSourceDiff } from '@/lib/workflows/code/apply/gates'
-import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import {
   createLocator,
   hasErrors,
@@ -40,7 +37,10 @@ import {
   normalizeChangedValues,
   type SourceDiffSummary,
   summarizeDiff,
-} from '@/lib/workflows/code/apply/locate'
+} from '@/lib/workflows/application/source-locate'
+import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
+import { gateSourceDiff } from '@/lib/workflows/code/apply/gates'
+import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import { boundLock, type StoredSource } from '@/lib/workflows/code/apply/print'
 import { findProtectedBlockRefusals } from '@/lib/workflows/code/apply/protected'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
