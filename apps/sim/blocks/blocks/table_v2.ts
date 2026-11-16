@@ -13,6 +13,7 @@ import type {
 } from '@/lib/table/types'
 import type { BlockConfig, BlockToolParamsContext } from '@/blocks/types'
 import {
+  failToolCallOnError,
   mapperOperation,
   resolveTableColumnSelection,
   TABLE_OUTPUT_COLUMNS_INPUT,
@@ -570,7 +571,7 @@ Return ONLY the JSON object:`,
         const { operation, ...rest } = params
         const transformer = paramTransformers[mapperOperation(params, context)]
         if (transformer) {
-          return transformer(rest as TableBlockParams, context)
+          return failToolCallOnError(context, () => transformer(rest as TableBlockParams, context))
         }
         return rest
       },

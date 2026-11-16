@@ -16,6 +16,7 @@ import {
 import { getProviderHistoryProtocol, requiresNativeToolHistory } from '@/providers/history-adapters'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
+import { ToolCallParamsError } from '@/providers/tool-params-error'
 import type { Message, ProviderId, ProviderRequest } from '@/providers/types'
 import { prepareToolExecution } from '@/providers/utils'
 
@@ -78,15 +79,29 @@ export async function continuePendingConversationCalls(
       })
       continue
     }
-    const { executionParams } = prepareToolExecution(
-      tool,
-      args,
-      {
-        ...request,
-        resolveToolInvocationId: () => call.invocationId,
-      },
-      call.providerCallId
-    )
+    let executionParams: ReturnType<typeof prepareToolExecution>['executionParams']
+    try {
+      executionParams = prepareToolExecution(
+        tool,
+        args,
+        {
+          ...request,
+          resolveToolInvocationId: () => call.invocationId,
+        },
+        call.providerCallId
+      ).executionParams
+    } catch (error) {
+      // Any other preparation refusal aborts the continuation; a block mapper rejecting the
+      // arguments is a failed tool call, recorded as the original attempt would have reported it.
+      if (!(error instanceof ToolCallParamsError)) throw error
+      const result = { success: false, output: {}, error: getErrorMessage(error) }
+      await session.recordToolResult({
+        invocationId: call.invocationId,
+        rawResponse: result,
+        modelResponse: result,
+      })
+      continue
+    }
     try {
       logger.info('Retrying an Agent tool with an unrecorded outcome')
       await executeProviderTool(tool.id, executionParams)

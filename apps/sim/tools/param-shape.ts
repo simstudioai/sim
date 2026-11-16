@@ -59,11 +59,18 @@ const SUBBLOCK_TYPE_BY_VALUE_TYPE: Record<string, SubBlockType> = {
   any: 'short-input',
 }
 
-/** Sub-block types whose store value is an object or array rather than a scalar. */
+/**
+ * Sub-block types whose store value is an object or array rather than a scalar.
+ *
+ * `filter-builder` and `sort-builder` hold rule arrays, and both the Table mappers and the
+ * tool-row builders only read an array: a tool row's rules left as JSON text are ignored.
+ */
 const OBJECT_VALUED_SUBBLOCK_TYPES = new Set<SubBlockType>([
   'checkbox-list',
   'file-upload',
+  'filter-builder',
   'grouped-checkbox-list',
+  'sort-builder',
   'table',
 ])
 

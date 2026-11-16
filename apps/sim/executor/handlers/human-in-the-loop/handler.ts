@@ -28,6 +28,7 @@ import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/t
 import { collectBlockData } from '@/executor/utils/block-data'
 import { convertBuilderDataToJson, convertPropertyValue } from '@/executor/utils/builder-data'
 import { parseObjectStrings } from '@/executor/utils/json'
+import { ToolCallParamsError } from '@/providers/tool-params-error'
 import { buildBlockToolParamsTransform } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
@@ -449,7 +450,9 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
       return paramsTransform(visibleParams)
     } catch (error) {
       // Mirrors `prepareToolExecution`: a transform that throws must not take the
-      // notification down with it, so the raw params still go out.
+      // notification down with it, so the raw params still go out — except a
+      // `ToolCallParamsError`, whose raw params are unsafe to send.
+      if (error instanceof ToolCallParamsError) throw error
       logger.warn('Notification tool params transform failed, using raw params', {
         toolId,
         error,
