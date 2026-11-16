@@ -30,9 +30,9 @@ List issues from Sentry for a specific organization and optionally a specific pr
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
-| `projectSlug` | string | No | Filter issues by numeric project ID \(e.g., "4501234"\). This organization-scoped endpoint requires the numeric project ID, not the project slug. |
+| `projectSlug` | string | No | Filter issues by project ID or slug \(e.g., "4501234" or "my-project"\) |
 | `query` | string | No | Search query to filter issues. Supports Sentry search syntax \(e.g., "is:unresolved", "level:error"\) |
-| `statsPeriod` | string | No | Time window for the per-issue stats series \(e.g., "24h", "14d"\). Note: this controls the stats returned with each issue, not which issues are returned — use the query \(e.g., "age:-7d", "lastSeen:-24h"\) to filter results. |
+| `statsPeriod` | string | No | Time window to search \(e.g., "24h", "14d"\); only issues with events in this window are returned. |
 | `cursor` | string | No | Pagination cursor for retrieving next page of results |
 | `limit` | number | No | Number of issues to return per page \(max: 100\) |
 | `status` | string | No | Filter by issue status: unresolved, resolved, or ignored. The legacy "ignored"/"muted" values map to Sentry's current "archived" search token. |
@@ -84,6 +84,8 @@ List issues from Sentry for a specific organization and optionally a specific pr
 | `metadata` | object | Pagination metadata |
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
+| `nextCursor` | string | Cursor for the next page of results; pass it as the Pagination Cursor to fetch that page |
+| `hasMore` | boolean | Whether there are more results available |
 
 </ReferenceDetails>
 
@@ -159,6 +161,7 @@ Update a Sentry issue by changing its status, assignment, bookmark state, or oth
 | `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
 | `issueId` | string | Yes | The unique ID of the issue to update \(e.g., "12345"\) |
 | `status` | string | No | New status for the issue: resolved, unresolved, ignored, or resolvedInNextRelease |
+| `priority` | string | No | New priority for the issue: low, medium, or high |
 | `assignedTo` | string | No | Actor to assign the issue to, in the form "user:&lt;id&gt;" or "team:&lt;id&gt;" \(a bare username or email is also accepted\). Use an empty string to unassign. |
 | `isBookmarked` | boolean | No | Whether to bookmark the issue |
 | `isSubscribed` | boolean | No | Whether to subscribe to issue updates |
@@ -213,7 +216,7 @@ List all projects in a Sentry organization. Returns project details including na
 |   ↳ `isBookmarked` | boolean | Whether the project is bookmarked |
 |   ↳ `isMember` | boolean | Whether the user is a member of the project |
 |   ↳ `features` | array | Enabled features for the project |
-|   ↳ `organization` | object | Organization information |
+|   ↳ `organization` | object | Organization information \(not returned by this endpoint; use Get Project\) |
 |     ↳ `id` | string | Organization ID |
 |     ↳ `slug` | string | Organization slug |
 |     ↳ `name` | string | Organization name |
@@ -221,11 +224,13 @@ List all projects in a Sentry organization. Returns project details including na
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 |     ↳ `slug` | string | Team slug |
-|   ↳ `status` | string | Project status |
-|   ↳ `isPublic` | boolean | Whether the project is publicly visible |
+|   ↳ `status` | string | Project status \(not returned by this endpoint; use Get Project\) |
+|   ↳ `isPublic` | boolean | Whether the project is publicly visible \(not returned by this endpoint; use Get Project\) |
 | `metadata` | object | Pagination metadata |
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
+| `nextCursor` | string | Cursor for the next page of results; pass it as the Pagination Cursor to fetch that page |
+| `hasMore` | boolean | Whether there are more results available |
 
 </ReferenceDetails>
 
@@ -315,7 +320,7 @@ Create a new Sentry project in an organization. Requires a team to associate the
 |   ↳ `hasAccess` | boolean | Whether the user has access |
 |   ↳ `features` | array | Enabled features |
 |   ↳ `firstEvent` | string | First event timestamp |
-|   ↳ `organization` | object | Organization information |
+|   ↳ `organization` | object | Organization information \(not returned by this endpoint; use Get Project\) |
 |     ↳ `id` | string | Organization ID |
 |     ↳ `slug` | string | Organization slug |
 |     ↳ `name` | string | Organization name |
@@ -327,9 +332,9 @@ Create a new Sentry project in an organization. Requires a team to associate the
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
 |     ↳ `slug` | string | Team slug |
-|   ↳ `status` | string | Project status |
-|   ↳ `color` | string | Project color code |
-|   ↳ `isPublic` | boolean | Whether the project is public |
+|   ↳ `status` | string | Project status \(not returned by this endpoint; use Get Project\) |
+|   ↳ `color` | string | Project color code \(not returned by this endpoint; use Get Project\) |
+|   ↳ `isPublic` | boolean | Whether the project is public \(not returned by this endpoint; use Get Project\) |
 
 </ReferenceDetails>
 
@@ -388,7 +393,7 @@ List events from a Sentry project. Can be filtered by issue ID, query, or time p
 | `issueId` | string | No | Filter events by a specific issue ID \(e.g., "12345"\) |
 | `query` | string | No | Search query to filter events. Only applied when an Issue ID is provided \(the issue events endpoint\); the project events endpoint ignores it. Supports Sentry search syntax \(e.g., "user.email:*@example.com"\) |
 | `cursor` | string | No | Pagination cursor for retrieving next page of results |
-| `limit` | number | No | Number of events to return per page \(max: 100\) |
+| `limit` | number | No | Number of events to return per page \(max: 10, because full event bodies are requested\) |
 | `statsPeriod` | string | No | Time period to query \(e.g., "24h", "7d", "14d"\). Cannot be combined with absolute start/end. |
 
 #### Output
@@ -434,6 +439,8 @@ List events from a Sentry project. Can be filtered by issue ID, query, or time p
 | `metadata` | object | Pagination metadata |
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
+| `nextCursor` | string | Cursor for the next page of results; pass it as the Pagination Cursor to fetch that page |
+| `hasMore` | boolean | Whether there are more results available |
 
 </ReferenceDetails>
 
@@ -505,7 +512,7 @@ List releases for a Sentry organization or project. Returns release details incl
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
-| `projectSlug` | string | No | Filter releases by numeric project ID \(e.g., "4501234"\). This organization-scoped endpoint requires the numeric project ID, not the project slug. |
+| `projectSlug` | string | No | Filter releases by project ID or slug \(e.g., "4501234" or "my-project"\) |
 | `query` | string | No | Search query to filter releases \(e.g., "1.0" to match version patterns\) |
 | `cursor` | string | No | Pagination cursor for retrieving next page of results |
 | `limit` | number | No | Number of releases to return per page \(default: 25, max: 100\) |
@@ -558,6 +565,8 @@ List releases for a Sentry organization or project. Returns release details incl
 | `metadata` | object | Pagination metadata |
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
+| `nextCursor` | string | Cursor for the next page of results; pass it as the Pagination Cursor to fetch that page |
+| `hasMore` | boolean | Whether there are more results available |
 
 </ReferenceDetails>
 
@@ -696,6 +705,8 @@ List all teams in a Sentry organization. Useful for discovering the team slug re
 | `metadata` | object | Pagination metadata |
 |   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
 |   ↳ `hasMore` | boolean | Whether there are more results available |
+| `nextCursor` | string | Cursor for the next page of results; pass it as the Pagination Cursor to fetch that page |
+| `hasMore` | boolean | Whether there are more results available |
 
 </ReferenceDetails>
 
