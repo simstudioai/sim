@@ -6,7 +6,7 @@ import { isEqual } from 'es-toolkit'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { diffGraphs, type GraphDiff, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
+import type { GraphDiff, SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import { hasDisabledAncestor } from '@/lib/workflows/editing/block-enablement'
 import {
   createSubBlockInputGate,
@@ -78,8 +78,7 @@ export type SourceGateDiagnostic = Diagnostic<
 export interface GateSourceDiffArgs {
   base: SourceGraph
   target: SourceGraph
-  /** Defaults to `diffGraphs(base, target)`. */
-  diff?: GraphDiff
+  diff: GraphDiff
   permissionConfig: PermissionGroupConfig | null
   /** The governed human subject: credential reachability is checked as this user. */
   subjectUserId: string
@@ -183,18 +182,39 @@ function gateBlockPlacement(
 }
 
 /**
+ * The types of the target's other blocks, one witness per type, for a block of type `self`. The
+ * uniqueness predicates ask only whether a type is present, so one witness stands for every block
+ * of it, and counting once keeps a large create linear instead of scanning the graph per block.
+ */
+function createOtherTypes(target: SourceGraph): (self: string) => Array<{ type: string }> {
+  const counts = new Map<string, number>()
+  for (const block of Object.values(target.blocks)) {
+    counts.set(block.type, (counts.get(block.type) ?? 0) + 1)
+  }
+  const byType = new Map<string, Array<{ type: string }>>()
+  return (self) => {
+    let others = byType.get(self)
+    if (!others) {
+      others = []
+      for (const [type, count] of counts) if (count > (type === self ? 1 : 0)) others.push({ type })
+      byType.set(self, others)
+    }
+    return others
+  }
+}
+
+/**
  * Trigger uniqueness against the target graph: a new (or retyped) block may not be a second
  * single-instance trigger or block. The other blocks are the target's, so replacing a trigger in
  * one apply (remove the old, add the new) passes.
  */
 function gateTriggerUniqueness(
   entry: GatedBlock,
-  target: SourceGraph,
+  others: Array<{ type: string }>,
   skipped: SkippedItem[]
 ): void {
   const { block } = entry
   const operationType = entry.added ? 'add' : 'edit'
-  const others = Object.values(target.blocks).filter((other) => other.id !== block.id)
   const triggerIssue = TriggerUtils.getTriggerAdditionIssue(others, block.type)
   if (triggerIssue) {
     skipped.push({
@@ -303,10 +323,10 @@ function sandboxChanged(entry: GatedBlock): boolean {
  * Locked blocks are refused separately, by `findLockedBlockRefusals`.
  */
 export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGateDiagnostic[]> {
-  const { base, target, permissionConfig, subjectUserId, workspaceId, isCopilot } = args
-  const diff = args.diff ?? diffGraphs(base, target)
+  const { base, target, diff, permissionConfig, subjectUserId, workspaceId, isCopilot } = args
   const gated = collectGatedBlocks(base, target, diff)
   const diagnostics: SourceGateDiagnostic[] = []
+  const otherTypes = createOtherTypes(target)
 
   const record = (skipped: SkippedItem[], param?: string) => {
     for (const item of skipped) {
@@ -328,7 +348,7 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
     if (entry.added || entry.typeChanged) {
       const skipped: SkippedItem[] = []
       const placed = gateBlockPlacement(entry, permissionConfig, skipped)
-      if (placed) gateTriggerUniqueness(entry, target, skipped)
+      if (placed) gateTriggerUniqueness(entry, otherTypes(block.type), skipped)
       record(skipped)
       if (!placed) continue
     }

@@ -18,6 +18,8 @@ import {
 import {
   buildCanonicalIndexForSurface,
   buildDefaultCanonicalModes,
+  isStandaloneAdvancedMode,
+  isTriggerModeSubBlock,
   withCanonicalModes,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
@@ -53,8 +55,6 @@ export interface BlockFixture {
   filled: string[]
 }
 
-const TRIGGER_MODES = new Set(['trigger', 'trigger-advanced'])
-
 /** Whether a subBlock belongs to the surface (action or trigger) this block is stored on. */
 export function isOnSurface(
   subBlock: SubBlockConfig,
@@ -62,14 +62,11 @@ export function isOnSurface(
   triggerSurface: boolean
 ) {
   if (config.category === 'triggers') return true
-  return triggerSurface === TRIGGER_MODES.has(subBlock.mode ?? 'both')
+  return triggerSurface === isTriggerModeSubBlock(subBlock)
 }
 
 export function isStandaloneAdvanced(subBlock: SubBlockConfig): boolean {
-  return (
-    (subBlock.mode === 'advanced' || subBlock.mode === 'trigger-advanced') &&
-    !subBlock.canonicalParamId
-  )
+  return isStandaloneAdvancedMode(subBlock.mode) && !subBlock.canonicalParamId
 }
 
 /** Visible under `values`; a condition that throws counts as hidden. */

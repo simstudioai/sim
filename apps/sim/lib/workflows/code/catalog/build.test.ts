@@ -10,6 +10,7 @@ import { gzipSync } from 'node:zlib'
 import {
   type CatalogBlock,
   type CatalogSubBlock,
+  compactBlockCatalog,
   expandBlockCatalog,
   stableStringify,
 } from '@sim/workflow-code'
@@ -19,6 +20,11 @@ vi.unmock('@/blocks/registry')
 
 import { v2SourceCatalogSchema } from '@/lib/api/contracts/v2/source-catalog'
 import { buildBlockCatalog, projectBlockCatalog } from '@/lib/workflows/code/catalog/build'
+import {
+  type ProjectionReport,
+  projectBlock,
+  projectTrigger,
+} from '@/lib/workflows/code/catalog/project'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
 import { getBlockRegistry } from '@/blocks/registry'
@@ -26,14 +32,24 @@ import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 import type { BlockConfig } from '@/blocks/types'
 
 const registryBlocks = Object.values(getBlockRegistry())
-const built = buildBlockCatalog({
-  blocks: registryBlocks,
-  trigger: registryTrigger,
-  sdkNames: SDK_NAMES,
-})
-const { catalog, report } = built
+const registryInput = { blocks: registryBlocks, trigger: registryTrigger, sdkNames: SDK_NAMES }
+const catalog = buildBlockCatalog(registryInput)
 /** What every consumer reads: the core shard expanded through the package's catalog view. */
 const view = expandBlockCatalog(catalog)
+/** The projection before encoding, and the docs shard the core shard leaves out of it. */
+const projection = projectBlockCatalog(registryInput)
+const { docs } = compactBlockCatalog(projection)
+const readDocs = (type: string) => (Object.hasOwn(docs, type) ? docs[type] : undefined)
+
+/** Every opaque site, from projecting each registry block and the triggers they reference. */
+const report: ProjectionReport = { opaque: [] }
+for (const block of registryBlocks) projectBlock(block, report)
+for (const id of new Set(
+  registryBlocks.flatMap((block) => (block.triggers?.enabled ? block.triggers.available : []))
+)) {
+  const trigger = registryTrigger(id)
+  if (trigger) projectTrigger(trigger, report)
+}
 
 function isOpaque(value: unknown): boolean {
   return typeof value === 'object' && value !== null && 'opaque' in value
@@ -179,13 +195,9 @@ describe('block catalog projection over the whole registry', () => {
 
   it('is deterministic: rebuilt from fresh config objects in reverse order, the hash matches', () => {
     const fresh: BlockConfig[] = [...registryBlocks].reverse().map((block) => ({ ...block }))
-    const again = buildBlockCatalog({
-      blocks: fresh,
-      trigger: registryTrigger,
-      sdkNames: SDK_NAMES,
-    })
-    expect(again.catalog.hash).toBe(catalog.hash)
-    expect(JSON.stringify(again.catalog)).toBe(JSON.stringify(catalog))
+    const again = buildBlockCatalog({ ...registryInput, blocks: fresh })
+    expect(again.hash).toBe(catalog.hash)
+    expect(JSON.stringify(again)).toBe(JSON.stringify(catalog))
   })
 
   it('marks stored-only types not addable without changing anything else about them', () => {
@@ -196,20 +208,15 @@ describe('block catalog projection over the whole registry', () => {
       trigger: registryTrigger,
       sdkNames: SDK_NAMES,
     })
-    const { addable, ...rest } = expandBlockCatalog(scoped.catalog).blocks[first.type]
+    const { addable, ...rest } = expandBlockCatalog(scoped).blocks[first.type]
     expect(addable).toBe(false)
     const { addable: _ignored, ...original }: CatalogBlock = view.blocks[first.type]
     expect(rest).toEqual(original)
-    expect(scoped.catalog.hash).not.toBe(catalog.hash)
+    expect(scoped.hash).not.toBe(catalog.hash)
   })
 
   it('encodes the projection losslessly: core shard plus docs expands to it for every block', () => {
-    const { catalog: projection } = projectBlockCatalog({
-      blocks: registryBlocks,
-      trigger: registryTrigger,
-      sdkNames: SDK_NAMES,
-    })
-    const { hash, ...expanded } = expandBlockCatalog(catalog, built.docs)
+    const { hash, ...expanded } = expandBlockCatalog(catalog, readDocs)
     expect(hash).toBe(catalog.hash)
     const mismatched = Object.keys(projection.blocks).filter(
       (type) => stableStringify(expanded.blocks[type]) !== stableStringify(projection.blocks[type])
@@ -220,7 +227,7 @@ describe('block catalog projection over the whole registry', () => {
   })
 
   it('stores no trigger subBlock twice: every trigger-surface run that matches is a reference', () => {
-    const full = expandBlockCatalog(catalog, built.docs)
+    const full = expandBlockCatalog(catalog, readDocs)
     const triggerKeys = new Set(
       Object.values(full.triggers).flatMap((trigger) =>
         trigger.subBlocks.map((subBlock) => stableStringify({ ...subBlock, surface: 'trigger' }))

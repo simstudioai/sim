@@ -1,15 +1,14 @@
 import { createHash } from 'node:crypto'
 import { compareStrings } from '@sim/utils/string'
+import type { BlockCatalog } from '@sim/workflow-code'
 import { LRUCache } from 'lru-cache'
 import type { CatalogGate } from '@/lib/catalog/application/context'
 import { isBlockVisibleToCaller } from '@/lib/catalog/application/context'
-import { buildBlockCatalog, type CatalogBuildResult } from '@/lib/workflows/code/catalog/build'
+import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { getAllBlocks, getBlock, getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 import type { BlockConfig } from '@/blocks/types'
-import { getToolMetadata } from '@/tools/metadata'
-import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 
 interface SourceCatalogScope {
   gate: CatalogGate
@@ -30,7 +29,7 @@ interface SourceCatalogScope {
  * block configs are constants for the life of the process (a deploy is a new process).
  */
 const CATALOG_CACHE_MAX = 16
-const compileCatalogs = new LRUCache<string, CatalogBuildResult>({ max: CATALOG_CACHE_MAX })
+const compileCatalogs = new LRUCache<string, BlockCatalog>({ max: CATALOG_CACHE_MAX })
 
 /**
  * The content a build reads, hashed: every included built-in type (the registry config is a
@@ -80,7 +79,7 @@ function catalogCacheKey(
  * Served from a process cache keyed by the content the build reads; callers share the result and
  * must not mutate it.
  */
-export function buildSourceCatalog(scope: SourceCatalogScope): CatalogBuildResult {
+export function buildSourceCatalog(scope: SourceCatalogScope): BlockCatalog {
   const registry = getBlockRegistry()
   const included = new Map<string, BlockConfig>()
   for (const block of getAllBlocks()) {
@@ -103,16 +102,13 @@ export function buildSourceCatalog(scope: SourceCatalogScope): CatalogBuildResul
   const cached = key === null ? undefined : compileCatalogs.get(key)
   if (cached !== undefined) return cached
 
-  const built = buildBlockCatalog(
-    {
-      blocks: [...included.values()],
-      notAddable,
-      trigger: registryTrigger,
-      sdkNames: SDK_NAMES,
-      ...(scopeOrganizationId ? { scope: { organizationId: scopeOrganizationId } } : {}),
-    },
-    { metadata: getToolMetadata, outputs: getToolOutputsMetadata }
-  )
+  const built = buildBlockCatalog({
+    blocks: [...included.values()],
+    notAddable,
+    trigger: registryTrigger,
+    sdkNames: SDK_NAMES,
+    ...(scopeOrganizationId ? { scope: { organizationId: scopeOrganizationId } } : {}),
+  })
   if (key !== null) compileCatalogs.set(key, built)
   return built
 }

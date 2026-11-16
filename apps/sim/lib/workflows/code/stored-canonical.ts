@@ -115,7 +115,7 @@ export async function canonicalizeStored(input: StoredCanonicalInput): Promise<S
  * does not key keeps its lockless key, because the keys the lock pre-assigns are other rows' own
  * lockless keys and so never displace one.
  */
-export function lockKeepsCanonical(
+function lockKeepsCanonical(
   lock: Pick<WorkflowLockV1, 'blocks'> | null | undefined,
   lockless: LockIdentity
 ): boolean {

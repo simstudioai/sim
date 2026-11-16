@@ -20,7 +20,7 @@ import { getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const { catalog } = buildBlockCatalog({
+const catalog = buildBlockCatalog({
   blocks: Object.values(getBlockRegistry()),
   trigger: registryTrigger,
   sdkNames: SDK_NAMES,

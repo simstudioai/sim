@@ -318,7 +318,7 @@ async function runSourceApply(
     const subjectUserId = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     }).attributedUserId
-    const { catalog } = buildSourceCatalog({
+    const catalog = buildSourceCatalog({
       gate,
       organizationId: context.workspaceOrganizationId,
       storedTypes: Object.values(stored.state.blocks).map((block) => block.type),

@@ -32,15 +32,11 @@ vi.unmock('@/blocks/registry')
 
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
-import {
-  canonicalizeStored,
-  canonicalizeUnderLock,
-  lockKeepsCanonical,
-} from '@/lib/workflows/code/stored-canonical'
+import { canonicalizeStored, canonicalizeUnderLock } from '@/lib/workflows/code/stored-canonical'
 import { getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 
-const { catalog } = buildBlockCatalog({
+const catalog = buildBlockCatalog({
   blocks: Object.values(getBlockRegistry()),
   trigger: registryTrigger,
   sdkNames: SDK_NAMES,
@@ -98,7 +94,7 @@ function lockOf(blocks: WorkflowLockV1['blocks']): WorkflowLockV1 {
   return { version: 1, blocks, variables: {} }
 }
 
-describe('lockKeepsCanonical', () => {
+describe('canonicalizeUnderLock', () => {
   const lockless = canonicalize(branching, { catalog, meta })
   const keys = lockless.identity.blocks
   const gate = Object.values(keys).find((entry) => entry.id === 'cond')
@@ -162,10 +158,17 @@ describe('lockKeepsCanonical', () => {
     ],
   ]
 
-  it.each(cases)('agrees with a fresh canonicalize for %s', (_name, lock) => {
-    const locked = canonicalize(branching, { catalog, meta, lock })
-    expect(lockKeepsCanonical(lock, lockless.identity)).toBe(isEqual(locked, lockless))
-  })
+  const options = { catalog, meta, resources: { toKey: () => null, toId: () => null } }
+
+  it.each(cases)(
+    'reuses the lockless result exactly when it equals a fresh canonicalize for %s',
+    (_name, lock) => {
+      const locked = canonicalize(branching, { ...options, lock })
+      const reused = canonicalizeUnderLock(branching, options, lockless, lock ?? lockOf({}))
+      expect(reused === lockless).toBe(isEqual(locked, lockless))
+      expect(reused).toEqual(locked)
+    }
+  )
 
   it('covers locks that change the result and locks that do not', () => {
     const outcomes = cases.map(([, lock]) =>
@@ -173,20 +176,6 @@ describe('lockKeepsCanonical', () => {
     )
     expect(outcomes).toContain(true)
     expect(outcomes).toContain(false)
-  })
-
-  it('returns the lockless result only when the lock changes nothing', () => {
-    const options = { catalog, meta, resources: { toKey: () => null, toId: () => null } }
-    const agreeing = lockOf({
-      gate: { id: 'cond', ident: 'gate', order: 0, branches: gateBranches },
-    })
-    const renaming = lockOf({
-      gate: { id: 'cond', ident: 'gate', order: 0, branches: { highValue: 'cond-a' } },
-    })
-    expect(canonicalizeUnderLock(branching, options, lockless, agreeing)).toBe(lockless)
-    const renamed = canonicalizeUnderLock(branching, options, lockless, renaming)
-    expect(renamed).not.toBe(lockless)
-    expect(renamed).toEqual(canonicalize(branching, { ...options, lock: renaming }))
   })
 })
 

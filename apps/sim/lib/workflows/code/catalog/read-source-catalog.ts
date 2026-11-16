@@ -58,13 +58,12 @@ export const readSourceCatalog = defineAuthorizedWorkspaceUseCase({
       resolveCatalogGate(principal, context, { customBlockInputs: true }),
       input.workflowId ? loadStoredBlockTypes(context.workspaceId, input.workflowId) : undefined,
     ])
-    return withCatalogBlockScope(gate, async () => {
-      const { catalog } = buildSourceCatalog({
+    return withCatalogBlockScope(gate, async () =>
+      buildSourceCatalog({
         gate,
         organizationId: context.workspaceOrganizationId,
         ...(storedTypes ? { storedTypes } : {}),
       })
-      return catalog
-    })
+    )
   },
 })

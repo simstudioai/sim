@@ -21,7 +21,7 @@ import { getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 
 const registryBlocks = Object.values(getBlockRegistry())
-const { catalog } = buildBlockCatalog({
+const catalog = buildBlockCatalog({
   blocks: registryBlocks,
   trigger: registryTrigger,
   sdkNames: SDK_NAMES,

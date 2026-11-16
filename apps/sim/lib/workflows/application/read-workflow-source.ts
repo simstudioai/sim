@@ -145,7 +145,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
     ])
     const blockCount = Object.keys(state.blocks).length
     assertFitsSourceLimits({}, blockCount)
-    const { catalog } = await withCatalogBlockScope(gate, async () =>
+    const catalog = await withCatalogBlockScope(gate, async () =>
       buildSourceCatalog({
         gate,
         organizationId: context.workspaceOrganizationId,

@@ -37,7 +37,7 @@ const BUDGET_MS = 60_000
 const EDIT_SUFFIX = ' (edited)'
 
 const hooks = createMaterializeHooks()
-const { catalog } = buildBlockCatalog({
+const catalog = buildBlockCatalog({
   blocks: Object.values(getBlockRegistry()),
   trigger: registryTrigger,
   sdkNames: SDK_NAMES,

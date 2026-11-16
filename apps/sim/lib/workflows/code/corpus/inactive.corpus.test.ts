@@ -37,7 +37,7 @@ const CASES_PER_BLOCK_TYPE = 3
 const FUZZ_RUNS = 50
 const BUDGET_MS = 60_000
 
-const { catalog } = buildBlockCatalog({
+const catalog = buildBlockCatalog({
   blocks: Object.values(getBlockRegistry()),
   trigger: registryTrigger,
   sdkNames: SDK_NAMES,

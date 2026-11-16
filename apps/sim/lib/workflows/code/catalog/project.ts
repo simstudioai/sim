@@ -6,7 +6,6 @@ import type {
   CatalogOption,
   CatalogOutput,
   CatalogSubBlock,
-  CatalogTool,
   CatalogTrigger,
   Json,
   SubBlockConditionClause,
@@ -29,7 +28,6 @@ import {
   isMetadataOnlyBlockType,
   isSentinelBlockType,
 } from '@/executor/constants'
-import type { ToolMetadata } from '@/tools/metadata'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -42,7 +40,7 @@ import type { TriggerConfig } from '@/triggers/types'
  */
 
 /** Where a thunk could not be turned into data; the registry-wide sweep counts these. */
-export interface OpaqueSite {
+interface OpaqueSite {
   block: string
   subBlock: string
   surface: 'action' | 'trigger'
@@ -685,26 +683,4 @@ export function projectTrigger(trigger: TriggerConfig, report: ProjectionReport)
   if (trigger.polling) projected.polling = true
   if (trigger.webhook) projected.webhook = true
   return projected
-}
-
-/** Docs-shard projection of one tool from its generated metadata (never the executable registry). */
-export function projectCatalogTool(
-  id: string,
-  metadata: ToolMetadata,
-  outputs: Record<string, unknown> | undefined
-): CatalogTool {
-  const params: CatalogTool['params'] = {}
-  for (const [name, param] of Object.entries(metadata.params ?? {})) {
-    const entry: CatalogTool['params'][string] = {
-      type: String(param.type ?? 'any'),
-      visibility: param.visibility ?? 'user-or-llm',
-    }
-    if (param.required !== undefined) entry.required = param.required
-    if (param.default !== undefined && isJson(param.default)) {
-      entry.default = structuredClone(param.default)
-    }
-    if (typeof param.description === 'string') entry.description = param.description
-    params[name] = entry
-  }
-  return { id, params, outputs: projectOutputRecord(outputs ?? {}) }
 }

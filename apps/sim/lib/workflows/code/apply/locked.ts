@@ -8,7 +8,6 @@ import {
 import { isEqual } from 'es-toolkit'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  diffGraphs,
   type GraphDiff,
   isLocked,
   parentIdOf,
@@ -68,7 +67,7 @@ function leavesWithRemovedContainer(id: string, base: SourceGraph, target: Sourc
 export function findLockedBlockRefusals(
   base: SourceGraph,
   target: SourceGraph,
-  diff: GraphDiff = diffGraphs(base, target)
+  diff: GraphDiff
 ): LockedBlockDiagnostic[] {
   const isLockedInBase = (id: string) => isWorkflowBlockProtected(id, base.blocks)
   const refusals = new Map<string, LockedBlockDiagnostic>()

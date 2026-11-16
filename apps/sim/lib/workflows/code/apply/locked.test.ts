@@ -6,7 +6,7 @@
 import { omit } from '@sim/utils/object'
 import { type BlockState, preserveProtectedWorkflowBlocks } from '@sim/workflow-types/workflow'
 import { describe, expect, it } from 'vitest'
-import type { SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
+import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import {
   assertLockedBlocksPreserved,
   findLockedBlockRefusals,
@@ -145,7 +145,7 @@ describe('findLockedBlockRefusals', () => {
         const base = baseGraph(locked)
         const target = structuredClone(base)
         mutate(target)
-        const refusals = findLockedBlockRefusals(base, target)
+        const refusals = findLockedBlockRefusals(base, target, diffGraphs(base, target))
         if (refusals.length > 0) {
           refused++
           continue
@@ -167,7 +167,9 @@ describe('findLockedBlockRefusals', () => {
     target.blocks.b.name = 'renamed'
     const merged = preserveProtectedWorkflowBlocks(base, target)
     expect(merged.blocks.b.name).toBe('b')
-    expect(findLockedBlockRefusals(base, target).map((d) => d.blockId)).toEqual(['b'])
+    expect(
+      findLockedBlockRefusals(base, target, diffGraphs(base, target)).map((d) => d.blockId)
+    ).toEqual(['b'])
   })
 
   it('refuses an edge added into a locked block, which the engine would let through', () => {
@@ -175,7 +177,7 @@ describe('findLockedBlockRefusals', () => {
     const target = structuredClone(base)
     target.blocks.n = block('n')
     target.edges.push(edge('n', 'b'))
-    const refusals = findLockedBlockRefusals(base, target)
+    const refusals = findLockedBlockRefusals(base, target, diffGraphs(base, target))
     expect(refusals).toEqual([
       expect.objectContaining({ code: 'E_APPLY_LOCKED_BLOCK', blockId: 'b' }),
     ])
@@ -185,14 +187,16 @@ describe('findLockedBlockRefusals', () => {
     const base = baseGraph(new Set(['a']))
     const target = structuredClone(base)
     target.edges = target.edges.filter((e) => e.id !== 'a->b')
-    expect(findLockedBlockRefusals(base, target).map((d) => d.blockId)).toEqual(['a'])
+    expect(
+      findLockedBlockRefusals(base, target, diffGraphs(base, target)).map((d) => d.blockId)
+    ).toEqual(['a'])
   })
 
   it('lets an edge to a locked block go when its unlocked source is deleted', () => {
     const base = baseGraph(new Set(['b']))
     const target = structuredClone(base)
     removeBlocks(target, ['a'])
-    expect(findLockedBlockRefusals(base, target)).toEqual([])
+    expect(findLockedBlockRefusals(base, target, diffGraphs(base, target))).toEqual([])
   })
 
   it('refuses locking a block or creating one locked', () => {
@@ -201,7 +205,7 @@ describe('findLockedBlockRefusals', () => {
     target.blocks.a.locked = true
     target.blocks.n = { ...block('n'), locked: true }
     expect(
-      findLockedBlockRefusals(base, target)
+      findLockedBlockRefusals(base, target, diffGraphs(base, target))
         .map((d) => d.blockId)
         .sort()
     ).toEqual(['a', 'n'])
@@ -211,7 +215,7 @@ describe('findLockedBlockRefusals', () => {
     const base = baseGraph(new Set(['a']))
     const target = structuredClone(base)
     target.blocks.a.locked = false
-    expect(findLockedBlockRefusals(base, target)).toEqual([
+    expect(findLockedBlockRefusals(base, target, diffGraphs(base, target))).toEqual([
       expect.objectContaining({ blockId: 'a', message: expect.stringContaining('lock') }),
     ])
   })
@@ -221,7 +225,7 @@ describe('findLockedBlockRefusals', () => {
     const target = structuredClone(base)
     target.blocks.child.position = { x: 500, y: 500 }
     target.blocks.loop.data = { ...target.blocks.loop.data, width: 900 }
-    expect(findLockedBlockRefusals(base, target)).toEqual([])
+    expect(findLockedBlockRefusals(base, target, diffGraphs(base, target))).toEqual([])
   })
 })
 

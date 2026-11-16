@@ -36,7 +36,7 @@ function catalogFor(organizationId: string, gate: CatalogGate) {
   )
 }
 
-function inputIds(catalog: Awaited<ReturnType<typeof catalogFor>>['catalog'], type: string) {
+function inputIds(catalog: Awaited<ReturnType<typeof catalogFor>>, type: string) {
   return catalogBlock(catalog, type)?.subBlocks.map((subBlock) => subBlock.id) ?? []
 }
 
@@ -46,13 +46,13 @@ describe('source catalog cache', () => {
     const orgB = await catalogFor('org-b', gateWith([customRow('custom_block_b', ['ticket'])]))
     const orgC = await catalogFor('org-c', gateWith([]))
 
-    expect(catalogBlock(orgA.catalog, 'custom_block_a')).toBeDefined()
-    expect(catalogBlock(orgA.catalog, 'custom_block_b')).toBeUndefined()
-    expect(catalogBlock(orgB.catalog, 'custom_block_b')).toBeDefined()
-    expect(catalogBlock(orgB.catalog, 'custom_block_a')).toBeUndefined()
-    expect(catalogBlock(orgC.catalog, 'custom_block_a')).toBeUndefined()
-    expect(catalogBlock(orgC.catalog, 'custom_block_b')).toBeUndefined()
-    expect(new Set([orgA.catalog.hash, orgB.catalog.hash, orgC.catalog.hash]).size).toBe(3)
+    expect(catalogBlock(orgA, 'custom_block_a')).toBeDefined()
+    expect(catalogBlock(orgA, 'custom_block_b')).toBeUndefined()
+    expect(catalogBlock(orgB, 'custom_block_b')).toBeDefined()
+    expect(catalogBlock(orgB, 'custom_block_a')).toBeUndefined()
+    expect(catalogBlock(orgC, 'custom_block_a')).toBeUndefined()
+    expect(catalogBlock(orgC, 'custom_block_b')).toBeUndefined()
+    expect(new Set([orgA.hash, orgB.hash, orgC.hash]).size).toBe(3)
   })
 
   it('scopes a catalog to its organization even when another holds an identical custom block', async () => {
@@ -60,8 +60,8 @@ describe('source catalog cache', () => {
     const first = await catalogFor('org-d', gateWith([row]))
     const second = await catalogFor('org-e', gateWith([{ ...row }]))
 
-    expect(first.catalog.scope).toEqual({ organizationId: 'org-d' })
-    expect(second.catalog.scope).toEqual({ organizationId: 'org-e' })
+    expect(first.scope).toEqual({ organizationId: 'org-d' })
+    expect(second.scope).toEqual({ organizationId: 'org-e' })
   })
 
   it('serves the new catalog after a custom block is republished with different inputs', async () => {
@@ -74,9 +74,9 @@ describe('source catalog cache', () => {
 
     expect(cached).toBe(before)
     expect(after).not.toBe(before)
-    expect(after.catalog.hash).not.toBe(before.catalog.hash)
-    expect(inputIds(before.catalog, 'custom_block_f')).not.toContain('custom_block_f-score')
-    expect(inputIds(after.catalog, 'custom_block_f')).toContain('custom_block_f-score')
+    expect(after.hash).not.toBe(before.hash)
+    expect(inputIds(before, 'custom_block_f')).not.toContain('custom_block_f-score')
+    expect(inputIds(after, 'custom_block_f')).toContain('custom_block_f-score')
   })
 
   it('serves the new catalog after a custom block is disabled', async () => {
@@ -86,7 +86,7 @@ describe('source catalog cache', () => {
       gateWith([{ ...customRow('custom_block_g', ['lead']), enabled: false }])
     )
 
-    expect(catalogBlock(enabled.catalog, 'custom_block_g')).toBeDefined()
-    expect(catalogBlock(disabled.catalog, 'custom_block_g')).toBeUndefined()
+    expect(catalogBlock(enabled, 'custom_block_g')).toBeDefined()
+    expect(catalogBlock(disabled, 'custom_block_g')).toBeUndefined()
   })
 })

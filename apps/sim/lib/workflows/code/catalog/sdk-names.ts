@@ -272,7 +272,8 @@ export function extendSdkNames(
   return { names: { version: 1, blocks: sortEntries(blocks) }, added }
 }
 
-function sortRecord<T>(record: Record<string, T>): Record<string, T> {
+/** A key-sorted copy, so serialized output does not depend on insertion order. */
+export function sortRecord<T>(record: Record<string, T>): Record<string, T> {
   return Object.fromEntries(
     Object.entries(record).sort(([a], [b]) => compareStrings(a, b))
   ) as Record<string, T>

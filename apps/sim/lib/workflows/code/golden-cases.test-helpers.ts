@@ -63,7 +63,7 @@ const GOLDEN_CATALOG_TYPES = [
  * block from churning the goldens.
  */
 function narrowedCatalog(): BlockCatalog {
-  const { catalog } = buildBlockCatalog({
+  const catalog = buildBlockCatalog({
     blocks: Object.values(getBlockRegistry()),
     trigger: registryTrigger,
     sdkNames: SDK_NAMES,

@@ -30,7 +30,7 @@ import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import { gateSourceDiff, SKIP_TYPE_APPLY_CODES } from '@/lib/workflows/code/apply/gates'
-import type { SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
+import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import { findLockedBlockRefusals } from '@/lib/workflows/code/apply/locked'
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
@@ -49,7 +49,7 @@ const ownerId = generateId()
 const workspaceId = generateId()
 const principal = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
 const hooks = createMaterializeHooks()
-const { catalog } = buildBlockCatalog(
+const catalog = buildBlockCatalog(
   { blocks: Object.values(getBlockRegistry()), trigger: registryTrigger, sdkNames: SDK_NAMES },
   { metadata: getToolMetadata, outputs: getToolOutputsMetadata }
 )
@@ -323,10 +323,11 @@ it.each(CASES)('$name', async (testCase) => {
 
     const direct = await withPermissionGroupScope(async () =>
       categories([
-        ...findLockedBlockRefusals(base, target),
+        ...findLockedBlockRefusals(base, target, diffGraphs(base, target)),
         ...(await gateSourceDiff({
           base,
           target,
+          diff: diffGraphs(base, target),
           permissionConfig: null,
           subjectUserId: ownerId,
           workspaceId,
