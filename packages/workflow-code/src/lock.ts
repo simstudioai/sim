@@ -15,6 +15,7 @@
  * every validator tolerates and preserves. Removing or changing the meaning of a field bumps it.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import type { Diagnostic } from './diagnostics/frame'
 import type { BlockKey, BranchKey, Json, SubBlockId, VarKey } from './model'
@@ -132,10 +133,6 @@ const ITEM_FIELDS = ['name', 'id']
 
 type JsonObject = Record<string, unknown>
 
-function isObject(value: unknown): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
@@ -152,7 +149,7 @@ function isJson(value: unknown): value is Json {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
   if (typeof value === 'number') return Number.isFinite(value)
   if (Array.isArray(value)) return value.every(isJson)
-  return isObject(value) && Object.values(value).every(isJson)
+  return isRecordLike(value) && Object.values(value).every(isJson)
 }
 
 /** RFC 6901: `~` → `~0`, `/` → `~1`. */
@@ -197,7 +194,7 @@ class LockReader {
 
   /** A string → non-empty-string record whose values are unique within it. */
   idRecord(raw: unknown, at: readonly string[]): Record<string, string> {
-    if (!isObject(raw)) {
+    if (!isRecordLike(raw)) {
       this.report('E_LOCK_SHAPE', at, 'Expected an object of id strings.')
       return {}
     }
@@ -227,7 +224,7 @@ class LockReader {
     const items: LockItem[] = []
     raw.forEach((entry: unknown, index) => {
       const itemAt = [...at, String(index)]
-      if (!isObject(entry)) {
+      if (!isRecordLike(entry)) {
         this.report('E_LOCK_SHAPE', itemAt, 'An item must be an object.')
         return
       }
@@ -255,7 +252,7 @@ class LockReader {
   }
 
   layout(raw: unknown, at: readonly string[]): LockLayout | undefined {
-    if (!isObject(raw)) {
+    if (!isRecordLike(raw)) {
       this.report('E_LOCK_SHAPE', at, '"layout" must be an object.')
       return undefined
     }
@@ -282,7 +279,7 @@ class LockReader {
 
   block(key: string, raw: unknown): WorkflowLockBlock | undefined {
     const at = ['blocks', key]
-    if (!isObject(raw)) {
+    if (!isRecordLike(raw)) {
       this.report('E_LOCK_SHAPE', at, 'A lock block must be an object.')
       return undefined
     }
@@ -339,7 +336,7 @@ class LockReader {
     }
 
     if (raw.items !== undefined) {
-      if (isObject(raw.items)) {
+      if (isRecordLike(raw.items)) {
         block.items = Object.fromEntries(
           Object.entries(raw.items).map(([subBlockId, list]) => [
             subBlockId,
@@ -453,7 +450,7 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
       return { diagnostics: reader.diagnostics }
     }
   }
-  if (!isObject(json)) {
+  if (!isRecordLike(json)) {
     reader.report('E_LOCK_SHAPE', [], 'The lock must be a JSON object.')
     return { diagnostics: reader.diagnostics }
   }
@@ -464,7 +461,7 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
 
   const extensions = reader.extensions(json, LOCK_FIELDS, [])
   const blockEntries: Array<[BlockKey, WorkflowLockBlock]> = []
-  if (isObject(json.blocks)) {
+  if (isRecordLike(json.blocks)) {
     for (const [key, raw] of Object.entries(json.blocks)) {
       const block = reader.block(key, raw)
       if (block) blockEntries.push([key, block])
