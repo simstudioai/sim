@@ -166,14 +166,29 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   if (entryText === undefined) {
     throw new OrchestrationError('validation', `files must include ${ENTRY_FILE}`)
   }
-  const storedIdentity = input.storedCanonical.canonical.identity
+  const { state } = input.stored
+  let resources = input.storedCanonical.resources
+  let meta = input.stored.meta
+  /**
+   * The stored graph as the submitted lock reads it: what `stored()` keeps values from and what
+   * the diff compares the compiled source against.
+   */
+  let storedCanonical = canonicalizeUnderLock(
+    state,
+    { catalog, meta, resources },
+    input.storedCanonical.canonical,
+    lock
+  )
   const compiled = compileWorkflow({
     entry: { path: ENTRY_FILE, text: entryText },
     files: new Map(Object.entries(files).filter(([path]) => path !== ENTRY_FILE)),
     catalog,
     sdkMajor: catalog.sdkMajor,
-    knownKeys: new Set([...Object.keys(lock.blocks), ...Object.keys(storedIdentity.blocks)]),
-    stored: input.storedCanonical.canonical.workflow,
+    knownKeys: new Set([
+      ...Object.keys(lock.blocks),
+      ...Object.keys(storedCanonical.identity.blocks),
+    ]),
+    stored: storedCanonical.workflow,
   })
   const compiledWorkflow = compiled.workflow
   if (!compiledWorkflow || hasErrors(compiled.diagnostics)) {
@@ -190,10 +205,6 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     return { refused: refused.map(createLocator(files, compiled.spans, new Map())) }
   }
 
-  const { state } = input.stored
-  let resources = input.storedCanonical.resources
-  let storedCanonical = input.storedCanonical.canonical
-  let meta = input.stored.meta
   if (input.create) {
     meta = {
       name: input.create.name ?? compiledWorkflow.meta.name,
@@ -279,20 +290,14 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     return { refused: [...compiled.diagnostics, ...materializeDiagnostics].map(locate) }
   }
 
-  const baseCanonical = canonicalizeUnderLock(
-    state,
-    { catalog, meta, resources },
-    storedCanonical,
-    lock
-  )
   /** The source's name and description never change a stored workflow, so they are not diffed. */
   const ignoredMeta = isNew
     ? []
     : META_FIELDS.filter((field) => compiledWorkflow.meta[field] !== meta[field])
   const canonicalDiff = diffCanonical(
-    baseCanonical.workflow,
-    { ...compiledWorkflow, meta: baseCanonical.workflow.meta },
-    renamesBetween(baseCanonical.identity, materialized.identity)
+    storedCanonical.workflow,
+    { ...compiledWorkflow, meta: storedCanonical.workflow.meta },
+    renamesBetween(storedCanonical.identity, materialized.identity)
   )
   const notes: string[] = []
   if (ignoredMeta.length > 0) {
@@ -408,7 +413,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
         variables === undefined ? state.variables : (parseWorkflowVariables(variables) ?? {}),
       diagnostics,
       notes,
-      diff: summarizeDiff(canonicalDiff, baseCanonical.identity, materialized.identity, noop),
+      diff: summarizeDiff(canonicalDiff, storedCanonical.identity, materialized.identity, noop),
       mintedIds,
       identity: materialized.identity,
       lock: lockAfter,

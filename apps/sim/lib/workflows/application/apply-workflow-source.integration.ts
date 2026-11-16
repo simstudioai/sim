@@ -283,6 +283,56 @@ check('get → apply unchanged is a no-op that writes, audits and notifies nothi
   expect(notifiedFor(seeded.workflowId)).toBe(0)
 })
 
+check('a legacy ~n key block keeps its stored secret through get → apply unchanged', async () => {
+  const workflowId = generateId()
+  const now = new Date()
+  await db.insert(workflow).values({
+    id: workflowId,
+    userId: ownerId,
+    workspaceId,
+    name: `Source apply ${workflowId}`,
+    lastSynced: now,
+    createdAt: now,
+    updatedAt: now,
+  })
+  const crawler = (id: string, name: string, secret: string): BlockState => ({
+    id,
+    type: 'firecrawl',
+    name,
+    position: { x: 0, y: 0 },
+    subBlocks: { apiKey: { id: 'apiKey', type: 'short-input', value: secret } },
+    outputs: {},
+    enabled: true,
+  })
+  const winnerId = generateId()
+  const loserId = generateId()
+  const saved = await saveWorkflowToNormalizedTables(workflowId, {
+    blocks: {
+      [winnerId]: crawler(winnerId, 'Crawl 1', 'sk-winner-secret'),
+      [loserId]: crawler(loserId, 'crawl1', 'sk-loser-secret'),
+    },
+    edges: [],
+    loops: {},
+    parallels: {},
+  })
+  if (!saved.success) throw new Error(`Seeding the workflow failed: ${saved.error}`)
+
+  const source = await getSource(workflowId)
+  const printed = Object.values(source.files).join('\n')
+  expect(printed).toContain("key: 'crawl1~2'")
+  expect(printed).not.toContain('sk-winner-secret')
+  expect(printed).not.toContain('sk-loser-secret')
+  const before = await snapshot(workflowId)
+
+  const result = await apply(source, source.files)
+
+  expect(result.diagnostics.map((d) => d.code)).not.toContain('E_STORED_VALUE_MISSING')
+  expect(result.applied).toBe(false)
+  expect(result.diff.noop).toBe(true)
+  expect(await snapshot(workflowId)).toEqual(before)
+  expect(before.state?.blocks[loserId]?.subBlocks.apiKey?.value).toBe('sk-loser-secret')
+})
+
 check('a one-field edit changes exactly that stored field and keeps every id', async () => {
   const seeded = await seedWorkflow()
   const source = await getSource(seeded.workflowId)
