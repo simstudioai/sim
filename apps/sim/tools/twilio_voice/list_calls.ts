@@ -40,6 +40,16 @@ function twilioApiUrl(path: string | undefined): string | null {
   }
 }
 
+/** Reads the `PageToken` Twilio puts in `next_page_uri`; null when there is no next page. */
+function nextPageToken(nextPageUri: unknown): string | null {
+  if (typeof nextPageUri !== 'string' || !nextPageUri) return null
+  try {
+    return new URL(nextPageUri, TWILIO_API_ORIGIN).searchParams.get('PageToken')
+  } catch {
+    return null
+  }
+}
+
 export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOutput> = {
   id: 'twilio_voice_list_calls',
   name: 'Twilio Voice List Calls',
@@ -82,20 +92,26 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
     startTimeAfter: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter calls that started on or after this date (YYYY-MM-DD)',
+      visibility: 'user-or-llm',
+      description: 'Filter calls that started on or after this date (YYYY-MM-DD, UTC; inclusive)',
     },
     startTimeBefore: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Filter calls that started on or before this date (YYYY-MM-DD)',
+      visibility: 'user-or-llm',
+      description: 'Filter calls that started before this date (YYYY-MM-DD, UTC; exclusive)',
     },
     pageSize: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Number of records to return (max 1000, default 50)',
+    },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Page token from a previous result (nextPageToken) to fetch the next page',
     },
   },
 
@@ -118,7 +134,11 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
       if (params.status) queryParams.append('Status', params.status)
       if (params.startTimeAfter) queryParams.append('StartTime>', params.startTimeAfter)
       if (params.startTimeBefore) queryParams.append('StartTime<', params.startTimeBefore)
-      if (params.pageSize) queryParams.append('PageSize', Number(params.pageSize).toString())
+      const pageSize = Math.trunc(Number(params.pageSize))
+      if (pageSize && Number.isFinite(pageSize)) {
+        queryParams.append('PageSize', String(Math.min(Math.max(1, pageSize), 1000)))
+      }
+      if (params.pageToken) queryParams.append('PageToken', params.pageToken)
 
       const queryString = queryParams.toString()
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
@@ -209,6 +229,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
         total: calls.length,
         page: data.page,
         pageSize: data.page_size,
+        nextPageToken: nextPageToken(data.next_page_uri),
       },
       error: undefined,
     }
@@ -217,9 +238,15 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
   outputs: {
     success: { type: 'boolean', description: 'Whether the calls were successfully retrieved' },
     calls: { type: 'array', description: 'Array of call objects' },
-    total: { type: 'number', description: 'Total number of calls returned' },
+    total: { type: 'number', description: 'Number of calls returned on this page' },
     page: { type: 'number', description: 'Current page number' },
     pageSize: { type: 'number', description: 'Number of calls per page' },
+    nextPageToken: {
+      type: 'string',
+      description: 'Pass as pageToken to fetch the next page; null on the last page',
+      optional: true,
+      nullable: true,
+    },
     error: { type: 'string', description: 'Error message if retrieval failed' },
   },
 }

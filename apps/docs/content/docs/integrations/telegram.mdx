@@ -85,7 +85,7 @@ Delete messages in Telegram channels or chats through the Telegram Bot API. Requ
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
-| `messageId` | string | Yes | Telegram message ID \(numeric identifier of the message to delete\) |
+| `messageId` | number | Yes | Telegram message ID \(numeric identifier of the message to delete\) |
 
 #### Output
 
@@ -119,16 +119,16 @@ Send photos to Telegram channels or users through the Telegram Bot API.
 | `message` | string | Success or error message |
 | `data` | object | Telegram message data including optional photo\(s\) |
 |   ↳ `message_id` | number | Unique Telegram message identifier |
-|   ↳ `from` | object | Chat information |
-|     ↳ `id` | number | Chat ID |
-|     ↳ `is_bot` | boolean | Whether the chat is a bot or not |
-|     ↳ `first_name` | string | Chat username \(if available\) |
-|     ↳ `username` | string | Chat title \(for groups and channels\) |
-|   ↳ `chat` | object | Information about the bot that sent the message |
-|     ↳ `id` | number | Bot user ID |
-|     ↳ `first_name` | string | Bot first name |
-|     ↳ `username` | string | Bot username |
-|     ↳ `type` | string | Chat type \(private, group, supergroup, channel\) |
+|   ↳ `from` | object | Sender information |
+|     ↳ `id` | number | Sender user ID |
+|     ↳ `is_bot` | boolean | Whether the sender is a bot |
+|     ↳ `first_name` | string | Sender first name |
+|     ↳ `username` | string | Sender username, when available |
+|   ↳ `chat` | object | Recipient chat information |
+|     ↳ `id` | number | Recipient chat ID |
+|     ↳ `first_name` | string | Chat first name, for private chats |
+|     ↳ `username` | string | Chat username, when available |
+|     ↳ `type` | string | Chat type: private, group, supergroup, or channel |
 |   ↳ `date` | number | Unix timestamp when message was sent |
 |   ↳ `text` | string | Text content of the sent message \(if applicable\) |
 |   ↳ `photo` | array | List of photos included in the message |
@@ -173,7 +173,22 @@ Send videos to Telegram channels or users through the Telegram Bot API.
 |     ↳ `type` | string | Type of chat \(private, group, supergroup, or channel\) |
 |   ↳ `date` | number | Unix timestamp when the message was sent |
 |   ↳ `text` | string | Text content of the sent message \(if applicable\) |
-|   ↳ `format` | object | Media format information \(for videos, GIFs, etc.\) |
+|   ↳ `video` | object | Video sent in the message |
+|     ↳ `file_id` | string | Video file ID, reusable to resend the file |
+|     ↳ `file_unique_id` | string | Unique video file identifier |
+|     ↳ `width` | number | Video width in pixels |
+|     ↳ `height` | number | Video height in pixels |
+|     ↳ `duration` | number | Duration of the video in seconds |
+|     ↳ `thumbnail` | object | Video thumbnail details |
+|       ↳ `file_id` | string | Thumbnail file ID |
+|       ↳ `file_unique_id` | string | Unique thumbnail file identifier |
+|       ↳ `file_size` | number | Thumbnail file size in bytes |
+|       ↳ `width` | number | Thumbnail width in pixels |
+|       ↳ `height` | number | Thumbnail height in pixels |
+|     ↳ `file_name` | string | Original video file name |
+|     ↳ `mime_type` | string | Video MIME type |
+|     ↳ `file_size` | number | Video file size in bytes |
+|   ↳ `format` | object | Legacy key: Telegram returns no format object, so this is never populated. Read video instead. |
 |     ↳ `file_name` | string | Media file name |
 |     ↳ `mime_type` | string | Media MIME type |
 |     ↳ `duration` | number | Duration of media in seconds |
@@ -293,7 +308,22 @@ Send animations (GIFs) to Telegram channels or users through the Telegram Bot AP
 |     ↳ `type` | string | Type of chat \(private, group, supergroup, or channel\) |
 |   ↳ `date` | number | Unix timestamp when the message was sent |
 |   ↳ `text` | string | Text content of the sent message \(if applicable\) |
-|   ↳ `format` | object | Media format information \(for videos, GIFs, etc.\) |
+|   ↳ `animation` | object | Animation sent in the message |
+|     ↳ `file_id` | string | Animation file ID, reusable to resend the file |
+|     ↳ `file_unique_id` | string | Unique animation file identifier |
+|     ↳ `width` | number | Animation width in pixels |
+|     ↳ `height` | number | Animation height in pixels |
+|     ↳ `duration` | number | Duration of the animation in seconds |
+|     ↳ `thumbnail` | object | Animation thumbnail details |
+|       ↳ `file_id` | string | Thumbnail file ID |
+|       ↳ `file_unique_id` | string | Unique thumbnail file identifier |
+|       ↳ `file_size` | number | Thumbnail file size in bytes |
+|       ↳ `width` | number | Thumbnail width in pixels |
+|       ↳ `height` | number | Thumbnail height in pixels |
+|     ↳ `file_name` | string | Original animation file name |
+|     ↳ `mime_type` | string | Animation MIME type |
+|     ↳ `file_size` | number | Animation file size in bytes |
+|   ↳ `format` | object | Legacy key: Telegram returns no format object, so this is never populated. Read animation instead. |
 |     ↳ `file_name` | string | Media file name |
 |     ↳ `mime_type` | string | Media MIME type |
 |     ↳ `duration` | number | Duration of media in seconds |
@@ -518,7 +548,7 @@ Send a native poll to a Telegram chat through the Telegram Bot API.
 | --------- | ---- | -------- | ----------- |
 | `chatId` | string | Yes | Telegram chat ID \(numeric, can be negative for groups\) |
 | `question` | string | Yes | Poll question \(1-300 characters\) |
-| `options` | json | Yes | List of 2-10 answer options as text strings |
+| `options` | json | Yes | List of 1-12 answer options as text strings |
 | `isAnonymous` | boolean | No | Whether the poll needs to be anonymous \(defaults to true\) |
 | `allowsMultipleAnswers` | boolean | No | Whether the poll allows multiple answers |
 

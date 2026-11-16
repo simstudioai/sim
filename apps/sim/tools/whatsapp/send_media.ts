@@ -92,5 +92,13 @@ export const sendMediaTool: InternalToolConfig<WhatsAppSendMediaParams, WhatsApp
     return { success: true, output: data.output }
   },
 
-  outputs: whatsappSendOutputs,
+  outputs: {
+    ...whatsappSendOutputs,
+    mediaId: {
+      type: 'string',
+      description:
+        'Media ID WhatsApp assigned when a file was uploaded for this send (reusable for 30 days)',
+      optional: true,
+    },
+  },
 }

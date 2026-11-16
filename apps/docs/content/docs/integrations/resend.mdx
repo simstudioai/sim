@@ -141,6 +141,8 @@ List all contacts in Resend
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Number of contacts to return, 1 to 100 \(Resend defaults to 20\) |
+| `after` | string | No | Pagination cursor: the ID of the last contact from the previous page, to fetch the next page |
 
 #### Output
 
@@ -315,7 +317,7 @@ Delete an audience from Resend by ID
 
 ### Create Broadcast
 
-Create a broadcast email for an audience in Resend
+Create a broadcast email for a segment (or legacy audience) in Resend
 
 <ReferenceDetails>
 
@@ -323,7 +325,8 @@ Create a broadcast email for an audience in Resend
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `audienceId` | string | Yes | The ID of the audience to send the broadcast to |
+| `segmentId` | string | No | The ID of the segment to send the broadcast to. Provide this or audienceId; segmentId takes precedence |
+| `audienceId` | string | No | Deprecated by Resend in favor of segmentId: the ID of the audience to send the broadcast to |
 | `broadcastFrom` | string | Yes | Sender email address \(e.g., "sender@example.com" or "Sender Name &lt;sender@example.com&gt;"\) |
 | `broadcastSubject` | string | Yes | Broadcast email subject line |
 | `broadcastHtml` | string | No | HTML content of the broadcast |
@@ -383,7 +386,7 @@ Retrieve details of a broadcast by ID
 | `segmentId` | string | Segment ID \(the current recipient field\) |
 | `from` | string | Sender email address |
 | `subject` | string | Broadcast subject |
-| `replyTo` | string | Reply-to email address |
+| `replyTo` | array | Reply-to email addresses |
 | `previewText` | string | Inbox preview text |
 | `status` | string | Broadcast status \(e.g., draft, sent\) |
 | `createdAt` | string | Broadcast creation timestamp |
@@ -402,6 +405,8 @@ List all verified domains in your Resend account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Number of domains to return, 1 to 100 \(Resend defaults to 20\) |
+| `after` | string | No | Pagination cursor: the ID of the last domain from the previous page, to fetch the next page |
 
 #### Output
 

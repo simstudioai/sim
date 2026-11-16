@@ -1,8 +1,18 @@
 import { TelegramIcon } from '@/components/icons'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file'
-import type { BlockConfig, BlockMeta, BlockToolParams } from '@/blocks/types'
+import type {
+  BlockConfig,
+  BlockMeta,
+  BlockToolParams,
+  BlockToolParamsContext,
+} from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
+import {
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -58,13 +68,21 @@ function toBoolean(value: unknown): boolean {
   return value === true || String(value).toLowerCase() === 'true'
 }
 
-/** Builds Telegram tool params; a saved credential supplies the bot token, so only the legacy block requires it inline. */
-function telegramToolParams(params: BlockToolParams, requireBotToken: boolean) {
+/**
+ * Builds Telegram tool params; a saved credential supplies the bot token, so only the legacy block
+ * requires it inline. On a tool call the operation arrives in `context` and model args use the
+ * tool's param names, so a block-only field falls back to the model's value for that param.
+ */
+function telegramToolParams(
+  params: BlockToolParams,
+  requireBotToken: boolean,
+  context?: BlockToolParamsContext
+) {
   if (requireBotToken && !params.botToken) {
     throw new Error('Bot token required for this operation')
   }
 
-  const chatId = (params.chatId || '').trim()
+  const chatId = String(params.chatId ?? '').trim()
   if (!chatId) {
     throw new Error('Chat ID is required.')
   }
@@ -74,7 +92,7 @@ function telegramToolParams(params: BlockToolParams, requireBotToken: boolean) {
     chatId,
   }
 
-  switch (params.operation) {
+  switch (mapperOperation(params, context)) {
     case 'telegram_message':
       if (!params.text) {
         throw new Error('Message text is required.')
@@ -134,7 +152,7 @@ function telegramToolParams(params: BlockToolParams, requireBotToken: boolean) {
         text: params.text,
       }
     case 'telegram_forward_message': {
-      const fromChatId = (params.fromChatId || '').trim()
+      const fromChatId = String(params.fromChatId ?? '').trim()
       if (!fromChatId) {
         throw new Error('Source chat ID is required.')
       }
@@ -145,7 +163,7 @@ function telegramToolParams(params: BlockToolParams, requireBotToken: boolean) {
       }
     }
     case 'telegram_copy_message': {
-      const fromChatId = (params.fromChatId || '').trim()
+      const fromChatId = String(params.fromChatId ?? '').trim()
       if (!fromChatId) {
         throw new Error('Source chat ID is required.')
       }
@@ -180,7 +198,7 @@ function telegramToolParams(params: BlockToolParams, requireBotToken: boolean) {
       const pollParams: Record<string, unknown> = {
         ...commonParams,
         question: params.question,
-        options: params.pollOptions,
+        options: params.pollOptions || toolCallArg(context, params.options),
       }
       if (params.isAnonymous !== undefined && params.isAnonymous !== '') {
         pollParams.isAnonymous = toBoolean(params.isAnonymous)
@@ -211,7 +229,7 @@ function telegramToolParams(params: BlockToolParams, requireBotToken: boolean) {
       const reactionParams: Record<string, unknown> = {
         ...commonParams,
         messageId: requireNumber(params.messageId, 'Message ID'),
-        reaction: params.reactionEmoji,
+        reaction: params.reactionEmoji || toolCallArg(context, params.reaction),
       }
       if (params.isBig !== undefined && params.isBig !== '') {
         reactionParams.isBig = toBoolean(params.isBig)
@@ -701,7 +719,7 @@ export const TelegramBlock: BlockConfig = {
       id: 'pollOptions',
       title: 'Poll Options',
       type: 'long-input',
-      placeholder: 'One answer option per line (2-10 options)',
+      placeholder: 'One answer option per line (1-12 options)',
       description: 'Enter each answer option on its own line',
       required: { field: 'operation', value: 'telegram_send_poll' },
       condition: { field: 'operation', value: 'telegram_send_poll' },
@@ -812,7 +830,7 @@ export const TelegramBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation || 'telegram_message',
-      params: (params) => telegramToolParams(params, true),
+      params: (params, context) => telegramToolParams(params, true, context),
     },
   },
   inputs: {
@@ -1022,7 +1040,7 @@ export const TelegramBlockMeta = {
       name: 'run-a-poll',
       description: 'Post a poll to a Telegram chat to collect a quick vote from members.',
       content:
-        '# Run a Telegram Poll\n\nGather a fast decision or sentiment check from a chat or channel.\n\n## Steps\n1. Use the Send Poll operation with your Bot Token and the target Chat ID.\n2. Set the Poll Question and add one answer option per line (2-10 options).\n3. In advanced settings, choose whether the poll is anonymous and whether multiple answers are allowed.\n4. Send the poll, then read replies from the chat to act on the outcome.\n\n## Output\nReturn the sent message ID so the poll post can be referenced or pinned later.',
+        '# Run a Telegram Poll\n\nGather a fast decision or sentiment check from a chat or channel.\n\n## Steps\n1. Use the Send Poll operation with your Bot Token and the target Chat ID.\n2. Set the Poll Question and add one answer option per line (1-12 options).\n3. In advanced settings, choose whether the poll is anonymous and whether multiple answers are allowed.\n4. Send the poll, then read replies from the chat to act on the outcome.\n\n## Output\nReturn the sent message ID so the poll post can be referenced or pinned later.',
     },
     {
       name: 'pin-and-react-to-messages',
@@ -1042,6 +1060,6 @@ export const TelegramV2Block: BlockConfig = {
   ...withSavedCredential(
     TelegramBlock,
     { id: 'credential', type: 'oauth-input', serviceId: 'telegram', title: 'Telegram Credential' },
-    { params: (params) => telegramToolParams(params, false) }
+    { params: (params, context) => telegramToolParams(params, false, context) }
   ),
 }

@@ -4,6 +4,7 @@ import type {
 } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordDeleteWebhookTool: ToolConfig<
   DiscordDeleteWebhookParams,
@@ -30,7 +31,7 @@ export const discordDeleteWebhookTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -38,7 +39,7 @@ export const discordDeleteWebhookTool: ToolConfig<
 
   request: {
     url: (params: DiscordDeleteWebhookParams) => {
-      return `https://discord.com/api/v10/webhooks/${params.webhookId.trim()}`
+      return `https://discord.com/api/v10/webhooks/${safeUrlPathSegment(params.webhookId, 'webhookId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

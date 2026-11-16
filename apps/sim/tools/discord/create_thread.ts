@@ -1,6 +1,7 @@
 import type { DiscordCreateThreadParams, DiscordCreateThreadResponse } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordCreateThreadTool: ToolConfig<
   DiscordCreateThreadParams,
@@ -53,7 +54,7 @@ export const discordCreateThreadTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -63,9 +64,9 @@ export const discordCreateThreadTool: ToolConfig<
     url: (params: DiscordCreateThreadParams) => {
       const messageId = params.messageId?.trim()
       if (messageId) {
-        return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${messageId}/threads`
+        return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/${safeUrlPathSegment(messageId, 'messageId')}/threads`
       }
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/threads`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/threads`
     },
     method: 'POST',
     headers: (params) => ({

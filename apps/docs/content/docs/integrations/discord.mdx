@@ -40,14 +40,14 @@ Send a message to a Discord channel
 | --------- | ---- | -------- | ----------- |
 | `channelId` | string | Yes | The Discord channel ID to send the message to, e.g., 123456789012345678 |
 | `content` | string | No | The text content of the message |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 | `files` | file[] | No | Files to attach to the message |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Success or error message |
+| `message` | string | Content of the sent message |
 | `files` | file[] | Files attached to the message |
 | `data` | object | Discord message data |
 |   ↳ `id` | string | Message ID |
@@ -80,6 +80,9 @@ Retrieve messages from a Discord channel
 | --------- | ---- | -------- | ----------- |
 | `channelId` | string | Yes | The Discord channel ID to retrieve messages from, e.g., 123456789012345678 |
 | `limit` | number | No | Maximum number of messages to retrieve \(default: 10, max: 100\) |
+| `before` | string | No | Return messages before this message ID, to page back through history. Use only one of before, after, or around. |
+| `after` | string | No | Return messages after this message ID, e.g. to read only messages newer than the last one seen |
+| `around` | string | No | Return messages around this message ID |
 
 #### Output
 
@@ -157,11 +160,12 @@ Retrieve information about a Discord user
 |   ↳ `id` | string | User ID |
 |   ↳ `username` | string | Username |
 |   ↳ `discriminator` | string | User discriminator \(4-digit number\) |
+|   ↳ `global_name` | string | User display name, if set |
 |   ↳ `avatar` | string | User avatar hash |
 |   ↳ `bot` | boolean | Whether user is a bot |
 |   ↳ `system` | boolean | Whether user is a system user |
-|   ↳ `email` | string | User email \(if available\) |
-|   ↳ `verified` | boolean | Whether user email is verified |
+|   ↳ `email` | string | User email. Not returned for a user looked up by ID |
+|   ↳ `verified` | boolean | Whether the user email is verified. Not returned for a user looked up by ID |
 
 </ReferenceDetails>
 
@@ -178,7 +182,7 @@ Edit an existing message in a Discord channel
 | `channelId` | string | Yes | The Discord channel ID containing the message, e.g., 123456789012345678 |
 | `messageId` | string | Yes | The ID of the message to edit, e.g., 123456789012345678 |
 | `content` | string | No | The new text content for the message |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -205,7 +209,7 @@ Delete a message from a Discord channel
 | --------- | ---- | -------- | ----------- |
 | `channelId` | string | Yes | The Discord channel ID containing the message, e.g., 123456789012345678 |
 | `messageId` | string | Yes | The ID of the message to delete, e.g., 123456789012345678 |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -227,7 +231,7 @@ Delete 2-100 messages from a Discord channel in a single request
 | --------- | ---- | -------- | ----------- |
 | `channelId` | string | Yes | The Discord channel ID to delete messages from, e.g., 123456789012345678 |
 | `messageIds` | json | Yes | Array of 2-100 message IDs to delete. Messages older than 2 weeks cannot be bulk deleted. |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -250,7 +254,7 @@ Add a reaction emoji to a Discord message
 | `channelId` | string | Yes | The Discord channel ID containing the message, e.g., 123456789012345678 |
 | `messageId` | string | Yes | The ID of the message to react to, e.g., 123456789012345678 |
 | `emoji` | string | Yes | The emoji to react with \(unicode emoji or custom emoji in name:id format\) |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -274,7 +278,7 @@ Remove a reaction from a Discord message
 | `messageId` | string | Yes | The ID of the message with the reaction, e.g., 123456789012345678 |
 | `emoji` | string | Yes | The emoji to remove \(unicode emoji or custom emoji in name:id format\) |
 | `userId` | string | No | The user ID whose reaction to remove \(omit to remove bot's own reaction\), e.g., 123456789012345678 |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -296,7 +300,7 @@ Pin a message in a Discord channel
 | --------- | ---- | -------- | ----------- |
 | `channelId` | string | Yes | The Discord channel ID containing the message, e.g., 123456789012345678 |
 | `messageId` | string | Yes | The ID of the message to pin, e.g., 123456789012345678 |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -318,7 +322,7 @@ Unpin a message in a Discord channel
 | --------- | ---- | -------- | ----------- |
 | `channelId` | string | Yes | The Discord channel ID containing the message, e.g., 123456789012345678 |
 | `messageId` | string | Yes | The ID of the message to unpin, e.g., 123456789012345678 |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -375,7 +379,7 @@ Create a thread in a Discord channel
 | `messageId` | string | No | The message ID to create a thread from \(if creating from existing message\), e.g., 123456789012345678 |
 | `autoArchiveDuration` | number | No | Duration in minutes to auto-archive the thread \(60, 1440, 4320, 10080\) |
 | `isPublic` | boolean | No | Whether the standalone thread is public \(visible to everyone in the channel\) or private. Ignored when creating a thread from an existing message, which always inherits the parent channel visibility. Defaults to public if omitted. |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -402,7 +406,7 @@ Join a thread in Discord
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `threadId` | string | Yes | The thread ID to join, e.g., 123456789012345678 |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -423,7 +427,7 @@ Leave a thread in Discord
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `threadId` | string | Yes | The thread ID to leave, e.g., 123456789012345678 |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -445,7 +449,7 @@ Archive or unarchive a thread in Discord
 | --------- | ---- | -------- | ----------- |
 | `threadId` | string | Yes | The thread ID to archive/unarchive, e.g., 123456789012345678 |
 | `archived` | boolean | Yes | Whether to archive \(true\) or unarchive \(false\) the thread |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -470,8 +474,8 @@ Create a new channel in a Discord server
 | --------- | ---- | -------- | ----------- |
 | `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 | `name` | string | Yes | The name of the channel \(1-100 characters\) |
-| `type` | number | No | Channel type \(0=text, 2=voice, 4=category, 5=announcement, 13=stage\) |
-| `topic` | string | No | Channel topic \(0-1024 characters\) |
+| `type` | number | No | Channel type \(0=text, 2=voice, 4=category, 5=announcement, 13=stage, 15=forum\) |
+| `topic` | string | No | Channel topic \(up to 1024 characters for text channels, 4096 for forum channels\) |
 | `parentId` | string | No | Parent category ID for the channel, e.g., 123456789012345678 |
 
 #### Output
@@ -500,7 +504,7 @@ Update a Discord channel
 | `channelId` | string | Yes | The Discord channel ID to update, e.g., 123456789012345678 |
 | `name` | string | No | The new name for the channel |
 | `topic` | string | No | The new topic for the channel |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -526,7 +530,7 @@ Delete a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `channelId` | string | Yes | The Discord channel ID to delete, e.g., 123456789012345678 |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -552,7 +556,7 @@ Get information about a Discord channel
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `channelId` | string | Yes | The Discord channel ID to retrieve, e.g., 123456789012345678 |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -884,7 +888,7 @@ Create an invite link for a Discord channel
 | `maxAge` | number | No | Duration of invite in seconds \(0 = never expires, default 86400\) |
 | `maxUses` | number | No | Max number of uses \(0 = unlimited, default 0\) |
 | `temporary` | boolean | No | Whether invite grants temporary membership |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -911,7 +915,7 @@ Get information about a Discord invite
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `inviteCode` | string | Yes | The invite code to retrieve |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -938,7 +942,7 @@ Delete a Discord invite
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `inviteCode` | string | Yes | The invite code to delete |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -960,7 +964,7 @@ Create a webhook in a Discord channel
 | --------- | ---- | -------- | ----------- |
 | `channelId` | string | Yes | The Discord channel ID to create the webhook in, e.g., 123456789012345678 |
 | `name` | string | Yes | Name of the webhook \(1-80 characters\) |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -990,7 +994,7 @@ Execute a Discord webhook to send a message
 | `webhookToken` | string | Yes | The webhook token |
 | `content` | string | Yes | The message content to send |
 | `username` | string | No | Override the default username of the webhook |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -1016,7 +1020,7 @@ Get information about a Discord webhook
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookId` | string | Yes | The webhook ID to retrieve, e.g., 123456789012345678 |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 
@@ -1043,7 +1047,7 @@ Delete a Discord webhook
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookId` | string | Yes | The webhook ID to delete, e.g., 123456789012345678 |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
+| `serverId` | string | No | The Discord server ID \(guild ID\), e.g., 123456789012345678 |
 
 #### Output
 

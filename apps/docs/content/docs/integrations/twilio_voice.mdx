@@ -72,9 +72,10 @@ Retrieve a list of calls made to and from an account.
 | `to` | string | No | Filter by calls to this phone number in E.164 format \(e.g., +14155551234\) |
 | `from` | string | No | Filter by calls from this phone number in E.164 format \(e.g., +14155559876\) |
 | `status` | string | No | Filter by call status \(e.g., queued, ringing, in-progress, completed, busy, failed, no-answer, canceled\) |
-| `startTimeAfter` | string | No | Filter calls that started on or after this date \(YYYY-MM-DD\) |
-| `startTimeBefore` | string | No | Filter calls that started on or before this date \(YYYY-MM-DD\) |
+| `startTimeAfter` | string | No | Filter calls that started on or after this date \(YYYY-MM-DD, UTC; inclusive\) |
+| `startTimeBefore` | string | No | Filter calls that started before this date \(YYYY-MM-DD, UTC; exclusive\) |
 | `pageSize` | number | No | Number of records to return \(max 1000, default 50\) |
+| `pageToken` | string | No | Page token from a previous result \(nextPageToken\) to fetch the next page |
 
 #### Output
 
@@ -82,9 +83,10 @@ Retrieve a list of calls made to and from an account.
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the calls were successfully retrieved |
 | `calls` | array | Array of call objects |
-| `total` | number | Total number of calls returned |
+| `total` | number | Number of calls returned on this page |
 | `page` | number | Current page number |
 | `pageSize` | number | Number of calls per page |
+| `nextPageToken` | string | Pass as pageToken to fetch the next page; null on the last page |
 | `error` | string | Error message if retrieval failed |
 
 </ReferenceDetails>

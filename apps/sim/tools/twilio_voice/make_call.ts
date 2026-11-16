@@ -196,7 +196,7 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
         direction: data.direction,
         from: data.from,
         to: data.to,
-        duration: data.duration,
+        duration: data.duration ? Number.parseInt(data.duration, 10) : undefined,
         price: data.price,
         priceUnit: data.price_unit,
       },

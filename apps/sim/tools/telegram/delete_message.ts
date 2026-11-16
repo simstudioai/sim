@@ -32,7 +32,7 @@ export const telegramDeleteMessageTool: ToolConfig<
       description: 'Telegram chat ID (numeric, can be negative for groups)',
     },
     messageId: {
-      type: 'string',
+      type: 'number',
       required: true,
       visibility: 'user-or-llm',
       description: 'Telegram message ID (numeric identifier of the message to delete)',

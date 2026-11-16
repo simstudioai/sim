@@ -1,6 +1,7 @@
 import type { DiscordDeleteRoleParams, DiscordDeleteRoleResponse } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordDeleteRoleTool: ToolConfig<DiscordDeleteRoleParams, DiscordDeleteRoleResponse> =
   {
@@ -33,7 +34,7 @@ export const discordDeleteRoleTool: ToolConfig<DiscordDeleteRoleParams, DiscordD
 
     request: {
       url: (params: DiscordDeleteRoleParams) => {
-        return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/roles/${params.roleId.trim()}`
+        return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/roles/${safeUrlPathSegment(params.roleId, 'roleId')}`
       },
       method: 'DELETE',
       headers: (params) => ({

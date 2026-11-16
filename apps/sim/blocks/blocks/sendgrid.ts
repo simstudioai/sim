@@ -1,7 +1,7 @@
 import { SendgridIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 import { toActiveFlag } from '@/tools/sendgrid/create_template_version'
 
 export const SendGridBlock: BlockConfig = {
@@ -474,7 +474,7 @@ Return ONLY the JSON array.`,
       id: 'templateGenerations',
       title: 'Filter by Generation',
       type: 'short-input',
-      placeholder: 'legacy, dynamic, or both',
+      placeholder: 'legacy, dynamic, or legacy,dynamic (default: legacy only)',
       condition: { field: 'operation', value: 'list_templates' },
       mode: 'advanced',
     },
@@ -626,9 +626,15 @@ Return ONLY the HTML content.`,
     ],
     config: {
       tool: (params) => `sendgrid_${params.operation}`,
-      params: (params) => {
+      /**
+       * Renames block-only fields to tool param names for the operation that runs. Advanced
+       * fields keep their value after the operation changes, so each rename applies only to the
+       * operation its field belongs to; tool-call arguments already use the tool param names and
+       * pass through `rest`.
+       */
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           mailSubject,
           mailTemplateId,
           listName,
@@ -646,25 +652,26 @@ Return ONLY the HTML content.`,
           ...rest
         } = params
 
-        // Normalize attachments for send_mail operation
         const normalizedAttachments = normalizeFileInput(attachments)
+        const isSendMail = operation === 'send_mail'
+        const isListAllLists = operation === 'list_all_lists'
+        const isListTemplates = operation === 'list_templates'
+        const isTemplateVersion = operation === 'create_template_version'
 
-        // Map renamed fields back to tool parameter names
         return {
           ...rest,
-          ...(mailSubject && { subject: mailSubject }),
-          ...(mailTemplateId && { templateId: mailTemplateId }),
-          ...(listName && { name: listName }),
-          ...(templateName && { name: templateName }),
-          ...(versionName && { name: versionName }),
-          ...(templateSubject && { subject: templateSubject }),
-          ...(contactListIds && { listIds: contactListIds }),
-          ...(templateGenerations && { generations: templateGenerations }),
-          ...(listPageSize && { pageSize: listPageSize }),
-          ...(templatePageSize && { pageSize: templatePageSize }),
-          ...(operation === 'list_all_lists' && listPageToken && { pageToken: listPageToken }),
-          ...(operation === 'list_templates' &&
-            templatePageToken && { pageToken: templatePageToken }),
+          ...(isSendMail && mailSubject && { subject: mailSubject }),
+          ...(isSendMail && mailTemplateId && { templateId: mailTemplateId }),
+          ...(operation === 'create_list' && listName && { name: listName }),
+          ...(operation === 'create_template' && templateName && { name: templateName }),
+          ...(isTemplateVersion && versionName && { name: versionName }),
+          ...(isTemplateVersion && templateSubject && { subject: templateSubject }),
+          ...(operation === 'add_contact' && contactListIds && { listIds: contactListIds }),
+          ...(isListTemplates && templateGenerations && { generations: templateGenerations }),
+          ...(isListAllLists && listPageSize && { pageSize: listPageSize }),
+          ...(isListTemplates && templatePageSize && { pageSize: templatePageSize }),
+          ...(isListAllLists && listPageToken && { pageToken: listPageToken }),
+          ...(isListTemplates && templatePageToken && { pageToken: templatePageToken }),
           ...(normalizedAttachments && { attachments: normalizedAttachments }),
           ...(active !== undefined && { active: toActiveFlag(active) }),
         }

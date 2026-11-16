@@ -23,7 +23,7 @@ Send SMS messages.
 
 ### Twilio Send SMS
 
-Send text messages to single or multiple recipients using the Twilio API.
+Send a text message to one recipient using the Twilio API. Call once per recipient to reach several numbers.
 
 <ReferenceDetails>
 
@@ -31,9 +31,10 @@ Send text messages to single or multiple recipients using the Twilio API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `phoneNumbers` | string | Yes | Phone numbers to send the message to in E.164 format \(e.g., +15551234567\), separated by newlines |
+| `phoneNumbers` | string | Yes | Recipient phone number in E.164 format \(e.g., +15551234567\) or a channel address \(e.g., whatsapp:+15551234567\). Only the first line is used. |
 | `message` | string | Yes | Message to send |
-| `fromNumber` | string | Yes | Twilio phone number to send the message from in E.164 format \(e.g., +15551234567\) |
+| `fromNumber` | string | No | Sender: a Twilio phone number in E.164 format \(e.g., +15551234567\), alphanumeric sender ID, short code, or channel address. Required unless a Messaging Service SID is given. |
+| `messagingServiceSid` | string | No | Messaging Service SID \(MG...\). When set without a From number, Twilio picks the sender from the service sender pool. |
 
 #### Output
 
