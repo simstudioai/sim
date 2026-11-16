@@ -27,6 +27,7 @@ import {
   canonicalEquals,
   canonicalize,
   compileWorkflow,
+  diffCanonical,
   executableView,
   materialize,
   printWorkflow,
@@ -42,6 +43,7 @@ import {
 } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import {
   assertNoErrors,
+  assertNoopDiff,
   assertNoopIdentity,
   createProofReport,
   executionParity,
@@ -242,6 +244,18 @@ const properties: Record<ProofProperty, (e: ResolvedEngines, s: ProofSubject) =>
       original: s.state,
       materialized: materialized(e, compiledOrThrow(sourceRun(e, s).compiled), s.state),
     }),
+  P7: (e, s) => {
+    const run = sourceRun(e, s)
+    const written = materialize(compiledOrThrow(run.compiled), null, {
+      catalog: e.catalog,
+      hooks,
+      prev: s.state,
+      lockFreshness: 'none',
+    }).workflow
+    return assertNoopDiff(
+      diffCanonical(run.canonical, { ...written, meta: run.canonical.meta }, new Map())
+    )
+  },
   O1: (e, s) =>
     assertNoopIdentity({
       original: s.state,
@@ -297,6 +311,7 @@ const PROPERTY_TITLES: Record<ProofProperty, string> = {
   P4: 'P4 printed code compiles with zero errors',
   P5: 'P5 files mode compiles to the same workflow as inline mode',
   P6: 'P6 no-op apply: materialize(compile(print(c)), prev x) deep-equals x',
+  P7: 'P7 unchanged source diffs as a no-op: diffCanonical(c, materialize(compile(print(c)), prev x)).noop',
   O1: 'O1 no-op identity: materialize(canonicalize(x), prev x) deep-equals x',
   O2: 'O2 lockless execution parity',
   O3: 'O3 idempotence: canonicalize(materialize(c)) equals c',

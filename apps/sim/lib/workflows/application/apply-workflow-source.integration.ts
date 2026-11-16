@@ -49,6 +49,7 @@ import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.
 import {
   type ApplyWorkflowSourceInput,
   applyWorkflowSource,
+  createWorkflowFromSource,
 } from '@/lib/workflows/application/apply-workflow-source'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
@@ -152,7 +153,7 @@ function getSource(workflowId: string): Promise<ReadWorkflowSourceResult> {
 }
 
 function apply(
-  source: ReadWorkflowSourceResult,
+  source: Pick<ReadWorkflowSourceResult, 'workflowId' | 'lock' | 'base'>,
   files: Record<string, string>,
   extra: Partial<ApplyWorkflowSourceInput> = {}
 ) {
@@ -283,6 +284,42 @@ check('get → apply unchanged is a no-op that writes, audits and notifies nothi
   expect(await snapshot(seeded.workflowId)).toEqual(before)
   expect(await settledAuditRows(seeded.workflowId, 0)).toHaveLength(0)
   expect(notifiedFor(seeded.workflowId)).toBe(0)
+})
+
+check('create → apply the files it wrote is a no-op for a forEach loop', async () => {
+  const created = await withPermissionGroupScope(() =>
+    createWorkflowFromSource.execute({
+      principal,
+      input: {
+        workspaceId,
+        name: `Source create ${generateId()}`,
+        files: {
+          'workflow.ts': `// @sim-sdk 1
+import { fn, loop, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Each item', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { items: 'array' } })
+  const each = loop.forEach('Each Item', { collection: start.items }, (item) => {
+    const echo = fn('Echo', { code: 'return 1' })
+    item.to(echo)
+  })
+  start.to(each)
+})
+`,
+        },
+      },
+    })
+  )
+  expect(created.applied).toBe(true)
+  const stored = await loadWorkflowFromNormalizedTables(created.workflowId)
+  const loopBlock = Object.values(stored?.blocks ?? {}).find((block) => block.type === 'loop')
+  expect(loopBlock?.data?.whileCondition).toBe('')
+
+  const result = await apply(created, created.files, { dryRun: true })
+
+  expect(result.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+  expect(result.diff.blocks.modified).toEqual([])
+  expect(result.diff.noop).toBe(true)
 })
 
 check('a legacy ~n key block keeps its stored secret through get → apply unchanged', async () => {

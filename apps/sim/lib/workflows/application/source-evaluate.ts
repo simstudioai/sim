@@ -293,9 +293,14 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   const ignoredMeta = isNew
     ? []
     : META_FIELDS.filter((field) => compiledWorkflow.meta[field] !== meta[field])
+  /**
+   * What the write stores against what is stored: the materialized CWM, not the compiled one,
+   * so a field source never prints (a forEach loop's empty while condition, a pair's stored
+   * member) that materialize keeps from the stored block is no change.
+   */
   const canonicalDiff = diffCanonical(
     storedCanonical.workflow,
-    { ...compiledWorkflow, meta: storedCanonical.workflow.meta },
+    { ...materialized.workflow, meta: storedCanonical.workflow.meta },
     renamesBetween(storedCanonical.identity, materialized.identity)
   )
   const notes: string[] = []

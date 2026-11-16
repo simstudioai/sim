@@ -20,7 +20,7 @@ import {
 } from '@/lib/workflows/code/corpus/proof/diff'
 
 /** The property or oracle a verdict belongs to (DESIGN.md "Proof"). */
-type OracleName = 'P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'O1' | 'O2' | 'O3'
+type OracleName = 'P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'P7' | 'O1' | 'O2' | 'O3'
 
 export type OracleResult =
   | { ok: true; oracle: OracleName }
@@ -144,6 +144,59 @@ export function assertNoErrors(
         actual: diagnostic.message,
       }))
   )
+}
+
+/** The slice of `diffCanonical`'s result P7 reads. */
+interface CanonicalDiffLike {
+  noop: boolean
+  meta: string[]
+  blocks: {
+    added: string[]
+    removed: string[]
+    modified: Array<{
+      key: string
+      changes: Array<{
+        kind: string
+        param?: string
+        canonicalParamId?: string
+        attribute?: string
+      }>
+    }>
+  }
+  edges: { added: unknown[]; removed: unknown[] }
+  variables: { added: string[]; removed: string[]; modified: string[] }
+}
+
+/**
+ * P7, unchanged source is a no-op apply: the apply path's own diff of the stored workflow against
+ * its re-compiled print (`diffCanonical`) finds nothing, so `source apply` of a directory `get`
+ * just wrote reports `noop: true`. Each difference names the block and field the diff saw.
+ */
+export function assertNoopDiff(diff: CanonicalDiffLike): OracleResult {
+  if (diff.noop) return { ok: true, oracle: 'P7' }
+  const differences: Difference[] = []
+  for (const field of diff.meta) differences.push({ path: `/meta/${field}`, kind: 'value' })
+  for (const key of diff.blocks.added)
+    differences.push({ path: `/blocks/${key}`, kind: 'unexpected' })
+  for (const key of diff.blocks.removed)
+    differences.push({ path: `/blocks/${key}`, kind: 'missing' })
+  for (const block of diff.blocks.modified) {
+    for (const change of block.changes) {
+      const field = change.param ?? change.canonicalParamId ?? change.attribute ?? change.kind
+      differences.push({ path: `/blocks/${block.key}/${field}`, kind: 'value' })
+    }
+  }
+  if (diff.edges.added.length + diff.edges.removed.length > 0) {
+    differences.push({ path: '/edges', kind: 'value' })
+  }
+  for (const key of [
+    ...diff.variables.added,
+    ...diff.variables.removed,
+    ...diff.variables.modified,
+  ]) {
+    differences.push({ path: `/variables/${key}`, kind: 'value' })
+  }
+  return verdict('P7', differences.length > 0 ? differences : [{ path: '', kind: 'value' }])
 }
 
 /** Container blocks the serializer emits with their raw `block.data` as params. */

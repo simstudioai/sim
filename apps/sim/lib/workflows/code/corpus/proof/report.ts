@@ -12,7 +12,7 @@ import type { Difference } from '@/lib/workflows/code/corpus/proof/diff'
  * The round-trip properties and oracles a corpus run checks. `P0` is P1's source
  * half, `compile(print(c))` equals `c`, which needs no materialize.
  */
-const PROOF_PROPERTIES = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'O1', 'O2', 'O3'] as const
+const PROOF_PROPERTIES = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'O1', 'O2', 'O3'] as const
 export type ProofProperty = (typeof PROOF_PROPERTIES)[number]
 
 type ProofStatus = 'passed' | 'failed' | 'skipped' | 'errored'
