@@ -198,7 +198,7 @@ export const Panel = memo(function Panel() {
    * paint an empty panel — resolve it to the toolbar instead.
    */
   const isCopilotTabAvailable = chatEnabled && !permissionConfig.hideCopilot
-  /** A persisted `activeTab: 'code'` resolves to the toolbar while code-first workflows are off. */
+  /** A persisted `activeTab: 'code'` resolves to the toolbar while workflows as code is off. */
   const isCodeTabAvailable = useFeatureFlag('workflow-code')
   const activeTab: PanelTab =
     (storedActiveTab === 'copilot' && !isCopilotTabAvailable) ||

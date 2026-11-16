@@ -27,6 +27,7 @@ import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/author
 import { WorkflowImportError } from '@/lib/workflows/application/import-error'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/operations-error'
 import {
+  WorkflowSourceNameTakenError,
   WorkflowSourceRejectedError,
   WorkflowSourceStaleError,
 } from '@/lib/workflows/application/source-error'
@@ -105,9 +106,10 @@ export const v2WorkflowErrorPolicies = {
     },
   }),
   /**
-   * Creating a workflow from source: an unreachable workspace is concealed as absent, and refused
+   * Creating a workflow from source: an unreachable workspace is concealed as absent, refused
    * source answers `400` (`413` for a size limit) with its line-pinned diagnostics, as an apply
-   * does.
+   * does, and a name already taken in the folder answers `409` with `details.code`
+   * `SOURCE_NAME_TAKEN`, which a client tells apart from a stale apply's `SOURCE_STALE`.
    */
   concealWorkspaceSourceCreate: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workspace not found',
@@ -116,6 +118,12 @@ export const v2WorkflowErrorPolicies = {
         return v2ErrorForOrchestration(error.code, error.message, {
           code: 'SOURCE_REJECTED',
           diagnostics: error.diagnostics,
+        })
+      }
+      if (error instanceof WorkflowSourceNameTakenError) {
+        return v2ErrorForOrchestration(error.code, error.message, {
+          code: 'SOURCE_NAME_TAKEN',
+          name: error.workflowName,
         })
       }
       return v2CaughtOrchestrationError(error)

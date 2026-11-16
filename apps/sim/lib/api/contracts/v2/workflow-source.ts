@@ -26,7 +26,7 @@ const applyWorkflowSourceQuerySchema = z
     dryRun: booleanQueryFlagSchema
       .optional()
       .describe(
-        'Run every check without writing, auditing, or notifying collaborators. Always answers `200`: errors are returned in `diagnostics` with `applied: false`, and the files, lock and fingerprint show what a committed apply would store.'
+        'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.'
       ),
   })
   .strict()

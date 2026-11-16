@@ -90,3 +90,29 @@ describe('source catalog cache', () => {
     expect(catalogBlock(disabled, 'custom_block_g')).toBeUndefined()
   })
 })
+
+describe('per-workflow not-addable types', () => {
+  /** A gate that may place only the agent block, so any other stored type is not addable. */
+  const agentOnly: CatalogGate = { ...gateWith([]), allowedIntegrations: new Set(['agent']) }
+
+  function workflowCatalog(storedTypes: string[]) {
+    return withCatalogBlockScope(agentOnly, async () =>
+      buildSourceCatalog({ gate: agentOnly, organizationId: 'org-h', storedTypes })
+    )
+  }
+
+  it('shares one cached build across workflows that store different hidden types', async () => {
+    const slack = await workflowCatalog(['slack'])
+    const gmail = await workflowCatalog(['gmail'])
+    const plain = await workflowCatalog([])
+
+    expect(slack.subBlocks).toBe(plain.subBlocks)
+    expect(gmail.subBlocks).toBe(plain.subBlocks)
+    expect(catalogBlock(slack, 'slack')?.addable).toBe(false)
+    expect(catalogBlock(slack, 'gmail')).toBeUndefined()
+    expect(catalogBlock(gmail, 'gmail')?.addable).toBe(false)
+    expect(catalogBlock(plain, 'slack')).toBeUndefined()
+    expect(new Set([slack.hash, gmail.hash, plain.hash]).size).toBe(3)
+    expect((await workflowCatalog(['slack'])).hash).toBe(slack.hash)
+  })
+})

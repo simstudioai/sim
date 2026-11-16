@@ -2,6 +2,7 @@ import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   credential,
+  credentialMember,
   knowledgeBase,
   userTableDefinitions,
   workflowBlocks,
@@ -18,11 +19,14 @@ import {
   type WorkspaceAuthorizationContext,
   type WorkspaceDelegationPolicy,
 } from '@/lib/core/application'
+import { SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
+import { credentialAccessClause, credentialMembershipJoin } from '@/lib/credentials/queries'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { INPUT_DEFINITION_TRIGGER_TYPES } from '@/lib/workflows/triggers/input-definition-triggers'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { type ResourceIdRef, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /**
@@ -114,6 +118,42 @@ async function loadEnvNames(workspaceId: string, userId: string | undefined): Pr
   return [...names].sort(compareStrings)
 }
 
+/**
+ * The saved credentials (never env secrets) the caller may see, by the credential listing's own
+ * access rule: a user sees what they are a member of, their own personal tokens and, as a
+ * workspace admin, every shared credential. A caller with no human subject (a workspace API key)
+ * sees the shared credentials only, never anyone's personal ones.
+ */
+async function loadVisibleCredentials(workspaceId: string, userId: string | undefined) {
+  const columns = {
+    id: credential.id,
+    name: credential.displayName,
+    type: credential.type,
+    providerId: credential.providerId,
+  }
+  const scope = and(
+    eq(credential.workspaceId, workspaceId),
+    notInArray(credential.type, [...ENV_CREDENTIAL_TYPES])
+  )
+  const order = [asc(credential.createdAt), asc(credential.id)]
+  if (!userId) {
+    return db
+      .select(columns)
+      .from(credential)
+      .where(and(scope, inArray(credential.type, SHARED_CREDENTIAL_TYPES)))
+      .orderBy(...order)
+      .limit(PAGE)
+  }
+  const access = await checkWorkspaceAccess(workspaceId, userId)
+  return db
+    .select(columns)
+    .from(credential)
+    .leftJoin(credentialMember, credentialMembershipJoin(userId))
+    .where(and(scope, credentialAccessClause(userId, access.canAdmin)))
+    .orderBy(...order)
+    .limit(PAGE)
+}
+
 function capped<T>(rows: T[]): { rows: T[]; truncated: boolean } {
   return rows.length > MAX_MANIFEST_RESOURCES_PER_KIND
     ? { rows: rows.slice(0, MAX_MANIFEST_RESOURCES_PER_KIND), truncated: true }
@@ -123,7 +163,8 @@ function capped<T>(rows: T[]): { rows: T[]; truncated: boolean } {
 /**
  * The workspace resources a workflow file can name, by the keys source uses for them: tables
  * with their columns, knowledge bases, saved credentials with their provider, workflows with
- * the inputs their start block declares, and env variable names (never values). The CLI writes it
+ * the inputs their start block declares, and env variable names (never values). Credentials are
+ * the ones the caller's credential listing shows. The CLI writes it
  * as `workspace.d.ts`, so `table('tickets')`, `credential('support-slack')` and `env.X` type-check.
  *
  * Every listed resource gets its key here (`resolveKeys` allocates one for a resource no source
@@ -163,22 +204,7 @@ export const readSourceResources = defineAuthorizedWorkspaceUseCase({
         .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
         .orderBy(asc(knowledgeBase.createdAt), asc(knowledgeBase.id))
         .limit(PAGE),
-      db
-        .select({
-          id: credential.id,
-          name: credential.displayName,
-          type: credential.type,
-          providerId: credential.providerId,
-        })
-        .from(credential)
-        .where(
-          and(
-            eq(credential.workspaceId, workspaceId),
-            notInArray(credential.type, [...ENV_CREDENTIAL_TYPES])
-          )
-        )
-        .orderBy(asc(credential.createdAt), asc(credential.id))
-        .limit(PAGE),
+      loadVisibleCredentials(workspaceId, userId),
       db
         .select({ id: workflowTable.id, name: workflowTable.name })
         .from(workflowTable)

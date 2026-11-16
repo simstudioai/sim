@@ -117,9 +117,12 @@ describe('GET /api/v2/workspaces/{workspaceId}/workflows/source/resources', () =
     expect(mocks.read).not.toHaveBeenCalled()
   })
 
-  it('answers 403 while code-first workflows are off', async () => {
+  it('answers 403 while workflows as code is off', async () => {
     mocks.read.mockRejectedValueOnce(
-      new OrchestrationError('forbidden', 'Code-first workflows are not enabled')
+      new OrchestrationError(
+        'forbidden',
+        'Workflows as code is in preview and not enabled on this deployment'
+      )
     )
 
     const response = await GET(request(), context)

@@ -19,8 +19,10 @@ vi.mock('@/lib/workflows/application/apply-workflow-source', () => ({
   },
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
+import {
+  WorkflowSourceNameTakenError,
+  WorkflowSourceRejectedError,
+} from '@/lib/workflows/application/source-error'
 import { POST } from '@/app/api/v2/workspaces/[workspaceId]/workflows/source/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
@@ -130,14 +132,14 @@ describe('POST /api/v2/workspaces/{workspaceId}/workflows/source', () => {
     })
   })
 
-  it('answers 409 when the name is taken in the folder', async () => {
-    mocks.create.mockRejectedValue(
-      new OrchestrationError('conflict', 'A workflow named "Triage" already exists in this folder')
-    )
+  it('answers 409 with SOURCE_NAME_TAKEN when the name is taken in the folder', async () => {
+    mocks.create.mockRejectedValue(new WorkflowSourceNameTakenError('Triage'))
 
     const response = await POST(createRequest({ files }), context)
+    const body = await response.json()
 
     expect(response.status).toBe(409)
+    expect(body.error.details).toEqual({ code: 'SOURCE_NAME_TAKEN', name: 'Triage' })
   })
 
   it.each([

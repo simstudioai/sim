@@ -8,7 +8,6 @@
 import { writeFileSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
 import {
-  type CatalogBlock,
   type CatalogSubBlock,
   type ExpandedBlockCatalog,
   expandBlockCatalog,
@@ -19,7 +18,11 @@ import { describe, expect, it, vi } from 'vitest'
 vi.unmock('@/blocks/registry')
 
 import { v2SourceCatalogSchema } from '@/lib/api/contracts/v2/source-catalog'
-import { buildBlockCatalog, projectBlockCatalog } from '@/lib/workflows/code/catalog/build'
+import {
+  buildBlockCatalog,
+  projectBlockCatalog,
+  withNotAddableBlocks,
+} from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
 import { getBlockRegistry } from '@/blocks/registry'
@@ -193,19 +196,39 @@ describe('block catalog projection over the whole registry', () => {
     expect(JSON.stringify(again)).toBe(JSON.stringify(catalog))
   })
 
-  it('marks stored-only types not addable without changing anything else about them', () => {
-    const [first] = registryBlocks.filter((block) => !block.hideFromToolbar)
-    const scoped = buildBlockCatalog({
-      blocks: [first],
-      notAddable: new Set([first.type]),
-      trigger: registryTrigger,
-      sdkNames: SDK_NAMES,
+  it('overlays stored-only types as not addable without changing anything else about them', () => {
+    const stored = registryBlocks.find(
+      (block) => block.triggers?.enabled && SDK_NAMES.blocks[block.type] && !block.hideFromToolbar
+    )
+    if (!stored) throw new Error('The registry has no named block with triggers')
+    const base = buildBlockCatalog({
+      ...registryInput,
+      blocks: registryBlocks.filter((block) => block !== stored),
     })
-    const { addable, ...rest } = expandBlockCatalog(scoped).blocks[first.type]
+    const baseBytes = JSON.stringify(base)
+
+    const overlaid = withNotAddableBlocks(base, [stored], registryInput)
+    const expanded = expandBlockCatalog(overlaid)
+
+    const { addable, ...rest } = expanded.blocks[stored.type]
     expect(addable).toBe(false)
-    const { addable: _ignored, ...original }: CatalogBlock = view.blocks[first.type]
-    expect(rest).toEqual(original)
-    expect(scoped.hash).not.toBe(catalog.hash)
+    expect(rest).toEqual(projection.blocks[stored.type])
+    for (const id of stored.triggers?.available ?? []) {
+      expect(expanded.triggers[id]).toEqual(view.triggers[id])
+    }
+    const storedBuilders = Object.entries(catalog.builders).filter(
+      ([, builder]) => builder.type === stored.type
+    )
+    expect(storedBuilders.length).toBeGreaterThan(0)
+    for (const [path, builder] of storedBuilders) expect(overlaid.builders[path]).toEqual(builder)
+    expect(expanded.blocks).toMatchObject(
+      Object.fromEntries(Object.keys(base.blocks).map((type) => [type, view.blocks[type]]))
+    )
+
+    expect(JSON.stringify(base)).toBe(baseBytes)
+    expect(overlaid.hash).not.toBe(base.hash)
+    expect(withNotAddableBlocks(base, [stored], registryInput).hash).toBe(overlaid.hash)
+    expect(withNotAddableBlocks(base, [], registryInput)).toBe(base)
   })
 
   it('encodes the projection losslessly but for the block option labels it drops', () => {

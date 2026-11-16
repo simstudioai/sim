@@ -58,3 +58,18 @@ export class WorkflowSourceStaleError extends OrchestrationError {
     this.name = 'WorkflowSourceStaleError'
   }
 }
+
+/**
+ * A workflow created from source would take a name another live workflow already has in the
+ * target folder. Not a stale read: getting the source again cannot fix it. Pass another name
+ * or folder, or rename the existing workflow.
+ */
+export class WorkflowSourceNameTakenError extends OrchestrationError {
+  constructor(readonly workflowName: string) {
+    super(
+      'conflict',
+      `A workflow named "${workflowName}" already exists in this folder. Create it under another name or in another folder.`
+    )
+    this.name = 'WorkflowSourceNameTakenError'
+  }
+}

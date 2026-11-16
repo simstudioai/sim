@@ -88,6 +88,38 @@ const MOCK_REGISTRY_BLOCKS: Record<string, unknown> = {
       { id: 'triggerConfig', type: 'trigger-config' },
     ],
   },
+  slack_v2: {
+    type: 'slack_v2',
+    name: 'Slack',
+    tools: {
+      access: ['slack_v2_message', 'slack_v2_canvas'],
+      config: {
+        tool: ({ operation }: { operation?: string }) =>
+          operation === 'canvas' ? 'slack_v2_canvas' : 'slack_v2_message',
+      },
+    },
+    subBlocks: [
+      {
+        id: 'operation',
+        type: 'dropdown',
+        options: [
+          { label: 'Send Message', id: 'send' },
+          { label: 'Create Canvas', id: 'canvas' },
+        ],
+      },
+    ],
+  },
+  human_in_the_loop: {
+    type: 'human_in_the_loop',
+    name: 'Human in the Loop',
+    subBlocks: [{ id: 'notification', type: 'tool-input' }],
+  },
+  jira_v2: {
+    type: 'jira_v2',
+    name: 'Jira',
+    tools: { access: ['jira_v2_get_issue'] },
+    subBlocks: [{ id: 'credential', type: 'oauth-input' }],
+  },
   jira: {
     type: 'jira',
     name: 'Jira',
@@ -781,6 +813,85 @@ describe('source gates agree with the editing engine', () => {
       expect(engine).toEqual(testCase.expected)
       expect(source).toEqual(engine)
     })
+  })
+})
+
+function gate(base: SourceGraph, target: SourceGraph, permissionConfig: PermissionGroupConfig) {
+  return gateSourceDiff({
+    base,
+    target,
+    diff: diffGraphs(base, target),
+    permissionConfig,
+    subjectUserId: CTX.userId,
+    workspaceId: CTX.workspaceId,
+    isCopilot: false,
+  })
+}
+
+function refusalCodes(diagnostics: { code: string; severity: string }[]): string[] {
+  return diagnostics.filter((d) => d.severity === 'error').map((d) => d.code)
+}
+
+describe('gateSourceDiff: tool-input fields other than tools', () => {
+  const denyCanvasTool = { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedTools: ['slack_canvas'] }
+
+  it('refuses a denied tool added to a human in the loop notification', async () => {
+    const base = graph(block(ID.a, 'human_in_the_loop', 'Approve'))
+    const target = graph(
+      block(ID.a, 'human_in_the_loop', 'Approve', {
+        sub: { notification: [{ type: 'slack', operation: 'canvas', title: 'Notify' }] },
+      })
+    )
+    expect(refusalCodes(await gate(base, target, denyCanvasTool))).toEqual([
+      'E_APPLY_TOOL_NOT_ALLOWED',
+    ])
+  })
+
+  it('refuses a new human in the loop block whose notification holds a denied tool', async () => {
+    const target = graph(
+      block(ID.a, 'human_in_the_loop', 'Approve', {
+        sub: { notification: [{ type: 'slack', operation: 'canvas', title: 'Notify' }] },
+      })
+    )
+    expect(refusalCodes(await gate(graph(), target, denyCanvasTool))).toEqual([
+      'E_APPLY_TOOL_NOT_ALLOWED',
+    ])
+  })
+
+  it('keeps a denied notification tool already stored when the edit leaves it alone', async () => {
+    const notification = [{ type: 'slack', operation: 'canvas', title: 'Notify' }]
+    const base = graph(block(ID.a, 'human_in_the_loop', 'Approve', { sub: { notification } }))
+    const target = graph(
+      block(ID.a, 'human_in_the_loop', 'Approve', {
+        sub: {
+          notification: [...notification, { type: 'slack', operation: 'send', title: 'Also' }],
+        },
+      })
+    )
+    expect(refusalCodes(await gate(base, target, denyCanvasTool))).toEqual([])
+  })
+})
+
+describe('gateSourceDiff: a retyped block is gated on every value it keeps', () => {
+  it('refuses an unchanged operation the new type maps to a denied tool', async () => {
+    const base = graph(block(ID.a, 'slack', 'Slack', { sub: { operation: 'canvas' } }))
+    const target = graph(block(ID.a, 'slack_v2', 'Slack', { sub: { operation: 'canvas' } }))
+    const denyV2Canvas = { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedTools: ['slack_v2_canvas'] }
+    expect(refusalCodes(await gate(base, target, denyV2Canvas))).toEqual([
+      'E_APPLY_TOOL_NOT_ALLOWED',
+    ])
+  })
+
+  it('refuses an unchanged credential the user cannot reach under the new type', async () => {
+    mockValidateSelectorIds.mockImplementation(async (_type: string, ids: string | string[]) => {
+      const list = Array.isArray(ids) ? ids : [ids]
+      return { valid: [], invalid: list }
+    })
+    const base = graph(block(ID.a, 'jira', 'Jira', { sub: { credential: 'bad-cred' } }))
+    const target = graph(block(ID.a, 'jira_v2', 'Jira', { sub: { credential: 'bad-cred' } }))
+    expect(refusalCodes(await gate(base, target, DEFAULT_PERMISSION_GROUP_CONFIG))).toEqual([
+      'E_APPLY_CREDENTIAL_UNREACHABLE',
+    ])
   })
 })
 
