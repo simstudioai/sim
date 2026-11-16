@@ -46,7 +46,6 @@ export function buildCanonicalIndexForSurface(
   block: Pick<CatalogBlock, 'category' | 'subBlocks'>,
   triggerMode: boolean
 ): CanonicalIndex {
-  return buildCanonicalIndex(
-    block.subBlocks.filter((subBlock) => onSurface(block, subBlock, triggerMode))
-  )
+  const used = block.subBlocks.filter((subBlock) => onSurface(block, subBlock, triggerMode))
+  return buildCanonicalIndex(used)
 }
