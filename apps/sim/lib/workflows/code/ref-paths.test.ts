@@ -1,10 +1,16 @@
+import {
+  type CanonicalWorkflow,
+  compileWorkflow,
+  printWorkflow,
+  type Value,
+} from '@sim/workflow-code'
 import fc from 'fast-check'
-import { describe, expect, it } from 'vitest'
-import { compileWorkflow } from '../compile'
-import type { CanonicalWorkflow, Value } from '../model'
-import { cases } from './__fixtures__/cases'
-import { realCatalog as catalog } from './__fixtures__/real-catalog'
-import { printWorkflow } from './index'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.unmock('@/blocks/registry')
+vi.unmock('@/tools/registry')
+
+import { cases, goldenCatalog as catalog } from '@/lib/workflows/code/golden-cases.test-helpers'
 
 const SEGMENT_CHARS = [...'aZ_$07- \'"+<>é{`']
 

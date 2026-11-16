@@ -1,19 +1,13 @@
 /**
- * Materialize against the real registry, catalog and serializer (s1 §6):
- * - O1: `materialize(canonicalize(x), null, { prev: x })` deep-equals `x` for a sample of the
- *   registry corpus covering every corpus kind (all s1 §5 quirk classes the generator emits);
- * - O3: `canonicalize(materialize(c))` equals `c`, with prev and with every block new;
- * - O2: materialized lockless with no prev, then aligned to the original by key, the serializer
- *   sees the same params, tools, connections and subflows, and `hasWorkflowChanged` is false.
- *   Cases whose types the registry does not know are skipped: the serializer rejects the original.
- *
- * The whole corpus runs in `corpus/roundtrip.corpus.test.ts`; this file keeps a fast sample so a
- * hook or materialize regression fails here first.
+ * Materialize against the real registry and catalog, over a sample of the registry corpus: O3
+ * (`canonicalize(materialize(c))` equals `c`) with every block new, which the corpus harness
+ * (`corpus/roundtrip.corpus.test.ts`, with prev only) does not run, and a new block created
+ * through the editing engine. O1 and O2 run over the whole corpus there.
  */
 
 import { canonicalEquals, canonicalize, catalogBlock, materialize } from '@sim/workflow-code'
-import { executionParity, findDifferences } from '@sim/workflow-code/proof'
 import { describe, expect, it, vi } from 'vitest'
+import { findDifferences } from '@/lib/workflows/code/corpus/proof'
 
 vi.unmock('@/blocks/registry')
 vi.unmock('@/tools/registry')
@@ -21,12 +15,9 @@ vi.unmock('@/tools/registry')
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { type CorpusCase, generateRegistryCorpus } from '@/lib/workflows/code/corpus'
-import { withoutLockHeldState } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
-import { hasWorkflowChanged } from '@/lib/workflows/comparison/compare'
 import { getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
-import { Serializer } from '@/serializer'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const { catalog } = buildBlockCatalog({
@@ -35,7 +26,6 @@ const { catalog } = buildBlockCatalog({
   sdkNames: SDK_NAMES,
 })
 const hooks = createMaterializeHooks()
-const serializer = new Serializer()
 
 /** Every structural case, plus the first case of each per-block kind for every block type. */
 function sample(corpus: CorpusCase[]): CorpusCase[] {
@@ -73,33 +63,6 @@ function failures(
 }
 
 describe(`materialize over the real registry (${cases.length} corpus cases)`, () => {
-  it('covers every corpus kind', () => {
-    expect(new Set(cases.map((c) => c.kind))).toEqual(
-      new Set([
-        'operation',
-        'trigger',
-        'standalone-advanced',
-        'error-edge',
-        'branches',
-        'name-collision',
-        'subflow',
-        'input-format',
-        'variables',
-        'unknown-type',
-      ])
-    )
-  })
-
-  it('O1: a no-op round trip writes the stored state back exactly', () => {
-    expect(
-      failures((corpusCase) => {
-        const result = write(canonical(corpusCase.state, corpusCase.id), corpusCase.state)
-        const differences = findDifferences(corpusCase.state, result.state, 3)
-        return differences.length === 0 ? null : JSON.stringify(differences)
-      })
-    ).toEqual([])
-  })
-
   it('O3: canonicalize(materialize(c)) equals c, with prev and with every block new', () => {
     expect(
       failures((corpusCase) => {
@@ -112,26 +75,6 @@ describe(`materialize over the real registry (${cases.length} corpus cases)`, ()
         }
         return null
       })
-    ).toEqual([])
-  })
-
-  it('O2: a lockless write with no prev executes like the original', () => {
-    const executable = cases.filter((corpusCase) => !corpusCase.unknownTypes)
-    expect(executable.length).toBeGreaterThan(cases.length / 2)
-    expect(
-      failures((corpusCase) => {
-        const result = executionParity({
-          original: withoutLockHeldState(corpusCase.state, catalog),
-          candidate: withoutLockHeldState(
-            write(canonical(corpusCase.state, corpusCase.id)).state,
-            catalog
-          ),
-          serialize: (state) =>
-            serializer.serializeWorkflow(state.blocks, state.edges, state.loops, state.parallels),
-          hasWorkflowChanged,
-        })
-        return result.ok ? null : JSON.stringify(result.differences.slice(0, 5))
-      }, executable)
     ).toEqual([])
   })
 

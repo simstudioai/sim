@@ -6,6 +6,7 @@
  * points at the engine and not at the generator.
  */
 
+import { setOwn } from '@sim/workflow-code'
 import {
   type BlockState,
   type Loop,
@@ -15,7 +16,6 @@ import {
   type WorkflowState,
 } from '@sim/workflow-types/workflow'
 import fc from 'fast-check'
-import { setOwn } from '../records'
 
 /** Names that collide with `Object.prototype` members when used as a plain-object key. */
 const PROTOTYPE_KEY_NAMES = ['__proto__', 'constructor', 'prototype'] as const
@@ -25,7 +25,7 @@ const PROTOTYPE_KEY_NAMES = ['__proto__', 'constructor', 'prototype'] as const
  * nested env braces, CRLF, the JS line separators U+2028/U+2029, lone surrogates, backticks,
  * template openers, quotes, and `Object.prototype` member names.
  */
-export const ADVERSARIAL_STRING_FRAGMENTS = [
+const ADVERSARIAL_STRING_FRAGMENTS = [
   '<3 <a.b>',
   '{{ {{X}} }}',
   '{{API_KEY}}',
@@ -56,7 +56,7 @@ const isUsableName = (name: string): boolean => {
 }
 
 /** Text mixing adversarial fragments with arbitrary unicode (including astral characters). */
-export function adversarialStringArbitrary(): fc.Arbitrary<string> {
+function adversarialStringArbitrary(): fc.Arbitrary<string> {
   return fc
     .array(
       fc.oneof(
@@ -74,7 +74,7 @@ export function adversarialStringArbitrary(): fc.Arbitrary<string> {
  * `Object.prototype` member names, always with a usable normalized key. Two draws can still
  * collide after normalization; use {@link uniqueBlockNamesArbitrary} when they must not.
  */
-export function blockNameArbitrary(): fc.Arbitrary<string> {
+function blockNameArbitrary(): fc.Arbitrary<string> {
   const wordNames = fc
     .tuple(
       fc.constantFrom(
@@ -101,33 +101,12 @@ export function blockNameArbitrary(): fc.Arbitrary<string> {
 }
 
 /** `count` names whose normalized keys are distinct. */
-export function uniqueBlockNamesArbitrary(count: number): fc.Arbitrary<string[]> {
+function uniqueBlockNamesArbitrary(count: number): fc.Arbitrary<string[]> {
   return fc.uniqueArray(blockNameArbitrary(), {
     minLength: count,
     maxLength: count,
     selector: normalizeWorkflowBlockName,
   })
-}
-
-/**
- * A pair of distinct display names with the same normalized key (`Agent 1` / `agent1`,
- * `my.block` / `MyBlock`): the legacy collision canonicalize projects as `key~2`.
- */
-export function collidingNamesArbitrary(): fc.Arbitrary<[string, string]> {
-  return blockNameArbitrary()
-    .chain((name) =>
-      fc
-        .constantFrom(
-          name.toUpperCase(),
-          name.toLowerCase(),
-          name.replace(/\s+/g, ''),
-          name.replace(/\./g, ''),
-          ` ${name} `,
-          name.replace(/(\w)/, '$1.')
-        )
-        .map((other): [string, string] => [name, other])
-    )
-    .filter(([a, b]) => a !== b && normalizeWorkflowBlockName(a) === normalizeWorkflowBlockName(b))
 }
 
 const REF_PATHS = ['input', 'result', 'data.items', 'response.body', 'rows[0]'] as const
@@ -137,7 +116,7 @@ const REF_PATHS = ['input', 'result', 'data.items', 'response.body', 'rows[0]'] 
  * quotes, template text, template interpolation, line and block comments, and a `<` comparison
  * next to a reference. `refs` are normalized block names (`agent1`); each draws a path.
  */
-export function jsCodeBodyArbitrary(refs: readonly string[]): fc.Arbitrary<string> {
+function jsCodeBodyArbitrary(refs: readonly string[]): fc.Arbitrary<string> {
   const names = refs.length > 0 ? refs : ['start']
   const reference = fc
     .tuple(fc.constantFrom(...names), fc.constantFrom(...REF_PATHS))

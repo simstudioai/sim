@@ -1,7 +1,7 @@
 # Workflow source syntax the compiler accepts
 
 The compiler (`compileWorkflow`) accepts exactly what the printer emits, plus a few hand-written
-conveniences listed under "Also accepted". `printer-goldens.test.ts` compiles
+conveniences listed under "Also accepted". `apps/sim/lib/workflows/code/goldens.test.ts` compiles
 every printer golden, over the real catalog, with zero errors to a workflow that runs as the one it
 was printed from. Where s2 and s3 disagreed, the printer's choice (build-spec first, then s2) was
 taken.

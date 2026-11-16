@@ -8,7 +8,7 @@
  * advanced member of a selector pair is free text and carries the payload.
  */
 
-import type { SeededRandom } from '@sim/workflow-code/proof/random'
+import type { SeededRandom } from '@/lib/workflows/code/corpus/random'
 import type { SubBlockConfig } from '@/blocks/types'
 
 /** The upstream start block every case has; its key is `start`. */

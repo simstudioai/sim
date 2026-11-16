@@ -2,22 +2,25 @@
  * The round-trip oracles (s1 §6, s3 §5), as pure functions over values the caller produces. Each
  * returns its verdict instead of throwing, so a corpus run reports every failing case rather than
  * stopping at the first. Server-side collaborators (the serializer, change detection) are
- * injected, which keeps this package free of the app.
+ * injected, so each oracle is a pure comparison.
  *
  * Per the Wave 1 audit the CWM carries no encodings, so no oracle compares one: O1 compares raw
  * stored states, O2 compares what execution sees, and O3 compares CWMs through the caller's
  * equality.
  */
 
-import { isRecordLike, omit } from '@sim/utils/object'
+import { isRecordLike } from '@sim/utils/object'
 import { compareStrings, escapeRegExp } from '@sim/utils/string'
+import { setOwn } from '@sim/workflow-code'
 import { normalizeWorkflowBlockName, type WorkflowState } from '@sim/workflow-types/workflow'
-import type { CanonicalWorkflow } from '../model'
-import { setOwn } from '../records'
-import { type Difference, findDifferences, firstTextDifference } from './diff'
+import {
+  type Difference,
+  findDifferences,
+  firstTextDifference,
+} from '@/lib/workflows/code/corpus/proof/diff'
 
 /** The property or oracle a verdict belongs to (s3 §5 P1–P5, s1 §6 O1–O3). */
-export type OracleName = 'P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'O1' | 'O2' | 'O3'
+type OracleName = 'P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'O1' | 'O2' | 'O3'
 
 export type OracleResult =
   | { ok: true; oracle: OracleName }
@@ -72,18 +75,8 @@ export function idempotence<T>(input: {
   return verdict(oracle, findDifferences(value, stepped))
 }
 
-/**
- * A CWM without its non-semantic `annotations`, for comparing CWMs exactly when no
- * `canonicalEquals` is available. Annotations never take part in equality (DESIGN.md decision 3).
- */
-export function withoutAnnotations(
-  workflow: CanonicalWorkflow
-): Omit<CanonicalWorkflow, 'annotations'> {
-  return omit(workflow, ['annotations'])
-}
-
 /** The structural slice of `SerializedWorkflow` (apps/sim/serializer/types.ts) parity reads. */
-export interface SerializedWorkflowLike {
+interface SerializedWorkflowLike {
   blocks: Array<{
     id: string
     enabled?: boolean
@@ -102,7 +95,7 @@ export interface SerializedWorkflowLike {
   parallels?: Record<string, unknown>
 }
 
-export interface ExecutionParityInput {
+interface ExecutionParityInput {
   original: WorkflowState
   /** Materialized lockless (no prev, no lock): ids are fresh and aligned here by key. */
   candidate: WorkflowState
@@ -199,7 +192,7 @@ function sortSubflowNodes(subflows: Record<string, unknown>): Record<string, unk
 }
 
 /** Decodes JSON-text strings (objects and arrays only) recursively; everything else as is. */
-export function decodeStructured(value: unknown): unknown {
+function decodeStructured(value: unknown): unknown {
   if (typeof value === 'string') {
     const trimmed = value.trim()
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
@@ -262,10 +255,7 @@ function pairByKey<T>(
  * a mapped id (object keys and inside strings, such as `condition-<rowId>` handles) is replaced.
  * Unpaired ids stay as they are, so a real difference still shows up downstream.
  */
-export function alignWorkflowIds(
-  reference: WorkflowState,
-  candidate: WorkflowState
-): WorkflowState {
+function alignWorkflowIds(reference: WorkflowState, candidate: WorkflowState): WorkflowState {
   const map = pairByKey(reference.blocks, candidate.blocks, (block) =>
     normalizeWorkflowBlockName(block.name)
   )

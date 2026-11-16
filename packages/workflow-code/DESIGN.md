@@ -22,7 +22,6 @@ agreement of every lane that consumes it.
 | `src/catalog/canonical-index.ts`, `src/canonicalize/*` | 2B | |
 | `src/print/*` | 2C | |
 | `src/compile/*`, `src/code-files/*` | 2D | |
-| `src/proof/*` | 2G | |
 | `src/materialize/*`, `src/equivalence.ts` | Wave 3 | |
 
 Each engine implements its `api.ts` type, e.g.
@@ -335,9 +334,11 @@ instead of failing at run time.
     the container blocks, so an orphan map entry is never stored.
   - **Stored outputs** are rewritten only when `computeOutputs` differs between prev and the edited
     block, so a block with stale or empty stored outputs keeps them through an unrelated edit.
-  - **Goldens run against the real catalog.** `print/__fixtures__/real-catalog.json` is the slice of
-    `buildBlockCatalog` the golden cases use (compacted and hashed like the core shard), rebuilt
-    and drift-checked by `apps/sim/lib/workflows/code/golden-catalog.test.ts`. Cases are canvas
-    blocks of current types (editor defaults seeded). `workflow-sdk`'s `goldens.test.ts`
-    type-checks every golden with `core.d.ts` plus the types generated from
-    that slice. `print/__fixtures__/catalog.ts` stays for unit tests.
+  - **Goldens run against the real catalog.** One harness,
+    `apps/sim/lib/workflows/code/goldens.test.ts`, builds the live registry catalog narrowed to the
+    types the golden cases use (compacted and hashed like the core shard). Each case prints to its
+    golden in `print/__golden__/`, compiles back to the same executable view, reprints
+    byte-identical, and every golden type-checks with `core.d.ts` plus the types generated from
+    that catalog. Cases are canvas blocks of current types (editor defaults seeded). The round-trip
+    proof tooling (oracles, report, fast-check arbitraries) lives with the corpus in
+    `apps/sim/lib/workflows/code/corpus/proof/`.

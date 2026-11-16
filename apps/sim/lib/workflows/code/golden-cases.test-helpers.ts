@@ -1,28 +1,104 @@
 /**
- * Hand-built canonical workflows, one per printer construct (golden snapshots in `__golden__/`).
- * Each case names the behavior it pins so a golden diff points at the construct that changed.
+ * The printer golden cases: hand-built canonical workflows, one per printer construct, over the
+ * real catalog narrowed to the block types they use. The goldens they print live in
+ * `packages/workflow-code/src/print/__golden__/`, next to the printer. Each case names the behavior
+ * it pins so a golden diff points at the construct that changed.
  */
 
+import {
+  type AnchorKey,
+  type BlockCatalog,
+  type CanonicalBlock,
+  type CanonicalEdge,
+  type CanonicalParam,
+  type CanonicalTool,
+  type CanonicalVariable,
+  type CanonicalWorkflow,
+  type CatalogBlock,
+  type CatalogBuilder,
+  type CatalogTrigger,
+  type CodeComment,
+  catalogBlock,
+  catalogBuilder,
+  catalogBuilderPaths,
+  catalogTrigger,
+  compactBlockCatalog,
+  encodeAnchor,
+  type LockHints,
+  type Port,
+  sha256Hex,
+  stableStringify,
+  type Value,
+} from '@sim/workflow-code'
+import { editorDefaults } from '@sim/workflow-code/catalog/defaults'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
-import { encodeAnchor } from '../../anchors'
-import type { LockHints } from '../../api'
-import { editorDefaults } from '../../catalog/defaults'
-import { catalogBlock } from '../../catalog/view'
-import type {
-  AnchorKey,
-  CanonicalBlock,
-  CanonicalEdge,
-  CanonicalParam,
-  CanonicalTool,
-  CanonicalVariable,
-  CanonicalWorkflow,
-  CodeComment,
-  Port,
-  Value,
-} from '../../model'
-import { realCatalog } from './real-catalog'
+import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
+import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
+import { getBlockRegistry } from '@/blocks/registry'
+import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 
-export interface PrintCase {
+/** Every registry block type a golden case uses. */
+const GOLDEN_CATALOG_TYPES = [
+  'agent',
+  'api',
+  'condition',
+  'function',
+  'generic_webhook',
+  'gmail_v2',
+  'note',
+  'response',
+  'router_v2',
+  'slack_v2',
+  'start_trigger',
+  'table_v2',
+  'variables',
+]
+
+/**
+ * The live registry catalog narrowed to the golden types: their blocks, the builders that create
+ * them, and the triggers they deploy as (a trigger block is its own trigger), compacted like the
+ * served core shard and hashed the same way. Narrowing keeps a registry change to an unrelated
+ * block from churning the goldens.
+ */
+function narrowedCatalog(): BlockCatalog {
+  const { catalog } = buildBlockCatalog({
+    blocks: Object.values(getBlockRegistry()),
+    trigger: registryTrigger,
+    sdkNames: SDK_NAMES,
+  })
+  const blocks: Record<string, CatalogBlock> = {}
+  for (const type of GOLDEN_CATALOG_TYPES) {
+    const block = catalogBlock(catalog, type)
+    if (!block) throw new Error(`${type} is not in the registry catalog`)
+    blocks[type] = block
+  }
+  const triggers: Record<string, CatalogTrigger> = {}
+  const triggerIds = Object.values(blocks).flatMap((block) => [
+    block.type,
+    ...(block.triggers?.available ?? []),
+  ])
+  for (const id of triggerIds) {
+    const trigger = catalogTrigger(catalog, id)
+    if (trigger) triggers[id] = trigger
+  }
+  const builders: Record<string, CatalogBuilder> = {}
+  for (const builderPath of catalogBuilderPaths(catalog)) {
+    const builder = catalogBuilder(catalog, builderPath)
+    if (builder && Object.hasOwn(blocks, builder.type)) builders[builderPath] = builder
+  }
+  const { core } = compactBlockCatalog({
+    catalogVersion: catalog.catalogVersion,
+    sdkMajor: catalog.sdkMajor,
+    blocks,
+    triggers,
+    builders,
+  })
+  return { ...core, hash: sha256Hex(stableStringify(core)) }
+}
+
+export const goldenCatalog: BlockCatalog = narrowedCatalog()
+
+interface PrintCase {
   name: string
   workflow: CanonicalWorkflow
   hints?: LockHints
@@ -41,7 +117,7 @@ type BlockInit = Partial<Omit<CanonicalBlock, 'params' | 'name' | 'type' | 'key'
 function blk(name: string, type: string, init: BlockInit = {}): CanonicalBlock {
   const { params = {}, tools = {}, ...rest } = init
   const canonicalParams: Record<string, CanonicalParam> = {}
-  const declared = catalogBlock(realCatalog, type)
+  const declared = catalogBlock(goldenCatalog, type)
   for (const [id, value] of declared ? editorDefaults(declared) : []) {
     canonicalParams[id] = { kind: 'value', value }
   }

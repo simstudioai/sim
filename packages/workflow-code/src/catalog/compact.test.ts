@@ -7,7 +7,6 @@
 import { describe, expect, it } from 'vitest'
 import { TEST_CATALOG } from '../compile/test-catalog'
 import { stableStringify } from '../hash'
-import { catalog as PRINT_CATALOG } from '../print/__fixtures__/catalog'
 import { compactBlockCatalog } from './compact'
 import type { BlockCatalog, CatalogSubBlock, ExpandedBlockCatalog } from './types'
 import { catalogBlock, expandBlockCatalog } from './view'
@@ -84,7 +83,7 @@ function roundTrip(expanded: ExpandedBlockCatalog): ExpandedBlockCatalog {
 
 describe('compactBlockCatalog', () => {
   it('round-trips every fixture catalog through the core shard and its docs', () => {
-    for (const catalog of [TEST_CATALOG, PRINT_CATALOG, sharingCatalog()]) {
+    for (const catalog of [TEST_CATALOG, sharingCatalog()]) {
       const expanded = expandBlockCatalog(catalog)
       expect(roundTrip(expanded)).toEqual(expanded)
     }
