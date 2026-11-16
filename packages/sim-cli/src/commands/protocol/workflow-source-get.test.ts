@@ -33,7 +33,12 @@ function source(
       workspaceId: WORKSPACE_ID,
       files,
       lock: { version: 1, blocks: {}, variables: {} },
-      base: { workspaceId: WORKSPACE_ID, fingerprint: 'sf1:x', catalogHash: CATALOG.hash },
+      base: {
+        workflowId: WORKFLOW_ID,
+        workspaceId: WORKSPACE_ID,
+        fingerprint: 'sf1:x',
+        catalogHash: CATALOG.hash,
+      },
       fingerprint: 'sf1:x',
       canonicalHash: 'h',
       catalogHash: CATALOG.hash,

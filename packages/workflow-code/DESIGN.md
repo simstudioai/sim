@@ -163,7 +163,7 @@ instead of failing at run time.
     `branches?`, `items?`, `ident`, `order`, `layout?` and `codeFile?`, and every id is logical.
   - These lock fields were removed: `workflowId`, `workspaceId`, `catalogHash`,
     `baseFingerprint`, `blocks[].type`, `blocks[].name` and `blocks[].contentHash`. The
-    environment facts now live in `SourceBase { workspaceId, fingerprint, catalogHash }`, which
+    environment facts now live in `SourceBase { workflowId, workspaceId, fingerprint, catalogHash }`, which
     `source get/apply` carries beside the lock (wire `base`, required on apply) and the CLI stores
     in `.sim/base.json`.
   - The validator tolerates `x-` fields on the lock, on blocks and on layout, and preserves them.
