@@ -19,7 +19,7 @@
  * same on every machine and adding a block does not reshuffle the others.
  */
 
-import { createSeededRandom, type SeededRandom } from '@sim/workflow-code/proof'
+import { createSeededRandom, type SeededRandom } from '@sim/workflow-code/proof/random'
 import {
   type BlockFixture,
   buildBlockFixture,

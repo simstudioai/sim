@@ -1,7 +1,9 @@
 /**
  * Round-trip proof tooling, served from `@sim/workflow-code/proof` rather than the main entry so
- * runtime consumers (the Code tab, the CLI) never load fast-check. Pure, like the rest of the
- * package: the app supplies registry-derived corpora, the serializer and the report file write.
+ * runtime consumers (the Code tab, the CLI) never load fast-check. The seeded PRNG corpus
+ * generation runs on is its own subpath, `@sim/workflow-code/proof/random`, for the same reason.
+ * Pure, like the rest of the package: the app supplies registry-derived corpora, the serializer
+ * and the report file write.
  */
 
 export {
@@ -28,7 +30,6 @@ export {
   type SerializedWorkflowLike,
   withoutAnnotations,
 } from './oracles'
-export { createSeededRandom, type SeededRandom } from './random'
 export {
   type BlockTypeParity,
   createProofReport,

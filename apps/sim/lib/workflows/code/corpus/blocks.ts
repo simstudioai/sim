@@ -5,7 +5,7 @@
  * type, hidden ones `null`, and `data.canonicalModes` explicit for every pair.
  */
 
-import type { SeededRandom } from '@sim/workflow-code/proof'
+import type { SeededRandom } from '@sim/workflow-code/proof/random'
 import {
   type FillContext,
   fillSubBlockValue,
