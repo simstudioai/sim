@@ -28,7 +28,7 @@ import { createRecordingResolver, loadResourceKeyResolver } from '@/lib/workflow
 /** Directory function-code files are printed into when `functionCode` is `files`. */
 const FUNCTION_CODE_DIR = 'functions'
 
-export interface GetWorkflowSourceInput {
+interface GetWorkflowSourceInput {
   workflowId: string
   assertedWorkspaceId?: string
   /** Prints each block's id as a trailing comment on its declaration (agent read path). */
@@ -38,7 +38,7 @@ export interface GetWorkflowSourceInput {
 }
 
 /** A canonicalize or print finding, without source spans (the read path has no input text). */
-export interface WorkflowSourceWarning {
+interface WorkflowSourceWarning {
   code: string
   severity: 'error' | 'warning' | 'info'
   message: string
@@ -47,7 +47,7 @@ export interface WorkflowSourceWarning {
   param?: string
 }
 
-export interface GetWorkflowSourceResult {
+interface GetWorkflowSourceResult {
   workflowId: string
   workspaceId: string
   /** Repo-relative path → text: `workflow.ts` first, then any function-code files. */
