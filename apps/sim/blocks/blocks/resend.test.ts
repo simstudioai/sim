@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { ResendV2Block } from '@/blocks/blocks/resend'
-import type { BlockToolParamsContext } from '@/blocks/types'
+import { describe, expect, it, vi } from 'vitest'
+import { ResendBlock, ResendV2Block } from '@/blocks/blocks/resend'
+import type { BlockConfig, BlockToolParamsContext } from '@/blocks/types'
+import { collectBlockFieldIssues } from '@/serializer/index'
+
+/** Lint checks fields against the real tool params, which vitest.setup.ts mocks empty. */
+vi.unmock('@/tools/metadata')
 
 function mapParams(params: Record<string, unknown>, context?: BlockToolParamsContext) {
   const mapper = ResendV2Block.tools.config?.params
@@ -39,4 +43,42 @@ describe('Resend list pagination limit', () => {
     expect(mapParams({ operation: 'list_domains', limit: ' 75 ' }).limit).toBe(75)
     expect(mapParams({ operation: 'list_domains', limit: '' }).limit).toBeUndefined()
   })
+})
+
+describe('Resend Create Broadcast recipient', () => {
+  function missingFields(config: BlockConfig, values: Record<string, string>) {
+    const params = {
+      operation: 'create_broadcast',
+      broadcastFrom: 'news@example.com',
+      broadcastSubject: 'Hi',
+      ...values,
+    }
+    const subBlocks = Object.fromEntries(
+      Object.entries(params).map(([id, value]) => [id, { id, type: 'short-input', value }])
+    )
+    const block = {
+      id: 'b1',
+      type: config.type,
+      name: 'Resend',
+      enabled: true,
+      position: { x: 0, y: 0 },
+      subBlocks,
+      outputs: {},
+      data: {},
+    }
+    return collectBlockFieldIssues(block, config, params, { mode: 'lint' }).missingRequiredFields
+  }
+
+  it.each([ResendBlock, ResendV2Block])(
+    'flags Audience ID only when no segment is given',
+    (config) => {
+      expect(missingFields(config, { segmentId: '', audienceId: '' })).toContain('Audience ID')
+      expect(missingFields(config, { segmentId: 'seg_1', audienceId: '' })).not.toContain(
+        'Audience ID'
+      )
+      expect(missingFields(config, { segmentId: '', audienceId: 'aud_1' })).not.toContain(
+        'Audience ID'
+      )
+    }
+  )
 })

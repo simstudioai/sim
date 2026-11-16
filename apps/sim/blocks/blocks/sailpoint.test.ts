@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { SailPointV2Block } from '@/blocks/blocks/sailpoint'
 import type { BlockToolParamsContext } from '@/blocks/types'
+import { sailpointSearchTool } from '@/tools/sailpoint/definitions'
 
 function mapParams(params: Record<string, unknown>, context?: BlockToolParamsContext) {
   const mapper = SailPointV2Block.tools.config?.params
@@ -62,6 +63,24 @@ describe('SailPoint search list fields', () => {
     expect(canvasToolInput({ operation: 'sailpoint_search', sort: 'displayName,-id' }).sort).toBe(
       'displayName,-id'
     )
+  })
+
+  it.each([
+    [
+      'a canvas JSON number',
+      canvasToolInput({ operation: 'sailpoint_search', searchAfter: '12345' }),
+    ],
+    ['a model number', toolCallInput({ searchAfter: 12345 }, 'sailpoint_search')],
+  ])('sends a lone searchAfter given as %s as a one-entry string list', (_label, input) => {
+    const operationInput = sailpointSearchTool.operation?.input
+    if (!operationInput) throw new Error('SailPoint search has no operation input')
+    const request = operationInput({
+      ...input,
+      tenant: 't',
+      accessToken: 'token',
+      query: { query: '*' },
+    })
+    expect(request.searchAfter).toEqual(['12345'])
   })
 })
 

@@ -6,13 +6,15 @@
  */
 import { describe, expect, it } from 'vitest'
 import { MailgunV2Block } from '@/blocks/blocks/mailgun'
+import type { BlockToolParamsContext } from '@/blocks/types'
 import { mailgunAddListMemberTool } from '@/tools/mailgun/add_list_member'
 import { mailgunGetMailingListTool } from '@/tools/mailgun/get_mailing_list'
 import type { ToolConfig } from '@/tools/types'
+import { validateRequiredParametersAfterMerge } from '@/tools/utils'
 
 function mapParams(
   inputs: Record<string, unknown>,
-  context?: { operation: string }
+  context?: BlockToolParamsContext
 ): Record<string, unknown> {
   const mapped = MailgunV2Block.tools.config?.params?.(inputs, context) ?? {}
   return { ...inputs, ...mapped }
@@ -57,6 +59,31 @@ describe('Mailgun block add_list_member mapping', () => {
       { operation: 'add_list_member' }
     )
     expect(formFields(params)).toMatchObject({ address: 'bob@example.com', name: 'Bob' })
+  })
+
+  it('adds the member even when the model names the list address as the member', () => {
+    const params = mapParams(
+      { apiKey: 'key', listAddress: 'news@mg.example.com', address: 'news@mg.example.com' },
+      { operation: 'add_list_member', pinnedParams: new Set(['apiKey']) }
+    )
+    expect(formFields(params).address).toBe('news@mg.example.com')
+  })
+
+  it('never adds the row-saved List Address to its own list as a member', () => {
+    const params = mapParams(
+      { apiKey: 'key', address: 'news@mg.example.com' },
+      { operation: 'add_list_member', pinnedParams: new Set(['apiKey', 'address']) }
+    )
+    expect(requestUrl(mailgunAddListMemberTool, params)).toBe(
+      'https://api.mailgun.net/v3/lists/news@mg.example.com/members'
+    )
+    expect(() =>
+      validateRequiredParametersAfterMerge(
+        'mailgun_add_list_member',
+        mailgunAddListMemberTool,
+        params
+      )
+    ).toThrow('Address is required')
   })
 
   it.each([

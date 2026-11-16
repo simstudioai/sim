@@ -317,10 +317,12 @@ Return ONLY the email body - no explanations, no extra text.`,
         field: 'operation',
         value: ['get_audience', 'delete_audience', 'create_broadcast'],
       },
-      required: {
+      required: (values) => ({
         field: 'operation',
-        value: ['get_audience', 'delete_audience'],
-      },
+        value: String(values?.segmentId ?? '').trim()
+          ? ['get_audience', 'delete_audience']
+          : ['get_audience', 'delete_audience', 'create_broadcast'],
+      }),
     },
 
     {

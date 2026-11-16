@@ -405,12 +405,17 @@ Return ONLY the JSON object - no explanations or markdown.`,
         const { memberAddress, memberName, ...rest } = params
 
         if (mapperOperation(params, context) === 'add_list_member') {
-          const modelMemberAddress =
-            params.address !== params.listAddress ? params.address : undefined
+          /**
+           * The block's List Address field is stored under `address`, the tool's member param.
+           * On the canvas, and on a tool call whose row saved that field, `address` is the list;
+           * otherwise it is the member the model named.
+           */
+          const addressIsList =
+            !isToolCall(context) || Boolean(context?.pinnedParams?.has('address'))
           return {
             ...rest,
-            listAddress: toolCallArg(context, params.listAddress) || params.address,
-            address: memberAddress || toolCallArg(context, modelMemberAddress),
+            listAddress: addressIsList ? params.address : params.listAddress,
+            address: memberAddress || (addressIsList ? undefined : params.address),
             name: memberName || toolCallArg(context, params.name),
             subscribed: isToolCall(context)
               ? parseOptionalBooleanInput(params.subscribed)

@@ -25,3 +25,15 @@ describe('Perplexity tool calls', () => {
     expect(result.search_domain_filter).toEqual(['nature.com', 'science.org'])
   })
 })
+
+describe('Perplexity canvas', () => {
+  it('sends a Temperature of 0 on Chat', () => {
+    const result = mapParams({
+      operation: 'perplexity_chat',
+      apiKey: 'k',
+      content: 'q',
+      temperature: 0,
+    })
+    expect(result.temperature).toBe(0)
+  })
+})
