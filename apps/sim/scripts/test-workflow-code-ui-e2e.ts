@@ -415,6 +415,9 @@ try {
       })
     ).data
     assert.equal(applied.applied, true, 'The apply writes the draft')
+    // The drag above selected the block, which opens the Editor tab: reopening Code proves an
+    // apply that lands while the tab is hidden shows on return.
+    await openCodeTab(page)
     shown = await expectEditorToShowNewSource(page, shown)
     assert(entryFile(shown).includes(APPLIED_CODE), 'The refreshed source carries the applied code')
   })
