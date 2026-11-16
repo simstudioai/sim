@@ -1,14 +1,14 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { type CanonicalModeOverrides, scopeCanonicalModesForTool } from '../catalog/canonical-index'
-import type { CatalogSubBlock } from '../catalog/types'
-import { catalogTool } from '../catalog/view'
+import type { BlockCatalog, CatalogSubBlock } from '../catalog/types'
+import { catalogBlock as catalogBlockOf, catalogTool } from '../catalog/view'
 import type { BlockKey, CanonicalTool, Json, Value } from '../model'
 import { setOwn } from '../records'
 import { type CanonContext, catalogBlock } from './context'
 import { effectiveModes } from './modes'
 import { liftResourceId, liftResourceValue, toJson, toValue } from './values'
 
-type ToolParamShape = 'string' | 'number' | 'boolean' | 'json'
+export type ToolParamShape = 'string' | 'number' | 'boolean' | 'json'
 
 const OBJECT_VALUED_TYPES = new Set([
   'checkbox-list',
@@ -61,8 +61,31 @@ function declaredShape(type: string | undefined): ToolParamShape {
   }
 }
 
+/**
+ * The declaration and value shape of one stored tool param: the tool block's subBlock (by id or
+ * canonical id) wins, then the tool's declared param type, else `string`.
+ */
+export function toolParamDeclaration(
+  catalog: BlockCatalog,
+  tool: { type: string; toolId?: string },
+  key: string
+): { subBlock: CatalogSubBlock | undefined; shape: ToolParamShape } {
+  const subBlock = catalogBlockOf(catalog, tool.type)?.subBlocks.find(
+    (candidate) => candidate.id === key || candidate.canonicalParamId === key
+  )
+  if (subBlock) return { subBlock, shape: subBlockShape(subBlock) }
+  const declaration = tool.toolId ? catalogTool(catalog, tool.toolId) : undefined
+  return {
+    subBlock: undefined,
+    shape:
+      declaration && Object.hasOwn(declaration.params, key)
+        ? declaredShape(declaration.params[key].type)
+        : 'string',
+  }
+}
+
 /** `decodeToolParamValue` (tools/param-shape.ts:185-214): total, keeps `''` and any misfit. */
-function decodeToolParam(raw: unknown, shape: ToolParamShape): unknown {
+export function decodeToolParam(raw: unknown, shape: ToolParamShape): unknown {
   if (typeof raw !== 'string' || raw === '') return raw
   switch (shape) {
     case 'boolean': {
@@ -108,21 +131,13 @@ function liftTool(
   const type = stored.type
   const block = catalogBlock(context, type)
   const toolId = typeof stored.toolId === 'string' ? stored.toolId : undefined
-  const toolDeclaration = toolId ? catalogTool(context.catalog, toolId) : undefined
   const location = { blockKey, param }
 
   const rawParams = toRecord(stored.params)
   const params: Record<string, Value> = {}
   for (const [key, raw] of Object.entries(rawParams)) {
     if (raw === undefined) continue
-    const subBlock = block?.subBlocks.find(
-      (candidate) => candidate.id === key || candidate.canonicalParamId === key
-    )
-    const shape = subBlock
-      ? subBlockShape(subBlock)
-      : toolDeclaration && Object.hasOwn(toolDeclaration.params, key)
-        ? declaredShape(toolDeclaration.params[key].type)
-        : 'string'
+    const { subBlock, shape } = toolParamDeclaration(context.catalog, { type, toolId }, key)
     const decoded = decodeToolParam(raw, shape)
     const lifted =
       subBlock?.valueKind === 'resource' && subBlock.resourceKind

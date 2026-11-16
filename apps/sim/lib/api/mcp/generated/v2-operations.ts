@@ -295,7 +295,10 @@ import {
   v2UndeployWorkflowMcpToolContract,
   v2UpdateWorkflowMcpServerContract,
 } from '@/lib/api/contracts/v2/workflow-mcp-servers'
-import { v2GetWorkflowSourceContract } from '@/lib/api/contracts/v2/workflow-source'
+import {
+  v2ApplyWorkflowSourceContract,
+  v2GetWorkflowSourceContract,
+} from '@/lib/api/contracts/v2/workflow-source'
 import {
   v2ActivateWorkflowVersionContract,
   v2ApplyWorkflowOperationsContract,
@@ -457,6 +460,15 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/operations/route').then((route) => route.POST),
+  },
+  applyWorkflowSource: {
+    contract: v2ApplyWorkflowSourceContract,
+    summary: 'Apply workflow source',
+    description:
+      'Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and `fingerprint` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is saved. A `409` means the draft changed since the source was read (`details.currentFingerprint`): get the source again, reapply the edit and retry. Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns `applied: false` without saving. The response re-prints the saved source with its new lock and fingerprint. `dryRun=true` runs every check without saving and always returns `200`. Returns `403` while code-first workflows are not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/source/route').then((route) => route.POST),
   },
   applyWorkflowVariables: {
     contract: v2ApplyWorkflowVariablesContract,

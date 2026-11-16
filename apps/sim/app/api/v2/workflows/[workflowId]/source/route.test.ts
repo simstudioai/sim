@@ -5,10 +5,11 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ read: vi.fn() }))
+const mocks = vi.hoisted(() => ({ read: vi.fn(), apply: vi.fn() }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
@@ -19,8 +20,20 @@ vi.mock('@/lib/workflows/application/get-workflow-source', () => ({
   },
 }))
 
+vi.mock('@/lib/workflows/application/apply-workflow-source', () => ({
+  applyWorkflowSource: {
+    operation: { id: 'workflows.source.apply' },
+    execute: mocks.apply,
+  },
+}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { GET } from '@/app/api/v2/workflows/[workflowId]/source/route'
+import {
+  WorkflowSourceRejectedError,
+  WorkflowSourceStaleError,
+} from '@/lib/workflows/application/source-error'
+import { GET, POST } from '@/app/api/v2/workflows/[workflowId]/source/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 const WORKFLOW_ID = '66666666-7777-4888-9999-000000000000'
@@ -112,5 +125,147 @@ describe('GET /api/v2/workflows/{workflowId}/source', () => {
 
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
+  })
+})
+
+function applyRequest(body: unknown, query = '') {
+  return new NextRequest(`http://localhost:3000/api/v2/workflows/${WORKFLOW_ID}/source${query}`, {
+    method: 'POST',
+    headers: { 'x-api-key': 'key', 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+const personalKeyAuth = {
+  ...auth,
+  principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-2' },
+  keyType: 'personal' as const,
+}
+
+const applyBody = {
+  files: source.files,
+  lock: source.lock,
+  lockBase: source.lockBase,
+  baseFingerprint: FINGERPRINT,
+}
+
+const applied = {
+  workflowId: WORKFLOW_ID,
+  workflowName: 'W',
+  workspaceId: WORKSPACE_ID,
+  dryRun: false,
+  applied: true,
+  diff: {
+    noop: false,
+    blocks: {
+      added: [],
+      removed: [],
+      renamed: [],
+      modified: [{ id: 'b-1', key: 'start', fields: ['name'] }],
+    },
+    edges: { added: 0, removed: 0 },
+    variables: { added: [], removed: [], modified: [] },
+  },
+  diagnostics: [],
+  newFingerprint: `sf1:${'e'.repeat(64)}`,
+  files: source.files,
+  lock: source.lock,
+  lockBase: source.lockBase,
+  mintedIds: {},
+  warnings: [],
+  needsRedeployment: true,
+  sdkMajor: 1,
+  catalogVersion: 'h',
+}
+
+describe('POST /api/v2/workflows/{workflowId}/source', () => {
+  beforeEach(() => {
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    mocks.apply.mockResolvedValue(applied)
+  })
+
+  it('answers 400 with the line-pinned diagnostics of refused source', async () => {
+    const diagnostic = {
+      code: 'E_APPLY_PROTECTED_BLOCK' as const,
+      severity: 'error' as const,
+      message: 'Block "Start" is locked',
+      file: 'workflow.ts',
+      line: 4,
+      column: 3,
+      blockId: 'b-1',
+    }
+    mocks.apply.mockRejectedValue(new WorkflowSourceRejectedError([diagnostic]))
+
+    const response = await POST(applyRequest(applyBody), context)
+    const body = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(body.error.details).toEqual({ code: 'SOURCE_REJECTED', diagnostics: [diagnostic] })
+  })
+
+  it('answers 409 with the current fingerprint when the draft moved', async () => {
+    const current = `sf1:${'f'.repeat(64)}`
+    mocks.apply.mockRejectedValue(new WorkflowSourceStaleError(current))
+
+    const response = await POST(applyRequest(applyBody), context)
+    const body = await response.json()
+
+    expect(response.status).toBe(409)
+    expect(body.error.details).toEqual({ code: 'SOURCE_STALE', currentFingerprint: current })
+  })
+
+  it('answers 423 for a locked workflow', async () => {
+    mocks.apply.mockRejectedValue(new OrchestrationError('locked', 'Workflow is locked'))
+
+    const response = await POST(applyRequest(applyBody), context)
+
+    expect(response.status).toBe(423)
+  })
+
+  it('rejects an unknown body field with 400 before applying', async () => {
+    const response = await POST(applyRequest({ ...applyBody, atomic: true }), context)
+
+    expect(response.status).toBe(400)
+    expect(mocks.apply).not.toHaveBeenCalled()
+  })
+
+  it('rejects files without workflow.ts with 400 before applying', async () => {
+    const response = await POST(
+      applyRequest({ ...applyBody, files: { 'functions/a.js': 'return 1' } }),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.apply).not.toHaveBeenCalled()
+  })
+
+  it('passes dryRun as a boolean and keeps the result out of analytics', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
+    mocks.apply.mockResolvedValue({ ...applied, dryRun: true, applied: false })
+
+    const response = await POST(applyRequest(applyBody, '?dryRun=true'), context)
+
+    expect(response.status).toBe(200)
+    expect(mocks.apply.mock.calls[0][0].input).toMatchObject({
+      workflowId: WORKFLOW_ID,
+      dryRun: true,
+    })
+    expect((await response.json()).data.applied).toBe(false)
+    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+
+  it('records workflow_source_applied for a personal key that changed the draft', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
+
+    await POST(applyRequest({ ...applyBody, provenance: { client: 'cli' } }), context)
+
+    expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
+      'user-1',
+      'workflow_source_applied',
+      expect.objectContaining({ workflow_id: WORKFLOW_ID, blocks_modified: 1, client: 'cli' }),
+      { groups: { workspace: WORKSPACE_ID } }
+    )
   })
 })

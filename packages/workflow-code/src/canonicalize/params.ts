@@ -43,7 +43,7 @@ export interface ParamsResult {
 }
 
 /** The declaration a stored value was written through: the current surface's copy first. */
-function declarationFor(
+export function declarationFor(
   catalog: CatalogBlock | undefined,
   id: string,
   triggerMode: boolean
@@ -53,7 +53,8 @@ function declarationFor(
   return declarations.find((subBlock) => subBlock.surface === surface) ?? declarations[0]
 }
 
-function shouldDecode(declaration: CatalogSubBlock | undefined): boolean {
+/** Whether canonicalize decodes this subBlock's JSON text (structured or json-string storage). */
+export function shouldDecode(declaration: CatalogSubBlock | undefined): boolean {
   if (!declaration || NEVER_DECODED_TYPES.has(declaration.type)) return false
   return declaration.structured !== undefined || declaration.storage === 'json-string'
 }

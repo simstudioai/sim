@@ -691,6 +691,159 @@ export type ApplyWorkflowOperationsResponse = {
   data: ApplyWorkflowOperationsResponseRef3
 }
 
+/** `POST /api/v2/workflows/[workflowId]/source` */
+export type ApplyWorkflowSourceParams = {
+  workflowId: string
+}
+
+export type ApplyWorkflowSourceQuery = {
+  dryRun?: boolean
+}
+
+export type ApplyWorkflowSourceBody = {
+  files: Record<string, string>
+  lock: {
+    lockVersion: 1
+    blocks: Record<
+      string,
+      {
+        id: string
+        parent: string | null
+        branches?: Record<string, string>
+        items?: Record<
+          string,
+          Array<{
+            name: string
+            id: string
+          }>
+        >
+        binding: string
+        order: number
+        layout?: {
+          x: number
+          y: number
+          w?: number
+          h?: number
+          height?: number
+          horizontalHandles?: boolean
+        }
+        codeFile?: string
+      }
+    >
+    variables: Record<string, string>
+  }
+  lockBase?: {
+    workspaceId: string
+    baseFingerprint: string
+    catalogHash: string
+  }
+  baseFingerprint: string
+  layout?: 'preserve' | 'lock'
+  provenance?: {
+    client: 'cli' | 'copilot' | 'canvas' | 'api'
+    gitSha?: string
+    repo?: string
+  }
+}
+
+export type ApplyWorkflowSourceResponse = {
+  data: {
+    workflowId: string
+    workspaceId: string
+    dryRun: boolean
+    applied: boolean
+    diff: {
+      noop: boolean
+      blocks: {
+        added: Array<{
+          id: string
+          key: string
+        }>
+        removed: Array<{
+          id: string
+          key: string
+        }>
+        renamed: Array<{
+          id: string
+          from: string
+          to: string
+        }>
+        modified: Array<{
+          id: string
+          key: string
+          fields: Array<string>
+          reparented?: boolean
+        }>
+      }
+      edges: {
+        added: number
+        removed: number
+      }
+      variables: {
+        added: Array<string>
+        removed: Array<string>
+        modified: Array<string>
+      }
+    }
+    diagnostics: Array<{
+      code: string
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      blockKey?: string
+      blockId?: string
+      param?: string
+      path?: string
+    }>
+    newFingerprint: string
+    files: Record<string, string>
+    lock: {
+      lockVersion: 1
+      blocks: Record<
+        string,
+        {
+          id: string
+          parent: string | null
+          branches?: Record<string, string>
+          items?: Record<
+            string,
+            Array<{
+              name: string
+              id: string
+            }>
+          >
+          binding: string
+          order: number
+          layout?: {
+            x: number
+            y: number
+            w?: number
+            h?: number
+            height?: number
+            horizontalHandles?: boolean
+          }
+          codeFile?: string
+        }
+      >
+      variables: Record<string, string>
+    }
+    lockBase: {
+      workspaceId: string
+      baseFingerprint: string
+      catalogHash: string
+    }
+    mintedIds: Record<string, string>
+    warnings: Array<string>
+    needsRedeployment: boolean
+  }
+}
+
 /** `PATCH /api/v2/workflows/[workflowId]/variables` */
 export type ApplyWorkflowVariablesParams = {
   workflowId: string
@@ -17198,6 +17351,53 @@ export const V2_OPERATIONS = {
         describe:
           'Blocks to enable or disable, applied after `operations`. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined.',
       },
+    },
+  },
+  applyWorkflowSource: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/source',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Apply workflow source',
+    workspaceKeyUnsupported: true,
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Run every check without writing, auditing, or notifying collaborators. Always answers `200`: errors are returned in `diagnostics` with `applied: false`, and the files, lock and fingerprint show what a committed apply would store.',
+      },
+    },
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`).',
+      },
+      lock: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.',
+      },
+      lockBase: {
+        kind: 'object',
+        describe: 'Freshness facts for the lock in this environment (`.sim/base.json`).',
+      },
+      baseFingerprint: {
+        kind: 'string',
+        required: true,
+        describe:
+          'The `fingerprint` the source was read at. The apply answers `409` when the saved draft no longer matches it.',
+      },
+      layout: {
+        kind: 'enum',
+        values: ['preserve', 'lock'] as const,
+        describe:
+          '`preserve` (default): existing blocks keep their canvas positions and lock positions apply only to new blocks. `lock`: every block the lock positions moves there.',
+      },
+      provenance: { kind: 'object', describe: 'Where the source came from, for the audit log.' },
     },
   },
   applyWorkflowVariables: {

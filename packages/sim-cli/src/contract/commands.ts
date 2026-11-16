@@ -643,6 +643,8 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows source get',
     describe: 'Show a workflow’s draft as TypeScript source with its identity lock',
   },
+  /** `workflows source apply --from <dir>` reads and writes a source directory by hand. */
+  applyWorkflowSource: { hidden: true },
   replaceWorkflowState: {
     command: 'workflows state replace',
     confirm: 'This replaces the entire draft graph and cannot be undone.',

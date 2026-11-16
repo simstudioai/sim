@@ -1318,6 +1318,35 @@ sim workflows source get <workflowId> [options]
 
 API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
 
+### Apply a workflow source directory to the workflow draft
+
+```bash
+sim workflows source apply <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Workflow whose draft the source replaces |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--from <dir>` | Yes | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. |
+| `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
+
+</CommandTable>
+
+API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource).
+
 ## Related docs
 
 - [Workflow builder](/workflows)

@@ -1,0 +1,289 @@
+import {
+  type BlockState,
+  type Loop,
+  normalizeWorkflowEdgeSourceHandle,
+  type Parallel,
+  type Variable,
+  WORKFLOW_ERROR_HANDLE_ID,
+  type WorkflowState,
+} from '@sim/workflow-types/workflow'
+import type { CanonicalizeResult, MaterializeFn, MaterializeHooks } from '../api'
+import { canonicalize } from '../canonicalize'
+import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
+import type { Diagnostic } from '../diagnostics/frame'
+import type { LockIdentity, WorkflowLockBlock, WorkflowLockV1 } from '../lock'
+import type { BlockKey, CanonicalWorkflow, VarKey } from '../model'
+import { type BuiltBlock, buildBlock } from './block'
+import { catalogBlock, type MaterializeContext, report } from './context'
+import { type BranchHandles, writeEdges } from './edges'
+import { resolveIdentity } from './identity'
+import { subflowEntry } from './subflows'
+import { deepEqual, rewriteRenamedReferences } from './values'
+
+function invert(record: Record<string, string>): Map<string, string> {
+  return new Map(Object.entries(record).map(([key, id]) => [id, key]))
+}
+
+/**
+ * Variables keep their ids by key: the lock's id, then prev's, else a new one (s1 §4). A variable
+ * canonical-equal to the prev variable with that id is prev's stored object unchanged.
+ */
+function writeVariables(
+  workflow: CanonicalWorkflow,
+  lock: WorkflowLockV1 | null,
+  prev: WorkflowState | undefined,
+  prevCanonical: CanonicalizeResult | null,
+  hooks: MaterializeHooks
+): { variables: Record<string, Variable>; idByKey: Map<VarKey, string> } {
+  const prevVariables = prev?.variables ?? {}
+  const prevKeyById = invert(prevCanonical?.identity.variables ?? {})
+  const lockIds = lock?.variables ?? {}
+  const lockIdCounts = new Map<string, number>()
+  for (const id of Object.values(lockIds)) lockIdCounts.set(id, (lockIdCounts.get(id) ?? 0) + 1)
+
+  const used = new Set<string>()
+  const variables: Record<string, Variable> = {}
+  const idByKey = new Map<VarKey, string>()
+  for (const [key, variable] of Object.entries(workflow.variables)) {
+    const fromLock = lockIds[key]
+    const candidates = [
+      fromLock !== undefined && lockIdCounts.get(fromLock) === 1 ? fromLock : undefined,
+      prevCanonical?.identity.variables[key],
+    ]
+    const id =
+      candidates.find(
+        (candidate): candidate is string =>
+          candidate !== undefined &&
+          !used.has(candidate) &&
+          (!Object.hasOwn(prevVariables, candidate) || prevKeyById.get(candidate) === key)
+      ) ?? hooks.newId()
+    used.add(id)
+    idByKey.set(key, id)
+    const stored = Object.hasOwn(prevVariables, id) ? prevVariables[id] : undefined
+    const prevKey = prevKeyById.get(id)
+    const before = prevKey !== undefined ? prevCanonical?.workflow.variables[prevKey] : undefined
+    const unchanged =
+      stored !== undefined &&
+      before !== undefined &&
+      before.name === variable.name &&
+      before.type === variable.type &&
+      deepEqual(before.value, variable.value)
+    variables[id] = unchanged
+      ? stored
+      : { ...stored, id, name: variable.name, type: variable.type, value: variable.value }
+  }
+  return { variables, idByKey }
+}
+
+function childIds(blocks: Record<string, BlockState>, containerId: string): string[] {
+  return Object.entries(blocks)
+    .filter(([, block]) => block.data?.parentId === containerId)
+    .map(([id]) => id)
+}
+
+/**
+ * Writes a CWM back to a stored graph (s1 §2 materialize algorithm, §4 identity; build-spec
+ * decisions 1 and 3; contract amendments 1, 2 and 9). With `prev`, every block, param, edge,
+ * subflow and variable whose canonical form is unchanged keeps prev's stored bytes, so
+ * `materialize(canonicalize(x), lock, { prev: x })` deep-equals `x` (O1).
+ */
+export const materialize: MaterializeFn = (input, lock, options) => {
+  const { catalog, hooks, prev } = options
+  const diagnostics: Diagnostic<MaterializeDiagnosticCode>[] = []
+  const prevCanonical = prev
+    ? canonicalize(prev, { catalog, meta: input.meta, lock, resources: options.resources })
+    : null
+
+  const resolution = resolveIdentity({
+    workflow: input,
+    lock,
+    prev: prev && prevCanonical ? { state: prev, canonical: prevCanonical } : null,
+    catalog,
+    hooks,
+    freshness: options.lockFreshness,
+    compiledBindings: options.compiledBindings,
+    inferRenames: options.inferRenames !== false,
+    diagnostics,
+  })
+  const workflow = rewriteRenamedReferences(input, resolution.renames)
+  const idByKey = new Map([...resolution.blocks].map(([key, block]) => [key, block.id]))
+
+  const { variables, idByKey: variableIdByKey } = writeVariables(
+    workflow,
+    lock,
+    prev,
+    prevCanonical,
+    hooks
+  )
+  const context: MaterializeContext = {
+    catalog,
+    hooks,
+    resources: options.resources,
+    diagnostics,
+    variableIdByKey,
+  }
+
+  const lockById = new Map<string, WorkflowLockBlock>()
+  for (const entry of Object.values(lock?.blocks ?? {})) lockById.set(entry.id, entry)
+  const prevIdentity = prevCanonical?.identity.blocks ?? {}
+  const parentIdOf = (parent: BlockKey | null, ids: (key: BlockKey) => string | undefined) =>
+    parent !== null ? (ids(parent) ?? null) : null
+
+  const blocks: Record<string, BlockState> = {}
+  const built = new Map<BlockKey, BuiltBlock>()
+  const needsLayout: BlockKey[] = []
+  for (const [key, target] of Object.entries(workflow.blocks)) {
+    const resolved = resolution.blocks.get(key)
+    if (!resolved) continue
+    const prevKey = resolved.prevKey
+    const canonicalPrev = prevKey !== null ? prevCanonical?.workflow.blocks[prevKey] : undefined
+    const storedPrev = prev?.blocks[resolved.id]
+    const result = buildBlock(
+      {
+        key,
+        target,
+        resolved,
+        parentId: parentIdOf(target.parent, (parent) => idByKey.get(parent)),
+        prev:
+          prevKey !== null && canonicalPrev && storedPrev
+            ? {
+                block: storedPrev,
+                canonical: canonicalPrev,
+                parentId: parentIdOf(canonicalPrev.parent, (parent) => prevIdentity[parent]?.id),
+                branchIds: prevIdentity[prevKey]?.branches,
+                items: prevIdentity[prevKey]?.items,
+              }
+            : undefined,
+        lockBlock: lockById.get(resolved.id),
+        layout: lock?.blocks[key]?.layout,
+        layoutMode: options.layout ?? 'preserve',
+      },
+      context
+    )
+    blocks[resolved.id] = result.block
+    built.set(key, result)
+    if (result.needsLayout) {
+      needsLayout.push(key)
+      report(context, {
+        code: 'I_MAT_NEEDS_LAYOUT',
+        severity: 'info',
+        message: `Block "${key}" has no stored or lock position; it is placed by autolayout`,
+        blockKey: key,
+      })
+    }
+  }
+
+  const branchHandles = new Map<string, BranchHandles>()
+  for (const [key, result] of built) {
+    const id = idByKey.get(key)
+    const kind = catalogBlock(catalog, workflow.blocks[key].type)?.graph.branches?.kind
+    if (id === undefined || !kind || !result.branchIds) continue
+    branchHandles.set(id, {
+      prefix: kind === 'condition' ? 'condition-' : 'router-',
+      ids: result.branchIds,
+    })
+  }
+  const prevBranchHandles = new Map<string, BranchHandles>()
+  for (const [key, identity] of Object.entries(prevIdentity)) {
+    const kind = catalogBlock(catalog, prevCanonical?.workflow.blocks[key]?.type)?.graph.branches
+      ?.kind
+    if (!kind || !identity.branches) continue
+    prevBranchHandles.set(identity.id, {
+      prefix: kind === 'condition' ? 'condition-' : 'router-',
+      ids: identity.branches,
+    })
+  }
+
+  const edges = writeEdges(
+    {
+      edges: workflow.edges,
+      idByKey,
+      blocks,
+      branches: branchHandles,
+      prevEdges: prev?.edges ?? [],
+      prevBlocks: prev?.blocks ?? {},
+      prevBranches: prevBranchHandles,
+    },
+    context
+  )
+
+  const errorSources = new Set(
+    edges
+      .filter(
+        (edge) => normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) === WORKFLOW_ERROR_HANDLE_ID
+      )
+      .map((edge) => edge.source)
+  )
+  for (const [key, target] of Object.entries(workflow.blocks)) {
+    const id = idByKey.get(key)
+    if (id === undefined) continue
+    const block = blocks[id]
+    const effective = Boolean(block.errorEnabled) || errorSources.has(id)
+    if (effective !== target.errorPort) blocks[id] = { ...block, errorEnabled: target.errorPort }
+  }
+
+  const loops: Record<string, Loop> = {}
+  const parallels: Record<string, Parallel> = {}
+  for (const [id, entry] of Object.entries(prev?.loops ?? {})) {
+    if (!Object.hasOwn(prev?.blocks ?? {}, id)) loops[id] = entry
+  }
+  for (const [id, entry] of Object.entries(prev?.parallels ?? {})) {
+    if (!Object.hasOwn(prev?.blocks ?? {}, id)) parallels[id] = entry
+  }
+  for (const [key, target] of Object.entries(workflow.blocks)) {
+    const id = idByKey.get(key)
+    const resolved = resolution.blocks.get(key)
+    if (id === undefined || !resolved || !target.subflow) continue
+    const before =
+      resolved.prevKey !== null ? prevCanonical?.workflow.blocks[resolved.prevKey] : undefined
+    const prevEntry =
+      before && prev
+        ? target.subflow.kind === 'loop'
+          ? prev.loops?.[id]
+          : prev.parallels?.[id]
+        : undefined
+    const entry = subflowEntry({
+      id,
+      block: blocks[id],
+      spec: target.subflow,
+      nodes: childIds(blocks, id),
+      prevEntry,
+      specChanged: !before || !deepEqual(before.subflow, target.subflow),
+      enabledChanged: before !== undefined && before.enabled !== target.enabled,
+      lockedChanged: before !== undefined && before.locked !== target.locked,
+      matched: before !== undefined,
+      prevNodes: before && prev ? childIds(prev.blocks, id) : [],
+    })
+    if (!entry) continue
+    if (target.subflow.kind === 'loop') loops[id] = entry as Loop
+    else parallels[id] = entry as Parallel
+  }
+
+  const state: WorkflowState = { ...prev, blocks, edges, loops, parallels }
+  if (Object.keys(variables).length > 0 || prev?.variables !== undefined) {
+    state.variables = variables
+  }
+
+  const identity: LockIdentity = { blocks: {}, variables: Object.fromEntries(variableIdByKey) }
+  for (const [key, target] of Object.entries(workflow.blocks)) {
+    const result = built.get(key)
+    const id = idByKey.get(key)
+    if (!result || id === undefined) continue
+    identity.blocks[key] = { id, parent: target.parent }
+    if (result.branchIds && Object.keys(result.branchIds).length > 0) {
+      identity.blocks[key].branches = result.branchIds
+    }
+    if (Object.keys(result.items).length > 0) identity.blocks[key].items = result.items
+  }
+
+  return {
+    state,
+    identity,
+    entries: [
+      ...[...resolution.blocks.values()].map((block) => block.entry),
+      ...resolution.deleted,
+    ],
+    needsLayout,
+    diagnostics,
+  }
+}

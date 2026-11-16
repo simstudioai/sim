@@ -126,6 +126,7 @@ export {
   type LocatedDiagnostic,
   type SourceSpan,
 } from './diagnostics/frame'
+export { diffCanonical, renamesBetween } from './diff'
 export { canonicalEquals, canonicalHash, sourceFingerprint } from './equivalence'
 export { sha256Hex, stableStringify } from './hash'
 export {
@@ -142,6 +143,7 @@ export {
   type WorkflowLockBlock,
   type WorkflowLockV1,
 } from './lock'
+export { materialize } from './materialize'
 export type {
   Anchor,
   AnchorKey,

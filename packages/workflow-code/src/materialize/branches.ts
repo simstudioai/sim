@@ -1,0 +1,48 @@
+import { positionalKeys, positionalTitle } from '../canonicalize/branches'
+import type { BranchKey, CanonicalBranches } from '../model'
+import type { MaterializeContext } from './context'
+
+export interface BranchWrite {
+  /** The stored subBlock value: JSON text, or `null` for never-persisted rows. */
+  value: string | null
+  /** Branch key → row id, as written. */
+  ids: Record<BranchKey, string>
+}
+
+/**
+ * Writes condition/router rows (s1 materialize step 5, quirks 4–8). Each row keeps the id its key
+ * had (the lock's, then prev's, including the implicit `${blockId}-if` a never-persisted list
+ * answered to); a new row gets `${blockId}-${newId()}`, which keeps `remapConditionBlockIds`
+ * working (condition-ids.ts:13-28). Titles are positional unless the row overrides one or stored
+ * none. The row `key` is persisted only when it differs from the positional default, so a lockless
+ * read gets the same keys back (s1 D2b). `rows: null` stays `null`. The list is always text: the
+ * canvas reads it with `toString()` and a stored array breaks it (condition-input.tsx:376-401).
+ */
+export function writeBranches(
+  branches: CanonicalBranches,
+  blockId: string,
+  knownIds: ReadonlyArray<Record<BranchKey, string> | undefined>,
+  context: MaterializeContext
+): BranchWrite {
+  if (branches.rows === null) return { value: null, ids: {} }
+  const rows = branches.rows
+  const defaults = positionalKeys(branches.kind, rows.length)
+  const used = new Set<string>()
+  const ids: Record<BranchKey, string> = {}
+  const stored = rows.map((row, index) => {
+    const known = knownIds
+      .map((source) => source?.[row.key])
+      .find((id): id is string => id !== undefined && !used.has(id))
+    const id = known ?? `${blockId}-${context.hooks.newId()}`
+    used.add(id)
+    ids[row.key] = id
+    const entry: Record<string, unknown> = { id }
+    if (row.titleOverride !== undefined) entry.title = row.titleOverride
+    else if (!row.titleMissing) entry.title = positionalTitle(branches.kind, index, rows.length)
+    entry.value = row.value
+    if (row.key !== defaults[index]) entry.key = row.key
+    for (const [field, value] of Object.entries(row.extra ?? {})) entry[field] = value
+    return entry
+  })
+  return { value: JSON.stringify(stored), ids }
+}

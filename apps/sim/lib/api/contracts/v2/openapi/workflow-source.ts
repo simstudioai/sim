@@ -2,8 +2,13 @@ import {
   documentedSchema,
   RATE_LIMIT_HEADERS,
   RESOURCE_ERRORS,
+  RESOURCE_MUTATION_ERRORS,
+  WORKSPACE_API_KEY_DENIED,
 } from '@/lib/api/contracts/v2/openapi/shared'
-import { v2GetWorkflowSourceContract } from '@/lib/api/contracts/v2/workflow-source'
+import {
+  v2ApplyWorkflowSourceContract,
+  v2GetWorkflowSourceContract,
+} from '@/lib/api/contracts/v2/workflow-source'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 
@@ -63,6 +68,71 @@ export const workflowSourceOpenApiRoutes = [
         'Get workflow source response',
         'The workflow draft as TypeScript source.',
         [{ data: WORKFLOW_SOURCE_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ApplyWorkflowSourceContract,
+    {
+      applicationOperation: workflowOperations.applySource,
+      operationId: 'applyWorkflowSource',
+      summary: 'Apply workflow source',
+      description: `Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and \`fingerprint\` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns \`400\` with \`details.code\` \`SOURCE_REJECTED\` and \`details.diagnostics\` (each with a file, line and column), and nothing is saved. A \`409\` means the draft changed since the source was read (\`details.currentFingerprint\`): get the source again, reapply the edit and retry. Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns \`applied: false\` without saving. The response re-prints the saved source with its new lock and fingerprint. \`dryRun=true\` runs every check without saving and always returns \`200\`. Returns \`403\` while code-first workflows are not enabled. ${WORKSPACE_API_KEY_DENIED}`,
+      tags: ['Workflows'],
+      errors: RESOURCE_MUTATION_ERRORS,
+      success: { description: 'The applied (or evaluated) source.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: v2ApplyWorkflowSourceContract.params,
+      query: documentedSchema(
+        v2ApplyWorkflowSourceContract.query,
+        'ApplyWorkflowSourceQuery',
+        'Apply workflow source query',
+        'Whether to evaluate without saving.'
+      ),
+      body: documentedSchema(
+        v2ApplyWorkflowSourceContract.body,
+        'ApplyWorkflowSourceBody',
+        'Apply workflow source body',
+        'Edited source files with the lock and fingerprint they were read with.',
+        [
+          {
+            files: WORKFLOW_SOURCE_EXAMPLE.files,
+            lock: WORKFLOW_SOURCE_EXAMPLE.lock,
+            lockBase: WORKFLOW_SOURCE_EXAMPLE.lockBase,
+            baseFingerprint: FINGERPRINT,
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2ApplyWorkflowSourceContract.response.schema,
+        'ApplyWorkflowSourceResponse',
+        'Apply workflow source response',
+        'The outcome, with the source re-printed from the saved draft.',
+        [
+          {
+            data: {
+              workflowId: WORKFLOW_SOURCE_EXAMPLE.workflowId,
+              workspaceId: WORKFLOW_SOURCE_EXAMPLE.workspaceId,
+              dryRun: false,
+              applied: false,
+              diff: {
+                noop: true,
+                blocks: { added: [], removed: [], renamed: [], modified: [] },
+                edges: { added: 0, removed: 0 },
+                variables: { added: [], removed: [], modified: [] },
+              },
+              diagnostics: [],
+              newFingerprint: FINGERPRINT,
+              files: WORKFLOW_SOURCE_EXAMPLE.files,
+              lock: WORKFLOW_SOURCE_EXAMPLE.lock,
+              lockBase: WORKFLOW_SOURCE_EXAMPLE.lockBase,
+              mintedIds: {},
+              warnings: [],
+              needsRedeployment: false,
+            },
+          },
+        ]
       ),
     }
   ),

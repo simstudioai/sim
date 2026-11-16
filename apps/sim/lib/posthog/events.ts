@@ -183,6 +183,16 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  /** A committed workflow source apply that changed the draft; `client` is the self-reported submitter. */
+  workflow_source_applied: {
+    workflow_id: string
+    workspace_id: string
+    blocks_added: number
+    blocks_removed: number
+    blocks_modified: number
+    client: string
+  }
+
   workflow_restored: {
     workflow_id: string
     workspace_id: string
