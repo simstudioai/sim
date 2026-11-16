@@ -67,3 +67,31 @@ describe('Confluence search-in-space values saved before the selector split', ()
     expect(params.spaceId).toBeUndefined()
   })
 })
+
+/**
+ * On a tool call the model supplies args under the tool's param names and the operation arrives
+ * only in `context`; the handler forwards `{ ...args, ...mapped }`.
+ */
+describe('ConfluenceV2Block tool calls', () => {
+  const toolCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => ({
+    ...args,
+    ...ConfluenceV2Block.tools.config?.params?.(args, { operation }),
+  })
+
+  it('normalizes the model file on upload_attachment', () => {
+    const file = { name: 'a.txt', key: 'k', size: 1, type: 'text/plain' }
+    expect(toolCall('upload_attachment', { pageId: '1', file: [file] }).file).toEqual(file)
+  })
+
+  it('keeps the model args the operation branches rename', () => {
+    expect(toolCall('search_in_space', { spaceKey: 'ENG', cursor: 'c' })).toMatchObject({
+      spaceKey: 'ENG',
+      cursor: 'c',
+    })
+    expect(toolCall('search', { query: 'q', cursor: 'c' }).cursor).toBe('c')
+    expect(toolCall('delete_space_property', { spaceId: 's', propertyId: 'p' }).propertyId).toBe(
+      'p'
+    )
+    expect(toolCall('create_page_property', { pageId: '1', key: 'k', value: 1 }).key).toBe('k')
+  })
+})

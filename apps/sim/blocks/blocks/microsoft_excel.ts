@@ -2,7 +2,7 @@ import { MicrosoftExcelIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, isToolCall, mapperOperation } from '@/blocks/utils'
 
 /** Maps the read/write operation to its `_v2` tool id, falling back to read on unknown ops. */
 const versionedReadWriteSelector = createVersionedToolSelector<Record<string, unknown>>({
@@ -66,7 +66,10 @@ function optionalNumber(value: unknown): number | undefined {
   return num
 }
 
-/** Normalizes stored agent inputs when the selected operation is carried outside the parameter map. */
+/**
+ * Normalizes tool-call params (a stored tool row merged with model args keyed by the tool's own
+ * param names) and canvas inputs that carry no operation, without the per-operation validation.
+ */
 function normalizeExcelAgentParams(params: Record<string, unknown>, separateSheet: boolean) {
   const result: Record<string, unknown> = { ...params }
   for (const field of ['index', 'top', 'skip', 'position', 'fontSize', 'sortColumn']) {
@@ -702,8 +705,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             throw new Error(`Invalid Microsoft Excel operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        if (!params.operation) return normalizeExcelAgentParams(params, false)
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        if (isToolCall(context) || !operation) return normalizeExcelAgentParams(params, false)
         const {
           oauthCredential,
           values,
@@ -712,7 +716,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           worksheetName,
           driveId,
           range,
-          operation,
           applyTo,
           fillColor,
           fontBold,
@@ -1845,8 +1848,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             return versionedReadWriteSelector(params)
         }
       },
-      params: (params) => {
-        if (!params.operation) return normalizeExcelAgentParams(params, true)
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        if (isToolCall(context) || !operation) return normalizeExcelAgentParams(params, true)
         const {
           oauthCredential,
           values,
@@ -1856,7 +1860,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           driveId,
           siteId: _siteId,
           fileSource: _fileSource,
-          operation,
           applyTo,
           fillColor,
           fontBold,

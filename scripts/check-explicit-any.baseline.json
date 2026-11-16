@@ -85,7 +85,6 @@
     "apps/sim/blocks/blocks/firecrawl.ts": 1,
     "apps/sim/blocks/blocks/github.ts": 2,
     "apps/sim/blocks/blocks/gmail.ts": 1,
-    "apps/sim/blocks/blocks/google_appsheet.ts": 1,
     "apps/sim/blocks/blocks/google_calendar.ts": 1,
     "apps/sim/blocks/blocks/google_contacts.ts": 1,
     "apps/sim/blocks/blocks/google_slides.ts": 1,

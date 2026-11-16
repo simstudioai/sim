@@ -3,7 +3,7 @@ import { ConfluenceIcon, PagerDutyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** Canonical basic/advanced pair for the page target, shared by both versions. */
@@ -341,11 +341,10 @@ export const ConfluenceBlock: BlockConfig = {
             return 'confluence_retrieve'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
           pageId,
-          operation,
           attachmentFile,
           attachmentFileName,
           attachmentComment,
@@ -354,11 +353,10 @@ export const ConfluenceBlock: BlockConfig = {
 
         const effectivePageId = pageId ? String(pageId).trim() : ''
 
-        if (operation === 'upload_attachment') {
+        if (mapperOperation(params, context) === 'upload_attachment') {
           return {
             credential: oauthCredential,
             pageId: effectivePageId,
-            operation,
             file: attachmentFile,
             fileName: attachmentFileName,
             comment: attachmentComment,
@@ -369,7 +367,6 @@ export const ConfluenceBlock: BlockConfig = {
         return {
           credential: oauthCredential,
           pageId: effectivePageId || undefined,
-          operation,
           ...rest,
         }
       },
@@ -1472,11 +1469,10 @@ export const ConfluenceV2Block: BlockConfig = {
             return 'confluence_retrieve'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
           pageId,
-          operation,
           attachmentFile,
           attachmentFileName,
           attachmentComment,
@@ -1507,50 +1503,48 @@ export const ConfluenceV2Block: BlockConfig = {
           parentCommentId,
           cql,
           searchCursor,
+          file: modelFile,
           ...rest
         } = params
+        const op = mapperOperation(params, context)
 
         const effectivePageId = pageId ? String(pageId).trim() : ''
         const scopedBodyFormat =
-          ['get_blogpost', 'list_pages_in_space', 'list_blogposts_in_space'].includes(operation) &&
+          ['get_blogpost', 'list_pages_in_space', 'list_blogposts_in_space'].includes(op) &&
           contentBodyFormat
             ? { bodyFormat: contentBodyFormat }
             : {}
 
-        if (operation === 'add_label') {
+        if (op === 'add_label') {
           return {
             credential: oauthCredential,
             pageId: effectivePageId,
-            operation,
             prefix: labelPrefix || 'global',
             ...rest,
           }
         }
 
-        if (operation === 'create_blogpost') {
+        if (op === 'create_blogpost') {
           return {
             credential: oauthCredential,
-            operation,
             status: blogPostStatus || 'current',
             ...rest,
           }
         }
 
-        if (operation === 'delete') {
+        if (op === 'delete') {
           return {
             credential: oauthCredential,
             pageId: effectivePageId,
-            operation,
             purge: purge || false,
             ...rest,
           }
         }
 
-        if (operation === 'list_comments') {
+        if (op === 'list_comments') {
           return {
             credential: oauthCredential,
             pageId: effectivePageId,
-            operation,
             bodyFormat: bodyFormat || 'storage',
             cursor: cursor || undefined,
             commentType: commentType || undefined,
@@ -1558,22 +1552,20 @@ export const ConfluenceV2Block: BlockConfig = {
           }
         }
 
-        if (operation === 'create_comment') {
+        if (op === 'create_comment') {
           return {
             credential: oauthCredential,
             pageId: effectivePageId,
-            operation,
             parentCommentId: parentCommentId ? String(parentCommentId).trim() : undefined,
             ...rest,
           }
         }
 
-        if (operation === 'search') {
+        if (op === 'search') {
           return {
             credential: oauthCredential,
-            operation,
             cql: cql || undefined,
-            cursor: searchCursor || undefined,
+            cursor: searchCursor || toolCallArg(context, cursor) || undefined,
             ...rest,
           }
         }
@@ -1596,69 +1588,66 @@ export const ConfluenceV2Block: BlockConfig = {
           'list_space_properties',
         ]
 
-        if (supportsCursor.includes(operation) && cursor) {
+        if (supportsCursor.includes(op) && cursor) {
           return {
             credential: oauthCredential,
             pageId: effectivePageId || undefined,
-            operation,
             cursor,
             ...scopedBodyFormat,
             ...rest,
           }
         }
 
-        if (operation === 'create_page_property') {
-          if (!propertyKey) {
+        if (op === 'create_page_property') {
+          if (!propertyKey && !toolCallArg(context, rest.key)) {
             throw new Error('Property key is required for this operation.')
           }
           return {
             credential: oauthCredential,
             pageId: effectivePageId,
-            operation,
             key: propertyKey,
             value: propertyValue,
             ...rest,
           }
         }
 
-        if (operation === 'delete_page_property') {
+        if (op === 'delete_page_property') {
           return {
             credential: oauthCredential,
             pageId: effectivePageId,
-            operation,
             propertyId,
             ...rest,
           }
         }
 
-        if (operation === 'get_pages_by_label') {
+        if (op === 'get_pages_by_label') {
           return {
             credential: oauthCredential,
-            operation,
             labelId,
             cursor: cursor || undefined,
             ...rest,
           }
         }
 
-        if (operation === 'list_space_labels') {
+        if (op === 'list_space_labels') {
           return {
             credential: oauthCredential,
-            operation,
             cursor: cursor || undefined,
             ...rest,
           }
         }
 
-        if (operation === 'upload_attachment') {
-          const normalizedFile = normalizeFileInput(attachmentFile, { single: true })
+        if (op === 'upload_attachment') {
+          const normalizedFile = normalizeFileInput(
+            attachmentFile ?? toolCallArg(context, modelFile),
+            { single: true }
+          )
           if (!normalizedFile) {
             throw new Error('File is required for upload attachment operation.')
           }
           return {
             credential: oauthCredential,
             pageId: effectivePageId,
-            operation,
             file: normalizedFile,
             fileName: attachmentFileName,
             comment: attachmentComment,
@@ -1666,28 +1655,25 @@ export const ConfluenceV2Block: BlockConfig = {
           }
         }
 
-        if (operation === 'get_user') {
+        if (op === 'get_user') {
           return {
             credential: oauthCredential,
-            operation,
             accountId: accountId ? String(accountId).trim() : undefined,
             ...rest,
           }
         }
 
-        if (operation === 'update_blogpost' || operation === 'delete_blogpost') {
+        if (op === 'update_blogpost' || op === 'delete_blogpost') {
           return {
             credential: oauthCredential,
-            operation,
             blogPostId: blogPostId || undefined,
             ...rest,
           }
         }
 
-        if (operation === 'create_space') {
+        if (op === 'create_space') {
           return {
             credential: oauthCredential,
-            operation,
             name: spaceName,
             key: spaceKey,
             description: spaceDescription,
@@ -1695,95 +1681,85 @@ export const ConfluenceV2Block: BlockConfig = {
           }
         }
 
-        if (operation === 'search_in_space') {
+        if (op === 'search_in_space') {
           return {
             credential: oauthCredential,
-            operation,
-            spaceKey: selectedSpaceKey,
-            cursor: searchCursor || undefined,
+            spaceKey: selectedSpaceKey || toolCallArg(context, spaceKey),
+            cursor: searchCursor || toolCallArg(context, cursor) || undefined,
             ...rest,
           }
         }
 
-        if (operation === 'update_space') {
+        if (op === 'update_space') {
           return {
             credential: oauthCredential,
-            operation,
             name: spaceName || rest.title,
             description: spaceDescription,
             ...rest,
           }
         }
 
-        if (operation === 'delete_space') {
+        if (op === 'delete_space') {
           return {
             credential: oauthCredential,
-            operation,
             ...rest,
           }
         }
 
-        if (operation === 'create_space_property') {
+        if (op === 'create_space_property') {
           return {
             credential: oauthCredential,
-            operation,
             key: spacePropertyKey,
             value: spacePropertyValue,
             ...rest,
           }
         }
 
-        if (operation === 'delete_space_property') {
+        if (op === 'delete_space_property') {
           return {
             credential: oauthCredential,
-            operation,
-            propertyId: spacePropertyId,
+            propertyId: spacePropertyId || toolCallArg(context, propertyId),
             ...rest,
           }
         }
 
-        if (operation === 'list_space_permissions' || operation === 'list_space_properties') {
+        if (op === 'list_space_permissions' || op === 'list_space_properties') {
           return {
             credential: oauthCredential,
-            operation,
             cursor: cursor || undefined,
             ...rest,
           }
         }
 
-        if (operation === 'get_page_descendants') {
+        if (op === 'get_page_descendants') {
           return {
             credential: oauthCredential,
             pageId: effectivePageId,
-            operation,
             cursor: cursor || undefined,
             ...rest,
           }
         }
 
-        if (operation === 'get_task') {
+        if (op === 'get_task') {
           return {
             credential: oauthCredential,
-            operation,
             taskId,
             ...rest,
           }
         }
 
-        if (operation === 'update_task') {
+        if (op === 'update_task') {
           return {
             credential: oauthCredential,
-            operation,
             taskId,
             status: taskStatus,
             ...rest,
           }
         }
 
-        if (operation === 'list_tasks') {
+        if (op === 'list_tasks') {
           return {
             credential: oauthCredential,
-            operation,
             pageId: effectivePageId || undefined,
             assignedTo: taskAssignedTo || undefined,
             status: taskStatus || undefined,
@@ -1797,7 +1773,6 @@ export const ConfluenceV2Block: BlockConfig = {
           pageId: effectivePageId || undefined,
           blogPostId: blogPostId || undefined,
           versionNumber: versionNumber ? Number.parseInt(String(versionNumber), 10) : undefined,
-          operation,
           ...scopedBodyFormat,
           ...rest,
         }

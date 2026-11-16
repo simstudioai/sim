@@ -1,6 +1,7 @@
 import { BitbucketIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const WORKSPACE_FIELD = ['workspacePicker', 'workspaceSlugInput'] as const
@@ -925,10 +926,21 @@ export const BitbucketBlock: BlockConfig = {
         }
         return params.operation
       },
-      params: (params) => {
-        if (!isBitbucketOperation(params.operation)) {
-          throw new Error(`Invalid Bitbucket operation: ${String(params.operation)}`)
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        if (!isBitbucketOperation(operation)) {
+          throw new Error(`Invalid Bitbucket operation: ${operation}`)
         }
+        /**
+         * The block field, else (on a tool call only) the model's arg, which arrives under the
+         * tool's param name rather than the block field id.
+         */
+        const fieldOrModelArg = <T>(
+          parse: (value: unknown, name: string) => T | undefined,
+          field: string,
+          toolParam: string
+        ): T | undefined =>
+          parse(params[field], field) ?? parse(toolCallArg(context, params[toolParam]), toolParam)
 
         const common = {
           oauthCredential: params.oauthCredential,
@@ -940,7 +952,7 @@ export const BitbucketBlock: BlockConfig = {
           nextUrl: optionalString(params.nextUrl, 'nextUrl'),
         }
 
-        switch (params.operation) {
+        switch (operation) {
           case 'bitbucket_list_workspaces':
             return {
               oauthCredential: params.oauthCredential,
@@ -953,30 +965,31 @@ export const BitbucketBlock: BlockConfig = {
               oauthCredential: params.oauthCredential,
               workspaceSlug: optionalString(params.workspaceSlug, 'workspaceSlug'),
               role: optionalString(params.role, 'role'),
-              q: optionalString(params.query, 'query'),
+              q: fieldOrModelArg(optionalString, 'query', 'q'),
               sort: optionalString(params.sort, 'sort'),
               ...pagination,
             }
           case 'bitbucket_list_branches':
             return {
               ...common,
-              q: optionalString(params.query, 'query'),
+              q: fieldOrModelArg(optionalString, 'query', 'q'),
               sort: optionalString(params.sort, 'sort'),
               ...pagination,
             }
           case 'bitbucket_list_pipelines':
             return {
               ...common,
-              refType: optionalString(params.pipelineRefType, 'pipelineRefType'),
-              refName: optionalString(params.pipelineRefName, 'pipelineRefName'),
-              commitHash: optionalString(params.pipelineCommitHash, 'pipelineCommitHash'),
-              selectorType: optionalString(params.pipelineSelectorType, 'pipelineSelectorType'),
-              selectorPattern: optionalString(
-                params.pipelineSelectorPattern,
-                'pipelineSelectorPattern'
+              refType: fieldOrModelArg(optionalString, 'pipelineRefType', 'refType'),
+              refName: fieldOrModelArg(optionalString, 'pipelineRefName', 'refName'),
+              commitHash: fieldOrModelArg(optionalString, 'pipelineCommitHash', 'commitHash'),
+              selectorType: fieldOrModelArg(optionalString, 'pipelineSelectorType', 'selectorType'),
+              selectorPattern: fieldOrModelArg(
+                optionalString,
+                'pipelineSelectorPattern',
+                'selectorPattern'
               ),
-              triggerType: optionalString(params.pipelineTriggerType, 'pipelineTriggerType'),
-              status: optionalString(params.pipelineStatus, 'pipelineStatus'),
+              triggerType: fieldOrModelArg(optionalString, 'pipelineTriggerType', 'triggerType'),
+              status: fieldOrModelArg(optionalString, 'pipelineStatus', 'status'),
               sort: optionalString(params.sort, 'sort'),
               ...pagination,
             }
@@ -985,40 +998,40 @@ export const BitbucketBlock: BlockConfig = {
           case 'bitbucket_create_branch':
             return {
               ...common,
-              name: optionalString(params.branchName, 'branchName'),
+              name: fieldOrModelArg(optionalString, 'branchName', 'name'),
               target: optionalString(params.target, 'target'),
             }
           case 'bitbucket_delete_branch':
-            return { ...common, name: optionalString(params.branchName, 'branchName') }
+            return { ...common, name: fieldOrModelArg(optionalString, 'branchName', 'name') }
           case 'bitbucket_list_commits':
             return {
               ...common,
-              include: stringList(params.commitInclude, 'commitInclude'),
-              exclude: stringList(params.commitExclude, 'commitExclude'),
-              path: optionalString(params.commitPath, 'commitPath'),
+              include: fieldOrModelArg(stringList, 'commitInclude', 'include'),
+              exclude: fieldOrModelArg(stringList, 'commitExclude', 'exclude'),
+              path: fieldOrModelArg(optionalString, 'commitPath', 'path'),
               ...pagination,
             }
           case 'bitbucket_get_commit':
-            return { ...common, commit: optionalString(params.revision, 'revision') }
+            return { ...common, commit: fieldOrModelArg(optionalString, 'revision', 'commit') }
           case 'bitbucket_list_directory':
             return {
               ...common,
-              commit: optionalString(params.revision, 'revision'),
+              commit: fieldOrModelArg(optionalString, 'revision', 'commit'),
               path: optionalText(params.path, 'path'),
-              q: optionalString(params.query, 'query'),
+              q: fieldOrModelArg(optionalString, 'query', 'q'),
               sort: optionalString(params.sort, 'sort'),
               ...pagination,
             }
           case 'bitbucket_get_file_metadata':
             return {
               ...common,
-              commit: optionalString(params.revision, 'revision'),
+              commit: fieldOrModelArg(optionalString, 'revision', 'commit'),
               path: optionalText(params.path, 'path'),
             }
           case 'bitbucket_get_file':
             return {
               ...common,
-              commit: optionalString(params.revision, 'revision'),
+              commit: fieldOrModelArg(optionalString, 'revision', 'commit'),
               path: optionalText(params.path, 'path'),
               maxCharacters: optionalInteger(params.maxCharacters, 'maxCharacters'),
             }
@@ -1026,7 +1039,7 @@ export const BitbucketBlock: BlockConfig = {
             return {
               ...common,
               state: optionalString(params.state, 'state'),
-              q: optionalString(params.query, 'query'),
+              q: fieldOrModelArg(optionalString, 'query', 'q'),
               sort: optionalString(params.sort, 'sort'),
               ...pagination,
             }
@@ -1042,10 +1055,11 @@ export const BitbucketBlock: BlockConfig = {
               sourceBranch: optionalString(params.sourceBranch, 'sourceBranch'),
               destinationBranch: optionalString(params.destinationBranch, 'destinationBranch'),
               description: optionalText(params.description, 'description'),
-              reviewerUuids: stringList(params.reviewerAccountIds, 'reviewerAccountIds'),
-              closeSourceBranch: optionalBoolean(
-                params.createCloseSourceBranch,
-                'createCloseSourceBranch'
+              reviewerUuids: fieldOrModelArg(stringList, 'reviewerAccountIds', 'reviewerUuids'),
+              closeSourceBranch: fieldOrModelArg(
+                optionalBoolean,
+                'createCloseSourceBranch',
+                'closeSourceBranch'
               ),
               draft: optionalBoolean(params.draft, 'draft'),
             }
@@ -1055,9 +1069,10 @@ export const BitbucketBlock: BlockConfig = {
               prId: optionalInteger(params.prId, 'prId'),
               mergeStrategy: optionalString(params.mergeStrategy, 'mergeStrategy'),
               message: optionalText(params.message, 'message'),
-              closeSourceBranch: optionalBoolean(
-                params.mergeCloseSourceBranch,
-                'mergeCloseSourceBranch'
+              closeSourceBranch: fieldOrModelArg(
+                optionalBoolean,
+                'mergeCloseSourceBranch',
+                'closeSourceBranch'
               ),
             }
           case 'bitbucket_get_pull_request_merge_task_status':
@@ -1080,7 +1095,7 @@ export const BitbucketBlock: BlockConfig = {
             return {
               ...common,
               prId: optionalInteger(params.prId, 'prId'),
-              q: optionalString(params.query, 'query'),
+              q: fieldOrModelArg(optionalString, 'query', 'q'),
               sort: optionalString(params.sort, 'sort'),
               ...pagination,
             }
@@ -1097,9 +1112,9 @@ export const BitbucketBlock: BlockConfig = {
           case 'bitbucket_trigger_pipeline':
             return {
               ...common,
-              refType: optionalString(params.targetRefType, 'targetRefType') ?? 'branch',
-              refName: optionalString(params.targetRef, 'targetRef'),
-              commitHash: optionalString(params.targetCommitHash, 'targetCommitHash'),
+              refType: fieldOrModelArg(optionalString, 'targetRefType', 'refType') ?? 'branch',
+              refName: fieldOrModelArg(optionalString, 'targetRef', 'refName'),
+              commitHash: fieldOrModelArg(optionalString, 'targetCommitHash', 'commitHash'),
             }
           case 'bitbucket_list_pipeline_steps':
             return {

@@ -16,7 +16,7 @@ describe('GoogleVaultBlock includeSharedDrives', () => {
   it.each(['create_matters_export', 'create_saved_query'])(
     'keeps the model value on an agent %s call',
     (operation) => {
-      const inputs = { operation, matterId: 'm-1', corpus: 'DRIVE', includeSharedDrives: true }
+      const inputs = { matterId: 'm-1', corpus: 'DRIVE', includeSharedDrives: true }
       expect(buildParams(inputs, { operation }).includeSharedDrives).toBe(true)
     }
   )
@@ -28,5 +28,15 @@ describe('GoogleVaultBlock includeSharedDrives', () => {
       includeSharedDrives: true,
     }
     expect(buildParams(inputs).includeSharedDrives).toBe(false)
+  })
+})
+
+/** A tool call carries its operation only in `context`, never in the stored row params. */
+describe('GoogleVaultBlock list_matters tool call', () => {
+  it('sends the Detail Level set on the agent tool row as view', () => {
+    const inputs = { matterView: 'FULL', matterState: 'OPEN' }
+    const params = buildParams(inputs, { operation: 'list_matters' })
+    expect(params.view).toBe('FULL')
+    expect(params.state).toBe('OPEN')
   })
 })

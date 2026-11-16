@@ -2,6 +2,7 @@ import { MicrosoftPlannerIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
 interface MicrosoftPlannerBlockParams {
   oauthCredential: string
@@ -571,10 +572,10 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
             throw new Error(`Invalid Microsoft Planner operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           oauthCredential,
-          operation,
           groupId,
           planId,
           readTaskId, // Canonical param from taskSelector (basic) or manualReadTaskId (advanced) for read_task
@@ -606,7 +607,10 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
         }
 
         const effectiveReadTaskId = readTaskId ? String(readTaskId).trim() : ''
-        const effectiveUpdateTaskId = updateTaskId ? String(updateTaskId).trim() : ''
+        const effectiveUpdateTaskId =
+          (updateTaskId ? String(updateTaskId).trim() : '') ||
+          toolCallArg(context, rest.taskId) ||
+          ''
         const effectiveBucketId = (bucketIdForRead || bucketId || '').trim()
 
         if (operation === 'list_plans') {
@@ -624,7 +628,7 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           return {
             ...baseParams,
             groupId: groupId?.trim(),
-            title: planTitle?.trim(),
+            title: planTitle?.trim() || toolCallArg(context, title),
           }
         }
 
@@ -633,7 +637,7 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
             ...baseParams,
             planId: planId?.trim(),
             etag: etag?.trim(),
-            title: planTitle?.trim(),
+            title: planTitle?.trim() || toolCallArg(context, title),
           }
         }
 
@@ -650,10 +654,10 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
             planId: planId?.trim(),
             etag: etag?.trim(),
           }
-          if (categoryDescriptions?.trim()) {
+          if (typeof categoryDescriptions === 'string' && categoryDescriptions.trim()) {
             updatePlanDetailsParams.categoryDescriptions = categoryDescriptions.trim()
           }
-          if (sharedWith?.trim()) {
+          if (typeof sharedWith === 'string' && sharedWith.trim()) {
             updatePlanDetailsParams.sharedWith = sharedWith.trim()
           }
           return updatePlanDetailsParams
@@ -813,10 +817,10 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           if (description?.trim()) {
             updateDetailsParams.description = description.trim()
           }
-          if (checklist?.trim()) {
+          if (typeof checklist === 'string' && checklist.trim()) {
             updateDetailsParams.checklist = checklist.trim()
           }
-          if (references?.trim()) {
+          if (typeof references === 'string' && references.trim()) {
             updateDetailsParams.references = references.trim()
           }
           if (previewType?.trim()) {

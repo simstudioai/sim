@@ -2,7 +2,7 @@ import { MicrosoftOneDriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 import { normalizeExcelValuesForToolParams } from '@/tools/onedrive/utils'
 
 const UPLOAD_FILE_FIELD = ['file', 'fileReference'] as const
@@ -659,7 +659,8 @@ export const OneDriveBlock: BlockConfig = {
             throw new Error(`Invalid OneDrive operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           oauthCredential,
           // Folder canonical params (per-operation)
@@ -692,7 +693,7 @@ export const OneDriveBlock: BlockConfig = {
 
         // Resolve folderId based on operation
         let resolvedFolderId: string | undefined
-        switch (params.operation) {
+        switch (operation) {
           case 'create_file':
           case 'upload':
             resolvedFolderId = uploadFolderId?.trim() || undefined
@@ -707,7 +708,7 @@ export const OneDriveBlock: BlockConfig = {
 
         // Resolve fileId based on operation
         let resolvedFileId: string | undefined
-        switch (params.operation) {
+        switch (operation) {
           case 'download':
             resolvedFileId = downloadFileId?.trim() || undefined
             break
@@ -730,7 +731,7 @@ export const OneDriveBlock: BlockConfig = {
 
         // Resolve destinationFolderId based on operation
         let resolvedDestinationFolderId: string | undefined
-        switch (params.operation) {
+        switch (operation) {
           case 'move':
             resolvedDestinationFolderId = moveDestinationFolderId?.trim() || undefined
             break
@@ -744,9 +745,10 @@ export const OneDriveBlock: BlockConfig = {
           ...rest,
           values: normalizedValues,
           file: normalizedFile,
-          folderId: resolvedFolderId,
-          fileId: resolvedFileId,
-          destinationFolderId: resolvedDestinationFolderId,
+          folderId: resolvedFolderId ?? toolCallArg(context, rest.folderId),
+          fileId: resolvedFileId ?? toolCallArg(context, rest.fileId),
+          destinationFolderId:
+            resolvedDestinationFolderId ?? toolCallArg(context, rest.destinationFolderId),
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           conflictBehavior: rest.conflictBehavior || undefined,
