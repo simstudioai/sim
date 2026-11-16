@@ -23,7 +23,7 @@ export default workflow('Lead enrichment', {}, () => {
   })
   const pending = table.queryRows('Pending leads', {
     tableId: table('leads'),
-    filterInput: { status: { $eq: 'new' } },
+    filterInput: { all: [{ field: 'status', op: 'eq', value: 'new' }] },
     limit: '200',
   })
   const enrichAll = parallel.collection(

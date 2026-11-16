@@ -1043,6 +1043,45 @@ function compileExtraParams(
   }
 }
 
+/**
+ * Why a literal table filter would fail at run time, or `null`. The runtime reads an array as
+ * builder rows (`filterRulesToPredicate`) and anything else as a predicate it validates
+ * (`validatePredicateShape`), which refuses the legacy `{ column: { $op: value } }` grammar.
+ */
+function tableFilterProblem(value: Value): string | null {
+  if (Array.isArray(value)) {
+    const predicateRow = value.some(
+      (row) => isPlainRecord(row) && !('column' in row) && ('field' in row || 'op' in row)
+    )
+    return predicateRow
+      ? 'A filter row is a predicate condition ({ field, op }) written as a builder row; the runtime refuses the mix.'
+      : null
+  }
+  return isPlainRecord(value) ? predicateProblem(value) : null
+}
+
+function predicateProblem(node: Record<string, Value>): string | null {
+  const group = node.all ?? node.any
+  if (group !== undefined) {
+    if (!Array.isArray(group))
+      return 'A filter group ({ all | any }) must hold a list of conditions.'
+    for (const member of group) {
+      const problem = isPlainRecord(member)
+        ? predicateProblem(member)
+        : 'A filter group member must be a condition or a group.'
+      if (problem !== null) return problem
+    }
+    return null
+  }
+  if ('field' in node) return null
+  const legacy = Object.entries(node).some(
+    ([key, member]) => key.startsWith('$') || isPlainRecord(member)
+  )
+  return legacy
+    ? 'This filter uses the legacy operator-object grammar ({ column: { $eq: value } }), which the table runtime refuses.'
+    : 'A filter must be builder rows, a condition ({ field, op, value }) or an all/any group.'
+}
+
 /** Catalog warnings: visibility, required fields, value kinds. */
 function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState): void {
   const { decl, params } = state
@@ -1061,6 +1100,15 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
           param: entry.param,
         }
       )
+    }
+    const filterProblem =
+      entry.checked && sub.type === 'filter-builder' ? tableFilterProblem(entry.value) : null
+    if (filterProblem !== null) {
+      ctx.reporter.report('W_TABLE_FILTER_SHAPE', filterProblem, rangeOf(ctx, entry.property), {
+        hint: "Write builder rows [{ column: 'status', operator: 'eq', value: 'open' }] or a predicate { field: 'status', op: 'eq', value: 'open' } (all/any groups for several).",
+        blockKey: decl.key,
+        param: entry.param,
+      })
     }
     if (entry.checked && !valueKindMatches(sub, entry.value)) {
       ctx.reporter.report(

@@ -217,13 +217,15 @@ describe('accepted grammar', () => {
     const wf = ok(
       source(
         [
-          "const list = table.insertRow('List', { filterInput: [{ field: 'a', op: 'eq', value: 1 }] })",
+          "const list = table.insertRow('List', { filterInput: [{ column: 'a', operator: 'eq', value: '1' }] })",
           'const text = table.insertRow(\'Text\', { filterInput: json`{"field":"a"}` })',
         ].join('\n')
       )
     )
     expect(blockOf(wf, 'list').modes).toEqual({ filterInput: 'basic' })
-    expect(paramValue(wf, 'list', 'filterBuilder')).toEqual([{ field: 'a', op: 'eq', value: 1 }])
+    expect(paramValue(wf, 'list', 'filterBuilder')).toEqual([
+      { column: 'a', operator: 'eq', value: '1' },
+    ])
     expect(blockOf(wf, 'list').params).not.toHaveProperty('filter')
     expect(blockOf(wf, 'text').modes).toEqual({ filterInput: 'advanced' })
     expect(paramValue(wf, 'text', 'filter')).toBe('{"field":"a"}')
@@ -1059,5 +1061,31 @@ describe('env names the workspace does not hold', () => {
 
   it('says nothing when no env list is available', () => {
     expect(compileWith().diagnostics.map((d) => d.code)).not.toContain('W_ENV_UNKNOWN')
+  })
+})
+
+describe('table filters the runtime refuses', () => {
+  const shapeFindings = (filterInput: string) =>
+    run(source(`const q = table.insertRow('Q', { filterInput: ${filterInput} })`))
+      .diagnostics.filter((d) => d.code === 'W_TABLE_FILTER_SHAPE')
+      .map((d) => d.message)
+
+  it('warns on the legacy operator-object grammar and on predicate leaves written as builder rows', () => {
+    expect(shapeFindings("{ status: { $eq: 'open' } }")).toEqual([
+      expect.stringContaining('legacy operator-object grammar'),
+    ])
+    expect(shapeFindings("[{ field: 'status', op: 'eq', value: 'open' }]")).toEqual([
+      expect.stringContaining('builder row'),
+    ])
+  })
+
+  it('accepts builder rows, a condition and nested groups', () => {
+    expect(shapeFindings("[{ column: 'status', operator: 'eq', value: 'open' }]")).toEqual([])
+    expect(shapeFindings("{ field: 'status', op: 'eq', value: 'open' }")).toEqual([])
+    expect(
+      shapeFindings(
+        "{ any: [{ field: 'a', op: 'isNull' }, { all: [{ field: 'b', op: 'gt', value: 1 }] }] }"
+      )
+    ).toEqual([])
   })
 })

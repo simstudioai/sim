@@ -110,6 +110,8 @@ type CompileCatalogCode =
   | 'E_STORED_VALUE_MISSING'
   /** The value's JSON type differs from the field's `valueKind`; never coerced. */
   | 'W_VALUE_KIND'
+  /** A literal table filter the runtime refuses: the legacy `$` grammar or mixed shapes. */
+  | 'W_TABLE_FILTER_SHAPE'
   /** Skipped when the block's outputs are dynamic. */
   | 'W_UNKNOWN_OUTPUT_PATH'
   /**

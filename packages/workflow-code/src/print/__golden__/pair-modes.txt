@@ -11,7 +11,7 @@ export default workflow('Fixture', {}, () => {
   const bothMembers = slack.sendMessage('Both members', { channel: 'C0NEW', text: 'e' })
   const filterBuilderList = table.queryRows('Filter builder list', {
     tableId: table('tickets'),
-    filterInput: [{ field: 'status', op: 'eq', value: 'open' }],
+    filterInput: [{ column: 'status', operator: 'eq', value: 'open' }],
   })
   const filterCodeJson = table.queryRows('Filter code json', {
     tableId: table('tickets'),
