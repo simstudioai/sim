@@ -17728,7 +17728,9 @@
                             }
                           },
                           "required": ["x", "y"],
-                          "additionalProperties": false,
+                          "additionalProperties": {
+                            "description": "An `x-` extension field, kept verbatim."
+                          },
                           "description": "Stored canvas geometry; applied only to new blocks."
                         },
                         "codeFile": {
@@ -17737,7 +17739,9 @@
                         }
                       },
                       "required": ["id", "parent", "binding", "order"],
-                      "additionalProperties": false,
+                      "additionalProperties": {
+                        "description": "An `x-` extension field, kept verbatim."
+                      },
                       "description": "One block’s identity."
                     },
                     "description": "Block key → identity."
@@ -17754,7 +17758,9 @@
                   }
                 },
                 "required": ["lockVersion", "blocks", "variables"],
-                "additionalProperties": false,
+                "additionalProperties": {
+                  "description": "An `x-` extension field, kept verbatim."
+                },
                 "description": "Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids."
               },
               "lockBase": {
@@ -18279,7 +18285,9 @@
                             }
                           },
                           "required": ["x", "y"],
-                          "additionalProperties": false,
+                          "additionalProperties": {
+                            "description": "An `x-` extension field, kept verbatim."
+                          },
                           "description": "Stored canvas geometry; applied only to new blocks."
                         },
                         "codeFile": {
@@ -18288,7 +18296,9 @@
                         }
                       },
                       "required": ["id", "parent", "binding", "order"],
-                      "additionalProperties": false,
+                      "additionalProperties": {
+                        "description": "An `x-` extension field, kept verbatim."
+                      },
                       "description": "One block’s identity."
                     },
                     "description": "Block key → identity."
@@ -18305,7 +18315,9 @@
                   }
                 },
                 "required": ["lockVersion", "blocks", "variables"],
-                "additionalProperties": false,
+                "additionalProperties": {
+                  "description": "An `x-` extension field, kept verbatim."
+                },
                 "description": "Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids."
               },
               "lockBase": {
@@ -18548,7 +18560,9 @@
                         }
                       },
                       "required": ["x", "y"],
-                      "additionalProperties": false,
+                      "additionalProperties": {
+                        "description": "An `x-` extension field, kept verbatim."
+                      },
                       "description": "Stored canvas geometry; applied only to new blocks."
                     },
                     "codeFile": {
@@ -18557,7 +18571,9 @@
                     }
                   },
                   "required": ["id", "parent", "binding", "order"],
-                  "additionalProperties": false,
+                  "additionalProperties": {
+                    "description": "An `x-` extension field, kept verbatim."
+                  },
                   "description": "One block’s identity."
                 },
                 "description": "Block key → identity."
@@ -18574,7 +18590,9 @@
               }
             },
             "required": ["lockVersion", "blocks", "variables"],
-            "additionalProperties": false,
+            "additionalProperties": {
+              "description": "An `x-` extension field, kept verbatim."
+            },
             "description": "Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids."
           },
           "lockBase": {

@@ -231,6 +231,37 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
     expect(mocks.apply).not.toHaveBeenCalled()
   })
 
+  it('passes x- extension fields on the lock, its blocks and their layout through to apply', async () => {
+    const lock = {
+      ...source.lock,
+      'x-tool': { pinned: true },
+      blocks: {
+        start: {
+          ...source.lock.blocks.start,
+          'x-note': 'keep',
+          layout: { x: 0, y: 0, 'x-snap': 8 },
+        },
+      },
+    }
+
+    const response = await POST(applyRequest({ ...applyBody, lock }), context)
+
+    expect(response.status).toBe(200)
+    expect(mocks.apply.mock.calls[0][0].input.lock).toEqual(lock)
+  })
+
+  it('rejects an unknown non-extension lock block field with 400 before applying', async () => {
+    const lock = {
+      ...source.lock,
+      blocks: { start: { ...source.lock.blocks.start, type: 'starter' } },
+    }
+
+    const response = await POST(applyRequest({ ...applyBody, lock }), context)
+
+    expect(response.status).toBe(400)
+    expect(mocks.apply).not.toHaveBeenCalled()
+  })
+
   it('rejects files without workflow.ts with 400 before applying', async () => {
     const response = await POST(
       applyRequest({ ...applyBody, files: { 'functions/a.js': 'return 1' } }),
