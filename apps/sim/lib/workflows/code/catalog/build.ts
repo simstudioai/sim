@@ -31,14 +31,16 @@ function catalogHash(value: unknown): string {
   return createHash('sha256').update(stableStringify(value)).digest('hex')
 }
 
-interface CatalogBuildInput {
-  /** Every block the catalog serves, in any order. */
-  blocks: readonly BlockConfig[]
-  /** Types placed in the workflow but not addable by this caller. */
-  notAddable?: ReadonlySet<string>
+/** Where a projection reads trigger configs and the frozen SDK names from. */
+interface CatalogSources {
   /** `getTrigger()`-shaped lookup; `undefined` for an unknown id. */
   trigger: (triggerId: string) => TriggerConfig | undefined
   sdkNames: SdkNamesFile
+}
+
+interface CatalogBuildInput extends CatalogSources {
+  /** Every block the catalog serves, in any order. */
+  blocks: readonly BlockConfig[]
   scope?: { organizationId: string }
 }
 
@@ -118,23 +120,35 @@ function customNamespace(type: string, taken: Set<string>): string {
   return candidate
 }
 
+/** What projecting a set of blocks yields, before containers and triggers are added. */
+interface ProjectedBlocks {
+  blocks: Array<[string, CatalogBlock]>
+  builders: Record<string, CatalogBuilder>
+  triggerIds: Set<string>
+}
+
 /**
- * Projects registry definitions into an expanded catalog (no hash): the shape every consumer reads
- * through the package's catalog view. {@link buildBlockCatalog} encodes it as the served core shard.
+ * Projects blocks in type order with their builders and the trigger ids they reference.
+ * `takenCustomNamespaces` holds the `custom.*` builder paths already used, so a custom block's
+ * namespace stays unique against them.
  */
-export function projectBlockCatalog(input: CatalogBuildInput): Omit<ExpandedBlockCatalog, 'hash'> {
+function projectBlocks(
+  input: readonly BlockConfig[],
+  sdkNames: SdkNamesFile,
+  options: { addable: boolean; takenCustomNamespaces?: Iterable<string> }
+): ProjectedBlocks {
   const blocks: Array<[string, CatalogBlock]> = []
   const builders: Record<string, CatalogBuilder> = {}
   const triggerIds = new Set<string>()
-  const customNamespaces = new Set<string>()
+  const customNamespaces = new Set<string>(options.takenCustomNamespaces)
 
-  const ordered = [...input.blocks].sort((a, b) => compareStrings(a.type, b.type))
+  const ordered = [...input].sort((a, b) => compareStrings(a.type, b.type))
   for (const block of ordered) {
     const projected = memoized(blockProjections, block, projectBlock)
-    const names = input.sdkNames.blocks[block.type]
+    const names = sdkNames.blocks[block.type]
     const catalogBlock: CatalogBlock = {
       ...projected,
-      ...(input.notAddable?.has(block.type) && { addable: false as const }),
+      ...(!options.addable && { addable: false as const }),
       ...(names?.paramAliases && { paramAliases: names.paramAliases }),
     }
     blocks.push([block.type, catalogBlock])
@@ -146,6 +160,17 @@ export function projectBlockCatalog(input: CatalogBuildInput): Omit<ExpandedBloc
     }
     if (block.triggers?.enabled) for (const id of block.triggers.available) triggerIds.add(id)
   }
+  return { blocks, builders, triggerIds }
+}
+
+/**
+ * Projects registry definitions into an expanded catalog (no hash): the shape every consumer reads
+ * through the package's catalog view. {@link buildBlockCatalog} encodes it as the served core shard.
+ */
+export function projectBlockCatalog(input: CatalogBuildInput): Omit<ExpandedBlockCatalog, 'hash'> {
+  const { blocks, builders, triggerIds } = projectBlocks(input.blocks, input.sdkNames, {
+    addable: true,
+  })
 
   // `core.d.ts` declares the container builders (`loop.forEach`, `parallel.collection`, ...), and
   // print and compile resolve them without the builders map.
@@ -176,4 +201,47 @@ export function projectBlockCatalog(input: CatalogBuildInput): Omit<ExpandedBloc
 export function buildBlockCatalog(input: CatalogBuildInput): BlockCatalog {
   const core = compactBlockCatalog(projectBlockCatalog(input))
   return { ...core, hash: catalogHash(core) }
+}
+
+/**
+ * `base` plus block types that may stay where a workflow already uses them but that this caller
+ * cannot add, each marked `addable: false`, with the triggers and builders they bring. The added
+ * entries are in expanded form (a valid core-shard entry), and the hash covers `base.hash` and
+ * them, so it is as deterministic as a build. Only the added types are projected and hashed,
+ * which lets one cached workspace catalog serve every workflow's not-addable set. Builder paths
+ * and custom namespaces `base` already uses keep pointing where they did. Never mutates `base`.
+ */
+export function withNotAddableBlocks(
+  base: BlockCatalog,
+  blocks: readonly BlockConfig[],
+  sources: CatalogSources
+): BlockCatalog {
+  const fresh = blocks.filter((block) => !Object.hasOwn(base.blocks, block.type))
+  if (fresh.length === 0) return base
+  const projected = projectBlocks(fresh, sources.sdkNames, {
+    addable: false,
+    takenCustomNamespaces: Object.keys(base.builders).filter((path) => path.startsWith('custom.')),
+  })
+  const triggers: Record<string, CatalogTrigger> = {}
+  for (const id of projected.triggerIds) {
+    if (Object.hasOwn(base.triggers, id)) continue
+    const config = sources.trigger(id)
+    if (config) triggers[id] = memoized(triggerProjections, config, projectTrigger)
+  }
+  const builders: Record<string, CatalogBuilder> = {}
+  for (const [path, builder] of Object.entries(projected.builders)) {
+    if (!Object.hasOwn(base.builders, path)) builders[path] = builder
+  }
+  const added = {
+    blocks: sortRecord(Object.fromEntries(projected.blocks)),
+    triggers: sortRecord(triggers),
+    builders: sortRecord(builders),
+  }
+  return {
+    ...base,
+    blocks: sortRecord({ ...base.blocks, ...added.blocks }),
+    triggers: sortRecord({ ...base.triggers, ...added.triggers }),
+    builders: sortRecord({ ...base.builders, ...added.builders }),
+    hash: catalogHash({ base: base.hash, notAddable: added }),
+  }
 }
