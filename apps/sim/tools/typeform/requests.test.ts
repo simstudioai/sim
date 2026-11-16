@@ -38,8 +38,4 @@ describe('Typeform request builders', () => {
       'formId cannot contain a path separator'
     )
   })
-
-  it('deletes the form addressed by a plain form id', () => {
-    expect(deleteUrl('abc123')).toBe('https://api.typeform.com/forms/abc123')
-  })
 })

@@ -5,6 +5,16 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
+/** Parses a JSON block input typed as text; a value a model already sent as JSON passes through. */
+function parseJsonInput(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch (error) {
+    throw new Error(`Invalid JSON input: ${getErrorMessage(error)}`)
+  }
+}
+
 export const TypeformBlock: BlockConfig = {
   type: 'typeform',
   hideFromToolbar: true,
@@ -403,15 +413,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
           operations,
           ...rest
         } = params
-
-        const parseJsonInput = (value: unknown): unknown => {
-          if (typeof value !== 'string') return value
-          try {
-            return JSON.parse(value)
-          } catch (error) {
-            throw new Error(`Invalid JSON input: ${getErrorMessage(error)}`)
-          }
-        }
 
         const parsedFields = fields ? parseJsonInput(fields) : undefined
         const parsedSettings = settings ? parseJsonInput(settings) : undefined

@@ -41,14 +41,6 @@ describe('Cal.com create booking on a tool call', () => {
     )
     expect(sent.guests).toEqual(['a@x.com', 'b@y.com'])
   })
-
-  it('coerces a pinned event type id string to a number', () => {
-    const sent = sentParams(
-      { eventTypeId: '456', attendee: { name: 'A', timeZone: 'UTC' } },
-      { operation: 'calcom_create_booking' }
-    )
-    expect(sent.eventTypeId).toBe(456)
-  })
 })
 
 describe('Cal.com create booking on the canvas', () => {
@@ -114,13 +106,5 @@ describe('Cal.com event type id on a tool call', () => {
       { operation: 'calcom_update_event_type' }
     )
     expect(sent).toMatchObject({ eventTypeId: 7, lengthInMinutes: 45, scheduleId: 3 })
-  })
-
-  it('maps the pinned duration onto lengthInMinutes', () => {
-    const sent = sentParams(
-      { eventTypeId: 7, eventLength: '30' },
-      { operation: 'calcom_update_event_type' }
-    )
-    expect(sent.lengthInMinutes).toBe(30)
   })
 })

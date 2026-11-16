@@ -1,6 +1,6 @@
 import { ZoomIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { mapperOperation, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
@@ -24,6 +24,36 @@ const AUTO_RECORDING_OPTIONS = [
   { label: 'Local', id: 'local' },
   { label: 'Cloud', id: 'cloud' },
 ]
+
+const NO_CHANGE_OPTION = { label: 'No change', id: '' }
+
+/**
+ * Options and default for a meeting setting shared by Create and Update Meeting. Every context
+ * except a known Create Meeting leads with "No change", so a new Update Meeting block or agent tool
+ * row (whose values carry no operation) does not seed a value that overwrites the meeting's
+ * setting, such as turning a recurring meeting into a scheduled one. Without block values (Copilot
+ * validation, catalogs) every option is listed, with "No change" last so the first option stays the
+ * default. Create seeds `createDefault`.
+ */
+function meetingSettingDropdown(
+  options: { label: string; id: string }[],
+  createDefault: string
+): Pick<SubBlockConfig, 'dependsOn' | 'options' | 'value'> {
+  return {
+    dependsOn: ['operation'],
+    options: (params) => [
+      ...(params && params.values.operation !== 'zoom_create_meeting' ? [NO_CHANGE_OPTION] : []),
+      ...options,
+      ...(params ? [] : [NO_CHANGE_OPTION]),
+    ],
+    value: (params) =>
+      params?.operation === 'zoom_create_meeting'
+        ? createDefault
+        : params?.operation === 'zoom_update_meeting'
+          ? ''
+          : undefined,
+  }
+}
 
 /**
  * A text input as a trimmed string. A model may send a Zoom meeting ID as a number, which the
@@ -227,27 +257,7 @@ export const ZoomBlock: BlockConfig = {
       id: 'type',
       title: 'Meeting Type',
       type: 'dropdown',
-      dependsOn: ['operation'],
-      /**
-       * Every context except a known Create Meeting leads with "No change", so an update does not
-       * turn a recurring meeting into a scheduled one; that includes agent tool rows, whose values
-       * carry no operation. Without block values (Copilot validation, catalogs) every option is
-       * listed, with "No change" last so the default stays Scheduled. Create sends Scheduled when
-       * left empty.
-       */
-      options: (params) => [
-        ...(params && params.values.operation !== 'zoom_create_meeting'
-          ? [{ label: 'No change', id: '' }]
-          : []),
-        ...MEETING_TYPE_OPTIONS,
-        ...(params ? [] : [{ label: 'No change', id: '' }]),
-      ],
-      value: (params) =>
-        params?.operation === 'zoom_create_meeting'
-          ? '2'
-          : params?.operation === 'zoom_update_meeting'
-            ? ''
-            : undefined,
+      ...meetingSettingDropdown(MEETING_TYPE_OPTIONS, '2'),
       condition: {
         field: 'operation',
         value: ['zoom_create_meeting', 'zoom_update_meeting'],
@@ -384,24 +394,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'autoRecording',
       title: 'Auto Recording',
       type: 'dropdown',
-      dependsOn: ['operation'],
-      /**
-       * Same "No change" layout as Meeting Type, so a new Update Meeting block or agent tool row
-       * does not seed a value that would overwrite the meeting's recording setting.
-       */
-      options: (params) => [
-        ...(params && params.values.operation !== 'zoom_create_meeting'
-          ? [{ label: 'No change', id: '' }]
-          : []),
-        ...AUTO_RECORDING_OPTIONS,
-        ...(params ? [] : [{ label: 'No change', id: '' }]),
-      ],
-      value: (params) =>
-        params?.operation === 'zoom_create_meeting'
-          ? 'none'
-          : params?.operation === 'zoom_update_meeting'
-            ? ''
-            : undefined,
+      ...meetingSettingDropdown(AUTO_RECORDING_OPTIONS, 'none'),
       mode: 'advanced',
       condition: {
         field: 'operation',
