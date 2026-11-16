@@ -7,7 +7,7 @@ export default workflow('Fixture', {}, () => {
     'Html',
     { model: '{{ not valid }}' },
     {
-      inactive: {
+      extra: {
         systemPrompt: t`<div>hello</div> <missing.field> ${env.lower_ok} <variable.nope> <loop.index>`,
       },
     }

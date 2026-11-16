@@ -80,7 +80,6 @@ export {
   type CodeFileLanguage,
   type CodeFileSyntaxError,
   checkCodeFileBijection,
-  codeFileCodec,
   codeFileLanguage,
   type FromCodeFileResult,
   fromCodeFile,
@@ -185,5 +184,5 @@ export type {
   VarNode,
   WorkflowAnnotations,
 } from './model'
-export { assignIdentifiers, createPrintWorkflow, printWorkflow } from './print'
+export { assignIdentifiers, printWorkflow } from './print'
 export { GENERIC_BUILDER, SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from './sdk'

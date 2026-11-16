@@ -32,7 +32,7 @@ import { canonicalParams } from './params'
 import { loopSpec, parallelSpec, SUBFLOW_DATA_KEYS } from './subflows'
 import { toJson, toValue } from './values'
 
-/** `block.data` keys the model or the lock layout owns; anything else is kept under `opaque`. */
+/** `block.data` keys the model or the lock layout owns; anything else is kept under `extra`. */
 const LAYOUT_DATA_KEYS = new Set(['width', 'height'])
 const MODES = new Set(['basic', 'advanced'])
 
@@ -176,11 +176,11 @@ export const canonicalize: CanonicalizeFn = (state, options) => {
       })
     }
 
-    const opaqueData: Record<string, Json> = {}
+    const extraData: Record<string, Json> = {}
     const parentId = typeof data.parentId === 'string' ? data.parentId : undefined
     const parent = parentId !== undefined ? (keyById.get(parentId) ?? null) : null
     if (data.parentId != null && (parentId === undefined || parent === null)) {
-      opaqueData.parentId = toJson(data.parentId)
+      extraData.parentId = toJson(data.parentId)
       report(context, {
         code: 'W_CANON_DANGLING_PARENT',
         severity: 'warning',
@@ -251,9 +251,9 @@ export const canonicalize: CanonicalizeFn = (state, options) => {
       if (dataKey === 'extent' && value === 'parent' && parent !== null) continue
       if (dataKey === 'canonicalModes' && isModeMap(value)) continue
       if (isContainer && SUBFLOW_DATA_KEYS.has(dataKey) && !rejectedDataKeys.has(dataKey)) continue
-      setOwn(opaqueData, dataKey, toJson(value))
+      setOwn(extraData, dataKey, toJson(value))
     }
-    if (Object.keys(opaqueData).length > 0) canonical.opaque = { data: opaqueData }
+    if (Object.keys(extraData).length > 0) canonical.extra = extraData
 
     if (catalog && !isContainer) {
       const activityValues = overrides ? { ...rawValues, __canonicalModes: overrides } : rawValues

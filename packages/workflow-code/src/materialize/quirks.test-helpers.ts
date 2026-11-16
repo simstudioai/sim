@@ -324,7 +324,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ),
   ],
   [
-    '15, 16, 18: unknown and legacy block types and opaque data',
+    '15, 16, 18: unknown and legacy block types and extra data',
     workflowState([
       blockState(
         'u1',

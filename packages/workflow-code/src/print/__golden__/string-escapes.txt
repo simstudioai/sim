@@ -10,7 +10,7 @@ export default workflow('Fixture', {}, () => {
       model: "it's a \"model\" with 'quotes'",
     },
     {
-      inactive: {
+      extra: {
         systemPrompt: `back\\slash \`tick\` \${notInterp} tab	here\r
 crlf line\u2028ls\u2029ps \uD800 lone 漢字 🎉`,
       },

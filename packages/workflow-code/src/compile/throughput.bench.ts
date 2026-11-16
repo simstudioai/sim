@@ -36,7 +36,7 @@ function blockSource(index: number): string {
         `  const step${index} = slack.sendMessage('Step ${index}', {`,
         "    authMethod: 'oauth',",
         "    credential: binding('support-slack'),",
-        `    channel: picked('C0${index}'),`,
+        `    channel: 'C0${index}',`,
         `    text: t\`Update ${index}: ${ref('content')}\`,`,
         '  })',
       ].join('\n')
@@ -54,7 +54,7 @@ function blockSource(index: number): string {
 
 const SOURCE = [
   '// @sim-sdk 1',
-  "import { agent, api, binding, env, fn, js, picked, slack, t, trigger, workflow } from '@sim/workflow-sdk'",
+  "import { agent, api, binding, env, fn, js, slack, t, trigger, workflow } from '@sim/workflow-sdk'",
   '',
   "export default workflow('Bench', { description: 'Two hundred blocks.' }, () => {",
   "  const start = trigger.start('Start', { inputFormat: { query: 'string' } })",

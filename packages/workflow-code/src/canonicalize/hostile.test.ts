@@ -109,8 +109,8 @@ describe('canonicalize: prototype-named keys', () => {
     })
     const call = canonical.workflow.blocks.call
     expect(Object.hasOwn(call.params, '__proto__')).toBe(true)
-    expect(Object.hasOwn(call.opaque?.data ?? {}, '__proto__')).toBe(true)
-    expect(Object.getOwnPropertyDescriptor(call.opaque?.data ?? {}, '__proto__')?.value).toEqual({
+    expect(Object.hasOwn(call.extra ?? {}, '__proto__')).toBe(true)
+    expect(Object.getOwnPropertyDescriptor(call.extra ?? {}, '__proto__')?.value).toEqual({
       kept: true,
     })
   })

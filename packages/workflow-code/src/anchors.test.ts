@@ -31,7 +31,7 @@ describe('encodeAnchor / decodeAnchor', () => {
       { kind: 'footer' },
       { kind: 'block', block: 'a:b%3A~2' },
       { kind: 'param', block: 'agent', param: 'credential' },
-      { kind: 'inactive', block: 'agent', param: 'old:field' },
+      { kind: 'param', block: 'agent', param: 'old:field' },
       { kind: 'edges', block: 'route', port: 'branch:elseIf0' },
       { kind: 'edges', block: 'x', port: 'raw:a:b' },
       { kind: 'var', variable: 'retries' },

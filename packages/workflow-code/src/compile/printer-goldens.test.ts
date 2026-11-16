@@ -1,6 +1,6 @@
 import { compareStrings } from '@sim/utils/string'
 import { describe, expect, it } from 'vitest'
-import type { CompileResult, PrintOptions } from '../api'
+import type { CompileResult } from '../api'
 import { executableView } from '../equivalence/executable'
 import type { CanonicalWorkflow } from '../model'
 import { printWorkflow } from '../print'
@@ -12,9 +12,7 @@ import { compileWorkflow } from './index'
  * P0/P3/P4 against the printer, over the real catalog (`real-catalog.json`): every printer case
  * prints to source that compiles with zero errors (s3 D12), runs as the canonical workflow it was
  * printed from (its executable view: wave 4 source holds what executes, and apply restores the
- * preserved UI state), and a lean print reprints to the same bytes. A verbose print compiles and
- * runs the same too; it is a debugging view, so its reprint is not pinned. The
- * printer's golden test pins the prints byte for byte. Annotations are not semantic, so only the
+ * preserved UI state), and reprints to the same bytes. The printer's golden test pins the prints byte for byte. Annotations are not semantic, so only the
  * comment texts are compared: the printer hoists a comment whose anchor it does not print and
  * drops one whose block is gone.
  */
@@ -48,21 +46,20 @@ function expectRoundTrip(result: CompileResult, original: CanonicalWorkflow, gol
 }
 
 describe('printer cases compile back to their canonical workflow', () => {
-  const modes: Array<[string, PrintOptions]> = [
-    ['lean', { functionCode: 'inline' }],
-    ['verbose', { functionCode: 'inline', verbose: true }],
-  ]
   for (const testCase of cases) {
-    for (const [mode, options] of modes) {
-      it(`${testCase.name} (${mode})`, () => {
-        const print = (workflow: CanonicalWorkflow) =>
-          printWorkflow({ workflow, catalog, hints: testCase.hints, options }).files[0].text
-        const golden = print(testCase.workflow)
-        const result = compile(golden)
-        expectRoundTrip(result, testCase.workflow, golden)
-        if (mode === 'lean' && result.workflow) expect(print(result.workflow)).toBe(golden)
-      })
-    }
+    it(testCase.name, () => {
+      const print = (workflow: CanonicalWorkflow) =>
+        printWorkflow({
+          workflow,
+          catalog,
+          hints: testCase.hints,
+          options: { functionCode: 'inline' },
+        }).files[0].text
+      const golden = print(testCase.workflow)
+      const result = compile(golden)
+      expectRoundTrip(result, testCase.workflow, golden)
+      if (result.workflow) expect(print(result.workflow)).toBe(golden)
+    })
   }
 
   it('function-languages in files mode, with code files written by the code-file codec', () => {

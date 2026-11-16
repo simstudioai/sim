@@ -51,7 +51,7 @@ export interface ValueSite {
  * How a value was written, which picks the member of a basic/advanced pair (build-spec
  * decision 7) and decides whether `W_VALUE_KIND` applies (only to literals).
  */
-type ValueForm = 'literal' | 'ref' | 'template' | 'resource' | 'picked' | 'upload' | 'raw'
+type ValueForm = 'literal' | 'ref' | 'template' | 'resource' | 'upload' | 'raw'
 
 export type CompiledValue =
   | { kind: 'value'; value: Value; form: ValueForm }
@@ -62,7 +62,7 @@ export type CompiledValue =
   /** `file('./x.js')`: only valid as a function block's code. */
   | { kind: 'file'; path: string; pathNode: Node }
 
-const SELECTOR_FORMS: ReadonlySet<ValueForm> = new Set(['resource', 'picked', 'upload'])
+const SELECTOR_FORMS: ReadonlySet<ValueForm> = new Set(['resource', 'upload'])
 
 export function isSelectorForm(form: ValueForm): boolean {
   return SELECTOR_FORMS.has(form)
@@ -88,7 +88,6 @@ const TEMPLATE_TAGS = new Set(['t', 'js', 'json', 'md', 'py', 'sh'])
 export const SDK_VALUE_FUNCTIONS = new Set([
   ...Object.keys(RESOURCE_CALLS),
   ...TEMPLATE_TAGS,
-  'picked',
   'raw',
   'todo',
   'ref',
@@ -688,10 +687,6 @@ function compileCall(
     return { kind: 'value', value, form: path === 'upload' ? 'upload' : 'resource' }
   }
   switch (path) {
-    case 'picked': {
-      const argument = singleStringArgument(ctx, call, 'picked', site)
-      return argument ? { kind: 'value', value: argument.text, form: 'picked' } : null
-    }
     case 'ref': {
       const argument = singleStringArgument(ctx, call, 'ref', site)
       return argument ? { kind: 'value', value: `<${argument.text}>`, form: 'ref' } : null
@@ -873,7 +868,7 @@ export function compileValue(
 }
 
 /**
- * A literal-only JSON value (variables, `$unknown`, retry, tool policy): plain data, so a `$sim`
+ * A literal-only JSON value (variables, a container's `extra` data, retry, tool policy): plain data, so a `$sim`
  * key is just a key. No refs, no SDK calls.
  */
 export function compileJsonLiteral(

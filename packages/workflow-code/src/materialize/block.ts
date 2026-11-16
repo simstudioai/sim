@@ -14,7 +14,7 @@ import { encodeParam, matchPrevTools, parseStoredList } from './params'
 import { writeSubflowData } from './subflows'
 import { deepEqual } from './values'
 
-/** `block.data` keys the model or the layout owns on any block; everything else is `opaque`. */
+/** `block.data` keys the model or the layout owns on any block; everything else is `extra`. */
 const MODEL_DATA_KEYS = new Set(['parentId', 'extent', 'width', 'height', 'canonicalModes'])
 
 export interface BlockInputs {
@@ -250,8 +250,8 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
     }
   }
 
-  const nextOpaque = target.opaque?.data ?? {}
-  if (catalog && !Object.hasOwn(nextOpaque, 'canonicalModes')) {
+  const nextExtra = target.extra ?? {}
+  if (catalog && !Object.hasOwn(nextExtra, 'canonicalModes')) {
     const original = storedModes(data)
     let modes = writeBlockModes(
       original ?? {},
@@ -280,15 +280,15 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
   }
 
   if (target.subflow && (!before || !deepEqual(before.subflow, target.subflow))) {
-    writeSubflowData(data, target.subflow, new Set(Object.keys(nextOpaque)))
+    writeSubflowData(data, target.subflow, new Set(Object.keys(nextExtra)))
   }
 
-  const prevOpaque = before?.opaque?.data ?? {}
-  if (isNew || !deepEqual(prevOpaque, nextOpaque)) {
-    for (const dataKey of Object.keys(prevOpaque)) {
-      if (!Object.hasOwn(nextOpaque, dataKey)) delete data[dataKey]
+  const prevExtra = before?.extra ?? {}
+  if (isNew || !deepEqual(prevExtra, nextExtra)) {
+    for (const dataKey of Object.keys(prevExtra)) {
+      if (!Object.hasOwn(nextExtra, dataKey)) delete data[dataKey]
     }
-    for (const [dataKey, value] of Object.entries(nextOpaque)) {
+    for (const [dataKey, value] of Object.entries(nextExtra)) {
       if (!deepEqual(data[dataKey], value)) data[dataKey] = value
     }
   }
@@ -296,7 +296,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
     const isContainer = target.type === 'loop' || target.type === 'parallel'
     for (const dataKey of Object.keys(data)) {
       const owned = MODEL_DATA_KEYS.has(dataKey) || (isContainer && SUBFLOW_DATA_KEYS.has(dataKey))
-      if (!owned && !Object.hasOwn(nextOpaque, dataKey)) delete data[dataKey]
+      if (!owned && !Object.hasOwn(nextExtra, dataKey)) delete data[dataKey]
     }
   }
 
@@ -307,7 +307,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
     } else {
       const dropped = ['parentId', 'extent'].filter(
         (dataKey) =>
-          !Object.hasOwn(nextOpaque, dataKey) &&
+          !Object.hasOwn(nextExtra, dataKey) &&
           (dataKey === 'parentId' || data[dataKey] === 'parent')
       )
       for (const dataKey of dropped) delete data[dataKey]

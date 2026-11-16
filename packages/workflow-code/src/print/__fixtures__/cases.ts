@@ -470,6 +470,22 @@ export const cases: PrintCase[] = [
           params: { operation: 'send', channel: 'C0OLD', manualChannel: 'C0NEW', text: 'e' },
           modes: { channel: 'advanced' },
         }),
+        blk('Filter builder list', 'table_v2', {
+          params: {
+            operation: 'query_rows',
+            tableSelector: { $sim: 'resource', kind: 'table', key: 'tickets' },
+            filterBuilder: [{ field: 'status', op: 'eq', value: 'open' }],
+          },
+          modes: { tableId: 'basic', filterInput: 'basic' },
+        }),
+        blk('Filter code json', 'table_v2', {
+          params: {
+            operation: 'query_rows',
+            tableSelector: { $sim: 'resource', kind: 'table', key: 'tickets' },
+            filter: '{\n  "field": "status",\n  "op": "eq",\n  "value": "open"\n}',
+          },
+          modes: { tableId: 'basic', filterInput: 'advanced' },
+        }),
       ],
     }),
   },
@@ -596,7 +612,7 @@ export const cases: PrintCase[] = [
           advancedMode: true,
           errorPort: true,
           retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 1000 },
-          opaque: { data: { canvasNote: 'x', width: 300 } },
+          extra: { canvasNote: 'x', width: 300 },
         }),
         blk('Flaky', 'api', {
           params: { url: 'https://b.test' },

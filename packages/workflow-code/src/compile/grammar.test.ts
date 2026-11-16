@@ -6,7 +6,7 @@ import { compileWorkflow } from './index'
 import { TEST_CATALOG } from './test-catalog'
 
 const IMPORTS =
-  "import { agent, api, binding, block, condition, edge, env, file, fn, js, json, kb, loop, md, note, parallel, picked, raw, ref, router, slack, t, table, todo, trigger, upload, workflow } from '@sim/workflow-sdk'"
+  "import { agent, api, binding, block, condition, edge, env, file, fn, js, json, kb, loop, md, note, parallel, raw, ref, router, slack, t, table, todo, trigger, upload, workflow } from '@sim/workflow-sdk'"
 
 const DEFAULT_OPTIONS = "{ variables: { retries: { type: 'number', value: 3 } } }"
 
@@ -150,11 +150,11 @@ describe('accepted grammar', () => {
     })
   })
 
-  it('lifts resources, picked ids, raw values and the generic block builder', () => {
+  it('lifts resources, raw values and the generic block builder', () => {
     const wf = ok(
       source(
         [
-          "const send = slack.sendMessage('Send', { authMethod: 'oauth', credential: binding('support-slack'), channel: picked('C1'), text: 'hi' })",
+          "const send = slack.sendMessage('Send', { authMethod: 'oauth', credential: binding('support-slack'), channel: 'C1', text: 'hi' })",
           "const row = table.insertRow('Row', { tableId: table('leads'), data: raw('{\"a\":1}') })",
           "const legacy = block('custom_block_x', 'Legacy', { a: kb('docs'), b: workflow('enrich'), c: upload('files/a.pdf'), d: raw({ $sim: 'unresolved', kind: 'table', id: 't1' }), e: { $sim: 'plain' } }, { triggerMode: true })",
         ].join('\n')
@@ -165,7 +165,7 @@ describe('accepted grammar', () => {
       kind: 'credential',
       key: 'support-slack',
     })
-    expect(paramValue(wf, 'send', 'channel')).toBe('C1')
+    expect(paramValue(wf, 'send', 'manualChannel')).toBe('C1')
     expect(paramValue(wf, 'send', 'operation')).toBe('send')
     expect(paramValue(wf, 'row', 'tableId')).toEqual({
       $sim: 'resource',
@@ -199,27 +199,34 @@ describe('accepted grammar', () => {
     const wf = ok(
       source(
         [
-          "const a = slack.sendMessage('A', { authMethod: 'oauth', channel: picked('C1'), text: 'x' })",
           "const b = slack.sendMessage('B', { authMethod: 'oauth', channel: 'C2', text: 'x' })",
-          "const c = slack.sendMessage('C', { authMethod: 'oauth', channel: 'C3', text: 'x' }, { modes: { channel: 'basic' } })",
           "const d = slack.sendMessage('D', { authMethod: 'oauth', text: 'x' })",
           "const e = slack.sendMessage('E', { authMethod: 'oauth', text: 'x' }, { advancedMode: true })",
-          "const f = slack.sendMessage('F', { authMethod: 'oauth', channel: picked('C4'), text: 'x' }, { modes: { channel: 'advanced' } })",
         ].join('\n')
       )
     )
-    expect(blockOf(wf, 'a').modes).toEqual({ channel: 'basic' })
-    expect(paramValue(wf, 'a', 'channel')).toBe('C1')
     expect(blockOf(wf, 'b').modes).toEqual({ channel: 'advanced' })
     expect(paramValue(wf, 'b', 'manualChannel')).toBe('C2')
     expect(blockOf(wf, 'b').params).not.toHaveProperty('channel')
-    expect(blockOf(wf, 'c').modes).toEqual({ channel: 'basic' })
-    expect(paramValue(wf, 'c', 'channel')).toBe('C3')
     expect(blockOf(wf, 'd').modes).toEqual({ channel: 'basic' })
     expect(blockOf(wf, 'e').modes).toEqual({ channel: 'basic' })
     expect(blockOf(wf, 'e').advancedMode).toBe(true)
-    expect(blockOf(wf, 'f').modes).toEqual({ channel: 'advanced' })
-    expect(paramValue(wf, 'f', 'manualChannel')).toBe('C4')
+  })
+
+  it('puts a list or object literal in the pair member that takes it as written, not JSON code', () => {
+    const wf = ok(
+      source(
+        [
+          "const list = table.insertRow('List', { filterInput: [{ field: 'a', op: 'eq', value: 1 }] })",
+          'const text = table.insertRow(\'Text\', { filterInput: json`{"field":"a"}` })',
+        ].join('\n')
+      )
+    )
+    expect(blockOf(wf, 'list').modes).toEqual({ filterInput: 'basic' })
+    expect(paramValue(wf, 'list', 'filterBuilder')).toEqual([{ field: 'a', op: 'eq', value: 1 }])
+    expect(blockOf(wf, 'list').params).not.toHaveProperty('filter')
+    expect(blockOf(wf, 'text').modes).toEqual({ filterInput: 'advanced' })
+    expect(paramValue(wf, 'text', 'filter')).toBe('{"field":"a"}')
   })
 
   it('compiles named condition branches, an empty branch object and router routes', () => {
@@ -363,24 +370,26 @@ describe('accepted grammar', () => {
     expectDiagnostic(result, 'W_RAW_HANDLE', locate(text, 'edge(d'))
   })
 
-  it('compiles block meta, inactive values and opaque residue', () => {
+  it('compiles block meta and extra fields', () => {
     const text = source(
-      "const s = slack.sendMessage('S', { authMethod: 'oauth', text: 'x' }, { disabled: true, locked: true, errorPort: true, retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 1000 }, inactive: { botToken: 'old' }, $unknown: { width: 300 } })"
+      [
+        "const s = slack.sendMessage('S', { authMethod: 'oauth', text: 'x' }, { disabled: true, locked: true, errorPort: true, retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 1000 }, extra: { legacyField: 'old' } })",
+        "const l = loop.for('L', { count: 2 }, (p) => {\n  const a = api('A', { url: 'u' })\n  p.to(a)\n}, { extra: { note: 'kept' }, extraData: { loopType: 'weird' } })",
+      ].join('\n')
     )
     const result = run(text)
     expect(errorsOf(result)).toEqual([])
     const wf = result.workflow
     if (!wf) throw new Error('expected a workflow')
-    const s = blockOf(wf, 's')
-    expect(s).toMatchObject({
+    expect(blockOf(wf, 's')).toMatchObject({
       enabled: false,
       locked: true,
       errorPort: true,
       retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 1000 },
-      opaque: { data: { width: 300 } },
     })
-    expect(paramValue(wf, 's', 'botToken')).toBe('old')
-    expect(wf.annotations.inactive).toEqual({ s: ['botToken'] })
+    expect(paramValue(wf, 's', 'legacyField')).toBe('old')
+    expect(blockOf(wf, 'l').extra).toEqual({ loopType: 'weird' })
+    expect(paramValue(wf, 'l', 'note')).toBe('kept')
   })
 
   it('pins the trigger builder, its fixed values and the operation', () => {
@@ -539,12 +548,6 @@ describe('warnings that never block a compile', () => {
       'url: todo()',
     ],
     ['a required field left out', "const a = api('A', {})", 'W_REQUIRED_MISSING', "api('A'"],
-    [
-      'an inactive value that is in fact visible',
-      "const s = slack.sendMessage('S', { authMethod: 'oauth', text: 'x' }, { inactive: { credential: binding('x') } })",
-      'W_INACTIVE_IS_ACTIVE',
-      "credential: binding('x')",
-    ],
   ] as const)('warns on %s', (_label, body, code, needle) => {
     const text = source(body)
     const result = run(text)
@@ -650,11 +653,18 @@ describe('errors, each with its code, location and hint', () => {
       'Did you mean p.currentItem?',
     ],
     [
-      'a param that is both active and inactive',
-      "const s = slack.sendMessage('S', { authMethod: 'oauth', text: 'x' }, { inactive: { text: 'stale' } })",
+      'subflow data on a block that is not a container',
+      "const s = slack.sendMessage('S', { authMethod: 'oauth', text: 'x' }, { extraData: { count: 2 } })",
       'E_UNSUPPORTED_SYNTAX',
-      "text: 'stale'",
-      'Keep the value in params or in inactive, not both.',
+      'extraData: { count: 2 }',
+      'Remove extraData; apply keeps the stored block data.',
+    ],
+    [
+      'an extra field the block declares as a param',
+      "const s = slack.sendMessage('S', { authMethod: 'oauth', text: 'x' }, { extra: { threadTs: '1' } })",
+      'E_UNSUPPORTED_SYNTAX',
+      "threadTs: '1'",
+      'Write it in params.',
     ],
     [
       'two variables whose names normalize alike',

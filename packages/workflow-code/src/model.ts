@@ -258,8 +258,11 @@ export interface CanonicalBlock {
   branches?: CanonicalBranches
   /** Present only on loop and parallel containers. */
   subflow?: LoopSpec | ParallelSpec
-  /** Unknown `block.data` keys, verbatim; printed under `$unknown` (s3 §4 printer edge cases). */
-  opaque?: { data?: Record<string, Json> }
+  /**
+   * Unknown `block.data` keys, verbatim. Source carries only a container's subflow keys, which the
+   * serializer passes on (`meta.extraData`); apply keeps the rest from the stored workflow.
+   */
+  extra?: Record<string, Json>
 }
 
 /**
@@ -320,7 +323,7 @@ export interface CanonicalWorkflowMeta {
  * - `block`: the block's `const` declaration.
  * - `param`: one param property in the block call. `param` is the printed param name: the
  *   `canonicalParamId` for a basic/advanced pair, else the subBlock id.
- * - `inactive`: one entry under the block's `inactive: {...}` meta (a subBlock id).
+ *   An entry under the block's `meta.extra` takes the `param` anchor of its key.
  * - `edges`: the wiring statement for that (source, port).
  * - `var`: one variable declaration in the `workflow(...)` header.
  */
@@ -330,7 +333,6 @@ export type Anchor =
   | { kind: 'footer' }
   | { kind: 'block'; block: BlockKey }
   | { kind: 'param'; block: BlockKey; param: SubBlockId | CanonicalParamId }
-  | { kind: 'inactive'; block: BlockKey; param: SubBlockId }
   | { kind: 'edges'; block: BlockKey; port: PortKey }
   | { kind: 'var'; variable: VarKey }
 
@@ -356,8 +358,7 @@ export interface WorkflowAnnotations {
    * Per block, the param ids whose value is stored but not serialized under the current values
    * and not read by deploy (`canonicalize/activity.ts`; opaque catalog conditions count as
    * active unless expanded per operation). Source leaves them out and apply restores them from the
-   * stored workflow; a verbose print lists them under the block's `inactive: {...}` meta
-   * (DESIGN.md A18).
+   * stored workflow (DESIGN.md A18), so only canonicalize fills this; a compiled workflow has none.
    */
   inactive: Record<BlockKey, SubBlockId[]>
   /**

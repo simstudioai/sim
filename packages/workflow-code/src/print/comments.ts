@@ -16,7 +16,6 @@ export const anchors = {
   footer: encodeAnchor({ kind: 'footer' }),
   block: (block: BlockKey) => encodeAnchor({ kind: 'block', block }),
   param: (block: BlockKey, param: string) => encodeAnchor({ kind: 'param', block, param }),
-  inactive: (block: BlockKey, param: string) => encodeAnchor({ kind: 'inactive', block, param }),
   edges: (block: BlockKey, port: PortKey) => encodeAnchor({ kind: 'edges', block, port }),
   variable: (variable: string) => encodeAnchor({ kind: 'var', variable }),
 }

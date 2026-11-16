@@ -42,7 +42,6 @@ const MERGEABLE_CORE_EXPORTS: ReadonlySet<string> = new Set([
   'kb',
   'legacy',
   'mcp',
-  'picked',
   'sandbox',
   'skill',
   'table',

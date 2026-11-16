@@ -220,8 +220,8 @@ export function emptyCodeMeta(): WorkflowCodeMetaV1 {
 }
 
 /**
- * Rewrites the ids an anchor carries: the block segment of `block`, `param`, `inactive` and
- * `edges` anchors through `block`, the `var` segment through `variable`. A callback returning
+ * Rewrites the ids an anchor carries: the block segment of `block`, `param` and `edges`
+ * anchors through `block`, the `var` segment through `variable`. A callback returning
  * `null` drops the anchor; `header`, `wiring` and `footer` pass unchanged.
  */
 export function mapAnchorIds(

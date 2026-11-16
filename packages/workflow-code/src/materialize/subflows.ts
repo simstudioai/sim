@@ -23,7 +23,7 @@ function dataFields(spec: LoopSpec | ParallelSpec): Record<string, Json | undefi
 /**
  * Writes a changed subflow config into `block.data` (s1 materialize step 6). A field the spec
  * omits is removed, so storage omits it again (contract amendment 9). Keys listed in `skip` hold a
- * value canonicalize could not read as config and kept under `opaque`; that copy wins.
+ * value canonicalize could not read as config and kept under `extra`; that copy wins.
  */
 export function writeSubflowData(
   data: Record<string, unknown>,

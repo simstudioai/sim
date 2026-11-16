@@ -207,6 +207,15 @@ export const TEST_CATALOG: BlockCatalog = {
         }),
         sub('tableId', 'table-selector', 'resource', { resourceKind: 'table' }),
         sub('data', 'code', 'json', { language: 'json' }),
+        sub('filterBuilder', 'filter-builder', 'json', {
+          mode: 'basic',
+          canonicalParamId: 'filterInput',
+        }),
+        sub('filter', 'code', 'json', {
+          language: 'json',
+          mode: 'advanced',
+          canonicalParamId: 'filterInput',
+        }),
       ],
       { row: ANY }
     ),

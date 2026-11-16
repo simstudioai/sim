@@ -1,7 +1,7 @@
 /**
  * Preserved UI state (wave 4 governing principle): source holds what executes, and everything
  * else a stored block carries is taken from the block it continues. For a target block compiled
- * from lean source and the prev block it matched, this restores:
+ * from source and the prev block it matched, this restores:
  * - the pair member and mode, when the pair's executable value is unchanged; a changed plain id
  *   keeps prev's selector member when prev showed it, since whether a selector or a hand-typed
  *   value produced the id is UI state;
@@ -9,10 +9,10 @@
  *   editor defaults compile filled into fields that never run;
  * - the config fields of the loop or parallel types not in effect, and prev's spelling of a config
  *   that runs the same (`count: 0` and `count: 5`);
- * - unknown `block.data` residue a lean print does not carry.
+ * - unknown `block.data` residue source does not carry.
  *
- * A full CWM (canonicalize's output, or a verbose print) already holds all of this, so restoring
- * onto one changes nothing and the no-op round trip stays byte-identical.
+ * Canonicalize's output already holds all of this, so restoring onto it changes nothing and the
+ * no-op round trip stays byte-identical.
  */
 
 import { canonicalActivityInputs, isInactive } from '../canonicalize/activity'
@@ -192,15 +192,18 @@ function restoreSubflow(
   return target
 }
 
-/** Unknown `block.data` a lean print leaves out comes from prev; a printed key keeps the target's. */
-function restoreOpaque(target: CanonicalBlock, prev: CanonicalBlock): CanonicalBlock['opaque'] {
+/**
+ * Unknown `block.data` source leaves out comes from prev. A container's subflow keys are the
+ * only ones source carries (`meta.extraData`), so the target's copy of those wins.
+ */
+function restoreExtra(target: CanonicalBlock, prev: CanonicalBlock): CanonicalBlock['extra'] {
   const data: Record<string, Json> = {}
-  for (const [key, value] of Object.entries(prev.opaque?.data ?? {})) {
+  for (const [key, value] of Object.entries(prev.extra ?? {})) {
     const printed = target.subflow !== undefined && SUBFLOW_DATA_KEYS.has(key)
     if (!printed) setOwn(data, key, value)
   }
-  for (const [key, value] of Object.entries(target.opaque?.data ?? {})) setOwn(data, key, value)
-  return Object.keys(data).length > 0 ? { data } : undefined
+  for (const [key, value] of Object.entries(target.extra ?? {})) setOwn(data, key, value)
+  return Object.keys(data).length > 0 ? data : undefined
 }
 
 /**
@@ -224,7 +227,6 @@ export function restorePreserved(
     restoreInactive(next, prev, declared, catalog)
   }
   if (target.subflow) next.subflow = restoreSubflow(target.subflow, prev.subflow)
-  const opaque = restoreOpaque(target, prev)
-  setOrDelete(next, 'opaque', opaque)
+  setOrDelete(next, 'extra', restoreExtra(target, prev))
   return next
 }

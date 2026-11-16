@@ -179,7 +179,7 @@ export type BlockAttribute =
   | 'retry'
   | 'branches'
   | 'subflow'
-  | 'opaque'
+  | 'extra'
 
 export type BlockChange =
   | { kind: 'param'; param: SubBlockId }
@@ -282,13 +282,6 @@ export interface PrintOptions {
   codeDir?: string
   /** Defaults to 100 (biome.json). */
   lineWidth?: number
-  /**
-   * Also print the state source never needs (`sim workflows source get --verbose`): inactive
-   * values, the pair member a selector picked (`picked()`), `meta.modes`, off-type loop and
-   * parallel fields and unknown `block.data`. Default `false`: source holds only what executes,
-   * and apply restores the rest from the stored workflow.
-   */
-  verbose?: boolean
 }
 
 export interface PrintInput {
