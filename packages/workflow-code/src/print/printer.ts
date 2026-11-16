@@ -9,8 +9,8 @@ import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import {
+  isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
-  RESERVED_WORKFLOW_BLOCK_NAMES,
 } from '@sim/workflow-types/workflow'
 import {
   type McpToolForm,
@@ -1434,15 +1434,15 @@ class WorkflowPrinter {
   }
 }
 
-const RESERVED_KEYS: ReadonlySet<string> = new Set(RESERVED_WORKFLOW_BLOCK_NAMES)
-
 /**
  * A legacy key the display name cannot carry: a `name~n` collision key, or a reserved name
  * (`Loop`, `Parallel`). Printed as `meta.key`, which the compiler accepts only for a key the
  * stored workflow already has (`CompileInput.knownKeys`).
  */
 function needsKeyOverride(block: CanonicalBlock): boolean {
-  return block.key !== normalizeWorkflowBlockName(block.name) || RESERVED_KEYS.has(block.key)
+  return (
+    block.key !== normalizeWorkflowBlockName(block.name) || isReservedWorkflowBlockName(block.key)
+  )
 }
 
 /** Import specifiers in the order Biome's organizeImports keeps them. */

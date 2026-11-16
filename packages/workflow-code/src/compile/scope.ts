@@ -6,8 +6,8 @@ import type {
   VariableDeclaration,
 } from '@babel/types'
 import {
+  isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
-  RESERVED_WORKFLOW_BLOCK_NAMES,
 } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
@@ -127,10 +127,6 @@ function nameArgumentIndex(builder: ResolvedBuilder, path: string): number {
   return builder.kind === 'generic' || path === GENERIC_BUILDER ? 1 : 0
 }
 
-function isReservedKey(key: string): boolean {
-  return (RESERVED_WORKFLOW_BLOCK_NAMES as readonly string[]).includes(key)
-}
-
 /** `name~n` with n ≥ 2, the form canonicalize gives the losing block of a legacy collision. */
 function collisionSuffix(key: string, base: string): boolean {
   return key.startsWith(`${base}~`) && /^(?:[2-9]|[1-9]\d+)$/.test(key.slice(base.length + 1))
@@ -169,7 +165,7 @@ function keyOverride(
   if (!ctx.knownKeys.has(key)) {
     return reject(`meta.key ${key} is not a key of this workflow's stored blocks.`)
   }
-  if (key === normalized && isReservedKey(key)) return { key }
+  if (key === normalized && isReservedWorkflowBlockName(key)) return { key }
   if (collisionSuffix(key, normalized)) {
     return { key, collisionBase: { base: normalized, node: property } }
   }
@@ -217,7 +213,7 @@ function declare(
   const metaIndex = classified.builder.kind === 'container' ? 3 : nameIndex + 2
   const override = keyOverride(ctx, call.arguments[metaIndex], normalized)
   const key = override?.key ?? normalized
-  if (!override && isReservedKey(normalized)) {
+  if (!override && isReservedWorkflowBlockName(normalized)) {
     ctx.reporter.report(
       'E_RESERVED_NAME',
       `${name} is reserved for <${key}.…> references.`,

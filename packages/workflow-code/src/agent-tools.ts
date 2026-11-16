@@ -45,6 +45,23 @@ export function mcpToolId(serverId: string, toolName: string): string {
   return `${serverId.startsWith('mcp-') ? serverId : `mcp-${serverId}`}-${toolName}`
 }
 
+/**
+ * The server and tool a stored tool entry binds when it is an MCP tool with a non-empty
+ * `serverId` and a `toolName`, else `null`.
+ */
+export function mcpBinding(
+  type: unknown,
+  params: Record<string, unknown>
+): { serverId: string; toolName: string } | null {
+  const { serverId, toolName } = params
+  return type === MCP_TOOL_TYPE &&
+    typeof serverId === 'string' &&
+    serverId !== '' &&
+    typeof toolName === 'string'
+    ? { serverId, toolName }
+    : null
+}
+
 type ToolUsage = Pick<CanonicalTool, 'usageControl' | 'usageControlExpression'>
 
 export interface McpToolForm extends ToolUsage {

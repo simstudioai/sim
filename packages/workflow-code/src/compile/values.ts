@@ -11,7 +11,10 @@ import type {
 import { isRecordLike } from '@sim/utils/object'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import { WORKFLOW_RESOURCE_KINDS } from '@sim/workflow-types/resources'
-import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
+import {
+  isReservedWorkflowBlockName,
+  normalizeWorkflowBlockName,
+} from '@sim/workflow-types/workflow'
 import type { CatalogOutput } from '../catalog/types'
 import {
   ENV_VAR_NAME,
@@ -24,8 +27,8 @@ import {
   parseStoredPath,
   type RefSegment,
 } from '../code-files/ref-path'
-import { JsonRef, type JsonTree, valueTree } from '../json-fields'
-import type { Json, ResourceKind, Value, VarNode } from '../model'
+import { JsonRef, type JsonTree, jsonFieldText, valueTree } from '../json-fields'
+import type { CanonicalParam, Json, ResourceKind, SubBlockId, Value, VarNode } from '../model'
 import { setOwn } from '../records'
 import {
   type BlockDecl,
@@ -170,9 +173,6 @@ export function objectEntries(
   return entries
 }
 
-/** Heads of stored references that name no block. */
-const REFERENCE_ROOTS: ReadonlySet<string> = new Set(['variable', 'loop', 'parallel'])
-
 /**
  * `W_REF_NOT_NORMALIZED` for each hand-written `<Name.path>` in literal text whose head is not a
  * normalized block key, or names no declared block. Such text is kept verbatim, so a rename in the
@@ -187,7 +187,7 @@ function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: V
     const normalized = normalizeWorkflowBlockName(head.name)
     if (
       normalized === head.name &&
-      (REFERENCE_ROOTS.has(head.name) || ctx.declsByKey.has(head.name))
+      (isReservedWorkflowBlockName(head.name) || ctx.declsByKey.has(head.name))
     )
       continue
     const target = ctx.declsByKey.get(normalized)
@@ -952,11 +952,32 @@ export function compileValue(
 }
 
 /**
+ * Writes a JSON code field given as an object or array literal: its JSON text goes in
+ * `params[id]`, and the field is queued in `ctx.jsonFields` so its typed references are written
+ * once every block is compiled. Returns the text, or `undefined` after reporting an error.
+ */
+export function compileJsonField(
+  ctx: CompileContext,
+  node: Node,
+  site: ValueSite,
+  params: Record<SubBlockId, CanonicalParam>,
+  id: SubBlockId
+): string | undefined {
+  const refs: JsonFieldEntry['refs'] = []
+  const tree = compileJsonTree(ctx, node, site, refs)
+  if (tree === undefined) return undefined
+  const value = jsonFieldText(tree, () => true)
+  setOwn(params, id, { kind: 'value', value })
+  ctx.jsonFields.push({ params, id, tree, refs })
+  return value
+}
+
+/**
  * A JSON code field written as an object or array literal (`json-fields.ts`): a bare reference is
  * a typed leaf whose stored form follows its output type; every other leaf compiles as a value,
  * so a template is a JSON string. `undefined` after reporting an error.
  */
-export function compileJsonTree(
+function compileJsonTree(
   ctx: CompileContext,
   node: Node,
   site: ValueSite,

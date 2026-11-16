@@ -7,7 +7,6 @@ import { editorDefaults } from '../catalog/defaults'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
 import { isIdentifierName } from '../code-files/ref-path'
-import { jsonFieldText } from '../json-fields'
 import { utf8Bytes } from '../limits'
 import {
   type AnchorKey,
@@ -29,7 +28,6 @@ import {
   type BlockDecl,
   type CompileContext,
   catalogBlockOf,
-  type JsonFieldEntry,
   rangeOf,
   recordSpan,
   unsupported,
@@ -52,8 +50,8 @@ import {
 } from './validate-catalog'
 import {
   type CompiledValue,
+  compileJsonField,
   compileJsonLiteral,
-  compileJsonTree,
   compileValue,
   isSelectorForm,
   objectEntries,
@@ -633,13 +631,9 @@ function compileField(
           ? field.sub
           : undefined
     if (jsonTarget?.type === 'code') {
-      const refs: JsonFieldEntry['refs'] = []
-      const tree = compileJsonTree(ctx, property.value, site, refs)
-      if (tree === undefined) return
+      const value = compileJsonField(ctx, property.value, site, params, jsonTarget.id)
+      if (value === undefined) return
       if (mode && isModalPair(field)) setOwn(modes, field.param, mode)
-      const value = jsonFieldText(tree, () => true)
-      setOwn(params, jsonTarget.id, { kind: 'value', value })
-      ctx.jsonFields.push({ params, id: jsonTarget.id, tree, refs })
       state.written.push({
         property,
         param: field.name,

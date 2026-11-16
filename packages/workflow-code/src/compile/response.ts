@@ -1,11 +1,10 @@
 import type { Node, ObjectProperty } from '@babel/types'
-import { jsonFieldText } from '../json-fields'
 import type { CanonicalParam, SubBlockId, Value } from '../model'
 import { setOwn } from '../records'
 import { RESPONSE_BODY_KEYS } from '../sdk'
-import { type CompileContext, type JsonFieldEntry, rangeOf, unsupported } from './context'
+import { type CompileContext, rangeOf, unsupported } from './context'
 import { didYouMean } from './hints'
-import { compileJsonTree, compileValue, objectEntries, type ValueSite } from './values'
+import { compileJsonField, compileValue, objectEntries, type ValueSite } from './values'
 
 /** A value that must compile to text (a string, template, reference or env var). */
 function textValue(ctx: CompileContext, node: Node, site: ValueSite, what: string): string | null {
@@ -38,11 +37,7 @@ export function compileResponseParam(
   switch (key) {
     case 'body': {
       if (node.type === 'ObjectExpression' || node.type === 'ArrayExpression') {
-        const refs: JsonFieldEntry['refs'] = []
-        const tree = compileJsonTree(ctx, node, site, refs)
-        if (tree === undefined) return
-        setOwn(params, 'data', { kind: 'value', value: jsonFieldText(tree, () => true) })
-        ctx.jsonFields.push({ params, id: 'data', tree, refs })
+        compileJsonField(ctx, node, site, params, 'data')
         return
       }
       const text = textValue(ctx, node, site, 'body')

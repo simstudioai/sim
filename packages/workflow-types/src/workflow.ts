@@ -704,6 +704,11 @@ export function isKnownWorkflowTriggerBlock(block: WorkflowTriggerCapableBlock):
  */
 export const RESERVED_WORKFLOW_BLOCK_NAMES = ['loop', 'parallel', 'variable'] as const
 
+/** Whether a normalized name is one of {@link RESERVED_WORKFLOW_BLOCK_NAMES}. */
+export function isReservedWorkflowBlockName(name: string): boolean {
+  return (RESERVED_WORKFLOW_BLOCK_NAMES as readonly string[]).includes(name)
+}
+
 /**
  * Normalizes a block name into its reference-safe form: lowercased, whitespace
  * stripped, dots stripped. Dots are stripped because `.` is the reference path
@@ -740,7 +745,7 @@ export function getWorkflowBlockNameConflict(
   )
   if (conflict) return { reason: 'duplicate', conflictingBlockId: conflict[0] }
 
-  if ((RESERVED_WORKFLOW_BLOCK_NAMES as readonly string[]).includes(normalized)) {
+  if (isReservedWorkflowBlockName(normalized)) {
     return { reason: 'reserved' }
   }
 
