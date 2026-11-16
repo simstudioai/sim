@@ -234,7 +234,8 @@ function fits(next: Command, rest: Command[], initialWidth: number, mustBeFlat: 
 /** Renders a doc to text at the given width with 2-space indentation and LF line endings. */
 export function printDoc(root: Doc, width: number): string {
   propagateBreaks(root)
-  let output = ''
+  /** Output pieces, joined once at the end: trimming a line end touches only the last pieces. */
+  const output: string[] = []
   let column = 0
   /** Set after a hard line inside flat content: later flat groups must measure again. */
   let shouldRemeasure = false
@@ -242,9 +243,17 @@ export function printDoc(root: Doc, width: number): string {
   const commands: Command[] = [{ indent: 0, mode: 'break', doc: root }]
 
   const trimTrailing = () => {
-    const trimmed = output.replace(/[ \t]+$/, '')
-    column -= output.length - trimmed.length
-    output = trimmed
+    while (output.length > 0) {
+      const last = output[output.length - 1]
+      let end = last.length
+      while (end > 0 && (last[end - 1] === ' ' || last[end - 1] === '\t')) end -= 1
+      column -= last.length - end
+      if (end > 0) {
+        output[output.length - 1] = last.slice(0, end)
+        return
+      }
+      output.pop()
+    }
   }
 
   while (commands.length > 0) {
@@ -252,7 +261,7 @@ export function printDoc(root: Doc, width: number): string {
     if (!command) break
     const { indent: ind, mode, doc } = command
     if (typeof doc === 'string') {
-      output += doc
+      output.push(doc)
       column += stringWidth(doc)
       continue
     }
@@ -319,7 +328,7 @@ export function printDoc(root: Doc, width: number): string {
       case 'line': {
         if (mode === 'flat' && !doc.hard) {
           if (!doc.soft) {
-            output += ' '
+            output.push(' ')
             column += 1
           }
           break
@@ -334,18 +343,18 @@ export function printDoc(root: Doc, width: number): string {
           break
         }
         if (doc.literal) {
-          output += '\n'
+          output.push('\n')
           column = 0
         } else {
           trimTrailing()
-          output += `\n${' '.repeat(ind)}`
+          output.push(`\n${' '.repeat(ind)}`)
           column = ind
         }
         break
       }
     }
   }
-  return output
+  return output.join('')
 }
 
 /** Prettier's fill: content/separator pairs, each separator breaking only when the next part overflows. */
