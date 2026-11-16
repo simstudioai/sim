@@ -34,7 +34,7 @@ export const getScheduledEventTool: ToolConfig<
 
   request: {
     url: (params: CalendlyGetScheduledEventParams) => {
-      const uuid = toUuid(params.eventUuid)
+      const uuid = toUuid(params.eventUuid, 'eventUuid')
       return `https://api.calendly.com/scheduled_events/${uuid}`
     },
     method: 'GET',

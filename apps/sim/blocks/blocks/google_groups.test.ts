@@ -47,8 +47,16 @@ describe('GoogleGroupsBlock update settings', () => {
 
 describe('GoogleGroupsBlock agent tool calls', () => {
   it('keeps the model orderBy on list_groups when no sort order is chosen', () => {
-    const inputs = { operation: 'list_groups', customer: 'my_customer', orderBy: 'email' }
+    const inputs = { customer: 'my_customer', orderBy: 'email' }
     const mapped = GoogleGroupsBlock.tools.config?.params?.(inputs, { operation: 'list_groups' })
     expect({ ...inputs, ...mapped }.orderBy).toBe('email')
+  })
+
+  it.each([
+    ['update_group', { groupKey: 'team@example.com', name: 'Team', email: 'new@example.com' }],
+    ['add_member', { groupKey: 'team@example.com', email: 'member@example.com', role: 'MEMBER' }],
+  ])('keeps the model name and email on %s', (operation, inputs) => {
+    const mapped = GoogleGroupsBlock.tools.config?.params?.(inputs, { operation })
+    expect({ ...inputs, ...mapped }).toMatchObject(inputs)
   })
 })

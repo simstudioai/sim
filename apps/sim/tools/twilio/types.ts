@@ -5,7 +5,8 @@ export interface TwilioSendSMSParams {
   message: string
   accountSid: string
   authToken: string
-  fromNumber: string
+  fromNumber?: string
+  messagingServiceSid?: string
 }
 
 export interface TwilioSMSBlockOutput extends ToolResponse {
@@ -13,6 +14,8 @@ export interface TwilioSMSBlockOutput extends ToolResponse {
     success: boolean
     messageId?: string
     status?: string
+    fromNumber?: string | null
+    toNumber?: string | null
     error?: string
   }
 }

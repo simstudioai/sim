@@ -1,7 +1,7 @@
 import { IdentityCenterIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const IdentityCenterBlock: BlockConfig = {
   type: 'identity_center',
@@ -418,8 +418,8 @@ export const IdentityCenterBlock: BlockConfig = {
             throw new Error(`Invalid Identity Center operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, maxResults, ...rest } = params
+      params: (params, context) => {
+        const { maxResults, ...rest } = params
 
         const connectionConfig = {
           region: rest.region,
@@ -429,7 +429,7 @@ export const IdentityCenterBlock: BlockConfig = {
 
         const result: Record<string, unknown> = { ...connectionConfig }
 
-        switch (operation) {
+        switch (mapperOperation(params, context)) {
           case 'list_instances':
             if (maxResults) {
               const parsed = Number.parseInt(String(maxResults), 10)
@@ -505,7 +505,8 @@ export const IdentityCenterBlock: BlockConfig = {
             result.instanceArn = rest.instanceArn
             result.principalId = rest.principalId
             result.principalType = rest.principalType
-            result.accountId = rest.filterAccountId || undefined
+            result.accountId =
+              rest.filterAccountId || toolCallArg(context, rest.accountId) || undefined
             if (maxResults) {
               const parsed = Number.parseInt(String(maxResults), 10)
               if (!Number.isNaN(parsed)) result.maxResults = parsed

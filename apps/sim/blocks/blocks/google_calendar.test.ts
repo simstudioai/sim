@@ -14,7 +14,7 @@ const buildParams = (
  */
 describe('GoogleCalendarBlock list timeZone', () => {
   it('keeps the model timeZone on an agent list call', () => {
-    const inputs = { operation: 'list', timeZone: 'America/New_York' }
+    const inputs = { timeZone: 'America/New_York' }
     const mapped = buildParams(inputs, { operation: 'list' })
     expect({ ...inputs, ...mapped }.timeZone).toBe('America/New_York')
   })
@@ -22,5 +22,13 @@ describe('GoogleCalendarBlock list timeZone', () => {
   it('drops a Create/Update timeZone left over on the canvas under list', () => {
     const inputs = { operation: 'list', timeZone: 'America/New_York' }
     expect({ ...inputs, ...buildParams(inputs) }.timeZone).toBeUndefined()
+  })
+})
+
+describe('GoogleCalendarBlock invite replaceExisting', () => {
+  it('keeps a boolean replaceExisting the model sends on an agent invite call', () => {
+    const inputs = { eventId: 'evt1', attendees: 'a@example.com', replaceExisting: true }
+    const mapped = buildParams(inputs, { operation: 'invite' })
+    expect({ ...inputs, ...mapped }.replaceExisting).toBe(true)
   })
 })

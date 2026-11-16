@@ -1,6 +1,7 @@
 import { AttioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /*
@@ -1613,7 +1614,7 @@ Record reference: {"allowed_objects": ["people", "companies"]}`,
         const cleanParams: Record<string, unknown> = {
           oauthCredential: params.oauthCredential,
         }
-        const op = params.operation ?? context?.operation
+        const op = mapperOperation(params, context)
 
         // Record params — each field is only sent for the operations whose subBlock condition
         // actually exposes it, so a stale value left over from switching operations never leaks

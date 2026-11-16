@@ -2,6 +2,7 @@ import type { SentryGetEventParams, SentryGetEventResponse } from '@/tools/sentr
 import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventResponse> = {
   id: 'sentry_events_get',
@@ -41,7 +42,7 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
 
   request: {
     url: (params) =>
-      `${SENTRY_REGIONS.apiBase(params.region)}/projects/${params.organizationSlug}/${params.projectSlug}/events/${params.eventId}/`,
+      `${SENTRY_REGIONS.apiBase(params.region)}/projects/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/${safeUrlPathSegment(params.projectSlug, 'projectSlug')}/events/${safeUrlPathSegment(params.eventId, 'eventId')}/`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

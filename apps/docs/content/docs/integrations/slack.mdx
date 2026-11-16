@@ -616,7 +616,7 @@ Fetch every message in a Slack thread, automatically following pagination across
 | `inclusive` | boolean | No | Include messages with timestamps matching oldest or latest \(default: false\) |
 | `limit` | number | No | Messages to request per page \(default: 200, max: 999\) |
 | `cursor` | string | No | Pagination cursor from a previous response.nextCursor to resume from |
-| `maxPages` | number | No | Maximum number of pages to fetch before stopping \(default: 10\) |
+| `maxPages` | number | No | Maximum number of pages to fetch before stopping \(default: 10, max: 50\) |
 
 #### Output
 
@@ -812,7 +812,7 @@ Fetch message history from a Slack channel, automatically following pagination. 
 | `inclusive` | boolean | No | Include messages with timestamps matching oldest or latest \(default: false\) |
 | `limit` | number | No | Messages to request per page \(default: 200, max: 999\) |
 | `cursor` | string | No | Pagination cursor from a previous response.nextCursor to resume from |
-| `maxPages` | number | No | Maximum number of pages to fetch before stopping \(default: 10\) |
+| `maxPages` | number | No | Maximum number of pages to fetch before stopping \(default: 10, max: 50\) |
 
 #### Output
 
@@ -960,7 +960,7 @@ Set the title of a Slack assistant thread (shown in the AI app thread header).
 
 ### Slack Set Suggested Prompts
 
-Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app).
+Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app). For apps on the legacy assistant experience (assistant_view) only. Slack silently fails this call for agent apps (agent_view); use Set Agent Suggested Prompts instead.
 
 <ReferenceDetails>
 
@@ -1023,7 +1023,7 @@ Create or update the state of a Slack agent session associated with a thread.
 | `authMethod` | string | No | Slack authentication method |
 | `botToken` | string | No | Custom Slack bot token |
 | `channel` | string | Yes | Channel ID containing the agent session thread |
-| `threadTs` | string | Yes | Timestamp of the thread associated with the agent session |
+| `threadTs` | string | No | Timestamp of the thread root message the session is scoped to. Required for thread-based sessions in regular channels and DMs; omit for session channels. |
 | `status` | string | Yes | Agent session state: active, processing, suspended, or closed |
 | `title` | string | No | Title used when creating the agent session, up to 200 characters |
 | `initiatorUserId` | string | No | Slack user ID that initiated the session |
@@ -1055,7 +1055,7 @@ Rename the Slack agent session associated with a thread.
 | `authMethod` | string | No | Slack authentication method |
 | `botToken` | string | No | Custom Slack bot token |
 | `channel` | string | Yes | Channel ID containing the agent session thread |
-| `threadTs` | string | Yes | Timestamp of the thread associated with the agent session |
+| `threadTs` | string | No | Timestamp of the thread root message the session is scoped to. Required for thread-based sessions in regular channels and DMs; omit for session channels. |
 | `title` | string | Yes | New agent session title, from 1 to 200 characters |
 
 #### Output
@@ -2081,7 +2081,7 @@ Open a modal view in Slack using a trigger_id from an interaction payload. Used 
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
 | `botToken` | string | No | Bot token for Custom Bot |
-| `triggerId` | string | Yes | Exchange a trigger to post to the user. Obtained from an interaction payload \(e.g., slash command, button click\) |
+| `triggerId` | string | No | Exchange a trigger to post to the user. Obtained from an interaction payload \(e.g., slash command, button click\). Provide this or interactivityPointer. |
 | `interactivityPointer` | string | No | Alternative to trigger_id for posting to user |
 | `view` | json | Yes | A view payload object defining the modal. Must include type \("modal"\), title, and blocks array |
 
@@ -2182,7 +2182,7 @@ Push a new view onto an existing modal stack in Slack. Limited to 2 additional v
 | --------- | ---- | -------- | ----------- |
 | `authMethod` | string | No | Authentication method: oauth or bot_token |
 | `botToken` | string | No | Bot token for Custom Bot |
-| `triggerId` | string | Yes | Exchange a trigger to post to the user. Obtained from an interaction payload \(e.g., button click within an existing modal\) |
+| `triggerId` | string | No | Exchange a trigger to post to the user. Obtained from an interaction payload \(e.g., button click within an existing modal\). Provide this or interactivityPointer. |
 | `interactivityPointer` | string | No | Alternative to trigger_id for posting to user |
 | `view` | json | Yes | A view payload object defining the modal to push. Must include type \("modal"\), title, and blocks array |
 
@@ -2584,8 +2584,8 @@ Change access for users or regular channels on a standalone canvas. For sharing,
 | --------- | ---- | -------- | ----------- |
 | `canvas_id` | string | Yes | Canvas ID |
 | `access_level` | string | Yes | Access Level Options: read, write, owner. |
-| `user_ids` | json | No | User IDs |
-| `channel_ids` | json | No | Channel IDs |
+| `user_ids` | json | No | Up to 20 Slack user IDs, as a JSON array or a comma-separated string. Omit channel_ids. |
+| `channel_ids` | json | No | Up to 20 Slack channel IDs, as a JSON array or a comma-separated string. Omit user_ids. |
 
 #### Output
 
@@ -2606,8 +2606,8 @@ Remove user or regular-channel access to a standalone canvas. Channel-granted ac
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `canvas_id` | string | Yes | Canvas ID |
-| `user_ids` | json | No | User IDs |
-| `channel_ids` | json | No | Channel IDs |
+| `user_ids` | json | No | One Slack user ID to remove, as \["U123"\] or U123. |
+| `channel_ids` | json | No | One Slack channel ID to remove, as \["C123"\] or C123. |
 
 #### Output
 
@@ -2701,7 +2701,7 @@ Remove a user from a Slack conversation, subject to workspace permissions.
 
 ### Slack Unarchive Conversation
 
-Restore an archived Slack channel.
+Restore an archived Slack channel. Slack does not currently let bot tokens unarchive conversations, so this fails with the Sim app or a custom bot until Slack lifts that limit.
 
 <ReferenceDetails>
 
@@ -2721,7 +2721,7 @@ Restore an archived Slack channel.
 
 ### Slack Close Conversation
 
-Close a direct message or group direct message for the authenticated identity.
+Close a direct message or group direct message for the authenticated identity. The Sim app can close 1:1 direct messages only; closing a group direct message needs a custom bot with the mpim:write scope.
 
 <ReferenceDetails>
 
@@ -2770,7 +2770,7 @@ Open a DM or group DM with 1–8 user IDs, or resume a conversation by ID. Suppl
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `users` | json | No | User IDs |
+| `users` | json | No | 1 to 8 Slack user IDs, as a JSON array or a comma-separated string. Omit channel. |
 | `channel` | string | No | Conversation ID |
 | `prevent_creation` | boolean | No | Only Resume Existing Conversation |
 | `return_im` | boolean | No | Include Conversation Details |
@@ -3443,8 +3443,8 @@ Create a Slack user group with a mention handle and default channels. Requires a
 | `name` | string | Yes | Name |
 | `handle` | string | No | Mention Handle |
 | `description` | string | No | Description |
-| `channels` | json | No | Default Channel IDs |
-| `additional_channels` | json | No | Additional Channel IDs |
+| `channels` | json | No | Default channel IDs for the group, as a JSON array \(\["C123"\]\) or a comma-separated string \(C123,C456\) |
+| `additional_channels` | json | No | Channel IDs where members can add group members, as a JSON array or a comma-separated string |
 | `enable_section` | boolean | No | Show as Sidebar Section |
 | `include_count` | boolean | No | Include Member Count |
 | `team_id` | string | No | Workspace ID |
@@ -3485,8 +3485,8 @@ Change a Slack user group’s name, handle, description, or default channels. Re
 | `name` | string | No | Name |
 | `handle` | string | No | Mention Handle |
 | `description` | string | No | Description |
-| `channels` | json | No | Default Channel IDs |
-| `additional_channels` | json | No | Additional Channel IDs |
+| `channels` | json | No | Default channel IDs for the group, as a JSON array \(\["C123"\]\) or a comma-separated string \(C123,C456\) |
+| `additional_channels` | json | No | Channel IDs where members can add group members, as a JSON array or a comma-separated string |
 | `enable_section` | boolean | No | Show as Sidebar Section |
 | `include_count` | boolean | No | Include Member Count |
 | `team_id` | string | No | Workspace ID |
@@ -3656,7 +3656,7 @@ Replace all members of a Slack user group with the supplied user IDs. An empty l
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `usergroup` | string | Yes | User Group ID |
-| `users` | json | Yes | User IDs |
+| `users` | json | Yes | The complete member list as Slack user IDs, in a JSON array or a comma-separated string |
 | `additional_channels` | json | No | Additional Channel IDs |
 | `is_shared` | boolean | No | Shared Section |
 | `include_count` | boolean | No | Include Member Count |
@@ -3722,7 +3722,7 @@ Read Do Not Disturb settings for the supplied user IDs.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `users` | json | Yes | User IDs |
+| `users` | json | Yes | Slack user IDs to read, up to 50, as a JSON array \(\["U123","W456"\]\) or a comma-separated string \(U123,W456\) |
 | `team_id` | string | No | Workspace ID |
 
 #### Output

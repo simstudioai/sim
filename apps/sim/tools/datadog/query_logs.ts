@@ -42,7 +42,7 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of logs to return (e.g., 50, 100, max: 1000)',
+      description: 'Maximum number of logs to return (default: 50, max: 5000)',
     },
     cursor: {
       type: 'string',

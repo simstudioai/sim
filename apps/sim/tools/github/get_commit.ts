@@ -1,3 +1,4 @@
+import { githubRefPath, githubRepoPath } from '@/tools/github/request-path'
 import {
   COMMIT_DATA_OUTPUT,
   COMMIT_FILE_OUTPUT_PROPERTIES,
@@ -43,7 +44,8 @@ interface GetCommitResponse {
 export const getCommitTool: ToolConfig<GetCommitParams, GetCommitResponse> = {
   id: 'github_get_commit',
   name: 'GitHub Get Commit',
-  description: 'Get detailed information about a specific commit including files changed and stats',
+  description:
+    'Get detailed information about a specific commit including files changed and stats. GitHub returns at most the first 300 changed files of a larger commit.',
   version: '1.0.0',
   oauth: GITHUB_CREDENTIAL_OAUTH,
 
@@ -76,7 +78,7 @@ export const getCommitTool: ToolConfig<GetCommitParams, GetCommitResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/commits/${params.ref}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/commits/${githubRefPath(params.ref, 'ref')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

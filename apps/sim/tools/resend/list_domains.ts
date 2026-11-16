@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ListDomainsParams, ListDomainsResult } from '@/tools/resend/types'
+import { withPagination } from '@/tools/resend/utils'
 import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -13,6 +14,19 @@ export const resendListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsRes
   oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of domains to return, 1 to 100 (Resend defaults to 20)',
+    },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Pagination cursor: the ID of the last domain from the previous page, to fetch the next page',
+    },
     resendApiKey: {
       type: 'string',
       required: true,
@@ -22,7 +36,7 @@ export const resendListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsRes
   },
 
   request: {
-    url: 'https://api.resend.com/domains',
+    url: (params: ListDomainsParams) => withPagination('https://api.resend.com/domains', params),
     method: 'GET',
     headers: (params: ListDomainsParams) => ({
       Authorization: `Bearer ${params.resendApiKey}`,

@@ -1,7 +1,12 @@
 import { WhatsAppIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
+import {
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** Yes/No dropdowns serialize as `'true'`/`'false'` strings; the tools expect booleans. */
@@ -526,7 +531,8 @@ Return ONLY the valid JSON array - no explanations, no extra text.`,
     ],
     config: {
       tool: (params) => `whatsapp_${params.operation || 'send_message'}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           interactiveType,
           file: uploadedFile,
@@ -543,7 +549,9 @@ Return ONLY the valid JSON array - no explanations, no extra text.`,
           previewUrl: toOptionalBoolean(params.previewUrl),
           showTypingIndicator: toOptionalBoolean(params.showTypingIndicator),
           ...(file ? { file } : {}),
-          ...(params.operation === 'get_media' ? { mediaId: downloadMediaId } : {}),
+          ...(operation === 'get_media'
+            ? { mediaId: downloadMediaId || toolCallArg(context, params.mediaId) }
+            : {}),
         }
       },
     },

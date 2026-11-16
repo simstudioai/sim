@@ -93,7 +93,7 @@ export const brexGetExpenseTool: ToolConfig<BrexGetExpenseParams, BrexGetExpense
     paymentStatus: {
       type: 'string',
       description:
-        'Payment status (NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED)',
+        'Payment status (NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED, HELD)',
       optional: true,
     },
     expenseType: {

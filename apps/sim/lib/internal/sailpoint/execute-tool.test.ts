@@ -147,6 +147,22 @@ describe('SailPoint internal tool handler', () => {
     }
   })
 
+  it('opts into the experimental access-request-config v2 API on every config read', async () => {
+    mockFetch.mockImplementation(async (url) =>
+      new URL(String(url)).pathname === '/oauth/token'
+        ? tokenResponse()
+        : Response.json({ approvalsMustBeExternal: false })
+    )
+
+    const response = await request('sailpoint_get_access_request_config', {})
+
+    expect(response.status).toBe(200)
+    const configCall = mockFetch.mock.calls.find(
+      ([url]) => new URL(String(url)).pathname === '/access-request-config/v2'
+    )
+    expect(new Headers(configCall?.[1]?.headers).get('X-SailPoint-Experimental')).toBe('true')
+  })
+
   it('refuses input carrying neither inline credentials nor a token before any call', async () => {
     const response = await executeSailPointTool({
       toolId: 'sailpoint_get_identity',

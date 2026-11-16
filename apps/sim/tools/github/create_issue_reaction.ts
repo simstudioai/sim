@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import { REACTION_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -69,7 +70,7 @@ export const createIssueReactionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/${params.issue_number}/reactions`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues/${githubPathSegment(params.issue_number, 'issue_number')}/reactions`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.squirrel-girl-preview+json',

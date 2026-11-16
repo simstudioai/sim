@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { WebflowListItemsParams, WebflowListItemsResponse } from '@/tools/webflow/types'
 import {
   WEBFLOW_ITEM_OUTPUT_PROPERTIES,
@@ -25,9 +26,10 @@ export const webflowListItemsTool: ToolConfig<WebflowListItemsParams, WebflowLis
     },
     siteId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'ID of the Webflow site (e.g., "580e63e98c9a982ac9b8b741")',
+      description:
+        'ID of the Webflow site (e.g., "580e63e98c9a982ac9b8b741"). Not sent to Webflow; item requests are scoped by collection.',
     },
     collectionId: {
       type: 'string',
@@ -45,20 +47,22 @@ export const webflowListItemsTool: ToolConfig<WebflowListItemsParams, WebflowLis
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of items to return (e.g., 10, 50, 100; default: 100)',
+      description: 'Maximum number of items to return, max 100 (e.g., 10, 50, 100; default: 100)',
     },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.webflow.com/v2/collections/${params.collectionId}/items`
+      const baseUrl = `https://api.webflow.com/v2/collections/${safeUrlPathSegment(params.collectionId, 'collectionId')}/items`
       const queryParams = new URLSearchParams()
 
-      if (params.offset) {
-        queryParams.append('offset', Number(params.offset).toString())
+      const offset = Number(params.offset)
+      const limit = Number(params.limit)
+      if (params.offset && Number.isFinite(offset)) {
+        queryParams.append('offset', offset.toString())
       }
-      if (params.limit) {
-        queryParams.append('limit', Number(params.limit).toString())
+      if (params.limit && Number.isFinite(limit)) {
+        queryParams.append('limit', limit.toString())
       }
 
       const query = queryParams.toString()

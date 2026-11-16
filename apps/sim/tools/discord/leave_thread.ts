@@ -1,6 +1,7 @@
 import type { DiscordLeaveThreadParams, DiscordLeaveThreadResponse } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordLeaveThreadTool: ToolConfig<
   DiscordLeaveThreadParams,
@@ -27,7 +28,7 @@ export const discordLeaveThreadTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -35,7 +36,7 @@ export const discordLeaveThreadTool: ToolConfig<
 
   request: {
     url: (params: DiscordLeaveThreadParams) => {
-      return `https://discord.com/api/v10/channels/${params.threadId.trim()}/thread-members/@me`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.threadId, 'threadId')}/thread-members/@me`
     },
     method: 'DELETE',
     headers: (params) => ({

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { WebflowDeleteItemParams, WebflowDeleteItemResponse } from '@/tools/webflow/types'
 
 export const webflowDeleteItemTool: ToolConfig<WebflowDeleteItemParams, WebflowDeleteItemResponse> =
@@ -22,9 +23,10 @@ export const webflowDeleteItemTool: ToolConfig<WebflowDeleteItemParams, WebflowD
       },
       siteId: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-or-llm',
-        description: 'ID of the Webflow site (e.g., "580e63e98c9a982ac9b8b741")',
+        description:
+          'ID of the Webflow site (e.g., "580e63e98c9a982ac9b8b741"). Not sent to Webflow; item requests are scoped by collection.',
       },
       collectionId: {
         type: 'string',
@@ -42,7 +44,7 @@ export const webflowDeleteItemTool: ToolConfig<WebflowDeleteItemParams, WebflowD
 
     request: {
       url: (params) =>
-        `https://api.webflow.com/v2/collections/${params.collectionId}/items/${params.itemId}`,
+        `https://api.webflow.com/v2/collections/${safeUrlPathSegment(params.collectionId, 'collectionId')}/items/${safeUrlPathSegment(params.itemId, 'itemId')}`,
       method: 'DELETE',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,
@@ -69,8 +71,9 @@ export const webflowDeleteItemTool: ToolConfig<WebflowDeleteItemParams, WebflowD
         description: 'Whether the deletion was successful',
       },
       metadata: {
-        type: 'json',
+        type: 'object',
         description: 'Metadata about the deletion',
+        properties: { deleted: { type: 'boolean', description: 'Whether the item was deleted' } },
       },
     },
   }

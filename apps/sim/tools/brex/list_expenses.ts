@@ -53,7 +53,7 @@ export const brexListExpensesTool: ToolConfig<BrexListExpensesParams, BrexListEx
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated payment statuses to filter by: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED',
+        'Comma-separated payment statuses to filter by: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED, HELD',
     },
     purchasedAtStart: {
       type: 'string',

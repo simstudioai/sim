@@ -2,7 +2,7 @@ import { MondayIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { toolCallArg } from '@/blocks/utils'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const BOARD_OPS = [
@@ -525,9 +525,7 @@ export const MondayBlock: BlockConfig = {
         const baseParams: Record<string, unknown> = {
           oauthCredential: params.oauthCredential,
         }
-        /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
-        const rawOperation = params.operation ?? context?.operation
-        const op = typeof rawOperation === 'string' ? rawOperation.trim() : 'list_boards'
+        const op = mapperOperation(params, context).trim() || 'list_boards'
 
         switch (op) {
           case 'list_boards':

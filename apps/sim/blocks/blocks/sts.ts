@@ -1,7 +1,7 @@
 import { STSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 export const STSBlock: BlockConfig = {
   type: 'sts',
@@ -296,12 +296,12 @@ export const STSBlock: BlockConfig = {
             throw new Error(`Invalid STS operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, durationSeconds, ...rest } = params
+      params: (params, context) => {
+        const { durationSeconds, ...rest } = params
 
         const result: Record<string, unknown> = { region: rest.region }
 
-        switch (operation) {
+        switch (mapperOperation(params, context)) {
           case 'assume_role':
             result.accessKeyId = rest.accessKeyId
             result.secretAccessKey = rest.secretAccessKey

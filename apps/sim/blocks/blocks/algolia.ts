@@ -1,7 +1,7 @@
 import { AlgoliaIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { isToolCall, mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const AlgoliaBlock: BlockConfig = {
   type: 'algolia',
@@ -593,11 +593,11 @@ Return ONLY the JSON array.`,
     ],
     config: {
       tool: (params: Record<string, unknown>) => `algolia_${params.operation}`,
-      params: (params: Record<string, unknown>) => {
-        const { operation, ...rest } = params
+      params: (params: Record<string, unknown>, context?: BlockToolParamsContext) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {}
 
-        for (const [key, value] of Object.entries(rest)) {
+        for (const [key, value] of Object.entries(params)) {
           if (value === undefined || value === null || value === '') continue
           result[key] = value
         }
@@ -618,15 +618,18 @@ Return ONLY the JSON array.`,
           result.getRankingInfo = toBool(result.getRankingInfo, false)
         }
         if (operation === 'copy_move_index') {
-          result.operation = result.copyMoveOperation
+          // A tool call carries the tool's own copy-or-move `operation` as a model arg.
+          if (!isToolCall(context) || result.copyMoveOperation !== undefined) {
+            result.operation = result.copyMoveOperation
+          }
           result.copyMoveOperation = undefined
         }
         if (operation === 'delete_by_filter') {
-          result.filters = result.deleteFilters
+          result.filters = result.deleteFilters ?? toolCallArg(context, result.filters)
           result.deleteFilters = undefined
         }
         if (operation === 'get_records') {
-          result.requests = result.getRecordsRequests
+          result.requests = result.getRecordsRequests ?? toolCallArg(context, result.requests)
           result.getRecordsRequests = undefined
         }
 

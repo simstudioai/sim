@@ -1,6 +1,8 @@
 import type { RipplingUpdateSupergroupExclusionMembersParams } from '@/tools/rippling/types'
+import { unwrapBodyKey } from '@/tools/rippling/utils'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateSupergroupExclusionMembersTool: ToolConfig<RipplingUpdateSupergroupExclusionMembersParams> =
   {
@@ -31,14 +33,14 @@ export const ripplingUpdateSupergroupExclusionMembersTool: ToolConfig<RipplingUp
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/supergroups/${encodeURIComponent(params.groupId.trim())}/exclusion-members/`,
+        `https://rest.ripplingapis.com/supergroups/${safeUrlPathSegment(params.groupId, 'groupId')}/exclusion-members/`,
       method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
         Accept: 'application/json',
       }),
-      body: (params) => ({ Operations: params.operations }),
+      body: (params) => ({ Operations: unwrapBodyKey(params.operations, 'Operations') }),
     },
     transformResponse: async (response: Response) => {
       if (!response.ok) {

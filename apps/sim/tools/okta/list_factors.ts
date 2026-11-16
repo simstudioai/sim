@@ -4,6 +4,7 @@ import type { OktaFactor, OktaListFactorsParams, OktaListFactorsResponse } from 
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaListFactors')
 
@@ -39,7 +40,7 @@ export const oktaListFactorsTool: ToolConfig<OktaListFactorsParams, OktaListFact
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/factors`
+      return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/factors`
     },
     method: 'GET',
     headers: (params) => oktaHeaders(params.apiKey),

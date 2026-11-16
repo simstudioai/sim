@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-14",
+  "updatedAt": "2026-11-16",
   "integrations": [
     {
       "type": "onepassword",
@@ -4038,7 +4038,7 @@
       "operations": [
         {
           "name": "List Bookings",
-          "description": "List all bookings with optional status filter"
+          "description": "List bookings, optionally filtered by status, attendee email, or time range"
         },
         {
           "name": "Create Booking",
@@ -4167,14 +4167,14 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["scheduling", "calendar", "meeting"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "calendly_v2",
       "slug": "calendly",
       "name": "Calendly",
       "description": "Manage Calendly scheduling and events",
-      "longDescription": "Manage event types, scheduled events, invitees, and webhooks. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted).",
+      "longDescription": "Manage event types, scheduled events, invitees, bookings, availability, and routing forms. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted).",
       "bgColor": "#FFFFFF",
       "iconName": "CalendlyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/calendly",
@@ -4285,7 +4285,7 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["scheduling", "calendar", "meeting"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "cbinsights_v2",
@@ -7644,7 +7644,7 @@
         },
         {
           "name": "Create Event",
-          "description": "Post an event to the Datadog event stream. Use for deployment notifications, alerts, or any significant occurrences."
+          "description": "Post an event to the Datadog event stream. Use for deployment notifications, alerts, or any significant occurrences. Uses the v1 events endpoint, which Datadog has deprecated and serves only to organizations that have used it before."
         },
         {
           "name": "Create Monitor",
@@ -7807,7 +7807,7 @@
       "category": "tools",
       "integrationType": "observability",
       "tags": ["monitoring", "incident-management", "error-tracking"],
-      "updatedAt": "2026-11-11"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "datagma",
@@ -10397,7 +10397,7 @@
         },
         {
           "name": "Get commit",
-          "description": "Get detailed information about a specific commit including files changed and stats"
+          "description": "Get detailed information about a specific commit including files changed and stats. GitHub returns at most the first 300 changed files of a larger commit."
         },
         {
           "name": "Compare commits",
@@ -10560,7 +10560,7 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["version-control", "ci-cd"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "gitlab_v2",
@@ -13880,7 +13880,7 @@
         },
         {
           "name": "Create Incident",
-          "description": "Create a new incident in incident.io. Requires idempotency_key, severity_id, and visibility. Optionally accepts name, summary, type, and status."
+          "description": "Create a new incident in incident.io. Requires idempotency_key and visibility. Optionally accepts name, summary, severity_id, incident_type_id, and incident_status_id."
         },
         {
           "name": "Show Incident",
@@ -13888,11 +13888,11 @@
         },
         {
           "name": "Update Incident",
-          "description": "Update an existing incident in incident.io. Can update name, summary, severity, status, or type."
+          "description": "Update an existing incident in incident.io. Can update name, summary, severity, or status."
         },
         {
           "name": "List Actions",
-          "description": "List actions from incident.io. Optionally filter by incident ID."
+          "description": "List actions from incident.io, optionally filtered by incident ID. Without page_size or after, follows pages automatically and returns up to 2,500 actions, oldest first; if more remain, pagination_meta.after is set. Pass page_size or after to fetch a single page."
         },
         {
           "name": "Show Action",
@@ -13900,7 +13900,7 @@
         },
         {
           "name": "List Follow-ups",
-          "description": "List follow-ups from incident.io. Optionally filter by incident ID."
+          "description": "List follow-ups from incident.io, optionally filtered by incident ID. Without page_size or after, follows pages automatically and returns up to 2,500 follow-ups, oldest first; if more remain, pagination_meta.after is set. Pass page_size or after to fetch a single page."
         },
         {
           "name": "Show Follow-up",
@@ -13956,15 +13956,15 @@
         },
         {
           "name": "List Escalations",
-          "description": "List all escalation policies in incident.io"
+          "description": "List escalations (pages sent to people) in incident.io. For escalation policies, use List Escalation Paths."
         },
         {
           "name": "Create Escalation",
-          "description": "Create a new escalation policy in incident.io"
+          "description": "Page users or an escalation path (create an escalation) in incident.io. Provide either escalation_path_id or user_ids, not both. To create a reusable escalation policy, use Create Escalation Path instead."
         },
         {
           "name": "Show Escalation",
-          "description": "Get details of a specific escalation policy in incident.io"
+          "description": "Get an escalation (a page sent to people) in incident.io. For an escalation policy, use Show Escalation Path."
         },
         {
           "name": "List Custom Fields",
@@ -14164,7 +14164,7 @@
       "category": "tools",
       "integrationType": "observability",
       "tags": ["incident-management", "monitoring"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "infisical_v2",
@@ -16265,7 +16265,7 @@
         },
         {
           "name": "Archive Label",
-          "description": "Archive a label in Linear"
+          "description": "Archive (retire) a label in Linear. A retired label can no longer be newly assigned but stays on issues that already use it."
         },
         {
           "name": "List Workflow States",
@@ -16289,7 +16289,7 @@
         },
         {
           "name": "Create Cycle",
-          "description": "Create a new cycle (sprint/iteration) in Linear"
+          "description": "Deprecated: Linear no longer supports creating cycles through its API (they are generated from the team cycle settings), so this always returns an error from Linear."
         },
         {
           "name": "Get Active Cycle",
@@ -16357,7 +16357,7 @@
         },
         {
           "name": "Create Customer Request",
-          "description": "Create a customer request (need) in Linear. Assign to customer, set urgency (priority: 0 = Not important, 1 = Important), and optionally link to an issue."
+          "description": "Create a customer request (need) in Linear. Assign to customer, set urgency (priority: 0 = Not important, 1 = Important), and link it to an issue (required for API calls)."
         },
         {
           "name": "Update Customer Request",
@@ -16468,8 +16468,8 @@
           "description": "Update a project status in Linear"
         },
         {
-          "name": "Delete Project Status",
-          "description": "Delete a project status in Linear"
+          "name": "Archive Project Status",
+          "description": "Archive a project status in Linear (Linear does not support deleting one). The status must have no active projects and must not be the last status of its type."
         },
         {
           "name": "List Project Statuses",
@@ -16560,7 +16560,7 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "ticketing"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "linkedin",
@@ -19237,6 +19237,10 @@
           "description": "Unsuspend a previously suspended user in your Okta organization. Returns the user to ACTIVE status."
         },
         {
+          "name": "Unlock User",
+          "description": "Unlock a LOCKED_OUT user, or an ACTIVE user blocked from unknown devices, so they can sign in with their current password. Works only for Okta-sourced users, not directory-sourced accounts such as Active Directory."
+        },
+        {
           "name": "Reset Password",
           "description": "Generate a one-time token to reset a user password. Can email the reset link to the user or return it directly. Transitions the user to RECOVERY status."
         },
@@ -19275,6 +19279,10 @@
         {
           "name": "List Group Members",
           "description": "List all members of a specific group in your Okta organization"
+        },
+        {
+          "name": "List User Groups",
+          "description": "List the groups a user is a member of, one page at a time (pass nextCursor back as after while hasMore is true). Use it for access reviews and offboarding instead of scanning the members of each group."
         },
         {
           "name": "List Group Rules",
@@ -19381,7 +19389,7 @@
           "description": "Query the Okta System Log for sign-ins, admin changes, and security events. Supports a time window, SCIM filter expressions, keyword search, and cursor pagination for audit and investigation workflows."
         }
       ],
-      "operationCount": 44,
+      "operationCount": 46,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -19389,7 +19397,7 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity", "automation"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "onedrive",
@@ -23357,7 +23365,7 @@
         },
         {
           "name": "Create Broadcast",
-          "description": "Create a broadcast email for an audience in Resend"
+          "description": "Create a broadcast email for a segment (or legacy audience) in Resend"
         },
         {
           "name": "Send Broadcast",
@@ -23421,7 +23429,7 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["email-marketing", "messaging"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "revenuecat",
@@ -25603,7 +25611,7 @@
         },
         {
           "name": "List Templates",
-          "description": "Get all email templates from SendGrid"
+          "description": "List email templates from SendGrid. Returns legacy templates only unless generations includes dynamic"
         },
         {
           "name": "Delete Template",
@@ -25622,7 +25630,7 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["email-marketing", "messaging"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "sentry_v2",
@@ -26334,7 +26342,7 @@
         },
         {
           "name": "Set Assistant Suggested Prompts",
-          "description": "Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app)."
+          "description": "Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app). For apps on the legacy assistant experience (assistant_view) only. Slack silently fails this call for agent apps (agent_view); use Set Agent Suggested Prompts instead."
         },
         {
           "name": "Set Agent Suggested Prompts",
@@ -26538,11 +26546,11 @@
         },
         {
           "name": "Unarchive Conversation",
-          "description": "Restore an archived Slack channel."
+          "description": "Restore an archived Slack channel. Slack does not currently let bot tokens unarchive conversations, so this fails with the Sim app or a custom bot until Slack lifts that limit."
         },
         {
           "name": "Close Conversation",
-          "description": "Close a direct message or group direct message for the authenticated identity."
+          "description": "Close a direct message or group direct message for the authenticated identity. The Sim app can close 1:1 direct messages only; closing a group direct message needs a custom bot with the mpim:write scope."
         },
         {
           "name": "Mark Conversation Read",
@@ -26712,7 +26720,7 @@
         },
         "aiDisclaimer": "A paid Slack plan is required to use Sim's AI agent in Slack's app container. Other Sim features continue to work on free Slack plans. Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete, so review automated outputs before relying on them, especially for important communications."
       },
-      "updatedAt": "2026-09-24"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "smartlead_v2",
@@ -27063,7 +27071,7 @@
         },
         {
           "name": "List Query History",
-          "description": "List queries that completed in the last seven days, optionally filtered."
+          "description": "List queries from the last seven days, optionally filtered. Queries still running are included unless an end time is set."
         },
         {
           "name": "List Copy History",
@@ -27093,7 +27101,7 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-warehouse", "data-analytics", "cloud"],
-      "updatedAt": "2026-09-26"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "splunk_v2",
@@ -29799,7 +29807,7 @@
       "operations": [
         {
           "name": "Twilio Send SMS",
-          "description": "Send text messages to single or multiple recipients using the Twilio API."
+          "description": "Send a text message to one recipient using the Twilio API. Call once per recipient to reach several numbers."
         }
       ],
       "operationCount": 1,
@@ -29821,7 +29829,7 @@
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "automation"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "twilio_voice_v2",
@@ -31632,7 +31640,7 @@
         },
         {
           "name": "List Threads",
-          "description": "List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content, summary, to/cc/bcc) come back only from Get Thread."
+          "description": "List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content) come back only from Get Thread."
         },
         {
           "name": "Get Thread",
@@ -31745,7 +31753,7 @@
       "category": "tools",
       "integrationType": "support",
       "tags": ["customer-support", "ticketing", "automation"],
-      "updatedAt": "2026-10-18"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "zoom",

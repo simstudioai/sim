@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -48,7 +49,8 @@ export const starRepoTool: ToolConfig<StarRepoParams, StarRepoResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/user/starred/${params.owner}/${params.repo}`,
+    url: (params) =>
+      `https://api.github.com/user/starred/${githubRepoPath(params.owner, params.repo)}`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

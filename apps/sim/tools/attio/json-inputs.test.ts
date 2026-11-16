@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { attioCreateWebhookTool } from '@/tools/attio/create_webhook'
+import { attioListRecordsTool } from '@/tools/attio/list_records'
 import { attioQueryListEntriesTool } from '@/tools/attio/query_list_entries'
 import { attioUpdateTaskTool } from '@/tools/attio/update_task'
 
@@ -28,5 +29,24 @@ describe('Attio JSON inputs', () => {
         subscriptions: '[{bad',
       })
     ).toThrow('Invalid JSON provided for subscriptions')
+  })
+
+  it('sends a filter and sorts the json input already parsed', () => {
+    const filter = { name: { $eq: 'Acme' } }
+    const sorts = [{ direction: 'asc', attribute: 'name' }]
+    expect(
+      bodyOf(attioListRecordsTool, { accessToken: 't', objectType: 'companies', filter, sorts })
+    ).toEqual({ filter, sorts })
+  })
+
+  it('parses a filter and sorts sent as JSON text', () => {
+    expect(
+      bodyOf(attioListRecordsTool, {
+        accessToken: 't',
+        objectType: 'companies',
+        filter: '{"name":"Acme"}',
+        sorts: '[{"direction":"desc","attribute":"name"}]',
+      })
+    ).toEqual({ filter: { name: 'Acme' }, sorts: [{ direction: 'desc', attribute: 'name' }] })
   })
 })

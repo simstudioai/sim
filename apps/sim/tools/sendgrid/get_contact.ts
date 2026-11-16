@@ -2,6 +2,7 @@ import type { ContactResult, GetContactParams, SendGridContact } from '@/tools/s
 import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const sendGridGetContactTool: ToolConfig<GetContactParams, ContactResult> = {
   id: 'sendgrid_get_contact',
@@ -28,7 +29,7 @@ export const sendGridGetContactTool: ToolConfig<GetContactParams, ContactResult>
 
   request: {
     url: (params) =>
-      `${SENDGRID_REGIONS.apiBase(params.region)}/marketing/contacts/${params.contactId}`,
+      `${SENDGRID_REGIONS.apiBase(params.region)}/marketing/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

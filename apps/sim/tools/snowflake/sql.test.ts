@@ -35,6 +35,7 @@ import {
 
 const context = { oauthCredential: 'cred-1' }
 const table = { ...context, database: 'ANALYTICS', schema: 'PUBLIC', table: 'EVENTS' }
+const untyped = (flags: Record<string, unknown>) => flags as Record<string, never>
 const queryId = '01b71944-0301-b428-0000-69f706bf0001'
 
 /** ISO instants inside the history retention windows, so assertions never age out. */
@@ -479,6 +480,60 @@ describe('Snowflake SQL builders', () => {
     ).toBe('ALTER WAREHOUSE ETL_WH SET AUTO_SUSPEND = 900000')
     expect(() => buildAlterWarehouse({ ...context, warehouseName: 'ETL_WH' })).toThrow(
       /at least one of/
+    )
+  })
+
+  it('never turns an absent or string-false flag from a tool call into a clause', () => {
+    expect(
+      buildAlterWarehouse({
+        ...context,
+        warehouseName: 'ETL_WH',
+        warehouseSize: 'SMALL',
+        ...untyped({ autoResume: null }),
+      }).statement
+    ).toBe('ALTER WAREHOUSE ETL_WH SET WAREHOUSE_SIZE = SMALL')
+    expect(
+      buildUnloadData({
+        ...table,
+        stagePath: '@EXPORTS/daily',
+        ...untyped({ overwrite: 'false', singleFile: 'false', header: 'false' }),
+      }).statement
+    ).toBe(
+      'COPY INTO @EXPORTS/daily FROM ANALYTICS.PUBLIC.EVENTS OVERWRITE = FALSE SINGLE = FALSE HEADER = FALSE'
+    )
+    expect(
+      buildListQueryHistory({ ...context, ...untyped({ errorOnly: 'false' }) }).statement
+    ).not.toContain('WHERE')
+  })
+
+  it('reads string flags from a tool call case-insensitively', () => {
+    expect(
+      buildAlterWarehouse({
+        ...context,
+        warehouseName: 'ETL_WH',
+        ...untyped({ autoResume: 'True' }),
+      }).statement
+    ).toBe('ALTER WAREHOUSE ETL_WH SET AUTO_RESUME = TRUE')
+    expect(
+      buildUnloadData({
+        ...table,
+        stagePath: '@EXPORTS/daily',
+        ...untyped({ overwrite: 'TRUE', singleFile: ' true ', header: 'True' }),
+      }).statement
+    ).toBe(
+      'COPY INTO @EXPORTS/daily FROM ANALYTICS.PUBLIC.EVENTS OVERWRITE = TRUE SINGLE = TRUE HEADER = TRUE'
+    )
+    expect(
+      buildListQueryHistory({ ...context, ...untyped({ errorOnly: 'TRUE' }) }).statement
+    ).toContain('WHERE')
+  })
+
+  it('keeps the double quotes of a case-sensitive query history filter name', () => {
+    expect(
+      buildListQueryHistory({ ...context, warehouseName: '"Analytics WH"' }).statement
+    ).toContain(`WAREHOUSE_NAME => '"Analytics WH"'`)
+    expect(buildListQueryHistory({ ...context, userName: '"jdoe@corp.com"' }).statement).toContain(
+      `USER_NAME => '"jdoe@corp.com"'`
     )
   })
 

@@ -97,3 +97,45 @@ describe('Twilio list calls recordings lookup', () => {
     expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(10)
   })
 })
+
+describe('Twilio list calls pagination', () => {
+  beforeEach(() => {
+    fetchMock = setupGlobalFetchMock()
+  })
+
+  it('sends the page token and returns the next one from next_page_uri', async () => {
+    if (typeof listCallsTool.request.url !== 'function') throw new Error('Missing request url')
+    const url = new URL(
+      listCallsTool.request.url({ accountSid: 'AC123', authToken: 'secret', pageToken: 'PA1' })
+    )
+    expect(url.searchParams.get('PageToken')).toBe('PA1')
+
+    if (!listCallsTool.transformResponse) throw new Error('Missing response transform')
+    const result = await listCallsTool.transformResponse(
+      jsonResponse({
+        calls: [],
+        page: 1,
+        page_size: 50,
+        next_page_uri: '/2010-04-01/Accounts/AC123/Calls.json?PageSize=50&Page=2&PageToken=PA2',
+      }),
+      { accountSid: 'AC123', authToken: 'secret' }
+    )
+    expect(result.output.nextPageToken).toBe('PA2')
+  })
+})
+
+describe('Twilio list calls page size', () => {
+  function pageSizeSent(pageSize: number): string | null {
+    const url = listCallsTool.request.url
+    if (typeof url !== 'function') throw new Error('Expected a URL builder')
+    return new URL(url({ accountSid: 'AC123', authToken: 'secret', pageSize })).searchParams.get(
+      'PageSize'
+    )
+  }
+
+  it('clamps PageSize to the 1-1000 integer range Twilio accepts', () => {
+    expect(pageSizeSent(5000)).toBe('1000')
+    expect(pageSizeSent(-3)).toBe('1')
+    expect(pageSizeSent(20.9)).toBe('20')
+  })
+})

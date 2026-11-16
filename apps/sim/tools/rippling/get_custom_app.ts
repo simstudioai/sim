@@ -1,6 +1,7 @@
 import type { RipplingGetCustomAppParams } from '@/tools/rippling/types'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetCustomAppTool: ToolConfig<RipplingGetCustomAppParams> = {
   id: 'rippling_get_custom_app',
@@ -19,7 +20,7 @@ export const ripplingGetCustomAppTool: ToolConfig<RipplingGetCustomAppParams> = 
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-apps/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/custom-apps/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

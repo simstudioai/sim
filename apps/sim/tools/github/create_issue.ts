@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { CreateIssueParams, IssueResponse } from '@/tools/github/types'
 import {
   ISSUE_OUTPUT_PROPERTIES,
@@ -67,7 +68,8 @@ export const createIssueTool: ToolConfig<CreateIssueParams, IssueResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/issues`,
+    url: (params) =>
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

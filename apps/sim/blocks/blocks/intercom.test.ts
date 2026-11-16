@@ -74,3 +74,35 @@ describe('Intercom role defaults', () => {
     expect(options()[0]?.id).toBe('lead')
   })
 })
+
+describe('Intercom tool-row fields on a tool call', () => {
+  it.each([
+    { operation: 'update_ticket', field: 'ticket_assignee_id', param: 'assignee_id' },
+    { operation: 'create_contact', field: 'contact_company_id', param: 'company_id' },
+    { operation: 'close_conversation', field: 'close_body', param: 'body' },
+    { operation: 'assign_conversation', field: 'assign_body', param: 'body' },
+    { operation: 'create_note', field: 'note_body', param: 'body' },
+    { operation: 'create_note', field: 'tag_contact_id', param: 'contactId' },
+    { operation: 'attach_contact_to_company', field: 'attach_company_id', param: 'companyId' },
+    { operation: 'create_tag', field: 'tag_name', param: 'name' },
+    { operation: 'create_tag', field: 'tag_id_update', param: 'id' },
+    { operation: 'create_event', field: 'event_user_id', param: 'user_id' },
+    { operation: 'create_event', field: 'event_email', param: 'email' },
+    { operation: 'create_event', field: 'event_contact_id', param: 'id' },
+    { operation: 'create_event', field: 'event_metadata', param: 'metadata' },
+    { operation: 'create_message', field: 'message_type_msg', param: 'message_type' },
+    { operation: 'create_company', field: 'company_name', param: 'name' },
+  ])(
+    'keeps the pinned $field over the model $param on $operation',
+    ({ operation, field, param }) => {
+      const mapped = mapParams({ [field]: 'pinned', [param]: 'model' }, { operation })
+      expect(mapped[param]).toBe('pinned')
+    }
+  )
+
+  it('fills a param from the model when the row leaves its field empty', () => {
+    expect(mapParams({ assignee_id: 'model' }, { operation: 'update_ticket' }).assignee_id).toBe(
+      'model'
+    )
+  })
+})

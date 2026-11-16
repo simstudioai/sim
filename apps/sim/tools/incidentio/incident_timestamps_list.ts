@@ -54,8 +54,16 @@ export const incidentTimestampsListTool: ToolConfig<
           id: { type: 'string', description: 'The timestamp ID' },
           name: { type: 'string', description: 'The timestamp name' },
           rank: { type: 'number', description: 'The rank/order of the timestamp' },
-          created_at: { type: 'string', description: 'When the timestamp was created' },
-          updated_at: { type: 'string', description: 'When the timestamp was last updated' },
+          created_at: {
+            type: 'string',
+            description: 'Not returned by the incident.io API; always empty',
+            optional: true,
+          },
+          updated_at: {
+            type: 'string',
+            description: 'Not returned by the incident.io API; always empty',
+            optional: true,
+          },
         },
       },
     },

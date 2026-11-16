@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressCreateCommentParams,
@@ -42,31 +43,32 @@ export const createCommentTool: ToolConfig<
     parent: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Parent comment ID for replies',
     },
     authorName: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Comment author display name',
     },
     authorEmail: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Comment author email',
     },
     authorUrl: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Comment author URL',
     },
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/comments`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/comments`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

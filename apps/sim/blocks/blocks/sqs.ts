@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { SQSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 export const SQSBlock: BlockConfig = {
   type: 'sqs',
@@ -603,8 +603,8 @@ export const SQSBlock: BlockConfig = {
             throw new Error(`Invalid SQS operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
 
         const parseJson = (value: unknown, fieldName: string) => {
           if (value === undefined || value === null || value === '') return undefined
@@ -637,166 +637,166 @@ export const SQSBlock: BlockConfig = {
         }
 
         const result: Record<string, unknown> = {
-          region: rest.region,
-          accessKeyId: rest.accessKeyId,
-          secretAccessKey: rest.secretAccessKey,
+          region: params.region,
+          accessKeyId: params.accessKeyId,
+          secretAccessKey: params.secretAccessKey,
         }
 
         switch (operation) {
           case 'send': {
-            result.queueUrl = rest.queueUrl
-            const data = parseJson(rest.data, 'data')
+            result.queueUrl = params.queueUrl
+            const data = parseJson(params.data, 'data')
             if (data !== undefined) result.data = data
-            const delaySeconds = parseInteger(rest.delaySeconds, 'delaySeconds')
+            const delaySeconds = parseInteger(params.delaySeconds, 'delaySeconds')
             if (delaySeconds !== undefined) result.delaySeconds = delaySeconds
-            const messageAttributes = parseJson(rest.messageAttributes, 'messageAttributes')
+            const messageAttributes = parseJson(params.messageAttributes, 'messageAttributes')
             if (messageAttributes !== undefined) result.messageAttributes = messageAttributes
-            if (rest.messageGroupId) result.messageGroupId = rest.messageGroupId
-            if (rest.messageDeduplicationId) {
-              result.messageDeduplicationId = rest.messageDeduplicationId
+            if (params.messageGroupId) result.messageGroupId = params.messageGroupId
+            if (params.messageDeduplicationId) {
+              result.messageDeduplicationId = params.messageDeduplicationId
             }
             break
           }
           case 'send_message_batch': {
-            result.queueUrl = rest.queueUrl
-            const entries = parseJson(rest.sendEntries, 'entries')
+            result.queueUrl = params.queueUrl
+            const entries = parseJson(params.sendEntries, 'entries')
             if (entries !== undefined) result.entries = entries
             break
           }
           case 'receive_message': {
-            result.queueUrl = rest.queueUrl
+            result.queueUrl = params.queueUrl
             const maxNumberOfMessages = parseInteger(
-              rest.maxNumberOfMessages,
+              params.maxNumberOfMessages,
               'maxNumberOfMessages'
             )
             if (maxNumberOfMessages !== undefined) result.maxNumberOfMessages = maxNumberOfMessages
-            const waitTimeSeconds = parseInteger(rest.waitTimeSeconds, 'waitTimeSeconds')
+            const waitTimeSeconds = parseInteger(params.waitTimeSeconds, 'waitTimeSeconds')
             if (waitTimeSeconds !== undefined) result.waitTimeSeconds = waitTimeSeconds
             const visibilityTimeout = parseInteger(
-              rest.receiveVisibilityTimeout,
+              params.receiveVisibilityTimeout,
               'visibilityTimeout'
             )
             if (visibilityTimeout !== undefined) result.visibilityTimeout = visibilityTimeout
             const messageAttributeNames = parseJson(
-              rest.messageAttributeNames,
+              params.messageAttributeNames,
               'messageAttributeNames'
             )
             if (messageAttributeNames !== undefined) {
               result.messageAttributeNames = messageAttributeNames
             }
             const messageSystemAttributeNames = parseJson(
-              rest.messageSystemAttributeNames,
+              params.messageSystemAttributeNames,
               'messageSystemAttributeNames'
             )
             if (messageSystemAttributeNames !== undefined) {
               result.messageSystemAttributeNames = messageSystemAttributeNames
             }
-            if (rest.receiveRequestAttemptId) {
-              result.receiveRequestAttemptId = rest.receiveRequestAttemptId
+            if (params.receiveRequestAttemptId) {
+              result.receiveRequestAttemptId = params.receiveRequestAttemptId
             }
             break
           }
           case 'delete_message': {
-            result.queueUrl = rest.queueUrl
-            result.receiptHandle = rest.receiptHandle
+            result.queueUrl = params.queueUrl
+            result.receiptHandle = params.receiptHandle
             break
           }
           case 'delete_message_batch': {
-            result.queueUrl = rest.queueUrl
-            const entries = parseJson(rest.deleteEntries, 'entries')
+            result.queueUrl = params.queueUrl
+            const entries = parseJson(params.deleteEntries, 'entries')
             if (entries !== undefined) result.entries = entries
             break
           }
           case 'change_message_visibility': {
-            result.queueUrl = rest.queueUrl
-            result.receiptHandle = rest.receiptHandle
-            const visibilityTimeout = parseInteger(rest.visibilityTimeout, 'visibilityTimeout')
+            result.queueUrl = params.queueUrl
+            result.receiptHandle = params.receiptHandle
+            const visibilityTimeout = parseInteger(params.visibilityTimeout, 'visibilityTimeout')
             if (visibilityTimeout !== undefined) result.visibilityTimeout = visibilityTimeout
             break
           }
           case 'change_message_visibility_batch': {
-            result.queueUrl = rest.queueUrl
-            const entries = parseJson(rest.visibilityEntries, 'entries')
+            result.queueUrl = params.queueUrl
+            const entries = parseJson(params.visibilityEntries, 'entries')
             if (entries !== undefined) result.entries = entries
             break
           }
           case 'list_queues': {
-            if (rest.queueNamePrefix) result.queueNamePrefix = rest.queueNamePrefix
-            const maxResults = parseInteger(rest.maxResults, 'maxResults')
+            if (params.queueNamePrefix) result.queueNamePrefix = params.queueNamePrefix
+            const maxResults = parseInteger(params.maxResults, 'maxResults')
             if (maxResults !== undefined) result.maxResults = maxResults
-            if (rest.nextToken) result.nextToken = rest.nextToken
+            if (params.nextToken) result.nextToken = params.nextToken
             break
           }
           case 'get_queue_url': {
-            result.queueName = rest.queueName
-            if (rest.queueOwnerAwsAccountId) {
-              result.queueOwnerAwsAccountId = rest.queueOwnerAwsAccountId
+            result.queueName = params.queueName
+            if (params.queueOwnerAwsAccountId) {
+              result.queueOwnerAwsAccountId = params.queueOwnerAwsAccountId
             }
             break
           }
           case 'get_queue_attributes': {
-            result.queueUrl = rest.queueUrl
-            const attributeNames = parseJson(rest.attributeNames, 'attributeNames')
+            result.queueUrl = params.queueUrl
+            const attributeNames = parseJson(params.attributeNames, 'attributeNames')
             if (attributeNames !== undefined) result.attributeNames = attributeNames
             break
           }
           case 'set_queue_attributes': {
-            result.queueUrl = rest.queueUrl
-            const attributes = parseJson(rest.queueAttributes, 'attributes')
+            result.queueUrl = params.queueUrl
+            const attributes = parseJson(params.queueAttributes, 'attributes')
             if (attributes !== undefined) result.attributes = attributes
             break
           }
           case 'create_queue': {
-            result.queueName = rest.queueName
-            const attributes = parseJson(rest.createQueueAttributes, 'attributes')
+            result.queueName = params.queueName
+            const attributes = parseJson(params.createQueueAttributes, 'attributes')
             if (attributes !== undefined) result.attributes = attributes
-            const tags = parseJson(rest.createQueueTags, 'tags')
+            const tags = parseJson(params.createQueueTags, 'tags')
             if (tags !== undefined) result.tags = tags
             break
           }
           case 'delete_queue':
           case 'purge_queue':
           case 'list_queue_tags': {
-            result.queueUrl = rest.queueUrl
+            result.queueUrl = params.queueUrl
             break
           }
           case 'list_dead_letter_source_queues': {
-            result.queueUrl = rest.queueUrl
-            const maxResults = parseInteger(rest.maxResults, 'maxResults')
+            result.queueUrl = params.queueUrl
+            const maxResults = parseInteger(params.maxResults, 'maxResults')
             if (maxResults !== undefined) result.maxResults = maxResults
-            if (rest.nextToken) result.nextToken = rest.nextToken
+            if (params.nextToken) result.nextToken = params.nextToken
             break
           }
           case 'tag_queue': {
-            result.queueUrl = rest.queueUrl
-            const tags = parseJson(rest.queueTags, 'tags')
+            result.queueUrl = params.queueUrl
+            const tags = parseJson(params.queueTags, 'tags')
             if (tags !== undefined) result.tags = tags
             break
           }
           case 'untag_queue': {
-            result.queueUrl = rest.queueUrl
-            const tagKeys = parseJson(rest.tagKeys, 'tagKeys')
+            result.queueUrl = params.queueUrl
+            const tagKeys = parseJson(params.tagKeys, 'tagKeys')
             if (tagKeys !== undefined) result.tagKeys = tagKeys
             break
           }
           case 'start_message_move_task': {
-            result.sourceArn = rest.sourceArn
-            if (rest.destinationArn) result.destinationArn = rest.destinationArn
+            result.sourceArn = params.sourceArn
+            if (params.destinationArn) result.destinationArn = params.destinationArn
             const maxPerSecond = parseInteger(
-              rest.maxNumberOfMessagesPerSecond,
+              params.maxNumberOfMessagesPerSecond,
               'maxNumberOfMessagesPerSecond'
             )
             if (maxPerSecond !== undefined) result.maxNumberOfMessagesPerSecond = maxPerSecond
             break
           }
           case 'list_message_move_tasks': {
-            result.sourceArn = rest.sourceArn
-            const maxResults = parseInteger(rest.moveTaskMaxResults, 'maxResults')
+            result.sourceArn = params.sourceArn
+            const maxResults = parseInteger(params.moveTaskMaxResults, 'maxResults')
             if (maxResults !== undefined) result.maxResults = maxResults
             break
           }
           case 'cancel_message_move_task': {
-            result.taskHandle = rest.taskHandle
+            result.taskHandle = params.taskHandle
             break
           }
         }

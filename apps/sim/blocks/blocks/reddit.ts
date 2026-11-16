@@ -2,6 +2,7 @@ import { RedditIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { isToolCall, mapperOperation } from '@/blocks/utils'
 
 const REPORT_REASON_FIELD = ['reportReason', 'reportOtherReason'] as const
 
@@ -1080,9 +1081,28 @@ Return ONLY the message content - no meta-commentary.`,
         }
         return toolMap[operation] || 'reddit_get_posts'
       },
-      params: (inputs) => {
-        const operation = inputs.operation || 'get_posts'
+      params: (inputs, context) => {
+        const operation = mapperOperation(inputs, context) || 'get_posts'
         const { oauthCredential } = inputs
+
+        /**
+         * The block field's value, or on a tool call with that field blank, the model's arg under the
+         * tool's own param name. Canvas runs get the block field unchanged.
+         */
+        const pick = (dedicated: unknown, toolParam: string): unknown =>
+          isToolCall(context) && (dedicated === undefined || dedicated === null || dedicated === '')
+            ? inputs[toolParam]
+            : dedicated
+        const int = (value: unknown): number | undefined =>
+          value ? Number.parseInt(String(value)) : undefined
+        const flag = (dedicated: unknown, toolParam: string): boolean => {
+          const value = pick(dedicated, toolParam)
+          return value === true || value === 'true'
+        }
+        const optionalFlag = (dedicated: unknown, toolParam: string): boolean | undefined => {
+          const value = pick(dedicated, toolParam)
+          return value !== undefined ? value === true || value === 'true' : undefined
+        }
 
         if (operation === 'get_posts') {
           return {
@@ -1090,7 +1110,7 @@ Return ONLY the message content - no meta-commentary.`,
             sort: inputs.sort,
             time:
               inputs.sort === 'top' || inputs.sort === 'controversial' ? inputs.time : undefined,
-            limit: inputs.limit ? Number.parseInt(inputs.limit) : undefined,
+            limit: int(inputs.limit),
             after: inputs.after || undefined,
             before: inputs.before || undefined,
             oauthCredential,
@@ -1101,10 +1121,10 @@ Return ONLY the message content - no meta-commentary.`,
           return {
             postId: inputs.postId,
             subreddit: inputs.subreddit,
-            sort: inputs.commentSort,
-            limit: inputs.commentLimit ? Number.parseInt(inputs.commentLimit) : undefined,
-            depth: inputs.commentDepth ? Number.parseInt(inputs.commentDepth) : undefined,
-            comment: inputs.commentFocus || undefined,
+            sort: pick(inputs.commentSort, 'sort'),
+            limit: int(pick(inputs.commentLimit, 'limit')),
+            depth: int(pick(inputs.commentDepth, 'depth')),
+            comment: pick(inputs.commentFocus, 'comment') || undefined,
             oauthCredential,
           }
         }
@@ -1112,10 +1132,8 @@ Return ONLY the message content - no meta-commentary.`,
         if (operation === 'get_controversial') {
           return {
             subreddit: inputs.subreddit,
-            time: inputs.controversialTime,
-            limit: inputs.controversialLimit
-              ? Number.parseInt(inputs.controversialLimit)
-              : undefined,
+            time: pick(inputs.controversialTime, 'time'),
+            limit: int(pick(inputs.controversialLimit, 'limit')),
             after: inputs.after || undefined,
             before: inputs.before || undefined,
             oauthCredential,
@@ -1125,10 +1143,10 @@ Return ONLY the message content - no meta-commentary.`,
         if (operation === 'search') {
           return {
             subreddit: inputs.subreddit,
-            query: inputs.searchQuery,
-            sort: inputs.searchSort,
-            time: inputs.searchTime,
-            limit: inputs.searchLimit ? Number.parseInt(inputs.searchLimit) : undefined,
+            query: pick(inputs.searchQuery, 'query'),
+            sort: pick(inputs.searchSort, 'sort'),
+            time: pick(inputs.searchTime, 'time'),
+            limit: int(pick(inputs.searchLimit, 'limit')),
             after: inputs.after || undefined,
             before: inputs.before || undefined,
             oauthCredential,
@@ -1136,71 +1154,71 @@ Return ONLY the message content - no meta-commentary.`,
         }
 
         if (operation === 'submit_post') {
+          const postTypeUnset = isToolCall(context) && !inputs.postType
           return {
-            subreddit: inputs.submitSubreddit,
+            subreddit: pick(inputs.submitSubreddit, 'subreddit'),
             title: inputs.title,
-            text: inputs.postType === 'text' ? inputs.text : undefined,
-            url: inputs.postType === 'link' ? inputs.url : undefined,
-            nsfw: inputs.nsfw === 'true',
-            spoiler: inputs.spoiler === 'true',
-            send_replies:
-              inputs.sendReplies !== undefined ? inputs.sendReplies === 'true' : undefined,
-            flair_id: inputs.flairId || undefined,
-            flair_text: inputs.flairText || undefined,
+            text: postTypeUnset || inputs.postType === 'text' ? inputs.text : undefined,
+            url: postTypeUnset || inputs.postType === 'link' ? inputs.url : undefined,
+            nsfw: flag(inputs.nsfw, 'nsfw'),
+            spoiler: flag(inputs.spoiler, 'spoiler'),
+            send_replies: optionalFlag(inputs.sendReplies, 'send_replies'),
+            flair_id: pick(inputs.flairId, 'flair_id') || undefined,
+            flair_text: pick(inputs.flairText, 'flair_text') || undefined,
             oauthCredential,
           }
         }
 
         if (operation === 'vote') {
           return {
-            id: inputs.voteId,
-            dir: Number.parseInt(inputs.voteDirection),
+            id: pick(inputs.voteId, 'id'),
+            dir: Number.parseInt(String(pick(inputs.voteDirection, 'dir'))),
             oauthCredential,
           }
         }
 
         if (operation === 'save') {
           return {
-            id: inputs.saveId,
-            category: inputs.saveCategory || undefined,
+            id: pick(inputs.saveId, 'id'),
+            category: pick(inputs.saveCategory, 'category') || undefined,
             oauthCredential,
           }
         }
 
         if (operation === 'unsave') {
           return {
-            id: inputs.saveId,
+            id: pick(inputs.saveId, 'id'),
             oauthCredential,
           }
         }
 
         if (operation === 'reply') {
           return {
-            parent_id: inputs.replyParentId,
-            text: inputs.replyText,
+            parent_id: pick(inputs.replyParentId, 'parent_id'),
+            text: pick(inputs.replyText, 'text'),
             oauthCredential,
           }
         }
 
         if (operation === 'edit') {
           return {
-            thing_id: inputs.editThingId,
-            text: inputs.editText,
+            thing_id: pick(inputs.editThingId, 'thing_id'),
+            text: pick(inputs.editText, 'text'),
             oauthCredential,
           }
         }
 
         if (operation === 'delete') {
           return {
-            id: inputs.deleteId,
+            id: pick(inputs.deleteId, 'id'),
             oauthCredential,
           }
         }
 
         if (operation === 'subscribe') {
           return {
-            subreddit: inputs.subscribeSubreddit,
-            action: inputs.subscribeAction,
+            subreddit: pick(inputs.subscribeSubreddit, 'subreddit'),
+            action: pick(inputs.subscribeAction, 'action'),
             oauthCredential,
           }
         }
@@ -1218,19 +1236,19 @@ Return ONLY the message content - no meta-commentary.`,
 
         if (operation === 'send_message') {
           return {
-            to: inputs.messageTo,
-            subject: inputs.messageSubject,
-            text: inputs.messageText,
-            from_sr: inputs.messageFromSr || undefined,
+            to: pick(inputs.messageTo, 'to'),
+            subject: pick(inputs.messageSubject, 'subject'),
+            text: pick(inputs.messageText, 'text'),
+            from_sr: pick(inputs.messageFromSr, 'from_sr') || undefined,
             oauthCredential,
           }
         }
 
         if (operation === 'get_messages') {
           return {
-            where: inputs.messageWhere,
-            limit: inputs.messageLimit ? Number.parseInt(inputs.messageLimit) : undefined,
-            mark: inputs.messageMark !== undefined ? inputs.messageMark === 'true' : undefined,
+            where: pick(inputs.messageWhere, 'where'),
+            limit: int(pick(inputs.messageLimit, 'limit')),
+            mark: optionalFlag(inputs.messageMark, 'mark'),
             after: inputs.after || undefined,
             before: inputs.before || undefined,
             oauthCredential,
@@ -1252,14 +1270,15 @@ Return ONLY the message content - no meta-commentary.`,
         }
 
         if (operation === 'get_user_posts' || operation === 'get_user_comments') {
+          const sort = pick(inputs.userListSort, 'sort')
           return {
-            username: inputs.userListUsername,
-            sort: inputs.userListSort,
+            username: pick(inputs.userListUsername, 'username'),
+            sort,
             time:
-              inputs.userListSort === 'top' || inputs.userListSort === 'controversial'
-                ? inputs.userListTime
+              sort === 'top' || sort === 'controversial'
+                ? pick(inputs.userListTime, 'time')
                 : undefined,
-            limit: inputs.userListLimit ? Number.parseInt(inputs.userListLimit) : undefined,
+            limit: int(pick(inputs.userListLimit, 'limit')),
             after: inputs.after || undefined,
             before: inputs.before || undefined,
             oauthCredential,
@@ -1268,8 +1287,8 @@ Return ONLY the message content - no meta-commentary.`,
 
         if (operation === 'get_saved') {
           return {
-            username: inputs.userListUsername,
-            limit: inputs.userListLimit ? Number.parseInt(inputs.userListLimit) : undefined,
+            username: pick(inputs.userListUsername, 'username'),
+            limit: int(pick(inputs.userListLimit, 'limit')),
             after: inputs.after || undefined,
             before: inputs.before || undefined,
             oauthCredential,
@@ -1278,18 +1297,16 @@ Return ONLY the message content - no meta-commentary.`,
 
         if (operation === 'get_info') {
           return {
-            id: inputs.infoIds,
+            id: pick(inputs.infoIds, 'id'),
             oauthCredential,
           }
         }
 
         if (operation === 'search_subreddits') {
           return {
-            q: inputs.searchSubredditsQuery,
-            sort: inputs.searchSubredditsSort,
-            limit: inputs.searchSubredditsLimit
-              ? Number.parseInt(inputs.searchSubredditsLimit)
-              : undefined,
+            q: pick(inputs.searchSubredditsQuery, 'q'),
+            sort: pick(inputs.searchSubredditsSort, 'sort'),
+            limit: int(pick(inputs.searchSubredditsLimit, 'limit')),
             after: inputs.after || undefined,
             before: inputs.before || undefined,
             oauthCredential,
@@ -1298,7 +1315,7 @@ Return ONLY the message content - no meta-commentary.`,
 
         if (operation === 'list_my_subreddits') {
           return {
-            limit: inputs.listMineLimit ? Number.parseInt(inputs.listMineLimit) : undefined,
+            limit: int(pick(inputs.listMineLimit, 'limit')),
             after: inputs.after || undefined,
             before: inputs.before || undefined,
             oauthCredential,
@@ -1307,30 +1324,30 @@ Return ONLY the message content - no meta-commentary.`,
 
         if (operation === 'report') {
           return {
-            thing_id: inputs.reportThingId,
-            reason: inputs.reportReason || undefined,
-            other_reason: inputs.reportOtherReason || undefined,
+            thing_id: pick(inputs.reportThingId, 'thing_id'),
+            reason: pick(inputs.reportReason, 'reason') || undefined,
+            other_reason: pick(inputs.reportOtherReason, 'other_reason') || undefined,
             oauthCredential,
           }
         }
 
         if (operation === 'hide' || operation === 'unhide') {
           return {
-            id: inputs.hideId,
+            id: pick(inputs.hideId, 'id'),
             oauthCredential,
           }
         }
 
         if (operation === 'marknsfw' || operation === 'unmarknsfw') {
           return {
-            id: inputs.nsfwId,
+            id: pick(inputs.nsfwId, 'id'),
             oauthCredential,
           }
         }
 
         if (operation === 'mark_read') {
           return {
-            id: inputs.markReadId,
+            id: pick(inputs.markReadId, 'id'),
             oauthCredential,
           }
         }
@@ -1341,36 +1358,33 @@ Return ONLY the message content - no meta-commentary.`,
 
         if (operation === 'mod_approve' || operation === 'lock' || operation === 'unlock') {
           return {
-            id: inputs.modThingId,
+            id: pick(inputs.modThingId, 'id'),
             oauthCredential,
           }
         }
 
         if (operation === 'mod_remove') {
           return {
-            id: inputs.modThingId,
-            spam: inputs.removeSpam === 'true',
+            id: pick(inputs.modThingId, 'id'),
+            spam: flag(inputs.removeSpam, 'spam'),
             oauthCredential,
           }
         }
 
         if (operation === 'mod_distinguish') {
           return {
-            id: inputs.modThingId,
-            how: inputs.distinguishHow,
-            sticky:
-              inputs.distinguishSticky !== undefined
-                ? inputs.distinguishSticky === 'true'
-                : undefined,
+            id: pick(inputs.modThingId, 'id'),
+            how: pick(inputs.distinguishHow, 'how'),
+            sticky: optionalFlag(inputs.distinguishSticky, 'sticky'),
             oauthCredential,
           }
         }
 
         if (operation === 'mod_sticky') {
           return {
-            id: inputs.stickyId,
-            state: inputs.stickyState === 'true',
-            num: inputs.stickyNum ? Number.parseInt(inputs.stickyNum) : undefined,
+            id: pick(inputs.stickyId, 'id'),
+            state: flag(inputs.stickyState, 'state'),
+            num: int(pick(inputs.stickyNum, 'num')),
             oauthCredential,
           }
         }
@@ -1378,7 +1392,7 @@ Return ONLY the message content - no meta-commentary.`,
         return {
           subreddit: inputs.subreddit,
           sort: inputs.sort,
-          limit: inputs.limit ? Number.parseInt(inputs.limit) : undefined,
+          limit: int(inputs.limit),
           oauthCredential,
         }
       },

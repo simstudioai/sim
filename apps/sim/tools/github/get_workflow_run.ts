@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { GetWorkflowRunParams, WorkflowRunResponse } from '@/tools/github/types'
 import {
   HEAD_COMMIT_OUTPUT,
@@ -46,7 +47,7 @@ export const getWorkflowRunTool: ToolConfig<GetWorkflowRunParams, WorkflowRunRes
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/actions/runs/${params.run_id}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/actions/runs/${githubPathSegment(params.run_id, 'run_id')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

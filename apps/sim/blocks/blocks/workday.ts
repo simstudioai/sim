@@ -1,6 +1,7 @@
 import { WorkdayIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 export const WorkdayBlock: BlockConfig = {
   type: 'workday',
@@ -409,17 +410,9 @@ Output: {"Marital_Status_Reference":{"ID":{"attributes":{"wd:type":"Marital_Stat
     config: {
       tool: (params) => `workday_${params.operation}`,
       params: (params, context) => {
-        const {
-          operation: storedOperation,
-          orgType,
-          fields,
-          jobProfileId,
-          locationId,
-          supervisoryOrgId,
-          ...rest
-        } = params
+        const { orgType, fields, jobProfileId, locationId, supervisoryOrgId, ...rest } = params
         /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
-        const operation = storedOperation ?? context?.operation
+        const operation = mapperOperation(params, context)
 
         if (rest.limit != null && rest.limit !== '') rest.limit = Number(rest.limit)
         if (rest.offset != null && rest.offset !== '') rest.offset = Number(rest.offset)

@@ -2,6 +2,7 @@ import { MicrosoftWordIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
 const DOCUMENT_FIELD = ['documentSelector', 'manualDocumentId'] as const
 
@@ -399,10 +400,10 @@ export const MicrosoftWordBlock: BlockConfig = {
             throw new Error(`Invalid Microsoft Word operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           oauthCredential,
-          operation,
           documentId,
           templateDocumentId,
           replacements,
@@ -422,6 +423,7 @@ export const MicrosoftWordBlock: BlockConfig = {
         } = params
 
         const base = { oauthCredential, driveId: optionalString(driveId) }
+        const modelFolderId = toolCallArg(context, optionalString(params.folderId))
 
         switch (operation) {
           case 'create':
@@ -429,7 +431,7 @@ export const MicrosoftWordBlock: BlockConfig = {
               ...base,
               name: requireString(name, 'Document name'),
               content: optionalString(content),
-              folderId: optionalString(createFolderId),
+              folderId: optionalString(createFolderId) ?? modelFolderId,
             }
           case 'create_from_template':
             return {
@@ -438,7 +440,7 @@ export const MicrosoftWordBlock: BlockConfig = {
               name: requireString(name, 'Document name'),
               replacements: optionalJson(replacements),
               matchCase: optionalBoolean(matchCase) ?? false,
-              folderId: optionalString(createFolderId),
+              folderId: optionalString(createFolderId) ?? modelFolderId,
             }
           case 'read':
             return { ...base, documentId: requireString(documentId, 'Document') }
@@ -452,7 +454,10 @@ export const MicrosoftWordBlock: BlockConfig = {
             return {
               ...base,
               documentId: requireString(documentId, 'Document'),
-              content: requireString(appendContent, 'Content to append'),
+              content: requireString(
+                optionalString(appendContent) ?? toolCallArg(context, content),
+                'Content to append'
+              ),
             }
           case 'replace_text':
             return {
@@ -466,7 +471,7 @@ export const MicrosoftWordBlock: BlockConfig = {
             return {
               ...base,
               query: optionalString(query),
-              folderId: optionalString(listFolderId),
+              folderId: optionalString(listFolderId) ?? modelFolderId,
               pageSize: optionalNumber(pageSize),
               pageToken: optionalString(pageToken),
             }

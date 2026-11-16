@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { LambdaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 type ParamKind = 'string' | 'number' | 'boolean' | 'json' | 'array' | 'jsonArray'
 
@@ -1957,11 +1957,11 @@ export const LambdaBlock: BlockConfig = {
         }
         return `lambda_${operation}`
       },
-      params: (params) => {
-        const operation = String(params.operation ?? '')
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const owned = OPERATION_PARAMS[operation]
         if (!owned) {
-          throw new Error(`Invalid Lambda operation: ${params.operation}`)
+          throw new Error(`Invalid Lambda operation: ${operation}`)
         }
 
         const ownedNames = new Set<ParamName>(owned)

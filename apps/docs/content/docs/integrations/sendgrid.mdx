@@ -331,7 +331,7 @@ Get a specific template by ID from SendGrid
 
 ### SendGrid List Templates
 
-Get all email templates from SendGrid
+List email templates from SendGrid. Returns legacy templates only unless generations includes dynamic
 
 <ReferenceDetails>
 
@@ -339,7 +339,7 @@ Get all email templates from SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `generations` | string | No | Filter by generation \(legacy, dynamic, or both\) |
+| `generations` | string | No | Template generations to return: legacy, dynamic, or legacy,dynamic \(default when omitted: legacy only\) |
 | `pageSize` | number | No | Number of templates to return per page \(default: 20, max: 200\). When paginating with pageToken, pass the same pageSize used on the first request to keep page boundaries consistent. |
 | `pageToken` | string | No | Page token from a previous response \(nextPageToken\) to fetch the next page |
 

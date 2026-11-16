@@ -1,5 +1,6 @@
 import { FivetranIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const CONNECTION_ID_OPS = [
@@ -1058,16 +1059,17 @@ export const FivetranBlock: BlockConfig = {
         }
         return `fivetran_${params.operation}`
       },
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
+        const operation = mapperOperation(params, context)
         const isConnectionSettings = (CONNECTION_SETTINGS_OPS as readonly string[]).includes(
-          params.operation
+          operation
         )
 
-        if (params.operation === 'pause_connection' || params.operation === 'resume_connection') {
+        if (operation === 'pause_connection' || operation === 'resume_connection') {
           return {
             ...PAUSE_ONLY_UPDATE,
-            paused: params.operation === 'pause_connection',
+            paused: operation === 'pause_connection',
           }
         }
 
@@ -1077,43 +1079,51 @@ export const FivetranBlock: BlockConfig = {
           result.pauseAfterTrial = toOptionalBoolean(params.pauseAfterTrial)
           result.dataDelayThreshold = toOptionalNumber(params.dataDelayThreshold)
         }
-        if (isConnectionSettings || params.operation === 'create_destination') {
+        if (isConnectionSettings || operation === 'create_destination') {
           result.runSetupTests = toOptionalBoolean(params.runSetupTests)
         }
-        if (params.operation === 'create_destination') {
-          result.service = params.destinationService
-          result.config = params.destinationConfig
+        if (operation === 'create_destination') {
+          result.service = params.destinationService ?? toolCallArg(context, params.service)
+          result.config = params.destinationConfig ?? toolCallArg(context, params.config)
           result.daylightSavingTimeEnabled = toOptionalBoolean(params.daylightSavingTimeEnabled)
         }
-        if (params.operation === 'create_group') result.name = params.groupName
-        if (params.operation === 'update_schema_config') result.schemas = params.schemasConfig
-        if (params.operation === 'update_connection_schema') {
-          result.enabled = toOptionalBoolean(params.schemaEnabled)
-          result.tables = params.schemaTables
+        if (operation === 'create_group') {
+          result.name = params.groupName ?? toolCallArg(context, params.name)
         }
-        if (params.operation === 'update_connection') {
+        if (operation === 'update_schema_config') {
+          result.schemas = params.schemasConfig ?? toolCallArg(context, params.schemas)
+        }
+        if (operation === 'update_connection_schema') {
+          result.enabled =
+            toOptionalBoolean(params.schemaEnabled) ??
+            toOptionalBoolean(toolCallArg(context, params.enabled))
+          result.tables = params.schemaTables ?? toolCallArg(context, params.tables)
+        }
+        if (operation === 'update_connection') {
           result.isHistoricalSync = toOptionalBoolean(params.isHistoricalSync)
         }
-        if ((SETUP_TEST_OPS as readonly string[]).includes(params.operation)) {
+        if ((SETUP_TEST_OPS as readonly string[]).includes(operation)) {
           result.trustCertificates = toOptionalBoolean(params.trustCertificates)
           result.trustFingerprints = toOptionalBoolean(params.trustFingerprints)
         }
-        if (params.operation === 'sync_connection') result.force = toOptionalBoolean(params.force)
-        if (params.operation === 'update_connection_table') {
-          result.enabled = toOptionalBoolean(params.tableEnabled)
+        if (operation === 'sync_connection') result.force = toOptionalBoolean(params.force)
+        if (operation === 'update_connection_table') {
+          result.enabled =
+            toOptionalBoolean(params.tableEnabled) ??
+            toOptionalBoolean(toolCallArg(context, params.enabled))
         }
-        if (params.operation === 'create_connect_card') {
+        if (operation === 'create_connect_card') {
           result.hideSetupGuide = toOptionalBoolean(params.hideSetupGuide)
           result.allFields = toOptionalBoolean(params.allFields)
         }
-        if (params.operation === 'run_transformation') {
+        if (operation === 'run_transformation') {
           result.fullRefresh = toOptionalBoolean(params.fullRefresh)
         }
-        if (params.operation === 'list_users') {
+        if (operation === 'list_users') {
           result.active = toOptionalBoolean(params.active)
           result.hasApiKey = toOptionalBoolean(params.hasApiKey)
         }
-        if ((PAGINATED_OPS as readonly string[]).includes(params.operation)) {
+        if ((PAGINATED_OPS as readonly string[]).includes(operation)) {
           result.limit = toOptionalNumber(params.limit)
         }
         return result

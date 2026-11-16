@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressCreatePageParams,
@@ -40,7 +41,7 @@ export const createPageTool: ToolConfig<WordPressCreatePageParams, WordPressCrea
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page status: publish, draft, pending, private',
+      description: 'Page status: publish, draft, pending, private, or future',
     },
     excerpt: {
       type: 'string',
@@ -72,10 +73,18 @@ export const createPageTool: ToolConfig<WordPressCreatePageParams, WordPressCrea
       visibility: 'user-or-llm',
       description: 'URL slug for the page',
     },
+    date: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Publish date in the site timezone, ISO 8601 (e.g., 2026-12-01T09:00:00). A future date with status publish schedules the page',
+    },
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/pages`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/pages`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -90,6 +99,7 @@ export const createPageTool: ToolConfig<WordPressCreatePageParams, WordPressCrea
       if (params.status) body.status = params.status
       if (params.excerpt) body.excerpt = params.excerpt
       if (params.slug) body.slug = params.slug
+      if (params.date) body.date = params.date
       if (params.parent !== undefined) body.parent = params.parent
       if (params.menuOrder !== undefined) body.menu_order = params.menuOrder
       if (params.featuredMedia !== undefined) body.featured_media = params.featuredMedia

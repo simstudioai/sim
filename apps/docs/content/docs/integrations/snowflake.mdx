@@ -72,7 +72,7 @@ Execute one parameterized SQL statement through the Snowflake SQL API.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -117,7 +117,7 @@ Check a running or completed statement and retrieve exactly one result partition
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -160,7 +160,7 @@ Cancel a running Snowflake SQL API statement.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -209,7 +209,7 @@ Insert structured JSON rows using bound values.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -259,7 +259,7 @@ Update matching rows with a bound MERGE statement without inserting new rows.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -309,7 +309,7 @@ Update matching rows and insert unmatched rows with a bound MERGE statement.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -358,7 +358,7 @@ Delete rows matching a required set of bound column filters.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -414,7 +414,7 @@ Load files from an existing Snowflake stage with COPY INTO.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -469,7 +469,7 @@ Export a Snowflake table to files in a stage with COPY INTO.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -515,7 +515,7 @@ List the databases the credential can access.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -562,7 +562,7 @@ List the schemas in a Snowflake database.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -610,7 +610,7 @@ List the tables in a Snowflake schema.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -656,7 +656,7 @@ List warehouses visible to the active Snowflake role.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -701,7 +701,7 @@ Get the full details for a Snowflake virtual warehouse.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -746,7 +746,7 @@ Resume a Snowflake virtual warehouse if it is suspended.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -791,7 +791,7 @@ Suspend a Snowflake virtual warehouse.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -839,7 +839,7 @@ Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -887,7 +887,7 @@ List tasks in a Snowflake schema.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -934,7 +934,7 @@ Describe a Snowflake task.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -982,7 +982,7 @@ Run a Snowflake task immediately, optionally retrying its last failed graph.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -1029,7 +1029,7 @@ Resume a suspended Snowflake task so its schedule runs again.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -1076,7 +1076,7 @@ Suspend a Snowflake task so its schedule stops triggering runs.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -1126,7 +1126,7 @@ Query up to seven days of Snowflake task history, capped at 10000 rows.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -1175,7 +1175,7 @@ Find one task history record by query ID within Snowflake’s seven-day window a
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -1221,7 +1221,7 @@ Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs al
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -1268,7 +1268,7 @@ Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -1280,7 +1280,7 @@ Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention
 
 ### Snowflake List Query History
 
-List queries that completed in the last seven days, optionally filtered.
+List queries from the last seven days, optionally filtered. Queries still running are included unless an end time is set.
 
 <ReferenceDetails>
 
@@ -1319,7 +1319,7 @@ List queries that completed in the last seven days, optionally filtered.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -1370,7 +1370,7 @@ List staged-file load results for a table over the last fourteen days.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -1420,7 +1420,7 @@ Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -1470,7 +1470,7 @@ Call a stored procedure with explicitly typed Snowflake bindings.
 |   ↳ `currentPartition` | number | Zero-based partition returned |
 |   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 | `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
@@ -1546,7 +1546,7 @@ Ask Snowflake Cortex Analyst a question in natural language against a semantic v
 |     ↳ `currentPartition` | number | Zero-based partition returned |
 |     ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
 |     ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|     ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|     ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 \(result set too large to return in full\); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
 |   ↳ `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
 |     ↳ `rowsInserted` | number | Rows inserted by the statement |
 |     ↳ `rowsUpdated` | number | Rows updated by the statement |

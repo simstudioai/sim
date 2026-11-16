@@ -4,6 +4,7 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
   isToolCall,
+  mapperOperation,
   normalizeFileInput,
   parseOptionalBooleanInput,
   toolCallArg,
@@ -1479,7 +1480,7 @@ Return ONLY the value (plain string, number, or JSON) - no explanations, no extr
       params: (params, context) => {
         const { oauthCredential } = params
         /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
-        const operation = params.operation ?? context?.operation
+        const operation = mapperOperation(params, context)
 
         const baseParams = {
           accessToken: oauthCredential?.accessToken,

@@ -2,6 +2,7 @@ import type { GitLabUpdateUserParams, GitLabUserResponse } from '@/tools/gitlab/
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabUpdateUserTool: ToolConfig<GitLabUpdateUserParams, GitLabUserResponse> = {
   id: 'gitlab_update_user',
@@ -59,7 +60,8 @@ export const gitlabUpdateUserTool: ToolConfig<GitLabUpdateUserParams, GitLabUser
   },
 
   request: {
-    url: (params) => `${getGitLabApiBase(params.host)}/users/${params.userId}`,
+    url: (params) =>
+      `${getGitLabApiBase(params.host)}/users/${safeUrlPathSegment(params.userId, 'userId')}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/json',

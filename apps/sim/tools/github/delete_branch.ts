@@ -1,3 +1,4 @@
+import { githubRefPath, githubRepoPath } from '@/tools/github/request-path'
 import type { DeleteBranchParams, DeleteBranchResponse } from '@/tools/github/types'
 import { DELETE_BRANCH_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -40,7 +41,7 @@ export const deleteBranchTool: ToolConfig<DeleteBranchParams, DeleteBranchRespon
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/git/refs/heads/${params.branch}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/git/refs/heads/${githubRefPath(params.branch, 'branch')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

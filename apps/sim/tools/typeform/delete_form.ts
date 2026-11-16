@@ -1,6 +1,7 @@
 import { TYPEFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TypeformDeleteFormParams, TypeformDeleteFormResponse } from '@/tools/typeform/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteFormTool: ToolConfig<TypeformDeleteFormParams, TypeformDeleteFormResponse> = {
   id: 'typeform_delete_form',
@@ -26,7 +27,7 @@ export const deleteFormTool: ToolConfig<TypeformDeleteFormParams, TypeformDelete
 
   request: {
     url: (params: TypeformDeleteFormParams) => {
-      return `https://api.typeform.com/forms/${params.formId}`
+      return `https://api.typeform.com/forms/${safeUrlPathSegment(params.formId, 'formId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

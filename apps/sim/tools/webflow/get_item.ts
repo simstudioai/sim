@@ -1,5 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { WebflowGetItemParams, WebflowGetItemResponse } from '@/tools/webflow/types'
+import { WEBFLOW_ITEM_OUTPUT_PROPERTIES } from '@/tools/webflow/types'
 
 export const webflowGetItemTool: ToolConfig<WebflowGetItemParams, WebflowGetItemResponse> = {
   id: 'webflow_get_item',
@@ -21,9 +23,10 @@ export const webflowGetItemTool: ToolConfig<WebflowGetItemParams, WebflowGetItem
     },
     siteId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'ID of the Webflow site (e.g., "580e63e98c9a982ac9b8b741")',
+      description:
+        'ID of the Webflow site (e.g., "580e63e98c9a982ac9b8b741"). Not sent to Webflow; item requests are scoped by collection.',
     },
     collectionId: {
       type: 'string',
@@ -41,7 +44,7 @@ export const webflowGetItemTool: ToolConfig<WebflowGetItemParams, WebflowGetItem
 
   request: {
     url: (params) =>
-      `https://api.webflow.com/v2/collections/${params.collectionId}/items/${params.itemId}`,
+      `https://api.webflow.com/v2/collections/${safeUrlPathSegment(params.collectionId, 'collectionId')}/items/${safeUrlPathSegment(params.itemId, 'itemId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -63,12 +66,14 @@ export const webflowGetItemTool: ToolConfig<WebflowGetItemParams, WebflowGetItem
 
   outputs: {
     item: {
-      type: 'json',
+      type: 'object',
       description: 'The retrieved item object',
+      properties: WEBFLOW_ITEM_OUTPUT_PROPERTIES,
     },
     metadata: {
-      type: 'json',
+      type: 'object',
       description: 'Metadata about the retrieved item',
+      properties: { itemId: { type: 'string', description: 'ID of the retrieved item' } },
     },
   },
 }

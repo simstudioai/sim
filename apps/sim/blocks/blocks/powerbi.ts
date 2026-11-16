@@ -2,7 +2,7 @@ import { PowerBIIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalNumberInput } from '@/blocks/utils'
+import { mapperOperation, parseOptionalNumberInput, toolCallArg } from '@/blocks/utils'
 
 const WORKSPACE_FIELD = ['workspaceSelector', 'manualWorkspaceId'] as const
 const DATASET_FIELD = ['datasetSelector', 'manualDatasetId'] as const
@@ -294,29 +294,32 @@ export const PowerBIBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
-        switch (params.operation) {
+      params: (params, context) => {
+        switch (mapperOperation(params, context)) {
           case 'powerbi_list_workspaces':
             return {
               top:
-                parseOptionalNumberInput(params.workspaceTop, 'Maximum workspaces', {
-                  integer: true,
-                  min: 0,
-                }) ?? 100,
+                parseOptionalNumberInput(
+                  params.workspaceTop ?? toolCallArg(context, params.top),
+                  'Maximum workspaces',
+                  { integer: true, min: 0 }
+                ) ?? 100,
               skip:
-                parseOptionalNumberInput(params.workspaceSkip, 'Workspace offset', {
-                  integer: true,
-                  min: 0,
-                }) ?? 0,
-              filter: params.workspaceFilter,
+                parseOptionalNumberInput(
+                  params.workspaceSkip ?? toolCallArg(context, params.skip),
+                  'Workspace offset',
+                  { integer: true, min: 0 }
+                ) ?? 0,
+              filter: params.workspaceFilter ?? toolCallArg(context, params.filter),
             }
           case 'powerbi_get_refresh_history':
             return {
               top:
-                parseOptionalNumberInput(params.refreshHistoryTop, 'Maximum refreshes', {
-                  integer: true,
-                  min: 1,
-                }) ?? 60,
+                parseOptionalNumberInput(
+                  params.refreshHistoryTop ?? toolCallArg(context, params.top),
+                  'Maximum refreshes',
+                  { integer: true, min: 1 }
+                ) ?? 60,
             }
           case 'powerbi_execute_query':
             return { includeNulls: parseIncludeNulls(params.includeNulls) }

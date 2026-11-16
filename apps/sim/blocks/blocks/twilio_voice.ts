@@ -1,7 +1,7 @@
 import { TwilioIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const TwilioVoiceBlock: BlockConfig = {
@@ -318,6 +318,17 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       },
     },
     {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Next page token from a previous List Calls result',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'list_calls',
+      },
+    },
+    {
       id: 'recordingSid',
       title: 'Recording SID',
       type: 'short-input',
@@ -344,9 +355,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return 'twilio_voice_make_call'
         }
       },
-      params: (params) => {
-        const { operation, timeout, record, listTo, listFrom, listStatus, listPageSize, ...rest } =
-          params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const { timeout, record, listTo, listFrom, listStatus, listPageSize, ...rest } = params
 
         const baseParams = { ...rest }
 
@@ -394,6 +405,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     startTimeAfter: { type: 'string', description: 'Filter calls that started after this date' },
     startTimeBefore: { type: 'string', description: 'Filter calls that started before this date' },
     recordingSid: { type: 'string', description: 'Recording SID to retrieve' },
+    pageToken: { type: 'string', description: 'Page token from a previous List Calls result' },
   },
   outputs: {
     success: { type: 'boolean', description: 'Operation success status' },
@@ -407,6 +419,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     channels: { type: 'number', description: 'Number of recording channels' },
     source: { type: 'string', description: 'Recording source' },
     mediaUrl: { type: 'string', description: 'URL to download recording' },
+    file: { type: 'file', description: 'Downloaded recording media file' },
     uri: { type: 'string', description: 'Resource URI' },
     transcriptionText: {
       type: 'string',
@@ -416,10 +429,16 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'string',
       description: 'Transcription status (completed, in-progress, failed)',
     },
+    transcriptionPrice: { type: 'string', description: 'Cost of the transcription' },
+    transcriptionPriceUnit: { type: 'string', description: 'Currency of the transcription price' },
     calls: { type: 'array', description: 'Array of call objects (for list_calls operation)' },
-    total: { type: 'number', description: 'Total number of calls returned' },
+    total: { type: 'number', description: 'Number of calls returned on this page' },
     page: { type: 'number', description: 'Current page number' },
     pageSize: { type: 'number', description: 'Number of calls per page' },
+    nextPageToken: {
+      type: 'string',
+      description: 'Page token for the next page of calls (null on the last page)',
+    },
     error: { type: 'string', description: 'Error message if operation failed' },
     accountSid: { type: 'string', description: 'Twilio Account SID from webhook' },
     from: { type: 'string', description: "Caller's phone number (E.164 format)" },

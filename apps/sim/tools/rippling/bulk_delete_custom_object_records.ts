@@ -1,6 +1,8 @@
+import { toArray } from '@sim/utils/object'
 import type { RipplingBulkDeleteCustomObjectRecordsParams } from '@/tools/rippling/types'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingBulkDeleteCustomObjectRecordsTool: ToolConfig<RipplingBulkDeleteCustomObjectRecordsParams> =
   {
@@ -26,7 +28,7 @@ export const ripplingBulkDeleteCustomObjectRecordsTool: ToolConfig<RipplingBulkD
         type: 'json',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Array of records to delete',
+        description: 'Array of record ID strings to delete (max 200)',
       },
       allOrNothing: {
         type: 'boolean',
@@ -37,7 +39,7 @@ export const ripplingBulkDeleteCustomObjectRecordsTool: ToolConfig<RipplingBulkD
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/bulk-delete/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/records/bulk-delete/`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
@@ -55,12 +57,19 @@ export const ripplingBulkDeleteCustomObjectRecordsTool: ToolConfig<RipplingBulkD
         const errorText = await response.text()
         throw new Error(`Rippling API error (${response.status}): ${errorText}`)
       }
+      const data = await response.json().catch(() => ({}))
       return {
         success: true,
-        output: { deleted: true },
+        output: { deleted: true, deletedRecordIds: toArray<string>(data.deleted_record_ids) },
       }
     },
     outputs: {
-      deleted: { type: 'boolean', description: 'Whether the bulk delete succeeded' },
+      deleted: { type: 'boolean', description: 'Whether the bulk delete request succeeded' },
+      deletedRecordIds: {
+        type: 'array',
+        description:
+          'IDs whose deletion was applied; may be partial or empty when records fail or await approval',
+        items: { type: 'string' },
+      },
     },
   }

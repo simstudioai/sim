@@ -1,5 +1,5 @@
 import type { GetDomainParams, GetDomainResult } from '@/tools/mailgun/types'
-import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { getMailgunApiBaseUrl, mailgunPathSegment } from '@/tools/mailgun/utils'
 import { MAILGUN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -32,7 +32,8 @@ export const mailgunGetDomainTool: ToolConfig<GetDomainParams, GetDomainResult> 
   },
 
   request: {
-    url: (params) => `${getMailgunApiBaseUrl(params.region)}/domains/${params.domain}`,
+    url: (params) =>
+      `${getMailgunApiBaseUrl(params.region)}/domains/${mailgunPathSegment(params.domain, 'domain')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Basic ${Buffer.from(`api:${params.apiKey}`).toString('base64')}`,

@@ -23,6 +23,7 @@ import {
   SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
 import { isPiSupportedModel } from '@/providers/pi-providers'
+import { ToolCallParamsError } from '@/providers/tool-params-error'
 import type { ProviderId } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
@@ -946,6 +947,48 @@ export function toolCallArg<T>(
   value: T
 ): T | undefined {
   return isToolCall(context) ? value : undefined
+}
+
+/**
+ * What the model is told when a block rejects a tool call's params. Deliberately static: a
+ * mapper's own message can quote the value it rejected (`Invalid Limit "…"`, a JSON parse
+ * snippet), and by then a model-written `{{SECRET}}` placeholder has been resolved to plaintext.
+ */
+const TOOL_CALL_PARAMS_REJECTED_MESSAGE =
+  'The tool was not run: its arguments could not be mapped to the tool inputs. Check the argument values (filters, sort, row data, limit) and try again.'
+
+/**
+ * Runs a mapper body, and on a tool call turns any failure into a {@link ToolCallParamsError} so
+ * the call fails instead of running on the raw merged params. Use it where those raw params are
+ * unsafe: a pinned value under a block-only key (a filter builder) drops out of them, leaving the
+ * model's own argument for the same tool param in its place. The original error stays on `cause`
+ * for server logs; the canvas rethrows it unchanged.
+ */
+export function failToolCallOnError<T>(
+  context: BlockToolParamsContext | undefined,
+  map: () => T
+): T {
+  try {
+    return map()
+  } catch (error) {
+    if (!isToolCall(context) || error instanceof ToolCallParamsError) throw error
+    throw new ToolCallParamsError(TOOL_CALL_PARAMS_REJECTED_MESSAGE, { cause: error })
+  }
+}
+
+/**
+ * The operation a block's `tools.config.params` mapper runs for. A tool call passes it only in
+ * `context`: a stored tool row keeps its operation outside its params, and a tool that declares its
+ * own `operation` param (Slack `edit_canvas`) gets the model's value there. The canvas passes no
+ * context, so the block's serialized `operation` input is used. Returns `''` when neither supplies
+ * one, so a default needs `||`, not `??`.
+ */
+export function mapperOperation(
+  params: { operation?: unknown },
+  context: BlockToolParamsContext | undefined
+): string {
+  if (context?.operation) return context.operation
+  return typeof params.operation === 'string' ? params.operation : ''
 }
 
 /**

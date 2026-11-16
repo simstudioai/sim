@@ -2,7 +2,7 @@ import { GoogleGroupsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { SERVICE_ACCOUNT_SUBBLOCKS, toolCallArg } from '@/blocks/utils'
+import { mapperOperation, SERVICE_ACCOUNT_SUBBLOCKS, toolCallArg } from '@/blocks/utils'
 
 /** Settings the Update Settings operation forwards when set; empty means unchanged. */
 const UPDATE_SETTINGS_FIELDS = [
@@ -727,9 +727,9 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
         }
       },
       params: (params, context) => {
-        const { oauthCredential, operation, ...rest } = params
+        const { oauthCredential, ...rest } = params
 
-        switch (operation) {
+        switch (mapperOperation(params, context)) {
           case 'list_groups':
             return {
               oauthCredential,
@@ -759,8 +759,8 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
             return {
               oauthCredential,
               groupKey: rest.groupKey,
-              name: rest.newName,
-              email: rest.newEmail,
+              name: rest.newName ?? toolCallArg(context, rest.name),
+              email: rest.newEmail ?? toolCallArg(context, rest.email),
               description: rest.description,
             }
           case 'list_members':
@@ -786,7 +786,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
             return {
               oauthCredential,
               groupKey: rest.groupKey,
-              email: rest.memberEmail,
+              email: rest.memberEmail ?? toolCallArg(context, rest.email),
               role: rest.role,
             }
           case 'update_member':

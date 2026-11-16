@@ -2,7 +2,7 @@ import { OutlookIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, toolCallArg } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -991,8 +991,17 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
           ...rest
         } = params
 
+        const operation = mapperOperation(params, context)
+
         // Agent calls may deliver booleans as the strings "true"/"false"
         const toBool = (value: unknown): boolean => value === true || value === 'true'
+
+        const isSet = (value: unknown): boolean =>
+          value !== undefined && value !== null && value !== ''
+
+        /** The dedicated block field when set, else the model's arg under the tool's own name. */
+        const fieldOrToolArg = (field: unknown, toolArg: unknown): unknown =>
+          isSet(field) ? field : toolCallArg(context, toolArg)
 
         const effectiveFolder = folder ? String(folder).trim() : ''
 
@@ -1005,40 +1014,40 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
           rest.maxResults = Number(maxResults)
         }
 
-        if (rest.operation === 'read_outlook') {
+        if (operation === 'read_outlook') {
           rest.folder = effectiveFolder || 'INBOX'
         }
 
-        if (['send_outlook', 'draft_outlook'].includes(rest.operation)) {
+        if (['send_outlook', 'draft_outlook'].includes(operation)) {
           rest.importance = mailImportance || toolCallArg(context, rest.importance) || null
         }
 
         // Assign explicitly so a cc/bcc/importance stored for another operation never reaches these tools
-        if (['reply_outlook', 'reply_all_outlook', 'forward_outlook'].includes(rest.operation)) {
+        if (['reply_outlook', 'reply_all_outlook', 'forward_outlook'].includes(operation)) {
           rest.cc =
-            rest.operation === 'reply_all_outlook'
+            operation === 'reply_all_outlook'
               ? null
               : replyCc || toolCallArg(context, rest.cc) || null
           rest.bcc = replyBcc || toolCallArg(context, rest.bcc) || null
           rest.importance = undefined
         }
 
-        if (rest.operation === 'search_outlook' && searchQuery) {
+        if (operation === 'search_outlook' && searchQuery) {
           rest.query = String(searchQuery).trim()
         }
 
-        if (rest.operation === 'list_folders_outlook') {
+        if (operation === 'list_folders_outlook') {
           rest.includeHiddenFolders = toBool(includeHiddenFolders)
         }
 
-        if (rest.operation === 'create_folder_outlook') {
+        if (operation === 'create_folder_outlook') {
           if (folderName) {
             rest.displayName = String(folderName).trim()
           }
-          rest.isHidden = toBool(folderIsHidden)
+          rest.isHidden = toBool(fieldOrToolArg(folderIsHidden, rest.isHidden))
         }
 
-        if (rest.operation === 'move_outlook') {
+        if (operation === 'move_outlook') {
           if (moveMessageId) {
             rest.messageId = moveMessageId
           }
@@ -1058,22 +1067,18 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
             'update_message_outlook',
             'list_attachments_outlook',
             'get_attachment_outlook',
-          ].includes(rest.operation)
+          ].includes(operation)
         ) {
           if (actionMessageId) {
             rest.messageId = actionMessageId
           }
         }
 
-        if (
-          rest.operation === 'update_message_outlook' &&
-          categories != null &&
-          categories !== ''
-        ) {
+        if (operation === 'update_message_outlook' && categories != null && categories !== '') {
           rest.categories = categories
         }
 
-        if (rest.operation === 'copy_outlook') {
+        if (operation === 'copy_outlook') {
           if (copyMessageId) {
             rest.messageId = copyMessageId
           }
@@ -1086,18 +1091,15 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
           }
         }
 
-        const isSet = (value: unknown): boolean =>
-          value !== undefined && value !== null && value !== ''
-
         // Blank means the default calendar, so only forward it when the user actually picked one.
-        if (['list_events_calendar', 'create_event_calendar'].includes(rest.operation)) {
+        if (['list_events_calendar', 'create_event_calendar'].includes(operation)) {
           const effectiveCalendarId = calendarId ? String(calendarId).trim() : ''
           if (effectiveCalendarId) {
             rest.calendarId = effectiveCalendarId
           }
         }
 
-        if (rest.operation === 'list_events_calendar') {
+        if (operation === 'list_events_calendar') {
           if (calWindowStart) rest.startDateTime = String(calWindowStart).trim()
           if (calWindowEnd) rest.endDateTime = String(calWindowEnd).trim()
           if (isSet(calMaxResults)) rest.maxResults = Number(calMaxResults)
@@ -1111,12 +1113,12 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
             'update_event_calendar',
             'delete_event_calendar',
             'respond_calendar',
-          ].includes(rest.operation)
+          ].includes(operation)
         ) {
           if (calEventId) rest.eventId = String(calEventId).trim()
         }
 
-        if (rest.operation === 'create_event_calendar') {
+        if (operation === 'create_event_calendar') {
           if (calSubject) rest.subject = calSubject
           if (calStartDateTime) rest.startDateTime = String(calStartDateTime).trim()
           if (calEndDateTime) rest.endDateTime = String(calEndDateTime).trim()
@@ -1125,11 +1127,11 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
           if (isSet(calLocation)) rest.location = calLocation
           if (isSet(calAttendees)) rest.attendees = calAttendees
           if (calTimeZone) rest.timeZone = String(calTimeZone).trim()
-          rest.isAllDay = toBool(calIsAllDay)
-          rest.isOnlineMeeting = toBool(calIsOnlineMeeting)
+          rest.isAllDay = toBool(fieldOrToolArg(calIsAllDay, rest.isAllDay))
+          rest.isOnlineMeeting = toBool(fieldOrToolArg(calIsOnlineMeeting, rest.isOnlineMeeting))
         }
 
-        if (rest.operation === 'update_event_calendar') {
+        if (operation === 'update_event_calendar') {
           if (isSet(calSubject)) rest.subject = calSubject
           if (calStartDateTime) rest.startDateTime = String(calStartDateTime).trim()
           if (calEndDateTime) rest.endDateTime = String(calEndDateTime).trim()
@@ -1142,11 +1144,12 @@ Return ONLY the comma-separated email list - no explanations, no extra text.`,
           if (isSet(calIsOnlineMeeting)) rest.isOnlineMeeting = toBool(calIsOnlineMeeting)
         }
 
-        if (rest.operation === 'respond_calendar') {
+        if (operation === 'respond_calendar') {
           if (calResponseType) rest.responseType = calResponseType
           if (isSet(calComment)) rest.comment = calComment
           // Notifying the organizer is the default; an unset dropdown must not read as "no".
-          rest.sendResponse = isSet(calSendResponse) ? toBool(calSendResponse) : true
+          const sendResponse = fieldOrToolArg(calSendResponse, rest.sendResponse)
+          rest.sendResponse = isSet(sendResponse) ? toBool(sendResponse) : true
         }
 
         return {

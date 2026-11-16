@@ -211,7 +211,8 @@ async function generate() {
   const dates = lastModified()
   let compiled = 0
   for (const file of await filesIn(CONTENT_ROOT)) {
-    const relative = path.relative(CONTENT_ROOT, file)
+    // Navigation keys and page URLs below assume `/`; on Windows path.relative returns `\`.
+    const relative = path.relative(CONTENT_ROOT, file).split(path.sep).join('/')
     if (relative.endsWith('meta.json')) {
       const parsed = metadataSchema.safeParse(JSON.parse(await readFile(file, 'utf8')))
       if (!parsed.success) throw new Error(`${relative}: ${parsed.error.message}`)

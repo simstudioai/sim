@@ -1,7 +1,12 @@
 import { KalshiIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, withSavedCredential } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  mapperOperation,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 /*
  * Mutually exclusive alternates, not canonical pairs — an order carries either
@@ -695,9 +700,9 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
             return 'kalshi_get_markets'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           orderStatus,
           tickerFilter,
           tickerFills,
@@ -712,68 +717,71 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
           ...rest
         } = params
         const cleanParams: Record<string, any> = {}
-
-        if (operation === 'get_orders' && orderStatus) {
-          cleanParams.status = orderStatus
-        }
-
-        if (
-          (operation === 'get_orders' ||
-            operation === 'get_positions' ||
-            operation === 'get_settlements') &&
-          tickerFilter
-        ) {
-          cleanParams.ticker = tickerFilter
-        }
-
-        if (operation === 'get_fills' && tickerFills) {
-          cleanParams.ticker = tickerFills
-        }
-
-        if (operation === 'get_candlesticks') {
-          if (seriesTickerCandlesticks) cleanParams.seriesTicker = seriesTickerCandlesticks
-          if (tickerCandlesticks) cleanParams.ticker = tickerCandlesticks
-        }
-
-        // Map series ticker for get_event_candlesticks (event ticker flows through eventTicker)
-        if (operation === 'get_event_candlesticks' && seriesTickerCandlesticks) {
-          cleanParams.seriesTicker = seriesTickerCandlesticks
-        }
-
-        if (operation === 'get_series_by_ticker' && seriesTickerGet) {
-          cleanParams.seriesTicker = seriesTickerGet
-        }
-
-        if (
-          (operation === 'get_order' ||
-            operation === 'cancel_order' ||
-            operation === 'amend_order') &&
-          orderIdParam
-        ) {
-          cleanParams.orderId = orderIdParam
-        }
-
-        if ((operation === 'create_order' || operation === 'amend_order') && tickerOrder) {
-          cleanParams.ticker = tickerOrder
-        }
-
-        if (operation === 'create_order' && orderType) {
-          cleanParams.type = orderType
-        }
-
-        if (operation === 'amend_order' && countAmend) {
-          cleanParams.count = countAmend
-        }
-
-        if (operation === 'amend_order' && clientOrderIdAmend) {
-          cleanParams.clientOrderId = clientOrderIdAmend
-        }
-
         Object.entries(rest).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
             cleanParams[key] = value
           }
         })
+
+        /**
+         * The operation's own field wins over a value under the tool's param name: on the canvas
+         * that value is stale from another operation, and on a tool call the row's field is pinned.
+         * The model's value fills the param only on a tool call with the field empty.
+         */
+        const mapField = (key: string, field: unknown) => {
+          cleanParams[key] = field || toolCallArg(context, cleanParams[key])
+        }
+
+        if (operation === 'get_orders') {
+          mapField('status', orderStatus)
+        }
+
+        if (
+          operation === 'get_orders' ||
+          operation === 'get_positions' ||
+          operation === 'get_settlements'
+        ) {
+          mapField('ticker', tickerFilter)
+        }
+
+        if (operation === 'get_fills') {
+          mapField('ticker', tickerFills)
+        }
+
+        if (operation === 'get_candlesticks') {
+          mapField('seriesTicker', seriesTickerCandlesticks)
+          mapField('ticker', tickerCandlesticks)
+        }
+
+        // Event candlesticks take the event ticker through eventTicker
+        if (operation === 'get_event_candlesticks') {
+          mapField('seriesTicker', seriesTickerCandlesticks)
+        }
+
+        if (operation === 'get_series_by_ticker') {
+          mapField('seriesTicker', seriesTickerGet)
+        }
+
+        if (
+          operation === 'get_order' ||
+          operation === 'cancel_order' ||
+          operation === 'amend_order'
+        ) {
+          mapField('orderId', orderIdParam)
+        }
+
+        if (operation === 'create_order' || operation === 'amend_order') {
+          mapField('ticker', tickerOrder)
+        }
+
+        if (operation === 'create_order') {
+          mapField('type', orderType)
+        }
+
+        if (operation === 'amend_order') {
+          mapField('count', countAmend)
+          mapField('clientOrderId', clientOrderIdAmend)
+        }
 
         return cleanParams
       },

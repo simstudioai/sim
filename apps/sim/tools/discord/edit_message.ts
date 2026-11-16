@@ -1,6 +1,7 @@
 import type { DiscordEditMessageParams, DiscordEditMessageResponse } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordEditMessageTool: ToolConfig<
   DiscordEditMessageParams,
@@ -39,7 +40,7 @@ export const discordEditMessageTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -47,7 +48,7 @@ export const discordEditMessageTool: ToolConfig<
 
   request: {
     url: (params: DiscordEditMessageParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}`
     },
     method: 'PATCH',
     headers: (params) => ({
@@ -83,7 +84,12 @@ export const discordEditMessageTool: ToolConfig<
         id: { type: 'string', description: 'Message ID' },
         content: { type: 'string', description: 'Updated message content' },
         channel_id: { type: 'string', description: 'Channel ID' },
-        edited_timestamp: { type: 'string', description: 'Message edited timestamp' },
+        edited_timestamp: {
+          type: 'string',
+          description: 'Message edited timestamp',
+          optional: true,
+          nullable: true,
+        },
       },
     },
   },

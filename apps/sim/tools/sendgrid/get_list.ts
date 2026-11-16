@@ -2,6 +2,7 @@ import type { GetListParams, ListResult, SendGridList } from '@/tools/sendgrid/t
 import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const sendGridGetListTool: ToolConfig<GetListParams, ListResult> = {
   id: 'sendgrid_get_list',
@@ -27,7 +28,8 @@ export const sendGridGetListTool: ToolConfig<GetListParams, ListResult> = {
   },
 
   request: {
-    url: (params) => `${SENDGRID_REGIONS.apiBase(params.region)}/marketing/lists/${params.listId}`,
+    url: (params) =>
+      `${SENDGRID_REGIONS.apiBase(params.region)}/marketing/lists/${safeUrlPathSegment(params.listId, 'listId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

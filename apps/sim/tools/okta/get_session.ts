@@ -4,6 +4,7 @@ import type { OktaGetSessionParams, OktaGetSessionResponse, OktaSession } from '
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaGetSession')
 
@@ -39,7 +40,7 @@ export const oktaGetSessionTool: ToolConfig<OktaGetSessionParams, OktaGetSession
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/sessions/${encodeURIComponent(params.sessionId.trim())}`
+      return `https://${domain}/api/v1/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}`
     },
     method: 'GET',
     headers: (params) => oktaHeaders(params.apiKey),

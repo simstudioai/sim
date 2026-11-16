@@ -1,5 +1,26 @@
+import { isPlainRecord } from '@sim/utils/object'
 import type { PagerDutySendEventParams, PagerDutySendEventResponse } from '@/tools/pagerduty/types'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Normalizes `custom_details`, which the Events API v2 schema types as an object. Block inputs
+ * arrive as a JSON string; tool calls may send the object itself.
+ */
+function parseCustomDetails(value: unknown): Record<string, unknown> | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  let parsed: unknown = value
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      throw new Error('customDetails must be a valid JSON object')
+    }
+  }
+  if (!isPlainRecord(parsed)) {
+    throw new Error('customDetails must be a JSON object')
+  }
+  return parsed
+}
 
 export const sendEventTool: ToolConfig<PagerDutySendEventParams, PagerDutySendEventResponse> = {
   id: 'pagerduty_send_event',
@@ -66,6 +87,20 @@ export const sendEventTool: ToolConfig<PagerDutySendEventParams, PagerDutySendEv
       visibility: 'user-or-llm',
       description: 'The class/type of the event',
     },
+    timestamp: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ISO 8601 time at which the monitoring tool detected or generated the event (trigger only)',
+    },
+    customDetails: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object of additional details about the event and affected system (trigger only)',
+    },
   },
 
   request: {
@@ -93,6 +128,8 @@ export const sendEventTool: ToolConfig<PagerDutySendEventParams, PagerDutySendEv
           throw new Error('summary, source, and severity are required when eventAction is trigger')
         }
 
+        const customDetails = parseCustomDetails(params.customDetails)
+
         body.payload = {
           summary: params.summary,
           source: params.source,
@@ -100,6 +137,8 @@ export const sendEventTool: ToolConfig<PagerDutySendEventParams, PagerDutySendEv
           ...(params.component && { component: params.component }),
           ...(params.group && { group: params.group }),
           ...(params.class && { class: params.class }),
+          ...(params.timestamp && { timestamp: params.timestamp }),
+          ...(customDetails && { custom_details: customDetails }),
         }
       }
 

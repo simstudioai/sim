@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { GetEmailParams, GetEmailResult } from '@/tools/resend/types'
 import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ResendGetEmailTool')
 
@@ -28,7 +29,8 @@ export const resendGetEmailTool: ToolConfig<GetEmailParams, GetEmailResult> = {
   },
 
   request: {
-    url: (params: GetEmailParams) => `https://api.resend.com/emails/${params.emailId.trim()}`,
+    url: (params: GetEmailParams) =>
+      `https://api.resend.com/emails/${safeUrlPathSegment(params.emailId, 'emailId')}`,
     method: 'GET',
     headers: (params: GetEmailParams) => ({
       Authorization: `Bearer ${params.resendApiKey}`,

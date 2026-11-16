@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressUpdateCommentParams,
@@ -48,7 +49,8 @@ export const updateCommentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/comments/${params.commentId}`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/comments/${safeUrlPathSegment(params.commentId, 'commentId')}`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

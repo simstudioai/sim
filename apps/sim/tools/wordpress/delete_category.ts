@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressDeleteCategoryParams,
@@ -38,7 +39,7 @@ export const deleteCategoryTool: ToolConfig<
   request: {
     url: (params) => {
       // Terms do not support trashing, so force=true is required to delete.
-      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/categories/${params.categoryId}?force=true`
+      return `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/categories/${safeUrlPathSegment(params.categoryId, 'categoryId')}?force=true`
     },
     method: 'DELETE',
     headers: (params) => ({

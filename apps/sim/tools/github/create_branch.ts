@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { CreateBranchParams, RefResponse } from '@/tools/github/types'
 import { GIT_REF_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -45,7 +46,8 @@ export const createBranchTool: ToolConfig<CreateBranchParams, RefResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/git/refs`,
+    url: (params) =>
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/git/refs`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

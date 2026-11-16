@@ -1,7 +1,7 @@
 import { SapConcurIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, toolCallArg } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 import type { UserFileLike } from '@/tools/sap_concur/types'
 
 const toBool = (v: unknown): boolean | undefined => {
@@ -2030,7 +2030,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     config: {
       tool: (params) => params.operation,
       params: (params, context) => {
-        const operation = params.operation ?? context?.operation
+        const operation = mapperOperation(params, context)
         const auth = {
           datacenter: params.datacenter || undefined,
           grantType: params.grantType || undefined,

@@ -1,5 +1,5 @@
 import type { ListMessagesParams, ListMessagesResult } from '@/tools/mailgun/types'
-import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { getMailgunApiBaseUrl, mailgunPathSegment } from '@/tools/mailgun/utils'
 import { MAILGUN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -39,20 +39,21 @@ export const mailgunListMessagesTool: ToolConfig<ListMessagesParams, ListMessage
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of events to return (default: 100)',
+      description: 'Maximum number of events to return (default: 100, max: 300)',
     },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = `${getMailgunApiBaseUrl(params.region)}/${params.domain}/events`
+      const baseUrl = `${getMailgunApiBaseUrl(params.region)}/${mailgunPathSegment(params.domain, 'domain')}/events`
       const queryParams = new URLSearchParams()
 
       if (params.event) {
         queryParams.append('event', params.event)
       }
-      if (params.limit) {
-        queryParams.append('limit', params.limit.toString())
+      const limit = Math.trunc(Number(params.limit))
+      if (limit && Number.isFinite(limit)) {
+        queryParams.append('limit', String(Math.min(Math.max(1, limit), 300)))
       }
 
       const query = queryParams.toString()

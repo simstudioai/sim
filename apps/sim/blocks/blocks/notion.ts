@@ -3,7 +3,11 @@ import { toError } from '@sim/utils/errors'
 import { NotionIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, parseOptionalJsonInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  mapperOperation,
+  parseOptionalJsonInput,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -625,7 +629,6 @@ export const NotionBlock: BlockConfig = {
       params: (params, context) => {
         const {
           oauthCredential,
-          operation: storedOperation,
           properties,
           filter,
           sorts,
@@ -637,7 +640,7 @@ export const NotionBlock: BlockConfig = {
           commentContent,
           ...rest
         } = params
-        const operation = storedOperation ?? context?.operation
+        const operation = mapperOperation(params, context)
 
         // Parse properties from JSON string for create/add operations
         let parsedProperties

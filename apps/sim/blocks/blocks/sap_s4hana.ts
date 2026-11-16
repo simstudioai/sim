@@ -1,7 +1,7 @@
 import { SapS4HanaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta, CanvasSentence } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { isToolCall } from '@/blocks/utils'
+import { isToolCall, mapperOperation } from '@/blocks/utils'
 
 /**
  * Whichever name a new business partner carries: an organization has
@@ -1048,7 +1048,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
       tool: (params) => params.operation,
       params: (params, context) => {
         /** Agent tool calls carry the stored operation only on `context`, not in `params`. */
-        const operation = params.operation ?? context?.operation
+        const operation = mapperOperation(params, context)
         /**
          * A differently named sub-block feeds each tool param below. On a tool call the model's
          * arg arrives under the tool param name, so a blank sub-block falls back to it.

@@ -1,7 +1,13 @@
 import { MailgunIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import {
+  isToolCall,
+  mapperOperation,
+  parseOptionalBooleanInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 export const MailgunBlock: BlockConfig = {
   type: 'mailgun',
@@ -395,17 +401,25 @@ Return ONLY the JSON object - no explanations or markdown.`,
     ],
     config: {
       tool: (params) => `mailgun_${params.operation}`,
-      params: (params) => {
-        const { operation, memberAddress, memberName, ...rest } = params
+      params: (params, context) => {
+        const { memberAddress, memberName, ...rest } = params
 
-        // Handle special field mappings for add_list_member
-        if (operation === 'add_list_member') {
+        if (mapperOperation(params, context) === 'add_list_member') {
+          /**
+           * The block's List Address field is stored under `address`, the tool's member param.
+           * On the canvas, and on a tool call whose row saved that field, `address` is the list;
+           * otherwise it is the member the model named.
+           */
+          const addressIsList =
+            !isToolCall(context) || Boolean(context?.pinnedParams?.has('address'))
           return {
             ...rest,
-            listAddress: params.address,
-            address: memberAddress,
-            name: memberName,
-            subscribed: params.subscribed === 'true',
+            listAddress: addressIsList ? params.address : params.listAddress,
+            address: memberAddress || (addressIsList ? undefined : params.address),
+            name: memberName || toolCallArg(context, params.name),
+            subscribed: isToolCall(context)
+              ? parseOptionalBooleanInput(params.subscribed)
+              : params.subscribed === 'true',
           }
         }
 
@@ -518,7 +532,7 @@ export const MailgunBlockMeta = {
       icon: MailgunIcon,
       title: 'Mailgun domain verification monitor',
       prompt:
-        'Create a scheduled workflow that checks the status of each Mailgun sending domain, flags any domain whose SPF, DKIM, or tracking records fall out of verification, and pages the on-call engineer in Slack with the exact records that need fixing.',
+        'Create a scheduled workflow that checks the state of each Mailgun sending domain, flags any domain that is no longer active, and pages the on-call engineer in Slack with the domain name and its current state.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['monitoring', 'automation', 'enterprise'],
@@ -531,7 +545,7 @@ export const MailgunBlockMeta = {
       description:
         'Send a transactional email through a Mailgun sending domain to one or more recipients.',
       content:
-        '# Send Transactional Email\n\nDeliver an email through Mailgun.\n\n## Steps\n1. Confirm the verified sending domain to use, listing domains first if unsure.\n2. Compose the message with from, to, subject, and an HTML or text body.\n3. Send Message with those fields, adding CC, BCC, or attachments as needed.\n\n## Output\nConfirmation of acceptance with the Mailgun message ID and the recipients it was queued to.',
+        '# Send Transactional Email\n\nDeliver an email through Mailgun.\n\n## Steps\n1. Confirm the verified sending domain to use, listing domains first if unsure.\n2. Compose the message with from, to, subject, and an HTML or text body.\n3. Send Message with those fields, adding CC or BCC recipients and tags as needed.\n\n## Output\nConfirmation of acceptance with the Mailgun message ID and the recipients it was queued to.',
     },
     {
       name: 'track-delivery-events',

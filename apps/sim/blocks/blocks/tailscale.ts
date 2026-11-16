@@ -1,7 +1,7 @@
 import { TailscaleIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 const SWITCH_DEFAULTS = {
   authorize_device: { authorized: true },
@@ -750,18 +750,22 @@ export const TailscaleBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `tailscale_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const mapped: Record<string, unknown> = {
           ...params,
-          dns: params.dnsServers,
-          description: params.authKeyDescription,
+          dns: params.dnsServers ?? toolCallArg(context, params.dns),
+          description: params.authKeyDescription ?? toolCallArg(context, params.description),
           expirySeconds: undefined,
           name: params.name ?? '',
-          role: params.operation === 'list_users' ? params.roleFilter || undefined : params.role,
+          role:
+            operation === 'list_users'
+              ? params.roleFilter || toolCallArg(context, params.role) || undefined
+              : params.role,
         }
         const defaults =
           Object.entries(SWITCH_DEFAULTS).find(
-            ([operation]) => operation === params.operation
+            ([switchOperation]) => switchOperation === operation
           )?.[1] ?? {}
         for (const [field, defaultValue] of Object.entries(defaults)) {
           const value = params[field]
@@ -776,7 +780,7 @@ export const TailscaleBlock: BlockConfig = {
           }
         }
         if (
-          params.operation === 'create_auth_key' &&
+          operation === 'create_auth_key' &&
           params.expirySeconds != null &&
           !(typeof params.expirySeconds === 'string' && params.expirySeconds.trim() === '')
         ) {

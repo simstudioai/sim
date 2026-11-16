@@ -76,7 +76,8 @@ export const brexListCardsTool: ToolConfig<BrexListCardsParams, BrexListCardsRes
           owner: { type: 'json', description: 'Card owner (type, user_id)' },
           status: { type: 'string', description: 'Card status', optional: true },
           last_four: { type: 'string', description: 'Last four digits of the card number' },
-          card_name: { type: 'string', description: 'Card name' },
+          card_name: { type: 'string', description: 'Card name', optional: true },
+          created_at: { type: 'string', description: 'Card creation timestamp' },
           card_type: {
             type: 'string',
             description: 'Card type (VIRTUAL or PHYSICAL)',

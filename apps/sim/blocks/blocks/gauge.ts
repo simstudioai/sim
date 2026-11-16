@@ -1,5 +1,6 @@
 import { GaugeIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 export const GaugeBlock: BlockConfig = {
   type: 'gauge',
@@ -972,7 +973,7 @@ export const GaugeBlock: BlockConfig = {
     config: {
       tool: (params) => params.operation,
       params: (params, context) => {
-        const operation = context?.operation ?? params.operation
+        const operation = mapperOperation(params, context)
         const patch = ['gauge_bulk_update_prompts', 'gauge_update_prompt'].includes(operation)
         return {
           ...params,

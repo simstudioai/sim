@@ -1,3 +1,4 @@
+import { githubRefPath, githubRepoPath } from '@/tools/github/request-path'
 import type { BranchProtectionResponse, UpdateBranchProtectionParams } from '@/tools/github/types'
 import { BRANCH_PROTECTION_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -135,7 +136,7 @@ export const updateBranchProtectionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/branches/${params.branch}/protection`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/branches/${githubRefPath(params.branch, 'branch')}/protection`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

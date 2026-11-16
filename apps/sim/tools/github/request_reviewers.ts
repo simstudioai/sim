@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { RequestReviewersParams, ReviewersResponse } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -51,7 +52,7 @@ export const requestReviewersTool: ToolConfig<RequestReviewersParams, ReviewersR
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/requested_reviewers`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${githubPathSegment(params.pullNumber, 'pullNumber')}/requested_reviewers`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

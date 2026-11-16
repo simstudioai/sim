@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import { MILESTONE_CREATOR_OUTPUT, MILESTONE_V2_OUTPUT_PROPERTIES } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -98,7 +99,9 @@ export const listMilestonesTool: ToolConfig<ListMilestonesParams, ListMilestones
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/milestones`)
+      const url = new URL(
+        `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/milestones`
+      )
       if (params.state) url.searchParams.append('state', params.state)
       if (params.sort) url.searchParams.append('sort', params.sort)
       if (params.direction) url.searchParams.append('direction', params.direction)

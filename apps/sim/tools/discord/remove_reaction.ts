@@ -4,6 +4,7 @@ import type {
 } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordRemoveReactionTool: ToolConfig<
   DiscordRemoveReactionParams,
@@ -49,7 +50,7 @@ export const discordRemoveReactionTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -59,8 +60,8 @@ export const discordRemoveReactionTool: ToolConfig<
     url: (params: DiscordRemoveReactionParams) => {
       const encodedEmoji = encodeURIComponent(params.emoji)
       const userId = params.userId?.trim()
-      const userPart = userId ? `/${userId}` : '/@me'
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}/reactions/${encodedEmoji}${userPart}`
+      const userPart = userId ? `/${safeUrlPathSegment(userId, 'userId')}` : '/@me'
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}/reactions/${encodedEmoji}${userPart}`
     },
     method: 'DELETE',
     headers: (params) => ({

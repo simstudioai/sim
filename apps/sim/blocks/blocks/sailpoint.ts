@@ -2,6 +2,8 @@ import { SailPointIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  isToolCall,
+  mapperOperation,
   normalizeFileInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
@@ -1236,7 +1238,7 @@ export const SailPointBlock: BlockConfig = {
           ? (operation as SailPointOperation)
           : 'sailpoint_search'
       },
-      params: (params) => {
+      params: (params, context) => {
         const mapped: Record<string, unknown> = {
           clientId: params.clientId,
           clientSecret: params.clientSecret,
@@ -1263,6 +1265,29 @@ export const SailPointBlock: BlockConfig = {
           const parsed = parseOptionalJsonInput(value, label)
           if (parsed !== undefined) mapped[key] = parsed
         }
+        /**
+         * Search list fields accept a JSON array or the comma-separated string the tool splits
+         * itself (and validates), so a non-JSON string passes through instead of failing the
+         * whole mapping.
+         */
+        const setList = (key: string, value: unknown) => {
+          try {
+            setJson(key, value)
+          } catch {
+            setStr(key, value)
+          }
+        }
+        /**
+         * On the canvas, advanced fields hidden behind a selector still serialize and would reach
+         * the tool raw under their own ids, so the ones this mapping left unset are cleared. A tool
+         * call never clears them: those keys hold the model's arguments.
+         */
+        const clearUnsetOnCanvas = (...keys: string[]) => {
+          if (isToolCall(context)) return
+          for (const key of keys) {
+            if (!(key in mapped)) mapped[key] = undefined
+          }
+        }
         const applyPagination = () => {
           setNum('limit', params.limit)
           setNum('offset', params.offset)
@@ -1284,9 +1309,10 @@ export const SailPointBlock: BlockConfig = {
               setStr('regardingIdentity', params.regardingIdentity)
               break
           }
+          clearUnsetOnCanvas('requestedFor', 'requestedBy', 'regardingIdentity')
         }
         const applySearchBody = () => {
-          setJson('indices', params.indices)
+          setList('indices', params.indices)
           setStr('queryType', params.queryType)
           setStr('queryVersion', params.queryVersion)
           setJson('query', params.query)
@@ -1299,12 +1325,13 @@ export const SailPointBlock: BlockConfig = {
           setStr('aggregationsVersion', params.aggregationsVersion)
           setJson('aggregationsDsl', params.aggregationsDsl)
           setJson('aggregations', params.aggregations)
-          setJson('sort', params.sort)
-          setJson('searchAfter', params.searchAfter)
+          setList('sort', params.sort)
+          setList('searchAfter', params.searchAfter)
           setJson('filters', params.searchFilters, 'searchFilters')
+          clearUnsetOnCanvas('filters')
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'sailpoint_search':
             applySearchBody()
             applyPagination()
@@ -1347,7 +1374,9 @@ export const SailPointBlock: BlockConfig = {
             ) {
               setBoolean('includeUnsegmented', params.entitlementIncludeUnsegmented)
             }
+            clearUnsetOnCanvas('segmentedForIdentity', 'forSegmentIds', 'includeUnsegmented')
             setStr('searchAfter', params.entitlementSearchAfter)
+            clearUnsetOnCanvas('searchAfter')
             applyPagination()
             break
           case 'sailpoint_list_roles':
@@ -1358,6 +1387,7 @@ export const SailPointBlock: BlockConfig = {
               setStr('forSegmentIds', params.forSegmentIds)
               setBoolean('includeUnsegmented', params.includeUnsegmented)
             }
+            clearUnsetOnCanvas('forSegmentIds', 'includeUnsegmented')
             applyPagination()
             break
           case 'sailpoint_get_role_entitlements':
@@ -1406,6 +1436,7 @@ export const SailPointBlock: BlockConfig = {
               setStr('accessProfiles', params.accessProfiles)
             }
             if (params.reviewItemFilterType === 'roles') setStr('roles', params.roles)
+            clearUnsetOnCanvas('entitlements', 'accessProfiles', 'roles')
             applyPagination()
             break
           case 'sailpoint_get_identity':

@@ -5,10 +5,16 @@ import {
   type BlockConfig,
   type BlockMeta,
   type BlockToolParams,
+  type BlockToolParamsContext,
   IntegrationType,
   type SubBlockType,
 } from '@/blocks/types'
-import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
+import {
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 const LEGACY_DOCUMENT_FIELD = ['fileUpload', 'filePath', 's3Uri'] as const
 const DOCUMENT_FIELD = ['fileUpload', 'fileReference', 's3Uri'] as const
@@ -333,9 +339,13 @@ function requireAwsRegion(params: Record<string, unknown>): string {
  * Tool params for a Textract v2+ operation. `accessKeys` is empty when a saved
  * AWS credential supplies them server-side.
  */
-function textractToolParams(params: BlockToolParams, accessKeys: Partial<AwsAccessKeys>) {
+function textractToolParams(
+  params: BlockToolParams,
+  accessKeys: Partial<AwsAccessKeys>,
+  context?: BlockToolParamsContext
+) {
   const region = requireAwsRegion(params)
-  const operation = params.operation || 'analyze_document'
+  const operation = mapperOperation(params, context) || 'analyze_document'
 
   if (operation === 'analyze_id') {
     const front = resolveDocumentParam(params.document)
@@ -376,17 +386,23 @@ function textractToolParams(params: BlockToolParams, accessKeys: Partial<AwsAcce
 
   if (operation === 'analyze_expense') return parameters
 
-  const featureTypes: string[] = []
-  if (params.extractTables) featureTypes.push('TABLES')
-  if (params.extractForms) featureTypes.push('FORMS')
-  if (params.detectSignatures) featureTypes.push('SIGNATURES')
-  if (params.analyzeLayout) featureTypes.push('LAYOUT')
+  /** A tool call's model-chosen feature types are kept alongside the block's toggles. */
+  const modelFeatureTypes = toolCallArg(context, params.featureTypes)
+  const featureTypes = new Set<string>(
+    Array.isArray(modelFeatureTypes)
+      ? modelFeatureTypes.filter((type): type is string => typeof type === 'string')
+      : []
+  )
+  if (params.extractTables) featureTypes.add('TABLES')
+  if (params.extractForms) featureTypes.add('FORMS')
+  if (params.detectSignatures) featureTypes.add('SIGNATURES')
+  if (params.analyzeLayout) featureTypes.add('LAYOUT')
   const queries = parseTextractQueries(params.queries)
   if (queries.length > 0) {
-    featureTypes.push('QUERIES')
+    featureTypes.add('QUERIES')
     parameters.queries = queries
   }
-  if (featureTypes.length > 0) parameters.featureTypes = featureTypes
+  if (featureTypes.size > 0) parameters.featureTypes = [...featureTypes]
 
   return parameters
 }
@@ -566,7 +582,8 @@ export const TextractV2Block: BlockConfig = {
         if (operation === 'analyze_id') return 'textract_analyze_id'
         return 'textract_parser_v2'
       },
-      params: (params) => textractToolParams(params, requireAwsAccessKeys(params)),
+      params: (params, context) =>
+        textractToolParams(params, requireAwsAccessKeys(params), context),
     },
   },
   inputs: {
@@ -644,7 +661,7 @@ export const TextractV3Block: BlockConfig = {
   ...withSavedCredential(
     TextractV2Block,
     { id: 'credential', type: 'oauth-input', serviceId: 'aws', title: 'AWS Credential' },
-    { params: (params) => textractToolParams(params, {}) }
+    { params: (params, context) => textractToolParams(params, {}, context) }
   ),
 }
 

@@ -763,7 +763,7 @@ export const BREX_EXPENSE_ITEM_PROPERTIES: Record<string, OutputProperty> = {
   payment_status: {
     type: 'string',
     description:
-      'Payment status (NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED)',
+      'Payment status (NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED, HELD)',
     optional: true,
   },
   expense_type: {
@@ -911,8 +911,7 @@ export const BREX_USER_PROPERTIES: Record<string, OutputProperty> = {
   email: { type: 'string', description: 'Email address' },
   status: {
     type: 'string',
-    description:
-      'User status (INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED)',
+    description: 'User status (INVITED, ACTIVE, DISABLED, PENDING_ACTIVATION, INACTIVE, ARCHIVED)',
     optional: true,
   },
   manager_id: { type: 'string', description: 'ID of the manager', optional: true },

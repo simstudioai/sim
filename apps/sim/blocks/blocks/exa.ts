@@ -1,6 +1,7 @@
 import { ExaAIIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 /** Categories Exa currently supports. Shared by Search and Find Similar Links. */
 const CATEGORY_OPTIONS = [
@@ -588,7 +589,7 @@ export const ExaBlock: BlockConfig = {
             return 'exa_search'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
         if (params.numResults) {
           result.numResults = Number(params.numResults)
@@ -614,7 +615,7 @@ export const ExaBlock: BlockConfig = {
          * unset value maps to the same depth rather than falling through to
          * the Agent default of `auto`.
          */
-        if (params.operation === LEGACY_RESEARCH_OPERATION) {
+        if (mapperOperation(params, context) === LEGACY_RESEARCH_OPERATION) {
           result.effort = RESEARCH_MODEL_TO_EFFORT[params.model as string] ?? 'medium'
         }
         return result

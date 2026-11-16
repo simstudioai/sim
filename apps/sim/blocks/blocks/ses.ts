@@ -1,7 +1,7 @@
 import { SESIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { isToolCall, mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const SESBlock: BlockConfig = {
   type: 'ses',
@@ -671,8 +671,9 @@ export const SESBlock: BlockConfig = {
             throw new Error(`Invalid SES operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, pageSize, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const { pageSize, ...rest } = params
 
         const parseEmailTags = (value: unknown) => {
           if (value === undefined || value === null || value === '') return undefined
@@ -741,7 +742,9 @@ export const SESBlock: BlockConfig = {
             result.emailIdentity = rest.emailIdentity
             break
           case 'create_configuration_set':
-            result.configurationSetName = rest.newConfigurationSetName
+            result.configurationSetName = isToolCall(context)
+              ? rest.newConfigurationSetName || rest.configurationSetName
+              : rest.newConfigurationSetName
             if (rest.customRedirectDomain) result.customRedirectDomain = rest.customRedirectDomain
             if (rest.httpsPolicy) result.httpsPolicy = rest.httpsPolicy
             if (rest.tlsPolicy) result.tlsPolicy = rest.tlsPolicy
@@ -778,7 +781,10 @@ export const SESBlock: BlockConfig = {
             if (rest.ccAddresses) result.ccAddresses = rest.ccAddresses
             if (rest.bccAddresses) result.bccAddresses = rest.bccAddresses
             if (rest.configurationSetName) result.configurationSetName = rest.configurationSetName
-            applySendOptions(result, rest.templateReplyToAddresses)
+            applySendOptions(
+              result,
+              rest.templateReplyToAddresses || toolCallArg(context, rest.replyToAddresses)
+            )
             break
           case 'send_bulk_email':
             result.fromAddress = rest.fromAddress
@@ -786,7 +792,10 @@ export const SESBlock: BlockConfig = {
             result.destinations = rest.destinations
             if (rest.defaultTemplateData) result.defaultTemplateData = rest.defaultTemplateData
             if (rest.configurationSetName) result.configurationSetName = rest.configurationSetName
-            applySendOptions(result, rest.templateReplyToAddresses)
+            applySendOptions(
+              result,
+              rest.templateReplyToAddresses || toolCallArg(context, rest.replyToAddresses)
+            )
             break
           case 'list_identities':
             if (pageSize != null) {

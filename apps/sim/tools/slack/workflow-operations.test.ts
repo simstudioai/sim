@@ -29,11 +29,13 @@ import { slackListUserGroupsTool } from '@/tools/slack/list_user_groups'
 import { slackLookupUserByEmailTool } from '@/tools/slack/lookup_user_by_email'
 import { slackMarkConversationReadTool } from '@/tools/slack/mark_conversation_read'
 import { slackOpenConversationTool } from '@/tools/slack/open_conversation'
+import { slackOpenViewTool } from '@/tools/slack/open_view'
 import { slackPinMessageTool } from '@/tools/slack/pin_message'
 import { slackRemoveBookmarkTool } from '@/tools/slack/remove_bookmark'
 import { slackRevokeCanvasAccessTool } from '@/tools/slack/revoke_canvas_access'
 import { slackSetUserPresenceTool } from '@/tools/slack/set_user_presence'
 import { slackShareCanvasTool } from '@/tools/slack/share_canvas'
+import type { SlackOpenViewParams } from '@/tools/slack/types'
 import { slackUnarchiveConversationTool } from '@/tools/slack/unarchive_conversation'
 import { slackUnfurlLinksTool } from '@/tools/slack/unfurl_links'
 import { slackUnpinMessageTool } from '@/tools/slack/unpin_message'
@@ -351,5 +353,53 @@ describe('Slack workflow API request contracts', () => {
       )
       expect(tool.oauth?.requiredScopes).toBeDefined()
     }
+  })
+})
+
+describe('Slack ID list inputs', () => {
+  it("accepts Slack's comma-separated form and enforces documented list caps", () => {
+    const buildDndUrl = slackGetTeamDndInfoTool.request.url
+    if (typeof buildDndUrl !== 'function') throw new Error('dnd.teamInfo builds its URL')
+    const dndUrl = (users: unknown) => new URL(buildDndUrl({ ...auth, users } as never))
+    expect(dndUrl('U1, W2').searchParams.get('users')).toBe('U1,W2')
+    expect(dndUrl(['U1', 'W2']).searchParams.get('users')).toBe('U1,W2')
+    expect(() => dndUrl(Array.from({ length: 51 }, (_, i) => `U${i}`))).toThrow()
+    expect(() => dndUrl('[not json')).toThrow('Invalid JSON in Slack request')
+
+    const body = (tool: ToolConfig, params: Record<string, unknown>) =>
+      (tool.request.body as (p: Record<string, unknown>) => unknown)({ ...auth, ...params })
+    expect(body(slackCreateUserGroupTool, { name: 'Eng', channels: 'C1,C2' })).toMatchObject({
+      channels: 'C1,C2',
+    })
+    expect(() =>
+      body(slackRevokeCanvasAccessTool, { canvas_id: 'F1', user_ids: 'U1,U2' })
+    ).toThrow()
+    expect(() =>
+      body(slackShareCanvasTool, {
+        canvas_id: 'F1',
+        access_level: 'read',
+        user_ids: Array.from({ length: 21 }, (_, i) => `U${i}`),
+      })
+    ).toThrow()
+  })
+})
+
+describe('Slack views.open targeting', () => {
+  it('accepts an interactivity pointer alone and rejects a call with neither target', () => {
+    const buildBody = slackOpenViewTool.request.body
+    if (typeof buildBody !== 'function') throw new Error('views.open has no request body builder')
+    const body = (params: Partial<SlackOpenViewParams>) =>
+      buildBody({
+        authMethod: 'oauth',
+        accessToken: 'test-token',
+        botToken: '',
+        view: { type: 'modal' },
+        ...params,
+      })
+    expect(body({ interactivityPointer: ' ptr-1 ' })).toEqual({
+      view: { type: 'modal' },
+      interactivity_pointer: 'ptr-1',
+    })
+    expect(() => body({})).toThrow('Provide a Trigger ID or an Interactivity Pointer')
   })
 })

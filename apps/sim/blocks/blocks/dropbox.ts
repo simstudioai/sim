@@ -3,7 +3,7 @@ import { DropboxIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, toolCallArg } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 
 /*
  * Canonical basic/advanced pair for the upload source, shared by the card
@@ -483,7 +483,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       params: (params, context) => {
         const result: Record<string, unknown> = {}
-        const operation = params.operation ?? context?.operation
+        const operation = mapperOperation(params, context)
         // `cursor` is List Shared Links' field; List Folder and Search page with their own
         if (operation === 'dropbox_list_folder') {
           result.cursor = params.listFolderCursor || toolCallArg(context, params.cursor)

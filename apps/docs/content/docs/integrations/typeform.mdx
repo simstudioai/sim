@@ -33,9 +33,10 @@ Retrieve form responses from Typeform
 | `pageSize` | number | No | Number of responses to retrieve \(e.g., 10, 25, 50\) |
 | `before` | string | No | Cursor token for fetching the next page of older responses |
 | `after` | string | No | Cursor token for fetching the next page of newer responses |
-| `since` | string | No | Retrieve responses submitted after this date \(e.g., "2024-01-01T00:00:00Z"\) |
-| `until` | string | No | Retrieve responses submitted before this date \(e.g., "2024-12-31T23:59:59Z"\) |
-| `completed` | string | No | Filter by completion status \(e.g., "true", "false", "all"\) |
+| `since` | string | No | Retrieve responses submitted on or after this date \(e.g., "2024-01-01T00:00:00Z"\) |
+| `until` | string | No | Retrieve responses submitted on or before this date \(e.g., "2024-12-31T23:59:59Z"\) |
+| `completed` | string | No | Filter by completion status: "true" \(submitted only\), "false" \(started but not submitted\), or "all" \(no filter sent, so Typeform returns submitted responses only\). Ignored when responseType is set |
+| `responseType` | string | No | Comma-separated response types to return \(e.g., "partial,completed"\). Typeform returns only "completed" when omitted. Takes precedence over completed |
 
 #### Output
 
@@ -183,7 +184,7 @@ Create a new form with fields and settings
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `title` | string | Yes | Form title |
-| `type` | string | No | Form type \(default: "form"\). Options: "form", "quiz" |
+| `type` | string | No | Form type: "quiz", "classification", "score", "branching", "classification_branching", or "score_branching" \(Typeform default: "quiz"\) |
 | `workspaceId` | string | No | Workspace ID to create the form in \(e.g., "ws_abc123"\) |
 | `fields` | json | No | Array of field objects defining the form structure. Each field needs: type, title, and optional properties/validations |
 | `settings` | json | No | Form settings object \(language, progress_bar, etc.\) |
@@ -217,7 +218,7 @@ Update an existing form using JSON Patch operations
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `formId` | string | Yes | Form unique identifier to update \(e.g., "abc123XYZ"\) |
-| `operations` | json | Yes | Array of JSON Patch operations \(RFC 6902\). Each operation needs: op \(add/remove/replace\), path, and value \(for add/replace\) |
+| `operations` | json | Yes | Array of JSON Patch operations \(RFC 6902\), each with op, path, and value. Typeform accepts only these paths: /title, /settings/is_public, /settings/meta, /settings/google_analytics, /settings/google_tag_manager, /settings/facebook_pixel, /settings/enrichment_in_renderer, /settings/email_consent_notifications_config, /theme, /workspace |
 
 #### Output
 

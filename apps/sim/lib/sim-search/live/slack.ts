@@ -1,6 +1,18 @@
+import { slackFileDownloadUrl } from '@/lib/internal/slack/file-download'
 import { recordSearchProviderSignal } from '@/lib/knowledge/search/diagnostics'
 import { dateSortDirection, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
-import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
+import {
+  documentExtension,
+  extractDocumentText,
+  MAX_FILE_TEXT_BYTES,
+} from '@/lib/sim-search/live/file-text'
+import {
+  array,
+  NATIVE_RESPONSE_MAX_BYTES,
+  NativeSearchError,
+  object,
+  string,
+} from '@/lib/sim-search/live/http'
 import { joinMessages } from '@/lib/sim-search/live/pages'
 import { permitsResources } from '@/lib/sim-search/live/policy'
 import {
@@ -8,6 +20,7 @@ import {
   slackConversationUrl,
   slackPlainText,
 } from '@/lib/sim-search/live/slack-format'
+import { providerText } from '@/lib/sim-search/live/text'
 import type {
   NativeClient,
   NativeDocument,
@@ -17,6 +30,15 @@ import type {
 
 /** Slack's own label for an account whose name is unavailable. */
 const SLACK_MEMBER = 'Slack member'
+/** Time a file download may take before the read settles for the preview it already has. */
+const FILE_DOWNLOAD_TIMEOUT_MS = 5_000
+/** Bytes downloaded per format: markup roughly doubles a canvas's text. */
+const MAX_FILE_DOWNLOAD_BYTES = {
+  html: 2 * MAX_FILE_TEXT_BYTES,
+  plain: MAX_FILE_TEXT_BYTES,
+  pdf: NATIVE_RESPONSE_MAX_BYTES,
+  docx: NATIVE_RESPONSE_MAX_BYTES,
+} as const
 /** Directory lookups one read may make; a DM or typical thread has only a few authors. */
 const MAX_AUTHOR_LOOKUPS = 10
 
@@ -326,24 +348,114 @@ async function searchSlackPage(
   }
 }
 
+type SlackFileFormat = 'html' | 'plain' | 'pdf' | 'docx'
+
+/** How a file's full text can be read, or undefined when Slack offers only its preview. */
+function slackFileFormat(file: Record<string, unknown>): SlackFileFormat | undefined {
+  const mimetype = string(file.mimetype).split(';')[0].trim().toLowerCase()
+  if (
+    string(file.filetype) === 'quip' ||
+    mimetype === 'application/vnd.slack-docs' ||
+    mimetype === 'text/html'
+  )
+    return 'html'
+  if (mimetype.startsWith('text/') || mimetype === 'application/json') return 'plain'
+  return documentExtension(mimetype)
+}
+
+const BYTE_ORDER_MARKS = [
+  [[0xef, 0xbb, 0xbf], 'utf-8'],
+  [[0xff, 0xfe], 'utf-16le'],
+  [[0xfe, 0xff], 'utf-16be'],
+] as const
+
+/**
+ * Decodes downloaded text strictly: a byte-order mark wins, then the declared charset, then UTF-8.
+ * Bytes invalid in that charset, or text holding NULs (UTF-16 without a mark), are unreadable.
+ */
+function decodeFileText(bytes: Buffer, mimetype: string): string | undefined {
+  const charset = /;\s*charset="?([\w.:-]+)"?/i.exec(mimetype)?.[1]
+  const label =
+    BYTE_ORDER_MARKS.find(([mark]) => mark.every((byte, index) => bytes[index] === byte))?.[1] ??
+    charset ??
+    'utf-8'
+  let text: string
+  try {
+    text = new TextDecoder(label, { fatal: true }).decode(bytes)
+  } catch {
+    return undefined
+  }
+  return text.includes('\u0000') ? undefined : text
+}
+
+/**
+ * The full text of a file Slack hosts: canvases as HTML, snippets and text files as text, PDF and
+ * DOCX extracted, from Slack's download URL when it has one. The token only goes to Slack's file
+ * host. Short of the caller aborting, any failure (denial, redirect, size limit, unreadable bytes,
+ * slow download) leaves the read with its preview and a reason when one applies.
+ */
+async function slackFileText(
+  client: NativeClient,
+  file: Record<string, unknown>,
+  signal?: AbortSignal
+): Promise<{ text: string } | { unavailable?: string }> {
+  const format = slackFileFormat(file)
+  if (!format || Number(file.size) > MAX_FILE_DOWNLOAD_BYTES[format]) return {}
+  const source = slackFileDownloadUrl(file)
+  if (!source) return {}
+  const timeout = AbortSignal.timeout(FILE_DOWNLOAD_TIMEOUT_MS)
+  const download = signal ? AbortSignal.any([signal, timeout]) : timeout
+  const request = { service: 'slackFiles', signal: download } as const
+  const query = Object.fromEntries(source.searchParams)
+  try {
+    const bytes = await client.bytes(source.pathname, query, request)
+    if (format === 'pdf' || format === 'docx')
+      return { text: await extractDocumentText(bytes, format, download) }
+    const decoded = decodeFileText(bytes, string(file.mimetype))
+    const text = decoded && providerText(decoded, format)
+    return text && Buffer.byteLength(text, 'utf8') <= MAX_FILE_TEXT_BYTES ? { text } : {}
+  } catch (error) {
+    signal?.throwIfAborted()
+    if (!(error instanceof NativeSearchError)) return {}
+    // files.info already accepted this token, so reconnecting would not change a refused file.
+    return {
+      unavailable:
+        error.status === 'reconnect' && (error.httpStatus === 401 || error.httpStatus === 403)
+          ? "Slack did not serve this file's contents to your account. Open the source."
+          : error.message,
+    }
+  }
+}
+
 export async function readSlack(
   client: NativeClient,
   id: string,
   channel?: string,
   kind?: string,
-  threadId?: string
+  threadId?: string,
+  signal?: AbortSignal
 ): Promise<NativeDocument> {
   if (kind === 'file') {
     if (!/^F[A-Z0-9]+$/.test(id))
       throw new NativeSearchError('unavailable', 'Invalid Slack file reference.')
     const data = slackResult(await client.json('/api/files.info', { query: { file: id } }))
     const file = object(data.file)
+    const full = await slackFileText(client, file, signal)
+    if (!('text' in full)) recordSearchProviderSignal('slack.file_preview')
     return {
       id,
       kind,
       title: string(file.title),
       url: string(file.permalink),
-      content: `File preview (open the source for full contents):\n${string(file.preview_plain_text) || string(file.preview) || string(file.title)}`,
+      content:
+        'text' in full
+          ? full.text
+          : [
+              full.unavailable && `Full text unavailable: ${full.unavailable}`,
+              `File preview (open the source for full contents):\n${string(file.preview_plain_text) || string(file.preview) || string(file.title)}`,
+            ]
+              .filter(Boolean)
+              .join('\n\n'),
     }
   }
   if (

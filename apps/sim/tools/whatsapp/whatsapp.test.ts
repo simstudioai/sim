@@ -15,6 +15,10 @@ import {
   whatsappMediaLimitFor,
 } from '@/tools/whatsapp/utils'
 
+const maybeBlockParams = WhatsAppBlock.tools.config?.params
+if (!maybeBlockParams) throw new Error('WhatsAppBlock has no params mapper')
+const blockParams = maybeBlockParams
+
 const auth = { phoneNumberId: ' 15550001111 ', accessToken: ' token ' }
 
 describe('WhatsApp request URL and headers', () => {
@@ -316,7 +320,7 @@ describe('WhatsAppBlock file param mapping', () => {
   }
 
   function mapParams(params: Record<string, unknown>) {
-    return WhatsAppBlock.tools.config!.params!(params) as Record<string, unknown>
+    return blockParams(params) as Record<string, unknown>
   }
 
   /**
@@ -356,6 +360,19 @@ describe('WhatsAppBlock file param mapping', () => {
 
   it('maps the download media ID onto the tool mediaId param', () => {
     expect(mapParams({ operation: 'get_media', downloadMediaId: '123' }).mediaId).toBe('123')
+  })
+
+  /**
+   * On an agent tool call the operation arrives only in `context`, and the model supplies the
+   * tool's `mediaId` directly because `downloadMediaId` is not a tool param.
+   */
+  it('keeps the model mediaId for Download Media on a tool call', () => {
+    const mapped = blockParams({ mediaId: 'model-media-1' }, { operation: 'get_media' }) as Record<
+      string,
+      unknown
+    >
+
+    expect(mapped.mediaId).toBe('model-media-1')
   })
 
   describe('send_media media source', () => {

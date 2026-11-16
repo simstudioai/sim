@@ -1,6 +1,7 @@
 import type { RipplingBulkUpdateCustomObjectRecordsParams } from '@/tools/rippling/types'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingBulkUpdateCustomObjectRecordsTool: ToolConfig<RipplingBulkUpdateCustomObjectRecordsParams> =
   {
@@ -26,7 +27,7 @@ export const ripplingBulkUpdateCustomObjectRecordsTool: ToolConfig<RipplingBulkU
         type: 'json',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Array of records to update',
+        description: 'Array of flat records [{id, <field_api_name>: value}] (max 200)',
       },
       allOrNothing: {
         type: 'boolean',
@@ -37,7 +38,7 @@ export const ripplingBulkUpdateCustomObjectRecordsTool: ToolConfig<RipplingBulkU
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/bulk/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/records/bulk/`,
       method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

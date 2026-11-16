@@ -1,5 +1,6 @@
 import { LogRocketIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 /**
  * A highlights request identifies its subject by email or user ID — either one
@@ -286,10 +287,10 @@ export const LogRocketBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `logrocket_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'request_highlights':
             if (params.highlightsUserEmail) result.userEmail = params.highlightsUserEmail
             if (params.highlightsUserId) result.userID = params.highlightsUserId

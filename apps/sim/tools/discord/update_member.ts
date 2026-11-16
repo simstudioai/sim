@@ -1,6 +1,7 @@
 import type { DiscordUpdateMemberParams, DiscordUpdateMemberResponse } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordUpdateMemberTool: ToolConfig<
   DiscordUpdateMemberParams,
@@ -53,7 +54,7 @@ export const discordUpdateMemberTool: ToolConfig<
 
   request: {
     url: (params: DiscordUpdateMemberParams) => {
-      return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/members/${params.userId.trim()}`
+      return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/members/${safeUrlPathSegment(params.userId, 'userId')}`
     },
     method: 'PATCH',
     headers: (params) => ({
@@ -61,11 +62,11 @@ export const discordUpdateMemberTool: ToolConfig<
       Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordUpdateMemberParams) => {
-      const body: any = {}
+      const body: Record<string, unknown> = {}
       // Note: nick can be null to remove nickname, so we allow null but not empty string
       if (params.nick !== undefined && params.nick !== '') body.nick = params.nick
-      if (params.mute !== undefined && params.mute !== null) body.mute = params.mute
-      if (params.deaf !== undefined && params.deaf !== null) body.deaf = params.deaf
+      if (typeof params.mute === 'boolean') body.mute = params.mute
+      if (typeof params.deaf === 'boolean') body.deaf = params.deaf
       return body
     },
   },

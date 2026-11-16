@@ -1,5 +1,6 @@
 import { Library } from '@sim/emcn/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
 export const LogsBlock: BlockConfig = {
   type: 'logs',
@@ -191,23 +192,25 @@ export const LogsBlock: BlockConfig = {
         if (operation === 'get_execution') return 'logs_get_execution'
         return 'logs_query'
       },
-      params: (params: Record<string, any>) => {
-        const operation = params.operation || 'query'
+      params: (params: Record<string, any>, context) => {
+        const operation = mapperOperation(params, context) || 'query'
 
         if (operation === 'get_log') {
-          if (!params.logId) {
+          const logId = params.logId || toolCallArg(context, params.id)
+          if (!logId) {
             throw new Error('Logs Block Error: Log ID is required for get_log operation')
           }
-          return { id: params.logId }
+          return { id: logId }
         }
 
         if (operation === 'get_execution') {
-          if (!params.executionIdLookup) {
+          const executionId = params.executionIdLookup || toolCallArg(context, params.executionId)
+          if (!executionId) {
             throw new Error(
               'Logs Block Error: Execution ID is required for get_execution operation'
             )
           }
-          return { executionId: params.executionIdLookup }
+          return { executionId }
         }
 
         const rawLimit =
@@ -551,8 +554,8 @@ export const LogsV2Block: BlockConfig = {
         if (operation === 'get_run_details') return 'logs_get_run_details'
         return 'logs_query_runs'
       },
-      params: (params: Record<string, any>) => {
-        const operation = params.operation || 'query'
+      params: (params: Record<string, any>, context) => {
+        const operation = mapperOperation(params, context) || 'query'
 
         if (operation === 'get_run_details') {
           if (!params.runId) {

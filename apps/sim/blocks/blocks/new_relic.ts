@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { NewRelicIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import type { NewRelicCustomAttributes } from '@/tools/new_relic/types'
 import { NEW_RELIC_REGIONS } from '@/tools/new_relic/utils'
 
@@ -285,13 +285,13 @@ Return ONLY the numeric timestamp - no explanations, no extra text.`,
     ],
     config: {
       tool: (params) => String(params.operation || 'new_relic_nrql_query'),
-      params: (params) => {
+      params: (params, context) => {
         const baseParams = {
           apiKey: params.apiKey,
           region: params.region || 'us',
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'new_relic_nrql_query':
             return {
               ...baseParams,

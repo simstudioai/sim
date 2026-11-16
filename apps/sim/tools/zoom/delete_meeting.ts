@@ -31,13 +31,13 @@ export const zoomDeleteMeetingTool: ToolConfig<ZoomDeleteMeetingParams, ZoomDele
         type: 'boolean',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Send cancellation reminder email to registrants',
+        description: 'Email the host and alternative hosts about the cancellation',
       },
       cancelMeetingReminder: {
         type: 'boolean',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Send cancellation email to registrants and alternative hosts',
+        description: 'Email the meeting registrants about the cancellation',
       },
     },
 

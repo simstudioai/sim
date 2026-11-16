@@ -39,7 +39,7 @@ export const listEventInviteesTool: ToolConfig<
     email: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Filter invitees by email address',
     },
     pageToken: {
@@ -66,7 +66,7 @@ export const listEventInviteesTool: ToolConfig<
 
   request: {
     url: (params: CalendlyListEventInviteesParams) => {
-      const uuid = toUuid(params.eventUuid)
+      const uuid = toUuid(params.eventUuid, 'eventUuid')
       const url = `https://api.calendly.com/scheduled_events/${uuid}/invitees`
       const queryParams = []
 

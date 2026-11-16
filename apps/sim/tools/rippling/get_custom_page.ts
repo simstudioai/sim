@@ -1,6 +1,7 @@
 import type { RipplingGetCustomPageParams } from '@/tools/rippling/types'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetCustomPageTool: ToolConfig<RipplingGetCustomPageParams> = {
   id: 'rippling_get_custom_page',
@@ -19,7 +20,7 @@ export const ripplingGetCustomPageTool: ToolConfig<RipplingGetCustomPageParams> 
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-pages/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/custom-pages/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

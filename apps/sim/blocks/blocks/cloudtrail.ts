@@ -1,7 +1,7 @@
 import { CloudTrailIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /** Operations that accept an opaque AWS pagination token. */
 const PAGINATED_OPERATIONS = [
@@ -427,155 +427,157 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
             throw new Error(`Invalid CloudTrail operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
 
-        const awsRegion = rest.awsRegion
-        const awsAccessKeyId = rest.awsAccessKeyId
-        const awsSecretAccessKey = rest.awsSecretAccessKey
+        const awsRegion = params.awsRegion
+        const awsAccessKeyId = params.awsAccessKeyId
+        const awsSecretAccessKey = params.awsSecretAccessKey
         const credentials = { awsRegion, awsAccessKeyId, awsSecretAccessKey }
 
         switch (operation) {
           case 'lookup_events': {
-            const maxResults = parseBoundedInt(rest.lookupMaxResults)
-            if (Boolean(rest.attributeKey) !== Boolean(rest.attributeValue)) {
+            const maxResults = parseBoundedInt(params.lookupMaxResults)
+            if (Boolean(params.attributeKey) !== Boolean(params.attributeValue)) {
               throw new Error('Provide both a filter attribute and a filter value, or neither')
             }
             return {
               ...credentials,
-              ...(rest.attributeKey && {
-                attributeKey: rest.attributeKey,
-                attributeValue: rest.attributeValue,
+              ...(params.attributeKey && {
+                attributeKey: params.attributeKey,
+                attributeValue: params.attributeValue,
               }),
-              ...(rest.startTime && { startTime: rest.startTime }),
-              ...(rest.endTime && { endTime: rest.endTime }),
-              ...(rest.eventCategory === 'insight' && { eventCategory: 'insight' }),
+              ...(params.startTime && { startTime: params.startTime }),
+              ...(params.endTime && { endTime: params.endTime }),
+              ...(params.eventCategory === 'insight' && { eventCategory: 'insight' }),
               ...(maxResults !== undefined && { maxResults }),
-              ...(rest.nextToken && { nextToken: rest.nextToken }),
+              ...(params.nextToken && { nextToken: params.nextToken }),
             }
           }
 
           case 'describe_trails':
             return {
               ...credentials,
-              ...(rest.trailNameList && { trailNameList: rest.trailNameList }),
-              ...(rest.includeShadowTrails !== undefined &&
-                rest.includeShadowTrails !== '' && {
-                  includeShadowTrails: String(rest.includeShadowTrails) !== 'false',
+              ...(params.trailNameList && { trailNameList: params.trailNameList }),
+              ...(params.includeShadowTrails !== undefined &&
+                params.includeShadowTrails !== '' && {
+                  includeShadowTrails: String(params.includeShadowTrails) !== 'false',
                 }),
             }
 
           case 'get_trail':
-          case 'get_trail_status':
-            if (!rest.trailName) {
+          case 'get_trail_status': {
+            const name = params.trailName || toolCallArg(context, params.name)
+            if (!name) {
               throw new Error('Trail name or ARN is required')
             }
-            return { ...credentials, name: rest.trailName }
+            return { ...credentials, name }
+          }
 
           case 'list_trails':
             return {
               ...credentials,
-              ...(rest.nextToken && { nextToken: rest.nextToken }),
+              ...(params.nextToken && { nextToken: params.nextToken }),
             }
 
           case 'get_event_selectors':
-            if (!rest.trailName) {
+            if (!params.trailName) {
               throw new Error('Trail name or ARN is required')
             }
-            return { ...credentials, trailName: rest.trailName }
+            return { ...credentials, trailName: params.trailName }
 
           case 'get_insight_selectors':
-            if (Boolean(rest.trailName) === Boolean(rest.eventDataStore)) {
+            if (Boolean(params.trailName) === Boolean(params.eventDataStore)) {
               throw new Error(
                 'Specify exactly one of trail name or event data store for Insights selectors'
               )
             }
             return {
               ...credentials,
-              ...(rest.trailName && { trailName: rest.trailName }),
-              ...(rest.eventDataStore && { eventDataStore: rest.eventDataStore }),
+              ...(params.trailName && { trailName: params.trailName }),
+              ...(params.eventDataStore && { eventDataStore: params.eventDataStore }),
             }
 
           case 'start_query':
-            if (Boolean(rest.queryStatement) === Boolean(rest.queryAlias)) {
+            if (Boolean(params.queryStatement) === Boolean(params.queryAlias)) {
               throw new Error('Specify exactly one of Lake SQL query or query template alias')
             }
             return {
               ...credentials,
-              ...(rest.queryStatement && { queryStatement: rest.queryStatement }),
-              ...(rest.queryAlias && { queryAlias: rest.queryAlias }),
-              ...(rest.queryParameters && { queryParameters: rest.queryParameters }),
-              ...(rest.deliveryS3Uri && { deliveryS3Uri: rest.deliveryS3Uri }),
-              ...(rest.eventDataStoreOwnerAccountId && {
-                eventDataStoreOwnerAccountId: rest.eventDataStoreOwnerAccountId,
+              ...(params.queryStatement && { queryStatement: params.queryStatement }),
+              ...(params.queryAlias && { queryAlias: params.queryAlias }),
+              ...(params.queryParameters && { queryParameters: params.queryParameters }),
+              ...(params.deliveryS3Uri && { deliveryS3Uri: params.deliveryS3Uri }),
+              ...(params.eventDataStoreOwnerAccountId && {
+                eventDataStoreOwnerAccountId: params.eventDataStoreOwnerAccountId,
               }),
             }
 
           case 'describe_query':
-            if (Boolean(rest.queryId) === Boolean(rest.queryAlias)) {
+            if (Boolean(params.queryId) === Boolean(params.queryAlias)) {
               throw new Error('Specify exactly one of query ID or query template alias')
             }
             return {
               ...credentials,
-              ...(rest.queryId && { queryId: rest.queryId }),
-              ...(rest.queryAlias && { queryAlias: rest.queryAlias }),
-              ...(rest.refreshId && { refreshId: rest.refreshId }),
-              ...(rest.eventDataStoreOwnerAccountId && {
-                eventDataStoreOwnerAccountId: rest.eventDataStoreOwnerAccountId,
+              ...(params.queryId && { queryId: params.queryId }),
+              ...(params.queryAlias && { queryAlias: params.queryAlias }),
+              ...(params.refreshId && { refreshId: params.refreshId }),
+              ...(params.eventDataStoreOwnerAccountId && {
+                eventDataStoreOwnerAccountId: params.eventDataStoreOwnerAccountId,
               }),
             }
 
           case 'get_query_results': {
-            if (!rest.queryId) {
+            if (!params.queryId) {
               throw new Error('Query ID is required')
             }
-            const maxQueryResults = parseBoundedInt(rest.maxQueryResults)
+            const maxQueryResults = parseBoundedInt(params.maxQueryResults)
             return {
               ...credentials,
-              queryId: rest.queryId,
+              queryId: params.queryId,
               ...(maxQueryResults !== undefined && { maxQueryResults }),
-              ...(rest.nextToken && { nextToken: rest.nextToken }),
-              ...(rest.eventDataStoreOwnerAccountId && {
-                eventDataStoreOwnerAccountId: rest.eventDataStoreOwnerAccountId,
+              ...(params.nextToken && { nextToken: params.nextToken }),
+              ...(params.eventDataStoreOwnerAccountId && {
+                eventDataStoreOwnerAccountId: params.eventDataStoreOwnerAccountId,
               }),
             }
           }
 
           case 'cancel_query':
-            if (!rest.queryId) {
+            if (!params.queryId) {
               throw new Error('Query ID is required')
             }
             return {
               ...credentials,
-              queryId: rest.queryId,
-              ...(rest.eventDataStoreOwnerAccountId && {
-                eventDataStoreOwnerAccountId: rest.eventDataStoreOwnerAccountId,
+              queryId: params.queryId,
+              ...(params.eventDataStoreOwnerAccountId && {
+                eventDataStoreOwnerAccountId: params.eventDataStoreOwnerAccountId,
               }),
             }
 
           case 'list_event_data_stores': {
-            const maxResults = parseBoundedInt(rest.eventDataStoreMaxResults)
+            const maxResults = parseBoundedInt(params.eventDataStoreMaxResults)
             return {
               ...credentials,
               ...(maxResults !== undefined && { maxResults }),
-              ...(rest.nextToken && { nextToken: rest.nextToken }),
+              ...(params.nextToken && { nextToken: params.nextToken }),
             }
           }
 
           case 'get_event_data_store':
-            if (!rest.eventDataStore) {
+            if (!params.eventDataStore) {
               throw new Error('Event data store ARN or ID is required')
             }
-            return { ...credentials, eventDataStore: rest.eventDataStore }
+            return { ...credentials, eventDataStore: params.eventDataStore }
 
           case 'list_tags':
-            if (!rest.resourceIdList) {
+            if (!params.resourceIdList) {
               throw new Error('At least one resource ARN is required')
             }
             return {
               ...credentials,
-              resourceIdList: rest.resourceIdList,
-              ...(rest.nextToken && { nextToken: rest.nextToken }),
+              resourceIdList: params.resourceIdList,
+              ...(params.nextToken && { nextToken: params.nextToken }),
             }
 
           default:

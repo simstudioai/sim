@@ -7,6 +7,7 @@ import {
   PARTICIPANT_OUTPUT_PROPERTIES,
   PARTICIPANT_PAGE_INFO_OUTPUT_PROPERTIES,
 } from '@/tools/zoom/types'
+import { encodeZoomMeetingPathId } from '@/tools/zoom/utils'
 
 export const zoomListPastParticipantsTool: ToolConfig<
   ZoomListPastParticipantsParams,
@@ -46,7 +47,7 @@ export const zoomListPastParticipantsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.zoom.us/v2/past_meetings/${encodeURIComponent(params.meetingId)}/participants`
+      const baseUrl = `https://api.zoom.us/v2/past_meetings/${encodeZoomMeetingPathId(params.meetingId, { anySlash: true })}/participants`
       const queryParams = new URLSearchParams()
 
       if (params.pageSize) {

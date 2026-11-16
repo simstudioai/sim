@@ -2,6 +2,7 @@ import { toBooleanFromInput } from '@sim/utils/coerce'
 import { MonacoIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 type FieldKind = 'string' | 'number' | 'boolean' | 'value'
 
@@ -1431,7 +1432,7 @@ export const MonacoBlock: BlockConfig = {
        * subBlock has a different id falls back to the model's value.
        */
       params: (params, context) => {
-        const operation = context?.operation ?? params.operation
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {
           operation: undefined,
           credential: undefined,

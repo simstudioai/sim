@@ -1,6 +1,7 @@
 import type { DiscordJoinThreadParams, DiscordJoinThreadResponse } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordJoinThreadTool: ToolConfig<DiscordJoinThreadParams, DiscordJoinThreadResponse> =
   {
@@ -25,7 +26,7 @@ export const discordJoinThreadTool: ToolConfig<DiscordJoinThreadParams, DiscordJ
       },
       serverId: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-or-llm',
         description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
       },
@@ -33,7 +34,7 @@ export const discordJoinThreadTool: ToolConfig<DiscordJoinThreadParams, DiscordJ
 
     request: {
       url: (params: DiscordJoinThreadParams) => {
-        return `https://discord.com/api/v10/channels/${params.threadId.trim()}/thread-members/@me`
+        return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.threadId, 'threadId')}/thread-members/@me`
       },
       method: 'PUT',
       headers: (params) => ({

@@ -1,6 +1,7 @@
 import type { DiscordListRolesParams, DiscordListRolesResponse } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordListRolesTool: ToolConfig<DiscordListRolesParams, DiscordListRolesResponse> = {
   id: 'discord_list_roles',
@@ -26,7 +27,7 @@ export const discordListRolesTool: ToolConfig<DiscordListRolesParams, DiscordLis
 
   request: {
     url: (params: DiscordListRolesParams) => {
-      return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/roles`
+      return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/roles`
     },
     method: 'GET',
     headers: (params) => ({

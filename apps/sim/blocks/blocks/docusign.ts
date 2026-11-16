@@ -2,7 +2,7 @@ import { DocuSignIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, toolCallArg } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 
 const DOCUMENT_FIELD = ['uploadDocument', 'documentRef'] as const
 
@@ -315,7 +315,8 @@ export const DocuSignBlock: BlockConfig = {
     config: {
       tool: (params) => `docusign_${params.operation}`,
       params: (params, context) => {
-        const { oauthCredential, operation, documentFile, listEnvelopeStatus, ...rest } = params
+        const { oauthCredential, documentFile, listEnvelopeStatus, ...rest } = params
+        const operation = mapperOperation(params, context)
 
         const cleanParams: Record<string, unknown> = {
           oauthCredential,
@@ -331,14 +332,13 @@ export const DocuSignBlock: BlockConfig = {
          * merges raw inputs under this result, so the list filter is always assigned explicitly:
          * otherwise that stored `sent` reached List Envelopes and "All" listed only sent envelopes.
          */
-        if ((operation ?? context?.operation) === 'list_envelopes') {
+        if (operation === 'list_envelopes') {
           cleanParams.envelopeStatus =
             listEnvelopeStatus || toolCallArg(context, rest.envelopeStatus) || undefined
         }
 
-        if (operation === 'create_from_template') {
-          cleanParams.status = rest.envelopeStatus
-        } else if (operation === 'send_envelope') {
+        // A model-supplied `status` is copied over this by the loop below.
+        if (operation === 'create_from_template' || operation === 'send_envelope') {
           cleanParams.status = rest.envelopeStatus
         }
 

@@ -2,6 +2,7 @@ import type { GitLabRemoveMemberParams, GitLabRemoveMemberResponse } from '@/too
 import { getGitLabApiBase, getGitLabResourcePath } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabRemoveMemberTool: ToolConfig<
   GitLabRemoveMemberParams,
@@ -68,7 +69,7 @@ export const gitlabRemoveMemberTool: ToolConfig<
       if (params.skipSubresources) queryParams.append('skip_subresources', 'true')
       if (params.unassignIssuables) queryParams.append('unassign_issuables', 'true')
       const query = queryParams.toString()
-      return `${getGitLabApiBase(params.host)}/${resourcePath}/members/${params.userId}${query ? `?${query}` : ''}`
+      return `${getGitLabApiBase(params.host)}/${resourcePath}/members/${safeUrlPathSegment(params.userId, 'userId')}${query ? `?${query}` : ''}`
     },
     method: 'DELETE',
     headers: (params) => ({

@@ -37,6 +37,7 @@ interface TwilioRecordingResponse {
 }
 
 interface TwilioTranscription {
+  recording_sid?: string
   transcription_text?: string
   status?: string
   price?: string
@@ -111,9 +112,10 @@ export async function getTwilioRecording(
   }
 
   const mediaUrl = data.uri ? `https://api.twilio.com${data.uri.replace('.json', '')}` : undefined
+  const recordingSid = data.sid || input.recordingSid
   let transcription: TwilioTranscription | undefined
   try {
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(input.accountSid)}/Transcriptions.json?RecordingSid=${encodeURIComponent(data.sid || input.recordingSid)}`
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(input.accountSid)}/Recordings/${encodeURIComponent(recordingSid)}/Transcriptions.json`
     const response = await fetchPinned(
       url,
       'transcriptionUrl',
@@ -129,7 +131,7 @@ export async function getTwilioRecording(
         label: 'Twilio transcription response',
         signal: context.signal,
       })
-      transcription = payload.transcriptions?.[0]
+      transcription = payload.transcriptions?.find((item) => item.recording_sid === recordingSid)
     }
   } catch (error) {
     context.signal?.throwIfAborted()
@@ -154,7 +156,7 @@ export async function getTwilioRecording(
           signal: context.signal,
         })
         file = {
-          name: `${data.sid || input.recordingSid}.${getExtensionFromMimeType(mimeType) || 'dat'}`,
+          name: `${recordingSid}.${getExtensionFromMimeType(mimeType) || 'dat'}`,
           mimeType,
           buffer,
         }

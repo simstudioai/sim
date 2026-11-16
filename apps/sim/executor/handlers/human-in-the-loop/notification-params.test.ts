@@ -27,6 +27,19 @@ const notifierBlock = {
   outputs: {},
 }
 
+/** A notifier whose mapper rejects its stored params, as Table's does for a corrupt filter. */
+const rejectingNotifierBlock = {
+  ...notifierBlock,
+  tools: {
+    ...notifierBlock.tools,
+    config: {
+      params: () => {
+        throw new ToolCallParamsError('Invalid JSON in Filter')
+      },
+    },
+  },
+}
+
 vi.mock('@/tools/utils', () => toolsUtilsMock)
 
 vi.mock('@/tools', () => toolsMock)
@@ -34,15 +47,18 @@ vi.mock('@/tools', () => toolsMock)
 import { getBlock } from '@/blocks/registry'
 import { PAUSE_RESUME } from '@/executor/constants'
 import { HumanInTheLoopBlockHandler } from '@/executor/handlers/human-in-the-loop/handler'
+import { ToolCallParamsError } from '@/providers/tool-params-error'
 
 toolsUtilsMockFns.mockGetTool.mockReturnValue({
   id: 'notifier_send',
   params: { channel: { type: 'string' }, silent: { type: 'boolean' } },
 })
 
-vi.mocked(getBlock).mockImplementation((type: string) =>
-  type === 'notifier' ? (notifierBlock as never) : undefined
-)
+vi.mocked(getBlock).mockImplementation((type: string) => {
+  if (type === 'notifier') return notifierBlock as never
+  if (type === 'rejecting_notifier') return rejectingNotifierBlock as never
+  return undefined
+})
 
 const executed: Array<Record<string, unknown>> = []
 toolsMockFns.mockExecuteTool.mockImplementation(
@@ -53,7 +69,10 @@ toolsMockFns.mockExecuteTool.mockImplementation(
 )
 
 /** Runs one notification whose channel was configured in ADVANCED mode. */
-async function runNotification(blockTypeId: string): Promise<Record<string, unknown>> {
+async function runNotification(
+  blockTypeId: string,
+  notifierType = 'notifier'
+): Promise<Record<string, unknown>> {
   executed.length = 0
 
   const block = {
@@ -74,7 +93,7 @@ async function runNotification(blockTypeId: string): Promise<Record<string, unkn
       operation: PAUSE_RESUME.OPERATION.HUMAN,
       notification: [
         {
-          type: 'notifier',
+          type: notifierType,
           toolId: 'notifier_send',
           title: 'Notify',
           params: { channel: '', manualChannel: 'C123', silent: 'false' },
@@ -101,6 +120,11 @@ describe('Human block notification params', () => {
       resolvedChannel: 'C123',
       quiet: false,
     })
+  })
+
+  it('v2 skips a notification whose mapper rejects its params instead of sending raw ones', async () => {
+    await runNotification('human_in_the_loop_v2', 'rejecting_notifier')
+    expect(executed).toEqual([])
   })
 
   it('v1 keeps handing the tool its raw stored values', async () => {

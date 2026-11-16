@@ -2,6 +2,7 @@ import { GoogleBigQueryIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 const EXISTING_DATASET_OPS = [
   'list_tables',
@@ -420,7 +421,7 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
             throw new Error(`Invalid Google BigQuery operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
           rows,
@@ -435,7 +436,7 @@ Return ONLY the JSON array - no explanations, no wrapping, no extra text.`,
           tableId,
           ...rest
         } = params
-        const operation = String(params.operation)
+        const operation = mapperOperation(params, context)
         return {
           ...rest,
           oauthCredential,

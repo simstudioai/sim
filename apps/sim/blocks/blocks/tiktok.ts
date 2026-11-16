@@ -2,7 +2,7 @@ import { TikTokIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const TIKTOK_TOOL_IDS = new Set([
@@ -212,8 +212,8 @@ export const TikTokBlock: BlockConfig = {
         }
         return operation
       },
-      params: (params) => {
-        const operation = params.operation || 'tiktok_get_user'
+      params: (params, context) => {
+        const operation = mapperOperation(params, context) || 'tiktok_get_user'
         const result: Record<string, unknown> = {}
         for (const key of TIKTOK_OPERATION_INPUT_KEYS) {
           result[key] = undefined
@@ -230,8 +230,11 @@ export const TikTokBlock: BlockConfig = {
             }
             break
           case 'tiktok_query_videos':
-            result.videoIds = (params.videoIds || '')
-              .split(/[,\n]+/)
+            result.videoIds = (
+              Array.isArray(params.videoIds)
+                ? params.videoIds.map(String)
+                : String(params.videoIds || '').split(/[,\n]+/)
+            )
               .map((id: string) => id.trim())
               .filter(Boolean)
             break

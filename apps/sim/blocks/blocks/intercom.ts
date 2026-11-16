@@ -2,7 +2,12 @@ import { toBooleanFromInput } from '@sim/utils/coerce'
 import { IntercomIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, toolCallArg, withSavedCredential } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  mapperOperation,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -38,7 +43,6 @@ type IntercomParamsMapper = NonNullable<NonNullable<BlockConfig['tools']['config
 /** Maps Intercom block fields to tool params; shared by every Intercom block version. */
 const mapIntercomParams: IntercomParamsMapper = (params, context) => {
   const {
-    operation: storedOperation,
     message_type_msg,
     company_name,
     contact_company_id,
@@ -68,7 +72,7 @@ const mapIntercomParams: IntercomParamsMapper = (params, context) => {
     event_created_at,
     ...rest
   } = params
-  const operation = storedOperation ?? context?.operation
+  const operation = mapperOperation(params, context)
   const cleanParams: Record<string, any> = {}
 
   if (operation === 'create_message' && message_type_msg) {
@@ -169,8 +173,9 @@ const mapIntercomParams: IntercomParamsMapper = (params, context) => {
     if (event_created_at) cleanParams.created_at = Number(event_created_at)
   }
 
+  // A block field mapped above (pinned on a tool row) beats the model's arg under the tool's name.
   Object.entries(rest).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
+    if (hasInput(value) && cleanParams[key] === undefined) {
       cleanParams[key] = value
     }
   })

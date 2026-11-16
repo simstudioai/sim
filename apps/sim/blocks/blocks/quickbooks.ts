@@ -2,7 +2,7 @@ import { QuickBooksIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta, OutputCondition, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, toolCallArg } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 import {
   getQuickBooksReportTypesSupporting,
   type QuickBooksReportControl,
@@ -2526,7 +2526,7 @@ export const QuickBooksBlock: BlockConfig = {
         return operation
       },
       params: (params, context) => {
-        const operation = String(params.operation ?? context?.operation)
+        const operation = mapperOperation(params, context)
         const oauthCredentialValue = params.oauthCredential
         /**
          * Resolves a tool param filled by a differently-named subBlock. On an agent tool call

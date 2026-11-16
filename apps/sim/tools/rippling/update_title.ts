@@ -1,6 +1,7 @@
 import type { RipplingUpdateTitleParams } from '@/tools/rippling/types'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateTitleTool: ToolConfig<RipplingUpdateTitleParams> = {
   id: 'rippling_update_title',
@@ -19,8 +20,7 @@ export const ripplingUpdateTitleTool: ToolConfig<RipplingUpdateTitleParams> = {
     name: { type: 'string', required: false, visibility: 'user-or-llm', description: 'Title name' },
   },
   request: {
-    url: (params) =>
-      `https://rest.ripplingapis.com/titles/${encodeURIComponent(params.id.trim())}/`,
+    url: (params) => `https://rest.ripplingapis.com/titles/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
