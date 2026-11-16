@@ -1,12 +1,22 @@
 import { toError } from '@sim/utils/errors'
 import { Mem0Icon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import {
+  AuthMode,
+  type BlockConfig,
+  type BlockMeta,
+  type BlockToolParamsContext,
+  IntegrationType,
+} from '@/blocks/types'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { parseMem0Messages } from '@/tools/mem0/utils'
 
-function mem0ToolParams(params: Record<string, any>, requireApiKey: boolean) {
+function mem0ToolParams(
+  params: Record<string, any>,
+  requireApiKey: boolean,
+  context?: BlockToolParamsContext
+) {
   const errors: string[] = []
-  const operation = params.operation || 'add'
+  const operation = mapperOperation(params, context) || 'add'
 
   if (requireApiKey && !params.apiKey) {
     errors.push('API Key is required')
@@ -269,7 +279,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return 'mem0_add_memories'
         }
       },
-      params: (params) => mem0ToolParams(params, true),
+      params: (params, context) => mem0ToolParams(params, true, context),
     },
   },
   inputs: {
@@ -403,6 +413,6 @@ export const Mem0V2Block: BlockConfig = {
   ...withSavedCredential(
     Mem0Block,
     { id: 'credential', type: 'oauth-input', serviceId: 'mem0', title: 'Mem0 Credential' },
-    { params: (params) => mem0ToolParams(params, false) }
+    { params: (params, context) => mem0ToolParams(params, false, context) }
   ),
 }

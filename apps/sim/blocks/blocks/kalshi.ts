@@ -1,7 +1,7 @@
 import { KalshiIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, withSavedCredential } from '@/blocks/utils'
+import { createVersionedToolSelector, mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 /*
  * Mutually exclusive alternates, not canonical pairs — an order carries either
@@ -695,9 +695,9 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
             return 'kalshi_get_markets'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           orderStatus,
           tickerFilter,
           tickerFills,

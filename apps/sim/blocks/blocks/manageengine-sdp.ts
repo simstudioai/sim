@@ -2,6 +2,7 @@ import { ManageEngineIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { isToolCall, mapperOperation } from '@/blocks/utils'
 import { SDP_DATA_CENTER_BASES } from '@/tools/manageengine_sdp/data-centers'
 
 /**
@@ -1055,14 +1056,12 @@ export const ManageEngineSdpBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `manageengine_sdp_${params.operation}`,
-      params: (params) => {
-        // The agent-tool path does not carry `operation` inside params - it is a
-        // sibling of the tool call, used only to pick the tool - and there the
-        // model addresses tool params by their real names. The tool is already
-        // selected, so there is no cross-operation leak to guard against, while
-        // running the scoping below WOULD overwrite the model's own values with
-        // `undefined`.
-        if (typeof params.operation !== 'string') return params
+      params: (params, context) => {
+        // On a tool call the model addresses tool params by their real names and
+        // the tool is already selected, so there is no cross-operation leak to
+        // guard against, while running the scoping below WOULD overwrite the
+        // model's own values with `undefined`.
+        if (isToolCall(context)) return params
 
         // IMPORTANT: leaving a key out of the result does NOT keep it from the
         // tool. Both call sites merge this return value on top of the original
@@ -1075,7 +1074,7 @@ export const ManageEngineSdpBlock: BlockConfig = {
         // under an unrelated operation. Every module-prefixed subBlock below is
         // therefore funnelled into the shared tool param name and every
         // inactive module's value is explicitly cleared.
-        const operation = params.operation
+        const operation = mapperOperation(params, context)
         const {
           // The five entity ids are destructured out and republished scoped
           // below. Passing them through would send a problem id typed earlier to

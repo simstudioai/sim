@@ -1,7 +1,7 @@
 import { NetSuiteIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalNumberInput } from '@/blocks/utils'
+import { mapperOperation, parseOptionalNumberInput, toolCallArg } from '@/blocks/utils'
 
 const RECORD_TYPE_OPERATIONS = [
   'netsuite_list_records',
@@ -95,8 +95,8 @@ const BATCH_WRITE_OPERATIONS = [
   'netsuite_batch_upsert_records',
 ]
 
-function usesOperation(operation: unknown, operations: readonly string[]): boolean {
-  return typeof operation === 'string' && operations.includes(operation)
+function usesOperation(operation: string, operations: readonly string[]): boolean {
+  return operations.includes(operation)
 }
 
 function optionalBoolean(value: unknown): boolean | undefined {
@@ -844,14 +844,15 @@ Return ONLY the SuiteQL query - no explanations, no markdown, no extra text.`,
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
-        if (typeof params.operation !== 'string') return {}
-        const { operation, resultTaskId, statusTaskId, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        if (!operation) return {}
+        const { resultTaskId, statusTaskId, ...rest } = params
         const taskId =
           operation === 'netsuite_get_async_status'
-            ? statusTaskId
+            ? (statusTaskId ?? toolCallArg(context, rest.taskId))
             : operation === 'netsuite_get_async_result'
-              ? resultTaskId
+              ? (resultTaskId ?? toolCallArg(context, rest.taskId))
               : undefined
         return {
           ...rest,

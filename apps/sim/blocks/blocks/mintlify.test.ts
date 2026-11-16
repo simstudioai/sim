@@ -50,4 +50,21 @@ describe('MintlifyBlock', () => {
       expect(result.limit).toBeUndefined()
     })
   })
+
+  describe('agent tool calls', () => {
+    it('coerces numbers and keeps tool-named args when the operation arrives only in context', () => {
+      const args = { projectId: 'proj_1', source: 'contextual', status: 'pending', limit: '50' }
+      const result = {
+        ...args,
+        ...MintlifyBlock.tools.config.params!(args, { operation: 'get_feedback' }),
+      }
+
+      expect(result).toEqual({
+        projectId: 'proj_1',
+        source: 'contextual',
+        status: 'pending',
+        limit: 50,
+      })
+    })
+  })
 })
