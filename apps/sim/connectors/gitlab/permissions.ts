@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { normalizeEmail } from '@sim/utils/string'
 import { groupToken, sortAccessTokens, userToken } from '@/lib/knowledge/access/tokens'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
@@ -12,6 +13,8 @@ import {
 } from '@/connectors/gitlab/permission-policy'
 import type { ConnectorDirectory, ExternalDocument } from '@/connectors/types'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
+
+const logger = createLogger('GitLabPermissions')
 
 const MAX_DIRECTORY_PAGES = 500
 const PAGE_SIZE = 100
@@ -39,13 +42,14 @@ export async function validateGitLabCsvToken(
   signal?: AbortSignal
 ): Promise<{ host: string; projectId: number; projectPath: string }> {
   const { base, project } = sourceAddress(sourceConfig)
-  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, true, signal)
+  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, 'account', true, signal)
   if (viewer.state !== 'active' || viewer.locked === true || !Number.isSafeInteger(viewer.id)) {
     throw new Error('An active GitLab identity with read_api access is required')
   }
   const record = await read<GitLabPermissionProject>(
     `${base}/projects/${project}`,
     token,
+    'project',
     true,
     signal
   )
@@ -113,6 +117,7 @@ function sourceAddress(sourceConfig: Record<string, unknown>) {
 async function read<T>(
   url: string,
   token: string,
+  operation: 'account' | 'project',
   validating = false,
   signal?: AbortSignal
 ): Promise<T> {
@@ -125,7 +130,34 @@ async function read<T>(
     },
     { ...(validating ? VALIDATE_RETRY_OPTIONS : {}), maxResponseBytes: MAX_RESPONSE_BYTES, signal }
   )
-  if (!response.ok) throw new Error(`GitLab permission lookup failed (${response.status})`)
+  if (!response.ok) {
+    const requestId = response.headers.get('x-request-id')
+    logger.warn('GitLab permission read failed', {
+      operation,
+      status: response.status,
+      ...(requestId && /^[a-zA-Z0-9_-]{1,128}$/.test(requestId)
+        ? { providerRequestId: requestId }
+        : {}),
+    })
+    if (response.status === 401) {
+      throw new Error('GitLab did not accept the token. Use a valid token with read_api scope.')
+    }
+    if (response.status === 403) {
+      throw new Error(
+        'GitLab denied access. Check read_api scope, token access, and IP restrictions.'
+      )
+    }
+    if (response.status === 404) {
+      throw new Error(
+        operation === 'project'
+          ? 'Could not access this GitLab project. Check the project ID or full path, token access, and IP restrictions.'
+          : 'Could not verify the GitLab account. Check the host and API access.'
+      )
+    }
+    throw new Error(
+      `GitLab could not verify ${operation} access (HTTP ${response.status}). Try again.`
+    )
+  }
   return (await response.json()) as T
 }
 
@@ -136,7 +168,12 @@ export async function validateGitLabPermissionToken(
 ): Promise<void> {
   await requireAdministrator(token, sourceConfig)
   const { base, project } = sourceAddress(sourceConfig)
-  const record = await read<GitLabPermissionProject>(`${base}/projects/${project}`, token, true)
+  const record = await read<GitLabPermissionProject>(
+    `${base}/projects/${project}`,
+    token,
+    'project',
+    true
+  )
   await discoverGitLabPermissionPolicy(token, sourceConfig, record, true)
 }
 
@@ -146,7 +183,7 @@ async function requireAdministrator(
   signal?: AbortSignal
 ): Promise<void> {
   const { base } = sourceAddress(sourceConfig)
-  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, true, signal)
+  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, 'account', true, signal)
   if (viewer.is_admin !== true || viewer.state !== 'active' || viewer.locked === true) {
     throw new Error(
       'Mirror source permissions requires an active GitLab instance administrator token with read_api access'
@@ -295,7 +332,7 @@ async function loadSnapshot(
   await requireAdministrator(token, config, signal)
   const { base, project } = sourceAddress(config)
   const [record, users, members] = await Promise.all([
-    read<GitLabPermissionProject>(`${base}/projects/${project}`, token, false, signal),
+    read<GitLabPermissionProject>(`${base}/projects/${project}`, token, 'project', false, signal),
     listAll<GitLabPermissionUser>(
       `${base}/users?pagination=keyset&order_by=id&sort=asc`,
       token,
@@ -347,7 +384,13 @@ export async function openGitLabDirectory(
     }
   }
   const { tenant, base, project } = sourceAddress(config)
-  const identity = await read<{ id: number }>(`${base}/projects/${project}`, token, false, signal)
+  const identity = await read<{ id: number }>(
+    `${base}/projects/${project}`,
+    token,
+    'project',
+    false,
+    signal
+  )
   if (!Number.isInteger(identity.id)) throw new Error('GitLab did not return a project identity')
   const groups = FEATURES.map((feature) => ({ id: groupId(identity.id, feature) }))
   let pending: Promise<PermissionSnapshot> | undefined

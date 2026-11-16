@@ -1,6 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { decryptApiKey, encryptApiKey } from '@/lib/api-key/crypto'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   loadGitLabPermissionSnapshot,
   type PreparedGitLabPermissions,
@@ -70,6 +70,8 @@ export async function prepareGitLabPermissionChange(input: {
               : ''),
           input.sourceConfig
         ).catch((error: unknown) => {
+          const classified = asOrchestrationError(error)
+          if (classified) throw classified
           throw new OrchestrationError(
             'validation',
             getErrorMessage(error, 'Unable to validate the GitLab token and project.')
