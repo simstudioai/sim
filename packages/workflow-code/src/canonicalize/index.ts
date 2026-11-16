@@ -22,7 +22,7 @@ import type {
   VarKey,
 } from '../model'
 import { setOwn } from '../records'
-import { isInactive } from './activity'
+import { deployReadIds, isInactive } from './activity'
 import { type LiftedBranches, liftBranches } from './branches'
 import { type CanonContext, catalogBlock, report } from './context'
 import { canonicalEdges } from './edges'
@@ -265,6 +265,7 @@ export const canonicalize: CanonicalizeFn = (state, options) => {
         values: activityValues,
         overrides,
         index: buildCanonicalIndexForSurface(catalog, triggerMode),
+        deployRead: deployReadIds(options.catalog, catalog, block.type, triggerMode, rawValues),
       }
       const inactiveIds = Object.keys(params).filter((paramId) =>
         isInactive(paramId, activityInputs)

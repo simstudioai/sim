@@ -5,8 +5,10 @@
 
 import type { CanonicalEqualsFn, CanonicalHashFn, SourceFingerprintFn } from '../api'
 import { compareEdges } from '../canonicalize/edges'
+import type { BlockCatalog } from '../catalog/types'
 import { sha256Hex, stableStringify } from '../hash'
 import type { CanonicalWorkflow } from '../model'
+import { executableView } from './executable'
 
 /** The semantic part of a CWM: everything but annotations, with edges in canonical order. */
 function semantic(workflow: CanonicalWorkflow) {
@@ -55,3 +57,15 @@ export const canonicalHash: CanonicalHashFn = (workflow) =>
  */
 export const sourceFingerprint: SourceFingerprintFn = (workflow, identity) =>
   `sf1:${sha256Hex(stableStringify({ workflow: semantic(workflow), identity }))}`
+
+/**
+ * Whether two workflows run the same: their executable views (`executable.ts`) are equal. P0 and
+ * P1 hold under this; O1 still compares stored bytes.
+ */
+export function executableEquals(
+  a: CanonicalWorkflow,
+  b: CanonicalWorkflow,
+  catalog: BlockCatalog
+): boolean {
+  return deepEqual(executableView(a, catalog), executableView(b, catalog))
+}

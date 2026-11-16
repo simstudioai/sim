@@ -1119,6 +1119,21 @@ describe('canonicalize: subflows (step 2, quirk 19)', () => {
     expect(codes(result)).toContain('W_CANON_SUBFLOW_REPAIRED')
   })
 
+  it('takes the count that runs, not a count only the loops map holds', () => {
+    const result = run(
+      workflow([blockState('l1', 'loop', 'Each', {}, { data: { loopType: 'for' } })], {
+        loops: {
+          l1: { id: 'l1', nodes: [], iterations: 9, loopType: 'for', enabled: true },
+        },
+      })
+    )
+    expect(onlyBlock(result, 'each').subflow).toEqual({
+      kind: 'loop',
+      loopType: 'for',
+      iterations: 5,
+    })
+  })
+
   it('keeps an unknown parallel type under opaque data and reports it', () => {
     const result = run(
       workflow([

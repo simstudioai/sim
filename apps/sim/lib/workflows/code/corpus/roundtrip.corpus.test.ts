@@ -40,17 +40,12 @@ import {
   type OracleResult,
   type ProofProperty,
   reportPathVariable,
-  workflowStateArbitrary,
 } from '@sim/workflow-code/proof'
-import fc from 'fast-check'
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
-import { type CorpusCase, generateRegistryCorpus } from '@/lib/workflows/code/corpus'
 import {
-  buildTestingFactoryStates,
-  type FixtureState,
-  loadLandingTemplateStates,
-  loadWorkflowStatesFromDirectory,
+  type ProofSubject,
+  roundTripSubjects,
   withoutLockHeldState,
 } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
@@ -77,55 +72,15 @@ const { catalog } = buildBlockCatalog({
   sdkNames: SDK_NAMES,
 })
 
-interface ProofSubject {
-  id: string
-  blockTypes: string[]
-  state: WorkflowState
-  /** Set on corpus cases whose types the registry does not know; the serializer rejects them. */
-  unknownTypes?: true
-}
-
 /** Properties that serialize the original, which an unknown block type makes throw. */
 const SERIALIZING_PROPERTIES: ReadonlySet<ProofProperty> = new Set(['P2', 'O2'])
 
-function toSubject(fixture: FixtureState): ProofSubject {
-  const blockTypes = [...new Set(Object.values(fixture.state.blocks).map((b) => b.type))].sort()
-  return { id: fixture.id, blockTypes, state: fixture.state }
-}
-
-/** Every structural case, plus up to `CASES_PER_BLOCK_TYPE` per-block cases for each type. */
-function budgetedCorpus(corpus: CorpusCase[]): CorpusCase[] {
-  if (process.env.ROUNDTRIP_CORPUS_FULL === '1') return corpus
-  const perType = new Map<string, number>()
-  return corpus.filter((corpusCase) => {
-    const [, type = ''] = corpusCase.id.split(':')
-    const isPerBlock = ['operation', 'trigger', 'standalone-advanced', 'error-edge'].includes(
-      corpusCase.kind
-    )
-    if (!isPerBlock) return true
-    const count = perType.get(type) ?? 0
-    if (count >= CASES_PER_BLOCK_TYPE) return false
-    perType.set(type, count + 1)
-    return true
-  })
-}
-
-const subjects: ProofSubject[] = [
-  ...budgetedCorpus(generateRegistryCorpus()),
-  ...loadLandingTemplateStates().map(toSubject),
-  ...buildTestingFactoryStates().map(toSubject),
-  ...(process.env.ROUNDTRIP_CORPUS_EXTRA_DIR
-    ? loadWorkflowStatesFromDirectory(process.env.ROUNDTRIP_CORPUS_EXTRA_DIR, 'redacted').map(
-        toSubject
-      )
-    : []),
-  ...fc
-    .sample(workflowStateArbitrary({ maxBlocks: 8, maxDepth: 2 }), {
-      numRuns: FUZZ_RUNS,
-      seed: 20261115,
-    })
-    .map((state, i) => toSubject({ id: `fuzz:${i}`, state })),
-]
+const subjects: ProofSubject[] = roundTripSubjects({
+  casesPerBlockType: CASES_PER_BLOCK_TYPE,
+  full: process.env.ROUNDTRIP_CORPUS_FULL === '1',
+  fuzzRuns: FUZZ_RUNS,
+  extraDir: process.env.ROUNDTRIP_CORPUS_EXTRA_DIR,
+})
 
 const report = createProofReport(SUITE)
 
@@ -311,15 +266,11 @@ const SOURCE_FREE_PROPERTIES: ReadonlySet<ProofProperty> = new Set(['O1', 'O2', 
 /**
  * Stored shapes a lockless write with no prev cannot reproduce for O2, because the CWM holds no
  * node for them. O2 must fail on exactly these, besides `KNOWN_FAILURES` for source properties.
+ * Empty since canonicalize reads the loop count that runs (`block.data.count || 5`, never a count
+ * only the loops map holds) and the subjects take the stored shape, where every loops-map entry
+ * has its container block.
  */
-const KNOWN_O2_FAILURES: Record<string, string> = {
-  'testing:loop':
-    'a loops-map entry with no loop block (the pre-container shape); the CWM has no block to ' +
-    'carry it, so a write from scratch has no loop',
-  'landing-template:meeting-followup-agent-a2357a2f-67f7-40c1-8e64-301bcd604239':
-    'a loop whose block.data omits count while the loops map holds it; canonicalize reads the ' +
-    'map, and a write from scratch puts count in block.data too (s1 materialize step 6)',
-}
+const KNOWN_O2_FAILURES: Record<string, string> = {}
 
 function expectedFailures(property: ProofProperty): string[] {
   if (property === 'O2') return Object.keys(KNOWN_O2_FAILURES).sort(compareStrings)

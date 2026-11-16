@@ -88,6 +88,7 @@ export interface SerializedWorkflowLike {
     config: { tool?: string; params: Record<string, unknown> }
     canonicalModes?: Record<string, string>
     retry?: unknown
+    metadata?: { id?: string }
   }>
   connections: Array<{
     source: string
@@ -150,15 +151,24 @@ export function assertNoErrors(
   )
 }
 
+/** Container blocks the serializer emits with their raw `block.data` as params. */
+const CONTAINER_TYPES: ReadonlySet<string> = new Set(['loop', 'parallel'])
+
+/**
+ * What runs. A loop or parallel block's params are its raw `block.data`, echoed by the serializer
+ * and read by no handler; the executor runs the container from the `loops` / `parallels` maps it
+ * rebuilds from that data (`generateLoopBlocks`), so the container config is compared there.
+ */
 function executionView(serialized: SerializedWorkflowLike) {
   const blocks: Record<string, unknown> = {}
   for (const block of serialized.blocks) {
+    const isContainer = CONTAINER_TYPES.has(block.metadata?.id ?? '')
     setOwn(blocks, block.id, {
       tool: block.config.tool ?? null,
       enabled: block.enabled ?? true,
       canonicalModes: block.canonicalModes ?? {},
       retry: block.retry ?? null,
-      params: decodeStructured(block.config.params),
+      params: isContainer ? {} : decodeStructured(block.config.params),
     })
   }
   const connections = serialized.connections
