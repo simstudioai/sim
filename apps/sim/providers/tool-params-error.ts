@@ -6,7 +6,8 @@
  * That fallback drops the canonical collapse along with everything else, so a model-supplied
  * argument the user's pinned value had hidden comes back: a Table bulk delete would run with the
  * model's `filter` rather than the filter the user configured. This error is rethrown instead,
- * and the call is reported as failed.
+ * and the call is reported as failed, so its message reaches the model unredacted and must
+ * never quote an argument value.
  *
  * Deliberately a leaf module: blocks import it, and `@/blocks/utils` already imports
  * `@/providers/utils`.

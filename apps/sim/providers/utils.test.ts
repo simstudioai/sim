@@ -43,6 +43,7 @@ import {
   supportsTemperature,
 } from '@/providers/models'
 import { assignProviderToolIdentities } from '@/providers/tool-identity'
+import { ToolCallParamsError } from '@/providers/tool-params-error'
 import type { ProviderToolConfig } from '@/providers/types'
 import {
   buildBlockToolParamsTransform,
@@ -1001,7 +1002,20 @@ describe('Table builder rules pinned on an agent tool row', () => {
         { filterBuilder: '[{"column":' },
         { filter: modelFilter }
       )
-    ).rejects.toThrow('Invalid JSON in Filter')
+    ).rejects.toThrow(ToolCallParamsError)
+  })
+
+  it('never quotes a rejected argument back to the model', async () => {
+    const resolvedSecret = 'sk-live-fixture-value'
+    const rejection = runTableTool(
+      TableV2Block,
+      'query_rows',
+      tableQueryRowsV2Tool,
+      {},
+      { limit: resolvedSecret }
+    )
+    await expect(rejection).rejects.toThrow(ToolCallParamsError)
+    await expect(rejection).rejects.not.toThrow(resolvedSecret)
   })
 
   it('sends the pinned v2 sort builder as a sort spec', async () => {
@@ -1040,7 +1054,7 @@ describe('Table builder rules pinned on an agent tool row', () => {
         { bulkFilterMode: 'builder', bulkFilterBuilder: '[{"column":"status","value":"a"b"}]' },
         { filter: { status: 'archived' } }
       )
-    ).rejects.toThrow('Invalid Filter builder rules')
+    ).rejects.toThrow(ToolCallParamsError)
   })
 
   it('applies the pinned v1 query filter and sort builders', async () => {
