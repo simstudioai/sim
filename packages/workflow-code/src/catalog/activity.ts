@@ -1,16 +1,23 @@
+/**
+ * What is active: a stored param the serializer sends to the executor, or one deploy reads into
+ * the webhook provider config when the block acts as a trigger. Everything else is inactive:
+ * stored, never executed, left out of source and restored from the stored workflow. Canonicalize,
+ * print, materialize and the executable view all ask here, so they agree on what is active.
+ */
+
+import type { CanonicalBlock, SubBlockId } from '../model'
+import { setOwn } from '../records'
 import {
   type CanonicalIndex,
   type CanonicalModeOverrides,
-  evaluateSubBlockCondition,
   isCanonicalPair,
   isNonEmptyValue,
   resolveCanonicalMode,
-} from '../catalog/canonical-index'
-import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from '../catalog/types'
-import { catalogTrigger } from '../catalog/view'
-import type { CanonicalBlock, SubBlockId } from '../model'
-import { setOwn } from '../records'
-import { buildCanonicalIndexForSurface } from './modes'
+} from './canonical-index'
+import { evaluateCondition, recordLookup } from './conditions'
+import { buildCanonicalIndexForSurface, isTriggerSurface, onSurface } from './surface'
+import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from './types'
+import { catalogBlock, catalogTrigger } from './view'
 
 /** Agent fields the serializer still forwards with no config, for its legacy migration. */
 const LEGACY_AGENT_FIELDS = new Set(['systemPrompt', 'userPrompt', 'memories'])
@@ -89,7 +96,7 @@ export function deployReadIds(
   if (!trigger) return new Set()
   const ids = new Set<SubBlockId>()
   for (const subBlock of trigger.subBlocks) {
-    if (subBlock.mode !== 'trigger' && subBlock.mode !== 'trigger-advanced') continue
+    if (!isTriggerSurface(subBlock)) continue
     if (subBlock.id === 'triggerCredentials' || !DEPLOY_SKIPPED_IDS.has(subBlock.id)) {
       ids.add(subBlock.id)
     }
@@ -98,41 +105,22 @@ export function deployReadIds(
 }
 
 /**
- * A declaration's visibility condition over the block's values. A function condition the catalog
- * could not evaluate to data is `{ opaque: true }` and counts as satisfied (s1 canonicalize step
- * 9), except where the projection pre-expanded it per operation (`visibleFor`, computed only for a
- * function that reads nothing but `operation`): there it is exactly what the function returns.
+ * A declaration's visibility condition over the block's values (`evaluateCondition`). What the
+ * catalog's data cannot decide counts as satisfied, so the field is active.
  */
 function conditionHolds(subBlock: CatalogSubBlock, values: Record<string, unknown>): boolean {
-  const { condition, visibleFor } = subBlock
-  const operation = values.operation
-  if (
-    condition &&
-    'opaque' in condition &&
-    visibleFor &&
-    typeof operation === 'string' &&
-    Object.hasOwn(visibleFor, operation)
-  ) {
-    return visibleFor[operation] === true
-  }
-  return evaluateSubBlockCondition(condition, values)
+  return evaluateCondition(subBlock, recordLookup(values)) !== false
 }
 
 /**
- * `shouldSerializeSubBlock` (serializer/index.ts:55-108) over one catalog declaration.
- * Env-gated hiding (`hideWhenHosted` / `hideWhenEnvSet`) is deployment state the catalog does not
- * carry, so it is not applied. An opaque condition counts as satisfied (s1 canonicalize step 9).
+ * `shouldSerializeSubBlock` (serializer/index.ts) over one catalog declaration. Env-gated hiding
+ * (`hideWhenHosted` / `hideWhenEnvSet`) is deployment state the catalog does not carry, so it is
+ * not applied.
  */
 function serializes(subBlock: CatalogSubBlock, inputs: ActivityInputs): boolean {
   const { block, triggerMode, advancedMode, values, overrides, index } = inputs
   if (subBlock.context === 'tool-input') return false
-
-  const isTriggerCategory = block.category === 'triggers'
-  if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') {
-    if (!triggerMode && !isTriggerCategory) return false
-  } else if (triggerMode && !isTriggerCategory) {
-    return false
-  }
+  if (!onSurface(block, subBlock, triggerMode)) return false
 
   const canonicalId = index.canonicalIdBySubBlockId[subBlock.id]
   if (canonicalId) {
@@ -202,4 +190,18 @@ export function canonicalActivityInputs(
     index: buildCanonicalIndexForSurface(catalogBlock, block.triggerMode),
     deployRead: deployReadIds(catalog, catalogBlock, block.type, block.triggerMode, values),
   }
+}
+
+/**
+ * The params of a catalog block that never reach execution under its current values: what source
+ * leaves out and materialize restores from the stored workflow. A subflow container has none.
+ */
+export function executableInactiveParams(
+  block: CanonicalBlock,
+  catalog: BlockCatalog
+): SubBlockId[] {
+  const declared = catalogBlock(catalog, block.type)
+  if (!declared || block.subflow) return []
+  const inputs = canonicalActivityInputs(block, declared, catalog)
+  return Object.keys(block.params).filter((id) => isInactive(id, inputs))
 }

@@ -3,7 +3,7 @@ import type { BlockState } from '@sim/workflow-types/workflow'
 import type { CanonicalModeOverrides } from '../catalog/canonical-index'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import type { BlockKey, CanonicalParam, SubBlockId, Value } from '../model'
-import { setOwn } from '../records'
+import { parseJsonContainer, setOwn } from '../records'
 import { type CanonContext, report } from './context'
 import { liftTools } from './tools'
 import { liftResourceValue, toValue } from './values'
@@ -73,10 +73,8 @@ function decodeStructured(
   context: CanonContext
 ): unknown {
   if (typeof raw !== 'string' || raw.trim() === '') return raw
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed === 'object' && parsed !== null) return parsed
-  } catch {}
+  const parsed = parseJsonContainer(raw)
+  if (parsed) return parsed
   report(context, {
     code: 'W_CANON_UNDECODABLE_JSON',
     severity: 'warning',

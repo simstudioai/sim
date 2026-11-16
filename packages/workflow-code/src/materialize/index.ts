@@ -14,14 +14,14 @@ import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { LockIdentity, WorkflowLockBlock, WorkflowLockV1 } from '../lock'
 import type { BlockKey, CanonicalBlock, CanonicalWorkflow, VarKey } from '../model'
-import { setOwn } from '../records'
+import { deepEqual, setOwn } from '../records'
 import { type BuiltBlock, buildBlock } from './block'
 import { catalogBlock, type MaterializeContext, report } from './context'
 import { type BranchHandles, writeEdges } from './edges'
 import { resolveIdentity } from './identity'
 import { restorePreserved } from './preserve'
 import { subflowEntry } from './subflows'
-import { deepEqual, rewriteRenamedReferences } from './values'
+import { rewriteRenamedReferences } from './values'
 
 function invert(record: Record<string, string>): Map<string, string> {
   return new Map(Object.entries(record).map(([key, id]) => [id, key]))

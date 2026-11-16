@@ -6,14 +6,16 @@
  */
 
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
+import {
+  ENV_VAR_NAME,
+  formatMemberPath,
+  LOOP_PROPERTIES,
+  PARALLEL_PROPERTIES,
+  parseStoredPath,
+} from '../code-files/ref-path'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { BlockKey } from '../model'
-import { printMember } from './strings'
-
-const ENV_VAR_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
-const LOOP_PROPERTIES = new Set(['iteration', 'index', 'item', 'currentItem', 'items'])
-const PARALLEL_PROPERTIES = new Set(['index', 'currentItem', 'items'])
 
 export type RefPart = { kind: 'text'; text: string } | { kind: 'ref'; expr: string }
 
@@ -35,44 +37,6 @@ export interface RefScope {
   useVars(): void
 }
 
-interface ParsedPath {
-  head: string
-  segments: Array<{ kind: 'member'; name: string } | { kind: 'index'; index: string }>
-}
-
-/** Splits `head.a[0].b-c` into a head and exact segments; `null` when the grammar does not fit. */
-function parseRefPath(inner: string): ParsedPath | null {
-  const headMatch = /^[^.[\]]+/.exec(inner)
-  if (!headMatch) return null
-  const head = headMatch[0]
-  const segments: ParsedPath['segments'] = []
-  let rest = inner.slice(head.length)
-  while (rest.length > 0) {
-    const member = /^\.([^.[\]]+)/.exec(rest)
-    if (member?.[1] !== undefined) {
-      segments.push({ kind: 'member', name: member[1] })
-      rest = rest.slice(member[0].length)
-      continue
-    }
-    const index = /^\[(0|[1-9][0-9]*)\]/.exec(rest)
-    if (index?.[1] !== undefined) {
-      segments.push({ kind: 'index', index: index[1] })
-      rest = rest.slice(index[0].length)
-      continue
-    }
-    return null
-  }
-  return { head, segments }
-}
-
-function printSegments(segments: ParsedPath['segments']): string {
-  return segments
-    .map((segment) =>
-      segment.kind === 'member' ? printMember(segment.name) : `[${segment.index}]`
-    )
-    .join('')
-}
-
 export class RefPrinter {
   readonly diagnostics: Diagnostic<PrintDiagnosticCode>[] = []
 
@@ -86,33 +50,33 @@ export class RefPrinter {
       this.scope.use('env')
       return `env.${name}`
     }
-    const parsed = parseRefPath(token.slice(1, -1))
+    const parsed = parseStoredPath(token.slice(1, -1))
     if (!parsed) return this.unresolved(token, from, 'W_UNRESOLVED_REF')
-    const { head, segments } = parsed
-    if (head === 'variable') {
-      const [first, ...rest] = segments
-      if (first?.kind !== 'member' || !this.scope.hasVariable(first.name)) {
+    const [head, ...segments] = parsed
+    if (head.kind !== 'name') return this.unresolved(token, from, 'W_UNRESOLVED_REF')
+    const [first] = segments
+    if (head.name === 'variable') {
+      if (first?.kind !== 'name' || !this.scope.hasVariable(first.name)) {
         return this.unresolved(token, from, 'W_UNRESOLVED_REF')
       }
       this.scope.useVars()
-      return `vars${printMember(first.name)}${printSegments(rest)}`
+      return formatMemberPath('vars', segments)
     }
-    if (head === 'loop' || head === 'parallel') {
-      const [first] = segments
-      const known = head === 'loop' ? LOOP_PROPERTIES : PARALLEL_PROPERTIES
-      const param = from === null ? null : this.scope.loopParam(from, head)
-      if (first?.kind !== 'member' || !known.has(first.name) || param === null) {
+    if (head.name === 'loop' || head.name === 'parallel') {
+      const known = head.name === 'loop' ? LOOP_PROPERTIES : PARALLEL_PROPERTIES
+      const param = from === null ? null : this.scope.loopParam(from, head.name)
+      if (first?.kind !== 'name' || !known.includes(first.name) || param === null) {
         return this.unresolved(token, from, 'W_UNRESOLVED_REF')
       }
-      return `${param}${printSegments(segments)}`
+      return formatMemberPath(param, segments)
     }
-    if (!this.scope.hasBlock(head) || from === null) {
+    if (!this.scope.hasBlock(head.name) || from === null) {
       return this.unresolved(token, from, 'W_UNRESOLVED_REF')
     }
-    const visibility = this.scope.visibility(from, head)
+    const visibility = this.scope.visibility(from, head.name)
     if (visibility === 'forward') return this.unresolved(token, from, 'W_FORWARD_REF_LITERALIZED')
     if (visibility === 'scope') return this.unresolved(token, from, 'W_UNRESOLVED_REF')
-    return `${this.scope.identOf(head)}${printSegments(segments)}`
+    return formatMemberPath(this.scope.identOf(head.name), segments)
   }
 
   /** Splits text into literal runs and resolved interpolations. */
@@ -159,14 +123,14 @@ export function referencedHeads(text: string): string[] {
   const heads: string[] = []
   for (const token of findWorkflowReferenceTokens(text)) {
     if (token.kind !== 'workflow') continue
-    const parsed = parseRefPath(token.value.slice(1, -1))
+    const head = parseStoredPath(token.value.slice(1, -1))?.[0]
     if (
-      parsed &&
-      parsed.head !== 'variable' &&
-      parsed.head !== 'loop' &&
-      parsed.head !== 'parallel'
+      head?.kind === 'name' &&
+      head.name !== 'variable' &&
+      head.name !== 'loop' &&
+      head.name !== 'parallel'
     ) {
-      heads.push(parsed.head)
+      heads.push(head.name)
     }
   }
   return heads

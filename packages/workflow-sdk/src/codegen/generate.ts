@@ -14,6 +14,7 @@
 import { compareStrings } from '@sim/utils/string'
 import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from '@sim/workflow-code'
 import { subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
+import { onSurface } from '@sim/workflow-code/catalog/surface'
 import { catalogBlock, catalogBlockTypes, catalogTrigger } from '@sim/workflow-code/catalog/view'
 import { indentLines, jsdoc, literal, pascal, propertyKey, quote, union } from './emit'
 import { mapSubBlock } from './map-subblock'
@@ -102,26 +103,13 @@ function header(sdkMajor: number): string {
   return `${HEADER_PREFIX} ${sdkMajor} · generated from the block catalog; do not edit`
 }
 
-function isTriggerModeSubBlock(subBlock: CatalogSubBlock): boolean {
-  return subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
-}
-
-/**
- * The subBlocks a builder can write, mirroring the serializer's surface rule
- * (apps/sim/serializer/index.ts): trigger-mode fields only in a trigger context or on a trigger
- * block, action fields never in a trigger context of a non-trigger block.
- */
+/** The subBlocks a builder can write: the ones its surface uses (`onSurface`) that source can state. */
 function candidateSubBlocks(block: CatalogBlock, entry: BuilderEntry): CatalogSubBlock[] {
-  const triggerCategory = block.category === 'triggers'
-  const triggerContext = entry.builder.triggerMode === true
+  const triggerMode = entry.builder.triggerMode === true
   const fixed = entry.builder.fixed ?? {}
   return block.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.context === 'tool-input') return false
-    if (isTriggerModeSubBlock(subBlock)) {
-      if (!triggerContext && !triggerCategory) return false
-    } else if (triggerContext && !triggerCategory) {
-      return false
-    }
+    if (!onSurface(block, subBlock, triggerMode)) return false
     if (SYSTEM_SUBBLOCK_IDS.has(subBlock.id) || subBlock.id.startsWith('samplePayload')) {
       return false
     }
@@ -312,7 +300,7 @@ function buildParams(
   context: VisibilityContext
 } {
   const candidates = candidateSubBlocks(block, entry)
-  const context = buildVisibilityContext(candidates, pinnedValues(entry), entry.builder.operation)
+  const context = buildVisibilityContext(candidates, pinnedValues(entry))
   const coreParams = new Set(entry.special?.coreParams ?? [])
   const params: Param[] = []
   for (const [name, members] of groupParams(candidates)) {

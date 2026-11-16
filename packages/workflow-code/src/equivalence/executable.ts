@@ -15,11 +15,11 @@
  * P0/P1 compare this view; O1 still compares stored bytes.
  */
 
-import { canonicalActivityInputs, isInactive } from '../canonicalize/activity'
 import { compareEdges } from '../canonicalize/edges'
-import { buildCanonicalIndexForSurface } from '../canonicalize/modes'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import { executableInactiveParams } from '../catalog/activity'
 import { isCanonicalPair } from '../catalog/canonical-index'
+import { buildCanonicalIndexForSurface } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import type {
@@ -34,7 +34,6 @@ import type {
   Json,
   LoopSpec,
   ParallelSpec,
-  SubBlockId,
   VarKey,
 } from '../model'
 import { setOwn } from '../records'
@@ -89,28 +88,6 @@ export interface ExecutableWorkflow {
   variables: Record<VarKey, CanonicalVariable>
 }
 
-/**
- * The params of a catalog block that never reach execution under its current values: what source
- * leaves out and materialize restores from the stored workflow.
- */
-export function executableInactiveParams(
-  block: CanonicalBlock,
-  catalog: BlockCatalog
-): SubBlockId[] {
-  const declared = catalogBlock(catalog, block.type)
-  if (!declared || block.subflow) return []
-  return inactiveIn(block, declared, catalog)
-}
-
-function inactiveIn(
-  block: CanonicalBlock,
-  declared: CatalogBlock,
-  catalog: BlockCatalog
-): SubBlockId[] {
-  const inputs = canonicalActivityInputs(block, declared, catalog)
-  return Object.keys(block.params).filter((id) => isInactive(id, inputs))
-}
-
 function executableLoop(spec: LoopSpec): ExecutableSubflow {
   const iterations = spec.iterations || DEFAULT_LOOP_ITERATIONS
   switch (spec.loopType) {
@@ -160,7 +137,7 @@ function executableParams(
   catalog: BlockCatalog
 ): Record<string, CanonicalParam> {
   if (!declared) return { ...block.params }
-  const inactive = new Set(inactiveIn(block, declared, catalog))
+  const inactive = new Set(executableInactiveParams(block, catalog))
   const params: Record<string, CanonicalParam> = {}
   for (const [id, param] of Object.entries(block.params)) {
     if (!inactive.has(id)) setOwn(params, id, param)

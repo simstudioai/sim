@@ -5,12 +5,7 @@
  * templates so multi-line text reads naturally. Template content is never re-indented.
  */
 
-const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
-
-/** An ASCII identifier name: usable as a bare object key or after `.` (reserved words included). */
-export function isIdentifierName(text: string): boolean {
-  return IDENTIFIER.test(text)
-}
+import { isIdentifierName } from '../code-files/ref-path'
 
 function hex4(code: number): string {
   return `\\u${code.toString(16).toUpperCase().padStart(4, '0')}`

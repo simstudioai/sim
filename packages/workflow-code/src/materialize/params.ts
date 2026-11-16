@@ -4,8 +4,9 @@ import { decodeToolParam, toolParamDeclaration } from '../canonicalize/tools'
 import type { CatalogSubBlock } from '../catalog/types'
 import type { LockItem } from '../lock'
 import type { BlockKey, CanonicalParam, CanonicalTool, SubBlockId } from '../model'
+import { deepEqual, parseJsonContainer } from '../records'
 import type { MaterializeContext } from './context'
-import { deepEqual, unliftValue } from './values'
+import { unliftValue } from './values'
 
 /** What encoding one param needs besides the value itself. */
 export interface ParamSite {
@@ -25,13 +26,8 @@ export interface ParamSite {
 /** A stored list, native or as JSON text; anything else is empty. */
 export function parseStoredList(raw: unknown): unknown[] {
   if (Array.isArray(raw)) return raw
-  if (typeof raw !== 'string' || raw.trim() === '') return []
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
+  const parsed = typeof raw === 'string' ? parseJsonContainer(raw) : undefined
+  return Array.isArray(parsed) ? parsed : []
 }
 
 /**

@@ -3,7 +3,7 @@ import { type CanonicalModeOverrides, scopeCanonicalModesForTool } from '../cata
 import type { BlockCatalog, CatalogSubBlock } from '../catalog/types'
 import { catalogBlock as catalogBlockOf, catalogTool } from '../catalog/view'
 import type { BlockKey, CanonicalTool, Json, Value } from '../model'
-import { setOwn } from '../records'
+import { parseJsonContainer, setOwn } from '../records'
 import { type CanonContext, catalogBlock } from './context'
 import { effectiveModes } from './modes'
 import { liftResourceId, liftResourceValue, toJson, toValue } from './values'
@@ -98,14 +98,8 @@ export function decodeToolParam(raw: unknown, shape: ToolParamShape): unknown {
       const parsed = Number(raw.trim())
       return Number.isFinite(parsed) ? parsed : raw
     }
-    case 'json': {
-      try {
-        const parsed: unknown = JSON.parse(raw.trim())
-        return typeof parsed === 'object' && parsed !== null ? parsed : raw
-      } catch {
-        return raw
-      }
-    }
+    case 'json':
+      return parseJsonContainer(raw) ?? raw
     default:
       return raw
   }

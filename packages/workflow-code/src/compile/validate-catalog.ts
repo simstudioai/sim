@@ -1,4 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
+import { type ConditionLookup, evaluateClause, evaluateCondition } from '../catalog/conditions'
+import { isAdvancedMember, onSurface } from '../catalog/surface'
 import type {
   BlockCatalog,
   CatalogBlock,
@@ -6,7 +8,6 @@ import type {
   CatalogOutput,
   CatalogSubBlock,
   CatalogValueKind,
-  SubBlockConditionClause,
 } from '../catalog/types'
 import { catalogTrigger } from '../catalog/view'
 import type { CanonicalParamId, SubBlockId, Value } from '../model'
@@ -32,16 +33,6 @@ export interface FieldIndex {
   memberAliases: Map<SubBlockId, CanonicalParamId>
   /** Every subBlock on this surface by id (first declaration wins). */
   subBlocks: Map<SubBlockId, CatalogSubBlock>
-}
-
-/** A trigger block (`category: 'triggers'`) serializes both surfaces (`shouldSerializeSubBlock`). */
-function onSurface(block: CatalogBlock, sub: CatalogSubBlock, triggerMode: boolean): boolean {
-  if (block.category === 'triggers') return true
-  return triggerMode ? sub.surface !== 'action' : sub.surface !== 'trigger'
-}
-
-function isAdvancedMember(sub: CatalogSubBlock): boolean {
-  return sub.mode === 'advanced' || sub.mode === 'trigger-advanced'
 }
 
 /**
@@ -101,70 +92,14 @@ export function memberFor(
   return (mode === 'advanced' ? field.advanced : field.basic) ?? field.members[0]
 }
 
-function clauseMatches(
-  clause: { field: string; value: unknown; not?: boolean },
-  values: ReadonlyMap<string, Value>
-): boolean {
-  const actual = values.get(clause.field)
-  if (Array.isArray(clause.value)) {
-    if (actual === undefined || actual === null) return false
-    const included = clause.value.some((candidate) => candidate === actual)
-    return clause.not ? !included : included
-  }
-  return clause.not ? actual !== clause.value : actual === clause.value
-}
-
-/**
- * Evaluates a data condition the way the editor does (`evaluateSubBlockCondition`,
- * lib/workflows/subblocks/visibility.ts).
- */
-function conditionHolds(
-  clause: SubBlockConditionClause,
-  values: ReadonlyMap<string, Value>
-): boolean {
-  if (!clauseMatches(clause, values)) return false
-  return clause.and ? clauseMatches(clause.and, values) : true
-}
-
-/** Whether the catalog's data decides a field shown, hidden, or cannot tell. */
-type Visibility = 'visible' | 'hidden' | 'undecided'
-
-/**
- * Visibility under `values`. A data condition is evaluated as the editor does. An opaque one is
- * decided only by the data the catalog precomputed for it:
- * - per operation, `visibleFor` (hidden when false) and the clause `visibleWhen` still asks then
- *   (absent: shown);
- * - per model, `visibleForModel`, for a model that is one of the block's literal options. A model
- *   held as a reference or template, or not offered, is undecided.
- * Anything else is undecided: field checks never warn on a field they cannot place.
- */
-function visibility(sub: CatalogSubBlock, values: ReadonlyMap<string, Value>): Visibility {
-  const condition = sub.condition
-  if (!condition) return 'visible'
-  if (!('opaque' in condition)) {
-    return conditionHolds(condition, values) ? 'visible' : 'hidden'
-  }
-  const operation = values.get('operation')
-  if (typeof operation === 'string' && sub.visibleFor && Object.hasOwn(sub.visibleFor, operation)) {
-    if (!sub.visibleFor[operation]) return 'hidden'
-    const asked = sub.visibleWhen?.[operation]
-    if (!asked) return 'visible'
-    return conditionHolds(asked, values) ? 'visible' : 'hidden'
-  }
-  const model = values.get('model')
-  if (
-    typeof model === 'string' &&
-    sub.visibleForModel &&
-    Object.hasOwn(sub.visibleForModel, model)
-  ) {
-    return sub.visibleForModel[model] ? 'visible' : 'hidden'
-  }
-  return 'undecided'
+/** A lookup over a block's compiled params, every one of them known. */
+function paramLookup(values: ReadonlyMap<string, Value>): ConditionLookup {
+  return (field: string) => ({ value: values.get(field) })
 }
 
 /** Whether a field may be shown: only a field the catalog's data decides hidden is not. */
 export function isVisible(sub: CatalogSubBlock, values: ReadonlyMap<string, Value>): boolean {
-  return visibility(sub, values) !== 'hidden'
+  return evaluateCondition(sub, paramLookup(values)) !== false
 }
 
 /**
@@ -208,7 +143,8 @@ export function missingRequiredFields(
   for (const field of index.fields.values()) {
     const members = field.kind === 'single' ? [field.sub] : field.members
     if (members.some((sub) => isWritten(sub.id))) continue
-    if (members.some((sub) => visibility(sub, values) === 'visible' && isRequired(sub, values))) {
+    const lookup = paramLookup(values)
+    if (members.some((sub) => evaluateCondition(sub, lookup) === true && isRequired(sub, values))) {
       missing.push(field)
     }
   }
@@ -222,7 +158,7 @@ function isRequired(sub: CatalogSubBlock, values: ReadonlyMap<string, Value>): b
   if (sub.required === undefined || sub.required === false) return false
   if (sub.required === true) return true
   if ('opaque' in sub.required) return false
-  return conditionHolds(sub.required, values)
+  return evaluateClause(sub.required, paramLookup(values)) === true
 }
 
 function isPlainObject(value: Value): boolean {

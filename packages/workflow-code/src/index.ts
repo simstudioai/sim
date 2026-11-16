@@ -31,6 +31,7 @@ export type {
   SourceFingerprintFn,
 } from './api'
 export { canonicalize } from './canonicalize'
+export { executableInactiveParams } from './catalog/activity'
 export { type CompactedBlockCatalog, compactBlockCatalog } from './catalog/compact'
 export type {
   BlockCatalog,
@@ -84,6 +85,7 @@ export {
   codeFileLanguage,
   type FromCodeFileResult,
   fromCodeFile,
+  isIdentifierName,
   toCodeFile,
 } from './code-files'
 export {
@@ -132,7 +134,6 @@ export {
   type ExecutableBlock,
   type ExecutableSubflow,
   type ExecutableWorkflow,
-  executableInactiveParams,
   executableView,
 } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'

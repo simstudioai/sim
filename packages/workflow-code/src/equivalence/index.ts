@@ -7,6 +7,7 @@ import type { CanonicalEqualsFn, CanonicalHashFn, SourceFingerprintFn } from '..
 import { compareEdges } from '../canonicalize/edges'
 import { sha256Hex, stableStringify } from '../hash'
 import type { CanonicalWorkflow } from '../model'
+import { deepEqual } from '../records'
 
 /** The semantic part of a CWM: everything but annotations, with edges in canonical order. */
 function semantic(workflow: CanonicalWorkflow) {
@@ -17,28 +18,6 @@ function semantic(workflow: CanonicalWorkflow) {
     edges: [...workflow.edges].sort(compareEdges),
     variables: workflow.variables,
   }
-}
-
-/** Defined own entries; an `undefined` field means the same as an absent one. */
-function definedEntries(value: object): Array<[string, unknown]> {
-  return Object.entries(value).filter(([, field]) => field !== undefined)
-}
-
-function deepEqual(left: unknown, right: unknown): boolean {
-  if (Object.is(left, right)) return true
-  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null) {
-    return false
-  }
-  if (Array.isArray(left) || Array.isArray(right)) {
-    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false
-    return left.every((item, index) => deepEqual(item, right[index]))
-  }
-  const leftEntries = definedEntries(left)
-  const rightRecord = right as Record<string, unknown>
-  if (leftEntries.length !== definedEntries(right).length) return false
-  return leftEntries.every(
-    ([key, field]) => Object.hasOwn(rightRecord, key) && deepEqual(field, rightRecord[key])
-  )
 }
 
 /** Structural equality, total (never throws). */

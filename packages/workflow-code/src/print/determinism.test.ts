@@ -7,9 +7,9 @@
 
 import { describe, expect, it } from 'vitest'
 import type { LockHints } from '../api'
+import { executableInactiveParams } from '../catalog/activity'
 import { editorDefaults } from '../catalog/defaults'
 import { catalogBlock } from '../catalog/view'
-import { executableInactiveParams } from '../equivalence/executable'
 import type { CanonicalWorkflow } from '../model'
 import { cases } from './__fixtures__/cases'
 import { realCatalog as catalog } from './__fixtures__/real-catalog'

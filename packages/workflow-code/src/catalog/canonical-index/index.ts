@@ -8,6 +8,7 @@
  */
 
 import { setOwn } from '../../records'
+import { evaluateClause, recordLookup } from '../conditions'
 import type { OpaqueMarker } from '../types'
 
 export type CanonicalMode = 'basic' | 'advanced'
@@ -146,22 +147,9 @@ function isOpaqueMarker(condition: object): condition is OpaqueMarker {
   return 'opaque' in condition && condition.opaque === true
 }
 
-function matchesClause(
-  clause: Pick<SubBlockCondition, 'field' | 'value' | 'not'>,
-  values: Record<string, unknown>
-): boolean {
-  const fieldValue = values[clause.field]
-  if (Array.isArray(clause.value)) {
-    if (fieldValue == null) return false
-    const included = (clause.value as readonly unknown[]).includes(fieldValue)
-    return clause.not ? !included : included
-  }
-  return clause.not ? fieldValue !== clause.value : fieldValue === clause.value
-}
-
 /**
- * Evaluate a subblock condition against a map of raw values. Only one level of `and` is read,
- * as in the registry.
+ * Evaluate a subblock condition against a map of raw values (`evaluateClause`, every field
+ * known). Only one level of `and` is read, as in the registry.
  */
 export function evaluateSubBlockCondition(
   condition: EvaluableSubBlockCondition,
@@ -170,8 +158,7 @@ export function evaluateSubBlockCondition(
   if (!condition) return true
   const actual = typeof condition === 'function' ? condition(values) : condition
   if (isOpaqueMarker(actual)) return true
-  if (!matchesClause(actual, values)) return false
-  return actual.and ? matchesClause(actual.and, values) : true
+  return evaluateClause(actual, recordLookup(values)) === true
 }
 
 /** Extract override entries matching a `${prefix}` key into a bare-`canonicalId`-keyed object. */

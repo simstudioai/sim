@@ -7,7 +7,9 @@ import {
   resolveEffectiveErrorEnabled,
 } from '@sim/workflow-types/workflow'
 import type { CanonicalizeFn } from '../api'
+import { deployReadIds, isInactive } from '../catalog/activity'
 import type { CanonicalModeOverrides } from '../catalog/canonical-index'
+import { buildCanonicalIndexForSurface } from '../catalog/surface'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { LockIdentity, LockIdentityBlock, LockLayout } from '../lock'
@@ -22,12 +24,11 @@ import type {
   VarKey,
 } from '../model'
 import { setOwn } from '../records'
-import { deployReadIds, isInactive } from './activity'
 import { type LiftedBranches, liftBranches } from './branches'
 import { type CanonContext, catalogBlock, report } from './context'
 import { canonicalEdges } from './edges'
 import { assignBlockKeys, assignVariableKeys } from './keys'
-import { buildCanonicalIndexForSurface, effectiveModes } from './modes'
+import { effectiveModes } from './modes'
 import { canonicalParams } from './params'
 import { loopSpec, parallelSpec, SUBFLOW_DATA_KEYS } from './subflows'
 import { toJson, toValue } from './values'

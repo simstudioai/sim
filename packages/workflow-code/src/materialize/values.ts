@@ -15,32 +15,6 @@ import { type MaterializeContext, report } from './context'
 
 const SIM_NODE_KINDS = new Set(['var', 'resource', 'unresolved', 'csv', 'literal'])
 
-/** Defined own entries; an `undefined` member means the same as an absent one. */
-function definedEntries(value: object): Array<[string, unknown]> {
-  return Object.entries(value).filter(([, member]) => member !== undefined)
-}
-
-/**
- * Structural equality over model values and stored JSON: key order is ignored (jsonb does not
- * keep it, s1 quirk 28), an `undefined` member equals an absent one, and arrays compare in order.
- */
-export function deepEqual(left: unknown, right: unknown): boolean {
-  if (Object.is(left, right)) return true
-  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null) {
-    return false
-  }
-  if (Array.isArray(left) || Array.isArray(right)) {
-    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false
-    return left.every((item, index) => deepEqual(item, right[index]))
-  }
-  const leftEntries = definedEntries(left)
-  const rightRecord = right as Record<string, unknown>
-  if (leftEntries.length !== definedEntries(right).length) return false
-  return leftEntries.every(
-    ([key, member]) => Object.hasOwn(rightRecord, key) && deepEqual(member, rightRecord[key])
-  )
-}
-
 function isSimNode(value: unknown): value is SimNode {
   return isRecordLike(value) && typeof value.$sim === 'string' && SIM_NODE_KINDS.has(value.$sim)
 }
