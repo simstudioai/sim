@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { MicrosoftDynamics365Block } from '@/blocks/blocks/microsoft_dynamics_365'
+import { getToolMetadata } from '@/tools/metadata'
+import { microsoftDynamics365ListRecordsTool } from '@/tools/microsoft_dynamics_365/list_records'
+import { microsoftDynamics365UpdateRecordTool } from '@/tools/microsoft_dynamics_365/update_record'
+import { getSubBlocksForToolInput } from '@/tools/params'
 
 const BASE_PARAMS = {
   credential: 'credential-1',
@@ -404,6 +408,50 @@ describe('MicrosoftDynamics365Block tool-call mapping', () => {
     if (!mapper) throw new Error('Dynamics 365 CRM block is missing its params mapper')
     return mapper({ ...BASE_PARAMS, ...params }, { operation })
   }
+
+  it('renders Owner Type and Owner ID on the List Owners and Assign Record tool rows', () => {
+    const rowTools = [microsoftDynamics365ListRecordsTool, microsoftDynamics365UpdateRecordTool]
+    vi.mocked(getToolMetadata).mockImplementationOnce(lookup).mockImplementationOnce(lookup)
+    function lookup(toolId: string) {
+      const tool = rowTools.find((candidate) => candidate.id === toolId)
+      return tool && { id: tool.id, params: tool.params }
+    }
+    const rowFields = (toolId: string, operation: string) =>
+      getSubBlocksForToolInput(
+        toolId,
+        'microsoft_dynamics_365',
+        { operation },
+        {},
+        MicrosoftDynamics365Block
+      )?.subBlocks.map((subBlock) => subBlock.id)
+
+    expect(rowFields('microsoft_dynamics_365_list_records', 'list_owners')).toContain('ownerType')
+    expect(rowFields('microsoft_dynamics_365_update_record', 'assign_record')).toEqual(
+      expect.arrayContaining(['ownerType', 'ownerId'])
+    )
+  })
+
+  it('lists owners from the row-stored owner type on a tool call', () => {
+    expect(
+      mapToolCall('list_owners', { ownerType: 'team', entitySetName: 'accounts' })
+    ).toMatchObject({ entitySetName: 'teams' })
+  })
+
+  it('assigns the record the model names to the row-stored owner on a tool call', () => {
+    expect(
+      mapToolCall('assign_record', {
+        ownerType: 'team',
+        ownerId: OWNER_ID,
+        entitySetName: 'contacts',
+        recordId: RECORD_ID,
+      })
+    ).toEqual({
+      ...BASE_PARAMS,
+      entitySetName: 'contacts',
+      recordId: RECORD_ID,
+      data: { 'ownerid@odata.bind': `/teams(${OWNER_ID})` },
+    })
+  })
 
   it('applies the stored resolution subject when the model sends only the case ID', () => {
     expect(
