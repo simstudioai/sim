@@ -26,7 +26,7 @@ import { type CorpusCase, generateRegistryCorpus } from '@/lib/workflows/code/co
 import { workflowStateArbitrary } from '@/lib/workflows/code/corpus/proof'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-export interface FixtureState {
+interface FixtureState {
   /** `<source>:<name>`, stable across runs. */
   id: string
   state: WorkflowState
@@ -35,7 +35,7 @@ export interface FixtureState {
 const LANDING_TEMPLATES_DIR = path.resolve(process.cwd(), 'public/landing-page-templates')
 
 /** Reads exported workflow files (`{ version, exportedAt, state }` or a bare state) from a directory. */
-export function loadWorkflowStatesFromDirectory(directory: string, source: string): FixtureState[] {
+function loadWorkflowStatesFromDirectory(directory: string, source: string): FixtureState[] {
   return readdirSync(directory)
     .filter((file) => file.endsWith('.json'))
     .sort(compareStrings)
@@ -63,7 +63,7 @@ function toWorkflowState(parsed: unknown, file: string): WorkflowState {
 }
 
 /** The 11 landing-page templates in `public/landing-page-templates`. */
-export function loadLandingTemplateStates(): FixtureState[] {
+function loadLandingTemplateStates(): FixtureState[] {
   return loadWorkflowStatesFromDirectory(LANDING_TEMPLATES_DIR, 'landing-template')
 }
 
@@ -79,7 +79,7 @@ function stored(state: FactoryOutput): WorkflowState {
 }
 
 /** States from the shared `@sim/testing` factories and builder presets. */
-export function buildTestingFactoryStates(): FixtureState[] {
+function buildTestingFactoryStates(): FixtureState[] {
   const fixtures: Array<[string, FactoryOutput]> = [
     ['minimal', createMinimalWorkflowState()],
     ['conditional', createConditionalWorkflowState()],
