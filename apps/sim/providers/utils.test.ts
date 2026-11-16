@@ -19,7 +19,9 @@ import { GreenhouseV2Block } from '@/blocks/blocks/greenhouse'
 import { IntuneBlock } from '@/blocks/blocks/intune'
 import { MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
 import { RampBlock } from '@/blocks/blocks/ramp'
+import { ResendV2Block } from '@/blocks/blocks/resend'
 import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
+import { SharepointV2Block } from '@/blocks/blocks/sharepoint'
 import { TrelloBlock } from '@/blocks/blocks/trello'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import * as blockRegistry from '@/blocks/registry'
@@ -91,7 +93,10 @@ import { sortRangeTool } from '@/tools/microsoft_excel/sort_range'
 import { getSubBlocksForToolInput } from '@/tools/params'
 import { rampListReimbursementsTool } from '@/tools/ramp/list-reimbursements'
 import { rampListTransactionsTool } from '@/tools/ramp/list-transactions'
+import { resendCreateBroadcastTool } from '@/tools/resend/create_broadcast'
+import type { CreateBroadcastParams } from '@/tools/resend/types'
 import { revenuecatGetCustomerTool } from '@/tools/revenuecat/get_customer'
+import { getListTool as sharepointGetListTool } from '@/tools/sharepoint/get_list'
 import { trelloListListsTool } from '@/tools/trello/list_lists'
 import { trelloUpdateListTool } from '@/tools/trello/update_list'
 import { falaiVideoTool } from '@/tools/video/falai'
@@ -804,6 +809,37 @@ describe('tool-row values hidden by the selected operation', () => {
     expect(toolParams.boardId).toBe(Object.values(stored)[0])
   })
 
+  it.each([
+    { includeColumns: 'true', kept: false },
+    { includeColumns: 'false', kept: true },
+  ])(
+    'applies the SharePoint item filters left on a Get List row only when Include Columns is $includeColumns',
+    async ({ includeColumns, kept }) => {
+      const stored = {
+        siteId: 'site-1',
+        listId: 'list-1',
+        includeColumns,
+        filter: "fields/Status eq 'Active'",
+        top: '10',
+        selectFields: 'Title',
+      }
+      const providerTool = await transformBlockTool(
+        { type: 'sharepoint_v2', operation: 'sharepoint_get_list', params: stored },
+        {
+          selectedOperation: 'sharepoint_get_list',
+          getAllBlocks: () => [SharepointV2Block],
+          getTool: () => sharepointGetListTool,
+        }
+      )
+      if (!providerTool) throw new Error('SharePoint agent tool was not created')
+      const { toolParams } = prepareToolExecution(providerTool, {}, {}, undefined)
+      expect(toolParams.includeColumns).toBe(includeColumns === 'true')
+      expect(toolParams.filter).toBe(kept ? stored.filter : undefined)
+      expect(toolParams.top).toBe(kept ? 10 : undefined)
+      expect(toolParams.selectFields).toBe(kept ? stored.selectFields : undefined)
+    }
+  )
+
   it('keeps a stored tool param no sub-block writes', async () => {
     const providerTool = await transformBlockTool(
       { type: 'trello', operation: 'trello_update_list', params: { listId: 'l', idBoard: 'b' } },
@@ -842,6 +878,49 @@ describe('tool-row values hidden by the selected operation', () => {
       'create_report'
     )
     expect(params).toEqual({ candidateId: 'cand-1', credential: 'fixture-credential' })
+  })
+})
+
+describe('Resend broadcast recipient on a tool row', () => {
+  const sender = { broadcastFrom: 'team@example.com', broadcastSubject: 'News' }
+
+  it.each([
+    {
+      name: 'a pinned audience over the model segment',
+      stored: { audienceId: 'aud_row' },
+      args: { segmentId: 'seg_model' },
+      recipient: { audience_id: 'aud_row' },
+    },
+    {
+      name: 'a pinned segment over the model audience',
+      stored: { segmentId: 'seg_row' },
+      args: { audienceId: 'aud_model' },
+      recipient: { segment_id: 'seg_row' },
+    },
+    {
+      name: 'the model segment when the row pins no recipient',
+      stored: {},
+      args: { segmentId: 'seg_model' },
+      recipient: { segment_id: 'seg_model' },
+    },
+  ])('sends to $name', async ({ stored, args, recipient }) => {
+    const providerTool = await transformBlockTool(
+      {
+        type: 'resend_v2',
+        operation: 'create_broadcast',
+        params: { ...sender, credential: 'fixture-credential', ...stored },
+      },
+      {
+        selectedOperation: 'create_broadcast',
+        getAllBlocks: () => [ResendV2Block],
+        getTool: () => resendCreateBroadcastTool,
+      }
+    )
+    if (!providerTool) throw new Error('Resend agent tool was not created')
+    const { toolParams } = prepareToolExecution(providerTool, args, {}, undefined)
+    const body = resendCreateBroadcastTool.request.body?.(toolParams as CreateBroadcastParams)
+    expect(body).toMatchObject(recipient)
+    expect(body).not.toHaveProperty('audience_id' in recipient ? 'segment_id' : 'audience_id')
   })
 })
 

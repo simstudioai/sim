@@ -1726,10 +1726,6 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
           cleanParams.associations = associations
         }
 
-        if (listName && operation === 'create_list') {
-          cleanParams.name = listName
-        }
-
         if (
           operation === 'create_association' &&
           associationTypeId !== undefined &&
@@ -1767,6 +1763,11 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
             cleanParams[key] = value
           }
         })
+
+        // After the copy so the row's List Name beats a model `name` on a tool call.
+        if (listName && operation === 'create_list') {
+          cleanParams.name = listName
+        }
 
         return cleanParams
       },

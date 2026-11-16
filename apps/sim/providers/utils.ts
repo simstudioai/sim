@@ -53,7 +53,7 @@ import {
   registerPreparedProviderToolInputProvenance,
 } from '@/providers/tool-input-provenance'
 import type { ModelPricing, ProviderId, ProviderToolConfig } from '@/providers/types'
-import { mergeToolParameters } from '@/tools/merge-params'
+import { isNonEmpty, mergeToolParameters } from '@/tools/merge-params'
 import { buildToolParamShapes, decodeToolParams } from '@/tools/param-shape'
 import type { WorkflowToolExecutionContext } from '@/tools/types'
 
@@ -559,6 +559,8 @@ export function buildBlockToolParamsTransform(config: {
   toolParams: Record<string, { type?: string }> | undefined
   canonicalGroups: CanonicalGroup[]
   scopedCanonicalModes: CanonicalModeOverrides | undefined
+  /** The params the tool row stores; their non-empty ids reach the mapper as `pinnedParams`. */
+  storedParams?: Record<string, unknown>
 }): {
   paramsTransform: BlockToolParamsFn | undefined
   jsonShapedParamKeys: string[]
@@ -571,7 +573,13 @@ export function buildBlockToolParamsTransform(config: {
     toolParams,
     canonicalGroups,
     scopedCanonicalModes,
+    storedParams,
   } = config
+  const pinnedParams = new Set(
+    Object.entries(storedParams ?? {})
+      .filter(([, value]) => isNonEmpty(value))
+      .map(([paramId]) => paramId)
+  )
 
   /**
    * The value shape of every key this tool can receive. Keyed by the sub-block that
@@ -620,7 +628,7 @@ export function buildBlockToolParamsTransform(config: {
         }
 
         if (blockParamsFn) {
-          const transformed = blockParamsFn(result, { operation })
+          const transformed = blockParamsFn(result, { operation, pinnedParams })
           result = { ...result, ...transformed }
         }
 
@@ -914,6 +922,7 @@ export async function transformBlockTool(
     toolParams: toolConfig.params,
     canonicalGroups,
     scopedCanonicalModes,
+    storedParams: userProvidedParams,
   })
 
   const providerTool: ProviderToolConfig = {

@@ -88,4 +88,80 @@ describe('RipplingBlock canvas', () => {
     })
     expect(mapped.orderBy).toBe('name desc')
   })
+
+  it.each([
+    { operation: 'bulk_delete_custom_object_records', flag: 'allOrNothing' },
+    { operation: 'create_custom_object_field', flag: 'isUnique' },
+    { operation: 'update_custom_object_field', flag: 'enableHistory' },
+    { operation: 'trigger_report_run', flag: 'includeObjectIds' },
+    { operation: 'trigger_report_run', flag: 'includeTotalRows' },
+  ])('sends a $flag left on No as a boolean false on $operation', ({ operation, flag }) => {
+    expect(canvasRun({ operation, apiKey: 'key', [flag]: 'false' })[flag]).toBe(false)
+  })
+
+  it.each([
+    { operation: 'create_custom_app', key: 'apiName', field: 'apiName', value: 'my_app' },
+    { operation: 'update_custom_app', key: 'apiName', field: 'apiName', value: 'my_app' },
+    {
+      operation: 'create_custom_object_field',
+      key: 'dataType',
+      field: 'dataType',
+      value: '{"type":"TEXT"}',
+    },
+  ])(
+    'ignores a custom setting $key left from a setting operation on $operation',
+    ({ operation, key, field, value }) => {
+      const mapped = canvasRun({
+        operation,
+        apiKey: 'key',
+        [field]: value,
+        settingApiName: 'stale_setting',
+        settingDataType: 'STRING',
+      })
+      expect(mapped[key]).toEqual(key === 'dataType' ? { type: 'TEXT' } : value)
+    }
+  )
+
+  it('sends the setting API name and data type on a custom setting write', () => {
+    const mapped = canvasRun({
+      operation: 'update_custom_setting',
+      apiKey: 'key',
+      id: 'setting-1',
+      settingApiName: 'region',
+      settingDataType: 'STRING',
+    })
+    expect(mapped).toMatchObject({ apiName: 'region', dataType: 'STRING' })
+  })
+})
+
+describe('RipplingBlock custom object field flags', () => {
+  const flags = ['isUnique', 'enableHistory'] as const
+
+  it.each(flags)('offers No change for %s everywhere except a known create', (id) => {
+    const subBlock = RipplingBlock.subBlocks.find((candidate) => candidate.id === id)
+    const options = subBlock?.options
+    if (typeof options !== 'function') throw new Error(`${id} options are static`)
+    expect(options({ values: {} })[0]?.id).toBe('')
+    expect(options({ values: { operation: 'update_custom_object_field' } })[0]?.id).toBe('')
+    expect(options({ values: { operation: 'create_custom_object_field' } })[0]?.id).toBe('false')
+    expect(subBlock?.value?.({ operation: 'create_custom_object_field' })).toBe('false')
+    expect(subBlock?.value?.({ operation: 'update_custom_object_field' })).toBe('')
+    expect(subBlock?.value?.({})).toBeUndefined()
+    expect(subBlock?.dependsOn).toEqual(expect.arrayContaining(['operation']))
+  })
+
+  it.each(flags)('sends no %s when an update leaves it on No change', (id) => {
+    const mapped = canvasRun({ operation: 'update_custom_object_field', apiKey: 'key', [id]: '' })
+    expect(mapped).toHaveProperty(id, undefined)
+  })
+
+  it.each(['true', 'false'])('keeps sending a saved %s as a boolean on an update', (saved) => {
+    const mapped = canvasRun({
+      operation: 'update_custom_object_field',
+      apiKey: 'key',
+      isUnique: saved,
+      enableHistory: saved,
+    })
+    expect(mapped).toMatchObject({ isUnique: saved === 'true', enableHistory: saved === 'true' })
+  })
 })
