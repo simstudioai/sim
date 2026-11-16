@@ -1,6 +1,6 @@
 import { PerplexityIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { mapperOperation, toolCallArg } from '@/blocks/utils'
+import { mapperOperation } from '@/blocks/utils'
 
 export const PerplexityBlock: BlockConfig = {
   type: 'perplexity',
@@ -238,11 +238,12 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
           content: params.content,
           systemPrompt: params.systemPrompt,
           max_tokens: params.max_tokens ? Number.parseInt(params.max_tokens) : undefined,
-          temperature: params.temperature
-            ? Number.parseFloat(params.temperature)
-            : params.temperature === 0
-              ? toolCallArg(context, 0)
-              : undefined,
+          temperature:
+            params.temperature === 0
+              ? 0
+              : params.temperature
+                ? Number.parseFloat(params.temperature)
+                : undefined,
         }
 
         return chatParams
