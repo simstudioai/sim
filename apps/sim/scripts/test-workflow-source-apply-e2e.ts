@@ -30,7 +30,7 @@ import postgres from 'postgres'
  *
  * Env: WORKFLOW_SOURCE_E2E_BASE_URL (loopback origin), WORKFLOW_SOURCE_E2E_API_KEY,
  * WORKFLOW_SOURCE_E2E_WORKSPACE_ID, WORKFLOW_SOURCE_E2E_DATABASE_URL (the app's disposable
- * loopback database), WORKFLOW_SOURCE_E2E_REPORT_PATH.
+ * loopback database), WORKFLOW_SOURCE_APPLY_E2E_REPORT_PATH.
  */
 const logger = createLogger('WorkflowSourceApplyE2E')
 
@@ -43,7 +43,7 @@ function requiredEnvironment(name: string): string {
 const baseUrl = new URL(requiredEnvironment('WORKFLOW_SOURCE_E2E_BASE_URL'))
 const apiKey = requiredEnvironment('WORKFLOW_SOURCE_E2E_API_KEY')
 const workspaceId = requiredEnvironment('WORKFLOW_SOURCE_E2E_WORKSPACE_ID')
-const reportPath = requiredEnvironment('WORKFLOW_SOURCE_E2E_REPORT_PATH')
+const reportPath = requiredEnvironment('WORKFLOW_SOURCE_APPLY_E2E_REPORT_PATH')
 const databaseUrl = assertDisposableTestDatabaseUrl(
   requiredEnvironment('WORKFLOW_SOURCE_E2E_DATABASE_URL')
 )
@@ -467,7 +467,7 @@ async function main() {
         const body = await request(
           'POST',
           createPath,
-          { files: source.files, name, folderPath: `/${folderName}` },
+          { files: source.files, name, folderPath: `/${encodeURIComponent(folderName)}` },
           404
         )
         assert.equal(errorCode(body), 'NOT_FOUND')
@@ -488,7 +488,11 @@ async function main() {
         const body = await request(
           'POST',
           createPath,
-          { files: source.files, name, folderPath: `/${fixtures.lockedFolderName}` },
+          {
+            files: source.files,
+            name,
+            folderPath: `/${encodeURIComponent(fixtures.lockedFolderName)}`,
+          },
           423
         )
         assert.equal(errorCode(body), 'LOCKED')
