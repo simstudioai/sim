@@ -26,6 +26,7 @@ import {
   WORKSPACE_ERRORS,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
+import { workflowSourceOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workflow-source'
 import { workspaceSyncOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-sync'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
@@ -1812,5 +1813,5 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
   headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,
-  routes: [...routes, ...workspaceSyncOpenApiRoutes],
+  routes: [...routes, ...workflowSourceOpenApiRoutes, ...workspaceSyncOpenApiRoutes],
 })

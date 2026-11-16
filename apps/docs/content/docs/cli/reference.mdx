@@ -8261,6 +8261,38 @@ sim workflows outline <workflowId>
 
 API request and response schemas: [getWorkflowOutline](/api-reference/workflows/getWorkflowOutline).
 
+### sim workflows source get
+
+Show a workflow’s draft as TypeScript source with its identity lock
+
+```bash
+sim workflows source get <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--annotate-ids` | No | Print each block's id as a trailing `// id:` comment on its declaration. |
+| `--no-annotate-ids` | No | Send --annotate-ids as false. |
+| `--function-code <value>` | No | Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `file()`; `inline` prints it in tagged templates. Accepted values: `inline`, `files`. |
+
+</CommandTable>
+
+API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
+
 ### sim workflows state get
 
 Get workflow state

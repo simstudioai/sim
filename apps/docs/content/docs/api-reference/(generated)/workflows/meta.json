@@ -10,6 +10,7 @@
     "moveWorkflows",
     "getWorkflowState",
     "getWorkflowOutline",
+    "getWorkflowSource",
     "replaceWorkflowState",
     "applyWorkflowOperations",
     "applyWorkflowVariables",
