@@ -14852,7 +14852,6 @@
                               "access": ["slack_message"],
                               "selector": "operation"
                             },
-                            "inputs": {},
                             "outputs": {
                               "ts": {
                                 "type": "string",
@@ -30339,7 +30338,7 @@
                                           "description": "Stored option id."
                                         },
                                         "label": {
-                                          "description": "Display label; absent when it equals `id` or lives in the block docs shard.",
+                                          "description": "Display label; absent when it equals `id`, and on a block's non-`operation` fields.",
                                           "type": "string"
                                         }
                                       },
@@ -30554,28 +30553,6 @@
                       "required": ["access", "selector"],
                       "additionalProperties": false,
                       "description": "Tools the block calls."
-                    },
-                    "inputs": {
-                      "description": "Declared inputs by name; absent when empty or kept in the block docs shard.",
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "description": "Input value type."
-                          },
-                          "schema": {
-                            "description": "JSON schema of the input."
-                          }
-                        },
-                        "required": ["type"],
-                        "additionalProperties": false,
-                        "description": "One declared input."
-                      }
                     },
                     "outputs": {
                       "type": "object",
@@ -31388,7 +31365,7 @@
                                           "description": "Stored option id."
                                         },
                                         "label": {
-                                          "description": "Display label; absent when it equals `id` or lives in the block docs shard.",
+                                          "description": "Display label; absent when it equals `id`, and on a block's non-`operation` fields.",
                                           "type": "string"
                                         }
                                       },
@@ -32216,7 +32193,7 @@
                                 "description": "Stored option id."
                               },
                               "label": {
-                                "description": "Display label; absent when it equals `id` or lives in the block docs shard.",
+                                "description": "Display label; absent when it equals `id`, and on a block's non-`operation` fields.",
                                 "type": "string"
                               }
                             },
@@ -32489,7 +32466,6 @@
                     "access": ["slack_message"],
                     "selector": "operation"
                   },
-                  "inputs": {},
                   "outputs": {
                     "ts": {
                       "type": "string",

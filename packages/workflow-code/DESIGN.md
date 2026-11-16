@@ -217,7 +217,7 @@ makes a source stale. `canonicalHash` covers the CWM alone. Get returns the fing
 
 The source catalog is the per-workspace authoring catalog codegen, print and compile read
 (`apps/sim/lib/workflows/code/catalog/`). `projectBlockCatalog` projects the live registry
-(`CatalogBlock`, `CatalogTrigger`, `CatalogTool`, frozen builder names from `sdk-names.json`);
+(`CatalogBlock`, `CatalogTrigger`, frozen builder names from `sdk-names.json`);
 `buildSourceCatalog` narrows it to the caller's gate (visibility, allowlist, the workspace's custom
 blocks) plus every type the workflow already stores, marking types that may stay but not be added
 `addable: false`. Builds are cached by content key in an `lru-cache`.
@@ -246,12 +246,11 @@ encoding whose entry types are supersets of the expanded ones, so an expanded ca
 fixture) is a valid shard. `compactBlockCatalog` (`catalog/compact.ts`) dedupes trigger-mode
 subBlock runs into `{ trigger, start, count }`, repeated subBlocks into `subBlocks` (`{ shared }`),
 repeated condition lists into `lists`, repeated outputs into `sharedOutputs`/`sharedProperties`,
-drops labels equal to their id, and moves other labels (except the `operation` dropdown's) and
-block `inputs` into the per-block docs shard (`CatalogBlockDocs`). Titles, output descriptions,
-defaults and option ids stay in the core shard because codegen and the printer read them.
-`expandBlockCatalog(catalog, docs?)` and the accessors in `catalog/view.ts` (`catalogBlock`,
-`catalogBlockTypes`, `catalogTrigger`, `catalogBuilder`, `catalogBuilderPaths`,
-`catalogTool`) decode lazily, memoized per catalog object. No consumer indexes `catalog.blocks`,
+drops labels equal to their id, and drops a block's other option labels (except the `operation`
+dropdown's), which nothing reads; an absent label reads as its id. Titles, output descriptions,
+defaults and option ids stay because codegen and the printer read them. `expandBlockCatalog` and
+the accessors in `catalog/view.ts` (`catalogBlock`, `catalogBlockTypes`, `catalogTrigger`,
+`catalogBuilder`, `catalogBuilderPaths`) decode lazily, memoized per catalog object. No consumer indexes `catalog.blocks`,
 `catalog.triggers` or `catalog.builders` directly. The hash is SHA-256 over `stableStringify` of
 the core shard, deterministic because tables fill in key order; it is the ETag and
 `base.catalogHash`.

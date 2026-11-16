@@ -3,14 +3,14 @@
  *
  * Every assertion runs over the whole live registry rather than fixtures, so a new block that a
  * projection rule cannot handle fails here at authoring time. Set `CATALOG_REPORT_PATH` to write
- * the opaque-site report and the measured core-shard size as JSON.
+ * the opaque-site counts and the measured core-shard size as JSON.
  */
 import { writeFileSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
 import {
   type CatalogBlock,
   type CatalogSubBlock,
-  compactBlockCatalog,
+  type ExpandedBlockCatalog,
   expandBlockCatalog,
   stableStringify,
 } from '@sim/workflow-code'
@@ -20,35 +20,39 @@ vi.unmock('@/blocks/registry')
 
 import { v2SourceCatalogSchema } from '@/lib/api/contracts/v2/source-catalog'
 import { buildBlockCatalog, projectBlockCatalog } from '@/lib/workflows/code/catalog/build'
-import {
-  type ProjectionReport,
-  projectBlock,
-  projectTrigger,
-} from '@/lib/workflows/code/catalog/project'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
 import { getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 
 const registryBlocks = Object.values(getBlockRegistry())
 const registryInput = { blocks: registryBlocks, trigger: registryTrigger, sdkNames: SDK_NAMES }
 const catalog = buildBlockCatalog(registryInput)
 /** What every consumer reads: the core shard expanded through the package's catalog view. */
 const view = expandBlockCatalog(catalog)
-/** The projection before encoding, and the docs shard the core shard leaves out of it. */
+/** The projection before encoding. */
 const projection = projectBlockCatalog(registryInput)
-const { docs } = compactBlockCatalog(projection)
-const readDocs = (type: string) => (Object.hasOwn(docs, type) ? docs[type] : undefined)
 
-/** Every opaque site, from projecting each registry block and the triggers they reference. */
-const report: ProjectionReport = { opaque: [] }
-for (const block of registryBlocks) projectBlock(block, report)
-for (const id of new Set(
-  registryBlocks.flatMap((block) => (block.triggers?.enabled ? block.triggers.available : []))
-)) {
-  const trigger = registryTrigger(id)
-  if (trigger) projectTrigger(trigger, report)
+/**
+ * `catalog` with every non-`operation` block option label read as its id: the labels the core
+ * shard drops (a block's trigger run keeps its trigger's labels, so both sides are normalized).
+ */
+function withBlockLabelsAsIds<C extends Omit<ExpandedBlockCatalog, 'hash'>>(catalog: C): C {
+  const blocks = Object.fromEntries(
+    Object.entries(catalog.blocks).map(([type, block]) => [
+      type,
+      {
+        ...block,
+        subBlocks: block.subBlocks.map((subBlock) =>
+          Array.isArray(subBlock.options) && subBlock.id !== 'operation'
+            ? { ...subBlock, options: subBlock.options.map(({ id }) => ({ id, label: id })) }
+            : subBlock
+        ),
+      },
+    ])
+  )
+  return { ...catalog, blocks }
 }
 
 function isOpaque(value: unknown): boolean {
@@ -132,36 +136,25 @@ describe('block catalog projection over the whole registry', () => {
     expect(problems).toEqual([])
   })
 
-  it('reports every opaque condition, requirement and option list, and nothing else', () => {
-    const markers = new Set<string>()
-    const visit = (owner: string, subBlocks: CatalogSubBlock[]) => {
-      for (const subBlock of subBlocks) {
-        if (isOpaque(subBlock.condition)) markers.add(siteKey(owner, subBlock.id, 'condition'))
-        if (isOpaque(subBlock.required)) markers.add(siteKey(owner, subBlock.id, 'required'))
-        if (isOpaque(subBlock.options)) markers.add(siteKey(owner, subBlock.id, 'options'))
-      }
+  it('marks a condition, requirement or option list opaque only where the registry holds a function', () => {
+    const misplaced: string[] = []
+    const check = (owner: string, configs: SubBlockConfig[], projected: CatalogSubBlock[]) => {
+      configs.forEach((config, index) => {
+        for (const field of ['condition', 'required', 'options'] as const) {
+          if (isOpaque(projected[index][field]) && typeof config[field] !== 'function') {
+            misplaced.push(siteKey(owner, config.id, field))
+          }
+        }
+      })
     }
-    for (const block of Object.values(view.blocks)) visit(block.type, block.subBlocks)
-    for (const trigger of Object.values(view.triggers)) {
-      visit(`trigger:${trigger.id}`, trigger.subBlocks)
+    for (const block of registryBlocks) {
+      check(block.type, block.subBlocks, view.blocks[block.type].subBlocks)
     }
-    const reported = new Set(
-      report.opaque
-        .filter((site) => site.field !== 'tool')
-        .map((site) => siteKey(site.block, site.subBlock, site.field))
-    )
-    expect([...reported].sort()).toEqual([...markers].sort())
-
-    const registryFunctionConditions = registryBlocks.reduce(
-      (count, block) =>
-        count +
-        block.subBlocks.filter((subBlock) => typeof subBlock.condition === 'function').length,
-      0
-    )
-    const opaqueConditions = report.opaque.filter(
-      (site) => site.field === 'condition' && !site.block.startsWith('trigger:')
-    )
-    expect(opaqueConditions.length).toBeLessThanOrEqual(registryFunctionConditions)
+    for (const [id, trigger] of Object.entries(view.triggers)) {
+      const config = registryTrigger(id)
+      if (config) check(`trigger:${id}`, config.subBlocks, trigger.subBlocks)
+    }
+    expect(misplaced).toEqual([])
   })
 
   it('pre-expands operation-only conditions for exactly the block operations', () => {
@@ -215,19 +208,21 @@ describe('block catalog projection over the whole registry', () => {
     expect(scoped.hash).not.toBe(catalog.hash)
   })
 
-  it('encodes the projection losslessly: core shard plus docs expands to it for every block', () => {
-    const { hash, ...expanded } = expandBlockCatalog(catalog, readDocs)
+  it('encodes the projection losslessly but for the block option labels it drops', () => {
+    const { hash, ...expanded } = view
     expect(hash).toBe(catalog.hash)
-    const mismatched = Object.keys(projection.blocks).filter(
-      (type) => stableStringify(expanded.blocks[type]) !== stableStringify(projection.blocks[type])
+    const served = withBlockLabelsAsIds(expanded)
+    const projected = withBlockLabelsAsIds(projection)
+    const mismatched = Object.keys(projected.blocks).filter(
+      (type) => stableStringify(served.blocks[type]) !== stableStringify(projected.blocks[type])
     )
     expect(mismatched).toEqual([])
-    expect(Object.keys(expanded.blocks)).toEqual(Object.keys(projection.blocks))
-    expect(expanded).toEqual(projection)
+    expect(Object.keys(served.blocks)).toEqual(Object.keys(projected.blocks))
+    expect(served).toEqual(projected)
   })
 
   it('stores no trigger subBlock twice: every trigger-surface run that matches is a reference', () => {
-    const full = expandBlockCatalog(catalog, readDocs)
+    const full = view
     const triggerKeys = new Set(
       Object.values(full.triggers).flatMap((trigger) =>
         trigger.subBlocks.map((subBlock) => stableStringify({ ...subBlock, surface: 'trigger' }))
@@ -261,11 +256,20 @@ describe('block catalog projection over the whole registry', () => {
     const reportPath = process.env.CATALOG_REPORT_PATH
     if (reportPath) {
       const byField: Record<string, number> = {}
-      for (const site of report.opaque) {
-        const key =
-          site.field === 'condition' && site.expanded ? 'condition (expanded)' : site.field
-        byField[key] = (byField[key] ?? 0) + 1
+      const subBlocks = [
+        ...Object.values(view.blocks).flatMap((block) => block.subBlocks),
+        ...Object.values(view.triggers).flatMap((trigger) => trigger.subBlocks),
+      ]
+      for (const subBlock of subBlocks) {
+        for (const field of ['condition', 'required', 'options'] as const) {
+          if (!isOpaque(subBlock[field])) continue
+          const key = field === 'condition' && subBlock.visibleFor ? 'condition (expanded)' : field
+          byField[key] = (byField[key] ?? 0) + 1
+        }
       }
+      byField.tool = Object.values(view.blocks).filter(
+        (block) => block.tools.selector === 'opaque'
+      ).length
       writeFileSync(
         reportPath,
         JSON.stringify(
@@ -278,7 +282,6 @@ describe('block catalog projection over the whole registry', () => {
             coreShardBytes: raw.length,
             coreShardGzipBytes: gzipped.length,
             opaqueByField: byField,
-            opaque: report.opaque,
           },
           null,
           2

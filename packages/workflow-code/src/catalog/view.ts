@@ -12,7 +12,6 @@ import { isRecordLike } from '@sim/utils/object'
 import type {
   BlockCatalog,
   CatalogBlock,
-  CatalogBlockDocs,
   CatalogBuilder,
   CatalogCondition,
   CatalogConditionEntry,
@@ -22,15 +21,11 @@ import type {
   CatalogSharedSubBlockRef,
   CatalogSubBlock,
   CatalogSubBlockEntry,
-  CatalogTool,
   CatalogTrigger,
   CatalogTriggerSubBlocksRef,
   ExpandedBlockCatalog,
   SubBlockConditionClause,
 } from './types'
-
-/** Docs shards by block type, merged into an expansion that wants display text. */
-type CatalogDocsReader = (type: string) => CatalogBlockDocs | undefined
 
 interface CatalogMemo {
   blocks: Map<string, CatalogBlock>
@@ -86,8 +81,7 @@ function sharedAt(catalog: BlockCatalog, ref: CatalogSharedSubBlockRef): Catalog
 
 function expandSubBlock(
   catalog: BlockCatalog,
-  ref: CatalogSubBlockEntry | CatalogSharedSubBlockRef,
-  labels: readonly string[] | undefined
+  ref: CatalogSubBlockEntry | CatalogSharedSubBlockRef
 ): CatalogSubBlock {
   const entry = 'shared' in ref ? sharedAt(catalog, ref) : ref
   const { condition, required, options, ...rest } = entry
@@ -99,10 +93,7 @@ function expandSubBlock(
   }
   if (options !== undefined) {
     subBlock.options = Array.isArray(options)
-      ? options.map((option, index) => ({
-          id: option.id,
-          label: labels?.[index] ?? option.label ?? option.id,
-        }))
+      ? options.map((option) => ({ id: option.id, label: option.label ?? option.id }))
       : options
   }
   return subBlock
@@ -118,7 +109,7 @@ function triggerRun(catalog: BlockCatalog, ref: CatalogTriggerSubBlocksRef): Cat
       `Block catalog trigger run ${ref.trigger}[${ref.start}+${ref.count}] is out of range`
     )
   }
-  return run.map((entry) => ({ ...expandSubBlock(catalog, entry, undefined), surface: 'trigger' }))
+  return run.map((entry) => ({ ...expandSubBlock(catalog, entry), surface: 'trigger' }))
 }
 
 function sharedOutputsAt(catalog: BlockCatalog, index: number): Record<string, CatalogOutputEntry> {
@@ -158,21 +149,20 @@ function expandOutputs(
   return expandOutputRecord(catalog, entry.outputs ?? {})
 }
 
-function expandBlock(catalog: BlockCatalog, type: string, docs?: CatalogBlockDocs): CatalogBlock {
+function expandBlock(catalog: BlockCatalog, type: string): CatalogBlock {
   const stored = catalog.blocks[type]
-  const { subBlocks: entries, inputs, outputs, sharedOutputs, ...rest } = stored
+  const { subBlocks: entries, outputs, sharedOutputs, ...rest } = stored
   const subBlocks: CatalogSubBlock[] = []
   for (const entry of entries) {
     if ('trigger' in entry) {
       subBlocks.push(...triggerRun(catalog, entry))
       continue
     }
-    subBlocks.push(expandSubBlock(catalog, entry, docs?.optionLabels?.[String(subBlocks.length)]))
+    subBlocks.push(expandSubBlock(catalog, entry))
   }
   return {
     ...rest,
     subBlocks,
-    inputs: inputs ?? docs?.inputs ?? {},
     outputs: expandOutputs(catalog, stored),
   }
 }
@@ -182,14 +172,14 @@ function expandTrigger(catalog: BlockCatalog, id: string): CatalogTrigger {
   const { subBlocks, outputs, sharedOutputs, ...rest } = trigger
   return {
     ...rest,
-    subBlocks: subBlocks.map((entry) => expandSubBlock(catalog, entry, undefined)),
+    subBlocks: subBlocks.map((entry) => expandSubBlock(catalog, entry)),
     outputs: expandOutputs(catalog, trigger),
   }
 }
 
 /**
- * The expanded block of `type`, or `undefined` when the catalog does not serve it. Option labels
- * and inputs kept in the docs shard are absent: labels read as their ids, inputs as `{}`.
+ * The expanded block of `type`, or `undefined` when the catalog does not serve it. An option label
+ * the core shard does not keep reads as its id.
  */
 export function catalogBlock(catalog: BlockCatalog, type: string): CatalogBlock | undefined {
   if (!Object.hasOwn(catalog.blocks, type)) return undefined
@@ -247,27 +237,12 @@ export function catalogBuildersOfType(
   return memo.buildersByType.get(type) ?? []
 }
 
-/** The docs-shard tool `id` when the catalog carries tool docs, else `undefined`. */
-export function catalogTool(catalog: BlockCatalog, id: string): CatalogTool | undefined {
-  return catalog.tools && Object.hasOwn(catalog.tools, id) ? catalog.tools[id] : undefined
-}
-
-/**
- * The whole catalog in expanded form. With `docs`, each block's docs shard is merged back in, which
- * reproduces the projection exactly (the core-shard equivalence property); without, it is what
- * the per-block accessors return.
- */
-export function expandBlockCatalog(
-  catalog: BlockCatalog,
-  docs?: CatalogDocsReader
-): ExpandedBlockCatalog {
+/** The whole catalog in expanded form: what the per-block accessors return. */
+export function expandBlockCatalog(catalog: BlockCatalog): ExpandedBlockCatalog {
   const { blocks, triggers, subBlocks, lists, outputs, ...rest } = catalog
   const expandedBlocks: Record<string, CatalogBlock> = {}
   for (const type of Object.keys(blocks)) {
-    const blockDocs = docs?.(type)
-    expandedBlocks[type] = blockDocs
-      ? expandBlock(catalog, type, blockDocs)
-      : (catalogBlock(catalog, type) ?? expandBlock(catalog, type))
+    expandedBlocks[type] = catalogBlock(catalog, type) ?? expandBlock(catalog, type)
   }
   const expandedTriggers: Record<string, CatalogTrigger> = {}
   for (const id of Object.keys(triggers)) {

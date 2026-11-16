@@ -26,7 +26,6 @@ const BLOCK_CATALOG_EXAMPLE = {
         },
       ],
       tools: { access: ['slack_message'], selector: 'operation' },
-      inputs: {},
       outputs: { ts: { type: 'string', description: 'Message timestamp' } },
       graph: { canBeTarget: true, errorPort: true, container: null, annotationOnly: false },
     },

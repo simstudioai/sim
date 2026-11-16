@@ -8,7 +8,6 @@ import {
   type CatalogSubBlock,
   type CatalogTrigger,
   isJson,
-  type Json,
   type SubBlockConditionClause,
 } from '@sim/workflow-code'
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
@@ -40,20 +39,6 @@ import type { TriggerConfig } from '@/triggers/types'
  * condition that reads only `operation` is additionally pre-expanded into `visibleFor`, which is
  * what the SDK codegen's visibility evaluator runs on.
  */
-
-/** Where a thunk could not be turned into data; the registry-wide sweep counts these. */
-interface OpaqueSite {
-  block: string
-  subBlock: string
-  surface: 'action' | 'trigger'
-  field: 'condition' | 'required' | 'options' | 'tool'
-  /** For a condition: whether `visibleFor` pre-expanded it per operation. */
-  expanded?: boolean
-}
-
-export interface ProjectionReport {
-  opaque: OpaqueSite[]
-}
 
 const OPAQUE = { opaque: true } as const
 
@@ -307,10 +292,8 @@ function subBlockSurface(subBlock: SubBlockConfig): 'action' | 'trigger' {
 }
 
 interface SubBlockContext extends ConditionInputs {
-  blockType: string
   /** Whether this block has trigger-surface subBlocks, so every subBlock records its surface. */
   tagSurface: boolean
-  report: ProjectionReport
 }
 
 function assign<T extends object, K extends keyof T>(target: T, key: K, value: T[K] | null): void {
@@ -321,11 +304,6 @@ function projectSubBlock(subBlock: SubBlockConfig, ctx: SubBlockContext): Catalo
   const shape = deriveValueShape(subBlock)
   const surface = subBlockSurface(subBlock)
   const projected: CatalogSubBlock = { id: subBlock.id, type: subBlock.type, ...shape }
-  const site = (field: OpaqueSite['field'], expanded?: boolean) => {
-    const entry: OpaqueSite = { block: ctx.blockType, subBlock: subBlock.id, surface, field }
-    if (expanded !== undefined) entry.expanded = expanded
-    ctx.report.opaque.push(entry)
-  }
 
   assign(projected, 'title', subBlock.title)
   assign(projected, 'mode', subBlock.mode)
@@ -342,15 +320,12 @@ function projectSubBlock(subBlock: SubBlockConfig, ctx: SubBlockContext): Catalo
       if (visibleFor) projected.visibleFor = visibleFor
       if (visibleWhen) projected.visibleWhen = visibleWhen
       if (visibleForModel) projected.visibleForModel = visibleForModel
-      if ('opaque' in condition) site('condition', visibleFor !== undefined)
     } else {
       projected.condition = copyClause(subBlock.condition)
     }
   }
   if (subBlock.required !== undefined) {
-    const required = projectRequired(subBlock.required)
-    projected.required = required
-    if (typeof required === 'object' && 'opaque' in required) site('required')
+    projected.required = projectRequired(subBlock.required)
   }
   if (subBlock.dependsOn) {
     projected.dependsOn = Array.isArray(subBlock.dependsOn)
@@ -364,11 +339,7 @@ function projectSubBlock(subBlock: SubBlockConfig, ctx: SubBlockContext): Catalo
   if (writable && typeof subBlock.value === 'function') {
     assign(projected, 'valueDefault', projectValueDefault(subBlock.value))
   }
-  const options = projectOptions(subBlock)
-  if (options !== undefined) {
-    projected.options = options
-    if (!Array.isArray(options) && 'opaque' in options) site('options')
-  }
+  assign(projected, 'options', projectOptions(subBlock))
 
   assign(projected, 'hidden', subBlock.hidden)
   assign(projected, 'readOnly', subBlock.readOnly)
@@ -464,11 +435,7 @@ function projectOutput(definition: unknown): CatalogOutput | undefined {
   return output
 }
 
-function projectTools(
-  block: BlockConfig,
-  operations: readonly string[],
-  report: ProjectionReport
-): CatalogBlock['tools'] {
+function projectTools(block: BlockConfig, operations: readonly string[]): CatalogBlock['tools'] {
   const access = [...block.tools.access]
   const selectTool = block.tools.config?.tool
   if (!selectTool) return { access, selector: 'single' }
@@ -484,9 +451,7 @@ function projectTools(
         accessSet.has(probe.result)
       )
     })
-  if (perOperation) return { access, selector: 'operation' }
-  report.opaque.push({ block: block.type, subBlock: '', surface: 'action', field: 'tool' })
-  return { access, selector: 'opaque' }
+  return { access, selector: perOperation ? 'operation' : 'opaque' }
 }
 
 function projectGraph(block: BlockConfig): CatalogBlockGraph {
@@ -564,22 +529,14 @@ function conditionChoices(block: BlockConfig): Pick<ConditionInputs, 'models' | 
   return { models, choices }
 }
 
-export interface ProjectedBlock {
-  block: CatalogBlock
-  /** Docs-shard text, kept out of the core shard. */
-  description: string
-}
-
 /** Projects one registry block (built-in or custom) into the core-shard shape. */
-export function projectBlock(block: BlockConfig, report: ProjectionReport): ProjectedBlock {
+export function projectBlock(block: BlockConfig): CatalogBlock {
   const operations = operationOptions(block).map((operation) => operation.id)
   const tagSurface = block.subBlocks.some((subBlock) => subBlockSurface(subBlock) === 'trigger')
   const ctx: SubBlockContext = {
-    blockType: block.type,
     operations,
     ...conditionChoices(block),
     tagSurface,
-    report,
   }
 
   const projected: CatalogBlock = {
@@ -587,15 +544,7 @@ export function projectBlock(block: BlockConfig, report: ProjectionReport): Proj
     name: block.name,
     category: block.category,
     subBlocks: block.subBlocks.map((subBlock) => projectSubBlock(subBlock, ctx)),
-    tools: projectTools(block, operations, report),
-    inputs: Object.fromEntries(
-      Object.entries(block.inputs ?? {}).map(([key, input]) => [
-        key,
-        input.schema && isJson(input.schema)
-          ? { type: input.type, schema: structuredClone(input.schema) as Json }
-          : { type: input.type },
-      ])
-    ),
+    tools: projectTools(block, operations),
     outputs: projectOutputRecord(block.outputs ?? {}),
     graph: projectGraph(block),
   }
@@ -629,7 +578,7 @@ export function projectBlock(block: BlockConfig, report: ProjectionReport): Proj
   if (block.sourceWorkflowId !== undefined) {
     projected.custom = { sourceWorkflowId: block.sourceWorkflowId }
   }
-  return { block: projected, description: block.description }
+  return projected
 }
 
 /**
@@ -644,21 +593,18 @@ export function containerBlock(type: 'loop' | 'parallel'): CatalogBlock {
     category: 'blocks',
     subBlocks: [],
     tools: { access: [], selector: 'single' },
-    inputs: {},
     outputs: { results: { type: 'array' } },
     graph: { canBeTarget: true, errorPort: false, container: type, annotationOnly: false },
   }
 }
 
 /** Projects one trigger as `getTrigger()` returns it (namespaced display subBlocks). */
-export function projectTrigger(trigger: TriggerConfig, report: ProjectionReport): CatalogTrigger {
+export function projectTrigger(trigger: TriggerConfig): CatalogTrigger {
   const ctx: SubBlockContext = {
-    blockType: `trigger:${trigger.id}`,
     operations: [],
     models: [],
     choices: new Map(),
     tagSurface: false,
-    report,
   }
   const projected: CatalogTrigger = {
     id: trigger.id,

@@ -7892,13 +7892,6 @@ export type GetSourceCatalogResponse = {
           access: Array<string>
           selector: 'single' | 'operation' | 'opaque'
         }
-        inputs?: Record<
-          string,
-          {
-            type: string
-            schema?: unknown
-          }
-        >
         outputs?: Record<
           string,
           {

@@ -1,7 +1,7 @@
 /**
- * Encodes an expanded catalog as the core shard plus per-block docs (`types.ts`, "Core-shard
- * encoding"). `expandBlockCatalog(core, docs)` in `view.ts` is its exact inverse; the registry-wide
- * catalog test proves that over the live registry.
+ * Encodes an expanded catalog as the core shard (`types.ts`, "Core-shard encoding").
+ * `expandBlockCatalog` in `view.ts` is its inverse up to the option labels the core shard drops;
+ * the registry-wide catalog test proves that over the live registry.
  *
  * Deterministic: tables are filled in catalog order (blocks, then triggers, each in key order),
  * so the same expanded catalog always yields the same bytes and the same hash.
@@ -15,7 +15,6 @@ import { stableStringify } from '../hash'
 import type {
   BlockCatalog,
   CatalogBlock,
-  CatalogBlockDocs,
   CatalogBlockEntry,
   CatalogConditionEntry,
   CatalogListRef,
@@ -29,13 +28,6 @@ import type {
   CatalogTriggerSubBlocksRef,
   ExpandedBlockCatalog,
 } from './types'
-
-interface CompactedBlockCatalog {
-  /** The core shard, without its `hash` (the caller hashes these exact bytes). */
-  core: Omit<BlockCatalog, 'hash'>
-  /** Docs-shard parts by block type; a block with nothing to move has no entry. */
-  docs: Record<string, CatalogBlockDocs>
-}
 
 /** Below this many serialized characters a reference costs about as much as the value. */
 const MIN_INTERNED_LIST_CHARS = 16
@@ -109,17 +101,9 @@ function stripLabels(subBlock: CatalogSubBlock): CatalogSubBlockEntry {
   }
 }
 
-/** Moves a non-`operation` subBlock's option labels to the docs shard, keeping only ids. */
-function moveLabels(
-  subBlock: CatalogSubBlock,
-  index: number,
-  docs: CatalogBlockDocs
-): CatalogSubBlockEntry {
+/** A block subBlock keeps only option ids, except the `operation` dropdown's labels. */
+function blockSubBlockEntry(subBlock: CatalogSubBlock): CatalogSubBlockEntry {
   if (!Array.isArray(subBlock.options) || subBlock.id === 'operation') return stripLabels(subBlock)
-  if (subBlock.options.some((option) => option.label !== option.id)) {
-    docs.optionLabels ??= {}
-    docs.optionLabels[String(index)] = subBlock.options.map((option) => option.label)
-  }
   return { ...subBlock, options: subBlock.options.map((option) => ({ id: option.id })) }
 }
 
@@ -128,9 +112,8 @@ function compactBlock(
   starts: ReadonlyMap<string, Array<{ trigger: string; start: number }>>,
   triggerKeys: ReadonlyMap<string, readonly string[]>,
   entryKeys: Map<CatalogSubBlockEntry, string>
-): { entry: CatalogBlockEntry; docs: CatalogBlockDocs } {
-  const docs: CatalogBlockDocs = {}
-  const { subBlocks, inputs, outputs, ...rest } = block
+): CatalogBlockEntry {
+  const { subBlocks, outputs, ...rest } = block
   const keys = subBlocks.map((subBlock) => (subBlock.surface === 'trigger' ? keyOf(subBlock) : ''))
   const entries: CatalogBlockEntry['subBlocks'] = []
   for (let index = 0; index < subBlocks.length; ) {
@@ -141,7 +124,7 @@ function compactBlock(
       continue
     }
     const source = subBlocks[index]
-    const entry = moveLabels(source, index, docs)
+    const entry = blockSubBlockEntry(source)
     entryKeys.set(
       entry,
       memoKey(blockEntryKeys, source, () => stableStringify(entry))
@@ -149,9 +132,7 @@ function compactBlock(
     entries.push(entry)
     index += 1
   }
-  const entry: CatalogBlockEntry = { ...rest, subBlocks: entries }
-  if (Object.keys(inputs).length > 0) docs.inputs = inputs
-  return { entry, docs }
+  return { ...rest, subBlocks: entries }
 }
 
 /** Condition value lists in an entry, as holders a pass can read and replace. */
@@ -360,10 +341,13 @@ function outputsEntry(
   return shared === null ? { outputs: interner.encodeRecord(outputs) } : { sharedOutputs: shared }
 }
 
-/** Encodes `expanded` as a core shard plus docs (see the module comment). */
+/**
+ * Encodes `expanded` as a core shard (see the module comment), without its `hash`: the caller
+ * hashes these exact bytes.
+ */
 export function compactBlockCatalog(
   expanded: Omit<ExpandedBlockCatalog, 'hash'>
-): CompactedBlockCatalog {
+): Omit<BlockCatalog, 'hash'> {
   const { blocks, triggers, ...rest } = expanded
   const triggerKeys = new Map<string, string[]>()
   const starts = new Map<string, Array<{ trigger: string; start: number }>>()
@@ -378,12 +362,9 @@ export function compactBlockCatalog(
   }
 
   const entryKeys = new Map<CatalogSubBlockEntry, string>()
-  const docs: Record<string, CatalogBlockDocs> = {}
   const blockEntries: Record<string, CatalogBlockEntry> = {}
   for (const [type, block] of Object.entries(blocks)) {
-    const compacted = compactBlock(block, starts, triggerKeys, entryKeys)
-    blockEntries[type] = compacted.entry
-    if (Object.keys(compacted.docs).length > 0) docs[type] = compacted.docs
+    blockEntries[type] = compactBlock(block, starts, triggerKeys, entryKeys)
   }
   const triggerEntries: Record<string, CatalogTriggerEntry> = {}
   for (const [id, trigger] of Object.entries(triggers)) {
@@ -411,5 +392,5 @@ export function compactBlockCatalog(
   if (subBlocks.length > 0) core.subBlocks = subBlocks
   if (lists.length > 0) core.lists = lists
   if (interner.table.length > 0) core.outputs = interner.table
-  return { core, docs }
+  return core
 }

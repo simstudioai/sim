@@ -66,7 +66,6 @@ export type {
   CanonicalWorkflow,
   CanonicalWorkflowMeta,
   CodeComment,
-  Json,
   Port,
   ResourceKeyResolver,
   ResourceKind,

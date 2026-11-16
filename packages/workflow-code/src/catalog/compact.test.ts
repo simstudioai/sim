@@ -52,7 +52,6 @@ function sharingCatalog(): ExpandedBlockCatalog {
       ...triggerFields.map((field) => ({ ...field, surface: 'trigger' as const })),
     ],
     tools: { access: [], selector: 'single' },
-    inputs: { channel: { type: 'string' } },
     outputs,
     graph: { canBeTarget: true, errorPort: true, container: null, annotationOnly: false },
     triggers: { enabled: true, available: ['chat_webhook'] },
@@ -75,23 +74,40 @@ function sharingCatalog(): ExpandedBlockCatalog {
   }
 }
 
+/** `expanded` with every non-`operation` block option label replaced by its id. */
+function labelsAsServed(expanded: ExpandedBlockCatalog): ExpandedBlockCatalog {
+  const blocks = Object.fromEntries(
+    Object.entries(expanded.blocks).map(([type, block]) => [
+      type,
+      {
+        ...block,
+        subBlocks: block.subBlocks.map((subBlock) =>
+          Array.isArray(subBlock.options) && subBlock.id !== 'operation'
+            ? { ...subBlock, options: subBlock.options.map(({ id }) => ({ id, label: id })) }
+            : subBlock
+        ),
+      },
+    ])
+  )
+  return { ...expanded, blocks }
+}
+
 function roundTrip(expanded: ExpandedBlockCatalog): ExpandedBlockCatalog {
   const { hash, ...rest } = expanded
-  const { core, docs } = compactBlockCatalog(rest)
-  return expandBlockCatalog({ ...core, hash }, (type) => docs[type])
+  return expandBlockCatalog({ ...compactBlockCatalog(rest), hash })
 }
 
 describe('compactBlockCatalog', () => {
-  it('round-trips every fixture catalog through the core shard and its docs', () => {
+  it('round-trips every fixture catalog, reading each dropped label as its id', () => {
     for (const catalog of [TEST_CATALOG, sharingCatalog()]) {
       const expanded = expandBlockCatalog(catalog)
-      expect(roundTrip(expanded)).toEqual(expanded)
+      expect(labelsAsServed(roundTrip(expanded))).toEqual(labelsAsServed(expanded))
     }
   })
 
   it('stores a spread trigger, a repeated field and a repeated list once each', () => {
     const { hash, ...rest } = sharingCatalog()
-    const { core, docs } = compactBlockCatalog(rest)
+    const core = compactBlockCatalog(rest)
     const entries = core.blocks.chat.subBlocks
     expect(entries.filter((entry) => 'trigger' in entry)).toEqual([
       { trigger: 'chat_webhook', start: 0, count: 2 },
@@ -99,8 +115,18 @@ describe('compactBlockCatalog', () => {
     expect(core.subBlocks?.length).toBeGreaterThan(0)
     expect(core.lists).toEqual([OPERATIONS])
     expect(core.outputs?.length).toBe(1)
-    expect(docs.chat.inputs).toEqual({ channel: { type: 'string' } })
-    expect(docs.chat.optionLabels).toEqual({ '1': ['General', 'random'] })
+  })
+
+  it('keeps the operation labels and drops every other block option label', () => {
+    const { hash, ...rest } = sharingCatalog()
+    const chat = catalogBlock({ ...compactBlockCatalog(rest), hash }, 'chat')
+    expect(chat?.subBlocks[0].options).toEqual(
+      OPERATIONS.map((id) => ({ id, label: id.toUpperCase() }))
+    )
+    expect(chat?.subBlocks[1].options).toEqual([
+      { id: 'general', label: 'general' },
+      { id: 'random', label: 'random' },
+    ])
   })
 
   it('leaves its input untouched, so a rebuild from the same objects gives the same bytes', () => {
@@ -121,8 +147,7 @@ describe('catalog view', () => {
 
   it('throws on a reference the shard does not hold instead of dropping the field', () => {
     const { hash, ...rest } = sharingCatalog()
-    const { core } = compactBlockCatalog(rest)
-    const broken: BlockCatalog = { ...core, hash, subBlocks: [], lists: [] }
+    const broken: BlockCatalog = { ...compactBlockCatalog(rest), hash, subBlocks: [], lists: [] }
     expect(() => catalogBlock(broken, 'chat')).toThrow(/does not exist/)
   })
 

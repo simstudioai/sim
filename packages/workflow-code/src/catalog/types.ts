@@ -1,13 +1,12 @@
 /**
  * The block catalog: a JSON projection of the block, trigger and tool registries that the
  * compiler, printer, canonicalizer and SDK codegen read instead of the registries themselves.
- * It is pure data: every function in a registry
- * definition is either evaluated once per deployment by the projection or marked
- * `{ opaque: true }`.
+ * It is pure data: every function in a registry definition is either evaluated once per
+ * deployment by the projection or marked `{ opaque: true }`.
  *
- * Served as a hashed core shard plus per-block docs shards; fields marked "docs shard" are absent
- * from the core shard. The `Catalog*` types below are the expanded shape consumers read; the
- * core shard encodes them compactly ("Core-shard encoding" further down) and `view.ts` expands it.
+ * Served as a hashed core shard. The `Catalog*` types below are the expanded shape consumers
+ * read; the core shard encodes them compactly ("Core-shard encoding" further down) and `view.ts`
+ * expands it.
  */
 
 import type { OutputCondition, PrimitiveValueType, SubBlockType } from '@sim/workflow-types/blocks'
@@ -81,8 +80,8 @@ export interface CatalogOption {
 }
 
 /**
- * A static option as the core shard stores it: `label` is absent when it equals `id`, or when the
- * block's docs shard holds it (`CatalogBlockDocs.optionLabels`).
+ * A static option as the core shard stores it: `label` is absent when it equals `id`, and on a
+ * block's non-`operation` subBlocks, whose labels are display text nothing reads.
  */
 interface CatalogOptionEntry {
   id: string
@@ -240,7 +239,6 @@ export interface CatalogBlock {
    * `tools.config.tool` function the projection cannot evaluate.
    */
   tools: { access: string[]; selector: 'single' | 'operation' | 'opaque' }
-  inputs: Record<string, { type: string; schema?: Json }>
   outputs: Record<string, CatalogOutput>
   /**
    * Present when outputs derive from a param at run time. Compile and codegen read output paths
@@ -259,8 +257,6 @@ export interface CatalogBlock {
   paramAliases?: Partial<Record<'action' | 'trigger', Record<string, string>>>
   /** Present for per-org `custom_block_<slug>` types. */
   custom?: { sourceWorkflowId?: string }
-  /** Docs shard. */
-  description?: string
 }
 
 export interface CatalogTrigger {
@@ -271,22 +267,6 @@ export interface CatalogTrigger {
   webhook?: boolean
   /** Namespaced as `getTrigger()` returns them (triggers/index.ts:10-63). */
   subBlocks: CatalogSubBlock[]
-  outputs: Record<string, CatalogOutput>
-}
-
-/** Docs shard. */
-export interface CatalogTool {
-  id: string
-  params: Record<
-    string,
-    {
-      type: string
-      required?: boolean
-      visibility: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'
-      default?: Json
-      description?: string
-    }
-  >
   outputs: Record<string, CatalogOutput>
 }
 
@@ -313,8 +293,7 @@ export interface CatalogBuilder {
  * Core-shard encoding. The served catalog never repeats itself: a block's trigger-mode subBlocks
  * point at the shared `triggers` table, a subBlock declared identically by several blocks is
  * stored once in `subBlocks`, condition value lists repeated across fields are stored once in
- * `lists`, and option labels and block inputs that nothing but documentation reads live in the
- * docs shard. Every expanded type above is also a valid entry, so a catalog written in expanded
+ * `lists`, and option labels that nothing reads are dropped. Every expanded type above is also a valid entry, so a catalog written in expanded
  * form is a valid core shard. Read a catalog only through `catalog/view.ts`, which expands it.
  */
 
@@ -380,32 +359,15 @@ interface CatalogOutputsEntry {
 }
 
 export interface CatalogBlockEntry
-  extends Omit<CatalogBlock, 'subBlocks' | 'inputs' | 'outputs'>,
+  extends Omit<CatalogBlock, 'subBlocks' | 'outputs'>,
     CatalogOutputsEntry {
   subBlocks: Array<CatalogSubBlockEntry | CatalogSharedSubBlockRef | CatalogTriggerSubBlocksRef>
-  /** Absent when empty or kept in the docs shard (`CatalogBlockDocs.inputs`). */
-  inputs?: CatalogBlock['inputs']
 }
 
 export interface CatalogTriggerEntry
   extends Omit<CatalogTrigger, 'subBlocks' | 'outputs'>,
     CatalogOutputsEntry {
   subBlocks: Array<CatalogSubBlockEntry | CatalogSharedSubBlockRef>
-}
-
-/**
- * The parts of one block's expanded form that the core shard leaves to its docs shard: nothing in
- * canonicalize, compile, print or SDK codegen reads them.
- */
-export interface CatalogBlockDocs {
-  /** The block's `inputs` (no consumer but documentation). */
-  inputs?: CatalogBlock['inputs']
-  /**
-   * Option labels by expanded subBlock index, aligned with that subBlock's `options`. Only the
-   * `operation` dropdown keeps labels in the core shard (codegen documents each operation method
-   * with its label); every other label is display text.
-   */
-  optionLabels?: Record<string, string[]>
 }
 
 export interface BlockCatalog {
@@ -429,8 +391,6 @@ export interface BlockCatalog {
    * type always round-trips.
    */
   builders: Record<string, CatalogBuilder>
-  /** Docs shard. */
-  tools?: Record<string, CatalogTool>
   /** Present when the catalog includes an organization's custom blocks. */
   scope?: { organizationId: string }
 }

@@ -2,7 +2,7 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import { mcpBinding, mcpToolId } from '../agent-tools'
 import { type CanonicalModeOverrides, scopeCanonicalModesForTool } from '../catalog/canonical-index'
 import type { BlockCatalog, CatalogSubBlock } from '../catalog/types'
-import { catalogBlock, catalogTool } from '../catalog/view'
+import { catalogBlock } from '../catalog/view'
 import type { BlockKey, CanonicalTool, Json, Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
 import type { CanonContext } from './context'
@@ -29,45 +29,19 @@ const MODELED_KEYS = new Set([
   'isExpanded',
 ])
 
-/** `getToolParamValueShape` (tools/param-shape.ts): the shape a tool declaration implies. */
-function declaredShape(type: string | undefined): ToolParamShape {
-  switch (type) {
-    case 'boolean':
-      return 'boolean'
-    case 'number':
-      return 'number'
-    case 'json':
-    case 'array':
-    case 'object':
-    case 'file':
-    case 'file[]':
-      return 'json'
-    default:
-      return 'string'
-  }
-}
-
 /**
  * The declaration and value shape of one stored tool param: the tool block's subBlock (by id or
- * canonical id) wins, then the tool's declared param type, else `string`.
+ * canonical id), else `string`.
  */
 export function toolParamDeclaration(
   catalog: BlockCatalog,
-  tool: { type: string; toolId?: string },
+  toolType: string,
   key: string
 ): { subBlock: CatalogSubBlock | undefined; shape: ToolParamShape } {
-  const subBlock = catalogBlock(catalog, tool.type)?.subBlocks.find(
+  const subBlock = catalogBlock(catalog, toolType)?.subBlocks.find(
     (candidate) => candidate.id === key || candidate.canonicalParamId === key
   )
-  if (subBlock) return { subBlock, shape: subBlock.valueShape ?? 'string' }
-  const declaration = tool.toolId ? catalogTool(catalog, tool.toolId) : undefined
-  return {
-    subBlock: undefined,
-    shape:
-      declaration && Object.hasOwn(declaration.params, key)
-        ? declaredShape(declaration.params[key].type)
-        : 'string',
-  }
+  return { subBlock, shape: subBlock?.valueShape ?? 'string' }
 }
 
 /** `decodeToolParamValue` (tools/param-shape.ts:185-214): total, keeps `''` and any misfit. */
@@ -110,14 +84,13 @@ function liftTool(
 ): CanonicalTool {
   const type = stored.type
   const block = catalogBlock(context.catalog, type)
-  const toolId = typeof stored.toolId === 'string' ? stored.toolId : undefined
   const location = { blockKey, param }
 
   const rawParams = toRecord(stored.params)
   const params: Record<string, Value> = {}
   for (const [key, raw] of Object.entries(rawParams)) {
     if (raw === undefined) continue
-    const { subBlock, shape } = toolParamDeclaration(context.catalog, { type, toolId }, key)
+    const { subBlock, shape } = toolParamDeclaration(context.catalog, type, key)
     const decoded = decodeToolParam(raw, shape)
     const lifted =
       subBlock?.valueKind === 'resource' && subBlock.resourceKind

@@ -36,7 +36,6 @@ function block(
     category: 'blocks',
     subBlocks,
     tools: { access: [], selector: 'single' },
-    inputs: {},
     outputs: {},
     graph: { canBeTarget: true, errorPort: true, container: null, annotationOnly: false },
     ...extra,
@@ -51,13 +50,6 @@ const CATALOG: BlockCatalog = {
   sdkMajor: 1,
   builders: {},
   triggers: {},
-  tools: {
-    table_query: {
-      id: 'table_query',
-      params: { limit: { type: 'number', visibility: 'user-or-llm' } },
-      outputs: {},
-    },
-  },
   blocks: {
     slack: block('slack', [
       sb({ id: 'operation', type: 'dropdown' }),

@@ -90,7 +90,9 @@ const catalogOptionSchema = z
     label: z
       .string()
       .optional()
-      .describe('Display label; absent when it equals `id` or lives in the block docs shard.'),
+      .describe(
+        "Display label; absent when it equals `id`, and on a block's non-`operation` fields."
+      ),
   })
   .describe('One static option.')
 
@@ -303,19 +305,6 @@ const catalogBlockSchema = z
           .describe('How the tool is chosen: fixed, by operation, or by an unevaluated function.'),
       })
       .describe('Tools the block calls.'),
-    inputs: z
-      .record(
-        z.string(),
-        z
-          .object({
-            type: z.string().describe('Input value type.'),
-            // untyped-response: a block input's JSON schema is block-authored, arbitrary JSON Schema
-            schema: z.unknown().optional().describe('JSON schema of the input.'),
-          })
-          .describe('One declared input.')
-      )
-      .optional()
-      .describe('Declared inputs by name; absent when empty or kept in the block docs shard.'),
     outputs: catalogOutputsSchema.optional(),
     sharedOutputs: sharedOutputsSchema,
     dynamicOutputs: z

@@ -130,7 +130,7 @@ function encodeTool(
       params[key] = prevParams[key]
       continue
     }
-    const { shape } = toolParamDeclaration(context.catalog, tool, key)
+    const { shape } = toolParamDeclaration(context.catalog, tool.type, key)
     params[key] = encodeToolParam(unliftValue(value, context, location), shape)
   }
   stored.params = params

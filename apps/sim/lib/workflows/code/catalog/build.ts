@@ -10,13 +10,7 @@ import {
   stableStringify,
 } from '@sim/workflow-code'
 import { SDK_MAJOR } from '@sim/workflow-sdk/codegen'
-import {
-  containerBlock,
-  type ProjectedBlock,
-  type ProjectionReport,
-  projectBlock,
-  projectTrigger,
-} from '@/lib/workflows/code/catalog/project'
+import { containerBlock, projectBlock, projectTrigger } from '@/lib/workflows/code/catalog/project'
 import {
   operationOptions,
   type SdkNamesFile,
@@ -53,18 +47,17 @@ interface CatalogBuildInput {
  * process-lifetime constant and every thunk it holds reads only the deployment, so it is projected
  * once per process; per-request custom-block configs are new objects and simply miss.
  */
-const blockProjections = new WeakMap<BlockConfig, ProjectedBlock>()
+const blockProjections = new WeakMap<BlockConfig, CatalogBlock>()
 const triggerProjections = new WeakMap<TriggerConfig, CatalogTrigger>()
 
-/** The build keeps no opaque-site report; the registry-wide test projects with its own. */
 function memoized<Config extends object, Projected>(
   cache: WeakMap<Config, Projected>,
   config: Config,
-  project: (config: Config, report: ProjectionReport) => Projected
+  project: (config: Config) => Projected
 ): Projected {
   const cached = cache.get(config)
   if (cached !== undefined) return cached
-  const projected = project(config, { opaque: [] })
+  const projected = project(config)
   cache.set(config, projected)
   return projected
 }
@@ -140,7 +133,7 @@ export function projectBlockCatalog(input: CatalogBuildInput): Omit<ExpandedBloc
     const projected = memoized(blockProjections, block, projectBlock)
     const names = input.sdkNames.blocks[block.type]
     const catalogBlock: CatalogBlock = {
-      ...projected.block,
+      ...projected,
       ...(input.notAddable?.has(block.type) && { addable: false as const }),
       ...(names?.paramAliases && { paramAliases: names.paramAliases }),
     }
@@ -181,6 +174,6 @@ export function projectBlockCatalog(input: CatalogBuildInput): Omit<ExpandedBloc
  * same inputs give the same bytes and the same hash.
  */
 export function buildBlockCatalog(input: CatalogBuildInput): BlockCatalog {
-  const { core } = compactBlockCatalog(projectBlockCatalog(input))
+  const core = compactBlockCatalog(projectBlockCatalog(input))
   return { ...core, hash: catalogHash(core) }
 }

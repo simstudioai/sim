@@ -46,7 +46,6 @@ function block(
     category: 'blocks',
     subBlocks,
     tools: { access: [], selector: 'single' },
-    inputs: {},
     outputs,
     graph: graph(),
     ...extra,

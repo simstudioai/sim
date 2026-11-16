@@ -88,7 +88,7 @@ function narrowedCatalog(): BlockCatalog {
     const builder = catalogBuilder(catalog, builderPath)
     if (builder && Object.hasOwn(blocks, builder.type)) builders[builderPath] = builder
   }
-  const { core } = compactBlockCatalog({
+  const core = compactBlockCatalog({
     catalogVersion: catalog.catalogVersion,
     sdkMajor: catalog.sdkMajor,
     blocks,

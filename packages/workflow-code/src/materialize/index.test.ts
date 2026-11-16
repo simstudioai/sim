@@ -313,7 +313,7 @@ describe('materialize: tool params', () => {
     const result = run(target, null, { prev: state })
     const stored = JSON.parse(String(subBlockValue(result.state, 'a1', 'tools')))
     expect(stored[0].params).toEqual({
-      limit: '5',
+      limit: 5,
       notify: 'true',
       channel: 'C1',
       manualChannel: null,
