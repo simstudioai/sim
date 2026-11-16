@@ -300,11 +300,10 @@ try {
     assert.equal(canonicalHash(canonical.workflow), baseline.canonicalHash)
   })
 
-  await check('annotateIds and inline function code keep the canonical hash', async () => {
+  await check('inline function code keeps the canonical hash', async () => {
     assert(baseline, 'baseline source must be read first')
-    const source = await readSource('?annotateIds=true&functionCode=inline')
+    const source = await readSource('?functionCode=inline')
     assert.deepEqual(Object.keys(source.files), ['workflow.ts'])
-    assert(source.files['workflow.ts']?.includes(`// id: ${scoreBlockId}`), 'Ids are annotated')
     assert.equal(source.canonicalHash, baseline.canonicalHash)
     assert.equal(source.fingerprint, baseline.fingerprint)
     assert.equal(canonicalHash(compileSource(source, await readCatalog())), source.canonicalHash)

@@ -5937,16 +5937,6 @@
             }
           },
           {
-            "name": "annotateIds",
-            "in": "query",
-            "required": false,
-            "description": "Print each block's id as a trailing `// id:` comment on its declaration.",
-            "schema": {
-              "description": "Print each block's id as a trailing `// id:` comment on its declaration.",
-              "type": "boolean"
-            }
-          },
-          {
             "name": "functionCode",
             "in": "query",
             "required": false,
@@ -18934,11 +18924,6 @@
             "minLength": 1,
             "maxLength": 256,
             "description": "The `fingerprint` the source was read at. The apply answers `409` when the saved draft no longer matches it."
-          },
-          "layout": {
-            "description": "`preserve` (default): existing blocks keep their canvas positions and lock positions apply only to new blocks. `lock`: every block the lock positions moves there.",
-            "type": "string",
-            "enum": ["preserve", "lock"]
           },
           "provenance": {
             "description": "Where the source came from, for the audit log.",

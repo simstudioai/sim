@@ -112,11 +112,6 @@ export interface MaterializeOptions {
   /** The stored graph being replaced. Absent for a new workflow. */
   prev?: WorkflowState
   resources?: ResourceKeyResolver
-  /**
-   * `preserve` (default): existing blocks keep prev positions; lock layout applies only to new
-   * blocks. `lock`: lock layout applies to every block that has one (s4 D3).
-   */
-  layout?: 'preserve' | 'lock'
   /** Disables identity rule 4 (`--no-infer-renames`). */
   inferRenames?: boolean
   /**

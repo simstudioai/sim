@@ -714,13 +714,6 @@ describe('materialize: positions and server-owned fields', () => {
     expect(two.height).toBe(80)
     expect(two.data?.width).toBe(300)
     expect(result.needsLayout).toEqual(['three'])
-    const withLockLayout = run(target, lock, {
-      prev,
-      lockFreshness: 'stale',
-      inferRenames: false,
-      layout: 'lock',
-    })
-    expect(withLockLayout.state.blocks.f1.position).toEqual({ x: 99, y: 99 })
   })
 
   it('writes a new block from initBlock and nulls editor seeds the model does not hold', () => {

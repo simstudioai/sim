@@ -6,6 +6,7 @@ import { isEqual } from 'es-toolkit'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import { diffGraphs, type GraphDiff, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import { hasDisabledAncestor } from '@/lib/workflows/editing/block-enablement'
 import {
   createSubBlockInputGate,
@@ -20,7 +21,6 @@ import type {
   ValidationError,
 } from '@/lib/workflows/editing/types'
 import { isBlockTypeAllowed, preValidateCredentialInputs } from '@/lib/workflows/editing/validation'
-import { diffGraphs, type GraphDiff, type SourceGraph } from '@/lib/workflows/source/graph-diff'
 import { validateToolBindingAuthoring } from '@/lib/workflows/tool-input/authoring'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { getBlock } from '@/blocks/registry'

@@ -22,15 +22,15 @@ import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
 } from '@/lib/permission-groups/fields'
+import { gateSourceDiff, SKIP_TYPE_APPLY_CODES } from '@/lib/workflows/code/apply/gates'
+import type { SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
+import { findProtectedBlockRefusals } from '@/lib/workflows/code/apply/protected'
 import { decideBlockEnablement } from '@/lib/workflows/editing/block-enablement'
 import { applyOperationsToWorkflowState } from '@/lib/workflows/editing/engine'
 import { operationsReferenceSimSandbox } from '@/lib/workflows/editing/sandbox-projection'
 import type { EditWorkflowOperation } from '@/lib/workflows/editing/types'
 import { isDeferredSkippedItem } from '@/lib/workflows/editing/types'
 import { preValidateCredentialInputs } from '@/lib/workflows/editing/validation'
-import { gateSourceDiff, SKIP_TYPE_APPLY_CODES } from '@/lib/workflows/source/gates'
-import type { SourceGraph } from '@/lib/workflows/source/graph-diff'
-import { findProtectedBlockRefusals } from '@/lib/workflows/source/protected'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import * as providerModels from '@/providers/models'
 

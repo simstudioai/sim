@@ -3,37 +3,26 @@ import { db } from '@sim/db'
 import { compareStrings } from '@sim/utils/string'
 import {
   type CanonicalWorkflow,
-  type CodeComment,
   canonicalHash,
   type Diagnostic,
-  encodeAnchor,
   type LockBase,
-  type LockIdentity,
-  printWorkflow,
   type SourceFingerprint,
-  sourceFingerprint,
   type WorkflowLockV1,
 } from '@sim/workflow-code'
 import { readWorkflowCodeMeta } from '@sim/workflow-persistence/code-meta'
-import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { resolveCatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { loadWorkflowGraph } from '@/lib/workflows/application/read-workflow-graph'
+import { printStoredSource } from '@/lib/workflows/code/apply/print'
 import { buildCodeCatalog } from '@/lib/workflows/code/catalog/workspace-catalog'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
-import { buildLockFromState, codeMetaPrintInputs } from '@/lib/workflows/code/source-lock'
 import { canonicalizeStored } from '@/lib/workflows/code/stored-canonical'
-
-/** Directory function-code files are printed into when `functionCode` is `files`. */
-const FUNCTION_CODE_DIR = 'functions'
 
 interface GetWorkflowSourceInput {
   workflowId: string
   assertedWorkspaceId?: string
-  /** Prints each block's id as a trailing comment on its declaration (agent read path). */
-  annotateIds?: boolean
   /** `files` (default): function code in `functions/*` files; `inline`: tagged templates. */
   functionCode?: 'inline' | 'files'
 }
@@ -78,20 +67,6 @@ function toWarning(diagnostic: Diagnostic): WorkflowSourceWarning {
   }
 }
 
-/**
- * Adds `// id: <block id>` after every block declaration. Comments are annotations, so the
- * canonical hash and fingerprint are unchanged.
- */
-function withIdComments(workflow: CanonicalWorkflow, identity: LockIdentity): CanonicalWorkflow {
-  const comments = { ...workflow.annotations.comments }
-  for (const [key, block] of Object.entries(identity.blocks)) {
-    const anchor = encodeAnchor({ kind: 'block', block: key })
-    const idComment: CodeComment = { text: ` id: ${block.id}`, kind: 'line', placement: 'trailing' }
-    comments[anchor] = [...(comments[anchor] ?? []), idComment]
-  }
-  return { ...workflow, annotations: { ...workflow.annotations, comments } }
-}
-
 function usedBlockTypes(workflow: CanonicalWorkflow): string[] {
   const types = new Set<string>()
   for (const block of Object.values(workflow.blocks)) {
@@ -104,16 +79,12 @@ function usedBlockTypes(workflow: CanonicalWorkflow): string[] {
 }
 
 /**
- * Reads a workflow's stored draft as TypeScript source (build-spec decisions 11–13, s4 §2).
- *
- * Loads the stored, migrated graph; builds the per-workflow compile catalog (the blocks this
- * caller may place plus every type already in the workflow); projects the graph to the canonical
- * model with resource ids lifted to their persisted keys; and prints it with the bindings, order
- * and comments the workflow's code metadata keeps, so the lock comes from the same place. The
- * catalog comes from the process cache and the stored graph is canonicalized once. No audit. The
- * one write is resource-key allocation: the first get that references a resource with no key binds
- * one (`resolveKeys`). That is idempotent identity metadata, not a change to any resource, so read
- * access may cause it; later gets only read the binding.
+ * Reads a workflow's stored draft as TypeScript source. Builds the per-workflow compile catalog
+ * (the blocks this caller may place plus every type already in the workflow), canonicalizes the
+ * stored graph once with resource ids lifted to their persisted keys, and prints it with the
+ * bindings, order and comments of its `code_meta` through the same printer every apply response
+ * uses. No audit. The one write is resource-key allocation: the first get that references a
+ * resource with no key binds one. That is idempotent identity metadata, so read access may cause it.
  */
 export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
@@ -125,29 +96,17 @@ export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
       resolveCatalogGate(principal, context, { customBlockInputs: true }),
       readWorkflowCodeMeta(db, context.workflowId),
     ])
-    const state: WorkflowState = {
-      blocks: graph.blocks,
-      edges: graph.edges,
-      loops: graph.loops,
-      parallels: graph.parallels,
-      variables: graph.variables,
-    }
-    const storedTypes = [...new Set(Object.values(graph.blocks).map((block) => block.type))]
-    const meta = {
-      name: context.workflow.name,
-      description: context.workflow.description ?? null,
-    }
-
-    const catalog = await withCatalogBlockScope(gate, async () => {
-      const { catalog } = buildCodeCatalog({
+    const { blocks, edges, loops, parallels, variables } = graph
+    const state = { blocks, edges, loops, parallels, variables }
+    const meta = { name: context.workflow.name, description: context.workflow.description ?? null }
+    const { catalog } = await withCatalogBlockScope(gate, async () =>
+      buildCodeCatalog({
         gate,
         organizationId: context.workspaceOrganizationId,
-        storedTypes,
+        storedTypes: [...new Set(Object.values(blocks).map((block) => block.type))],
       })
-      return catalog
-    })
-
-    const { canonical } = await canonicalizeStored({
+    )
+    const { canonical, resources } = await canonicalizeStored({
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
       state,
@@ -155,37 +114,26 @@ export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
       catalog,
       createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
     })
-
-    const metaInputs = codeMetaPrintInputs(codeMeta, canonical)
-    const withComments: CanonicalWorkflow = {
-      ...canonical.workflow,
-      annotations: {
-        ...canonical.workflow.annotations,
-        comments: { ...canonical.workflow.annotations.comments, ...metaInputs.comments },
-      },
-    }
-    const printed = printWorkflow({
-      workflow: input.annotateIds ? withIdComments(withComments, canonical.identity) : withComments,
+    const printed = printStoredSource({
+      state,
+      meta,
       catalog,
-      hints: metaInputs.hints,
-      options:
-        (input.functionCode ?? 'files') === 'files'
-          ? { functionCode: 'files', codeDir: FUNCTION_CODE_DIR }
-          : { functionCode: 'inline' },
+      resources,
+      codeMeta,
+      functionCode: input.functionCode ?? 'files',
+      lockless: canonical,
     })
-
-    const fingerprint = sourceFingerprint(canonical.workflow, canonical.identity)
     return {
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
-      files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),
-      lock: buildLockFromState(codeMeta, canonical, printed.hints),
+      files: printed.files,
+      lock: printed.lock,
       lockBase: {
         workspaceId: context.workspaceId,
-        baseFingerprint: fingerprint,
+        baseFingerprint: printed.fingerprint,
         catalogHash: catalog.hash,
       },
-      fingerprint,
+      fingerprint: printed.fingerprint,
       canonicalHash: canonicalHash(canonical.workflow),
       catalogVersion: catalog.hash,
       sdkMajor: catalog.sdkMajor,

@@ -201,10 +201,10 @@ describe('sim workflows source get --out', () => {
   it('prints the response unchanged without --out', async () => {
     request.mockResolvedValue(source())
 
-    await get('--annotate-ids')
+    await get('--function-code', 'inline')
 
     expect(request).toHaveBeenCalledTimes(1)
-    expect(request.mock.calls[0][1].query).toMatchObject({ annotateIds: true })
+    expect(request.mock.calls[0][1].query).toMatchObject({ functionCode: 'inline' })
     expect(existsSync(join(outDir, 'workflow.ts'))).toBe(false)
   })
 })

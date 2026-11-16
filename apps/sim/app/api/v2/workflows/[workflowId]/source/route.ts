@@ -30,7 +30,6 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
   mapInput: ({ params, query }) => ({
     workflowId: params.workflowId,
-    ...(query.annotateIds !== undefined ? { annotateIds: query.annotateIds } : {}),
     ...(query.functionCode ? { functionCode: query.functionCode } : {}),
   }),
   useCase: getWorkflowSource,
@@ -56,7 +55,6 @@ export const POST = defineV2JsonRoute({
     lock: body.lock,
     baseFingerprint: body.baseFingerprint,
     ...(body.lockBase ? { lockBase: body.lockBase } : {}),
-    ...(body.layout ? { layout: body.layout } : {}),
     ...(body.provenance ? { provenance: body.provenance } : {}),
     ...(query.dryRun !== undefined ? { dryRun: query.dryRun } : {}),
   }),

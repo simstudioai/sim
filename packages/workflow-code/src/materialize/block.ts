@@ -32,9 +32,8 @@ export interface BlockInputs {
   }
   /** The lock entry whose id this block carries (branch and item ids). */
   lockBlock: WorkflowLockBlock | undefined
-  /** The lock layout recorded under this key. */
+  /** The lock layout recorded under this key; it positions only a new block. */
   layout: LockLayout | undefined
-  layoutMode: 'preserve' | 'lock'
 }
 
 export interface BuiltBlock {
@@ -113,7 +112,6 @@ function rawValues(subBlocks: Record<string, SubBlockState>): Record<string, unk
 export function buildBlock(inputs: BlockInputs, context: MaterializeContext): BuiltBlock {
   const { key, target, resolved, prev } = inputs
   const id = resolved.id
-  const lockLayout = inputs.layoutMode === 'lock' ? inputs.layout : undefined
 
   if (
     prev &&
@@ -123,7 +121,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
     sameBlock(target, prev.canonical)
   ) {
     return {
-      block: lockLayout ? applyLayout(prev.block, lockLayout) : prev.block,
+      block: prev.block,
       branchIds: prev.branchIds,
       items: prev.items ?? {},
       needsLayout: false,
@@ -333,8 +331,6 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
   if (isNew) {
     if (inputs.layout) built = applyLayout(block, inputs.layout)
     else needsLayout = true
-  } else if (lockLayout) {
-    built = applyLayout(block, lockLayout)
   }
 
   const items: Record<SubBlockId, LockItem[]> = {}
