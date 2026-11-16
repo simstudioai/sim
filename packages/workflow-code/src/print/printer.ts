@@ -41,6 +41,7 @@ import {
   type RefTypeScope,
   refValueKind,
 } from '../json-fields'
+import { SOURCE_ENTRY_FILE } from '../limits'
 import { isJson, type SourceHintBlock, type SourceHints } from '../lock'
 import {
   type AnchorKey,
@@ -94,7 +95,6 @@ interface PrintResult {
 /** biome.json's line width. */
 const LINE_WIDTH = 100
 const CODE_DIR = 'functions'
-const ENTRY_PATH = 'workflow.ts'
 const SDK_MODULE = '@sim/workflow-sdk'
 
 type Diag = Diagnostic<PrintDiagnosticCode>
@@ -1378,7 +1378,7 @@ class WorkflowPrinter {
       })
     })
     return {
-      files: [{ path: ENTRY_PATH, text }, ...this.codeFiles],
+      files: [{ path: SOURCE_ENTRY_FILE, text }, ...this.codeFiles],
       hints: { blocks: hintBlocks },
       diagnostics: [...this.refs.diagnostics, ...this.diagnostics, ...this.comments.diagnostics],
     }
