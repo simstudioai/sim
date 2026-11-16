@@ -25,4 +25,15 @@ describe('Trello mapper on agent tool calls', () => {
       )
     ).toMatchObject({ query: 'bug', idBoards: ['b1', 'b2'], cardsLimit: 5 })
   })
+
+  it('keeps a model-supplied empty description so update_card can clear it', () => {
+    if (!mapParams) throw new Error('Trello block has no params mapper')
+
+    expect(
+      mapParams(
+        { oauthCredential: 'cred', cardId: 'c1', desc: '' },
+        { operation: 'trello_update_card' }
+      ).desc
+    ).toBe('')
+  })
 })

@@ -83,4 +83,14 @@ describe('Google Slides canvas', () => {
     })
     expect(mapped.imageUrl).toBe('https://example.com/a.png')
   })
+
+  it('extracts the URL from a referenced file serialized into the legacy image source', () => {
+    const mapped = mapParams(GoogleSlidesBlock, {
+      operation: 'add_image',
+      presentationId: 'p1',
+      pageObjectId: 's1',
+      imageSource: JSON.stringify({ name: 'a.png', url: 'https://files.example.com/a.png' }),
+    })
+    expect(mapped.imageUrl).toBe('https://files.example.com/a.png')
+  })
 })

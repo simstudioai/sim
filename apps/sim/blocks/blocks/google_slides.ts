@@ -2744,14 +2744,14 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
         }
 
         if (operation === 'add_image') {
-          if (!params.imageUrl && params.imageSource) {
-            const source = params.imageSource
-            if (typeof source === 'string') {
-              result.imageUrl = source.trim()
-            } else {
-              const fileObject = normalizeFileInput(source, { single: true })
-              const fileUrl = fileObject ? resolveHttpsUrlFromFileInput(fileObject) : null
+          const source = params.imageSource
+          if (source) {
+            const fileObject = normalizeFileInput(source, { single: true })
+            if (fileObject) {
+              const fileUrl = resolveHttpsUrlFromFileInput(fileObject)
               if (fileUrl) result.imageUrl = fileUrl
+            } else if (typeof source === 'string') {
+              result.imageUrl = source.trim()
             }
           }
           if (imageWidth) {
@@ -2910,7 +2910,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
         }
 
         if (operation === 'replace_all_shapes_with_image') {
-          result.imageUrl = orModelArg(params.replaceShapesImageUrl, params.imageUrl)
+          result.imageUrl = orModelArg(params.replaceShapesImageUrl, rest.imageUrl)
           result.findText = orModelArg(params.replaceShapesFindText, params.findText)
           if (params.replaceShapesMatchCase !== undefined)
             result.matchCase = params.replaceShapesMatchCase
@@ -2922,7 +2922,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
 
         if (operation === 'replace_image') {
           result.imageObjectId = orModelArg(params.replaceImageObjectId, params.imageObjectId)
-          result.imageUrl = orModelArg(params.replaceImageUrl, params.imageUrl)
+          result.imageUrl = orModelArg(params.replaceImageUrl, rest.imageUrl)
           if (params.replaceImageMethod) result.imageReplaceMethod = params.replaceImageMethod
         }
 
