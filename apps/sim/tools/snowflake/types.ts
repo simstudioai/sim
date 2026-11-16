@@ -336,7 +336,7 @@ export const SNOWFLAKE_STATEMENT_OUTPUTS = {
       truncated: {
         type: 'boolean',
         description:
-          'Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here',
+          'Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Also true, with nextPartition null, when Snowflake returned code 391908 (result set too large to return in full); narrow the query or lower the row limit instead of fetching more partitions. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here',
         nullable: true,
       },
     },

@@ -330,6 +330,34 @@ export interface OktaUnsuspendUserResponse extends ToolResponse {
   }
 }
 
+export interface OktaUnlockUserParams extends OktaBaseParams {
+  userId: string
+}
+
+export interface OktaUnlockUserResponse extends ToolResponse {
+  output: {
+    userId: string
+    unlocked: boolean
+    success: boolean
+  }
+}
+
+export interface OktaListUserGroupsParams extends OktaBaseParams {
+  userId: string
+  after?: string
+  limit?: number
+}
+
+export interface OktaListUserGroupsResponse extends ToolResponse {
+  output: {
+    groups: OktaGroupOutput[]
+    count: number
+    nextCursor: string | null
+    hasMore: boolean
+    success: boolean
+  }
+}
+
 export interface OktaActivateUserParams extends OktaBaseParams {
   userId: string
   sendEmail?: boolean

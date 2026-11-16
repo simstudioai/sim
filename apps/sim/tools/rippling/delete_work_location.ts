@@ -1,6 +1,7 @@
 import type { RipplingDeleteWorkLocationParams } from '@/tools/rippling/types'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteWorkLocationTool: ToolConfig<RipplingDeleteWorkLocationParams> = {
   id: 'rippling_delete_work_location',
@@ -24,7 +25,7 @@ export const ripplingDeleteWorkLocationTool: ToolConfig<RipplingDeleteWorkLocati
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/work-locations/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/work-locations/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'DELETE',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

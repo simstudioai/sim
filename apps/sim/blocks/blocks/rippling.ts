@@ -1,7 +1,12 @@
 import { RipplingIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import {
+  isToolCall,
+  mapperOperation,
+  parseOptionalBooleanInput,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 /** Operations that support the filter query parameter */
 const FILTER_OPS = ['list_workers', 'list_business_partners', 'list_supergroups'] as const
@@ -62,7 +67,26 @@ const CURSOR_OPS = [
   'list_users',
   'list_work_locations',
   'query_custom_object_records',
+  'list_custom_objects',
+  'list_custom_object_fields',
+  'list_custom_object_records',
+  'list_object_categories',
+  'list_supergroups',
+  'list_supergroup_members',
+  'list_supergroup_inclusion_members',
+  'list_supergroup_exclusion_members',
 ] as const
+
+/**
+ * Query params each tied to the operations whose tools accept them. The fields are advanced, so the
+ * serializer keeps a value saved under one operation after the user switches to another.
+ */
+const QUERY_PARAM_OPS = [
+  ['filter', FILTER_OPS],
+  ['expand', EXPAND_OPS],
+  ['orderBy', ORDER_BY_OPS],
+  ['cursor', CURSOR_OPS],
+] as const satisfies ReadonlyArray<readonly [string, readonly string[]]>
 
 /** Operations that require a resource ID */
 const ID_OPS = [
@@ -964,8 +988,8 @@ Return ONLY the JSON - no explanations, no extra text.`,
         enabled: true,
         prompt: `Generate a JSON object for a Rippling API request based on the user's description.
 For custom object records: { "field_name": "value", ... }
-For draft hires: { "draft_hires": [{ "personal_info": { "first_name": "", "last_name": "", "email": "" }, "employment_info": { "start_date": "", "title": "" }, "work_location_info": { "work_location_id": "" } }] }
-For supergroup member updates: { "Operations": [{ "op": "add", "path": "members", "value": [{ "value": "worker_id" }] }] }
+For draft hires, the array only: [{ "personal_info": { "name": { "first": "", "last": "" }, "invite_email": "" }, "employment_info": { "employment_type_id": "", "title": "", "start_date": "" }, "work_location_info": { "location_id": "" } }]
+For supergroup member updates, the operations array only: [{ "op": "add", "value": [{ "id": "member_id" }] }] (op is "add" or "remove")
 Return ONLY the JSON - no explanations, no extra text.`,
         placeholder: 'Describe the data to send',
       },
@@ -983,7 +1007,8 @@ Return ONLY the JSON - no explanations, no extra text.`,
       id: 'records',
       title: 'Records',
       type: 'long-input',
-      placeholder: '[{ "data": { ... } }, ...]',
+      placeholder:
+        'Create: [{ "external_id": "x", "name": "..." }] · Update: [{ "id": "...", "name": "..." }] · Delete: ["record_id", ...]',
       condition: {
         field: 'operation',
         value: [
@@ -1054,7 +1079,7 @@ Return ONLY the query expression - no explanations, no extra text.`,
         prompt: `Generate an OData filter expression for the Rippling API based on the user's description.
 Examples:
 - "active workers" -> status eq 'ACTIVE'
-- "workers in engineering" -> department eq 'Engineering'
+- "workers with a given work email" -> work_email eq 'jane@example.com'
 - "created after January" -> created_at gt '2024-01-01'
 Return ONLY the filter expression - no explanations, no extra text.`,
         placeholder: 'Describe what to filter for',
@@ -1085,11 +1110,29 @@ Return ONLY the comma-separated field names - no explanations, no extra text.`,
       wandConfig: {
         enabled: true,
         prompt: `Generate a sort expression for the Rippling API based on the user's description.
-Format: field_name for ascending, -field_name for descending. Common fields: id, created_at, updated_at, name.
+Format: comma-separated field names, ascending by default; append " desc" for descending. Common fields: id, created_at, updated_at, name.
 Examples:
-- "newest first" -> -created_at
+- "newest first" -> created_at desc
 - "alphabetical" -> name
-- "recently updated" -> -updated_at
+- "recently updated" -> updated_at desc
+Return ONLY the sort expression - no explanations, no extra text.`,
+        placeholder: 'Describe how to sort results',
+      },
+    },
+    {
+      id: 'queryOrderBy',
+      title: 'Order By',
+      type: 'short-input',
+      placeholder: 'e.g., name desc',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'query_custom_object_records' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a sort expression for the Rippling custom object records query based on the user's description.
+Format: exactly one field API name, optionally followed by " asc" or " desc" (ascending by default). Multiple fields and nested paths are not supported.
+Examples:
+- "newest first" -> created_at desc
+- "alphabetical" -> name
 Return ONLY the sort expression - no explanations, no extra text.`,
         placeholder: 'Describe how to sort results',
       },
@@ -1098,7 +1141,8 @@ Return ONLY the sort expression - no explanations, no extra text.`,
       id: 'cursor',
       title: 'Cursor',
       type: 'short-input',
-      placeholder: 'Pagination cursor from previous response',
+      placeholder:
+        'nextCursor output of the previous page (cursor for Query Custom Object Records)',
       mode: 'advanced',
       condition: { field: 'operation', value: [...CURSOR_OPS] },
     },
@@ -1203,11 +1247,14 @@ Return ONLY the sort expression - no explanations, no extra text.`,
     ],
     config: {
       tool: (params) => `rippling_${params.operation}`,
-      params: (params) => {
-        const mapped: Record<string, unknown> = {
-          apiKey: params.apiKey,
+      params: (params, context) => {
+        const mapped: Record<string, unknown> = {}
+        if (params.apiKey !== undefined) mapped.apiKey = params.apiKey
+        const op = mapperOperation(params, context)
+        /** A dropdown `'true'` or a model's `true` sets the flag; false or blank leaves it out. */
+        const setFlag = (key: string, value: unknown) => {
+          if (parseOptionalBooleanInput(value) === true) mapped[key] = true
         }
-        const op = params.operation as string
 
         if (params.id != null && params.id !== '') mapped.id = params.id
         if (params.customObjectId != null && params.customObjectId !== '')
@@ -1246,7 +1293,11 @@ Return ONLY the sort expression - no explanations, no extra text.`,
           mapped.pluralLabel = params.pluralLabel
         if (params.ownerRole != null && params.ownerRole !== '') mapped.ownerRole = params.ownerRole
 
-        if (params.dataType != null && params.dataType !== '') {
+        if (
+          (CUSTOM_OBJECT_FIELD_WRITE_OPS as readonly string[]).includes(op) &&
+          params.dataType != null &&
+          params.dataType !== ''
+        ) {
           try {
             mapped.dataType =
               typeof params.dataType === 'string' ? JSON.parse(params.dataType) : params.dataType
@@ -1256,20 +1307,9 @@ Return ONLY the sort expression - no explanations, no extra text.`,
             )
           }
         }
-        if (
-          params.fieldRequired != null &&
-          params.fieldRequired !== '' &&
-          params.fieldRequired !== 'false'
-        )
-          mapped.required = params.fieldRequired === 'true'
-        if (params.isUnique != null && params.isUnique !== '' && params.isUnique !== 'false')
-          mapped.isUnique = params.isUnique === 'true'
-        if (
-          params.enableHistory != null &&
-          params.enableHistory !== '' &&
-          params.enableHistory !== 'false'
-        )
-          mapped.enableHistory = params.enableHistory === 'true'
+        setFlag('required', params.fieldRequired)
+        setFlag('isUnique', params.isUnique)
+        setFlag('enableHistory', params.enableHistory)
         if (params.rqlDefinition != null && params.rqlDefinition !== '') {
           try {
             mapped.rqlDefinition =
@@ -1338,18 +1378,8 @@ Return ONLY the sort expression - no explanations, no extra text.`,
         if (params.settingBooleanValue != null && params.settingBooleanValue !== '')
           mapped.booleanValue = params.settingBooleanValue === 'true'
 
-        if (
-          params.includeObjectIds != null &&
-          params.includeObjectIds !== '' &&
-          params.includeObjectIds !== 'false'
-        )
-          mapped.includeObjectIds = params.includeObjectIds === 'true'
-        if (
-          params.includeTotalRows != null &&
-          params.includeTotalRows !== '' &&
-          params.includeTotalRows !== 'false'
-        )
-          mapped.includeTotalRows = params.includeTotalRows === 'true'
+        setFlag('includeObjectIds', params.includeObjectIds)
+        setFlag('includeTotalRows', params.includeTotalRows)
         if (params.formatDateFields != null && params.formatDateFields !== '') {
           try {
             mapped.formatDateFields =
@@ -1373,17 +1403,23 @@ Return ONLY the sort expression - no explanations, no extra text.`,
         if (params.outputType != null && params.outputType !== '')
           mapped.outputType = params.outputType
 
-        if (
-          params.allOrNothing != null &&
-          params.allOrNothing !== '' &&
-          params.allOrNothing !== 'false'
-        )
-          mapped.allOrNothing = params.allOrNothing === 'true'
+        setFlag('allOrNothing', params.allOrNothing)
 
-        if (params.filter != null && params.filter !== '') mapped.filter = params.filter
-        if (params.expand != null && params.expand !== '') mapped.expand = params.expand
-        if (params.orderBy != null && params.orderBy !== '') mapped.orderBy = params.orderBy
-        if (params.cursor != null && params.cursor !== '') mapped.cursor = params.cursor
+        for (const [key, ops] of QUERY_PARAM_OPS) {
+          const value = params[key]
+          if ((ops as readonly string[]).includes(op)) {
+            if (value != null && value !== '') mapped[key] = value
+          } else if (value != null && !isToolCall(context)) {
+            mapped[key] = undefined
+          }
+        }
+
+        if (
+          op === 'query_custom_object_records' &&
+          params.queryOrderBy != null &&
+          params.queryOrderBy !== ''
+        )
+          mapped.orderBy = params.queryOrderBy
 
         if (params.query != null && params.query !== '') mapped.query = params.query
         if (params.limit != null && params.limit !== '') mapped.limit = Number(params.limit)
@@ -1565,6 +1601,10 @@ Return ONLY the sort expression - no explanations, no extra text.`,
     filter: { type: 'string', description: 'OData filter expression' },
     expand: { type: 'string', description: 'Fields to expand' },
     orderBy: { type: 'string', description: 'Ordering expression' },
+    queryOrderBy: {
+      type: 'string',
+      description: 'Custom object records query ordering: one field with optional asc or desc',
+    },
     cursor: { type: 'string', description: 'Pagination cursor' },
     apiKey: { type: 'string', description: 'Rippling API key' },
   },
@@ -1599,8 +1639,16 @@ Return ONLY the sort expression - no explanations, no extra text.`,
     objectCategories: { type: 'array', description: 'List of object categories' },
     totalCount: { type: 'number', description: 'Total number of items returned' },
     nextLink: { type: 'string', description: 'URL or cursor for the next page of results' },
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for the next page; pass it back in the Cursor field',
+    },
     cursor: { type: 'string', description: 'Cursor for next page of query results' },
     deleted: { type: 'boolean', description: 'Whether the resource was deleted' },
+    deletedRecordIds: {
+      type: 'array',
+      description: 'Record IDs whose bulk deletion was applied',
+    },
     createdRecords: { type: 'array', description: 'Bulk created custom object records' },
     updatedRecords: { type: 'array', description: 'Bulk updated custom object records' },
     report_id: { type: 'string', description: 'Report ID' },

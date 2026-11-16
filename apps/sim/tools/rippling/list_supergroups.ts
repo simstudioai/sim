@@ -1,5 +1,6 @@
 import type { RipplingListSupergroupsParams } from '@/tools/rippling/types'
 import { SUPERGROUP_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { nextCursorFromLink } from '@/tools/rippling/utils'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -26,7 +27,14 @@ export const ripplingListSupergroupsTool: ToolConfig<RipplingListSupergroupsPara
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort field. Prefix with - for descending',
+      description:
+        'Sort field(s), comma-separated; append " desc" for descending (e.g. created_at desc)',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor: the nextCursor output of the previous page',
     },
   },
   request: {
@@ -34,6 +42,7 @@ export const ripplingListSupergroupsTool: ToolConfig<RipplingListSupergroupsPara
       const query = new URLSearchParams()
       if (params.filter != null) query.set('filter', params.filter)
       if (params.orderBy != null) query.set('order_by', params.orderBy)
+      if (params.cursor) query.set('cursor', params.cursor)
       const qs = query.toString()
       return `https://rest.ripplingapis.com/supergroups/${qs ? `?${qs}` : ''}`
     },
@@ -74,6 +83,7 @@ export const ripplingListSupergroupsTool: ToolConfig<RipplingListSupergroupsPara
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,
+        nextCursor: nextCursorFromLink(data.next_link),
         __meta: data.__meta ?? null,
       },
     }
@@ -86,6 +96,13 @@ export const ripplingListSupergroupsTool: ToolConfig<RipplingListSupergroupsPara
     },
     totalCount: { type: 'number', description: 'Number of items returned' },
     nextLink: { type: 'string', description: 'Link to next page of results', optional: true },
+    nextCursor: {
+      type: 'string',
+      description:
+        'Cursor for the next page; pass it back as the cursor param (null on the last page)',
+      optional: true,
+      nullable: true,
+    },
     __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

@@ -4,6 +4,7 @@ import type { OktaRemoveUserFromAppParams, OktaRemoveUserFromAppResponse } from 
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaRemoveUserFromApp')
 
@@ -54,7 +55,7 @@ export const oktaRemoveUserFromAppTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const base = `https://${domain}/api/v1/apps/${encodeURIComponent(params.appId.trim())}/users/${encodeURIComponent(params.userId.trim())}`
+      const base = `https://${domain}/api/v1/apps/${safeUrlPathSegment(params.appId, 'appId')}/users/${safeUrlPathSegment(params.userId, 'userId')}`
       return params.sendEmail === undefined
         ? base
         : `${base}?sendEmail=${isOktaFlagEnabled(params.sendEmail)}`

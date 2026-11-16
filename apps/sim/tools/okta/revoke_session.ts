@@ -4,6 +4,7 @@ import type { OktaRevokeSessionParams, OktaRevokeSessionResponse } from '@/tools
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaRevokeSession')
 
@@ -40,7 +41,7 @@ export const oktaRevokeSessionTool: ToolConfig<OktaRevokeSessionParams, OktaRevo
     request: {
       url: (params) => {
         const domain = validateOktaDomain(params.domain)
-        return `https://${domain}/api/v1/sessions/${encodeURIComponent(params.sessionId.trim())}`
+        return `https://${domain}/api/v1/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}`
       },
       method: 'DELETE',
       headers: (params) => oktaHeaders(params.apiKey),

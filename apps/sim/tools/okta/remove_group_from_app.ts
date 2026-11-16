@@ -7,6 +7,7 @@ import type {
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaRemoveGroupFromApp')
 
@@ -51,7 +52,7 @@ export const oktaRemoveGroupFromAppTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/apps/${encodeURIComponent(params.appId.trim())}/groups/${encodeURIComponent(params.groupId.trim())}`
+      return `https://${domain}/api/v1/apps/${safeUrlPathSegment(params.appId, 'appId')}/groups/${safeUrlPathSegment(params.groupId, 'groupId')}`
     },
     method: 'DELETE',
     headers: (params) => oktaHeaders(params.apiKey),

@@ -1,6 +1,7 @@
 import type { RipplingDeleteTitleParams } from '@/tools/rippling/types'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteTitleTool: ToolConfig<RipplingDeleteTitleParams> = {
   id: 'rippling_delete_title',
@@ -23,8 +24,7 @@ export const ripplingDeleteTitleTool: ToolConfig<RipplingDeleteTitleParams> = {
     },
   },
   request: {
-    url: (params) =>
-      `https://rest.ripplingapis.com/titles/${encodeURIComponent(params.id.trim())}/`,
+    url: (params) => `https://rest.ripplingapis.com/titles/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'DELETE',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

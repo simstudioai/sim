@@ -1,6 +1,9 @@
 import type { RipplingGetBusinessPartnerGroupParams } from '@/tools/rippling/types'
+import { BUSINESS_PARTNER_GROUP_EXPANDED_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { pickOutputFields } from '@/tools/rippling/utils'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetBusinessPartnerGroupTool: ToolConfig<RipplingGetBusinessPartnerGroupParams> =
   {
@@ -26,7 +29,7 @@ export const ripplingGetBusinessPartnerGroupTool: ToolConfig<RipplingGetBusiness
     },
     request: {
       url: (params) => {
-        const base = `https://rest.ripplingapis.com/business-partner-groups/${encodeURIComponent(params.id.trim())}/`
+        const base = `https://rest.ripplingapis.com/business-partner-groups/${safeUrlPathSegment(params.id, 'id')}/`
         if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
         return base
       },
@@ -51,6 +54,7 @@ export const ripplingGetBusinessPartnerGroupTool: ToolConfig<RipplingGetBusiness
           name: (data.name as string) ?? null,
           domain: (data.domain as string) ?? null,
           default_business_partner_id: (data.default_business_partner_id as string) ?? null,
+          ...pickOutputFields(data, BUSINESS_PARTNER_GROUP_EXPANDED_OUTPUT_PROPERTIES),
           __meta: data.__meta ?? null,
         },
       }
@@ -66,6 +70,7 @@ export const ripplingGetBusinessPartnerGroupTool: ToolConfig<RipplingGetBusiness
         description: 'Default partner ID',
         optional: true,
       },
+      ...BUSINESS_PARTNER_GROUP_EXPANDED_OUTPUT_PROPERTIES,
       __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
     },
   }

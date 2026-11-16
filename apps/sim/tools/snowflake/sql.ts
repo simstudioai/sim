@@ -1,3 +1,4 @@
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import { isValidUuid } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import type {
@@ -94,6 +95,18 @@ function resolvedIdentifierName(value: string): string {
  */
 function stringLiteral(value: string): string {
   return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "''")}'`
+}
+
+/**
+ * QUERY_HISTORY's USER_NAME and WAREHOUSE_NAME take the name as a string that Snowflake resolves
+ * like an identifier: a case-sensitive name keeps its double quotes inside the single quotes
+ * (`'"My Warehouse"'`), and an unquoted name is matched case-insensitively.
+ *
+ * @see https://docs.snowflake.com/en/sql-reference/functions/query_history
+ */
+function identifierNameLiteral(value: string): string {
+  const valid = identifier(value)
+  return stringLiteral(valid.startsWith('"') ? valid : valid.toUpperCase())
 }
 
 function requireQueryId(queryId: string): string {
@@ -741,8 +754,9 @@ export function buildAlterWarehouse(params: SnowflakeAlterWarehouseParams): Snow
     }
     clauses.push(`AUTO_SUSPEND = ${seconds}`)
   }
-  if (params.autoResume !== undefined) {
-    clauses.push(`AUTO_RESUME = ${params.autoResume ? 'TRUE' : 'FALSE'}`)
+  const autoResume = toBooleanFromInput(params.autoResume)
+  if (autoResume !== undefined) {
+    clauses.push(`AUTO_RESUME = ${autoResume ? 'TRUE' : 'FALSE'}`)
   }
   if (clauses.length === 0) {
     throw new Error('Set at least one of warehouseSize, autoSuspendSeconds, or autoResume')
@@ -776,9 +790,10 @@ export function buildUnloadData(params: SnowflakeUnloadDataParams): SnowflakeSta
   // Always emitted, never conditional: an injected `OVERWRITE = TRUE` that
   // somehow escaped the derived table would duplicate this option and be
   // rejected by Snowflake instead of silently replacing staged files.
-  clauses.push(`OVERWRITE = ${params.overwrite ? 'TRUE' : 'FALSE'}`)
-  if (params.singleFile !== undefined) {
-    clauses.push(`SINGLE = ${params.singleFile ? 'TRUE' : 'FALSE'}`)
+  clauses.push(`OVERWRITE = ${toBooleanFromInput(params.overwrite) === true ? 'TRUE' : 'FALSE'}`)
+  const singleFile = toBooleanFromInput(params.singleFile)
+  if (singleFile !== undefined) {
+    clauses.push(`SINGLE = ${singleFile ? 'TRUE' : 'FALSE'}`)
   }
   if (params.maxFileSizeBytes !== undefined) {
     // Snowflake documents 16777216 (16 MB) as the default and 5368709120 (5 GB)
@@ -796,7 +811,8 @@ export function buildUnloadData(params: SnowflakeUnloadDataParams): SnowflakeSta
   }
   // HEADER is not a copy option: the grammar places it after copyOptions and
   // VALIDATION_MODE, so it must be emitted last.
-  if (params.header !== undefined) clauses.push(`HEADER = ${params.header ? 'TRUE' : 'FALSE'}`)
+  const header = toBooleanFromInput(params.header)
+  if (header !== undefined) clauses.push(`HEADER = ${header ? 'TRUE' : 'FALSE'}`)
   return { statement: clauses.join(' ') }
 }
 
@@ -819,10 +835,8 @@ export function buildListQueryHistory(
   }
 
   const args = [`RESULT_LIMIT => ${normalizeMaxRows(params.limit)}`]
-  if (userName) args.push(`USER_NAME => ${stringLiteral(resolvedIdentifierName(userName))}`)
-  if (warehouseName) {
-    args.push(`WAREHOUSE_NAME => ${stringLiteral(resolvedIdentifierName(warehouseName))}`)
-  }
+  if (userName) args.push(`USER_NAME => ${identifierNameLiteral(userName)}`)
+  if (warehouseName) args.push(`WAREHOUSE_NAME => ${identifierNameLiteral(warehouseName)}`)
   if (params.startTime?.trim()) {
     args.push(`END_TIME_RANGE_START => ${historyTimestamp(params.startTime, 'startTime', 7)}`)
   }
@@ -840,7 +854,7 @@ export function buildListQueryHistory(
   // nothing here, which would make errorOnly a silent no-op. Casing is not
   // documented as normalized and Snowflake compares strings case-sensitively,
   // so the filter folds case rather than guessing.
-  const where = params.errorOnly
+  const where = toBooleanFromInput(params.errorOnly)
     ? " WHERE UPPER(EXECUTION_STATUS) IN ('FAILED_WITH_ERROR', 'FAILED_WITH_INCIDENT')"
     : ''
   // Qualification is required: a bare INFORMATION_SCHEMA resolves against the

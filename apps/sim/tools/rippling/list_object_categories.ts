@@ -1,5 +1,6 @@
 import type { RipplingListObjectCategoriesParams } from '@/tools/rippling/types'
 import { OBJECT_CATEGORY_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { cursorQuery, nextCursorFromLink } from '@/tools/rippling/utils'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -16,9 +17,16 @@ export const ripplingListObjectCategoriesTool: ToolConfig<RipplingListObjectCate
       visibility: 'user-only',
       description: 'Rippling API key',
     },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor: the nextCursor output of the previous page',
+    },
   },
   request: {
-    url: `https://rest.ripplingapis.com/object-categories/`,
+    url: (params) =>
+      `https://rest.ripplingapis.com/object-categories/${cursorQuery(params.cursor)}`,
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },
@@ -41,6 +49,7 @@ export const ripplingListObjectCategoriesTool: ToolConfig<RipplingListObjectCate
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,
+        nextCursor: nextCursorFromLink(data.next_link),
       },
     }
   },
@@ -52,5 +61,12 @@ export const ripplingListObjectCategoriesTool: ToolConfig<RipplingListObjectCate
     },
     totalCount: { type: 'number', description: 'Number of items returned' },
     nextLink: { type: 'string', description: 'Link to next page of results', optional: true },
+    nextCursor: {
+      type: 'string',
+      description:
+        'Cursor for the next page; pass it back as the cursor param (null on the last page)',
+      optional: true,
+      nullable: true,
+    },
   },
 }

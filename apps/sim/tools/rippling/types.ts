@@ -1,5 +1,48 @@
 import type { OutputProperty } from '@/tools/types'
 
+/** Worker fields beyond the core profile: later-documented ids and dates, plus objects filled by `expand` */
+export const WORKER_DETAIL_OUTPUT_PROPERTIES = {
+  job_function_id: { type: 'string', description: 'Job function ID', optional: true },
+  pay_schedule_id: { type: 'string', description: 'Pay schedule ID', optional: true },
+  original_start_date: { type: 'string', description: 'Original start date', optional: true },
+  work_schedule: { type: 'json', description: 'Work schedule', optional: true },
+  compensation_grade: { type: 'json', description: 'Compensation grade', optional: true },
+  user: { type: 'json', description: 'Expanded user (expand=user)', optional: true },
+  manager: { type: 'json', description: 'Expanded manager (expand=manager)', optional: true },
+  legal_entity: {
+    type: 'json',
+    description: 'Expanded legal entity (expand=legal_entity)',
+    optional: true,
+  },
+  employment_type: {
+    type: 'json',
+    description: 'Expanded employment type (expand=employment_type)',
+    optional: true,
+  },
+  compensation: {
+    type: 'json',
+    description: 'Expanded compensation (expand=compensation)',
+    optional: true,
+  },
+  department: {
+    type: 'json',
+    description: 'Expanded department (expand=department)',
+    optional: true,
+  },
+  teams: { type: 'json', description: 'Expanded teams, when requested via expand', optional: true },
+  level: { type: 'json', description: 'Expanded level, when requested via expand', optional: true },
+  job_function: {
+    type: 'json',
+    description: 'Expanded job function, when requested via expand',
+    optional: true,
+  },
+  business_partners: {
+    type: 'json',
+    description: 'Expanded business partners, when requested via expand',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
 /** Worker output properties */
 export const WORKER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Worker ID' },
@@ -40,6 +83,7 @@ export const WORKER_OUTPUT_PROPERTIES = {
   termination_details: { type: 'json', description: 'Termination details' },
   custom_fields: { type: 'json', description: 'Custom fields (expandable)' },
   country_fields: { type: 'json', description: 'Country-specific fields' },
+  ...WORKER_DETAIL_OUTPUT_PROPERTIES,
 } as const satisfies Record<string, OutputProperty>
 
 /** User output properties */
@@ -74,6 +118,16 @@ export const COMPANY_OUTPUT_PROPERTIES = {
   parent_legal_entity_id: { type: 'string', description: 'Parent legal entity ID' },
   legal_entities_id: { type: 'json', description: 'Array of legal entity IDs' },
   physical_address: { type: 'json', description: 'Physical address of the holding entity' },
+  parent_legal_entity: {
+    type: 'json',
+    description: 'Expanded parent legal entity (expand=parent_legal_entity)',
+    optional: true,
+  },
+  legal_entities: {
+    type: 'json',
+    description: 'Expanded legal entities (expand=legal_entities)',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 /** Department output properties */
@@ -140,6 +194,11 @@ export const CUSTOM_FIELD_OUTPUT_PROPERTIES = {
   description: { type: 'string', description: 'Field description' },
   required: { type: 'boolean', description: 'Whether the field is required' },
   type: { type: 'string', description: 'Field type (TEXT, DATE, NUMBER, CURRENCY, etc.)' },
+  options: {
+    type: 'json',
+    description: 'Choice values for SELECT and RADIO fields (null for other types)',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 /** Job function output properties */
@@ -157,6 +216,21 @@ export const ENTITLEMENT_OUTPUT_PROPERTIES = {
   display_name: { type: 'string', description: 'Display name' },
 } as const satisfies Record<string, OutputProperty>
 
+/** Business partner objects filled by `expand` */
+export const BUSINESS_PARTNER_EXPANDED_OUTPUT_PROPERTIES = {
+  business_partner_group: {
+    type: 'json',
+    description: 'Expanded business partner group (expand=business_partner_group)',
+    optional: true,
+  },
+  worker: { type: 'json', description: 'Expanded worker (expand=worker)', optional: true },
+  client_group: {
+    type: 'json',
+    description: 'Expanded client group (expand=client_group)',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
 /** Business partner output properties */
 export const BUSINESS_PARTNER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Business partner ID' },
@@ -166,6 +240,16 @@ export const BUSINESS_PARTNER_OUTPUT_PROPERTIES = {
   worker_id: { type: 'string', description: 'Worker ID' },
   client_group_id: { type: 'string', description: 'Client group ID' },
   client_group_member_count: { type: 'number', description: 'Client group member count' },
+  ...BUSINESS_PARTNER_EXPANDED_OUTPUT_PROPERTIES,
+} as const satisfies Record<string, OutputProperty>
+
+/** Business partner group objects filled by `expand` */
+export const BUSINESS_PARTNER_GROUP_EXPANDED_OUTPUT_PROPERTIES = {
+  default_business_partner: {
+    type: 'json',
+    description: 'Expanded default business partner (expand=default_business_partner)',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 /** Business partner group output properties */
@@ -176,6 +260,7 @@ export const BUSINESS_PARTNER_GROUP_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Group name' },
   domain: { type: 'string', description: 'Domain (HR, IT, FINANCE, RECRUITING, OTHER)' },
   default_business_partner_id: { type: 'string', description: 'Default business partner ID' },
+  ...BUSINESS_PARTNER_GROUP_EXPANDED_OUTPUT_PROPERTIES,
 } as const satisfies Record<string, OutputProperty>
 
 /** Supergroup output properties */
@@ -309,7 +394,10 @@ export const CUSTOM_SETTING_OUTPUT_PROPERTIES = {
   display_name: { type: 'string', description: 'Display name' },
   api_name: { type: 'string', description: 'API name' },
   data_type: { type: 'string', description: 'Data type' },
-  secret_value: { type: 'string', description: 'Secret value' },
+  secret_value: {
+    type: 'string',
+    description: 'Always null: Rippling never returns secret values',
+  },
   string_value: { type: 'string', description: 'String value' },
   number_value: { type: 'number', description: 'Number value' },
   boolean_value: { type: 'boolean', description: 'Boolean value' },
@@ -547,6 +635,7 @@ export interface RipplingListSupergroupsParams {
   apiKey: string
   filter?: string
   orderBy?: string
+  cursor?: string
 }
 export interface RipplingGetSupergroupParams {
   apiKey: string
@@ -557,18 +646,21 @@ export interface RipplingListSupergroupMembersParams {
   groupId: string
   expand?: string
   orderBy?: string
+  cursor?: string
 }
 export interface RipplingListSupergroupInclusionMembersParams {
   apiKey: string
   groupId: string
   expand?: string
   orderBy?: string
+  cursor?: string
 }
 export interface RipplingListSupergroupExclusionMembersParams {
   apiKey: string
   groupId: string
   expand?: string
   orderBy?: string
+  cursor?: string
 }
 export interface RipplingUpdateSupergroupInclusionMembersParams {
   apiKey: string
@@ -584,6 +676,7 @@ export interface RipplingUpdateSupergroupExclusionMembersParams {
 /** Custom Objects */
 export interface RipplingListCustomObjectsParams {
   apiKey: string
+  cursor?: string
 }
 export interface RipplingGetCustomObjectParams {
   apiKey: string
@@ -613,6 +706,7 @@ export interface RipplingDeleteCustomObjectParams {
 export interface RipplingListCustomObjectFieldsParams {
   apiKey: string
   customObjectApiName: string
+  cursor?: string
 }
 export interface RipplingGetCustomObjectFieldParams {
   apiKey: string
@@ -660,6 +754,7 @@ export interface RipplingDeleteCustomObjectFieldParams {
 export interface RipplingListCustomObjectRecordsParams {
   apiKey: string
   customObjectApiName: string
+  cursor?: string
 }
 export interface RipplingGetCustomObjectRecordParams {
   apiKey: string
@@ -677,6 +772,8 @@ export interface RipplingQueryCustomObjectRecordsParams {
   query?: string
   limit?: number
   cursor?: string
+  search?: string
+  orderBy?: string
 }
 export interface RipplingCreateCustomObjectRecordParams {
   apiKey: string
@@ -802,6 +899,7 @@ export interface RipplingDeleteCustomSettingParams {
 /** Object Categories */
 export interface RipplingListObjectCategoriesParams {
   apiKey: string
+  cursor?: string
 }
 export interface RipplingGetObjectCategoryParams {
   apiKey: string

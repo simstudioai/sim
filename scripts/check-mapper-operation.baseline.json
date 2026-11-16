@@ -1,8 +1,1 @@
-{
-  "apps/sim/blocks/blocks/microsoft_dynamics_365.ts": 2,
-  "apps/sim/blocks/blocks/okta.ts": 2,
-  "apps/sim/blocks/blocks/rippling.ts": 1,
-  "apps/sim/blocks/blocks/sailpoint.ts": 1,
-  "apps/sim/blocks/blocks/snowflake.ts": 1,
-  "apps/sim/blocks/blocks/zoho-desk.ts": 38
-}
+{}

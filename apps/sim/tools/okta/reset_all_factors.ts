@@ -4,6 +4,7 @@ import type { OktaResetAllFactorsParams, OktaResetAllFactorsResponse } from '@/t
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaResetAllFactors')
 
@@ -42,7 +43,7 @@ export const oktaResetAllFactorsTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/reset_factors`
+      return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/lifecycle/reset_factors`
     },
     method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),
