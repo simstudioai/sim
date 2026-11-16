@@ -381,7 +381,7 @@ class WorkflowPrinter {
     return {
       tag: this.tagFor(block, catalogBlock, sb),
       from: block.key,
-      templateWholeRefs: sb?.structured === 'variables',
+      variablesField: sb?.structured === 'variables',
       ...(sb ? { subBlock: sb } : {}),
     }
   }

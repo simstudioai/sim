@@ -26,6 +26,7 @@
   "router-routes": [],
   "pair-modes": [],
   "resource-nodes": [],
+  "vars-by-field": [],
   "inactive-values": [],
   "generic-block-unknown-type": [],
   "generic-block-legacy-operation": [],

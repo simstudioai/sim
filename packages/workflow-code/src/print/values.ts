@@ -19,8 +19,13 @@ export interface FieldContext {
   tag: Tag
   /** The block whose param is printed, for scope; `null` at workflow level. */
   from: BlockKey | null
-  /** Whole-string refs print as templates instead of bare refs (variables-input values). */
-  templateWholeRefs?: boolean
+  /**
+   * A variables-input field (`structured: 'variables'`), where a bare `vars.x` compiles to the
+   * variable node (compile/SYNTAX.md, `vars.x`). There a var node prints as bare `vars.x` and a
+   * whole-string `<variable.x>` prints as a `t` template; elsewhere a var node prints as `raw()`
+   * and a whole-string ref prints bare.
+   */
+  variablesField?: boolean
   subBlock?: CatalogSubBlock
 }
 
@@ -104,7 +109,7 @@ export class ValuePrinter {
       const selector = items.length > 0 && items.every((item) => item.selector === true)
       return { ...arrayExpr(items), selector }
     }
-    if (isSimNode(value)) return this.simNode(value)
+    if (isSimNode(value)) return this.simNode(value, context)
     const properties: Property[] = Object.entries(value).map(([key, item]) => ({
       key: printKey(key),
       value: this.value(item, { ...context, tag: nestedTag(context) }),
@@ -131,8 +136,8 @@ export class ValuePrinter {
     return { doc: ['`', literalText(escapeTemplateText(text)), '`'], shape: 'template' }
   }
 
-  private simNode(node: SimNode): PrintedValue {
-    if (node.$sim === 'var') {
+  private simNode(node: SimNode, context: FieldContext): PrintedValue {
+    if (node.$sim === 'var' && context.variablesField === true) {
       this.useVars()
       return { doc: `vars${memberOf(node.key)}`, shape: 'member' }
     }
@@ -151,7 +156,7 @@ export class ValuePrinter {
       parts.length === 1 &&
       only?.kind === 'ref' &&
       context.tag === 't' &&
-      context.templateWholeRefs !== true
+      context.variablesField !== true
     ) {
       return { doc: only.expr, shape: /[.[]/.test(only.expr) ? 'member' : 'identifier' }
     }

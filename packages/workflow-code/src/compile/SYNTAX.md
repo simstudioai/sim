@@ -52,9 +52,12 @@ printer's choice (build-spec first, then s2) was taken.
 - Refs: `blk.a.b` → `<key.a.b>`, `blk['x-y']` → `<key.x-y>`, `blk.items[0]` → `<key.items[0]>`,
   `blk.items['0']` → `<key.items.0>`. `env.X` / `env['X']` → `{{X}}` (name must match
   `[A-Za-z_][A-Za-z0-9_]*`). `ref('Raw.path')` → `<Raw.path>`.
-- `vars.x`: inside a variables-input field (`structured: 'variables'`) a bare `vars.x` is the
-  variable node `{ $sim: 'var', key }`; everywhere else, and inside any template, it is the text
-  `<variable.x>`.
+- `vars.x` is decided by field, and the printer and compiler share the rule. Inside a
+  variables-input field (`structured: 'variables'`, at any depth of its value), a bare `vars.x` is
+  the variable node `{ $sim: 'var', key }`. Everywhere else, and inside any template, it is the
+  text `<variable.x>`. So the printer prints a var node bare only in such a field (elsewhere it is
+  `raw({ $sim: 'var', key })`), and prints whole-string `<variable.x>` text there as
+  `` t`${vars.x}` `` (elsewhere bare). Golden: `print/__golden__/vars-by-field.txt`.
 - A JSON code field (subBlock type `code`) written as an object or array literal compiles to
   `JSON.stringify(value, null, 2)`.
 - inputFormat (`structured: 'inputFormat'`) as a record: `name: 'string'` →

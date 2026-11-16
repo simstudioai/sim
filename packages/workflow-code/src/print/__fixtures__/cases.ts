@@ -477,6 +477,34 @@ export const cases: PrintCase[] = [
     }),
   },
   {
+    // `vars.x` by field: in a variables-input field a var node prints bare and compiles back to the
+    // node, while `<variable.x>` text prints as a template; elsewhere the text prints bare and a var
+    // node needs `raw()`.
+    name: 'vars-by-field',
+    workflow: wf({
+      variables: [{ key: 'count', name: 'count', type: 'number', value: 0 }],
+      blocks: [
+        start(),
+        blk('Set count', 'variables', {
+          params: {
+            variables: [
+              { variableId: { $sim: 'var', key: 'count' }, value: '<variable.count>' },
+              { variableId: { $sim: 'var', key: 'count' }, value: 'count is <variable.count>' },
+            ],
+          },
+        }),
+        blk('Echo', 'agent', {
+          params: {
+            model: { $sim: 'var', key: 'count' },
+            systemPrompt: '<variable.count>',
+            temperature: 'count is <variable.count>',
+          },
+        }),
+      ],
+      edges: [edge('start', 'setcount'), edge('setcount', 'echo')],
+    }),
+  },
+  {
     name: 'inactive-values',
     workflow: wf({
       blocks: [
