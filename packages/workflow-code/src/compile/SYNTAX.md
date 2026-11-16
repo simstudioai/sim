@@ -10,7 +10,7 @@ taken.
 deploy reads, wiring, branches and the config of the loop or parallel type in effect. What only
 the canvas cares about is never required: which member of a basic/advanced pair shows a value,
 whether a selector or a typed value produced an id, inactive values, the other loop or parallel
-types' fields, layout and unknown residue. Source has no syntax for it: the printer leaves it out
+types' fields, layout and unknown extra data. Source has no syntax for it: the printer leaves it out
 and apply keeps it from the stored workflow (`materialize/preserve.ts`).
 
 **Defaults rule.** An omitted param is the editor default canvas creation writes (the catalog's
@@ -31,7 +31,7 @@ to the default and writes `null` for an active field that has a default but no s
 
 ## Blocks
 
-- `const x = builder('Name', params?, meta?)`, or a bare `builder(...)` statement (no binding).
+- `const x = builder('Name', params?, meta?)`, or a bare `builder(...)` statement (no `const`).
   The builder is the dotted catalog path (`slack.sendMessage`, `trigger.gmail.poller`).
 - `block(type, 'Name', params?, meta?)` for any type: unknown, legacy, or a builder that does not
   fit. With a catalog type, params are checked against its fields; without one, they are kept
@@ -40,8 +40,8 @@ to the default and writes `null` for an active field that has a default but no s
   group of one). Writing a group member by its own id is `E_UNKNOWN_PARAM` with a hint. A pinned
   id (`operation`, a builder's `fixed`) is `E_FIXED_PARAM`; the compiler adds pinned values.
 - Pair mode follows from the value kind alone; there is no `meta.modes`. A selector call
-  (`binding`, `table`, `kb`, `workflow`, `skill`, `customTool`, `mcp`, `sandbox`, `folder`,
-  `upload`) or a non-empty array of them is basic, anything else advanced, except that a list or
+  (`credential`, `table`, `knowledgeBase`, `childWorkflow`, `skill`, `customTool`, `mcp`,
+  `sandbox`, `folder`, `file`) or a non-empty array of them is basic, anything else advanced, except that a list or
   object literal never lands in a JSON code member (subBlock type `code`) when the pair's other
   member is not code: it goes to that other member as written (`table_v2`'s `filterInput`: a list
   is the filter builder's, JSON text the code editor's). The printer writes a JSON code member's
@@ -50,14 +50,14 @@ to the default and writes `null` for an active field that has a default but no s
   mode is canvas state: when the pair's value is unchanged the stored member and mode stay, and a
   plain id written where the stored block shows the selector member stays in that member.
 - `meta`: `key`, `disabled`, `locked`, `advancedMode`, `triggerMode` (any builder), `errorPort`,
-  `retry: { enabled, maxTries, waitBetweenTriesMs }`, `branches`, `extra`, `extraData`
+  `retry: { enabled, maxTries, waitBetweenTriesMs }` (the stored `BlockRetryConfig`), `branches`, `extra`, `subflowData`
   (containers only).
 - A builder prints only blocks on its own surface: a trigger-mode builder never prints an action
   block, nor an action builder a block in trigger mode (a trigger block's builders fit either);
   such a block prints through `block()`.
 - `meta.key: '<key>'` (a string literal) keeps a legacy key that the display name cannot carry.
   The printer writes it only for such a block, and the compiler accepts it only when the key is in
-  `CompileInput.knownKeys` (the stored workflow's keys, from the lock or `code_meta`) and is one of
+  `CompileInput.knownKeys` (the stored workflow's keys, from the lock or source meta) and is one of
   the two legacy shapes canonicalize produces:
   - the `~n` collision form of the normalized name (`api('agent1', {...}, { key: 'agent1~2' })`
     next to `api('Agent 1', ...)`), with the plain key declared by another block;
@@ -73,11 +73,11 @@ to the default and writes `null` for an active field that has a default but no s
   prompt fields, a container's stored params. A key the block's params can name is
   `E_UNSUPPORTED_SYNTAX`. Values that never run are not written: apply restores them from the
   stored workflow.
-- `extraData: { <key>: json }`, on a loop or parallel only, holds the subflow keys of
+- `subflowData: { <key>: json }`, on a loop or parallel only, holds the subflow keys of
   `block.data` (`count`, `collection`, `loopType`, `whileCondition`, `doWhileCondition`,
   `parallelType`, `batchSize`) canonicalize could not read as config, which the serializer passes
   on. It is separate from `extra` because containers stored by the canvas often carry params
-  under those same names. Plain JSON; any other key, or `extraData` on another block, is
+  under those same names. Plain JSON; any other key, or `subflowData` on another block, is
   `E_UNSUPPORTED_SYNTAX`.
 
 ## Values
@@ -109,7 +109,7 @@ to the default and writes `null` for an active field that has a default but no s
   `{ name, type: 'string', value: '' }`; `name: { type, ... }` → `{ name, type, ... }`; `{}` is the
   empty list. Arrays pass through; the printer writes a list the record cannot carry (an
   integer-like or repeated name, an unknown key) as `raw([...])`.
-- Function code: `code: file('./functions/x.js')`, relative to the entry file, extension matching
+- Function code: `code: codeFile('./functions/x.js')`, relative to the entry file, extension matching
   `language` (default `javascript`). JavaScript files have `$ref`/`$env` chains rewritten back
   (`src/code-files`); Python and shell are verbatim.
 - Tools (`valueKind: 'tools'`): an array of `ns.tool.method(params, options?)` /
@@ -137,7 +137,7 @@ to the default and writes `null` for an active field that has a default but no s
 - Third argument: `(p) => { ... }`, or `(p) => block(...)` which implies `p.to(block)`.
 - The other types' stored fields have no syntax; apply keeps them from the stored workflow. A
   loop with no `count` gets 5, the count that runs. `meta.extra` carries the container's stored
-  params and `meta.extraData` its unreadable subflow data (see `meta` above).
+  params and `meta.subflowData` its unreadable subflow data (see `meta` above).
 - `p.x` is `<loop.x>` / `<parallel.x>` when `p`'s container is the innermost of its kind around
   the block, else the named `<containerkey.x>`. `container.results` / `container.index` are named
   refs.
@@ -145,7 +145,7 @@ to the default and writes `null` for an active field that has a default but no s
 ## Wiring
 
 - `a.to(b, c)` (fan-out), chains `a.to(b).to(c)`, groups `a.to(b, c).to(d)` (fan-in),
-  `a.onError(b)` (not chainable), `cond.key.to(x)`, `p.to(x)` / `p.start.to(x)`, and
+  `a.onError(b)` (not chainable), `cond.key.to(x)`, `p.to(x)` (the start port), and
   `container.to(x)` (end port).
 - `edge(a, 'handle', b)`: `'source'` is the out port (how the printer writes it for a condition,
   router or container), `'loop-start-source'`/`'parallel-start-source'` the start port,
@@ -166,5 +166,5 @@ to the default and writes `null` for an active field that has a default but no s
 
 ## Also accepted (hand-written conveniences)
 
-- `p.start.to(x)` alongside `p.to(x)`; `env['X']`; `blk['to']` and non-call `blk.to` as refs.
+- `env['X']`; `blk['to']` and non-call `blk.to` as refs.
 - `raw([...])` for a whole tool list.

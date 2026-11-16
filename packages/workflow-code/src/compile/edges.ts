@@ -21,7 +21,7 @@ import {
 import { HINTS, hintForNode } from './hints'
 import { literalText } from './values'
 
-/** A wiring source: a block and, when written explicitly, the port (`cond.key`, `p.start`). */
+/** A wiring source: a block and, when written explicitly, the port (`cond.key`, `p`). */
 interface Endpoint {
   decl: BlockDecl
   port: Port | null
@@ -123,7 +123,7 @@ export class EdgeCollector {
             ? `${to.name} is not inside ${from.name}.`
             : `${to.name} is inside ${from.name}; start it with the loop parameter.`),
         node,
-        'Wire blocks within one scope; start a subflow body with p.start.to(block).'
+        'Wire blocks within one scope; start a subflow body with p.to(block).'
       )
       return false
     }
@@ -187,7 +187,7 @@ export class EdgeCollector {
     if (node.type === 'Identifier') {
       const binding = lookup(scope, node.name)
       if (binding?.kind === 'block') return [{ decl: binding.decl, port: null }]
-      if (binding?.kind === 'loopParam')
+      if (binding?.kind === 'subflowScope')
         return [{ decl: binding.container, port: { kind: 'subflowStart' } }]
       this.error('E_UNKNOWN_IDENTIFIER', `${node.name} is not a block.`, node)
       return null
@@ -196,9 +196,6 @@ export class EdgeCollector {
       const object = node.object
       if (object.type === 'Identifier') {
         const binding = lookup(scope, object.name)
-        if (binding?.kind === 'loopParam' && node.property.name === 'start') {
-          return [{ decl: binding.container, port: { kind: 'subflowStart' } }]
-        }
         if (binding?.kind === 'block') {
           const port = this.branchPort(binding.decl, node.property.name, node)
           return port ? [{ decl: binding.decl, port }] : null
@@ -257,7 +254,7 @@ export class EdgeCollector {
         'E_NO_DEFAULT_OUTPUT',
         `${endpoint.decl.name} routes through named branches.`,
         statement,
-        `Wire a branch: ${endpoint.decl.binding ?? 'block'}.<branch>.to(...).`
+        `Wire a branch: ${endpoint.decl.ident ?? 'block'}.<branch>.to(...).`
       )
       return null
     }

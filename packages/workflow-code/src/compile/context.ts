@@ -35,7 +35,7 @@ export interface BlockDecl {
   key: BlockKey
   name: string
   /** The `const` identifier, or `null` for a bare statement or an arrow-expression body. */
-  binding: string | null
+  ident: string | null
   call: CallExpression
   /** The node the `block` anchor and span cover. */
   anchorNode: Node
@@ -59,7 +59,7 @@ export interface BlockDecl {
 
 type Binding =
   | { kind: 'block'; decl: BlockDecl }
-  | { kind: 'loopParam'; container: BlockDecl }
+  | { kind: 'subflowScope'; container: BlockDecl }
   | { kind: 'sdk'; name: string }
   | { kind: 'vars' }
 
@@ -90,7 +90,7 @@ interface ImpliedEdge {
 interface CodeFileBudget {
   /** Repo-relative path → stored code, or `null` when the file was rejected. */
   reads: Map<string, string | null>
-  /** `file()` references seen so far. */
+  /** `codeFile()` references seen so far. */
   refs: number
   /** Bytes of the distinct files read so far. */
   bytes: number
@@ -107,8 +107,8 @@ export interface CompileContext {
   comments: CommentCollector
   decls: BlockDecl[]
   declsByKey: Map<BlockKey, BlockDecl>
-  /** Every block binding by identifier, across scopes, for `E_OUT_OF_SCOPE`. */
-  declsByBinding: Map<string, BlockDecl[]>
+  /** Every block declaration by ident, across scopes, for `E_OUT_OF_SCOPE`. */
+  declsByIdent: Map<string, BlockDecl[]>
   variables: Map<VarKey, CanonicalVariable>
   wiring: WiringStatement[]
   implied: ImpliedEdge[]

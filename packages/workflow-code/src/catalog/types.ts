@@ -53,7 +53,7 @@ export type CatalogCondition = SubBlockConditionClause | OpaqueMarker
  * - `resource`: a workspace resource by key (`resourceKind` says which). Selector-kind, so a pair
  *   member of this kind is the basic member (build-spec decision 7).
  * - `picked`: an opaque provider id from a remote selector (`picked('C0123')`); basic.
- * - `upload`: a workspace file upload (`upload('path')`); basic.
+ * - `upload`: a workspace file (`file('path')`); basic.
  * - `none`: display-only or server-managed (text, schedule-info, webhook-config, modal); never
  *   written in source.
  */

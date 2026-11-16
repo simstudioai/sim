@@ -1,7 +1,7 @@
 // @sim-sdk 1
 import {
   agent,
-  binding,
+  credential,
   gmail,
   googleSheets,
   md,
@@ -13,7 +13,7 @@ import {
 
 export default workflow('Invoice report', {}, () => {
   const mail = trigger.gmail.poller('Invoice email', {
-    oauthCredential: binding('finance-gmail'),
+    oauthCredential: credential('finance-gmail'),
     labelIds: ['INBOX'],
     markAsRead: true,
   })
@@ -22,13 +22,13 @@ export default workflow('Invoice report', {}, () => {
     messages: [{ role: 'user', content: t`Extract totals:\n${mail.email.bodyText}` }],
     tools: [
       googleSheets.tool.appendData(
-        { oauthCredential: binding('finance-google'), spreadsheetId: '1AbC' },
+        { oauthCredential: credential('finance-google'), spreadsheetId: '1AbC' },
         { usageControl: 'auto' }
       ),
     ],
   })
   const send = gmail.sendEmail('Send summary', {
-    oauthCredential: binding('finance-gmail'),
+    oauthCredential: credential('finance-gmail'),
     to: 'cfo@acme.com',
     subject: 'Invoices',
     body: extract.content,

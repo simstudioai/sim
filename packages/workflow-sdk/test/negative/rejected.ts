@@ -2,12 +2,12 @@
 // Each `@ts-expect-error` must see an error, or the type-check fails with "unused directive".
 import {
   agent,
-  binding,
+  credential,
   env,
   gmail,
   js,
-  kb,
   knowledge,
+  knowledgeBase,
   slack,
   t,
   table,
@@ -37,7 +37,7 @@ export default workflow('Rejected', {}, () => {
 
   // An unknown param.
   gmail.sendEmail('Send', {
-    oauthCredential: binding('finance-gmail'),
+    oauthCredential: credential('finance-gmail'),
     to: 'a@b.co',
     body: 'hi',
     // @ts-expect-error `recipient` is not a param of gmail.sendEmail
@@ -46,14 +46,14 @@ export default workflow('Rejected', {}, () => {
 
   // A wrong literal option.
   knowledge.search('Search', {
-    knowledgeBaseId: kb('docs'),
+    knowledgeBaseId: knowledgeBase('docs'),
     // @ts-expect-error `semantic` is not a search mode
     searchMode: 'semantic',
   })
 
   // A missing required param (`to`).
   // @ts-expect-error `to` is required by gmail.sendEmail
-  gmail.sendEmail('Send', { oauthCredential: binding('finance-gmail'), body: 'hi' })
+  gmail.sendEmail('Send', { oauthCredential: credential('finance-gmail'), body: 'hi' })
 
   // An unknown table column, with workspace types loaded.
   table.insertRow('Log', {
@@ -64,7 +64,7 @@ export default workflow('Rejected', {}, () => {
 
   // Unknown workspace resources and env names.
   // @ts-expect-error `dosc` is not a knowledge base of the workspace
-  kb('dosc')
+  knowledgeBase('dosc')
   // @ts-expect-error `CRM_KYE` is not a workspace environment variable
   t`${env.CRM_KYE}`
 

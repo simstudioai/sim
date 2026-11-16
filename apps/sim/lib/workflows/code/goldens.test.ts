@@ -27,8 +27,8 @@ import {
   compileWorkflow,
   executableInactiveParams,
   executableView,
-  type LockHints,
   printWorkflow,
+  type SourceHints,
 } from '@sim/workflow-code'
 import { editorDefaults } from '@sim/workflow-code/catalog/defaults'
 import { generateSdkTypes } from '@sim/workflow-sdk/codegen'
@@ -55,7 +55,7 @@ function findCase(name: string) {
   return testCase
 }
 
-function print(workflow: CanonicalWorkflow, hints: LockHints | undefined) {
+function print(workflow: CanonicalWorkflow, hints: SourceHints | undefined) {
   return printWorkflow({ workflow, catalog, hints, options: INLINE })
 }
 

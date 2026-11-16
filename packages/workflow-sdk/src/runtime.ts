@@ -10,7 +10,7 @@ export class SimSdkNotExecutable extends Error {
 
   constructor(exportName: string) {
     super(
-      `@sim/workflow-sdk: \`${exportName}\` does not run. Workflow files are compiled by Sim, never executed; check them with \`sim workflows source plan\` or a type-check.`
+      `@sim/workflow-sdk: \`${exportName}\` does not run. Workflow files are compiled by Sim, never executed; check them with \`sim workflows source apply --dry-run\` or a type-check.`
     )
     this.name = 'SimSdkNotExecutable'
     this.export = exportName
@@ -40,20 +40,21 @@ export const md = stub('md')
 export const ref = stub('ref')
 export const raw = stub('raw')
 export const todo = stub('todo')
-export const file = stub('file')
+export const codeFile = stub('codeFile')
 export const env = stub('env')
-export const binding = stub('binding')
+export const credential = stub('credential')
 export const table = stub('table')
-export const kb = stub('kb')
+export const knowledgeBase = stub('knowledgeBase')
 export const skill = stub('skill')
 export const sandbox = stub('sandbox')
 export const folder = stub('folder')
-export const upload = stub('upload')
+export const file = stub('file')
 export const customTool = stub('customTool')
 export const mcp = stub('mcp')
 export const edge = stub('edge')
 export const block = stub('block')
 export const workflow = stub('workflow')
+export const childWorkflow = stub('childWorkflow')
 export const loop = stub('loop')
 export const parallel = stub('parallel')
 export const condition = stub('condition')

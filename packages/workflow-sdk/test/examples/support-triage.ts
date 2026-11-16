@@ -1,8 +1,8 @@
 // @sim-sdk 1
 import {
   agent,
-  binding,
   condition,
+  credential,
   env,
   js,
   response,
@@ -52,7 +52,7 @@ export default workflow(
       data: { subject: ticketIn.subject, category: classify.category },
     })
     const notify = slack.sendMessage('Notify', {
-      oauthCredential: binding('support-slack'),
+      oauthCredential: credential('support-slack'),
       channel: 'C0SUPPORT',
       text: t`New ${classify.category} ticket: ${ticketIn.subject}`,
     })

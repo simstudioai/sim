@@ -1,20 +1,20 @@
 // @sim-sdk 1
-import { binding, gmail, todo, trigger, workflow } from '@sim/workflow-sdk'
+import { credential, gmail, todo, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
   const invoiceEmail = trigger.gmail.poller('Invoice email', {
-    oauthCredential: binding('finance-gmail'),
+    oauthCredential: credential('finance-gmail'),
     labelIds: ['INBOX'],
     labelFilterBehavior: todo(),
     markAsRead: true,
   })
   const oddTrigger = trigger.gmail.poller('Odd trigger', {
-    oauthCredential: binding('finance-gmail'),
+    oauthCredential: credential('finance-gmail'),
     labelFilterBehavior: todo(),
     markAsRead: false,
   })
   const sendSummary = gmail.sendEmail('Send summary', {
-    oauthCredential: binding('finance-gmail'),
+    oauthCredential: credential('finance-gmail'),
     to: 'cfo@acme.test',
     subject: 'Invoices',
     body: invoiceEmail.email.subject,

@@ -4,7 +4,7 @@ import type { BlockKey } from '../model'
 export interface OrderNode {
   key: BlockKey
   isTrigger: boolean
-  /** Lock / code_meta order; absent sorts last. */
+  /** Lock / source meta order; absent sorts last. */
   order: number | undefined
 }
 

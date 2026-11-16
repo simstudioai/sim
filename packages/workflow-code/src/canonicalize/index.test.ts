@@ -947,13 +947,13 @@ describe('canonicalize: branches (step 6, quirks 4-8)', () => {
     )
     const result = run(workflow([blockState('c1', 'condition', 'Cond', { conditions: rows })]), {
       lock: {
-        lockVersion: 1,
+        version: 1,
         variables: {},
         blocks: {
           cond: {
             id: 'c1',
             parent: null,
-            binding: 'cond',
+            ident: 'cond',
             order: 0,
             branches: { highValue: 'c1-if' },
           },

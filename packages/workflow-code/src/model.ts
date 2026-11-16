@@ -47,7 +47,7 @@ export type ParamMode = 'basic' | 'advanced'
  * (`WORKFLOW_RESOURCE_KINDS` in `@sim/workflow-types/resources`, also used by workflow imports and
  * fork sync) minus `env-var`. Environment variables are `{{NAME}}` text tokens printed as
  * `env.NAME`, never nodes. Each kind is printed call-form (`table('leads')`,
- * `binding('support-slack')`, `kb('docs')`, ...; build-spec decision 7, s2 D6) and resolved by the
+ * `credential('support-slack')`, `knowledgeBase('docs')`, ...; build-spec decision 7, s2 D6) and resolved by the
  * server's `ResourceKeyResolver`.
  */
 export type ResourceKind = Exclude<PortableResourceKind, 'env-var'>
@@ -226,7 +226,7 @@ export interface CanonicalBlock {
   /** The enclosing loop/parallel (`data.parentId`), or `null` at the root. */
   parent: BlockKey | null
   enabled: boolean
-  /** Protected: apply refuses any diff touching it (build-spec decision 11, s4 D2). */
+  /** Locked: apply refuses any diff touching it (build-spec decision 11, s4 D2). */
   locked: boolean
   /** The stored `triggerMode` flag. */
   triggerMode: boolean
@@ -260,7 +260,7 @@ export interface CanonicalBlock {
   subflow?: LoopSpec | ParallelSpec
   /**
    * Unknown `block.data` keys, verbatim. Source carries only a container's subflow keys, which the
-   * serializer passes on (`meta.extraData`); apply keeps the rest from the stored workflow.
+   * serializer passes on (`meta.subflowData`); apply keeps the rest from the stored workflow.
    */
   extra?: Record<string, Json>
 }
@@ -362,7 +362,7 @@ export interface WorkflowAnnotations {
    */
   inactive: Record<BlockKey, SubBlockId[]>
   /**
-   * Comments by anchor, in source order. Persisted server-side in `workflow.code_meta` once it
+   * Comments by anchor, in source order. Persisted server-side in `workflow_source_meta` once it
    * exists (build-spec decision 6); until then only files carry them.
    */
   comments: Partial<Record<AnchorKey, CodeComment[]>>

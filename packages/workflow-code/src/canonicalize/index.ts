@@ -177,11 +177,11 @@ export const canonicalize: CanonicalizeFn = (state, options) => {
       })
     }
 
-    const extraData: Record<string, Json> = {}
+    const extraFields: Record<string, Json> = {}
     const parentId = typeof data.parentId === 'string' ? data.parentId : undefined
     const parent = parentId !== undefined ? (keyById.get(parentId) ?? null) : null
     if (data.parentId != null && (parentId === undefined || parent === null)) {
-      extraData.parentId = toJson(data.parentId)
+      extraFields.parentId = toJson(data.parentId)
       report(context, {
         code: 'W_CANON_DANGLING_PARENT',
         severity: 'warning',
@@ -252,9 +252,9 @@ export const canonicalize: CanonicalizeFn = (state, options) => {
       if (dataKey === 'extent' && value === 'parent' && parent !== null) continue
       if (dataKey === 'canonicalModes' && isModeMap(value)) continue
       if (isContainer && SUBFLOW_DATA_KEYS.has(dataKey) && !rejectedDataKeys.has(dataKey)) continue
-      setOwn(extraData, dataKey, toJson(value))
+      setOwn(extraFields, dataKey, toJson(value))
     }
-    if (Object.keys(extraData).length > 0) canonical.extra = extraData
+    if (Object.keys(extraFields).length > 0) canonical.extra = extraFields
 
     if (catalog && !isContainer) {
       const activityValues = overrides ? { ...rawValues, __canonicalModes: overrides } : rawValues

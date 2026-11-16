@@ -11,7 +11,7 @@ import {
   RESERVED_WORKFLOW_BLOCK_NAMES,
 } from '@sim/workflow-types/workflow'
 import { portKey } from '../anchors'
-import type { LockHintBlock, LockHints, PrintInput, PrintResult, PrintWorkflowFn } from '../api'
+import type { PrintInput, PrintResult, PrintWorkflowFn, SourceHintBlock, SourceHints } from '../api'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { canonicalActivityInputs, executableInactiveParams, isInactive } from '../catalog/activity'
 import { type EditorDefault, editorDefaults } from '../catalog/defaults'
@@ -193,7 +193,7 @@ function toolJson(tool: CanonicalTool): Json {
 class WorkflowPrinter {
   private readonly workflow: CanonicalWorkflow
   private readonly catalog: BlockCatalog
-  private readonly hints: LockHints
+  private readonly hints: SourceHints
   private readonly width: number
   private readonly options: PrintInput['options']
   private readonly diagnostics: Diag[] = []
@@ -230,7 +230,7 @@ class WorkflowPrinter {
       hasVariable: (key) => key in this.workflow.variables,
       visibility: (from, target) => this.visibility(from, target),
       identOf: (key) => this.idents.get(key) ?? key,
-      loopParam: (from, kind) => this.loopParam(from, kind),
+      subflowScope: (from, kind) => this.subflowScope(from, kind),
       use: (name) => this.imports.add(name),
       useVars: () => {
         this.usesVars = true
@@ -292,7 +292,7 @@ class WorkflowPrinter {
     return a < b ? 'ok' : 'forward'
   }
 
-  private loopParam(from: BlockKey, kind: 'loop' | 'parallel'): string | null {
+  private subflowScope(from: BlockKey, kind: 'loop' | 'parallel'): string | null {
     for (const ancestor of this.ancestors(from)) {
       if (this.blocks.get(ancestor)?.subflow?.kind === kind) {
         return this.paramNames.get(ancestor) ?? null
@@ -360,7 +360,7 @@ class WorkflowPrinter {
       this.preorder.map((key) => ({
         key,
         name: this.blocks.get(key)?.name ?? key,
-        hint: getOwn(this.hints.blocks, key)?.binding,
+        hint: getOwn(this.hints.blocks, key)?.ident,
       })),
       reserved
     )
@@ -513,7 +513,7 @@ class WorkflowPrinter {
     this.takenCodePaths.add(path)
     this.codeFileHints.set(block.key, path)
     this.codeFiles.push({ path, text })
-    return this.values.call('file', [{ doc: quoteString(`./${path}`), shape: 'string' }])
+    return this.values.call('codeFile', [{ doc: quoteString(`./${path}`), shape: 'string' }])
   }
 
   private printTools(block: CanonicalBlock, tools: CanonicalTool[]): PrintedValue {
@@ -731,7 +731,7 @@ class WorkflowPrinter {
     fields: {
       triggerMode?: boolean | undefined
       extra: Property[]
-      extraData?: Record<string, Json>
+      subflowData?: Record<string, Json>
       branches?: Property[]
     }
   ): Property[] {
@@ -754,7 +754,9 @@ class WorkflowPrinter {
       meta.push({ key: 'branches', value: objectExpr(fields.branches) })
     }
     if (fields.extra.length > 0) meta.push({ key: 'extra', value: objectExpr(fields.extra) })
-    if (fields.extraData) meta.push({ key: 'extraData', value: this.values.json(fields.extraData) })
+    if (fields.subflowData) {
+      meta.push({ key: 'subflowData', value: this.values.json(fields.subflowData) })
+    }
     return meta
   }
 
@@ -859,7 +861,7 @@ class WorkflowPrinter {
   /**
    * `loop.<type>(name, config, body, meta?)` / `parallel[.<type>](...)`. Config holds the fields
    * the type runs with; the other types' fields are left to the stored workflow. `meta.extra`
-   * carries the container's stored params, and `meta.extraData` the subflow keys of `block.data`
+   * carries the container's stored params, and `meta.subflowData` the subflow keys of `block.data`
    * canonicalize could not read as config, which the serializer passes on with the container's
    * data.
    */
@@ -892,13 +894,13 @@ class WorkflowPrinter {
       catalogBlockOf(this.catalog, block.type),
       new Set()
     )
-    const residue: Record<string, Json> = {}
+    const subflowData: Record<string, Json> = {}
     for (const [key, value] of Object.entries(block.extra ?? {})) {
-      if (SUBFLOW_DATA_KEYS.has(key)) setOwn(residue, key, value)
+      if (SUBFLOW_DATA_KEYS.has(key)) setOwn(subflowData, key, value)
     }
     const meta = this.metaProperties(block, {
       extra: this.paramProperties([...params, ...extra]),
-      ...(Object.keys(residue).length > 0 && { extraData: residue }),
+      ...(Object.keys(subflowData).length > 0 && { subflowData }),
     })
     const body = this.scopeStatements(block.key)
     const args: Expr[] = [
@@ -1134,11 +1136,11 @@ class WorkflowPrinter {
     parts.push(hardline)
     const text = printDoc(parts, this.width)
 
-    const hintBlocks: Record<BlockKey, LockHintBlock> = { ...this.hints.blocks }
+    const hintBlocks: Record<BlockKey, SourceHintBlock> = { ...this.hints.blocks }
     this.preorder.forEach((key, index) => {
       const codeFile = this.codeFileHints.get(key)
       setOwn(hintBlocks, key, {
-        binding: this.idents.get(key) ?? key,
+        ident: this.idents.get(key) ?? key,
         order: index,
         ...(codeFile ? { codeFile } : {}),
       })

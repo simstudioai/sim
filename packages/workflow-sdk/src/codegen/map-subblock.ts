@@ -2,7 +2,7 @@
  * SubBlock type → TS param type (s2 §2 "Mapping each subBlock type"). Every one of the 48
  * `SubBlockType`s has an arm; the `never` check makes a new type a compile error here.
  *
- * Types reference names exported by `core.d.ts` (`Value`, `Binding`, `TableRef`, ...). A basic/advanced
+ * Types reference names exported by `core.d.ts` (`Value`, `CredentialRef`, `TableRef`, ...). A basic/advanced
  * pair is the union of its members' types, so the mode follows from the kind of value written
  * (build-spec decision 7): a selector-kind constructor is basic, a plain value or reference is
  * advanced.
@@ -107,7 +107,7 @@ export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
     }
     case 'oauth-input':
       return {
-        type: 'Binding',
+        type: 'CredentialRef',
         doc: [...doc, ...(subBlock.serviceId ? [`Service: \`${subBlock.serviceId}\`.`] : [])],
       }
     case 'channel-selector':
@@ -131,7 +131,7 @@ export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
     case 'workflow-selector':
       return { type: 'WorkflowRef', doc }
     case 'file-upload':
-      return { type: subBlock.multiple ? 'Upload | Upload[]' : 'Upload', doc }
+      return { type: subBlock.multiple ? 'FileRef | FileRef[]' : 'FileRef', doc }
     case 'tool-input':
       return { type: 'Tool[]', doc }
     case 'skill-input':

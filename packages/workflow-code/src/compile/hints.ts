@@ -10,7 +10,7 @@ export const HINTS = {
     'Only blocks can be named. Inline the value, or declare a workflow variable and use vars.x.',
   destructuring: 'Bind the block and use blk.field.',
   helpers:
-    "Helpers aren't supported in workflow files; put logic in a function block with code: file('./fns/x.js').",
+    "Helpers aren't supported in workflow files; put logic in a function block with code: codeFile('./fns/x.js').",
   controlFlow:
     "Control flow can't create blocks. Use condition()/router() for branching and loop()/parallel() for iteration.",
   spread: 'Write each field explicitly.',
@@ -23,7 +23,7 @@ export const HINTS = {
   literalKind: "Regex and BigInt literals aren't values; write the pattern or number as a string.",
   elementAccess: "Use a literal key: blk['key'] or blk[0].",
   otherImport:
-    "Only '@sim/workflow-sdk' is importable; reference function files with file('./fns/x.js').",
+    "Only '@sim/workflow-sdk' is importable; reference function files with codeFile('./fns/x.js').",
   extraStatement:
     'A workflow file holds imports and one export default workflow(...); move this inside the workflow body or delete it.',
   namedExport: 'Only export default workflow(...) is allowed; remove this export.',

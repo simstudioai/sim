@@ -53,7 +53,7 @@ export interface ValueSite {
  * How a value was written, which picks the member of a basic/advanced pair (build-spec
  * decision 7) and decides whether `W_VALUE_KIND` applies (only to literals).
  */
-type ValueForm = 'literal' | 'ref' | 'template' | 'resource' | 'upload' | 'raw'
+type ValueForm = 'literal' | 'ref' | 'template' | 'resource' | 'file' | 'raw'
 
 export type CompiledValue =
   | { kind: 'value'; value: Value; form: ValueForm }
@@ -61,10 +61,10 @@ export type CompiledValue =
   | { kind: 'todo' }
   /** `null` at the top of a param: a stored `null` is absent. */
   | { kind: 'absent' }
-  /** `file('./x.js')`: only valid as a function block's code. */
-  | { kind: 'file'; path: string; pathNode: Node }
+  /** `codeFile('./x.js')`: only valid as a function block's code. */
+  | { kind: 'codeFile'; path: string; pathNode: Node }
 
-const SELECTOR_FORMS: ReadonlySet<ValueForm> = new Set(['resource', 'upload'])
+const SELECTOR_FORMS: ReadonlySet<ValueForm> = new Set(['resource', 'file'])
 
 export function isSelectorForm(form: ValueForm): boolean {
   return SELECTOR_FORMS.has(form)
@@ -72,16 +72,16 @@ export function isSelectorForm(form: ValueForm): boolean {
 
 /** Call-form resource constructors (s2 D6) and the kind each produces. */
 const RESOURCE_CALLS: Record<string, ResourceKind> = {
-  binding: 'credential',
+  credential: 'credential',
   table: 'table',
-  kb: 'knowledge-base',
-  workflow: 'workflow',
+  knowledgeBase: 'knowledge-base',
+  childWorkflow: 'workflow',
   skill: 'skill',
   customTool: 'custom-tool',
   mcp: 'mcp-server',
   sandbox: 'sandbox',
   folder: 'file-folder',
-  upload: 'file',
+  file: 'file',
 }
 
 const TEMPLATE_TAGS = new Set(['t', 'js', 'json', 'md', 'py', 'sh'])
@@ -93,7 +93,7 @@ export const SDK_VALUE_FUNCTIONS = new Set([
   'raw',
   'todo',
   'ref',
-  'file',
+  'codeFile',
   'edge',
   'env',
   'vars',
@@ -436,7 +436,7 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
 
   const binding = lookup(site.scope, root.name)
   if (!binding) {
-    const elsewhere = ctx.declsByBinding.get(root.name)
+    const elsewhere = ctx.declsByIdent.get(root.name)
     if (elsewhere && elsewhere.length > 0) {
       ctx.reporter.report(
         'E_OUT_OF_SCOPE',
@@ -511,8 +511,8 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
       }
       return `{{${name}}}`
     }
-    case 'loopParam':
-      return loopParamRef(ctx, node, binding.container, members, site)
+    case 'subflowScope':
+      return subflowScopeRef(ctx, node, binding.container, members, site)
     case 'block': {
       const target = binding.decl
       const segments = segmentsOf(ctx, members, site)
@@ -521,7 +521,7 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
       if (target.order > site.decl.order && target !== site.decl) {
         ctx.reporter.report(
           'W_FORWARD_REF',
-          `${target.binding ?? target.key} is declared after this block.`,
+          `${target.ident ?? target.key} is declared after this block.`,
           rangeOf(ctx, node),
           { hint: 'Declare blocks before the blocks that read them.', blockKey: site.decl.key }
         )
@@ -588,7 +588,7 @@ function checkOutputPath(
   }
 }
 
-function loopParamRef(
+function subflowScopeRef(
   ctx: CompileContext,
   node: Node,
   container: BlockDecl,
@@ -603,17 +603,11 @@ function loopParamRef(
   const label = paramName.type === 'Identifier' ? paramName.name : 'p'
   if (!first || property === null || !known.includes(property)) {
     ctx.reporter.report(
-      'E_UNKNOWN_LOOP_PROPERTY',
-      property === 'start'
-        ? `${label}.start is only for wiring the first block.`
-        : `A ${kind} has no property ${property ?? '(none)'}.`,
+      'E_UNKNOWN_SUBFLOW_PROPERTY',
+      `A ${kind} has no property ${property ?? '(none)'}.`,
       rangeOf(ctx, node),
       {
-        ...withHint(
-          property === 'start'
-            ? `Write ${label}.start.to(block).`
-            : didYouMean(property ?? '', known, (name) => `${label}.${name}`)
-        ),
+        ...withHint(didYouMean(property ?? '', known, (name) => `${label}.${name}`)),
         blockKey: site.decl.key,
       }
     )
@@ -683,16 +677,16 @@ function compileCall(
     const argument = singleStringArgument(ctx, call, path, site)
     if (!argument) return null
     const value: Value = { $sim: 'resource', kind: resourceKind, key: argument.text }
-    return { kind: 'value', value, form: path === 'upload' ? 'upload' : 'resource' }
+    return { kind: 'value', value, form: path === 'file' ? 'file' : 'resource' }
   }
   switch (path) {
     case 'ref': {
       const argument = singleStringArgument(ctx, call, 'ref', site)
       return argument ? { kind: 'value', value: `<${argument.text}>`, form: 'ref' } : null
     }
-    case 'file': {
-      const argument = singleStringArgument(ctx, call, 'file', site)
-      return argument ? { kind: 'file', path: argument.text, pathNode: argument.node } : null
+    case 'codeFile': {
+      const argument = singleStringArgument(ctx, call, 'codeFile', site)
+      return argument ? { kind: 'codeFile', path: argument.text, pathNode: argument.node } : null
     }
     case 'todo':
       if (call.arguments.length > 0)
@@ -791,10 +785,10 @@ function nestedValue(
     node,
     compiled.kind === 'todo'
       ? 'todo() stands for a whole param.'
-      : 'file() holds a whole code param.',
+      : 'codeFile() holds a whole code param.',
     compiled.kind === 'todo'
       ? 'Write todo() as the param value.'
-      : "Write code: file('./fns/x.js').",
+      : "Write code: codeFile('./fns/x.js').",
     site
   )
   return undefined

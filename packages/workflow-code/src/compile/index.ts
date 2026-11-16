@@ -2,7 +2,7 @@ import type { ArrowFunctionExpression, CallExpression, Node } from '@babel/types
 import { compareStrings } from '@sim/utils/string'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import { encodeAnchor, portKey } from '../anchors'
-import type { CompileResult, CompileWorkflowFn, LockHints } from '../api'
+import type { CompileResult, CompileWorkflowFn, SourceHints } from '../api'
 import type { SourceSpan } from '../diagnostics/frame'
 import type {
   AnchorKey,
@@ -339,7 +339,7 @@ export const compileWorkflow: CompileWorkflowFn = (input) => {
     comments: new CommentCollector(file, reporter),
     decls: [],
     declsByKey: new Map(),
-    declsByBinding: new Map(),
+    declsByIdent: new Map(),
     variables: new Map(),
     wiring: [],
     implied: [],
@@ -424,13 +424,13 @@ export const compileWorkflow: CompileWorkflowFn = (input) => {
   }
 
   const compiled = new Map<BlockKey, CanonicalBlock>()
-  const hints: LockHints = { blocks: {} }
+  const hints: SourceHints = { blocks: {} }
   for (const decl of ctx.decls) {
     const result = compileBlock(ctx, decl)
     if (!result) continue
     compiled.set(decl.key, result.block)
     setOwn(hints.blocks, decl.key, {
-      ...(decl.binding !== null && { binding: decl.binding }),
+      ...(decl.ident !== null && { ident: decl.ident }),
       order: decl.order,
       ...(result.codeFile !== undefined && { codeFile: result.codeFile }),
     })

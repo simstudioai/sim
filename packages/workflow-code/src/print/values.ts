@@ -35,21 +35,21 @@ export interface FieldContext {
  * `raw(<the CWM node>)`, which compiles back to the same node.
  */
 const RESOURCE_CALLS: Partial<Record<string, string>> = {
-  credential: 'binding',
+  credential: 'credential',
   table: 'table',
-  'knowledge-base': 'kb',
-  workflow: 'workflow',
+  'knowledge-base': 'knowledgeBase',
+  workflow: 'childWorkflow',
   skill: 'skill',
   'custom-tool': 'customTool',
   'mcp-server': 'mcp',
   sandbox: 'sandbox',
-  file: 'upload',
+  file: 'file',
   'file-folder': 'folder',
 }
 
 export interface PrintedValue extends Expr {
   /**
-   * True when the value printed as a selector call (`table('x')`, `upload('a.pdf')`, ...) or a
+   * True when the value printed as a selector call (`table('x')`, `file('a.pdf')`, ...) or a
    * non-empty array of them: the form that stores into the basic member of a pair.
    */
   selector?: boolean

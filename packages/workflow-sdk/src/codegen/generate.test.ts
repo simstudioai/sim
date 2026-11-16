@@ -77,7 +77,7 @@ describe('generateWorkspaceTypes', () => {
     const reversed = {
       ...FIXTURE_WORKSPACE,
       tables: reversedKeys(FIXTURE_WORKSPACE.tables ?? {}),
-      bindings: reversedKeys(FIXTURE_WORKSPACE.bindings ?? {}),
+      credentials: reversedKeys(FIXTURE_WORKSPACE.credentials ?? {}),
       env: [...(FIXTURE_WORKSPACE.env ?? [])].reverse(),
     }
     expect(generateWorkspaceTypes(reversed)).toEqual(generateWorkspaceTypes(FIXTURE_WORKSPACE))

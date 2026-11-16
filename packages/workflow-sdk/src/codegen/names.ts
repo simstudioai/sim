@@ -32,21 +32,22 @@ export const SPECIAL_BUILDER_KEYS: readonly string[] = Object.keys(SPECIAL_BUILD
 
 /**
  * Core exports a generated namespace may merge with: functions (`table.insertRow` beside
- * `table('leads')`) and the empty `trigger` / `legacy` namespaces. Consts (`env`, `loop`, `js`,
+ * `table('leads')`, `file.read` beside `file('a.pdf')`) and the empty `trigger` / `legacy` namespaces. Consts (`env`, `loop`, `js`,
  * ...) cannot merge.
  */
 const MERGEABLE_CORE_EXPORTS: ReadonlySet<string> = new Set([
-  'binding',
+  'childWorkflow',
+  'credential',
   'customTool',
+  'file',
   'folder',
-  'kb',
+  'knowledgeBase',
   'legacy',
   'mcp',
   'sandbox',
   'skill',
   'table',
   'trigger',
-  'upload',
   'workflow',
 ])
 

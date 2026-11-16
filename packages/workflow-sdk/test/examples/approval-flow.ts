@@ -1,7 +1,7 @@
 // @sim-sdk 1
 import {
-  binding,
   condition,
+  credential,
   human,
   js,
   ref,
@@ -25,7 +25,7 @@ export default workflow('Approval flow', {}, () => {
     builderData: { amount: { type: 'number', value: req.amount } },
     notification: [
       slack.tool.sendMessage({
-        oauthCredential: binding('ops-slack'),
+        oauthCredential: credential('ops-slack'),
         channel: 'C0OPS',
         text: t`Approve: ${ref('managerapproval.url')}`,
       }),

@@ -6,7 +6,7 @@ import { compileWorkflow } from './index'
 import { TEST_CATALOG } from './test-catalog'
 
 const IMPORTS =
-  "import { agent, api, binding, block, condition, edge, env, file, fn, js, json, kb, loop, md, note, parallel, raw, ref, router, slack, t, table, todo, trigger, upload, workflow } from '@sim/workflow-sdk'"
+  "import { agent, api, block, childWorkflow, codeFile, condition, credential, edge, env, file, fn, js, json, knowledgeBase, loop, md, note, parallel, raw, ref, router, slack, t, table, todo, trigger, workflow } from '@sim/workflow-sdk'"
 
 const DEFAULT_OPTIONS = "{ variables: { retries: { type: 'number', value: 3 } } }"
 
@@ -154,9 +154,9 @@ describe('accepted grammar', () => {
     const wf = ok(
       source(
         [
-          "const send = slack.sendMessage('Send', { authMethod: 'oauth', credential: binding('support-slack'), channel: 'C1', text: 'hi' })",
+          "const send = slack.sendMessage('Send', { authMethod: 'oauth', credential: credential('support-slack'), channel: 'C1', text: 'hi' })",
           "const row = table.insertRow('Row', { tableId: table('leads'), data: raw('{\"a\":1}') })",
-          "const legacy = block('custom_block_x', 'Legacy', { a: kb('docs'), b: workflow('enrich'), c: upload('files/a.pdf'), d: raw({ $sim: 'unresolved', kind: 'table', id: 't1' }), e: { $sim: 'plain' } }, { triggerMode: true })",
+          "const legacy = block('custom_block_x', 'Legacy', { a: knowledgeBase('docs'), b: childWorkflow('enrich'), c: file('files/a.pdf'), d: raw({ $sim: 'unresolved', kind: 'table', id: 't1' }), e: { $sim: 'plain' } }, { triggerMode: true })",
         ].join('\n')
       )
     )
@@ -294,7 +294,7 @@ describe('accepted grammar', () => {
           '  })',
           "  const deep = loop.for('Deep', { count: 2 }, (r) => {",
           "    const bottom = api('Bottom', { url: t`${p.index}/${r.index}` })",
-          '    r.start.to(bottom)',
+          '    r.to(bottom)',
           '  })',
           '  p.to(inner)',
           '  inner.to(fan)',
@@ -374,7 +374,7 @@ describe('accepted grammar', () => {
     const text = source(
       [
         "const s = slack.sendMessage('S', { authMethod: 'oauth', text: 'x' }, { disabled: true, locked: true, errorPort: true, retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 1000 }, extra: { legacyField: 'old' } })",
-        "const l = loop.for('L', { count: 2 }, (p) => {\n  const a = api('A', { url: 'u' })\n  p.to(a)\n}, { extra: { note: 'kept' }, extraData: { loopType: 'weird' } })",
+        "const l = loop.for('L', { count: 2 }, (p) => {\n  const a = api('A', { url: 'u' })\n  p.to(a)\n}, { extra: { note: 'kept' }, subflowData: { loopType: 'weird' } })",
       ].join('\n')
     )
     const result = run(text)
@@ -395,7 +395,7 @@ describe('accepted grammar', () => {
   it('pins the trigger builder, its fixed values and the operation', () => {
     const wf = ok(
       source(
-        "const mail = trigger.gmail.poller('Mail', { credential: binding('g'), labelIds: ['INBOX'], markAsRead: true })"
+        "const mail = trigger.gmail.poller('Mail', { credential: credential('g'), labelIds: ['INBOX'], markAsRead: true })"
       )
     )
     const mail = blockOf(wf, 'mail')
@@ -409,8 +409,8 @@ describe('accepted grammar', () => {
       source(
         [
           START,
-          "const score = fn('Score', { language: 'javascript', code: file('./fns/score.js') })",
-          "const py = fn('Py', { language: 'python', code: file('./fns/py.py') })",
+          "const score = fn('Score', { language: 'javascript', code: codeFile('./fns/score.js') })",
+          "const py = fn('Py', { language: 'python', code: codeFile('./fns/py.py') })",
         ].join('\n')
       ),
       {
@@ -424,7 +424,7 @@ describe('accepted grammar', () => {
     expect(paramValue(wf, 'score', 'code')).toBe('return <start.input> + {{KEY}} // $ref.x')
     expect(paramValue(wf, 'py', 'code')).toBe('print($ref.start.input)')
     expect(result.hints.blocks.score).toEqual({
-      binding: 'score',
+      ident: 'score',
       order: 1,
       codeFile: 'workflows/fns/score.js',
     })
@@ -503,8 +503,8 @@ describe('accepted grammar', () => {
     expect(spanOf(result, 'param:call:url')).toMatchObject({ line: 10, column: 5 })
     expect(spanOf(result, 'edges:start:out')).toMatchObject({ line: 17, column: 3 })
     expect(result.hints.blocks).toEqual({
-      start: { binding: 'start', order: 0 },
-      call: { binding: 'call', order: 1 },
+      start: { ident: 'start', order: 0 },
+      call: { ident: 'call', order: 1 },
     })
   })
 })
@@ -648,16 +648,16 @@ describe('errors, each with its code, location and hint', () => {
     [
       'an unknown loop property',
       "const l = loop.forEach('L', { collection: [] }, (p) => {\n  const a = api('A', { url: p.curentItem })\n  p.to(a)\n})",
-      'E_UNKNOWN_LOOP_PROPERTY',
+      'E_UNKNOWN_SUBFLOW_PROPERTY',
       'p.curentItem',
       'Did you mean p.currentItem?',
     ],
     [
       'subflow data on a block that is not a container',
-      "const s = slack.sendMessage('S', { authMethod: 'oauth', text: 'x' }, { extraData: { count: 2 } })",
+      "const s = slack.sendMessage('S', { authMethod: 'oauth', text: 'x' }, { subflowData: { count: 2 } })",
       'E_UNSUPPORTED_SYNTAX',
-      'extraData: { count: 2 }',
-      'Remove extraData; apply keeps the stored block data.',
+      'subflowData: { count: 2 }',
+      'Remove subflowData; apply keeps the stored block data.',
     ],
     [
       'an extra field the block declares as a param',
@@ -754,19 +754,19 @@ describe('errors, each with its code, location and hint', () => {
     ],
     [
       'a missing code file',
-      "const f = fn('F', { code: file('./fns/missing.js') })",
+      "const f = fn('F', { code: codeFile('./fns/missing.js') })",
       'E_CODE_FILE_MISSING',
       "'./fns/missing.js'",
     ],
     [
       'a code file outside the repo',
-      "const f = fn('F', { code: file('../../../x.js') })",
+      "const f = fn('F', { code: codeFile('../../../x.js') })",
       'E_CODE_FILE_PATH',
       "'../../../x.js'",
     ],
     [
       'a code file whose extension does not match the language',
-      "const f = fn('F', { language: 'python', code: file('./fns/a.js') })",
+      "const f = fn('F', { language: 'python', code: codeFile('./fns/a.js') })",
       'E_CODE_FILE_PATH',
       "'./fns/a.js'",
     ],
@@ -790,7 +790,7 @@ describe('errors, each with its code, location and hint', () => {
   })
 
   it('reports a syntax error inside a code file at its own location', () => {
-    const result = run(source("const f = fn('F', { code: file('./fns/bad.js') })"), {
+    const result = run(source("const f = fn('F', { code: codeFile('./fns/bad.js') })"), {
       'workflows/fns/bad.js': 'return (',
     })
     const syntax = result.diagnostics.find((d) => d.code === 'E_SYNTAX')
@@ -823,7 +823,7 @@ describe('rejected constructs (s3 §4 table)', () => {
     'Only blocks can be named. Inline the value, or declare a workflow variable and use vars.x.'
   const DESTRUCTURE = 'Bind the block and use blk.field.'
   const HELPERS =
-    "Helpers aren't supported in workflow files; put logic in a function block with code: file('./fns/x.js')."
+    "Helpers aren't supported in workflow files; put logic in a function block with code: codeFile('./fns/x.js')."
   const CONTROL =
     "Control flow can't create blocks. Use condition()/router() for branching and loop()/parallel() for iteration."
   const SPREAD = 'Write each field explicitly.'
@@ -838,7 +838,7 @@ describe('rejected constructs (s3 §4 table)', () => {
     "Regex and BigInt literals aren't values; write the pattern or number as a string."
   const ELEMENT = "Use a literal key: blk['key'] or blk[0]."
   const IMPORT =
-    "Only '@sim/workflow-sdk' is importable; reference function files with file('./fns/x.js')."
+    "Only '@sim/workflow-sdk' is importable; reference function files with codeFile('./fns/x.js')."
   const EXTRA =
     'A workflow file holds imports and one export default workflow(...); move this inside the workflow body or delete it.'
   const NAMED_EXPORT = 'Only export default workflow(...) is allowed; remove this export.'
@@ -847,7 +847,7 @@ describe('rejected constructs (s3 §4 table)', () => {
     ['let', "let a = api('A', { url: 'x' })", 'let a', LET],
     ['var', "var a = api('A', { url: 'x' })", 'var a', LET],
     ['a non-builder const', "const x = 'value'", "const x = 'value'", NON_BUILDER],
-    ['a resource const', "const x = binding('k')", "const x = binding('k')", NON_BUILDER],
+    ['a resource const', "const x = credential('k')", "const x = credential('k')", NON_BUILDER],
     ['destructuring', "const { a } = api('A', { url: 'x' })", '{ a }', DESTRUCTURE],
     ['a function declaration', 'function helper() {}', 'function helper', HELPERS],
     ['a class', 'class Helper {}', 'class Helper', HELPERS],
@@ -935,7 +935,7 @@ describe('meta.key: legacy keys the display name cannot carry', () => {
     expect(errorsOf(kept)).toEqual([])
     expect(Object.keys(kept.workflow?.blocks ?? {}).sort()).toEqual(['agent1', 'agent1~2'])
     expect(kept.workflow?.blocks['agent1~2']?.name).toBe('agent1')
-    expect(kept.hints.blocks['agent1~2']).toMatchObject({ binding: 'b' })
+    expect(kept.hints.blocks['agent1~2']).toMatchObject({ ident: 'b' })
 
     const loopBlock = withKeys(reserved, ['loop'])
     expect(errorsOf(loopBlock)).toEqual([])

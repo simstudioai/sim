@@ -111,11 +111,11 @@ describe('extendSdkNames', () => {
         params: { action: [param('oauthCredential', true), param('credential')], trigger: [] },
       }),
     ])
-    expect(names.blocks.drive.params).toEqual({
+    expect(names.blocks.drive.paramAliases).toEqual({
       action: { oauthCredential: 'credential' },
       trigger: { triggerCredentials: 'credential' },
     })
-    expect(names.blocks.mixed.params).toBeUndefined()
+    expect(names.blocks.mixed.paramAliases).toBeUndefined()
   })
 })
 
@@ -149,7 +149,7 @@ describe('validateSdkNames', () => {
       version: 1,
       blocks: {
         a: { namespace: 'shared', methods: { x: 'go', y: 'go' } },
-        b: { namespace: 'shared', params: { action: { oauthCredential: 'credential' } } },
+        b: { namespace: 'shared', paramAliases: { action: { oauthCredential: 'credential' } } },
       },
     }
     const issues = validateSdkNames(names, [

@@ -1,6 +1,6 @@
 /**
  * Names the `@sim/workflow-sdk` authoring surface fixes, shared by the printer (which must never
- * emit a block binding that shadows one), the compiler (which resolves them) and the lock
+ * emit a block ident that shadows one), the compiler (which resolves them) and the lock
  * validator. 2E's `core.d.ts` must export exactly {@link SDK_CORE_EXPORTS}.
  */
 
@@ -14,8 +14,10 @@ export const GENERIC_BUILDER = 'block'
 /** Every value the SDK's core module exports (s2 §2 core types, build-spec decision 7). */
 export const SDK_CORE_EXPORTS = [
   GENERIC_BUILDER,
-  'binding',
+  'childWorkflow',
+  'codeFile',
   'condition',
+  'credential',
   'customTool',
   'edge',
   'env',
@@ -25,7 +27,7 @@ export const SDK_CORE_EXPORTS = [
   'human',
   'js',
   'json',
-  'kb',
+  'knowledgeBase',
   'legacy',
   'loop',
   'mcp',
@@ -46,7 +48,6 @@ export const SDK_CORE_EXPORTS = [
   'table',
   'todo',
   'trigger',
-  'upload',
   'vars',
   'workflow',
 ] as const
@@ -105,7 +106,7 @@ const JS_RESERVED_WORDS = [
 ] as const
 
 /**
- * Identifiers a block binding may never take: JS reserved words plus every SDK core export.
+ * Identifiers a block ident may never take: JS reserved words plus every SDK core export.
  * Catalog builder namespaces (`slack`, `agent`, ...) are catalog-dependent, so the printer avoids
  * those itself with a numeric suffix.
  */

@@ -30,7 +30,7 @@ export interface RefScope {
   visibility(from: BlockKey, target: BlockKey): 'ok' | 'forward' | 'scope'
   identOf(key: BlockKey): string
   /** The param name of the nearest `kind` container enclosing `from`, if any. */
-  loopParam(from: BlockKey, kind: 'loop' | 'parallel'): string | null
+  subflowScope(from: BlockKey, kind: 'loop' | 'parallel'): string | null
   /** Records that the printed file uses an SDK import (`env`). */
   use(name: string): void
   /** Records that the printed file reads `vars`. */
@@ -64,7 +64,7 @@ export class RefPrinter {
     }
     if (head.name === 'loop' || head.name === 'parallel') {
       const known = head.name === 'loop' ? LOOP_PROPERTIES : PARALLEL_PROPERTIES
-      const param = from === null ? null : this.scope.loopParam(from, head.name)
+      const param = from === null ? null : this.scope.subflowScope(from, head.name)
       if (first?.kind !== 'name' || !known.includes(first.name) || param === null) {
         return this.unresolved(token, from, 'W_UNRESOLVED_REF')
       }

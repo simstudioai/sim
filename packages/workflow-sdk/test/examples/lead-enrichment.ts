@@ -1,9 +1,10 @@
 // @sim-sdk 1
 import {
   api,
-  binding,
+  childWorkflow,
+  codeFile,
+  credential,
   env,
-  file,
   fn,
   parallel,
   runWorkflow,
@@ -34,22 +35,22 @@ export default workflow('Lead enrichment', {}, () => {
         method: 'GET',
         headers: [{ cells: { Key: 'Authorization', Value: t`Bearer ${env.CRM_KEY}` } }],
       })
-      const score = fn('Score', { language: 'javascript', code: file('./functions/score.js') })
+      const score = fn('Score', { language: 'javascript', code: codeFile('./functions/score.js') })
       const save = table.updateRowById('Save', {
         tableId: table('leads'),
         rowId: p.currentItem.id,
         data: { score: score.result },
       })
-      p.start.to(lookup).to(score).to(save)
+      p.to(lookup).to(score).to(save)
     }
   )
   const handoff = runWorkflow('Hand off', {
-    workflowId: workflow('assign-owner'),
+    workflowId: childWorkflow('assign-owner'),
     inputMapping: { leads: enrichAll.results },
   })
   const legacyPing = slack.sendMessage(
     'Old ping',
-    { oauthCredential: binding('sales-slack'), channel: 'C0SALES', text: 'done' },
+    { oauthCredential: credential('sales-slack'), channel: 'C0SALES', text: 'done' },
     { disabled: true }
   )
   nightly.to(pending).to(enrichAll).to(handoff, legacyPing)

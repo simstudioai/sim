@@ -9,7 +9,7 @@
  *   editor defaults compile filled into fields that never run;
  * - the config fields of the loop or parallel types not in effect, and prev's spelling of a config
  *   that runs the same (`count: 0` and `count: 5`);
- * - unknown `block.data` residue source does not carry.
+ * - unknown `block.data` extra data source does not carry.
  *
  * Canonicalize's output already holds all of this, so restoring onto it changes nothing and the
  * no-op round trip stays byte-identical.
@@ -193,7 +193,7 @@ function restoreSubflow(
 
 /**
  * Unknown `block.data` source leaves out comes from prev. A container's subflow keys are the
- * only ones source carries (`meta.extraData`), so the target's copy of those wins.
+ * only ones source carries (`meta.subflowData`), so the target's copy of those wins.
  */
 function restoreExtra(target: CanonicalBlock, prev: CanonicalBlock): CanonicalBlock['extra'] {
   const data: Record<string, Json> = {}

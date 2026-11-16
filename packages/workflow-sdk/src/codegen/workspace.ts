@@ -1,7 +1,7 @@
 /**
  * `generateWorkspaceTypes(manifest)`: one `workspace.d.ts` that narrows the SDK to a workspace's
  * resources (s2 D6). It fills the `Workspace*` interfaces `core.d.ts` declares, so `table('leads')`
- * types its rows, a misspelled `kb('dosc')` or `env.STRIPE_KYE` is an error, and so on. Written by
+ * types its rows, a misspelled `knowledgeBase('dosc')` or `env.STRIPE_KYE` is an error, and so on. Written by
  * `sim workflows source get --out` from the workspace resource manifest; without it every key is a
  * plain string.
  */
@@ -22,8 +22,8 @@ export interface WorkspaceManifestColumn {
 export interface WorkspaceManifest {
   tables?: Record<string, { columns: Record<string, WorkspaceManifestColumn> }>
   knowledgeBases?: string[]
-  /** Credential bindings, with the provider service each one is for. */
-  bindings?: Record<string, { service: string }>
+  /** Saved credentials, with the provider each one is for. */
+  credentials?: Record<string, { provider: string }>
   /** Workflows by key, with the inputs their start block declares. */
   workflows?: Record<string, { inputs?: Record<string, string> }>
   /** Environment variable names (never values). */
@@ -88,8 +88,8 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
   const knowledgeBases = [...new Set(manifest.knowledgeBases ?? [])]
     .sort(compareStrings)
     .map((key) => `${quote(key)}: true`)
-  const bindings = sortedKeys(manifest.bindings).map(
-    (key) => `${quote(key)}: { service: ${quote(manifest.bindings?.[key]?.service ?? '')} }`
+  const credentials = sortedKeys(manifest.credentials).map(
+    (key) => `${quote(key)}: { provider: ${quote(manifest.credentials?.[key]?.provider ?? '')} }`
   )
   const workflows = sortedKeys(manifest.workflows).map((key) => {
     const inputs = manifest.workflows?.[key]?.inputs ?? {}
@@ -104,7 +104,7 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
   const body = [
     ...interfaceBlock('WorkspaceTables', tables),
     ...interfaceBlock('WorkspaceKnowledgeBases', knowledgeBases),
-    ...interfaceBlock('WorkspaceBindings', bindings),
+    ...interfaceBlock('WorkspaceCredentials', credentials),
     ...interfaceBlock('WorkspaceWorkflows', workflows),
     ...interfaceBlock('WorkspaceEnv', env),
   ]

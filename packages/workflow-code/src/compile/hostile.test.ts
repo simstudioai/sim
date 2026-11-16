@@ -150,17 +150,18 @@ describe('hostile sources produce diagnostics only', () => {
   })
 
   it('never reads a code file outside the repository or past the size cap', () => {
-    const text = `// @sim-sdk 1\nimport { file, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('X', {}, () => {\n  const a = fn('A', { code: file('../../etc/passwd.js') })\n  const b = fn('B', { code: file('./big.js') })\n})\n`
+    const text = `// @sim-sdk 1\nimport { codeFile, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('X', {}, () => {\n  const a = fn('A', { code: codeFile('../../etc/passwd.js') })\n  const b = fn('B', { code: codeFile('./big.js') })\n})\n`
     const result = run(text, { maxBytes: 1_000 }, { 'workflows/big.js': 'x'.repeat(5_000) })
     expect(codes(result)).toEqual(expect.arrayContaining(['E_CODE_FILE_PATH', 'E_LIMIT_EXCEEDED']))
   })
 
   describe('code file budget', () => {
-    const FILE_HEADER = "// @sim-sdk 1\nimport { file, fn, workflow } from '@sim/workflow-sdk'\n\n"
+    const FILE_HEADER =
+      "// @sim-sdk 1\nimport { codeFile, fn, workflow } from '@sim/workflow-sdk'\n\n"
     const fnFile = (count: number, path: (i: number) => string) =>
       `${FILE_HEADER}export default workflow('X', {}, () => {\n${Array.from(
         { length: count },
-        (_, i) => `  const f${i} = fn('F${i}', { code: file('${path(i)}') })`
+        (_, i) => `  const f${i} = fn('F${i}', { code: codeFile('${path(i)}') })`
       ).join('\n')}\n})\n`
 
     it('parses a code file referenced by many blocks once', () => {
@@ -189,7 +190,7 @@ describe('hostile sources produce diagnostics only', () => {
       expect(result.workflow).toBeNull()
     })
 
-    it('caps the number of file() references with one diagnostic', () => {
+    it('caps the number of codeFile() references with one diagnostic', () => {
       const result = run(
         fnFile(10, () => './a.js'),
         { maxCodeFileRefs: 3 },

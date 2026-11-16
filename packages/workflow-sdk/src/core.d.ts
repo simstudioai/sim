@@ -30,7 +30,7 @@ declare const ENV: unique symbol
 declare const RESOURCE: unique symbol
 declare const TOOL: unique symbol
 declare const NODE: unique symbol
-declare const FILE_BODY: unique symbol
+declare const CODE_FILE: unique symbol
 declare const RAW: unique symbol
 
 /** Any reference, whatever it points at. */
@@ -106,10 +106,10 @@ export declare function raw<T = never>(value: unknown): T & { readonly [RAW]: tr
 export declare function todo(): never
 
 /** Function code kept in a file next to the workflow (`.js`, `.py` or `.sh`), stored verbatim. */
-export interface FileBody {
-  readonly [FILE_BODY]: string
+export interface CodeFileRef {
+  readonly [CODE_FILE]: string
 }
-export declare function file(path: `./${string}`): FileBody
+export declare function codeFile(path: `./${string}`): CodeFileRef
 
 /**
  * Environment variable names known to the workspace. `workspace.d.ts` adds one member per name;
@@ -124,14 +124,14 @@ export declare const env: keyof WorkspaceEnv extends never
 
 /**
  * Workspace resources by stable key, filled in by the generated `workspace.d.ts`. Each map's
- * values describe the resource: a table's row type, a binding's service, a workflow's inputs.
+ * values describe the resource: a table's row type, a credential's provider, a workflow's inputs.
  */
 // biome-ignore lint/suspicious/noEmptyInterface: an empty interface is the merge target generated declarations augment
 export interface WorkspaceTables {}
 // biome-ignore lint/suspicious/noEmptyInterface: an empty interface is the merge target generated declarations augment
 export interface WorkspaceKnowledgeBases {}
 // biome-ignore lint/suspicious/noEmptyInterface: an empty interface is the merge target generated declarations augment
-export interface WorkspaceBindings {}
+export interface WorkspaceCredentials {}
 // biome-ignore lint/suspicious/noEmptyInterface: an empty interface is the merge target generated declarations augment
 export interface WorkspaceWorkflows {}
 
@@ -139,7 +139,7 @@ type KeyOf<M> = keyof M extends never ? string : Extract<keyof M, string>
 
 export type TableKey = KeyOf<WorkspaceTables>
 export type KnowledgeBaseKey = KeyOf<WorkspaceKnowledgeBases>
-export type BindingKey = KeyOf<WorkspaceBindings>
+export type CredentialKey = KeyOf<WorkspaceCredentials>
 export type WorkflowKey = KeyOf<WorkspaceWorkflows>
 
 /** A workspace resource by stable key, compiled to the resource's internal id. */
@@ -148,9 +148,9 @@ export interface ResourceRef<Kind extends string, Key extends string = string> {
   readonly key: Key
 }
 
-/** A credential binding: `binding('support-slack')`. */
-export type Binding<Key extends string = string> = ResourceRef<'credential', Key>
-export declare function binding<K extends BindingKey>(key: K): Binding<K>
+/** A saved credential: `credential('support-slack')`. */
+export type CredentialRef<Key extends string = string> = ResourceRef<'credential', Key>
+export declare function credential<K extends CredentialKey>(key: K): CredentialRef<K>
 
 /** The columns of a workspace table, or loose JSON when `workspace.d.ts` does not know it. */
 export type TableColumns<K extends string> = K extends keyof WorkspaceTables
@@ -167,9 +167,9 @@ export type TableData<K extends string> = K extends keyof WorkspaceTables
 export type TableRef<Key extends string = string> = ResourceRef<'table', Key>
 export declare function table<K extends TableKey>(key: K): TableRef<K>
 
-/** A knowledge base: `kb('docs')`. */
+/** A knowledge base: `knowledgeBase('docs')`. */
 export type KnowledgeBaseRef<Key extends string = string> = ResourceRef<'knowledge-base', Key>
-export declare function kb<K extends KnowledgeBaseKey>(key: K): KnowledgeBaseRef<K>
+export declare function knowledgeBase<K extends KnowledgeBaseKey>(key: K): KnowledgeBaseRef<K>
 
 /** A workspace skill: `skill('triage')`. */
 export type SkillRef = ResourceRef<'skill'>
@@ -183,9 +183,9 @@ export declare function sandbox(key: string): SandboxRef
 export type FolderRef = ResourceRef<'file-folder'>
 export declare function folder(key: string): FolderRef
 
-/** A workspace file upload: `upload('contracts/acme.pdf')`. */
-export type Upload = ResourceRef<'file'>
-export declare function upload(path: string): Upload
+/** A workspace file: `file('contracts/acme.pdf')`. File block operations live on `file.*`. */
+export type FileRef = ResourceRef<'file'>
+export declare function file(path: string): FileRef
 
 /** A file produced at run time (`file` / `file[]` outputs). */
 export interface SimFile {
@@ -245,7 +245,7 @@ export interface BlockMeta {
   key?: string
   /** Stored as `enabled: false`. */
   disabled?: true
-  /** Protected: apply refuses any change to this block. */
+  /** Locked: apply refuses any change to this block. */
   locked?: true
   /** Exposes the error port without an `onError` edge. */
   errorPort?: boolean
@@ -256,7 +256,8 @@ export interface BlockMeta {
    * it themselves; write it on any other builder only for a block stored in trigger mode.
    */
   triggerMode?: boolean
-  retry?: { enabled: boolean; maxTries: number; waitBetweenTriesMs: number }
+  /** The stored retry policy, written whole. */
+  retry?: BlockRetryConfig
   /**
    * Per branch key of a condition or router, the row's display `title` and any stored fields the
    * SDK has no syntax for (`extra`, plain JSON).
@@ -272,7 +273,17 @@ export interface BlockMeta {
    * A loop or parallel's `block.data` subflow keys the loader could not read as config, kept
    * verbatim (plain JSON).
    */
-  extraData?: Record<string, Json>
+  subflowData?: Record<string, Json>
+}
+
+/** A block's retry policy, field for field the stored `BlockRetryConfig`. */
+export interface BlockRetryConfig {
+  /** Absent config and `false` mean the same thing: the block runs once. */
+  enabled: boolean
+  /** Total tries including the first. */
+  maxTries: number
+  /** Delay between tries. */
+  waitBetweenTriesMs: number
 }
 
 /** Anything an edge can point at. */
@@ -369,8 +380,8 @@ export declare function workflow<const V extends VariableDeclarations = Record<n
   options: { description?: string; variables?: V },
   body: (scope: { vars: VarRefs<V> }) => void
 ): WorkflowDef
-/** A child workflow by key: `workflow('enrich-lead')`. */
-export declare function workflow<K extends WorkflowKey>(key: K): WorkflowRef<K>
+/** A child workflow by key: `childWorkflow('enrich-lead')`. */
+export declare function childWorkflow<K extends WorkflowKey>(key: K): WorkflowRef<K>
 
 // Containers
 
@@ -380,12 +391,8 @@ type ItemOf<C> = C extends { readonly [REF]: readonly (infer E)[] }
     ? E
     : Json
 
-/** Inside a loop or parallel body. */
-export interface SubflowScope<Item> {
-  /** The container's start port, into its first child. */
-  readonly start: Node
-  /** Wires the start port to each target (same as `start.to`). */
-  to<const T extends Target[]>(...targets: T): T extends [infer One] ? One : Group
+/** Inside a loop or parallel body. As a node it is the container's start port: `p.to(first)`. */
+export interface SubflowScope<Item> extends Node {
   readonly index: Ref<number>
   readonly currentItem: Ref<Item>
   readonly items: Ref<Item[]>
@@ -501,10 +508,10 @@ export declare function router<const R extends Record<string, string | Template>
   meta?: BlockMeta
 ): Block<SpecialOutput<'router'>> & Branches<RouterKeys<R>>
 
-/** A function block. `code` is inline (`` js`...` ``) or a file (`file('./functions/x.js')`). */
+/** A function block. `code` is inline (`` js`...` ``) or a code file (`codeFile('./functions/x.js')`). */
 export declare function fn(
   name: string,
-  params: SpecialParams<'fn'> & { code: Template | FileBody | string },
+  params: SpecialParams<'fn'> & { code: Template | CodeFileRef | string },
   meta?: BlockMeta
 ): Block<SpecialOutput<'fn'>>
 

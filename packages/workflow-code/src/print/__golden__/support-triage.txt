@@ -1,8 +1,8 @@
 // @sim-sdk 1
 import {
   agent,
-  binding,
   condition,
+  credential,
   env,
   js,
   response,
@@ -52,7 +52,7 @@ ${ticketIn.body}`,
     const notify = slack.sendMessage(
       'Notify',
       {
-        oauthCredential: binding('support-slack'),
+        oauthCredential: credential('support-slack'),
         channel: 'C0SUPPORT',
         text: t`New ${classify.content} ticket: ${ticketIn.subject}`,
       },

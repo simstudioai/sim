@@ -229,7 +229,7 @@ function declare(
   const decl: BlockDecl = {
     key,
     name,
-    binding: binding?.name ?? null,
+    ident: binding?.name ?? null,
     call,
     anchorNode,
     nameNode,
@@ -259,9 +259,9 @@ function declare(
   ctx.decls.push(decl)
   if (binding) {
     scope.bindings.set(binding.name, { kind: 'block', decl })
-    const all = ctx.declsByBinding.get(binding.name) ?? []
+    const all = ctx.declsByIdent.get(binding.name) ?? []
     all.push(decl)
-    ctx.declsByBinding.set(binding.name, all)
+    ctx.declsByIdent.set(binding.name, all)
   }
   if (!decl.duplicate) recordSpan(ctx, { kind: 'block', block: key }, anchorNode)
   if (classified.builder.kind === 'container') collectContainerBody(ctx, decl)
@@ -289,7 +289,7 @@ function collectContainerBody(ctx: CompileContext, decl: BlockDecl): void {
     } else {
       if (param.typeAnnotation)
         unsupported(ctx, param.typeAnnotation, 'Type annotations are not supported.', HINTS.types)
-      scope.bindings.set(param.name, { kind: 'loopParam', container: decl })
+      scope.bindings.set(param.name, { kind: 'subflowScope', container: decl })
     }
   }
   if (body.body.type === 'BlockStatement') {

@@ -46,7 +46,7 @@ import {
 
 interface CompiledBlock {
   block: CanonicalBlock
-  /** Repo-relative path of the function-code file, when the code came from `file()`. */
+  /** Repo-relative path of the function-code file, when the code came from `codeFile()`. */
   codeFile?: string
 }
 
@@ -60,7 +60,7 @@ const META_KEYS = [
   'retry',
   'branches',
   'extra',
-  'extraData',
+  'subflowData',
 ]
 const BRANCH_KEY = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 const EDGE_METHOD_NAMES = new Set(['to', 'onError'])
@@ -78,8 +78,8 @@ interface CompiledMeta {
   branches: Array<[string, ObjectProperty]>
   /** Stored fields that run but have no SDK syntax (the printer's meta `extra`). */
   extra: Array<[string, ObjectProperty]>
-  /** A container's unreadable subflow `block.data` keys (the printer's meta `extraData`). */
-  extraData: { node: Node; data: Record<string, Json> } | null
+  /** A container's unreadable subflow `block.data` keys (the printer's meta `subflowData`). */
+  subflowData: { node: Node; data: Record<string, Json> } | null
 }
 
 function unsupported(
@@ -172,7 +172,7 @@ function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSit
     triggerMode: null,
     branches: [],
     extra: [],
-    extraData: null,
+    subflowData: null,
   }
   if (!node) return meta
   const { decl } = site
@@ -220,20 +220,20 @@ function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSit
         )
         break
       }
-      case 'extraData': {
+      case 'subflowData': {
         const json = compileJsonLiteral(ctx, property.value, site)
         if (json === undefined) break
         if (!isRecordLike(json) || Object.keys(json).some((k) => !SUBFLOW_DATA_KEYS.has(k))) {
           unsupported(
             ctx,
             property.value,
-            'extraData holds subflow data keys only.',
+            'subflowData holds subflow data keys only.',
             `Keys are ${[...SUBFLOW_DATA_KEYS].join(', ')}.`,
             decl
           )
           break
         }
-        meta.extraData = { node: property, data: json as Record<string, Json> }
+        meta.subflowData = { node: property, data: json as Record<string, Json> }
         break
       }
       default:
@@ -266,10 +266,10 @@ function resolveRelative(base: string, relative: string): string | null {
   return parts.join('/')
 }
 
-/** Reads a `file('./x.js')` code file back into stored code (build-spec decision 9). */
+/** Reads a `codeFile('./x.js')` code file back into stored code (build-spec decision 9). */
 function readCodeFile(
   ctx: CompileContext,
-  compiled: Extract<CompiledValue, { kind: 'file' }>,
+  compiled: Extract<CompiledValue, { kind: 'codeFile' }>,
   language: string,
   decl: BlockDecl
 ): { code: string; path: string } | null {
@@ -280,7 +280,7 @@ function readCodeFile(
     if (budget.refs === ctx.limits.maxCodeFileRefs + 1) {
       ctx.reporter.report(
         'E_LIMIT_EXCEEDED',
-        `The workflow has more than ${ctx.limits.maxCodeFileRefs} file() references.`,
+        `The workflow has more than ${ctx.limits.maxCodeFileRefs} codeFile() references.`,
         at,
         { hint: 'Write short code inline with js``.', blockKey: decl.key }
       )
@@ -305,7 +305,7 @@ function readCodeFile(
         : `${compiled.path} does not match the block language ${language}.`,
       at,
       {
-        hint: "Write file('./functions/name.js') with .js, .py or .sh matching language.",
+        hint: "Write codeFile('./functions/name.js') with .js, .py or .sh matching language.",
         blockKey: decl.key,
       }
     )
@@ -548,7 +548,7 @@ interface BlockState {
    * never fills them.
    */
   unset: Set<SubBlockId>
-  pendingFile: { compiled: Extract<CompiledValue, { kind: 'file' }>; target: SubBlockId } | null
+  pendingFile: { compiled: Extract<CompiledValue, { kind: 'codeFile' }>; target: SubBlockId } | null
 }
 
 function isJsonContainer(value: Value): boolean {
@@ -595,13 +595,13 @@ function compileField(
     if (compiled.kind === 'todo') state.todos.set(field.param, property)
     return
   }
-  if (compiled.kind === 'file') {
+  if (compiled.kind === 'codeFile') {
     if (field.kind !== 'single' || field.sub.type !== 'code') {
       unsupported(
         ctx,
         property.value,
-        'file() holds a function block code.',
-        "Write code: file('./functions/x.js').",
+        'codeFile() holds a function block code.',
+        "Write code: codeFile('./functions/x.js').",
         decl
       )
       return
@@ -745,11 +745,11 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
       if (!index) {
         const compiled = compileValue(ctx, property.value, site)
         if (!compiled || compiled.kind === 'absent' || compiled.kind === 'todo') continue
-        if (compiled.kind === 'file') {
+        if (compiled.kind === 'codeFile') {
           unsupported(
             ctx,
             property.value,
-            'file() needs a catalog block type.',
+            'codeFile() needs a catalog block type.',
             'Write the code inline.',
             decl
           )
@@ -829,12 +829,12 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
   compileExtraParams(ctx, meta.extra, params, site, (id) =>
     Boolean(index?.subBlocks.has(id) || pinned.has(id) || id === branchField?.subBlockId)
   )
-  if (meta.extraData) {
+  if (meta.subflowData) {
     unsupported(
       ctx,
-      meta.extraData.node,
-      'Only a loop or parallel has extraData.',
-      'Remove extraData; apply keeps the stored block data.',
+      meta.subflowData.node,
+      'Only a loop or parallel has subflowData.',
+      'Remove subflowData; apply keeps the stored block data.',
       decl
     )
   }
@@ -966,7 +966,7 @@ function numberLiteral(node: Node): number | null {
 /**
  * `loop.<type>(name, config, body, meta?)` / `parallel[.<type>](...)`. Config holds the fields
  * the type uses; apply keeps the other types' fields from the stored workflow. `meta.extra` holds
- * the container's stored params, and `meta.extraData` the subflow keys of `block.data`
+ * the container's stored params, and `meta.subflowData` the subflow keys of `block.data`
  * canonicalize could not read as config.
  */
 function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock | null {
@@ -1070,7 +1070,7 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
     params,
     modes: {},
     subflow,
-    ...(meta.extraData && { extra: meta.extraData.data }),
+    ...(meta.subflowData && { extra: meta.subflowData.data }),
   }
   return { block }
 }

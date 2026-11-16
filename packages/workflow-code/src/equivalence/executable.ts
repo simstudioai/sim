@@ -9,7 +9,7 @@
  *   one param keyed by its `canonicalParamId`;
  * - the config fields of the loop or parallel types not in effect, and storage spellings the
  *   runtime reads alike (`count: 0` and an absent count both run 5 iterations);
- * - unknown `block.data` residue, which nothing executes (a container keeps the subflow keys it
+ * - unknown `block.data` extra data, which nothing executes (a container keeps the subflow keys it
  *   could not read, because the serializer passes a container's `data` through).
  *
  * P0/P1 compare this view; O1 still compares stored bytes.
@@ -78,7 +78,7 @@ export interface ExecutableBlock {
   branches?: CanonicalBranches
   subflow?: ExecutableSubflow
   /** Container `data` keys canonicalize could not read as config; the serializer passes them on. */
-  subflowResidue?: Record<string, Json>
+  subflowData?: Record<string, Json>
 }
 
 export interface ExecutableWorkflow {
@@ -175,11 +175,11 @@ function executableBlock(block: CanonicalBlock, catalog: BlockCatalog): Executab
   if (block.branches) view.branches = block.branches
   if (block.subflow) {
     view.subflow = executableSubflow(block.subflow)
-    const residue: Record<string, Json> = {}
+    const extra: Record<string, Json> = {}
     for (const [key, value] of Object.entries(block.extra ?? {})) {
-      if (SUBFLOW_DATA_KEYS.has(key)) setOwn(residue, key, value)
+      if (SUBFLOW_DATA_KEYS.has(key)) setOwn(extra, key, value)
     }
-    if (Object.keys(residue).length > 0) view.subflowResidue = residue
+    if (Object.keys(extra).length > 0) view.subflowData = extra
   }
   return view
 }

@@ -40,12 +40,13 @@ export type GenerateSdkTypesFn = (catalog: BlockCatalog) => SdkTypeFile[]
 /** Names `core.d.ts` exports that generated files may reference; imported only when used. */
 const CORE_TYPE_NAMES = [
   'AnyRef',
-  'Binding',
   'Block',
   'BlockMeta',
   'BranchExpression',
+  'CredentialRef',
   'DocumentTag',
   'EvalMetric',
+  'FileRef',
   'Filter',
   'FolderRef',
   'InputFields',
@@ -72,7 +73,6 @@ const CORE_TYPE_NAMES = [
   'TimeString',
   'Tool',
   'ToolOpts',
-  'Upload',
   'Value',
   'VariableAssignment',
   'WorkflowRef',

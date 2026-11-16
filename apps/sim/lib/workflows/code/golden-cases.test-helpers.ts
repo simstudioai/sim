@@ -24,8 +24,8 @@ import {
   catalogTrigger,
   compactBlockCatalog,
   encodeAnchor,
-  type LockHints,
   type Port,
+  type SourceHints,
   sha256Hex,
   stableStringify,
   type Value,
@@ -101,7 +101,7 @@ export const goldenCatalog: BlockCatalog = narrowedCatalog()
 interface PrintCase {
   name: string
   workflow: CanonicalWorkflow
-  hints?: LockHints
+  hints?: SourceHints
 }
 
 type BlockInit = Partial<Omit<CanonicalBlock, 'params' | 'name' | 'type' | 'key'>> & {
@@ -848,7 +848,7 @@ export const cases: PrintCase[] = [
         blk('Bad hint', 'api', { params: { url: 'https://j.test' } }),
       ],
     }),
-    hints: { blocks: { hinted: { binding: 'myHinted' }, badhint: { binding: 'class' } } },
+    hints: { blocks: { hinted: { ident: 'myHinted' }, badhint: { ident: 'class' } } },
   },
   {
     name: 'lock-order',

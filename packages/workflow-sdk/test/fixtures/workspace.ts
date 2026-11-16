@@ -13,12 +13,12 @@ export const FIXTURE_WORKSPACE: WorkspaceManifest = {
     },
   },
   knowledgeBases: ['docs'],
-  bindings: {
-    'support-slack': { service: 'slack' },
-    'sales-slack': { service: 'slack' },
-    'ops-slack': { service: 'slack' },
-    'finance-gmail': { service: 'google-email' },
-    'finance-google': { service: 'google-sheets' },
+  credentials: {
+    'support-slack': { provider: 'slack' },
+    'sales-slack': { provider: 'slack' },
+    'ops-slack': { provider: 'slack' },
+    'finance-gmail': { provider: 'google-email' },
+    'finance-google': { provider: 'google-sheets' },
   },
   workflows: { 'assign-owner': { inputs: { leads: 'array' } } },
   env: ['TICKETS_WEBHOOK_TOKEN', 'CRM_KEY'],

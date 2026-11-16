@@ -18,7 +18,7 @@ interface SdkNamesBlockEntry {
   /** Trigger id → method name under `trigger.<namespace>`. */
   triggers?: Record<string, string>
   /** Param renames per surface (s2 D4: `oauthCredential` / `triggerCredentials` → `credential`). */
-  params?: Partial<Record<SdkSurface, Record<string, string>>>
+  paramAliases?: Partial<Record<SdkSurface, Record<string, string>>>
 }
 
 export interface SdkNamesFile {
@@ -55,13 +55,15 @@ const CREDENTIAL_ALIAS_SOURCES = new Set(['oauthCredential', 'triggerCredentials
 const CREDENTIAL_ALIAS = 'credential'
 
 /**
- * Core SDK exports that ARE block builders: the core blocks' namespaces (`condition(...)`,
- * `table.queryRows(...)` by declaration merging, `fn(...)`). Every other core export is a value
- * constructor or tree root (`block`, `trigger`, `legacy`, `env`, `kb`, `loop`, ...), which no block
- * namespace may take.
+ * Core SDK exports that ARE block builders: the core blocks' namespaces (`condition(...)`, `fn(...)`,
+ * and `table.queryRows(...)`, `file.read(...)`, `credential.listCredentials(...)` by declaration
+ * merging). Every other core export is a value constructor or tree root (`block`, `trigger`,
+ * `legacy`, `env`, `loop`, ...), which no block namespace may take.
  */
 const CORE_BLOCK_BUILDERS = new Set<string>([
   'condition',
+  'credential',
+  'file',
   'fn',
   'human',
   'note',
@@ -90,6 +92,7 @@ const NAMESPACE_SEEDS: Record<string, string> = {
   human_in_the_loop_v2: 'human',
   variables: 'setVariables',
   generic_webhook: 'webhook',
+  mothership: 'simChat',
 }
 
 /** The root a visible trigger block's namespace sits under. */
@@ -251,7 +254,7 @@ export function extendSdkNames(
     }
 
     for (const surface of ['action', 'trigger'] as const) {
-      const aliases = entry.params?.[surface] ?? {}
+      const aliases = entry.paramAliases?.[surface] ?? {}
       const names = new Set(source.params[surface].map((param) => param.name))
       const used = new Set([...names, ...Object.values(aliases)])
       for (const name of [...names].sort(compareStrings)) {
@@ -261,7 +264,8 @@ export function extendSdkNames(
         used.add(CREDENTIAL_ALIAS)
         added.push(`${source.type}: ${surface} param ${name} → ${CREDENTIAL_ALIAS}`)
       }
-      if (Object.keys(aliases).length > 0) entry.params = { ...entry.params, [surface]: aliases }
+      if (Object.keys(aliases).length > 0)
+        entry.paramAliases = { ...entry.paramAliases, [surface]: aliases }
     }
   }
 
@@ -283,11 +287,11 @@ function sortEntries(
     const next: SdkNamesBlockEntry = { namespace: entry.namespace }
     if (entry.methods) next.methods = sortRecord(entry.methods)
     if (entry.triggers) next.triggers = sortRecord(entry.triggers)
-    if (entry.params) {
-      const params: Partial<Record<SdkSurface, Record<string, string>>> = {}
-      if (entry.params.action) params.action = sortRecord(entry.params.action)
-      if (entry.params.trigger) params.trigger = sortRecord(entry.params.trigger)
-      next.params = params
+    if (entry.paramAliases) {
+      const paramAliases: Partial<Record<SdkSurface, Record<string, string>>> = {}
+      if (entry.paramAliases.action) paramAliases.action = sortRecord(entry.paramAliases.action)
+      if (entry.paramAliases.trigger) paramAliases.trigger = sortRecord(entry.paramAliases.trigger)
+      next.paramAliases = paramAliases
     }
     sorted[type] = next
   }
@@ -367,7 +371,7 @@ export function validateSdkNames(names: SdkNamesFile, sources: readonly SdkNameS
       }
     }
     for (const surface of ['action', 'trigger'] as const) {
-      const aliases = entry.params?.[surface] ?? {}
+      const aliases = entry.paramAliases?.[surface] ?? {}
       const identities = new Map<string, Set<string>>()
       for (const param of source.params[surface]) {
         const name = aliases[param.name] ?? param.name

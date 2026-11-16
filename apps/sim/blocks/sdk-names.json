@@ -159,7 +159,7 @@
         "update_list_field_dropdown_option": "updateListFieldDropdownOption",
         "update_note": "updateNote"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -219,7 +219,7 @@
         "update_message": "updateMessageLabels",
         "update_thread": "updateThreadLabels"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -278,7 +278,7 @@
         "update_contact": "updateContact",
         "update_conversation": "updateConversation"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -362,7 +362,7 @@
         "ahrefs_site_audit_page_explorer": "siteAuditPageExplorer",
         "ahrefs_top_pages": "topPages"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -385,7 +385,7 @@
       "triggers": {
         "airtable_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -435,7 +435,7 @@
         "search": "search",
         "update_settings": "updateSettings"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -476,7 +476,7 @@
         "user_profile": "userProfile",
         "user_search": "userSearch"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -507,7 +507,7 @@
         "apify_run_actor_sync": "runActor",
         "apify_run_task": "runTask"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -572,7 +572,7 @@
         "task_create": "createTask",
         "task_search": "searchTasks"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -637,7 +637,7 @@
         "update_configuration_profile": "updateConfigurationProfile",
         "update_environment": "updateEnvironment"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -669,7 +669,7 @@
         "search_tasks": "searchTasks",
         "update_task": "updateTask"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -810,7 +810,7 @@
         "ashby_opening_create": "openingCreate",
         "ashby_signature_request_update": "signatureRequestUpdate"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -879,7 +879,7 @@
         "update_named_query": "updateNamedQuery",
         "update_prepared_statement": "updatePreparedStatement"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -958,7 +958,7 @@
         "attio_webhook": "webhook",
         "attio_workspace_member_created": "workspaceMemberCreated"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -1004,7 +1004,7 @@
         "azure_data_explorer_show_table_details": "showTableDetails",
         "azure_data_explorer_show_table_schema": "showTableSchema"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -1061,7 +1061,7 @@
         "azure_devops_webhook": "webhook",
         "azure_devops_work_item_created": "workItemCreated"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -1122,7 +1122,7 @@
         "bitbucket_repository_forked": "repositoryForked",
         "bitbucket_repository_updated": "repositoryUpdated"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -1255,7 +1255,7 @@
         "update_vendor": "updateVendor",
         "upload_receipt": "uploadReceipt"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -1286,7 +1286,7 @@
         "snapshot_status": "snapshotStatus",
         "sync_scrape": "syncScrape"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -1297,7 +1297,7 @@
     },
     "browser_use_v2": {
       "namespace": "browserUse",
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -1338,7 +1338,7 @@
         "get_post": "getPost",
         "get_posts": "getPosts"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -1378,7 +1378,7 @@
         "calcom_recording_ready": "recordingReady",
         "calcom_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -1443,7 +1443,7 @@
         "calendly_routing_form_submitted": "routingFormSubmitted",
         "calendly_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -1508,7 +1508,7 @@
         "rag": "retrieveContext",
         "search_firmographics": "searchFirmographics"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -1704,7 +1704,7 @@
         "checkr_verification_processed": "verificationProcessed",
         "checkr_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -1769,7 +1769,7 @@
         "circleback_meeting_notes": "meetingNotes",
         "circleback_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -1887,7 +1887,7 @@
         "clerk_user_updated": "userUpdated",
         "clerk_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -1997,7 +1997,7 @@
         "clickup_task_updated": "taskUpdated",
         "clickup_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -2167,7 +2167,7 @@
         "update_zone": "updateZone",
         "update_zone_setting": "updateZoneSetting"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2212,7 +2212,7 @@
         "update_stack": "updateStack",
         "validate_template": "validateTemplate"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2255,7 +2255,7 @@
         "lookup_events": "lookUpEvents",
         "start_query": "startLakeQuery"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2296,7 +2296,7 @@
         "query_logs": "queryLogsInsights",
         "unmute_alarm": "unmuteAlarm"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2366,7 +2366,7 @@
         "upsert_rows": "insertOrUpsertRows",
         "whoami": "getCurrentUser"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2405,7 +2405,7 @@
         "start_execution": "startExecution",
         "stop_execution": "stopExecution"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2433,7 +2433,7 @@
         "update_comment": "updateComment",
         "upload_attachment": "uploadAttachment"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2514,7 +2514,7 @@
         "confluence_user_created": "userCreated",
         "confluence_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2567,7 +2567,7 @@
         "query": "runQuery",
         "run_function": "runFunction"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2655,7 +2655,7 @@
         "crowdstrike_update_alerts": "updateAlerts",
         "crowdstrike_update_indicators": "updateIndicators"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2698,7 +2698,7 @@
         "search_organizations": "searchOrganizations",
         "search_people": "searchPeople"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2754,7 +2754,7 @@
         "cursor_list_repositories": "listRepositories",
         "cursor_stop_agent": "stopAgent"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2899,7 +2899,7 @@
         "terminate_cluster": "terminateCluster",
         "update_job": "updateJob"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -2996,7 +2996,7 @@
         "datadog_update_slo": "updateSlo",
         "datadog_update_synthetics_status": "pauseOrStartSyntheticTest"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3045,7 +3045,7 @@
         "stop_sandbox": "stopSandbox",
         "upload_file": "uploadFile"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3092,7 +3092,7 @@
         "send_message": "sendMessage",
         "terminate_session": "terminateSession"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3185,7 +3185,7 @@
         "discord_update_member": "updateMember",
         "discord_update_role": "updateRole"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3203,7 +3203,7 @@
         "send_envelope": "sendEnvelope",
         "void_envelope": "voidEnvelope"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3246,7 +3246,7 @@
         "dropbox_search": "searchFiles",
         "dropbox_upload": "uploadFile"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3269,7 +3269,7 @@
         "dropbox_search": "searchFiles",
         "dropbox_upload": "uploadFile"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3354,7 +3354,7 @@
         "update_link": "updateLink",
         "upsert_link": "upsertLink"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3386,7 +3386,7 @@
         "scan": "scan",
         "update": "updateItem"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3495,7 +3495,7 @@
         "dynatrace_update_settings_object": "updateSettingsObject",
         "dynatrace_update_slo": "updateSlo"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3578,7 +3578,7 @@
         "stop_instances": "stopInstances",
         "terminate_instances": "terminateInstances"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3631,7 +3631,7 @@
         "speech_to_speech": "speechToSpeech",
         "tts": "textToSpeech"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3710,7 +3710,7 @@
         "emailbison_warmup_disabled_causing_bounces": "warmupDisabledCausingBounces",
         "emailbison_warmup_disabled_receiving_bounces": "warmupDisabledReceivingBounces"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3792,7 +3792,7 @@
         "search_similar_companies": "searchSimilarCompanies",
         "verify_email": "verifyEmail"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3837,7 +3837,7 @@
     },
     "extend_v3": {
       "namespace": "extend",
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3872,7 +3872,7 @@
         "fathom_new_meeting": "newMeeting",
         "fathom_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -3903,7 +3903,7 @@
       }
     },
     "file_v5": {
-      "namespace": "fileV5",
+      "namespace": "file",
       "methods": {
         "file_append": "append",
         "file_compress": "compress",
@@ -4011,7 +4011,7 @@
       "triggers": {
         "fireflies_transcription_complete": "transcriptionComplete"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -4073,7 +4073,7 @@
         "fivetran_transformation_succeeded": "transformationSucceeded",
         "fivetran_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -4094,7 +4094,7 @@
         "flint_generate_pages": "generatePages",
         "flint_get_task": "getTask"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -4127,7 +4127,7 @@
         "set_values": "setValues",
         "update_comment": "updateComment"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -4155,7 +4155,7 @@
         "list_folders": "listFolders",
         "list_themes": "listThemes"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -4192,7 +4192,7 @@
         "gauge_update_prompt": "updatePrompt",
         "gauge_update_tag": "updateTag"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -4515,7 +4515,7 @@
         "github_release_published": "releasePublished",
         "github_workflow_run": "workflowRun"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -4676,7 +4676,7 @@
         "gitlab_push": "push",
         "gitlab_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -4702,7 +4702,7 @@
       "triggers": {
         "gmail_poller": "poller"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -4742,7 +4742,7 @@
       "triggers": {
         "gmail_poller": "poller"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -4826,7 +4826,7 @@
         "gong_call_completed": "callCompleted",
         "gong_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -4842,7 +4842,7 @@
         "list_customers": "listCustomers",
         "search": "customQueryGaql"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -4872,7 +4872,7 @@
         "list_tables": "listTables",
         "query": "runQuery"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -4911,7 +4911,7 @@
       "triggers": {
         "google_calendar_poller": "poller"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -4946,7 +4946,7 @@
       "triggers": {
         "google_calendar_poller": "poller"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -4965,7 +4965,7 @@
         "search": "searchContacts",
         "update": "updateContact"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -4990,7 +4990,7 @@
         "update_text_style": "applyTextStyle",
         "write": "writeToDocument"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5027,7 +5027,7 @@
       "triggers": {
         "google_drive_poller": "poller"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -5052,7 +5052,7 @@
       "triggers": {
         "google_forms_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5078,7 +5078,7 @@
         "update_member": "updateMemberRole",
         "update_settings": "updateSettings"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5115,7 +5115,7 @@
         "list_conference_records": "listConferenceRecords",
         "list_participants": "listParticipants"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5135,7 +5135,7 @@
         "update": "updateData",
         "write": "writeData"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5162,7 +5162,7 @@
       "triggers": {
         "google_sheets_poller": "poller"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -5227,7 +5227,7 @@
         "update_video_properties": "updateVideoProperties",
         "write": "writeToPresentation"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5289,7 +5289,7 @@
         "update_video_properties": "updateVideoProperties",
         "write": "writeToPresentation"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5305,7 +5305,7 @@
         "list_task_lists": "listTaskLists",
         "update": "updateTask"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5344,7 +5344,7 @@
         "update_matters": "updateMatter",
         "update_matters_holds": "updateHold"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5419,7 +5419,7 @@
         "grafana_update_dashboard": "updateDashboard",
         "grafana_update_folder": "updateFolder"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5500,7 +5500,7 @@
         "grain_story_updated_v2": "storyUpdated",
         "grain_upload_status_v2": "uploadStatus"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5545,7 +5545,7 @@
         "granola_note_generated": "noteGenerated",
         "granola_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5641,7 +5641,7 @@
         "greenhouse_offer_created": "offerCreated",
         "greenhouse_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5675,7 +5675,7 @@
         "harmonic_search_people_scout": "searchPeopleWithScout",
         "harmonic_submit_email_enrichment_job": "submitEmailEnrichmentJob"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5737,7 +5737,7 @@
         "helpscout_note_created": "noteCreated",
         "helpscout_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -5797,7 +5797,7 @@
         "update_group": "updateGroup",
         "update_project": "updateProject"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5816,7 +5816,7 @@
         "higgsfield_get_request_status": "getRequestStatus",
         "higgsfield_list_characters": "listCharacters"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5879,7 +5879,7 @@
       "triggers": {
         "hubspot_poller": "poller"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -5893,7 +5893,7 @@
     },
     "huggingface_v2": {
       "namespace": "huggingface",
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -5973,7 +5973,7 @@
         "simulate_principal_policy": "simulatePrincipalPolicy",
         "update_access_key": "updateAccessKey"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6027,7 +6027,7 @@
         "list_instances": "listInstances",
         "list_permission_sets": "listPermissionSets"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6193,7 +6193,7 @@
         "incidentio_incident_status_updated": "incidentStatusUpdated",
         "incidentio_incident_updated": "incidentUpdated"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6218,7 +6218,7 @@
         "list_secrets": "listSecrets",
         "update_secret": "updateSecret"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6255,7 +6255,7 @@
         "instagram_send_text_message": "sendTextMessage",
         "instagram_set_comments_enabled": "setCommentsEnabled"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6346,7 +6346,7 @@
         "instantly_supersearch_enrichment_completed": "supersearchEnrichmentCompleted",
         "instantly_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6475,7 +6475,7 @@
         "intercom_user_created": "userCreated",
         "intercom_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6499,7 +6499,7 @@
         "intune_retire_device": "retireDevice",
         "intune_sync_device": "syncDevice"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6549,7 +6549,7 @@
         "update_item": "updateItem",
         "update_test_run": "updateTestRun"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6614,7 +6614,7 @@
         "jira_worklog_deleted": "worklogDeleted",
         "jira_worklog_updated": "worklogUpdated"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6674,7 +6674,7 @@
         "jsm_request_updated": "requestUpdated",
         "jsm_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6781,7 +6781,7 @@
       "triggers": {
         "jotform_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6849,7 +6849,7 @@
         "jupyter_stop_kernel": "stopKernel",
         "jupyter_upload_file": "uploadFile"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -6935,7 +6935,7 @@
         "get_settlements": "getSettlements",
         "get_trades": "getTrades"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7079,7 +7079,7 @@
         "update_function_configuration": "updateFunctionConfiguration",
         "update_function_url_config": "updateFunctionUrl"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7104,7 +7104,7 @@
         "langsmith_get_run": "getRun",
         "langsmith_update_run": "updateRun"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7152,7 +7152,7 @@
         "toggle_flag": "toggleFlag",
         "update_flag": "updateFlag"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7209,7 +7209,7 @@
         "lemlist_not_interested": "notInterested",
         "lemlist_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7314,7 +7314,7 @@
         "linear_project_updated": "projectUpdated",
         "linear_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7419,7 +7419,7 @@
         "linear_project_updated_v2": "projectUpdated",
         "linear_webhook_v2": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7431,7 +7431,7 @@
         "get_profile": "getProfile",
         "share_post": "sharePost"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7533,7 +7533,7 @@
         "linq_reaction_added": "reactionAdded",
         "linq_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7556,7 +7556,7 @@
         "logfire_query": "runSqlQuery",
         "logfire_search_records": "searchRecords"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7643,7 +7643,7 @@
         "loops_loop_email_sent": "loopEmailSent",
         "loops_transactional_email_sent": "transactionalEmailSent"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7680,7 +7680,7 @@
         "update_event": "updateEvent",
         "update_guest_status": "updateGuestStatus"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7843,7 +7843,7 @@
         "update_segment": "updateSegment",
         "update_template": "updateTemplate"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7874,7 +7874,7 @@
         "list_messages": "listMessages",
         "send_message": "sendMessage"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7931,7 +7931,7 @@
         "update_request": "updateRequest",
         "update_solution": "updateSolution"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -7962,7 +7962,7 @@
         "get": "getMemories",
         "search": "searchMemories"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8093,7 +8093,7 @@
         "worksheet_add": "addWorksheet",
         "write": "writeUpdateData"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8127,7 +8127,7 @@
         "worksheet_add": "addWorksheet",
         "write": "writeData"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8155,7 +8155,7 @@
         "update_task": "updateTask",
         "update_task_details": "updateTaskDetails"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8187,7 +8187,7 @@
         "microsoftteams_chat_subscription": "microsoftteamsChatSubscription",
         "microsoftteams_webhook": "microsoftteamsWebhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -8208,7 +8208,7 @@
         "replace_text": "findAndReplaceText",
         "update": "replaceContent"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8311,7 +8311,7 @@
         "monaco_upsert_account": "upsertAccount",
         "monaco_upsert_contact": "upsertContact"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8350,7 +8350,7 @@
         "monday_subitem_created": "subitemCreated",
         "monday_update_created": "updateCreated"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -8371,7 +8371,7 @@
       }
     },
     "mothership": {
-      "namespace": "mothership"
+      "namespace": "simChat"
     },
     "mssql": {
       "namespace": "legacy.mssql",
@@ -8394,7 +8394,7 @@
         "query": "querySelect",
         "update": "updateData"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8421,7 +8421,7 @@
         "query": "querySelect",
         "update": "updateData"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8470,7 +8470,7 @@
         "netsuite_update_record": "updateRecord",
         "netsuite_upsert_record": "upsertRecord"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8500,7 +8500,7 @@
         "new_relic_nrql_query": "runNrqlQuery",
         "new_relic_search_entities": "searchEntities"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8531,7 +8531,7 @@
         "notion_update_page": "updatePageProperties",
         "notion_write": "appendContent"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8570,7 +8570,7 @@
         "notion_page_properties_updated": "pagePropertiesUpdated",
         "notion_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8693,7 +8693,7 @@
         "okta_update_group": "updateGroup",
         "okta_update_user": "updateUser"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8715,7 +8715,7 @@
         "search": "searchFiles",
         "upload": "uploadFile"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8779,7 +8779,7 @@
         "oracle_fusion_financials_update_expense_report": "updateExpenseReport",
         "oracle_fusion_financials_update_receivables_invoice": "updateReceivablesInvoice"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8795,7 +8795,7 @@
         "query": "querySelect",
         "update": "updateData"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8836,7 +8836,7 @@
         "otter_conversation_shared": "conversationShared",
         "otter_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -8872,7 +8872,7 @@
       "triggers": {
         "outlook_poller": "poller"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -8936,7 +8936,7 @@
         "pagerduty_incident_triggered": "incidentTriggered",
         "pagerduty_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9034,7 +9034,7 @@
         "update_account": "updateAccount",
         "update_inquiry": "updateInquiry"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9081,7 +9081,7 @@
         "update_deal": "updateDeal",
         "update_lead": "updateLead"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9418,7 +9418,7 @@
         "plane_workitem_vote_created": "workitemVoteCreated",
         "plane_workitem_vote_deleted": "workitemVoteDeleted"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9463,7 +9463,7 @@
         "queue_deploy_request": "queueDeployRequestVitess",
         "review_deploy_request": "reviewDeployRequestVitess"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9515,7 +9515,7 @@
         "query": "querySelect",
         "update": "updateData"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9586,7 +9586,7 @@
         "powerbi_list_workspaces": "listWorkspaces",
         "powerbi_refresh_dataset": "refreshSemanticModel"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9649,7 +9649,7 @@
         "sentiment_report": "sentimentReport",
         "visibility_report": "visibilityReport"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9676,7 +9676,7 @@
     },
     "pulse_v3": {
       "namespace": "pulse",
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9697,7 +9697,7 @@
         "search": "search",
         "upsert": "upsert"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9746,7 +9746,7 @@
         "list_slide_decks": "listSlideDecks",
         "list_transcripts": "listTranscripts"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9836,7 +9836,7 @@
         "quickbooks_vendor_credit_events": "vendorCreditEvents",
         "quickbooks_vendor_events": "vendorEvents"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -9868,7 +9868,7 @@
         "list_models": "listModels",
         "text_to_svg": "textToSvg"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9953,7 +9953,7 @@
         "update_project": "updateProject",
         "upsert_variable": "upsertVariable"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -9981,7 +9981,7 @@
         "list_vendors": "listVendors",
         "list_virtual_cards": "listVirtualCards"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -10026,7 +10026,7 @@
         "linkedin_to_mobile_phone": "linkedInToMobilePhone",
         "linkedin_to_personal_email": "linkedInToPersonalEmail"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -10053,7 +10053,7 @@
         "query": "querySelect",
         "update": "updateData"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -10100,7 +10100,7 @@
         "unsave": "unsave",
         "vote": "vote"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -10141,7 +10141,7 @@
     },
     "reducto_v3": {
       "namespace": "reducto",
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -10208,7 +10208,7 @@
         "resend_email_sent": "emailSent",
         "resend_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -10421,7 +10421,7 @@
         "update_title": "updateTitle",
         "update_work_location": "updateWorkLocation"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -10564,7 +10564,7 @@
         "update_task": "updateTask",
         "update_time_entry": "updateTimeEntry"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -10673,7 +10673,7 @@
         "rootly_incident_resolved": "incidentResolved",
         "rootly_incident_updated": "incidentUpdated"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -10719,7 +10719,7 @@
         "presigned_url": "presignedUrl",
         "put_object": "uploadFile"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -10814,7 +10814,7 @@
         "sailpoint_search_count": "searchCount",
         "sailpoint_sign_off_certification": "signOffCertification"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -10872,7 +10872,7 @@
         "salesforce_record_updated": "recordUpdated",
         "salesforce_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11031,7 +11031,7 @@
         "untag_resource": "untagSecret",
         "update_secret": "updateSecret"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11141,7 +11141,7 @@
         "search_contacts": "searchContacts",
         "send_mail": "sendMail"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11196,7 +11196,7 @@
         "sentry_issue_resolved": "issueResolved",
         "sentry_metric_alert": "metricAlert"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11345,7 +11345,7 @@
         "servicenow_incident_updated": "incidentUpdated",
         "servicenow_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11398,7 +11398,7 @@
         "send_templated_email": "sendTemplatedEmail",
         "update_template": "updateTemplate"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11446,7 +11446,7 @@
         "update_page": "updatePage",
         "upload_file": "uploadFile"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11472,7 +11472,7 @@
         "sharepoint_update_page": "updatePage",
         "sharepoint_upload_file": "uploadFile"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11510,7 +11510,7 @@
         "shopify_update_product": "updateProduct",
         "shopify_update_product_variants": "updateProductVariants"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11540,7 +11540,7 @@
         "similarweb_visit_duration": "visitDurationDesktop",
         "similarweb_website_overview": "websiteOverview"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11563,7 +11563,7 @@
         "find_email": "findEmail",
         "find_phone": "findPhone"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11618,7 +11618,7 @@
       "triggers": {
         "slack_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11726,7 +11726,7 @@
       "triggers": {
         "slack_oauth": "oauth"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11835,7 +11835,7 @@
         "update_lead_list": "updateLeadList",
         "upsert_campaign_webhook": "createOrUpdateWebhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11880,7 +11880,7 @@
         "update_rows": "updateRows",
         "upsert_rows": "upsertRows"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -11919,7 +11919,7 @@
         "splunk_list_saved_searches": "listSavedSearches",
         "splunk_run_search": "runSearch"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -12376,7 +12376,7 @@
         "odds_search_bookmakers": "oddsSearchBookmakers",
         "odds_search_markets": "oddsSearchMarkets"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -12464,7 +12464,7 @@
         "spotify_unfollow_playlist": "unfollowPlaylist",
         "spotify_update_playlist": "updatePlaylist"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -12521,7 +12521,7 @@
         "tag_queue": "tagQueue",
         "untag_queue": "untagQueue"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -12604,7 +12604,7 @@
         "update_customer": "updateCustomer",
         "upsert_catalog_object": "upsertCatalogObject"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -12699,7 +12699,7 @@
         "start_automation_execution": "startAutomationExecution",
         "stop_automation_execution": "stopAutomationExecution"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -12833,7 +12833,7 @@
       "triggers": {
         "stripe_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -12860,7 +12860,7 @@
         "get_caller_identity": "getCallerIdentity",
         "get_session_token": "getSessionToken"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -12933,7 +12933,7 @@
         "upsert": "upsertARow",
         "vector_search": "vectorSearch"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13064,7 +13064,7 @@
         "update_tailnet_settings": "updateTailnetSettings",
         "validate_acl": "validateAcl"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13087,7 +13087,7 @@
         "tavily_map": "mapWebsite",
         "tavily_search": "search"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13146,7 +13146,7 @@
       "triggers": {
         "telegram_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13195,7 +13195,7 @@
         "analyze_expense": "analyzeExpenseInvoicesReceipts",
         "analyze_id": "analyzeIdentityDocument"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13307,7 +13307,7 @@
         "update_user": "updateUser",
         "update_user_skills": "updateUserSkills"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13330,7 +13330,7 @@
         "tiktok_post_publish_complete": "postPublishComplete",
         "tiktok_post_publish_failed": "postPublishFailed"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -13362,7 +13362,7 @@
         "tinybird_query_pipe": "queryPipeEndpoint",
         "tinybird_truncate_datasource": "truncateDataSource"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13410,7 +13410,7 @@
         "trello_update_checklist_item": "updateChecklistItem",
         "trello_update_list": "updateList"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13513,7 +13513,7 @@
         "trigger_dev_update_run_metadata": "updateRunMetadata",
         "trigger_dev_update_schedule": "updateSchedule"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13535,7 +13535,7 @@
         "twilio_sms_received": "received",
         "twilio_sms_status": "status"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13562,7 +13562,7 @@
       "triggers": {
         "twilio_voice_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13599,7 +13599,7 @@
       "triggers": {
         "typeform_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13646,7 +13646,7 @@
         "setnx": "setnx",
         "ttl": "ttl"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13709,7 +13709,7 @@
         "update_monitor": "updateMonitor",
         "update_psp": "updateStatusPage"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13748,7 +13748,7 @@
         "submit_document": "submitDocument",
         "upload_document_file": "uploadDocumentFile"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13898,7 +13898,7 @@
         "vercel_project_removed": "projectRemoved",
         "vercel_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13932,7 +13932,7 @@
         "write_note": "writeNote",
         "write_task": "writeTask"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -13953,7 +13953,7 @@
         "webflow_collection_item_deleted": "collectionItemDeleted",
         "webflow_form_submission": "formSubmission"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -13996,7 +13996,7 @@
       "triggers": {
         "whatsapp_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -14088,7 +14088,7 @@
         "wordpress_update_tag": "updateTag",
         "wordpress_upload_media": "uploadMedia"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -14147,7 +14147,7 @@
         "x_search_tweets": "searchTweets",
         "x_search_users": "searchUsers"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -14178,7 +14178,7 @@
         "youcom_search": "search",
         "youcom_search_images": "searchImages"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -14211,7 +14211,7 @@
         "youtube_video_categories": "getVideoCategories",
         "youtube_video_details": "getVideoDetails"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -14292,7 +14292,7 @@
         "zendesk_ticket_status_changed": "ticketStatusChanged",
         "zendesk_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -14325,7 +14325,7 @@
         "get_user": "getUser",
         "get_user_threads": "getUserThreads"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -14375,7 +14375,7 @@
       "triggers": {
         "zoho_desk": "zohoDesk"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         },
@@ -14406,7 +14406,7 @@
         "zoom_recording_completed": "recordingCompleted",
         "zoom_webhook": "webhook"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
@@ -14433,7 +14433,7 @@
         "search_intent": "searchIntent",
         "search_news": "searchNews"
       },
-      "params": {
+      "paramAliases": {
         "action": {
           "oauthCredential": "credential"
         }
