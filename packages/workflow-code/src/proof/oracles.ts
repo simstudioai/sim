@@ -16,7 +16,7 @@ import type { CanonicalWorkflow } from '../model'
 import { type Difference, findDifferences, firstTextDifference } from './diff'
 
 /** The property or oracle a verdict belongs to (s3 §5 P1–P5, s1 §6 O1–O3). */
-export type OracleName = 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'O1' | 'O2' | 'O3'
+export type OracleName = 'P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'O1' | 'O2' | 'O3'
 
 export type OracleResult =
   | { ok: true; oracle: OracleName }
@@ -44,7 +44,7 @@ export function assertNoopIdentity(input: {
  * given (for CWMs, `canonicalEquals`), else exactly.
  */
 export function idempotence<T>(input: {
-  oracle: 'P1' | 'P3' | 'P5' | 'O3'
+  oracle: 'P0' | 'P1' | 'P3' | 'P5' | 'O3'
   value: T
   step: (value: T) => T
   equals?: (expected: T, actual: T) => boolean
