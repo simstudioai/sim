@@ -362,6 +362,12 @@ function slackFileFormat(file: Record<string, unknown>): SlackFileFormat | undef
   return documentExtension(mimetype)
 }
 
+const BYTE_ORDER_MARKS = [
+  [[0xef, 0xbb, 0xbf], 'utf-8'],
+  [[0xff, 0xfe], 'utf-16le'],
+  [[0xfe, 0xff], 'utf-16be'],
+] as const
+
 /**
  * Decodes downloaded text strictly: a byte-order mark wins, then the declared charset, then UTF-8.
  * Bytes invalid in that charset, or text holding NULs (UTF-16 without a mark), are unreadable.
@@ -369,11 +375,9 @@ function slackFileFormat(file: Record<string, unknown>): SlackFileFormat | undef
 function decodeFileText(bytes: Buffer, mimetype: string): string | undefined {
   const charset = /;\s*charset="?([\w.:-]+)"?/i.exec(mimetype)?.[1]
   const label =
-    bytes[0] === 0xff && bytes[1] === 0xfe
-      ? 'utf-16le'
-      : bytes[0] === 0xfe && bytes[1] === 0xff
-        ? 'utf-16be'
-        : (charset ?? 'utf-8')
+    BYTE_ORDER_MARKS.find(([mark]) => mark.every((byte, index) => bytes[index] === byte))?.[1] ??
+    charset ??
+    'utf-8'
   let text: string
   try {
     text = new TextDecoder(label, { fatal: true }).decode(bytes)

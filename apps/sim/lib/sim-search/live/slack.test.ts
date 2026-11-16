@@ -134,6 +134,9 @@ describe('Slack file reads', () => {
       Buffer.from('Größe: 3', 'latin1')
     )
     expect((await readSlack(latin1, 'F123', undefined, 'file')).content).toBe('Größe: 3')
+    const utf8 = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('Größe: 3')])
+    const marked = fileClient({ mimetype: 'text/plain; charset=ISO-8859-1' }, async () => utf8)
+    expect((await readSlack(marked, 'F123', undefined, 'file')).content).toBe('Größe: 3')
   })
   it('keeps the preview when text bytes cannot be read in their charset', async () => {
     for (const bytes of [
