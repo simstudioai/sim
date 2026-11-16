@@ -10,7 +10,8 @@
  */
 
 import type { CatalogDynamicOutputs, CatalogOutput } from '@sim/workflow-code'
-import { arrayOf, jsdoc, propertyKey } from './emit'
+import { printKey } from '@sim/workflow-code'
+import { arrayOf, jsdoc } from './emit'
 import { evaluateClause, type VisibilityContext } from './visibility'
 
 const MAX_OUTPUT_DEPTH = 4
@@ -42,7 +43,7 @@ function outputType(output: CatalogOutput, depth: number): string {
 function objectType(properties: Record<string, CatalogOutput>, depth: number): string {
   if (depth > MAX_OUTPUT_DEPTH) return 'Json'
   const members = Object.keys(properties).map(
-    (key) => `${propertyKey(key)}: ${outputType(properties[key], depth)}`
+    (key) => `${printKey(key)}: ${outputType(properties[key], depth)}`
   )
   return `{ ${members.join('; ')} }`
 }
@@ -81,7 +82,7 @@ export function renderMembers(members: readonly OutputMember[], indent: string):
   const lines: string[] = []
   for (const member of members) {
     lines.push(...jsdoc(member.doc, indent))
-    lines.push(`${indent}${propertyKey(member.name)}: ${member.type}`)
+    lines.push(`${indent}${printKey(member.name)}: ${member.type}`)
   }
   return lines
 }

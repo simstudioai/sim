@@ -1,22 +1,16 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { MCP_TOOL_TYPE, mcpToolId } from '../agent-tools'
+import { mcpBinding, mcpToolId } from '../agent-tools'
 import { type CanonicalModeOverrides, scopeCanonicalModesForTool } from '../catalog/canonical-index'
 import type { BlockCatalog, CatalogSubBlock } from '../catalog/types'
-import { catalogBlock as catalogBlockOf, catalogTool } from '../catalog/view'
+import { catalogBlock, catalogTool } from '../catalog/view'
 import type { BlockKey, CanonicalTool, Json, Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
-import { type CanonContext, catalogBlock } from './context'
+import type { CanonContext } from './context'
 import { effectiveModes } from './modes'
 import { liftResourceId, liftResourceValue, toJson, toValue } from './values'
 
 export type ToolParamShape = 'string' | 'number' | 'boolean' | 'json'
 
-const OBJECT_VALUED_TYPES = new Set([
-  'checkbox-list',
-  'file-upload',
-  'grouped-checkbox-list',
-  'table',
-])
 const USAGE_CONTROLS = new Set(['auto', 'force', 'none'])
 
 /** Stored tool keys with a typed model field; anything else is kept under `extra`. */
@@ -34,15 +28,6 @@ const MODELED_KEYS = new Set([
   'operationPolicy',
   'isExpanded',
 ])
-
-/** `getSubBlockValueShape` (tools/param-shape.ts): the shape a sub-block wrote. */
-function subBlockShape(subBlock: CatalogSubBlock): ToolParamShape {
-  if (subBlock.type === 'switch') return 'boolean'
-  if (subBlock.type === 'slider') return 'number'
-  if (OBJECT_VALUED_TYPES.has(subBlock.type)) return 'json'
-  if (subBlock.multiple) return 'json'
-  return 'string'
-}
 
 /** `getToolParamValueShape` (tools/param-shape.ts): the shape a tool declaration implies. */
 function declaredShape(type: string | undefined): ToolParamShape {
@@ -71,10 +56,10 @@ export function toolParamDeclaration(
   tool: { type: string; toolId?: string },
   key: string
 ): { subBlock: CatalogSubBlock | undefined; shape: ToolParamShape } {
-  const subBlock = catalogBlockOf(catalog, tool.type)?.subBlocks.find(
+  const subBlock = catalogBlock(catalog, tool.type)?.subBlocks.find(
     (candidate) => candidate.id === key || candidate.canonicalParamId === key
   )
-  if (subBlock) return { subBlock, shape: subBlockShape(subBlock) }
+  if (subBlock) return { subBlock, shape: subBlock.valueShape ?? 'string' }
   const declaration = tool.toolId ? catalogTool(catalog, tool.toolId) : undefined
   return {
     subBlock: undefined,
@@ -124,7 +109,7 @@ function liftTool(
   context: CanonContext
 ): CanonicalTool {
   const type = stored.type
-  const block = catalogBlock(context, type)
+  const block = catalogBlock(context.catalog, type)
   const toolId = typeof stored.toolId === 'string' ? stored.toolId : undefined
   const location = { blockKey, param }
 
@@ -140,13 +125,8 @@ function liftTool(
         : undefined
     setOwn(params, key, lifted ?? toValue(decoded, context))
   }
-  const { serverId, toolName } = rawParams
-  const mcpBinding =
-    type === MCP_TOOL_TYPE &&
-    typeof serverId === 'string' &&
-    serverId !== '' &&
-    typeof toolName === 'string'
-  if (mcpBinding) params.serverId = liftResourceId('mcp-server', serverId, context, location)
+  const binding = mcpBinding(type, rawParams)
+  if (binding) params.serverId = liftResourceId('mcp-server', binding.serverId, context, location)
 
   const explicit = scopeCanonicalModesForTool(overrides, index, type)
   const tool: CanonicalTool = {
@@ -160,7 +140,9 @@ function liftTool(
 
   for (const key of ['operation', 'toolId', 'title', 'usageControlExpression'] as const) {
     const value = stored[key]
-    if (key === 'toolId' && mcpBinding && value === mcpToolId(serverId, toolName)) continue
+    if (key === 'toolId' && binding && value === mcpToolId(binding.serverId, binding.toolName)) {
+      continue
+    }
     if (typeof value === 'string') tool[key] = value
     else if (value !== undefined) extra[key] = toJson(value)
   }

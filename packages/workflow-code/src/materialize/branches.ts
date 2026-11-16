@@ -2,7 +2,7 @@ import { positionalKeys, positionalTitle } from '../canonicalize/branches'
 import type { BranchKey, CanonicalBranches } from '../model'
 import type { MaterializeContext } from './context'
 
-export interface BranchWrite {
+interface BranchWrite {
   /** The stored subBlock value: JSON text, or `null` for never-persisted rows. */
   value: string | null
   /** Branch key → row id, as written. */

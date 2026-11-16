@@ -253,7 +253,7 @@ function printTarget(target: WorkflowState, name: string) {
   const printed = printWorkflow({
     workflow: canonical.workflow,
     catalog,
-    options: { functionCode: 'files', codeDir: 'functions' },
+    options: { functionCode: 'files' },
   })
   return {
     files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),

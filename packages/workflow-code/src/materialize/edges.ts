@@ -1,19 +1,21 @@
 import {
   type BlockState,
+  getWorkflowBranchHandleId,
   getWorkflowSubflowHandleIds,
   normalizeWorkflowEdgeSourceHandle,
+  parseWorkflowSourceHandle,
   WORKFLOW_ERROR_HANDLE_ID,
   WORKFLOW_SOURCE_HANDLE_ID,
+  WORKFLOW_TARGET_HANDLE_ID,
+  type WorkflowBranchKind,
 } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import type { BlockKey, BranchKey, CanonicalEdge } from '../model'
 import type { MaterializeContext } from './context'
 
-const TARGET_HANDLE = 'target'
-
-/** A block's branch handles: the handle prefix and the row ids its keys stand for. */
+/** A block's branch handles: its branch kind and the row ids its keys stand for. */
 export interface BranchHandles {
-  prefix: 'condition-' | 'router-'
+  kind: WorkflowBranchKind
   ids: Record<BranchKey, string>
 }
 
@@ -36,19 +38,13 @@ function storedPort(
   sourceId: string,
   branches: ReadonlyMap<string, BranchHandles>
 ): string {
-  if (handle === null || handle === WORKFLOW_SOURCE_HANDLE_ID) return 'out'
-  if (handle === WORKFLOW_ERROR_HANDLE_ID) return 'error'
-  if (source && (source.type === 'loop' || source.type === 'parallel')) {
-    const { start, end } = getWorkflowSubflowHandleIds(source.type)
-    if (handle === start) return 'subflowStart'
-    if (handle === end) return 'subflowEnd'
-  }
   const handles = branches.get(sourceId)
-  if (handles && handle.startsWith(handles.prefix)) {
-    const rowId = handle.slice(handles.prefix.length)
-    if (Object.values(handles.ids).includes(rowId)) return `branch:${rowId}`
+  const port = parseWorkflowSourceHandle(handle, source?.type, handles?.kind)
+  if (port.kind === 'branch' && handles && Object.values(handles.ids).includes(port.rowId)) {
+    return `branch:${port.rowId}`
   }
-  return `raw:${handle}`
+  if (port.kind === 'branch' || port.kind === 'raw') return `raw:${port.handle}`
+  return port.kind
 }
 
 /** The stored source handle a compiled port is written as. */
@@ -73,8 +69,10 @@ function sourceHandle(
     }
     case 'branch': {
       const handles = branches.get(sourceId)
-      const prefix = handles?.prefix ?? 'condition-'
-      return `${prefix}${handles?.ids[edge.port.key] ?? `${sourceId}-${edge.port.key}`}`
+      return getWorkflowBranchHandleId(
+        handles?.kind ?? 'condition',
+        handles?.ids[edge.port.key] ?? `${sourceId}-${edge.port.key}`
+      )
     }
   }
 }
@@ -141,7 +139,7 @@ export function writeEdges(inputs: EdgeInputs, context: MaterializeContext): Edg
       source: from,
       sourceHandle: sourceHandle(edge, inputs.blocks[from], from, inputs.branches),
       target: to,
-      targetHandle: TARGET_HANDLE,
+      targetHandle: WORKFLOW_TARGET_HANDLE_ID,
       type: 'default',
     })
   }

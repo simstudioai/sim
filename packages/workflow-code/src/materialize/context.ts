@@ -1,6 +1,5 @@
 import type { BlockState } from '@sim/workflow-types/workflow'
-import type { BlockCatalog, CatalogBlock } from '../catalog/types'
-import { catalogBlock as catalogBlockOf } from '../catalog/view'
+import type { BlockCatalog } from '../catalog/types'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { ResourceKeyResolver, VarKey } from '../model'
@@ -30,11 +29,4 @@ export function report(
   diagnostic: Diagnostic<MaterializeDiagnosticCode>
 ): void {
   context.diagnostics.push(diagnostic)
-}
-
-export function catalogBlock(
-  catalog: BlockCatalog,
-  type: string | undefined
-): CatalogBlock | undefined {
-  return type === undefined ? undefined : catalogBlockOf(catalog, type)
 }

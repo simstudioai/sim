@@ -30,7 +30,7 @@ import type {
 } from './types'
 
 /** Docs shards by block type, merged into an expansion that wants display text. */
-export type CatalogDocsReader = (type: string) => CatalogBlockDocs | undefined
+type CatalogDocsReader = (type: string) => CatalogBlockDocs | undefined
 
 interface CatalogMemo {
   blocks: Map<string, CatalogBlock>

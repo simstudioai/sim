@@ -1,7 +1,7 @@
 import { compareStrings } from '@sim/utils/string'
 import type { BlockKey } from '../model'
 
-export interface OrderNode {
+interface OrderNode {
   key: BlockKey
   isTrigger: boolean
   /** Lock / source meta order; absent sorts last. */

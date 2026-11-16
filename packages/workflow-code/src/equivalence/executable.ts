@@ -16,7 +16,11 @@
  */
 
 import { compareEdges } from '../canonicalize/edges'
-import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import {
+  DEFAULT_LOOP_ITERATIONS,
+  PARALLEL_BATCH_MAX,
+  SUBFLOW_DATA_KEYS,
+} from '../canonicalize/subflows'
 import { executableInactiveParams } from '../catalog/activity'
 import { isCanonicalPair } from '../catalog/canonical-index'
 import { buildCanonicalIndexForSurface } from '../catalog/surface'
@@ -38,14 +42,11 @@ import type {
 } from '../model'
 import { setOwn } from '../records'
 
-/** `count || 5` in `convertLoopBlockToLoop` and the loop orchestrator. */
-const DEFAULT_LOOP_ITERATIONS = 5
 /** `data.count || 5` in `convertParallelBlockToParallel`. */
 const DEFAULT_PARALLEL_COUNT = 5
-const PARALLEL_BATCH_MAX = 20
 
 /** A loop or parallel config exactly as the executor reads it for the type in effect. */
-export type ExecutableSubflow =
+type ExecutableSubflow =
   | {
       kind: 'loop'
       loopType: LoopSpec['loopType']
@@ -81,7 +82,7 @@ interface ExecutableBlock {
   subflowData?: Record<string, Json>
 }
 
-export interface ExecutableWorkflow {
+interface ExecutableWorkflow {
   meta: CanonicalWorkflowMeta
   blocks: Record<BlockKey, ExecutableBlock>
   edges: CanonicalEdge[]

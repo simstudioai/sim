@@ -1,11 +1,12 @@
 import type { BlockState } from '@sim/workflow-types/workflow'
 import type { CanonicalizeResult } from '../canonicalize'
 import type { BlockCatalog } from '../catalog/types'
+import { catalogBlock } from '../catalog/view'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { WorkflowLockV1 } from '../lock'
 import type { BlockKey, CanonicalWorkflow } from '../model'
-import { catalogBlock, type MaterializeHooks, report } from './context'
+import { type MaterializeHooks, report } from './context'
 
 /** How identity rule matched a compiled block to a stored one (rules 1–4). */
 type IdentityMatchRule = 'lock-key' | 'lock-ident' | 'db-name' | 'inferred'

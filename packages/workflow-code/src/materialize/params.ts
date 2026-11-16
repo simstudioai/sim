@@ -1,6 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
-import { MCP_TOOL_TYPE, mcpToolId } from '../agent-tools'
-import { shouldDecode } from '../canonicalize/params'
+import { mcpBinding, mcpToolId } from '../agent-tools'
+import { shouldDecode, uniqueFieldNames } from '../canonicalize/params'
 import { decodeToolParam, toolParamDeclaration } from '../canonicalize/tools'
 import type { CatalogSubBlock } from '../catalog/types'
 import type { LockItem } from '../lock'
@@ -10,7 +10,7 @@ import type { MaterializeContext } from './context'
 import { unliftValue } from './values'
 
 /** What encoding one param needs besides the value itself. */
-export interface ParamSite {
+interface ParamSite {
   blockKey: BlockKey
   param: SubBlockId
   declaration: CatalogSubBlock | undefined
@@ -55,12 +55,7 @@ function encodeStorage(json: unknown, site: ParamSite): unknown {
  * flag is carried over from the prev field with the same id.
  */
 function restoreInputFormatIds(list: unknown[], site: ParamSite, context: MaterializeContext) {
-  const nameCounts = new Map<string, number>()
-  for (const item of list) {
-    if (isRecordLike(item) && typeof item.name === 'string') {
-      nameCounts.set(item.name, (nameCounts.get(item.name) ?? 0) + 1)
-    }
-  }
+  const unique = uniqueFieldNames(list)
   const prevById = new Map<string, Record<string, unknown>>()
   for (const item of parseStoredList(site.prevRaw)) {
     if (isRecordLike(item) && typeof item.id === 'string') prevById.set(item.id, item)
@@ -68,7 +63,7 @@ function restoreInputFormatIds(list: unknown[], site: ParamSite, context: Materi
   const used = new Set<string>()
   return list.map((item) => {
     if (!isRecordLike(item) || typeof item.name !== 'string' || item.id !== undefined) return item
-    if (nameCounts.get(item.name) !== 1) return item
+    if (!unique.has(item.name)) return item
     const name = item.name
     const known = site.itemIds.find((entry) => entry.name === name && !used.has(entry.id))
     const id = known?.id ?? context.hooks.newId()
@@ -139,17 +134,9 @@ function encodeTool(
     params[key] = encodeToolParam(unliftValue(value, context, location), shape)
   }
   stored.params = params
-  const { serverId, toolName } = params
-  if (
-    tool.toolId === undefined &&
-    tool.type === MCP_TOOL_TYPE &&
-    typeof serverId === 'string' &&
-    serverId !== '' &&
-    typeof toolName === 'string'
-  ) {
-    // Canonicalize drops the toolId the binding derives, since it embeds the server's id.
-    stored.toolId = mcpToolId(serverId, toolName)
-  }
+  const binding = tool.toolId === undefined ? mcpBinding(tool.type, params) : null
+  // Canonicalize drops the toolId the binding derives, since it embeds the server's id.
+  if (binding) stored.toolId = mcpToolId(binding.serverId, binding.toolName)
   if (prev && prev.raw.isExpanded !== undefined) stored.isExpanded = prev.raw.isExpanded
 
   if (tool.usageControl !== undefined) stored.usageControl = tool.usageControl

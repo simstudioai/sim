@@ -1,5 +1,6 @@
 import { type ParserOptions, parse } from '@babel/parser'
 import type { File, Node } from '@babel/types'
+import { type BabelErrorShape, babelErrorShape, childNodes } from '../babel'
 import { codeFileLanguage } from '../code-files'
 import { SOURCE_LIMITS, utf8Bytes } from '../limits'
 import type { Reporter } from './report'
@@ -39,36 +40,6 @@ const PARSER_OPTIONS: ParserOptions = {
   attachComment: true,
   ranges: false,
   tokens: false,
-}
-
-const SKIPPED_KEYS = new Set([
-  'leadingComments',
-  'trailingComments',
-  'innerComments',
-  'loc',
-  'extra',
-])
-
-function isNode(value: unknown): value is Node {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as { type?: unknown }).type === 'string'
-  )
-}
-
-/** Every child AST node of `node`, in no particular order. */
-function childNodes(node: Node): Node[] {
-  const children: Node[] = []
-  for (const [key, value] of Object.entries(node)) {
-    if (SKIPPED_KEYS.has(key)) continue
-    if (Array.isArray(value)) {
-      for (const item of value) if (isNode(item)) children.push(item)
-    } else if (isNode(value)) {
-      children.push(value)
-    }
-  }
-  return children
 }
 
 /**
@@ -139,11 +110,6 @@ function depthOverflow(root: Node, maxDepth: number): Node | null {
   return null
 }
 
-interface BabelErrorShape {
-  message?: unknown
-  pos?: unknown
-}
-
 function babelMessage(error: BabelErrorShape): string {
   const message = typeof error.message === 'string' ? error.message : 'Invalid syntax'
   return message.replace(/ \(\d+:\d+\)$/, '')
@@ -199,7 +165,7 @@ export function parseWorkflowSource(
   try {
     ast = parse(text, PARSER_OPTIONS)
   } catch (error) {
-    const shape: BabelErrorShape = typeof error === 'object' && error !== null ? error : {}
+    const shape = babelErrorShape(error)
     if (error instanceof RangeError) {
       reporter.report(
         'E_LIMIT_EXCEEDED',

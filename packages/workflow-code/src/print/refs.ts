@@ -6,6 +6,7 @@
  */
 
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
+import { isReservedWorkflowBlockName } from '@sim/workflow-types/workflow'
 import {
   ENV_VAR_NAME,
   formatMemberPath,
@@ -17,7 +18,7 @@ import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { BlockKey } from '../model'
 
-export type RefPart = { kind: 'text'; text: string } | { kind: 'ref'; expr: string }
+type RefPart = { kind: 'text'; text: string } | { kind: 'ref'; expr: string }
 
 /** What reference printing needs to know about declarations and scopes. */
 export interface RefScope {
@@ -124,14 +125,7 @@ export function referencedHeads(text: string): string[] {
   for (const token of findWorkflowReferenceTokens(text)) {
     if (token.kind !== 'workflow') continue
     const head = parseStoredPath(token.value.slice(1, -1))?.[0]
-    if (
-      head?.kind === 'name' &&
-      head.name !== 'variable' &&
-      head.name !== 'loop' &&
-      head.name !== 'parallel'
-    ) {
-      heads.push(head.name)
-    }
+    if (head?.kind === 'name' && !isReservedWorkflowBlockName(head.name)) heads.push(head.name)
   }
   return heads
 }

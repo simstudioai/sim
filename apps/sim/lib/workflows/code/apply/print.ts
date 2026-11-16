@@ -2,6 +2,7 @@ import {
   type BlockCatalog,
   type CanonicalizeResult,
   type CanonicalWorkflowMeta,
+  canonicalDigests,
   canonicalize,
   type Diagnostic,
   type LockIdentity,
@@ -16,9 +17,6 @@ import {
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { buildLockFromState, hintsFromSourceMeta } from '@/lib/workflows/code/source-lock'
 import { canonicalizeUnderLock } from '@/lib/workflows/code/stored-canonical'
-
-/** Directory function-code files are printed into when `functionCode` is `files`. */
-const FUNCTION_CODE_DIR = 'functions'
 
 /** A stored draft as canonicalize reads it, plus the row fields the canonical `meta` carries. */
 export interface StoredSource {
@@ -47,6 +45,8 @@ export interface PrintedSource {
   lock: WorkflowLockV1
   /** The `sf1:` freshness token of the state, which ignores the lock and canvas positions. */
   fingerprint: SourceFingerprint
+  /** `canonicalHash` of the same lockless model, from the same serialization. */
+  canonicalHash: string
   /** The canonical model the files print. */
   canonical: CanonicalizeResult
   /** Print findings. */
@@ -81,15 +81,14 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
     },
     catalog,
     hints: metaInputs.hints,
-    options:
-      input.functionCode === 'files'
-        ? { functionCode: 'files', codeDir: FUNCTION_CODE_DIR }
-        : { functionCode: 'inline' },
+    options: { functionCode: input.functionCode },
   })
+  const digests = canonicalDigests(lockless.workflow, lockless.identity)
   return {
     files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),
     lock: buildLockFromState(sourceMeta, canonical, printed.hints),
-    fingerprint: sourceFingerprint(lockless.workflow, lockless.identity),
+    fingerprint: digests.fingerprint,
+    canonicalHash: digests.canonicalHash,
     canonical,
     diagnostics: printed.diagnostics,
   }

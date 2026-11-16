@@ -1,12 +1,6 @@
 import type { CatalogSubBlock } from '@sim/workflow-code'
 import { describe, expect, it } from 'vitest'
-import {
-  buildVisibilityContext,
-  classifyParam,
-  findGate,
-  MAX_COMBINATIONS,
-  type ParamVisibility,
-} from './visibility'
+import { buildVisibilityContext, classifyParam, findGate, type ParamVisibility } from './visibility'
 
 function subBlock(
   overrides: Partial<CatalogSubBlock> & Pick<CatalogSubBlock, 'id'>
@@ -95,7 +89,7 @@ describe('classifyParam', () => {
 })
 
 describe('buildVisibilityContext', () => {
-  it(`caps combinations at ${MAX_COMBINATIONS}, dropping the widest siblings first`, () => {
+  it('caps combinations at 64, dropping the widest siblings first', () => {
     const siblings = [
       dropdown(
         'wide',
@@ -113,7 +107,7 @@ describe('buildVisibilityContext', () => {
     })
     const dReader = subBlock({ id: 'dReader', condition: { field: 'd', value: '1' } })
     const context = buildVisibilityContext([...siblings, reader, dReader], {})
-    expect(context.combos.length).toBeLessThanOrEqual(MAX_COMBINATIONS)
+    expect(context.combos.length).toBeLessThanOrEqual(64)
     expect(context.siblings.map((sibling) => sibling.field)).not.toContain('wide')
     expect(context.combos.length).toBe(32)
   })

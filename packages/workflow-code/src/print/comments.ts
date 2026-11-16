@@ -6,7 +6,7 @@
 
 import { decodeAnchor, encodeAnchor } from '../anchors'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
-import type { Diagnostic } from '../diagnostics/frame'
+import { type Diagnostic, splitLines } from '../diagnostics/frame'
 import type { AnchorKey, BlockKey, CodeComment, PortKey } from '../model'
 import { breakParent, type Doc, hardline, join, lineSuffix, literalText } from './doc'
 
@@ -31,7 +31,7 @@ function printComment(comment: CodeComment): Doc {
   if (comment.kind === 'line' || comment.text.includes('*/')) {
     return join(
       hardline,
-      comment.text.split(/\r\n|[\n\r\u2028\u2029]/).map((text) => `//${text}`)
+      splitLines(comment.text).map((text) => `//${text}`)
     )
   }
   const lines = comment.text.split('\n')

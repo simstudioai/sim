@@ -1,4 +1,3 @@
-import { isRecordLike } from '@sim/utils/object'
 import { type ConditionLookup, evaluateClause, evaluateCondition } from '../catalog/conditions'
 import { isAdvancedMember, onSurface, paramAliases } from '../catalog/surface'
 import type {
@@ -10,7 +9,7 @@ import type {
   CatalogValueKind,
 } from '../catalog/types'
 import { catalogTrigger } from '../catalog/view'
-import type { CanonicalParamId, SubBlockId, Value } from '../model'
+import { type CanonicalParamId, isPlainRecord, type SubBlockId, type Value } from '../model'
 
 /**
  * One source param: a single subBlock, or every subBlock sharing a `canonicalParamId`, written
@@ -180,10 +179,6 @@ function isRequired(sub: CatalogSubBlock, values: ReadonlyMap<string, Value>): b
   return evaluateClause(sub.required, paramLookup(values)) === true
 }
 
-function isPlainObject(value: Value): boolean {
-  return isRecordLike(value) && !('$sim' in value)
-}
-
 /**
  * Whether a literal value has the JSON type its field's `valueKind` expects. Never coerced: a
  * mismatch is `W_VALUE_KIND` and the exact value is kept.
@@ -201,7 +196,7 @@ export function valueKindMatches(kind: CatalogValueKind, value: Value): boolean 
     case 'array':
       return Array.isArray(value)
     case 'object':
-      return isPlainObject(value)
+      return isPlainRecord(value)
     case 'resource':
       return typeof value === 'object' && value !== null && '$sim' in value
     default:

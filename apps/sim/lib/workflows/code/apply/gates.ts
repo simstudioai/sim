@@ -1,7 +1,11 @@
 import { compareStrings } from '@sim/utils/string'
 import type { ApplyDiagnosticCode, Diagnostic } from '@sim/workflow-code'
 import { isNonEmptyValue } from '@sim/workflow-code/catalog/canonical-index'
-import { type BlockState, normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
+import {
+  type BlockState,
+  isSubflowType,
+  normalizeWorkflowBlockName,
+} from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
@@ -88,7 +92,6 @@ export interface GateSourceDiffArgs {
   isCopilot: boolean
 }
 
-const CONTAINER_TYPES: ReadonlySet<string> = new Set(['loop', 'parallel'])
 const TOOLS_SUBBLOCK_ID = 'tools'
 const SANDBOX_SUBBLOCK_ID = 'sandboxId'
 
@@ -153,7 +156,7 @@ function gateBlockPlacement(
 ): boolean {
   const { block } = entry
   const operationType = entry.added ? 'add' : 'edit'
-  if (CONTAINER_TYPES.has(block.type)) return true
+  if (isSubflowType(block.type)) return true
   if (!getBlock(block.type)) {
     skipped.push({
       type: 'invalid_block_type',

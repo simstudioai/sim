@@ -31,7 +31,7 @@ import type {
   ParamMode,
   SubBlockId,
 } from '../model'
-import { deepEqual, getOwn, setOwn } from '../records'
+import { deepEqual, getOwn, setOrDelete, setOwn } from '../records'
 
 /** Inactive restoration can flip another field's visibility; it settles within a few passes. */
 const MAX_RESTORE_PASSES = 4
@@ -135,11 +135,6 @@ function restoreInactive(
     }
     if (sameParams(before, next.params)) return
   }
-}
-
-function setOrDelete<T extends object, K extends keyof T>(target: T, key: K, value: T[K]): void {
-  if (value === undefined) delete target[key]
-  else target[key] = value
 }
 
 /** Fields of a loop or parallel config that the executor reads for its type. */

@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { decodeAnchor, encodeAnchor, parsePortKey, portKey } from './anchors'
-import type { Anchor, Port } from './model'
+import { decodeAnchor, encodeAnchor, portKey } from './anchors'
+import type { Anchor, Port, PortKey } from './model'
 
-describe('portKey / parsePortKey', () => {
+function edgesAnchor(port: PortKey): Anchor {
+  return { kind: 'edges', block: 'b', port }
+}
+
+describe('portKey in edges anchors', () => {
   it('round-trips every port kind, including handles that contain colons', () => {
     const ports: Port[] = [
       { kind: 'out' },
@@ -12,13 +16,16 @@ describe('portKey / parsePortKey', () => {
       { kind: 'subflowEnd' },
       { kind: 'raw', handle: 'legacy:handle:1' },
     ]
-    for (const port of ports) expect(parsePortKey(portKey(port))).toEqual(port)
+    for (const port of ports) {
+      const anchor = edgesAnchor(portKey(port))
+      expect(decodeAnchor(encodeAnchor(anchor))).toEqual(anchor)
+    }
     expect(portKey({ kind: 'branch', key: 'if' })).toBe('branch:if')
   })
 
   it('rejects unknown kinds and empty payloads', () => {
     for (const text of ['source', 'branch:', 'raw:', 'out:x', '']) {
-      expect(parsePortKey(text), text).toBeNull()
+      expect(decodeAnchor(encodeAnchor(edgesAnchor(text as PortKey))), text).toBeNull()
     }
   })
 })

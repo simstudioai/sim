@@ -3,7 +3,11 @@ import {
   generateLoopBlocks,
   generateParallelBlocks,
 } from '@sim/workflow-persistence/subflow-helpers'
-import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
+import {
+  getWorkflowBranchHandleRowId,
+  isSubflowType,
+  normalizeWorkflowEdgeSourceHandle,
+} from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/extractor'
@@ -401,12 +405,10 @@ function convertConditionHandleToSimple(
   _blockId: string,
   block: BlockState
 ): string {
-  if (!handle.startsWith('condition-')) {
+  const conditionId = getWorkflowBranchHandleRowId('condition', handle)
+  if (conditionId === null) {
     return handle
   }
-
-  // Extract the condition UUID from the handle
-  const conditionId = handle.substring('condition-'.length)
 
   // Get conditions from block subBlocks (may be JSON string or array)
   const conditionsValue = block.subBlocks?.conditions?.value
@@ -449,12 +451,10 @@ function convertConditionHandleToSimple(
  * Uses 0-indexed numbering for routes
  */
 function convertRouterHandleToSimple(handle: string, _blockId: string, block: BlockState): string {
-  if (!handle.startsWith('router-')) {
+  const routeId = getWorkflowBranchHandleRowId('router', handle)
+  if (routeId === null) {
     return handle
   }
-
-  // Extract the route UUID from the handle
-  const routeId = handle.substring('router-'.length)
 
   // Get routes from block subBlocks (may be JSON string or array)
   const routesValue = block.subBlocks?.routes?.value
@@ -483,11 +483,11 @@ function convertRouterHandleToSimple(handle: string, _blockId: string, block: Bl
  * Outputs: if, else-if-0, else (for conditions) and route-0, route-1 (for routers)
  */
 function convertToSimpleHandle(handle: string, blockId: string, block: BlockState): string {
-  if (handle.startsWith('condition-') && block.type === 'condition') {
+  if (block.type === 'condition') {
     return convertConditionHandleToSimple(handle, blockId, block)
   }
 
-  if (handle.startsWith('router-') && block.type === 'router_v2') {
+  if (block.type === 'router_v2') {
     return convertRouterHandleToSimple(handle, blockId, block)
   }
 
@@ -565,7 +565,7 @@ export function sanitizeForCopilot(
     // For loop/parallel blocks, extract config from block.data instead of subBlocks
     let inputs: Record<string, string | number | string[][] | object>
 
-    if (block.type === 'loop' || block.type === 'parallel') {
+    if (isSubflowType(block.type)) {
       // Extract configuration from block.data (only include type-appropriate fields)
       const loopInputs: Record<string, string | number | string[][] | object> = {}
 

@@ -188,7 +188,7 @@ describe('workflow source at the block cap', () => {
     const printed = printWorkflow({
       workflow: stored.workflow,
       catalog,
-      options: { functionCode: 'files', codeDir: 'functions' },
+      options: { functionCode: 'files' },
     })
     const compiled = compileText(printed.files, stored.workflow)
     const workflow = compiled.workflow

@@ -120,7 +120,7 @@ type LockDiagnostic = Diagnostic<
   | 'E_LOCK_CODE_FILE_PATH'
 >
 
-export type ParseWorkflowLockResult =
+type ParseWorkflowLockResult =
   | { lock: WorkflowLockV1; diagnostics?: undefined }
   | { lock?: undefined; diagnostics: LockDiagnostic[] }
 

@@ -3,14 +3,16 @@ import {
   findWorkflowReferenceTokens,
   isLikelyWorkflowReferenceSegment,
 } from '@sim/utils/workflow-references'
-import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
+import {
+  isReservedWorkflowBlockName,
+  normalizeWorkflowBlockName,
+} from '@sim/workflow-types/workflow'
 import type { Json, ResourceKind, ResourceNode, UnresolvedNode, Value } from '../model'
 import { setOwn } from '../records'
 import { type CanonContext, report } from './context'
 
 /** The executor's candidate pattern (`createReferencePattern`); each match is then vetted. */
 const REFERENCE_CANDIDATE = /<([^<>]+)>/g
-const SPECIAL_PREFIXES = new Set(['loop', 'parallel'])
 const VARIABLE_PREFIX = 'variable'
 
 /**
@@ -48,7 +50,7 @@ function rewriteReferences(text: string, context: CanonContext): string {
     if (prefix === VARIABLE_PREFIX && dot !== -1) {
       return rewriteVariableReference(match, inner.slice(dot + 1), context)
     }
-    if (SPECIAL_PREFIXES.has(prefix)) return match
+    if (isReservedWorkflowBlockName(prefix)) return match
     const normalized = normalizeWorkflowBlockName(prefix)
     if (normalized === prefix || !context.referenceKeyByName.has(normalized)) return match
     return `<${normalized}${dot === -1 ? '' : inner.slice(dot)}>`

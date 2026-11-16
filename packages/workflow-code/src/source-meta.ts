@@ -45,7 +45,7 @@ export interface WorkflowSourceMetaV1 {
 
 type SourceMetaDiagnostic = Diagnostic<SourceMetaDiagnosticCode>
 
-export type ParseSourceMetaResult =
+type ParseSourceMetaResult =
   | { meta: WorkflowSourceMetaV1; diagnostics?: undefined }
   | { meta?: undefined; diagnostics: SourceMetaDiagnostic[] }
 

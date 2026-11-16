@@ -141,8 +141,7 @@ function printText(e: ResolvedEngines, workflow: CanonicalWorkflow, mode: 'inlin
   return printWorkflow({
     workflow,
     catalog: e.catalog,
-    options:
-      mode === 'files' ? { functionCode: 'files', codeDir: 'code' } : { functionCode: 'inline' },
+    options: { functionCode: mode },
   })
 }
 

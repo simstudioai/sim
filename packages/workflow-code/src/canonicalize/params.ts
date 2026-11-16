@@ -27,7 +27,7 @@ export function isExcludedSubBlockId(id: string): boolean {
   )
 }
 
-export interface ParamInputs {
+interface ParamInputs {
   blockKey: BlockKey
   block: BlockState
   catalog: CatalogBlock | undefined
@@ -36,7 +36,7 @@ export interface ParamInputs {
   branchSubBlockId?: SubBlockId
 }
 
-export interface ParamsResult {
+interface ParamsResult {
   params: Record<SubBlockId, CanonicalParam>
   /** inputFormat ids by subBlock: field name → id (lock `items`). */
   items: Record<SubBlockId, Array<{ name: string; id: string }>>
@@ -86,6 +86,20 @@ function decodeStructured(
 }
 
 /**
+ * The names exactly one inputFormat field carries: only such a field's id moves to the lock, since
+ * a name shared or missing cannot key it back.
+ */
+export function uniqueFieldNames(list: readonly unknown[]): Set<string> {
+  const counts = new Map<string, number>()
+  for (const item of list) {
+    if (isRecordLike(item) && typeof item.name === 'string') {
+      counts.set(item.name, (counts.get(item.name) ?? 0) + 1)
+    }
+  }
+  return new Set([...counts].filter(([, count]) => count === 1).map(([name]) => name))
+}
+
+/**
  * inputFormat fields: the editor's `collapsed` flag is dropped and each field's
  * `id` moves to the lock's `items`, keyed by field name. A field whose name is missing or shared
  * keeps its id inline, so nothing is lost.
@@ -94,21 +108,12 @@ function liftInputFormat(
   list: unknown[],
   context: CanonContext
 ): { value: Value; items: Array<{ name: string; id: string }> } {
-  const nameCounts = new Map<string, number>()
-  for (const item of list) {
-    if (isRecordLike(item) && typeof item.name === 'string') {
-      nameCounts.set(item.name, (nameCounts.get(item.name) ?? 0) + 1)
-    }
-  }
+  const unique = uniqueFieldNames(list)
   const items: Array<{ name: string; id: string }> = []
   const value = list.map((item) => {
     if (!isRecordLike(item) || Object.hasOwn(item, '$sim')) return toValue(item, context)
     const rest = omit(item, ['collapsed'])
-    if (
-      typeof rest.id === 'string' &&
-      typeof rest.name === 'string' &&
-      nameCounts.get(rest.name) === 1
-    ) {
+    if (typeof rest.id === 'string' && typeof rest.name === 'string' && unique.has(rest.name)) {
       items.push({ name: rest.name, id: rest.id })
       return toValue(omit(rest, ['id']), context)
     }

@@ -1,7 +1,7 @@
 import {
   type BlockState,
+  isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
-  RESERVED_WORKFLOW_BLOCK_NAMES,
   type Variable,
 } from '@sim/workflow-types/workflow'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
@@ -9,9 +9,7 @@ import type { Diagnostic } from '../diagnostics/frame'
 import type { BlockKey, VarKey } from '../model'
 import type { VariableEntry } from './context'
 
-const RESERVED_NAMES: ReadonlySet<string> = new Set(RESERVED_WORKFLOW_BLOCK_NAMES)
-
-export interface BlockKeys {
+interface BlockKeys {
   keyById: Map<string, BlockKey>
   /** Normalized name → the key of the block references resolve to. */
   referenceKeyByName: Map<string, BlockKey>
@@ -50,7 +48,7 @@ export function assignBlockKeys(
     const normalized = normalizeWorkflowBlockName(block.name)
     if (winnerByName.get(normalized) === id) {
       keyById.set(id, normalized)
-      if (RESERVED_NAMES.has(normalized)) {
+      if (isReservedWorkflowBlockName(normalized)) {
         diagnostics.push({
           code: 'W_CANON_RESERVED_NAME',
           severity: 'warning',

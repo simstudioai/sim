@@ -2,15 +2,16 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   type BlockRetryConfig,
   type BlockState,
+  isSubflowType,
   normalizeBlockRetryTries,
   normalizeBlockRetryWaitMs,
   resolveEffectiveErrorEnabled,
   type WorkflowState,
 } from '@sim/workflow-types/workflow'
 import { deployReadIds, isInactive } from '../catalog/activity'
-import type { CanonicalModeOverrides } from '../catalog/canonical-index'
 import { buildCanonicalIndexForSurface } from '../catalog/surface'
 import type { BlockCatalog } from '../catalog/types'
+import { catalogBlock } from '../catalog/view'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { LockIdentity, LockIdentityBlock, LockLayout, WorkflowLockV1 } from '../lock'
@@ -28,17 +29,16 @@ import type {
 } from '../model'
 import { setOwn } from '../records'
 import { type LiftedBranches, liftBranches } from './branches'
-import { type CanonContext, catalogBlock, report } from './context'
+import { type CanonContext, report } from './context'
 import { canonicalEdges } from './edges'
 import { assignBlockKeys, assignVariableKeys } from './keys'
-import { effectiveModes } from './modes'
+import { effectiveModes, isModeMap, parseModeMap } from './modes'
 import { canonicalParams } from './params'
 import { loopSpec, parallelSpec, SUBFLOW_DATA_KEYS } from './subflows'
 import { toJson, toValue } from './values'
 
 /** `block.data` keys the model or the lock layout owns; anything else is kept under `extra`. */
 const LAYOUT_DATA_KEYS = new Set(['width', 'height'])
-const MODES = new Set(['basic', 'advanced'])
 
 function isRetryConfig(value: unknown): value is BlockRetryConfig {
   return (
@@ -63,24 +63,6 @@ function canonicalRetry(retry: unknown): BlockRetryConfig | null {
     maxTries: normalizeBlockRetryTries(record.maxTries),
     waitBetweenTriesMs: normalizeBlockRetryWaitMs(record.waitBetweenTriesMs),
   }
-}
-
-function canonicalModeOverrides(data: Record<string, unknown>): CanonicalModeOverrides | undefined {
-  const stored = data.canonicalModes
-  if (!isRecordLike(stored)) return undefined
-  const overrides: CanonicalModeOverrides = {}
-  for (const [id, mode] of Object.entries(stored)) {
-    if (typeof mode === 'string' && MODES.has(mode))
-      setOwn(overrides, id, mode as 'basic' | 'advanced')
-  }
-  return overrides
-}
-
-function isModeMap(value: unknown): boolean {
-  return (
-    isRecordLike(value) &&
-    Object.values(value).every((mode) => typeof mode === 'string' && MODES.has(mode))
-  )
 }
 
 function layoutOf(block: BlockState): LockLayout {
@@ -150,7 +132,7 @@ export function canonicalize(
 
   const liftedBranches = new Map<string, LiftedBranches>()
   for (const [id, block] of Object.entries(blocks)) {
-    const branchSpec = catalogBlock(context, block.type)?.graph.branches
+    const branchSpec = catalogBlock(context.catalog, block.type)?.graph.branches
     if (!branchSpec) continue
     const key = keyById.get(id) ?? id
     liftedBranches.set(
@@ -189,8 +171,8 @@ export function canonicalize(
   for (const [id, block] of Object.entries(blocks)) {
     const key = keyById.get(id) ?? id
     const data: Record<string, unknown> = { ...block.data }
-    const catalog = catalogBlock(context, block.type)
-    const isContainer = block.type === 'loop' || block.type === 'parallel'
+    const catalog = catalogBlock(context.catalog, block.type)
+    const isContainer = isSubflowType(block.type)
     if (!catalog && !isContainer) {
       report(context, {
         code: 'W_CANON_UNKNOWN_BLOCK_TYPE',
@@ -213,7 +195,7 @@ export function canonicalize(
       })
     }
 
-    const overrides = canonicalModeOverrides(data)
+    const overrides = parseModeMap(data.canonicalModes)
     const lifted = liftedBranches.get(id)
     const { params, items } = canonicalParams(
       {

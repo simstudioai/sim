@@ -56,8 +56,6 @@ export interface BlockDecl {
   parent: BlockDecl | null
   order: number
   builder: ResolvedBuilder
-  /** The body scope, for containers. */
-  body: Scope | null
   /** A duplicate name: reported, never emitted. */
   duplicate: boolean
   /**
@@ -108,7 +106,6 @@ interface CodeFileBudget {
 
 export interface CompileContext {
   file: string
-  text: string
   reporter: Reporter
   catalog: BlockCatalog
   files: ReadonlyMap<string, string>
@@ -151,6 +148,21 @@ interface Located {
 export function rangeOf(ctx: CompileContext, node: Located): Range {
   const start = node.start ?? 0
   return { file: ctx.file, start, end: node.end ?? start }
+}
+
+/**
+ * Reports `E_UNSUPPORTED_SYNTAX` at `node`. Returns `null` so a step that gives up can
+ * `return unsupported(...)`.
+ */
+export function unsupported(
+  ctx: CompileContext,
+  node: Located,
+  message: string,
+  hint?: string,
+  blockKey?: BlockKey
+): null {
+  ctx.reporter.report('E_UNSUPPORTED_SYNTAX', message, rangeOf(ctx, node), { hint, blockKey })
+  return null
 }
 
 /** Records an anchor's span the first time it is seen. */

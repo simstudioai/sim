@@ -5,12 +5,11 @@
  * point.
  */
 
-import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import {
+  isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
-  RESERVED_WORKFLOW_BLOCK_NAMES,
 } from '@sim/workflow-types/workflow'
 import {
   type McpToolForm,
@@ -29,9 +28,11 @@ import {
   catalogBuilderPaths,
   catalogBuildersOfType,
 } from '../catalog/view'
-import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
+import { CODE_FILE_EXTENSIONS, type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
+import { printsAsElseTrue } from '../forms/condition'
+import { type ResponseForm, readResponseForm } from '../forms/response'
 import {
   JsonRef,
   type JsonTree,
@@ -41,17 +42,18 @@ import {
   refValueKind,
 } from '../json-fields'
 import { isJson, type SourceHintBlock, type SourceHints } from '../lock'
-import type {
-  AnchorKey,
-  BlockKey,
-  CanonicalBlock,
-  CanonicalEdge,
-  CanonicalTool,
-  CanonicalWorkflow,
-  Json,
-  ParamMode,
-  PortKey,
-  Value,
+import {
+  type AnchorKey,
+  type BlockKey,
+  type CanonicalBlock,
+  type CanonicalEdge,
+  type CanonicalTool,
+  type CanonicalWorkflow,
+  isPlainRecord,
+  type Json,
+  type ParamMode,
+  type PortKey,
+  type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
 import { CUSTOM_TOOL_TYPE, GENERIC_BUILDER, RESPONSE_BLOCK_TYPE } from '../sdk'
@@ -65,12 +67,8 @@ import { arrayExpr, arrowExpr, callExpr, type Expr, objectExpr, type Property } 
 import { type FieldContext, type PrintedValue, type Tag, ValuePrinter } from './values'
 
 interface PrintOptions {
-  /** `files`: function code in `codeDir` files (repo mode); `inline`: `js``...``. */
+  /** `files`: function code in `functions/` code files (repo mode); `inline`: `js``...``. */
   functionCode: 'inline' | 'files'
-  /** Repo-relative directory for code files; required when `functionCode` is `files`. */
-  codeDir?: string
-  /** Defaults to 100 (biome.json). */
-  lineWidth?: number
 }
 
 export interface PrintInput {
@@ -85,7 +83,7 @@ interface PrintedFile {
   text: string
 }
 
-export interface PrintResult {
+interface PrintResult {
   /** The workflow file first, then code files. */
   files: [PrintedFile, ...PrintedFile[]]
   /** Input hints plus an ident, order and code file for every block. */
@@ -93,17 +91,11 @@ export interface PrintResult {
   diagnostics: Diagnostic<PrintDiagnosticCode>[]
 }
 
-const DEFAULT_WIDTH = 100
-const DEFAULT_CODE_DIR = 'functions'
+/** biome.json's line width. */
+const LINE_WIDTH = 100
+const CODE_DIR = 'functions'
 const ENTRY_PATH = 'workflow.ts'
 const SDK_MODULE = '@sim/workflow-sdk'
-
-const LANGUAGE_TAGS: Record<CodeFileLanguage, Tag> = { javascript: 'js', python: 'py', shell: 'sh' }
-const LANGUAGE_EXTENSIONS: Record<CodeFileLanguage, string> = {
-  javascript: 'js',
-  python: 'py',
-  shell: 'sh',
-}
 
 type Diag = Diagnostic<PrintDiagnosticCode>
 
@@ -188,10 +180,8 @@ function inputFormatSugar(
   const seen = new Set<string>()
   const items: Array<{ name: string; item: Record<string, Value> }> = []
   for (const entry of value) {
-    if (entry === null || typeof entry !== 'object' || Array.isArray(entry) || '$sim' in entry) {
-      return null
-    }
-    const record = entry as Record<string, Value>
+    if (!isPlainRecord(entry)) return null
+    const record = entry
     const name = record.name
     if (typeof name !== 'string' || typeof record.type !== 'string') return null
     if (seen.has(name) || INTEGER_LIKE.test(name) || name === '__proto__') return null
@@ -200,11 +190,6 @@ function inputFormatSugar(
     items.push({ name, item: record })
   }
   return items
-}
-
-interface ScopeInfo {
-  /** Declaration order of the scope's members. */
-  members: BlockKey[]
 }
 
 /**
@@ -242,14 +227,14 @@ class WorkflowPrinter {
   private readonly workflow: CanonicalWorkflow
   private readonly catalog: BlockCatalog
   private readonly hints: SourceHints
-  private readonly width: number
   private readonly options: PrintInput['options']
   private readonly diagnostics: Diag[] = []
   private readonly imports = new Set<string>(['workflow'])
   private usesVars = false
   private readonly blocks: Map<BlockKey, CanonicalBlock>
   private readonly parentOf = new Map<BlockKey, BlockKey | null>()
-  private readonly scopes = new Map<BlockKey | null, ScopeInfo>()
+  /** Each scope's members in declaration order. */
+  private readonly scopeMembers = new Map<BlockKey | null, BlockKey[]>()
   private readonly position = new Map<BlockKey, number>()
   private readonly preorder: BlockKey[] = []
   private readonly preorderIndex = new Map<BlockKey, number>()
@@ -269,7 +254,6 @@ class WorkflowPrinter {
     this.workflow = input.workflow
     this.catalog = input.catalog
     this.hints = input.hints ?? { blocks: {} }
-    this.width = input.options.lineWidth ?? DEFAULT_WIDTH
     this.options = input.options
     this.blocks = new Map(Object.entries(this.workflow.blocks))
     for (const [key, block] of this.blocks) {
@@ -404,7 +388,7 @@ class WorkflowPrinter {
         }),
         dependencies
       )
-      this.scopes.set(scope, { members: order })
+      this.scopeMembers.set(scope, order)
       order.forEach((key, index) => {
         this.position.set(key, index)
         this.preorderIndex.set(key, this.preorder.length)
@@ -465,7 +449,7 @@ class WorkflowPrinter {
     if (sb?.valueKind === 'code') {
       if (sb.language === 'json') return 'json'
       const language = toLanguage(stringParam(block, 'language')) ?? toLanguage(sb.language)
-      return language ? LANGUAGE_TAGS[language] : 'js'
+      return language ? CODE_FILE_EXTENSIONS[language] : 'js'
     }
     if (catalogBlock?.graph.annotationOnly) return 'md'
     return 't'
@@ -630,13 +614,12 @@ class WorkflowPrinter {
     const check = checkCodeFileBijection(code, language)
     if (!check.ok) return inline('its tokens cannot be rewritten for a code file')
     const text = check.file
-    const extension = LANGUAGE_EXTENSIONS[language]
+    const extension = CODE_FILE_EXTENSIONS[language]
     const hinted = getOwn(this.hints.blocks, block.key)?.codeFile
-    const dir = (this.options.codeDir ?? DEFAULT_CODE_DIR).replace(/\/+$/, '')
     let path =
       hinted?.endsWith(`.${extension}`) && !this.takenCodePaths.has(hinted)
         ? hinted
-        : `${dir}/${kebab(this.idents.get(block.key) ?? block.key)}.${extension}`
+        : `${CODE_DIR}/${kebab(this.idents.get(block.key) ?? block.key)}.${extension}`
     let suffix = 2
     const base = path.slice(0, -(extension.length + 1))
     while (this.takenCodePaths.has(path)) {
@@ -919,64 +902,30 @@ class WorkflowPrinter {
   }
 
   /**
-   * The `response(name, { body, status?, headers? })` form, for a response block in the editor's
-   * JSON mode whose params it carries exactly: `status` text that is a canonical integer prints
-   * as a number, header rows as a record. `null` keeps the block's own params.
+   * The params of a response block printed in the `response(name, { body, status?, headers? })`
+   * form (`forms/response.ts`): a numeric status as a number, header rows as a record.
    */
-  private responseBody(
-    block: CanonicalBlock,
-    collected: { params: ParamEntry[]; extra: ParamEntry[] }
-  ): ParamEntry[] | null {
-    const allowed = new Set(['dataMode', 'data', 'status', 'headers'])
-    if (collected.extra.length > 0 || collected.params.some((entry) => !allowed.has(entry.key))) {
-      return null
-    }
-    const value = (id: string): Value | undefined => {
-      const param = getOwn(block.params, id)
-      return param?.kind === 'value' ? param.value : undefined
-    }
-    const data = value('data')
-    const status = value('status')
-    const headers = value('headers')
-    if (value('dataMode') !== 'json' || typeof data !== 'string') return null
-    if (status !== undefined && typeof status !== 'string') return null
-    const rows = headers === undefined ? [] : headers
-    if (!Array.isArray(rows)) return null
-    const names = new Set<string>()
-    const headerProps: Property[] = []
-    for (const row of rows) {
-      const cells = isRecordLike(row) && Object.keys(row).join() === 'cells' ? row.cells : null
-      if (!isRecordLike(cells) || Object.keys(cells).sort().join() !== 'Key,Value') return null
-      const { Key, Value: text } = cells
-      if (typeof Key !== 'string' || typeof text !== 'string' || names.has(Key)) return null
-      names.add(Key)
-      headerProps.push({
-        key: printKey(Key),
-        value: this.values.value(text, { tag: 't', from: block.key }),
-      })
-    }
+  private responseFormParams(block: CanonicalBlock, form: ResponseForm): ParamEntry[] {
+    const text = (value: string): Expr => this.values.value(value, { tag: 't', from: block.key })
     const entry = (key: string, expr: Expr): ParamEntry => ({
       key,
       anchor: anchors.param(block.key, key),
       value: expr,
     })
-    const entries = [
-      entry(
-        'body',
-        this.printJsonField(block, data) ?? this.values.value(data, { tag: 't', from: block.key })
-      ),
-    ]
-    if (status !== undefined) {
+    const entries = [entry('body', this.printJsonField(block, form.data) ?? text(form.data))]
+    if (form.status) {
+      const { text: status, numeric } = form.status
       entries.push(
-        entry(
-          'status',
-          /^[1-9][0-9]{0,14}$/.test(status)
-            ? { doc: status, shape: 'number', numeric: true }
-            : this.values.value(status, { tag: 't', from: block.key })
-        )
+        entry('status', numeric ? { doc: status, shape: 'number', numeric: true } : text(status))
       )
     }
-    if (headers !== undefined) entries.push(entry('headers', objectExpr(headerProps)))
+    if (form.headers) {
+      const headers = form.headers.map(({ name, value }) => ({
+        key: printKey(name),
+        value: text(value),
+      }))
+      entries.push(entry('headers', objectExpr(headers)))
+    }
     return entries
   }
 
@@ -1049,15 +998,12 @@ class WorkflowPrinter {
     const meta: Property[] = []
     const rows = branches.rows
     rows.forEach((row, index) => {
-      const isElse =
-        branches.kind === 'condition' && row.key === 'else' && index === rows.length - 1
-      const value: Expr =
-        isElse && row.value === ''
-          ? { doc: 'true', shape: 'literal' }
-          : this.values.value(row.value, {
-              tag: branches.kind === 'condition' ? 'js' : 't',
-              from: block.key,
-            })
+      const value: Expr = printsAsElseTrue(branches.kind, row, index, rows.length)
+        ? { doc: 'true', shape: 'literal' }
+        : this.values.value(row.value, {
+            tag: branches.kind === 'condition' ? 'js' : 't',
+            from: block.key,
+          })
       entries.push({ key: printMember(row.key).slice(1), value })
       const rowMeta: Property[] = []
       if (row.titleOverride !== undefined) {
@@ -1080,30 +1026,33 @@ class WorkflowPrinter {
     const pinned = pinnedIds(found?.builder)
     const collected = this.collectParams(block, catalogBlock, pinned)
     const { extra } = collected
-    const body =
-      found?.builder.type === RESPONSE_BLOCK_TYPE ? this.responseBody(block, collected) : null
-    const params = body ?? collected.params
+    const form =
+      found?.builder.type === RESPONSE_BLOCK_TYPE
+        ? readResponseForm(
+            block,
+            collected.params.map((entry) => entry.key),
+            extra.length > 0
+          )
+        : null
+    const params = form ? this.responseFormParams(block, form) : collected.params
     const paramProps = this.paramProperties(params)
     const extraProps = this.paramProperties(extra)
-    const branchKind = catalogBlock?.graph.branches?.kind ?? block.branches?.kind
+    const branchSpec = catalogBlock?.graph.branches
     const { entries: branchProps, meta: branchMeta } = this.branchEntries(block)
-    const branchSubBlock =
-      catalogBlock?.graph.branches?.subBlockId ??
-      (branchKind === 'router' ? 'routes' : 'conditions')
 
     let generic = found === null
     let topLevel: Property[] = paramProps
-    if (block.branches) {
+    if (block.branches && branchSpec) {
       const collides = paramProps.some((prop) =>
         branchProps.some((branch) => branch.key === prop.key)
       )
-      if (branchKind === 'condition' && !generic && !collides) {
+      if (branchSpec.kind === 'condition' && !generic && !collides) {
         topLevel = [...branchProps, ...paramProps]
       } else {
-        if (branchKind === 'condition' && collides) generic = true
+        if (branchSpec.kind === 'condition' && collides) generic = true
         topLevel = [
           ...paramProps,
-          { key: printKey(branchSubBlock), value: objectExpr(branchProps) },
+          { key: printKey(branchSpec.subBlockId), value: objectExpr(branchProps) },
         ]
       }
     }
@@ -1237,7 +1186,7 @@ class WorkflowPrinter {
       }
     }
 
-    for (const source of this.scopes.get(scope)?.members ?? []) {
+    for (const source of this.scopeMembers.get(scope) ?? []) {
       const block = this.blocks.get(source)
       if (!block) continue
       const ident = this.idents.get(source) ?? source
@@ -1314,7 +1263,7 @@ class WorkflowPrinter {
 
   /** Declarations then wiring for one scope (the workflow body or a container callback). */
   private scopeStatements(scope: BlockKey | null): Doc[] {
-    const members = this.scopes.get(scope)?.members ?? []
+    const members = this.scopeMembers.get(scope) ?? []
     const calls = members.map((key) => {
       const block = this.blocks.get(key)
       return block ? { key, call: this.blockCall(block) } : null
@@ -1396,7 +1345,8 @@ class WorkflowPrinter {
     const footer = this.comments.take(anchors.footer)
     this.comments.dropRemaining()
 
-    const importNames = [...this.imports].sort(compareImportNames)
+    // compareStrings is the order Biome's organizeImports keeps import specifiers in.
+    const importNames = [...this.imports].sort(compareStrings)
     const importLine = group([
       'import {',
       indent([line, join([',', line], importNames)]),
@@ -1416,7 +1366,7 @@ class WorkflowPrinter {
     ]
     if (footer.leading.length > 0) parts.push(hardline, join(hardline, footer.leading))
     parts.push(hardline)
-    const text = printDoc(parts, this.width)
+    const text = printDoc(parts, LINE_WIDTH)
 
     const hintBlocks: Record<BlockKey, SourceHintBlock> = { ...this.hints.blocks }
     this.preorder.forEach((key, index) => {
@@ -1435,20 +1385,15 @@ class WorkflowPrinter {
   }
 }
 
-const RESERVED_KEYS: ReadonlySet<string> = new Set(RESERVED_WORKFLOW_BLOCK_NAMES)
-
 /**
  * A legacy key the display name cannot carry: a `name~n` collision key, or a reserved name
  * (`Loop`, `Parallel`). Printed as `meta.key`, which the compiler accepts only for a key the
  * stored workflow already has (`CompileInput.knownKeys`).
  */
 function needsKeyOverride(block: CanonicalBlock): boolean {
-  return block.key !== normalizeWorkflowBlockName(block.name) || RESERVED_KEYS.has(block.key)
-}
-
-/** Import specifiers in the order Biome's organizeImports keeps them. */
-function compareImportNames(a: string, b: string): number {
-  return compareStrings(a, b)
+  return (
+    block.key !== normalizeWorkflowBlockName(block.name) || isReservedWorkflowBlockName(block.key)
+  )
 }
 
 /**

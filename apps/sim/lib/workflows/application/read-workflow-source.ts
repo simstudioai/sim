@@ -3,7 +3,6 @@ import { db } from '@sim/db'
 import { compareStrings } from '@sim/utils/string'
 import {
   type CanonicalWorkflow,
-  canonicalHash,
   type Diagnostic,
   type SourceBase,
   type SourceFingerprint,
@@ -180,7 +179,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
         catalogHash: catalog.hash,
       },
       fingerprint: printed.fingerprint,
-      canonicalHash: canonicalHash(canonical.workflow),
+      canonicalHash: printed.canonicalHash,
       catalogHash: catalog.hash,
       sdkMajor: catalog.sdkMajor,
       blockTypes: usedBlockTypes(canonical.workflow),

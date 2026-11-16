@@ -1,23 +1,30 @@
 import { isRecordLike, omit } from '@sim/utils/object'
-import type { BlockData, BlockState, SubBlockState } from '@sim/workflow-types/workflow'
-import { implicitIds } from '../canonicalize/branches'
-import { declarationFor, isExcludedSubBlockId } from '../canonicalize/params'
+import {
+  type BlockData,
+  type BlockState,
+  isSubflowType,
+  type SubBlockState,
+} from '@sim/workflow-types/workflow'
+import { implicitIds, unliftedBranchIds } from '../canonicalize/branches'
+import { parseModeMap } from '../canonicalize/modes'
+import { declarationFor, isExcludedSubBlockId, uniqueFieldNames } from '../canonicalize/params'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { mintsFreshValue } from '../catalog/defaults'
+import { catalogBlock } from '../catalog/view'
 import type { LockItem, LockLayout, WorkflowLockBlock } from '../lock'
 import type { BlockKey, BranchKey, CanonicalBlock, SubBlockId } from '../model'
-import { deepEqual, parseJsonContainer } from '../records'
+import { deepEqual } from '../records'
 import { writeBranches } from './branches'
-import { catalogBlock, type MaterializeContext } from './context'
+import type { MaterializeContext } from './context'
 import type { ResolvedBlock } from './identity'
-import { storedModes, writeBlockModes, writeToolModes } from './modes'
+import { writeBlockModes, writeToolModes } from './modes'
 import { encodeParam, matchPrevTools, parseStoredList } from './params'
 import { writeSubflowData } from './subflows'
 
 /** `block.data` keys the model or the layout owns on any block; everything else is `extra`. */
 const MODEL_DATA_KEYS = new Set(['parentId', 'extent', 'width', 'height', 'canonicalModes'])
 
-export interface BlockInputs {
+interface BlockInputs {
   key: BlockKey
   target: CanonicalBlock
   resolved: ResolvedBlock
@@ -68,28 +75,14 @@ function sameBlock(left: CanonicalBlock, right: CanonicalBlock): boolean {
  */
 function storedItems(raw: unknown): LockItem[] {
   const list = parseStoredList(raw).filter(isRecordLike)
-  const counts = new Map<string, number>()
-  for (const item of list) {
-    if (typeof item.name === 'string') counts.set(item.name, (counts.get(item.name) ?? 0) + 1)
-  }
+  const unique = uniqueFieldNames(list)
   const items: LockItem[] = []
   for (const { name, id } of list) {
-    if (typeof name === 'string' && typeof id === 'string' && counts.get(name) === 1) {
+    if (typeof name === 'string' && typeof id === 'string' && unique.has(name)) {
       items.push({ name, id })
     }
   }
   return items
-}
-
-/** The ids a stored-but-unliftable branch value answers to (canonicalize/branches.ts). */
-function unliftedBranchIds(
-  kind: 'condition' | 'router',
-  blockId: string,
-  raw: unknown
-): Record<BranchKey, string> {
-  if (Array.isArray(raw)) return {}
-  if (typeof raw === 'string' && Array.isArray(parseJsonContainer(raw))) return {}
-  return implicitIds(kind, blockId)
 }
 
 function rawValues(subBlocks: Record<string, SubBlockState>): Record<string, unknown> {
@@ -233,7 +226,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
         subBlocks[subBlockId] = {
           ...(existing ?? {
             id: subBlockId,
-            type: branchSpec.kind === 'condition' ? 'condition-input' : 'router-input',
+            type: declarationFor(catalog, subBlockId, target.triggerMode)?.type ?? 'short-input',
           }),
           value: write.value,
         }
@@ -246,7 +239,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
 
   const nextExtra = target.extra ?? {}
   if (catalog && !Object.hasOwn(nextExtra, 'canonicalModes')) {
-    const original = storedModes(data)
+    const original = parseModeMap(data.canonicalModes)
     let modes = writeBlockModes(
       original ?? {},
       target.modes,
@@ -287,7 +280,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
     }
   }
   if (isNew) {
-    const isContainer = target.type === 'loop' || target.type === 'parallel'
+    const isContainer = isSubflowType(target.type)
     for (const dataKey of Object.keys(data)) {
       const owned = MODEL_DATA_KEYS.has(dataKey) || (isContainer && SUBFLOW_DATA_KEYS.has(dataKey))
       if (!owned && !Object.hasOwn(nextExtra, dataKey)) delete data[dataKey]

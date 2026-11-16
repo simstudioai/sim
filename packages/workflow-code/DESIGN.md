@@ -229,7 +229,9 @@ Notable fields:
   `sdk-names.json` aliases, `oauthCredential` → `credential`), `addable?: false`, legacy ids.
 - `CatalogSubBlock`: `surface` (separates the action and trigger copies of one id), `condition`,
   `visibleFor`/`visibleWhen`/`visibleForModel` (data the projection precomputed for function
-  conditions), `valueDefault`, `defaultValue`, `password`, `storage`, `columns`, `step`, `integer`.
+  conditions), `valueDefault`, `defaultValue`, `password`, `storage`, `columns`, `step`, `integer`,
+  `valueShape` (the shape the value takes in an agent tool entry, `getSubBlockValueShape`, which
+  canonicalize decodes a stored tool param by; absent is `string`).
 - `valueKind`: `string | number | boolean | array | object | json | code | branches | tools |
   resource | picked | upload | none`. `resource`, `picked` and `upload` are the selector kinds;
   `resourceKind` is set iff `valueKind` is `resource`. A JSON `code` member has kind `json`.
@@ -256,6 +258,8 @@ the core shard, deterministic because tables fill in key order; it is the ETag a
 
 Shared semantics live in one place each: `catalog/surface.ts` (which declarations a block uses, and
 param aliases), `catalog/conditions.ts` (visibility; `'undecided'` is each caller's policy),
+`forms/` (the response `body` form and the condition `else: true`, each printed and compiled by one
+module),
 `catalog/activity.ts` (active vs inactive) and `catalog/defaults.ts`.
 
 ## Canonicalize
@@ -289,7 +293,7 @@ print compiles with zero errors.
 - References inside strings become interpolations when they resolve in lexical scope; anything else
   stays literal text that compiles back to the same bytes (`print/refs.ts`).
 - Strings escape bidi and zero-width characters (`‮`).
-- `functionCode: 'files'` writes function code to `codeDir` (see "Code files"); `'inline'` uses
+- `functionCode: 'files'` writes function code to `functions/` (see "Code files"); `'inline'` uses
   `js` templates.
 - An agent tool prints in the first form whose compile reproduces it exactly: `mcp('k').tool()`
   and `childWorkflow('k').asTool()` (`agent-tools.ts` pairs each reader with the builder compile
@@ -384,7 +388,7 @@ next segment names the owning stage: none for compile and print (one shared voca
 meaning; codes freeze at release.
 
 A diagnostic carries `span: SourceSpan` (file, 1-based line and column in UTF-16 units, end, UTF-16
-offsets), `frame`, optional `fix`, `hint` and `related`. Compile returns `LocatedDiagnostic`, which
+offsets), `frame`, optional `hint` and `related`. Compile returns `LocatedDiagnostic`, which
 always has `span` and `frame`; lock and source meta diagnostics carry an RFC 6901 `path` instead.
 `codeFrame` shows two context lines, marks every spanned line with `>`, puts the caret under the
 start line, and clamps bad input (NaN to 1, ±Infinity to a bound).

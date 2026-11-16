@@ -35,14 +35,14 @@ export interface CanonicalModeOverrides {
   [canonicalId: string]: CanonicalMode | undefined
 }
 
-export interface CanonicalValueSelection {
+interface CanonicalValueSelection {
   basicValue: unknown
   advancedValue: unknown
   advancedSourceId?: string
 }
 
 /** The subBlock fields the canonical index reads. */
-export interface CanonicalIndexSubBlock {
+interface CanonicalIndexSubBlock {
   id: string
   mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
   canonicalParamId?: string
@@ -53,7 +53,7 @@ export interface CanonicalIndexSubBlock {
  * or a catalog `{ opaque: true }` marker for a function the projection could not evaluate. An
  * opaque condition counts as satisfied, so its field is treated as active.
  */
-export type EvaluableSubBlockCondition =
+type EvaluableSubBlockCondition =
   | SubBlockCondition
   | OpaqueMarker
   | ((values?: Record<string, unknown>) => SubBlockCondition)

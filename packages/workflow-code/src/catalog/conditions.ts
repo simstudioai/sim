@@ -9,7 +9,7 @@
  * Pure and dependency-free, so the editor's canonical index evaluates through it too.
  */
 
-import type { CatalogSubBlock } from './types'
+import type { CatalogCondition, CatalogSubBlock, SubBlockConditionClause } from './types'
 
 export type ConditionResult = boolean | 'undecided'
 
@@ -28,6 +28,18 @@ interface ClausePart {
 /** The object form of a condition: a clause and at most one level of `and`, as in the registry. */
 export interface ConditionClause extends ClausePart {
   and?: ClausePart
+}
+
+/** A data condition the evaluator can read: not absent, a boolean, or `{ opaque: true }`. */
+export function isConditionClause(
+  value: CatalogCondition | boolean | undefined
+): value is SubBlockConditionClause {
+  return typeof value === 'object' && 'field' in value
+}
+
+/** A function condition the projection could not evaluate (`{ opaque: true }`). */
+export function isOpaqueCondition(value: CatalogCondition | boolean | undefined): boolean {
+  return typeof value === 'object' && 'opaque' in value
 }
 
 /** A lookup over a record in which every field is known (absent means unset). */

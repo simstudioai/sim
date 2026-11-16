@@ -1,77 +1,14 @@
 /**
- * Small, deterministic text helpers for the `.d.ts` emitter: quoting, property keys, JSDoc and
- * literal unions. Output follows the repo style (2 spaces, single quotes, no semicolons).
+ * Small, deterministic text helpers for the `.d.ts` emitter: JSDoc and literal unions. Output
+ * follows the repo style (2 spaces, no semicolons); strings and property keys are quoted by
+ * `@sim/workflow-code`'s `quoteString` and `printKey`, as printed source is.
  */
 
-const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
-
-/** ECMAScript reserved words plus TS contextual names that cannot name a namespace member. */
-export const RESERVED_WORDS: ReadonlySet<string> = new Set([
-  'break',
-  'case',
-  'catch',
-  'class',
-  'const',
-  'continue',
-  'debugger',
-  'default',
-  'delete',
-  'do',
-  'else',
-  'enum',
-  'export',
-  'extends',
-  'false',
-  'finally',
-  'for',
-  'function',
-  'if',
-  'import',
-  'in',
-  'instanceof',
-  'new',
-  'null',
-  'return',
-  'super',
-  'switch',
-  'this',
-  'throw',
-  'true',
-  'try',
-  'typeof',
-  'var',
-  'void',
-  'while',
-  'with',
-  'implements',
-  'interface',
-  'let',
-  'package',
-  'private',
-  'protected',
-  'public',
-  'static',
-  'yield',
-  'await',
-])
-
-export function isIdentifier(name: string): boolean {
-  return IDENTIFIER.test(name)
-}
-
-/** A single-quoted string literal. */
-export function quote(value: string): string {
-  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '\\r')}'`
-}
-
-/** A property key: bare when it is an identifier, else quoted. */
-export function propertyKey(name: string): string {
-  return isIdentifier(name) ? name : quote(name)
-}
+import { quoteString } from '@sim/workflow-code'
 
 /** A TS literal type for an option id. */
 export function literal(value: string | number | boolean): string {
-  return typeof value === 'string' ? quote(value) : String(value)
+  return typeof value === 'string' ? quoteString(value) : String(value)
 }
 
 /** A union of distinct members, in first-seen order. */

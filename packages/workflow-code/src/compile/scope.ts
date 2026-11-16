@@ -6,8 +6,8 @@ import type {
   VariableDeclaration,
 } from '@babel/types'
 import {
+  isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
-  RESERVED_WORKFLOW_BLOCK_NAMES,
 } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
@@ -23,6 +23,7 @@ import {
   rangeOf,
   recordSpan,
   type Scope,
+  unsupported,
 } from './context'
 import { didYouMean, HINTS, hintForNode } from './hints'
 import { calleePath, literalText, SDK_VALUE_FUNCTIONS } from './values'
@@ -36,10 +37,6 @@ type CallClass =
   | { kind: 'value' }
   | { kind: 'wiring' }
   | { kind: 'other' }
-
-function unsupported(ctx: CompileContext, node: Node, message: string, hint: string): void {
-  ctx.reporter.report('E_UNSUPPORTED_SYNTAX', message, rangeOf(ctx, node), { hint })
-}
 
 /** Whether `call` is wiring: `x.to(...)`, `x.onError(...)`, a chain of those, or `edge(...)`. */
 function isWiringCall(scope: Scope, call: CallExpression): boolean {
@@ -107,7 +104,7 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
       `${dotted} is not a block builder.`,
       rangeOf(ctx, call.callee),
       {
-        ...withHint(didYouMean(dotted, candidates)),
+        hint: didYouMean(dotted, candidates),
       }
     )
     return { kind: 'builder', path: dotted, builder: { kind: 'unknown' } }
@@ -125,17 +122,9 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
   }
 }
 
-function withHint(hint: string | undefined): { hint?: string } {
-  return hint === undefined ? {} : { hint }
-}
-
 /** Index of the name argument: `block(type, name, ...)` takes the type first. */
 function nameArgumentIndex(builder: ResolvedBuilder, path: string): number {
   return builder.kind === 'generic' || path === GENERIC_BUILDER ? 1 : 0
-}
-
-function isReservedKey(key: string): boolean {
-  return (RESERVED_WORKFLOW_BLOCK_NAMES as readonly string[]).includes(key)
 }
 
 /** `name~n` with n ≥ 2, the form canonicalize gives the losing block of a legacy collision. */
@@ -176,7 +165,7 @@ function keyOverride(
   if (!ctx.knownKeys.has(key)) {
     return reject(`meta.key ${key} is not a key of this workflow's stored blocks.`)
   }
-  if (key === normalized && isReservedKey(key)) return { key }
+  if (key === normalized && isReservedWorkflowBlockName(key)) return { key }
   if (collisionSuffix(key, normalized)) {
     return { key, collisionBase: { base: normalized, node: property } }
   }
@@ -224,7 +213,7 @@ function declare(
   const metaIndex = classified.builder.kind === 'container' ? 3 : nameIndex + 2
   const override = keyOverride(ctx, call.arguments[metaIndex], normalized)
   const key = override?.key ?? normalized
-  if (!override && isReservedKey(normalized)) {
+  if (!override && isReservedWorkflowBlockName(normalized)) {
     ctx.reporter.report(
       'E_RESERVED_NAME',
       `${name} is reserved for <${key}.…> references.`,
@@ -246,7 +235,6 @@ function declare(
     parent: container,
     order: ctx.decls.length,
     builder: classified.builder,
-    body: null,
     duplicate: false,
     ...(override?.collisionBase && { collisionBase: override.collisionBase }),
   }
@@ -290,7 +278,6 @@ function collectContainerBody(ctx: CompileContext, decl: BlockDecl): void {
     return
   }
   const scope: Scope = { parent: decl.scope, bindings: new Map(), container: decl }
-  decl.body = scope
   const param = body.params[0]
   if (param) {
     if (param.type !== 'Identifier') {

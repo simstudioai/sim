@@ -36,7 +36,7 @@ const DEPLOY_SKIPPED_IDS = new Set([
   'scheduleInfo',
 ])
 
-export interface ActivityInputs {
+interface ActivityInputs {
   block: CatalogBlock
   blockType: string
   triggerMode: boolean

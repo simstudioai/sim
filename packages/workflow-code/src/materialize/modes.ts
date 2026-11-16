@@ -1,24 +1,12 @@
-import { isRecordLike, toRecord } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { effectiveModes } from '../canonicalize/modes'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
+import { catalogBlock } from '../catalog/view'
 import type { CanonicalParamId, CanonicalTool, ParamMode } from '../model'
-import { catalogBlock } from './context'
 
-const MODES = new Set(['basic', 'advanced'])
 const INDEX_SCOPED_KEY = /^\d+:/
 
 type ModeMap = Record<string, ParamMode>
-
-/** The valid entries of a stored `data.canonicalModes`, or `undefined` when there is none. */
-export function storedModes(data: Record<string, unknown> | undefined): ModeMap | undefined {
-  const stored = data?.canonicalModes
-  if (!isRecordLike(stored)) return undefined
-  const modes: ModeMap = {}
-  for (const [id, mode] of Object.entries(stored)) {
-    if (typeof mode === 'string' && MODES.has(mode)) modes[id] = mode as ParamMode
-  }
-  return modes
-}
 
 /**
  * Block-level modes: an entry is written only where one already existed

@@ -8,10 +8,18 @@ import {
 } from '../agent-tools'
 import { paramAliases } from '../catalog/surface'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
-import type { CanonicalTool, Json, ParamMode, ResourceNode, UnresolvedNode, Value } from '../model'
+import {
+  type CanonicalTool,
+  isPlainRecord,
+  type Json,
+  type ParamMode,
+  type ResourceNode,
+  type UnresolvedNode,
+  type Value,
+} from '../model'
 import { getOwn, setOwn } from '../records'
 import { CUSTOM_TOOL_TYPE } from '../sdk'
-import { type CompileContext, lookup, rangeOf } from './context'
+import { type CompileContext, lookup, rangeOf, unsupported } from './context'
 import { didYouMean, hintForNode } from './hints'
 import {
   calleePath,
@@ -38,20 +46,6 @@ const TOOL_OPTIONS = [
   'extra',
 ]
 
-function unsupported(
-  ctx: CompileContext,
-  node: Node,
-  message: string,
-  hint: string,
-  site: ValueSite
-) {
-  ctx.reporter.report('E_UNSUPPORTED_SYNTAX', message, rangeOf(ctx, node), {
-    hint,
-    blockKey: site.decl.key,
-  })
-  return null
-}
-
 type ToolUsage = Pick<CanonicalTool, 'usageControl' | 'usageControlExpression'>
 
 /**
@@ -73,7 +67,7 @@ function compileUsage(
         property.value,
         'Unknown usage control.',
         `Use ${[...USAGE_CONTROLS].join(', ')}.`,
-        site
+        site.decl.key
       )
       return false
     }
@@ -82,7 +76,13 @@ function compileUsage(
   }
   const compiled = compileValue(ctx, property.value, site)
   if (!compiled || compiled.kind !== 'value' || typeof compiled.value !== 'string') {
-    unsupported(ctx, property.value, 'usageControlExpression is text.', 'Write js`...`.', site)
+    unsupported(
+      ctx,
+      property.value,
+      'usageControlExpression is text.',
+      'Write js`...`.',
+      site.decl.key
+    )
     return false
   }
   usage.usageControlExpression = compiled.value
@@ -96,8 +96,7 @@ function isUsageOption(option: string): option is 'usageControl' | 'usageControl
 /** A `raw(tool)` element: the canonical tool verbatim, checked for the fields every tool has. */
 function isCanonicalTool(value: Value): value is CanonicalTool & Value {
   return (
-    isRecordLike(value) &&
-    !('$sim' in value) &&
+    isPlainRecord(value) &&
     typeof value.type === 'string' &&
     isRecordLike(value.params) &&
     isRecordLike(value.modes)
@@ -159,14 +158,14 @@ function compileToolCall(
   if (!builder) return null
   const [paramsNode, optionsNode, ...extra] = call.arguments
   for (const node of extra)
-    unsupported(ctx, node, 'Too many arguments.', 'Write tool(params, options).', site)
+    unsupported(ctx, node, 'Too many arguments.', 'Write tool(params, options).', site.decl.key)
   if (!paramsNode || paramsNode.type !== 'ObjectExpression') {
     return unsupported(
       ctx,
       paramsNode ?? call,
       'Tool params are an object literal.',
       'Write tool({ field: value }).',
-      site
+      site.decl.key
     )
   }
   const params: Record<string, Value> = {}
@@ -199,7 +198,7 @@ function compileToolCall(
         property,
         `${key} names a param that is already written.`,
         'Write each param once.',
-        site
+        site.decl.key
       )
     }
     setOwn(params, param, value)
@@ -213,7 +212,7 @@ function compileToolCall(
       optionsNode,
       'Tool options are an object literal.',
       "Write { usageControl: 'auto' }.",
-      site
+      site.decl.key
     )
   }
   for (const [key, property] of objectEntries(ctx, optionsNode)) {
@@ -228,7 +227,7 @@ function compileToolCall(
             property.value,
             `${key} is a string.`,
             `Write ${key}: '...'.`,
-            site
+            site.decl.key
           )
         tool[key] = text
         break
@@ -243,7 +242,7 @@ function compileToolCall(
             property.value,
             'modes is an object literal.',
             "Write modes: { cid: 'basic' }.",
-            site
+            site.decl.key
           )
         }
         const modes: Record<string, ParamMode> = {}
@@ -255,7 +254,7 @@ function compileToolCall(
               modeProperty.value,
               "A mode is 'basic' or 'advanced'.",
               "Write 'basic' or 'advanced'.",
-              site
+              site.decl.key
             )
           }
           setOwn(modes, cid, mode)
@@ -266,13 +265,13 @@ function compileToolCall(
       case 'customTool': {
         const value = compileNested(ctx, property.value, site)
         if (value === undefined) return null
-        if (!isRecordLike(value) || '$sim' in value) {
+        if (!isPlainRecord(value)) {
           return unsupported(
             ctx,
             property.value,
             'customTool is { ref?, snapshot? }.',
             'Write customTool: { ref: customTool(key) }.',
-            site
+            site.decl.key
           )
         }
         const { ref, snapshot, ...rest } = value
@@ -290,7 +289,7 @@ function compileToolCall(
             property.value,
             'customTool is { ref?, snapshot? }.',
             'Write customTool: { ref: customTool(key) }.',
-            site
+            site.decl.key
           )
         }
         tool.customTool = {
@@ -317,7 +316,7 @@ function compileToolCall(
             property.value,
             'extra is an object.',
             'Write extra: { key: value }.',
-            site
+            site.decl.key
           )
         tool.extra = json as Record<string, Json>
         break
@@ -358,7 +357,7 @@ function compileCustomTool(
       call,
       'customTool() takes a key and optional options.',
       "Write customTool('lookup-order', { usageControl: 'auto' }).",
-      site
+      site.decl.key
     )
   }
   const tool: CanonicalTool = {
@@ -374,7 +373,7 @@ function compileCustomTool(
       optionsNode,
       'Tool options are an object literal.',
       "Write { usageControl: 'auto' }.",
-      site
+      site.decl.key
     )
   }
   for (const [option, property] of objectEntries(ctx, optionsNode)) {
@@ -386,7 +385,7 @@ function compileCustomTool(
         property,
         `customTool() takes usageControl and usageControlExpression; ${option} is not one.`,
         'Write a tool with other stored fields as raw(tool).',
-        site
+        site.decl.key
       )
     }
   }
@@ -410,7 +409,7 @@ function compileMcpTool(
       call,
       'tool() takes the MCP tool name and optional options.',
       "Write mcp('server').tool('search', { usageControl: 'auto' }).",
-      site
+      site.decl.key
     )
   }
   const form: McpToolForm = { server, name, args: {}, snapshot: {} }
@@ -421,7 +420,7 @@ function compileMcpTool(
       optionsNode,
       'Tool options are an object literal.',
       "Write { usageControl: 'auto' }.",
-      site
+      site.decl.key
     )
   }
   for (const [option, property] of objectEntries(ctx, optionsNode)) {
@@ -434,7 +433,7 @@ function compileMcpTool(
           property.value,
           'args is an object literal.',
           'Write args: { name: value }.',
-          site
+          site.decl.key
         )
       }
       for (const [arg, argProperty] of objectEntries(ctx, property.value)) {
@@ -444,7 +443,7 @@ function compileMcpTool(
             argProperty,
             `${arg} is set by mcp().tool(), not an argument.`,
             'Name the server with mcp(key) and the tool with tool(name).',
-            site
+            site.decl.key
           )
         }
         const value = compileNested(ctx, argProperty.value, site)
@@ -467,7 +466,7 @@ function compileMcpTool(
           property.value,
           'snapshot is { serverName?, serverUrl?, schema? }.',
           "Write snapshot: { serverName: 'Docs', schema: { type: 'object' } }.",
-          site
+          site.decl.key
         )
       }
       form.snapshot = {
@@ -481,7 +480,7 @@ function compileMcpTool(
         property,
         `mcp().tool() takes args, snapshot, usageControl and usageControlExpression; ${option} is not one.`,
         'Write a tool with other stored fields as raw(tool).',
-        site
+        site.decl.key
       )
     }
   }
@@ -502,7 +501,7 @@ function compileWorkflowTool(
       call,
       'asTool() takes optional options.',
       "Write childWorkflow('enrich').asTool({ usageControl: 'auto' }).",
-      site
+      site.decl.key
     )
   }
   const usage: ToolUsage = {}
@@ -513,7 +512,7 @@ function compileWorkflowTool(
         property,
         `asTool() takes usageControl and usageControlExpression; ${option} is not one.`,
         'Write a tool with other stored fields through runWorkflow.tool(), or raw(tool).',
-        site
+        site.decl.key
       )
     }
     if (!compileUsage(ctx, option, property, site, usage)) return null
@@ -579,7 +578,7 @@ export function compileToolList(
         node,
         'A tool list is an array.',
         'Write tools: [slack.tool.sendMessage({ ... })].',
-        site
+        site.decl.key
       )
     return null
   }
@@ -591,11 +590,17 @@ export function compileToolList(
         element ?? node,
         'Write each tool explicitly.',
         'Write each tool explicitly.',
-        site
+        site.decl.key
       )
     }
     if (element.type !== 'CallExpression') {
-      return unsupported(ctx, element, `${element.type} is not a tool.`, hintForNode(element), site)
+      return unsupported(
+        ctx,
+        element,
+        `${element.type} is not a tool.`,
+        hintForNode(element),
+        site.decl.key
+      )
     }
     const resourceTool = compileResourceTool(ctx, element, site)
     if (resourceTool !== undefined) {
@@ -628,7 +633,7 @@ export function compileToolList(
           element,
           'raw(tool) needs type, params and modes.',
           'Write raw({ type, params: {}, modes: {} }).',
-          site
+          site.decl.key
         )
       }
       tools.push(value.value)

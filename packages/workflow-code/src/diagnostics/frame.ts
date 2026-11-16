@@ -17,13 +17,6 @@ export interface SourceSpan {
   end: number
 }
 
-/** A machine-applicable edit in `span.file`: replace `[start, end)` with `text`. */
-interface DiagnosticFix {
-  start: number
-  end: number
-  text: string
-}
-
 interface DiagnosticFields {
   message: string
   /** The supported form, or a did-you-mean. */
@@ -31,7 +24,6 @@ interface DiagnosticFields {
   span?: SourceSpan
   /** `codeFrame(text, span)`; present whenever `span` is. */
   frame?: string
-  fix?: DiagnosticFix
   /** Other locations that explain this one, such as the first declaration for a duplicate name. */
   related?: Array<{ span: SourceSpan; message: string }>
   blockKey?: BlockKey
@@ -57,7 +49,7 @@ export type LocatedDiagnostic<C extends DiagnosticCode = DiagnosticCode> = Diagn
 }
 
 /** Where `codeFrame` points. `endLine`/`endColumn` default to a one-character span. */
-export interface FrameLocation {
+interface FrameLocation {
   line: number
   column: number
   endLine?: number
@@ -65,7 +57,7 @@ export interface FrameLocation {
 }
 
 /** Babel's line terminators (`lineBreak` in @babel/parser): CRLF, LF, CR, U+2028, U+2029. */
-const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/
+export const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/
 const CONTEXT_LINES = 2
 
 /** `text` split at Babel's line terminators. */

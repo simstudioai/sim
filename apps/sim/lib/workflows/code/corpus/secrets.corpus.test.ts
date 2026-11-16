@@ -91,8 +91,7 @@ describe(`secrets never print (${subjects.length} workflows)`, () => {
           const printed = printWorkflow({
             workflow: stored,
             catalog,
-            options:
-              functionCode === 'files' ? { functionCode, codeDir: 'code' } : { functionCode },
+            options: { functionCode },
           })
           const text = printed.files.map((file) => file.text).join('\n')
           for (const secret of secrets) {

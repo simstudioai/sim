@@ -189,7 +189,7 @@ describe('printer goldens over the real catalog', () => {
     const printed = printWorkflow({
       workflow: testCase.workflow,
       catalog,
-      options: { functionCode: 'files', codeDir: 'functions' },
+      options: { functionCode: 'files' },
     })
     const [entry, ...codeFiles] = printed.files
     expect(codeFiles.map((file) => file.path)).toEqual([
@@ -217,7 +217,7 @@ describe('printer goldens over the real catalog', () => {
     const result = printWorkflow({
       workflow,
       catalog,
-      options: { functionCode: 'files', codeDir: 'functions' },
+      options: { functionCode: 'files' },
     })
     expect(result.files.map((file) => file.path)).toEqual([
       'workflow.ts',

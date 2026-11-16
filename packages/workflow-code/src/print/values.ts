@@ -6,11 +6,12 @@
  */
 
 import type { CatalogSubBlock } from '../catalog/types'
-import type { BlockKey, Json, SimNode, Value } from '../model'
-import { parseJsonContainer } from '../records'
+import { type BlockKey, isSimNode, type Json, type SimNode, type Value } from '../model'
+import { getOwn, parseJsonContainer } from '../records'
+import { SDK_RESOURCE_CALLS } from '../sdk'
 import { type Doc, literalText } from './doc'
 import type { RefPrinter } from './refs'
-import { escapeTemplateText, printKey, printNumber, quoteString } from './strings'
+import { escapeTemplateText, printKey, printMember, printNumber, quoteString } from './strings'
 import { arrayExpr, callExpr, type Expr, objectExpr, type Property } from './syntax'
 
 /** The template tag a string field prints with; `t` prints untagged when it holds no refs. */
@@ -30,40 +31,12 @@ export interface FieldContext {
   subBlock?: CatalogSubBlock
 }
 
-/**
- * Resource kinds with a dedicated call form. A kind without one prints as
- * `raw(<the CWM node>)`, which compiles back to the same node.
- */
-const RESOURCE_CALLS: Partial<Record<string, string>> = {
-  credential: 'credential',
-  table: 'table',
-  'knowledge-base': 'knowledgeBase',
-  workflow: 'childWorkflow',
-  skill: 'skill',
-  'custom-tool': 'customTool',
-  'mcp-server': 'mcp',
-  sandbox: 'sandbox',
-  file: 'file',
-  'file-folder': 'folder',
-}
-
 export interface PrintedValue extends Expr {
   /**
    * True when the value printed as a selector call (`table('x')`, `file('a.pdf')`, ...) or a
    * non-empty array of them: the form that stores into the basic member of a pair.
    */
   selector?: boolean
-}
-
-function isSimNode(value: object): value is SimNode {
-  const tag = (value as { $sim?: unknown }).$sim
-  return (
-    tag === 'var' ||
-    tag === 'resource' ||
-    tag === 'unresolved' ||
-    tag === 'csv' ||
-    tag === 'literal'
-  )
 }
 
 /** Prints values, recording SDK imports and reference diagnostics as it goes. */
@@ -142,10 +115,10 @@ export class ValuePrinter {
   private simNode(node: SimNode, context: FieldContext): PrintedValue {
     if (node.$sim === 'var' && context.variablesField === true) {
       this.useVars()
-      return { doc: `vars${memberOf(node.key)}`, shape: 'member' }
+      return { doc: `vars${printMember(node.key)}`, shape: 'member' }
     }
     if (node.$sim === 'resource') {
-      const callee = RESOURCE_CALLS[node.kind]
+      const callee = getOwn<string>(SDK_RESOURCE_CALLS, node.kind)
       if (callee) return { ...this.call(callee, [this.string(node.key)]), selector: true }
     }
     return this.call('raw', [this.json(node as unknown as Json)])
@@ -176,10 +149,6 @@ export class ValuePrinter {
     )
     return { doc: [tag, '`', body, '`'], shape: 'template' }
   }
-}
-
-function memberOf(key: string): string {
-  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? `.${key}` : `[${quoteString(key)}]`
 }
 
 function nestedTag(context: FieldContext): Tag {
