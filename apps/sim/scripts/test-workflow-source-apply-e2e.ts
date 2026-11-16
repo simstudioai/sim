@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import postgres from 'postgres'
 
 /**
  * Workflow source apply over the real HTTP boundary of a running local app: create a workflow,
@@ -16,8 +19,18 @@ import { isRecordLike } from '@sim/utils/object'
  * applies to the new workflow with the lock the create returned. The app must have the `workflow-code`
  * flag on, and the key must be a personal API key (workspace keys are refused).
  *
+ * The refusals are driven against the same app with fixtures seeded in its disposable database: a
+ * locked workflow (423), an oversized body (413 in the v2 envelope), a personal key of a user
+ * outside the workspace (404, concealed), a create into a missing folder (404, no folder made) and
+ * into a locked one (423), and a create with a workspace key or a read-only member's key (403).
+ *
+ * The `workflow-code` flag cannot be turned off between a get and an apply here: off AppConfig it
+ * is the app process's `WORKFLOW_CODE` environment, read when the app starts, and this script runs
+ * outside that process. The flag-off apply is proven in `apply-workflow-source.integration.ts`.
+ *
  * Env: WORKFLOW_SOURCE_E2E_BASE_URL (loopback origin), WORKFLOW_SOURCE_E2E_API_KEY,
- * WORKFLOW_SOURCE_E2E_WORKSPACE_ID, WORKFLOW_SOURCE_E2E_REPORT_PATH.
+ * WORKFLOW_SOURCE_E2E_WORKSPACE_ID, WORKFLOW_SOURCE_E2E_DATABASE_URL (the app's disposable
+ * loopback database), WORKFLOW_SOURCE_E2E_REPORT_PATH.
  */
 const logger = createLogger('WorkflowSourceApplyE2E')
 
@@ -31,6 +44,9 @@ const baseUrl = new URL(requiredEnvironment('WORKFLOW_SOURCE_E2E_BASE_URL'))
 const apiKey = requiredEnvironment('WORKFLOW_SOURCE_E2E_API_KEY')
 const workspaceId = requiredEnvironment('WORKFLOW_SOURCE_E2E_WORKSPACE_ID')
 const reportPath = requiredEnvironment('WORKFLOW_SOURCE_E2E_REPORT_PATH')
+const databaseUrl = assertDisposableTestDatabaseUrl(
+  requiredEnvironment('WORKFLOW_SOURCE_E2E_DATABASE_URL')
+)
 const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]'])
 assert(loopbackHosts.has(baseUrl.hostname), 'The app must use a loopback host')
 assert.equal(baseUrl.protocol, 'http:', 'The app must use local HTTP')
@@ -41,6 +57,18 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
 const httpLog: { method: string; path: string; status: number }[] = []
 const startedAt = new Date().toISOString()
 const SCORE_CODE = 'return 40 + 2'
+const sql = postgres(databaseUrl.toString(), { max: 2 })
+
+/** Disposable callers seeded for the refusal checks; the env key stays the workflow's author. */
+const fixtures = {
+  readerId: generateId(),
+  outsiderId: generateId(),
+  readerKey: `sk-sim-fixture-${generateId()}`,
+  outsiderKey: `sk-sim-fixture-${generateId()}`,
+  workspaceKey: `sk-sim-fixture-${generateId()}`,
+  lockedFolderId: generateId(),
+  lockedFolderName: `Locked source e2e ${generateId().slice(0, 8)}`,
+}
 
 type Json = Record<string, unknown>
 
@@ -50,10 +78,20 @@ function record(value: unknown): Json {
 }
 
 async function request(method: string, path: string, body?: unknown, expected = 200) {
+  return requestAs(apiKey, method, path, body, expected)
+}
+
+async function requestAs(
+  key: string,
+  method: string,
+  path: string,
+  body?: unknown,
+  expected = 200
+) {
   const response = await fetch(new URL(path, baseUrl), {
     method,
     headers: {
-      'x-api-key': apiKey,
+      'x-api-key': key,
       'User-Agent': 'Sim-local-workflow-source-E2E',
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
     },
@@ -120,7 +158,55 @@ function applyBody(source: Awaited<ReturnType<typeof readSource>>, files = sourc
   }
 }
 
+function errorCode(body: Json): unknown {
+  return record(body.error).code
+}
+
+async function workflowCountNamed(name: string): Promise<number> {
+  const [row] = await sql<{ count: number }[]>`
+    select count(*)::int as count from workflow
+    where workspace_id = ${workspaceId} and name = ${name} and archived_at is null`
+  return row.count
+}
+
+async function seedFixtures() {
+  await sql.begin(async (tx) => {
+    for (const id of [fixtures.readerId, fixtures.outsiderId]) {
+      const email = `${id}@workflow-source-apply.test`
+      await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
+        values (${id}, 'Workflow source apply fixture', ${email}, ${email}, true, now(), now())`
+      await tx`insert into user_stats (id, user_id) values (${generateId()}, ${id})`
+    }
+    await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
+      values (${generateId()}, ${fixtures.readerId}, 'workspace', ${workspaceId}, 'read')`
+    for (const [userId, key] of [
+      [fixtures.readerId, fixtures.readerKey],
+      [fixtures.outsiderId, fixtures.outsiderKey],
+    ]) {
+      await tx`insert into api_key (id, user_id, name, key, key_hash, type)
+        values (${generateId()}, ${userId}, 'Workflow source apply fixture', ${key}, ${sha256Hex(key)}, 'personal')`
+    }
+    await tx`insert into api_key (id, user_id, workspace_id, name, key, key_hash, type)
+      values (${generateId()}, ${fixtures.readerId}, ${workspaceId}, 'Workflow source apply fixture',
+        ${fixtures.workspaceKey}, ${sha256Hex(fixtures.workspaceKey)}, 'workspace')`
+    await tx`insert into folder (id, resource_type, name, user_id, workspace_id, locked)
+      values (${fixtures.lockedFolderId}, 'workflow', ${fixtures.lockedFolderName}, ${fixtures.readerId},
+        ${workspaceId}, true)`
+  })
+}
+
+async function removeFixtures() {
+  await sql.begin(async (tx) => {
+    await tx`delete from folder where id = ${fixtures.lockedFolderId}`
+    await tx`delete from api_key where key_hash in (${sha256Hex(fixtures.readerKey)},
+      ${sha256Hex(fixtures.outsiderKey)}, ${sha256Hex(fixtures.workspaceKey)})`
+    await tx`delete from permissions where user_id in (${fixtures.readerId}, ${fixtures.outsiderId})`
+    await tx`delete from "user" where id in (${fixtures.readerId}, ${fixtures.outsiderId})`
+  })
+}
+
 async function main() {
+  await seedFixtures()
   const created = record(
     (
       await request(
@@ -323,7 +409,110 @@ async function main() {
       )
       assert.equal(record(record(body.error).details).code, 'SOURCE_REJECTED')
     })
+
+    const applyPath = `/api/v2/workflows/${workflowId}/source`
+
+    await check('LK-06: an apply to a locked workflow answers 423 and writes nothing', async () => {
+      const source = await readSource(workflowId)
+      const before = await storedBlocks(workflowId)
+      await sql`update workflow set locked = true where id = ${workflowId}`
+      try {
+        const body = await request(
+          'POST',
+          applyPath,
+          applyBody(source, edit(source.files, 'return 7', 'return 70')),
+          423
+        )
+        assert.equal(errorCode(body), 'LOCKED')
+      } finally {
+        await sql`update workflow set locked = false where id = ${workflowId}`
+      }
+      assert.deepEqual(await storedBlocks(workflowId), before)
+    })
+
+    await check(
+      'LM-02: a body over the source route cap answers 413 in the v2 envelope',
+      async () => {
+        const source = await readSource(workflowId)
+        const oversized = `${source.files['workflow.ts']}\n// ${'x'.repeat(10 * 1024 * 1024)}\n`
+        const body = await request(
+          'POST',
+          applyPath,
+          applyBody(source, { ...source.files, 'workflow.ts': oversized }),
+          413
+        )
+        assert.equal(errorCode(body), 'PAYLOAD_TOO_LARGE')
+      }
+    )
+
+    await check('LK-11: an apply with a key outside the workspace is answered 404', async () => {
+      const source = await readSource(workflowId)
+      const before = await storedBlocks(workflowId)
+      const body = await requestAs(
+        fixtures.outsiderKey,
+        'POST',
+        applyPath,
+        applyBody(source, edit(source.files, 'return 7', 'return 71')),
+        404
+      )
+      assert.equal(errorCode(body), 'NOT_FOUND')
+      assert.deepEqual(await storedBlocks(workflowId), before)
+    })
+
+    await check(
+      'CR-02: a create into a missing folder answers 404 and creates no folder',
+      async () => {
+        const source = await readSource(workflowId)
+        const folderName = `Missing source e2e ${generateId().slice(0, 8)}`
+        const name = `${copyName} missing folder`
+        const body = await request(
+          'POST',
+          createPath,
+          { files: source.files, name, folderPath: `/${folderName}` },
+          404
+        )
+        assert.equal(errorCode(body), 'NOT_FOUND')
+        assert.match(String(record(body.error).message), /Folder not found/)
+        const [folders] = await sql<{ count: number }[]>`
+        select count(*)::int as count from folder
+        where workspace_id = ${workspaceId} and name = ${folderName}`
+        assert.equal(folders.count, 0)
+        assert.equal(await workflowCountNamed(name), 0)
+      }
+    )
+
+    await check(
+      'CR-03: a create into a locked folder answers 423 and creates nothing',
+      async () => {
+        const source = await readSource(workflowId)
+        const name = `${copyName} locked folder`
+        const body = await request(
+          'POST',
+          createPath,
+          { files: source.files, name, folderPath: `/${fixtures.lockedFolderName}` },
+          423
+        )
+        assert.equal(errorCode(body), 'LOCKED')
+        assert.equal(await workflowCountNamed(name), 0)
+      }
+    )
+
+    await check(
+      'CR-07: a create with a workspace key or a read-only member key answers 403',
+      async () => {
+        const source = await readSource(workflowId)
+        const name = `${copyName} denied`
+        for (const key of [fixtures.workspaceKey, fixtures.readerKey]) {
+          const body = await requestAs(key, 'POST', createPath, { files: source.files, name }, 403)
+          assert.equal(errorCode(body), 'FORBIDDEN')
+        }
+        assert.equal(await workflowCountNamed(name), 0)
+      }
+    )
   } finally {
+    await removeFixtures().catch((error: unknown) => {
+      logger.warn('Fixture cleanup failed', { error: getErrorMessage(error) })
+    })
     for (const id of [workflowId, ...createdIds]) {
       await request('DELETE', `/api/v2/workflows/${id}`).catch((error: unknown) => {
         logger.warn('Cleanup failed', { workflowId: id, error: getErrorMessage(error) })
@@ -337,6 +526,7 @@ main()
     checks.push({ name: 'setup', status: 'failed', durationMs: 0, error: getErrorMessage(error) })
   })
   .finally(async () => {
+    await sql.end()
     await mkdir(dirname(reportPath), { recursive: true })
     await writeFile(
       reportPath,
