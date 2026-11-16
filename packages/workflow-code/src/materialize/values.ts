@@ -133,7 +133,7 @@ function rewriteBlock(block: CanonicalBlock, rewrite: (text: string) => string):
 
 /**
  * Rewrites `<oldkey.` reference tokens to `<newkey.` after a rename. Case-insensitive,
- * because the block resolver lowercases names (executor/variables/resolvers/block.ts:46-61). A
+ * because the block resolver lowercases names (`BlockResolver`). A
  * rename whose old key is still a key of `workflow` is skipped: the token still names that block.
  */
 export function rewriteRenamedReferences(

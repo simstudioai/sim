@@ -109,7 +109,7 @@ const RESOURCE_KINDS: ReadonlySet<string> = new Set<string>([
   'workflow',
 ])
 
-/** Named-form container outputs (loop.ts:43, parallel.ts:44). */
+/** Named-form container outputs (`LoopResolver` / `ParallelResolver` `KNOWN_PROPERTIES`). */
 const CONTAINER_OUTPUTS = ['results', 'result']
 
 function rejectNode(ctx: CompileContext, node: Node, site?: ValueSite): null {

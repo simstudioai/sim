@@ -30,7 +30,7 @@ export function isModeMap(value: unknown): boolean {
 
 /**
  * The effective mode of every canonical pair on the block's surface, as the serializer resolves
- * it (serializer/index.ts:637-650): an explicit override wins;
+ * it (`extractBlockParams`): an explicit override wins;
  * otherwise the legacy block-level `advancedMode` makes a pair advanced; otherwise the mode is
  * inferred from which member holds a value (`resolveCanonicalMode`).
  *

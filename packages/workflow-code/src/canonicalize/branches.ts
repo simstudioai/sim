@@ -5,7 +5,7 @@ import { parseJsonContainer, setOwn } from '../records'
 import { type CanonContext, report } from './context'
 import { toJson, toValue } from './values'
 
-/** Editor state the condition/router input writes into each row (condition-input.tsx:292-300). */
+/** Editor state the condition/router input writes into each row (condition-input.tsx). */
 const UI_ROW_KEYS = new Set([
   'showTags',
   'showEnvVars',
@@ -42,7 +42,7 @@ function parseRows(value: unknown): { rows: unknown[] | null; parsed: boolean } 
   return Array.isArray(decoded) ? { rows: decoded, parsed: true } : { rows: null, parsed: false }
 }
 
-/** Positional default keys mirror the copilot handles (validation.ts:1091-1130). */
+/** Positional default keys mirror the copilot handles (`validateConditionHandle`). */
 export function positionalKeys(kind: CanonicalBranches['kind'], count: number): BranchKey[] {
   if (kind === 'router') return Array.from({ length: count }, (_, index) => `route${index}`)
   let elseIf = 0
@@ -53,7 +53,7 @@ export function positionalKeys(kind: CanonicalBranches['kind'], count: number): 
   })
 }
 
-/** The title the canvas shows (condition-input.tsx:395-401, 686-693; router line 921). */
+/** The title the canvas shows (condition-input.tsx). */
 export function positionalTitle(
   kind: CanonicalBranches['kind'],
   index: number,
@@ -67,7 +67,7 @@ export function positionalTitle(
 
 /**
  * Ids a never-persisted (or unparseable, or empty) branch list answers to, keyed by default key:
- * `getConditionRows` / `getRouterRows` fallbacks (dynamic-handle-topology.ts:57-100).
+ * `getConditionRows` / `getRouterRows` fallbacks.
  */
 export function implicitIds(
   kind: CanonicalBranches['kind'],
@@ -134,7 +134,7 @@ function unlifted(
  * Keys resolve lock (by row id) → persisted row `key` → positional default; a key
  * already taken gets a `_n` suffix. UI state is stripped, a stored title that differs from the
  * positional one becomes `titleOverride` (condition titles are semantic: the executor finds
- * `else` by title, condition/handler.ts:474). A never-persisted value is `rows: null` and answers
+ * `else` by title, `isElseConditionTitle`). A never-persisted value is `rows: null` and answers
  * to the implicit ids. A value that is not a list of `{ id?, title?, value }` rows is returned
  * as `unliftedValue` for the caller to keep verbatim.
  */

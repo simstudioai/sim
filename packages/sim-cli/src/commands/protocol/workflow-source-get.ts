@@ -72,7 +72,7 @@ function assertSafePaths(source: WorkflowSource): void {
 /**
  * Where the workspace's catalog is cached: one file per workspace in the CLI's config directory,
  * so every `source get` in the workspace (whatever the workflow or output directory) revalidates
- * the same copy. Workspace ids are uuids, so the name is safe as given.
+ * the same copy. Callers gate the id with `CACHE_KEY` first.
  */
 function catalogCachePath(workspaceId: string): string {
   return join(configDir(), 'cache', 'source-catalog', `${workspaceId}.json`)

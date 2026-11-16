@@ -37,8 +37,8 @@ export function toJson(value: unknown): Json {
  * Rewrites reference prefixes to the form the resolvers already match:
  * `<Agent 1.content>` → `<agent1.content>` when `agent1` is a block, and `<variable.<id>>` or
  * `<variable.My Var>` → `<variable.myvar>`. Both are semantics-preserving because the block
- * resolver looks names up normalized (block.ts:46-61, 388) and the workflow resolver matches a
- * variable by normalized name or id (resolvers/workflow.ts:54-56). Tokens the executor would not
+ * resolver looks names up normalized (`BlockResolver`) and the workflow resolver matches a
+ * variable by normalized name or id (resolvers/workflow.ts). Tokens the executor would not
  * treat as references, and references that resolve to nothing, are left verbatim.
  */
 function rewriteReferences(text: string, context: CanonContext): string {

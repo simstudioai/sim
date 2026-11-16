@@ -13,10 +13,10 @@ interface BranchWrite {
  * Writes condition/router rows. Each row keeps the id its key
  * had (the lock's, then prev's, including the implicit `${blockId}-if` a never-persisted list
  * answered to); a new row gets `${blockId}-${newId()}`, which keeps `remapConditionBlockIds`
- * working (condition-ids.ts:13-28). Titles are positional unless the row overrides one or stored
+ * working. Titles are positional unless the row overrides one or stored
  * none. The row `key` is persisted only when it differs from the positional default, so a lockless
  * read gets the same keys back. `rows: null` stays `null`. The list is always text: the
- * canvas reads it with `toString()` and a stored array breaks it (condition-input.tsx:376-401).
+ * canvas reads it with `toString()` and a stored array breaks it (condition-input.tsx).
  */
 export function writeBranches(
   branches: CanonicalBranches,

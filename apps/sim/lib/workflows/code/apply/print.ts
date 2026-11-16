@@ -49,7 +49,6 @@ export interface PrintedSource {
   canonicalHash: string
   /** The canonical model the files print. */
   canonical: CanonicalizeResult
-  /** Print findings. */
   diagnostics: Diagnostic[]
   /** The printer's upper bound on `workflow.ts`'s syntax-tree depth. */
   entryDepth: number

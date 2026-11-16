@@ -97,7 +97,7 @@ function restoreRowIds(list: unknown[], site: ParamSite, context: MaterializeCon
 
 /**
  * A tool param in `StoredTool.params` form: text through `encodeToolParamValue`
- * (tools/param-shape.ts:185) whenever `decodeToolParamValue` reads it back to the same value,
+ * whenever `decodeToolParamValue` reads it back to the same value,
  * else the native value (a `null`, or a value that does not fit the declared shape).
  */
 function encodeToolParam(json: unknown, shape: ReturnType<typeof toolParamDeclaration>['shape']) {

@@ -24,7 +24,7 @@ export interface OpaqueMarker {
   opaque: true
 }
 
-/** The object form of a registry subBlock condition (apps/sim/blocks/types.ts:428-448). */
+/** The object form of a registry subBlock condition (`SubBlockConfig.condition`). */
 export interface SubBlockConditionClause {
   field: SubBlockId
   value: string | number | boolean | Array<string | number | boolean>
@@ -96,7 +96,7 @@ export interface CatalogSubBlock {
   canonicalParamId?: CanonicalParamId
   /**
    * Which declaration of a duplicated id this is. Action and trigger copies of one id coexist
-   * (canonical/block-spec.ts:35-63); the catalog keeps both.
+   * (canonical/block-spec.ts); the catalog keeps both.
    */
   surface?: 'action' | 'trigger'
   condition?: CatalogCondition
@@ -265,7 +265,7 @@ export interface CatalogTrigger {
   name: string
   polling?: boolean
   webhook?: boolean
-  /** Namespaced as `getTrigger()` returns them (triggers/index.ts:10-63). */
+  /** Namespaced as `getTrigger()` returns them. */
   subBlocks: CatalogSubBlock[]
   outputs: Record<string, CatalogOutput>
 }

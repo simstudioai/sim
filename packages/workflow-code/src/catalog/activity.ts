@@ -147,7 +147,7 @@ function serializes(subBlock: CatalogSubBlock, inputs: ActivityInputs): boolean 
 /**
  * Whether a stored param is inactive: stored, but neither forwarded by the serializer nor read by
  * deploy (`deployReadIds`) under the block's current values. Mirrors the include rule in
- * `extractBlockParams` (serializer/index.ts:558-605): a param with declarations is active when
+ * `extractBlockParams`: a param with declarations is active when
  * any declaration serializes; one with none is inactive except for the serializer's legacy
  * agent fields and for a custom block, whose stored fields may be its inputs.
  */

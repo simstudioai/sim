@@ -7,7 +7,7 @@ const LOOP_TYPES = new Set(['for', 'forEach', 'while', 'doWhile'])
 const PARALLEL_TYPES = new Set(['count', 'collection'])
 const PARALLEL_BATCH_MIN = 1
 export const PARALLEL_BATCH_MAX = 20
-/** `count || 5` in `convertLoopBlockToLoop` (subflow-helpers.ts:46) and the loop orchestrator. */
+/** `count || 5` in `convertLoopBlockToLoop` and the loop orchestrator. */
 export const DEFAULT_LOOP_ITERATIONS = 5
 
 /** `block.data` keys a container's subflow config owns. */
@@ -59,8 +59,8 @@ function repaired(context: CanonContext, blockKey: BlockKey, message: string) {
 
 /**
  * A loop's config. `block.data` is read first: the serializer
- * rebuilds loops from it (`generateLoopBlocks`, serializer/index.ts:175) and the loader syncs the
- * subflow row's collection and conditions into it (load.ts:186-245), so it is what executes. The
+ * rebuilds loops from it (`generateLoopBlocks`, workflow-persistence subflow-helpers.ts) and the loader syncs the
+ * subflow row's collection and conditions into it (`loadWorkflowFromNormalizedTablesRaw`), so it is what executes. The
  * loops map fills those fields when `data` omits them, but never the count: the loader does not
  * sync it, so a count only the map holds never runs, and the spec holds the 5 that does. Stored
  * values are otherwise kept raw, including a `0` count the runtime replaces with 5 (`count || 5`),
@@ -93,7 +93,7 @@ export function loopSpec(
   // The count that runs is `block.data.count || 5` (`convertLoopBlockToLoop`): the serializer
   // rebuilds loops from the blocks and every write recomputes the loops map from them, so a map
   // count with no `data.count` never runs. The loader repairs a non-numeric `data.count` from the
-  // map (load.ts:206-209), the only time the map's count is read.
+  // map (`loadWorkflowFromNormalizedTablesRaw`), the only time the map's count is read.
   if (typeof data.count === 'number') {
     spec.iterations = data.count
     if (data.count === 0) {
@@ -126,7 +126,7 @@ export function loopSpec(
 /**
  * A parallel's config, `block.data` first for the same reason as loops. An unknown
  * `parallelType` is reported: the loader reads it as `count` while the serializer's helper reads
- * it as `collection` (load.ts:226-230 vs subflow-helpers.ts:73-77). `batchSize` is kept raw and
+ * it as `collection` (the loader vs `convertParallelBlockToParallel`). `batchSize` is kept raw and
  * reported outside the 1–20 clamp.
  */
 export function parallelSpec(

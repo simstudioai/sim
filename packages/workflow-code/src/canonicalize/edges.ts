@@ -41,7 +41,7 @@ function sourcePort(
 
 /**
  * Edges by `(from, port, to)`. Handles heal on read
- * (side-anchored ids and `''` collapse, workflow.ts:453-473); `condition-<rowId>` /
+ * (side-anchored ids and `''` collapse, `normalizeWorkflowEdgeSourceHandle`); `condition-<rowId>` /
  * `router-<rowId>` become branch ports, `<kind>-start-source` / `-end-source` subflow ports, and
  * anything else a `raw` port with `W_CANON_RAW_HANDLE`. An edge to or from a missing block is
  * dropped (`W_CANON_DANGLING_EDGE`); a scope violation is kept and reported as an error

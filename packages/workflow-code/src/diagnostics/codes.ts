@@ -49,9 +49,9 @@ type CompileScopeCode =
   /** `vars.x` names no declared variable. */
   | 'E_UNKNOWN_VARIABLE'
   | 'E_DUPLICATE_VARIABLE'
-  /** `env.X` where X does not match `PATTERNS.ENV_VAR_NAME` (constants.ts:431). */
+  /** `env.X` where X does not match `PATTERNS.ENV_VAR_NAME`. */
   | 'E_INVALID_ENV_NAME'
-  /** `p.<prop>` not in the loop/parallel KNOWN_PROPERTIES (loop.ts:44, parallel.ts:45). */
+  /** `p.<prop>` not in the loop/parallel resolvers' `KNOWN_PROPERTIES`. */
   | 'E_UNKNOWN_SUBFLOW_PROPERTY'
   /** A ref to a block declared later; it resolves, but the order is unusual. */
   | 'W_FORWARD_REF'
@@ -63,7 +63,7 @@ type CompileScopeCode =
 
 /** Wiring. */
 type CompileEdgeCode =
-  /** Reuses `getWorkflowEdgeScopeDropReason` (workflow.ts:595). */
+  /** Reuses `getWorkflowEdgeScopeDropReason`. */
   | 'E_EDGE_SCOPE'
   /** An edge to or from a note block. */
   | 'E_EDGE_NOTE'
@@ -186,7 +186,7 @@ export type SourceMetaDiagnosticCode =
 export type CanonicalizeDiagnosticCode =
   /** Two stored names normalize to one key; the loser is keyed `key~n`. */
   | 'E_CANON_LEGACY_NAME_COLLISION'
-  /** A stored edge crosses subflow scopes (workflow.ts:594-622). */
+  /** A stored edge crosses subflow scopes (`getWorkflowEdgeScopeDropReason`). */
   | 'E_CANON_EDGE_SCOPE'
   /** A stored block name normalizes to a reserved prefix (`loop`, `parallel`, `variable`). */
   | 'W_CANON_RESERVED_NAME'

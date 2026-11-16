@@ -13,9 +13,9 @@ import { liftResourceValue, toValue } from './values'
  * `TRIGGER_RUNTIME_SUBBLOCK_IDS`). Materialize copies them from prev by id.
  */
 const RUNTIME_SUBBLOCK_IDS = new Set(['webhookId', 'triggerPath', 'triggerConfig', 'triggerId'])
-/** `{subBlockId}-tool-{index}-{paramId}` editor mirrors (synthetic-subblocks.ts:23-25). */
+/** `{subBlockId}-tool-{index}-{paramId}` editor mirrors (`buildToolSubBlockId`). */
 const SYNTHETIC_TOOL_SUBBLOCK = /-tool-\d+-/
-/** Retired fields an earlier migration parked instead of deleting (subblock-migrations.ts:555-575). */
+/** Retired fields an earlier migration parked instead of deleting (`migrateBlockSubblockIds`). */
 const PARKED_PREFIX = '_removed_'
 /** Text types whose JSON-looking content is user text, never decoded. */
 const NEVER_DECODED_TYPES = new Set(['code', 'long-input'])
@@ -145,7 +145,7 @@ function liftTableRows(list: unknown[], context: CanonContext): Value {
 
 /**
  * Variable assignments (`variables-input`): each `variableId` becomes a `var` node keyed by the
- * variable's key (sites as remap-internal-ids.ts:58-80 walks them). An id naming no
+ * variable's key (sites as `remapVariableAssignment` walks them). An id naming no
  * variable stays an `unresolved` node with `W_CANON_UNRESOLVED_ID`.
  */
 function liftVariableAssignments(

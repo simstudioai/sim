@@ -44,7 +44,7 @@ export function jsdoc(lines: readonly string[], indent: string): string[] {
   return [`${indent}/**`, ...clean.map((line) => `${indent} * ${line}`), `${indent} */`]
 }
 
-/** Indents every line of a block. */
+/** Indents every non-empty line. */
 export function indentLines(lines: readonly string[], indent: string): string[] {
   return lines.map((line) => (line === '' ? line : `${indent}${line}`))
 }

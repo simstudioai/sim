@@ -25,7 +25,7 @@ function smallestFreeSuffix(base: string, taken: ReadonlySet<string>): string {
  * Block keys. The key is the normalized name. When two stored
  * names normalize alike, the block the resolver binds the name to keeps the key: blocks are walked
  * in stored order and a newcomer takes over only from an incumbent whose name contains a dot
- * (executor/variables/resolvers/block.ts:49-60). Every other block in the group becomes
+ * (`BlockResolver`). Every other block in the group becomes
  * `key~n` (smallest free n ≥ 2) with `E_CANON_LEGACY_NAME_COLLISION`.
  */
 export function assignBlockKeys(

@@ -41,7 +41,7 @@ export interface LockLayout {
 /**
  * One id-bearing list entry (an inputFormat field). A list, not a name → id map, so duplicate or
  * empty names keep their ids. These ids are cross-workflow foreign keys: custom block subBlock ids
- * are the Start field ids (blocks/custom/build-config.ts:134-151).
+ * are the Start field ids (`assembleCustomBlockInputMapping`).
  */
 export interface LockItem {
   name: string

@@ -51,7 +51,7 @@ function isRetryConfig(value: unknown): value is BlockRetryConfig {
 }
 
 /**
- * The stored retry policy, raw: numbers are kept when it is disabled (workflow.ts:87-101). A
+ * The stored retry policy, raw: numbers are kept when it is disabled (`BlockRetryConfig`). A
  * malformed policy is normalized the way every reader clamps it.
  */
 function canonicalRetry(retry: unknown): BlockRetryConfig | null {

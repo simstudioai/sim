@@ -14,8 +14,8 @@ import type { BlockRetryConfig, Variable } from '@sim/workflow-types/workflow'
 
 /**
  * A block's identity inside one workflow: `normalizeWorkflowBlockName(name)` (lowercased,
- * whitespace and dots stripped; packages/workflow-types/src/workflow.ts:662). References resolve
- * only by this form (executor/variables/resolvers/block.ts:46-61, 388-390), so it is unique per
+ * whitespace and dots stripped; packages/workflow-types/src/workflow.ts). References resolve
+ * only by this form (`BlockResolver`), so it is unique per
  * workflow. A legacy normalized-name collision is projected as `${key}~${n}` for the losing block,
  * with the smallest n ≥ 2 that no other key uses, and `E_CANON_LEGACY_NAME_COLLISION`.
  * Such a workflow cannot round-trip until the block is renamed.
@@ -25,7 +25,7 @@ export type BlockKey = string
 /**
  * A condition or router branch name, unique per block and a valid JS identifier. Defaults mirror
  * the copilot handles: condition `if`, `elseIf0..n`, `else`; router `route0..n`
- * (validation.ts:1100-1130).
+ * (`validateConditionHandle`, lib/workflows/editing/validation.ts).
  */
 export type BranchKey = string
 
@@ -96,7 +96,7 @@ export interface UnresolvedNode {
 
 /**
  * A stored string holding several ids joined by commas (the reference manifest's `csv` encoding,
- * lib/workflows/references/manifest.ts:96 and import-plan.ts:73). Materialize joins the items with
+ * `buildWorkflowReferenceManifest` and `encodeIdentifiers`). Materialize joins the items with
  * `,`; prev's raw string (including any spaces after commas) is kept when the items are equal.
  */
 interface CsvNode {
@@ -113,7 +113,7 @@ interface LiteralNode {
   value: Json
 }
 
-/** Internal-id sites inside values, lifted to keys (sites per remap-internal-ids.ts:111-127). */
+/** Internal-id sites inside values, lifted to keys (sites per `remapVariableIdsInSubBlocks`). */
 export type SimNode = VarNode | ResourceNode | UnresolvedNode | CsvNode | LiteralNode
 
 /**
@@ -153,7 +153,7 @@ export function isPlainRecord(value: Value): value is { [key: string]: Value } {
  * `CatalogSubBlock.storage`; and it keeps prev's raw bytes when the decoded value is unchanged.
  *
  * A subBlock whose stored value is `null` is absent from `CanonicalBlock.params`;
- * `''` is kept and never coerced to `null` (serializer/index.ts:620-634).
+ * `''` is kept and never coerced to `null` (`extractBlockParams`).
  */
 export type CanonicalParam =
   | { kind: 'value'; value: Value }
@@ -165,16 +165,16 @@ export interface CanonicalTool {
   operation?: string
   toolId?: string
   title?: string
-  /** Decoded via `decodeToolParamValue`; `''` kept (tools/param-shape.ts:185-214). */
+  /** Decoded via `decodeToolParamValue`; `''` kept. */
   params: Record<string, Value>
   /**
    * Effective modes per canonical group of this tool, lifted from index keys `${i}:cid` and legacy
-   * `${type}:cid` (visibility.ts:372-512); re-indexed by position on write.
+   * `${type}:cid`; re-indexed by position on write.
    */
   modes: Record<CanonicalParamId, ParamMode>
   usageControl?: 'auto' | 'force' | 'none'
   usageControlExpression?: string
-  /** The DB copy wins over the snapshot at run time (agent/handler.ts:1098-1115). */
+  /** The DB copy wins over the snapshot at run time (`fetchCustomToolById` in the agent handler). */
   customTool?: {
     ref?: ResourceNode | UnresolvedNode
     snapshot?: { schema: Json; code: string }
@@ -189,7 +189,7 @@ export interface CanonicalBranches {
   kind: 'condition' | 'router'
   /**
    * `null` when the subBlock was never persisted: the canvas writes it only on first edit
-   * (condition-input.tsx:384-392) and edges may point at the implicit `${id}-if` handle.
+   * (condition-input.tsx) and edges may point at the implicit `${id}-if` handle.
    * Materialize keeps `null`. The source form of `null` is an empty branch object
    * (`condition('Name', {})`, router `routes: {}`); the implicit default keys (`if` and `else`
    * for a condition, `route0` for a router) stay addressable as ports. A non-empty object is
@@ -204,14 +204,14 @@ export interface CanonicalBranchRow {
   value: string
   /**
    * Set only when the stored title differs from the positional one. The executor finds `else` by
-   * stored title (condition/handler.ts:474) while the UI shows positional titles
-   * (condition-input.tsx:395-401).
+   * stored title (`isElseConditionTitle`) while the UI shows positional titles
+   * (condition-input.tsx).
    */
   titleOverride?: string
   /**
    * Set when the stored row has no title at all (rows written by the edit engine or copilot can
    * omit it). Distinct from a positional title: a last row without a title is not found as `else`
-   * by the executor (condition/handler.ts:474), so materialize writes no title for such a row.
+   * by the executor (`isElseConditionTitle`), so materialize writes no title for such a row.
    * Never set together with `titleOverride`.
    */
   titleMissing?: true
@@ -220,7 +220,7 @@ export interface CanonicalBranchRow {
 }
 
 /**
- * Loop config as the `loops` map stores it (`Loop`, workflow.ts:732-742). Optional fields are
+ * Loop config as the `loops` map stores it (`Loop`). Optional fields are
  * absent exactly when storage omits them; canonicalize never fills defaults, so materialize can
  * write prev's config back verbatim when canonical-equal.
  */
@@ -229,7 +229,7 @@ export interface LoopSpec {
   loopType: 'for' | 'forEach' | 'while' | 'doWhile'
   /**
    * The count that runs: `block.data.count` raw (`0` kept with `W_CANON_SUBFLOW_REPAIRED`; the
-   * runtime reads `count || 5`), or 5 when `data` has none (load.ts:186-245).
+   * runtime reads `count || 5`), or 5 when `data` has none (`loadWorkflowFromNormalizedTablesRaw`).
    */
   iterations: number
   forEachItems?: Json
@@ -237,14 +237,14 @@ export interface LoopSpec {
   doWhileCondition?: string
 }
 
-/** Parallel config as the `parallels` map stores it (`Parallel`, workflow.ts:744-753). */
+/** Parallel config as the `parallels` map stores it (`Parallel`). */
 export interface ParallelSpec {
   kind: 'parallel'
   /** Absent in storage means the loader's fallback applies, which differs by path. */
   parallelType?: 'count' | 'collection'
   count?: number
   distribution?: Json
-  /** Raw stored value; the runtime clamps to 1–20 (subflow-helpers.ts:8-14). */
+  /** Raw stored value; the runtime clamps to 1–20 (`clampParallelBatchSize`). */
   batchSize?: number
 }
 
@@ -263,15 +263,15 @@ export interface CanonicalBlock {
   triggerMode: boolean
   /**
    * The stored legacy flag. Semantic, not cosmetic: when on, a standalone advanced field is
-   * serialized and pairs default to advanced (serializer/index.ts:100-105, 641-650).
+   * serialized and pairs default to advanced (`shouldSerializeSubBlock`, `extractBlockParams`).
    */
   advancedMode: boolean
   /**
    * Effective error port: `errorEnabled || has an error edge` (`resolveEffectiveErrorEnabled`,
-   * workflow.ts:505). Never the raw flag alone.
+   * workflow.ts). Never the raw flag alone.
    */
   errorPort: boolean
-  /** Raw stored retry policy; numbers are kept when `enabled` is false (workflow.ts:87-101). */
+  /** Raw stored retry policy; numbers are kept when `enabled` is false (`BlockRetryConfig`). */
   retry: BlockRetryConfig | null
   /**
    * Every stored subBlock, keyed by subBlock id, except synthetic tool mirrors, server-owned
@@ -301,7 +301,7 @@ export interface CanonicalBlock {
  * - `out`: the default `source` handle.
  * - `error`: the `error` handle.
  * - `branch`: `condition-<rowId>` / `router-<rowId>`, keyed by branch key.
- * - `subflowStart`: `${kind}-start-source` on a container, into its first child (workflow.ts:427).
+ * - `subflowStart`: `${kind}-start-source` on a container, into its first child.
  * - `subflowEnd`: `${kind}-end-source` on a container, after the container finishes.
  * - `raw`: an unknown or legacy handle, kept verbatim and printed `edge(a, 'raw', b)`.
  */

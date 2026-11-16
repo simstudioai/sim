@@ -236,7 +236,7 @@ function decodedStructured(value: unknown): unknown {
 /**
  * Every string inside `value` with block reference prefixes in normalized form
  * (`<Email Drafter.body>` → `<emaildrafter.body>`), the form canonicalize writes. The block
- * resolver looks names up normalized (executor/variables/resolvers/block.ts:46-61), so both forms
+ * resolver looks names up normalized (`BlockResolver`), so both forms
  * resolve to the same block.
  */
 function normalizedReferences(value: unknown, keys: ReadonlySet<string>): unknown {

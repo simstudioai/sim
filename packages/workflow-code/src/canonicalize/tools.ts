@@ -44,7 +44,7 @@ export function toolParamDeclaration(
   return { subBlock, shape: subBlock?.valueShape ?? 'string' }
 }
 
-/** `decodeToolParamValue` (tools/param-shape.ts:185-214): total, keeps `''` and any misfit. */
+/** `decodeToolParamValue`: total, keeps `''` and any misfit. */
 export function decodeToolParam(raw: unknown, shape: ToolParamShape): unknown {
   if (typeof raw !== 'string' || raw === '') return raw
   switch (shape) {
