@@ -842,6 +842,21 @@
         "vitest": "^5.1.0",
       },
     },
+    "packages/workflow-code": {
+      "name": "@sim/workflow-code",
+      "version": "0.1.0",
+      "dependencies": {
+        "@babel/parser": "7.29.9",
+        "@sim/utils": "workspace:*",
+        "@sim/workflow-types": "workspace:*",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "@xyflow/react": "12.12.1",
+        "typescript": "^7.0.2",
+        "vitest": "^5.1.0",
+      },
+    },
     "packages/workflow-persistence": {
       "name": "@sim/workflow-persistence",
       "version": "0.1.0",
@@ -891,6 +906,14 @@
         "remark-breaks": "^4.0.0",
         "remark-gfm": "^4.0.1",
         "streamdown": ">=2.5.0",
+      },
+    },
+    "packages/workflow-sdk": {
+      "name": "@sim/workflow-sdk",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "typescript": "^7.0.2",
       },
     },
     "packages/workflow-types": {
@@ -2062,9 +2085,13 @@
 
     "@sim/utils": ["@sim/utils@workspace:packages/utils"],
 
+    "@sim/workflow-code": ["@sim/workflow-code@workspace:packages/workflow-code"],
+
     "@sim/workflow-persistence": ["@sim/workflow-persistence@workspace:packages/workflow-persistence"],
 
     "@sim/workflow-renderer": ["@sim/workflow-renderer@workspace:packages/workflow-renderer"],
+
+    "@sim/workflow-sdk": ["@sim/workflow-sdk@workspace:packages/workflow-sdk"],
 
     "@sim/workflow-types": ["@sim/workflow-types@workspace:packages/workflow-types"],
 

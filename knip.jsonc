@@ -175,6 +175,13 @@
       "entry": ["src/index.ts", "src/runtime.ts", "scripts/*.ts"]
     },
     "packages/sim-setup": { "includeEntryExports": false },
+    // The workflow-code contract is built ahead of its consumers (the catalog projection, the
+    // source use cases and @sim/workflow-sdk codegen), and the parser lands with its compiler.
+    // Remove both settings once those import it.
+    "packages/workflow-code": {
+      "includeEntryExports": false,
+      "ignoreDependencies": ["@babel/parser", "@sim/utils"]
+    },
     // This shared config is consumed by apps that own the Next dependency.
     "packages/tsconfig": { "ignoreUnresolved": ["next"] }
   }

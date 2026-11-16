@@ -1,0 +1,38 @@
+{
+  "name": "@sim/workflow-code",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.4.4",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@babel/parser": "7.29.9",
+    "@sim/utils": "workspace:*",
+    "@sim/workflow-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "@xyflow/react": "12.12.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
