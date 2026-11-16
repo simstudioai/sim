@@ -317,11 +317,17 @@ Return ONLY the email body - no explanations, no extra text.`,
         field: 'operation',
         value: ['get_audience', 'delete_audience', 'create_broadcast'],
       },
+      /**
+       * Create Broadcast needs an audience only when no segment is set. Without block values (the
+       * public catalog, Copilot validation) a segment may still be given, so only the audience
+       * operations require it.
+       */
       required: (values) => ({
         field: 'operation',
-        value: String(values?.segmentId ?? '').trim()
-          ? ['get_audience', 'delete_audience']
-          : ['get_audience', 'delete_audience', 'create_broadcast'],
+        value:
+          values && !String(values.segmentId ?? '').trim()
+            ? ['get_audience', 'delete_audience', 'create_broadcast']
+            : ['get_audience', 'delete_audience'],
       }),
     },
 

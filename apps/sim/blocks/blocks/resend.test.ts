@@ -54,7 +54,7 @@ describe('Resend Create Broadcast recipient', () => {
       ...values,
     }
     const subBlocks = Object.fromEntries(
-      Object.entries(params).map(([id, value]) => [id, { id, type: 'short-input', value }])
+      Object.entries(params).map(([id, value]) => [id, { id, type: 'short-input' as const, value }])
     )
     const block = {
       id: 'b1',
@@ -79,6 +79,19 @@ describe('Resend Create Broadcast recipient', () => {
       expect(missingFields(config, { segmentId: '', audienceId: 'aud_1' })).not.toContain(
         'Audience ID'
       )
+    }
+  )
+
+  it.each([ResendBlock, ResendV2Block])(
+    'publishes Audience ID as required only for the audience operations when no values are known',
+    (config) => {
+      const audienceId = config.subBlocks.find((subBlock) => subBlock.id === 'audienceId')
+      const required = audienceId?.required
+      if (typeof required !== 'function') throw new Error('Audience ID requirement is not dynamic')
+      expect(required()).toEqual({
+        field: 'operation',
+        value: ['get_audience', 'delete_audience'],
+      })
     }
   )
 })

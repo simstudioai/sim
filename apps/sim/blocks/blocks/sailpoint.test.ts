@@ -80,7 +80,7 @@ describe('SailPoint search list fields', () => {
       accessToken: 'token',
       query: { query: '*' },
     })
-    expect(request.searchAfter).toEqual(['12345'])
+    expect(request).toMatchObject({ searchAfter: ['12345'] })
   })
 })
 
