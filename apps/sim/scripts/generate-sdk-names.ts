@@ -21,7 +21,8 @@
  *   bun run apps/sim/scripts/generate-sdk-names.ts --check   # fail on drift or collisions
  */
 import { readFile, writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { registrySdkNameSources } from '@/lib/workflows/code/catalog/registry-sources'
 import {
   extendSdkNames,
@@ -29,8 +30,9 @@ import {
   validateSdkNames,
 } from '@/lib/workflows/code/catalog/sdk-names'
 
-const NAMES_PATH = resolve(import.meta.dir, '../blocks/sdk-names.json')
-const MODULE_PATH = resolve(import.meta.dir, '../blocks/sdk-names.generated.ts')
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
+const NAMES_PATH = resolve(SCRIPT_DIR, '../blocks/sdk-names.json')
+const MODULE_PATH = resolve(SCRIPT_DIR, '../blocks/sdk-names.generated.ts')
 
 async function readNames(): Promise<SdkNamesFile> {
   const parsed = JSON.parse(await readFile(NAMES_PATH, 'utf8')) as Partial<SdkNamesFile>
