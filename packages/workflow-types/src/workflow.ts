@@ -450,7 +450,7 @@ export function getWorkflowBranchHandleRowId(
 }
 
 /** A persisted source handle, decoded by the port it leaves through. */
-export type WorkflowSourceHandle =
+type WorkflowSourceHandle =
   | { kind: 'out' }
   | { kind: 'error' }
   | { kind: 'subflowStart' }

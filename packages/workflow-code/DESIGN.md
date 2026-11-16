@@ -229,7 +229,9 @@ Notable fields:
   `sdk-names.json` aliases, `oauthCredential` → `credential`), `addable?: false`, legacy ids.
 - `CatalogSubBlock`: `surface` (separates the action and trigger copies of one id), `condition`,
   `visibleFor`/`visibleWhen`/`visibleForModel` (data the projection precomputed for function
-  conditions), `valueDefault`, `defaultValue`, `password`, `storage`, `columns`, `step`, `integer`.
+  conditions), `valueDefault`, `defaultValue`, `password`, `storage`, `columns`, `step`, `integer`,
+  `valueShape` (the shape the value takes in an agent tool entry, `getSubBlockValueShape`, which
+  canonicalize decodes a stored tool param by; absent is `string`).
 - `valueKind`: `string | number | boolean | array | object | json | code | branches | tools |
   resource | picked | upload | none`. `resource`, `picked` and `upload` are the selector kinds;
   `resourceKind` is set iff `valueKind` is `resource`. A JSON `code` member has kind `json`.
@@ -256,6 +258,8 @@ the core shard, deterministic because tables fill in key order; it is the ETag a
 
 Shared semantics live in one place each: `catalog/surface.ts` (which declarations a block uses, and
 param aliases), `catalog/conditions.ts` (visibility; `'undecided'` is each caller's policy),
+`forms/` (the response `body` form and the condition `else: true`, each printed and compiled by one
+module),
 `catalog/activity.ts` (active vs inactive) and `catalog/defaults.ts`.
 
 ## Canonicalize
