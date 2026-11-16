@@ -56,6 +56,8 @@ type CompileScopeCode =
   | 'E_DUPLICATE_VARIABLE'
   /** `env.X` where X does not match `PATTERNS.ENV_VAR_NAME`. */
   | 'E_INVALID_ENV_NAME'
+  /** `env.X` where X is none of the env names the caller's runs resolve, when those are known. */
+  | 'W_ENV_UNKNOWN'
   /** `p.<prop>` not in the loop/parallel resolvers' `KNOWN_PROPERTIES`. */
   | 'E_UNKNOWN_SUBFLOW_PROPERTY'
   /** A ref to a block declared later; it resolves, but the order is unusual. */

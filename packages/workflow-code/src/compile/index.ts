@@ -50,6 +50,11 @@ export interface CompileInput {
    * block key, type and param. Absent means `stored()` is refused, as for a new workflow.
    */
   stored?: CanonicalWorkflow
+  /**
+   * The env variable names a run resolves (the workspace's plus the caller's personal ones).
+   * `env.NAME` outside it compiles with `W_ENV_UNKNOWN`; absent, no name is checked.
+   */
+  envNames?: ReadonlySet<string>
 }
 
 export interface CompileResult {
@@ -402,6 +407,7 @@ export function compileWorkflow(input: CompileInput): CompileResult {
     spans: new Map(),
     knownKeys: input.knownKeys ?? new Set(),
     stored: input.stored,
+    envNames: input.envNames,
     jsonFields: [],
     refusedBranches: new Map(),
   }

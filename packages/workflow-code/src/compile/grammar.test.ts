@@ -1035,3 +1035,29 @@ describe('a condition branch refused where it is declared', () => {
     expect(codes).toContain('E_UNKNOWN_BRANCH')
   })
 })
+
+describe('env names the workspace does not hold', () => {
+  const text = source("const a = api('A', { url: env.API_URL, body: env.MISSING_KEY })")
+  const compileWith = (envNames?: ReadonlySet<string>) =>
+    compileWorkflow({
+      entry: { path: ENTRY, text },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      ...(envNames ? { envNames } : {}),
+    })
+
+  it('warns on each env.NAME the listed names lack, at its source', () => {
+    const result = compileWith(new Set(['API_URL']))
+    const unknown = result.diagnostics.filter((d) => d.code === 'W_ENV_UNKNOWN')
+    expect(unknown).toHaveLength(1)
+    expect(unknown[0]).toMatchObject({ severity: 'warning', blockKey: 'a' })
+    expect(unknown[0].message).toContain('MISSING_KEY')
+    expect(unknown[0].span).toMatchObject(locate(text, 'env.MISSING_KEY'))
+    expect(result.workflow).not.toBeNull()
+  })
+
+  it('says nothing when no env list is available', () => {
+    expect(compileWith().diagnostics.map((d) => d.code)).not.toContain('W_ENV_UNKNOWN')
+  })
+})

@@ -356,6 +356,34 @@ export default workflow('Normalize', {}, () => {
   )
 })
 
+check('a create warns on an env name the workspace and the caller do not hold', async () => {
+  const result = await withPermissionGroupScope(() =>
+    createWorkflowFromSource.execute({
+      principal,
+      input: {
+        workspaceId,
+        name: `Source create ${generateId()}`,
+        dryRun: true,
+        files: {
+          'workflow.ts': `// @sim-sdk 1
+import { env, response, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Env', {}, () => {
+  const start = trigger.start('Start', {})
+  const done = response('Done', { body: { key: env.SOURCE_APPLY_UNSET_KEY } })
+  start.to(done)
+})
+`,
+        },
+      },
+    })
+  )
+
+  const unknown = result.diagnostics.filter((d) => d.code === 'W_ENV_UNKNOWN')
+  expect(unknown).toHaveLength(1)
+  expect(unknown[0]).toMatchObject({ severity: 'warning', file: 'workflow.ts', line: 6 })
+})
+
 check('a legacy ~n key block keeps its stored secret through get → apply unchanged', async () => {
   const workflowId = generateId()
   const now = new Date()

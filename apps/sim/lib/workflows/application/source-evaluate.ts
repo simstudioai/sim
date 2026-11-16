@@ -45,7 +45,7 @@ import { findLiveTriggerRemovals } from '@/lib/workflows/code/apply/live-trigger
 import { findLockedBlockRefusals } from '@/lib/workflows/code/apply/locked'
 import { boundLock, type StoredSource } from '@/lib/workflows/code/apply/print'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
-import { loadResourceKeyResolver } from '@/lib/workflows/code/resources'
+import { loadEnvNames, loadResourceKeyResolver } from '@/lib/workflows/code/resources'
 import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import { canonicalizeUnderLock, type StoredCanonical } from '@/lib/workflows/code/stored-canonical'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
@@ -172,6 +172,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     input.storedCanonical.canonical,
     lock
   )
+  const envNames = new Set(await loadEnvNames(scope.workspaceId, scope.subjectUserId))
   const compiled = compileWorkflow({
     entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
     files: new Map(Object.entries(files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
@@ -182,6 +183,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       ...Object.keys(storedCanonical.identity.blocks),
     ]),
     stored: storedCanonical.workflow,
+    envNames,
   })
   const compiledWorkflow = compiled.workflow
   if (!compiledWorkflow || hasErrors(compiled.diagnostics)) {
