@@ -733,6 +733,10 @@ jobs:
       - name: Migration safety (zero-downtime) audit
         run: bun run check:migrations "${{ steps.audit_base.outputs.ref }}"
 
+      # A builder name is public API once a workflow file uses it, so sdk-names.json is add-only.
+      - name: Frozen SDK names audit
+        run: bun run check:sdk-names-frozen "${{ steps.audit_base.outputs.ref }}"
+
       # Every affected workspace, following the same real task graph as tests. Root/unknown
       # changes select all. packages/emcn, packages/utils,
       # apps/desktop and apps/docs had no type check in CI at all; apps/sim's

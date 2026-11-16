@@ -102,6 +102,7 @@
     "check:tool-metadata": "bun run scripts/sync-tool-metadata.ts --check",
     "generate:sdk-names": "bun run apps/sim/scripts/generate-sdk-names.ts",
     "check:sdk-names": "bun run apps/sim/scripts/generate-sdk-names.ts --check",
+    "check:sdk-names-frozen": "bun run scripts/check-sdk-names-frozen.ts",
     "generate:deployment-config": "bun run scripts/generate-deployment-config.ts",
     "check:deployment-config": "bun run scripts/generate-deployment-config.ts --check",
     "images:generate": "bun run scripts/generate-image-manifest.ts",
