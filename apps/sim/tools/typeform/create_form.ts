@@ -26,7 +26,8 @@ export const createFormTool: ToolConfig<TypeformCreateFormParams, TypeformCreate
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Form type (default: "form"). Options: "form", "quiz"',
+      description:
+        'Form type: "quiz", "classification", "score", "branching", "classification_branching", or "score_branching" (Typeform default: "quiz")',
     },
     workspaceId: {
       type: 'string',

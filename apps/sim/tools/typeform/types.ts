@@ -68,6 +68,8 @@ export interface TypeformResponsesParams {
   since?: string
   until?: string
   completed?: string
+  /** Comma-separated `response_type` values; models may send them as an array. */
+  responseType?: string | string[]
 }
 
 export interface TypeformResponsesResponse extends ToolResponse {

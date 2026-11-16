@@ -300,6 +300,9 @@ interface CalcomEventType {
   disableGuests: boolean
   createdAt: string
   updatedAt: string
+  bookingUrl?: string
+  hidden?: boolean
+  ownerId?: number
 }
 
 export interface CalcomCreateEventTypeResponse extends ToolResponse {
@@ -464,6 +467,10 @@ export interface CalcomListBookingsParams {
   status?: 'upcoming' | 'recurring' | 'past' | 'cancelled' | 'unconfirmed'
   take?: number
   skip?: number
+  attendeeEmail?: string
+  afterStart?: string
+  beforeEnd?: string
+  sortStart?: 'asc' | 'desc'
 }
 
 export interface CalcomListBookingsResponse extends ToolResponse {

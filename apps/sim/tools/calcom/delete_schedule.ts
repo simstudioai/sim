@@ -1,5 +1,6 @@
 import type { CalcomDeleteScheduleParams, CalcomDeleteScheduleResponse } from '@/tools/calcom/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteScheduleTool: ToolConfig<
   CalcomDeleteScheduleParams,
@@ -32,7 +33,7 @@ export const deleteScheduleTool: ToolConfig<
 
   request: {
     url: (params: CalcomDeleteScheduleParams) =>
-      `https://api.cal.com/v2/schedules/${encodeURIComponent(params.scheduleId)}`,
+      `https://api.cal.com/v2/schedules/${safeUrlPathSegment(params.scheduleId, 'scheduleId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

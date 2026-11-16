@@ -489,6 +489,10 @@ export interface CalendlyCreateEventInviteeParams {
   inviteeLastName?: string
   textReminderNumber?: string
   eventGuests?: string[] | string
+  /** `kind` must match a location configured on the event type. */
+  location?: { kind: string; location?: string } | string
+  /** Each `question` must match the event type's question text exactly. */
+  questionsAndAnswers?: Array<{ question: string; answer: string; position: number }> | string
 }
 
 export interface CalendlyCreateEventInviteeResponse extends ToolResponse {

@@ -98,7 +98,8 @@ export const zoomUpdateMeetingTool: ToolConfig<ZoomUpdateMeetingParams, ZoomUpda
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Auto recording setting: local, cloud, or none',
+        description:
+          'Auto recording setting: local or cloud. Omit to leave unchanged; turning auto recording off is not supported on update.',
       },
     },
 

@@ -12,6 +12,7 @@ import { ZoomOperationError } from '@/lib/internal/zoom/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file'
 import type { ZoomGetMeetingRecordingsParams } from '@/tools/zoom/types'
+import { encodeZoomMeetingPathId } from '@/tools/zoom/utils'
 
 const logger = createLogger('ZoomOperations')
 
@@ -63,7 +64,7 @@ export async function getZoomMeetingRecordings(
     query.set('include_folder_items', String(input.includeFolderItems))
   }
   if (input.ttl) query.set('ttl', String(input.ttl))
-  const baseUrl = `https://api.zoom.us/v2/meetings/${encodeURIComponent(input.meetingId)}/recordings`
+  const baseUrl = `https://api.zoom.us/v2/meetings/${encodeZoomMeetingPathId(input.meetingId)}/recordings`
   const apiUrl = query.size > 0 ? `${baseUrl}?${query}` : baseUrl
   const validation = await validateUrlWithDNS(apiUrl, 'apiUrl', 'configuredEndpoint')
   context.signal?.throwIfAborted()

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressUpdateTagParams,
@@ -51,7 +52,8 @@ export const updateTagTool: ToolConfig<WordPressUpdateTagParams, WordPressUpdate
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/tags/${params.tagId}`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/tags/${safeUrlPathSegment(params.tagId, 'tagId')}`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

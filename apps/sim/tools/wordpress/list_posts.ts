@@ -1,9 +1,11 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressListPostsParams,
   type WordPressListPostsResponse,
 } from '@/tools/wordpress/types'
+import { splitIdList } from '@/tools/wordpress/utils'
 
 export const listPostsTool: ToolConfig<WordPressListPostsParams, WordPressListPostsResponse> = {
   id: 'wordpress_list_posts',
@@ -93,23 +95,17 @@ export const listPostsTool: ToolConfig<WordPressListPostsParams, WordPressListPo
       if (params.order) queryParams.append('order', params.order)
 
       if (params.categories) {
-        const catIds = params.categories
-          .split(',')
-          .map((id: string) => id.trim())
-          .filter((id: string) => id.length > 0)
+        const catIds = splitIdList(params.categories)
         queryParams.append('categories', catIds.join(','))
       }
 
       if (params.tags) {
-        const tagIds = params.tags
-          .split(',')
-          .map((id: string) => id.trim())
-          .filter((id: string) => id.length > 0)
+        const tagIds = splitIdList(params.tags)
         queryParams.append('tags', tagIds.join(','))
       }
 
       const queryString = queryParams.toString()
-      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/posts${queryString ? `?${queryString}` : ''}`
+      return `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/posts${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

@@ -40,7 +40,7 @@ export const listScheduledEventsTool: ToolConfig<
     invitee_email: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Return events where invitee has this email',
     },
     count: {

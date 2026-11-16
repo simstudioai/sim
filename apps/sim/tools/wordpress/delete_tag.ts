@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressDeleteTagParams,
@@ -35,7 +36,7 @@ export const deleteTagTool: ToolConfig<WordPressDeleteTagParams, WordPressDelete
   request: {
     url: (params) => {
       // Terms do not support trashing, so force=true is required to delete.
-      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/tags/${params.tagId}?force=true`
+      return `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/tags/${safeUrlPathSegment(params.tagId, 'tagId')}?force=true`
     },
     method: 'DELETE',
     headers: (params) => ({

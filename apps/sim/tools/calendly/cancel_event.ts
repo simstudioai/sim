@@ -27,14 +27,14 @@ export const cancelEventTool: ToolConfig<CalendlyCancelEventParams, CalendlyCanc
     reason: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Reason for cancellation (will be sent to invitees)',
     },
   },
 
   request: {
     url: (params: CalendlyCancelEventParams) => {
-      const uuid = toUuid(params.eventUuid)
+      const uuid = toUuid(params.eventUuid, 'eventUuid')
       return `https://api.calendly.com/scheduled_events/${uuid}/cancellation`
     },
     method: 'POST',
@@ -43,7 +43,7 @@ export const cancelEventTool: ToolConfig<CalendlyCancelEventParams, CalendlyCanc
       'Content-Type': 'application/json',
     }),
     body: (params: CalendlyCancelEventParams) => {
-      const body: any = {}
+      const body: { reason?: string } = {}
 
       if (params.reason) {
         body.reason = params.reason

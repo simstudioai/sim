@@ -1,6 +1,7 @@
 import { TYPEFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TypeformInsightsParams, TypeformInsightsResponse } from '@/tools/typeform/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsResponse> = {
   id: 'typeform_insights',
@@ -26,13 +27,11 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
 
   request: {
     url: (params: TypeformInsightsParams) => {
-      const encodedFormId = encodeURIComponent(params.formId)
-      return `https://api.typeform.com/insights/${encodedFormId}/summary`
+      return `https://api.typeform.com/insights/${safeUrlPathSegment(params.formId, 'formId')}/summary`
     },
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
     }),
   },
 

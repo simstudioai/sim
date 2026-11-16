@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-14",
+  "updatedAt": "2026-11-16",
   "integrations": [
     {
       "type": "onepassword",
@@ -4038,7 +4038,7 @@
       "operations": [
         {
           "name": "List Bookings",
-          "description": "List all bookings with optional status filter"
+          "description": "List bookings, optionally filtered by status, attendee email, or time range"
         },
         {
           "name": "Create Booking",
@@ -4167,14 +4167,14 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["scheduling", "calendar", "meeting"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "calendly_v2",
       "slug": "calendly",
       "name": "Calendly",
       "description": "Manage Calendly scheduling and events",
-      "longDescription": "Manage event types, scheduled events, invitees, and webhooks. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted).",
+      "longDescription": "Manage event types, scheduled events, invitees, bookings, availability, and routing forms. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted).",
       "bgColor": "#FFFFFF",
       "iconName": "CalendlyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/calendly",
@@ -4285,7 +4285,7 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["scheduling", "calendar", "meeting"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "cbinsights_v2",

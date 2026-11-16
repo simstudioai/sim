@@ -30,7 +30,7 @@ export const shopifyListLocationsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort results by ID, NAME, RELEVANCE (default Shopify ordering)',
+      description: 'Sort results by CREATED_AT, ID, NAME, RELEVANCE (default Shopify ordering)',
     },
     query: {
       type: 'string',

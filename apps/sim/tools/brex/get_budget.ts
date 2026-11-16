@@ -74,7 +74,7 @@ export const brexGetBudgetTool: ToolConfig<BrexGetBudgetParams, BrexGetBudgetRes
     },
     spendBudgetStatus: {
       type: 'string',
-      description: 'Budget status (ACTIVE, ARCHIVED, DELETED)',
+      description: 'Budget status (ACTIVE, ARCHIVED, DELETED, EXPIRED)',
     },
     limitType: { type: 'string', description: 'Budget limit type (HARD or SOFT)', optional: true },
   },

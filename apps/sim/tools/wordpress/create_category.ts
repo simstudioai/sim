@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressCreateCategoryParams,
@@ -42,7 +43,7 @@ export const createCategoryTool: ToolConfig<
     parent: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Parent category ID for hierarchical categories',
     },
     slug: {
@@ -54,7 +55,8 @@ export const createCategoryTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/categories`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/categories`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

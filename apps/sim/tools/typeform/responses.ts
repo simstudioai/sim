@@ -1,6 +1,7 @@
 import { TYPEFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TypeformResponsesParams, TypeformResponsesResponse } from '@/tools/typeform/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponsesResponse> = {
   id: 'typeform_responses',
@@ -44,25 +45,35 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Retrieve responses submitted after this date (e.g., "2024-01-01T00:00:00Z")',
+      description:
+        'Retrieve responses submitted on or after this date (e.g., "2024-01-01T00:00:00Z")',
     },
     until: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Retrieve responses submitted before this date (e.g., "2024-12-31T23:59:59Z")',
+      description:
+        'Retrieve responses submitted on or before this date (e.g., "2024-12-31T23:59:59Z")',
     },
     completed: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by completion status (e.g., "true", "false", "all")',
+      description:
+        'Filter by completion status: "true" (submitted only), "false" (started but not submitted), or "all" (no filter sent, so Typeform returns submitted responses only). Ignored when responseType is set',
+    },
+    responseType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated response types to return (e.g., "partial,completed"). Typeform returns only "completed" when omitted. Takes precedence over completed',
     },
   },
 
   request: {
     url: (params: TypeformResponsesParams) => {
-      const url = `https://api.typeform.com/forms/${params.formId}/responses`
+      const url = `https://api.typeform.com/forms/${safeUrlPathSegment(params.formId, 'formId')}/responses`
 
       const queryParams = []
 
@@ -86,7 +97,12 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
         queryParams.push(`until=${encodeURIComponent(params.until)}`)
       }
 
-      if (params.completed && params.completed !== 'all') {
+      const responseType = Array.isArray(params.responseType)
+        ? params.responseType.join(',')
+        : params.responseType
+      if (responseType) {
+        queryParams.push(`response_type=${encodeURIComponent(responseType)}`)
+      } else if (params.completed && params.completed !== 'all') {
         queryParams.push(`completed=${params.completed}`)
       }
 
@@ -95,7 +111,6 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
     }),
   },
 

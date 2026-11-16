@@ -28,14 +28,14 @@ export const listEventTypesTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Return only event types that belong to this user. Format: URI (e.g., "https://api.calendly.com/users/abc123-def456")',
+        'Return event types available to this user. Either user or organization is required. Format: URI (e.g., "https://api.calendly.com/users/abc123-def456")',
     },
     organization: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Return only event types that belong to this organization. Format: URI (e.g., "https://api.calendly.com/organizations/abc123-def456")',
+        'Return event types that belong to this organization. Either user or organization is required. Format: URI (e.g., "https://api.calendly.com/organizations/abc123-def456")',
     },
     count: {
       type: 'number',
@@ -62,7 +62,7 @@ export const listEventTypesTool: ToolConfig<
       required: false,
       visibility: 'user-only',
       description:
-        'When true, show only active event types. When false or unchecked, show all event types (both active and inactive).',
+        'When true, return only active event types. When false, return only inactive event types. When omitted, return all event types.',
     },
   },
 
@@ -70,6 +70,12 @@ export const listEventTypesTool: ToolConfig<
     url: (params: CalendlyListEventTypesParams) => {
       const url = 'https://api.calendly.com/event_types'
       const queryParams = []
+
+      if (!params.user && !params.organization) {
+        throw new Error(
+          'At least one of "user" or "organization" parameter is required. Please provide either a user URI or organization URI.'
+        )
+      }
 
       if (params.user) {
         queryParams.push(`user=${encodeURIComponent(toResourceUri(params.user, 'users'))}`)
