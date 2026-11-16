@@ -109,7 +109,12 @@ export const oktaListUserGroupsTool: ToolConfig<
         properties: {
           id: { type: 'string', description: 'Group ID' },
           name: { type: 'string', description: 'Group name' },
-          description: { type: 'string', description: 'Group description', optional: true },
+          description: {
+            type: 'string',
+            description: 'Group description',
+            optional: true,
+            nullable: true,
+          },
           type: { type: 'string', description: 'Group type (OKTA_GROUP, APP_GROUP, BUILT_IN)' },
           created: { type: 'string', description: 'Creation timestamp' },
           lastUpdated: { type: 'string', description: 'Last update timestamp' },
@@ -117,6 +122,7 @@ export const oktaListUserGroupsTool: ToolConfig<
             type: 'string',
             description: 'Last membership change timestamp',
             optional: true,
+            nullable: true,
           },
         },
       },
