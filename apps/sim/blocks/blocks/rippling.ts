@@ -1255,6 +1255,15 @@ Return ONLY the sort expression - no explanations, no extra text.`,
         const setFlag = (key: string, value: unknown) => {
           if (parseOptionalBooleanInput(value) === true) mapped[key] = true
         }
+        /**
+         * A Yes/No field whose id is the tool's own param: a `'false'` left unmapped would reach the
+         * tool as text, so both answers are sent as booleans.
+         */
+        const setBoolean = (key: string, value: unknown) => {
+          const flag = parseOptionalBooleanInput(value)
+          if (flag !== undefined) mapped[key] = flag
+        }
+        const isSettingWrite = (CUSTOM_SETTING_WRITE_OPS as readonly string[]).includes(op)
 
         if (params.id != null && params.id !== '') mapped.id = params.id
         if (params.customObjectId != null && params.customObjectId !== '')
@@ -1308,8 +1317,8 @@ Return ONLY the sort expression - no explanations, no extra text.`,
           }
         }
         setFlag('required', params.fieldRequired)
-        setFlag('isUnique', params.isUnique)
-        setFlag('enableHistory', params.enableHistory)
+        setBoolean('isUnique', params.isUnique)
+        setBoolean('enableHistory', params.enableHistory)
         if (params.rqlDefinition != null && params.rqlDefinition !== '') {
           try {
             mapped.rqlDefinition =
@@ -1365,9 +1374,9 @@ Return ONLY the sort expression - no explanations, no extra text.`,
 
         if (params.displayName != null && params.displayName !== '')
           mapped.displayName = params.displayName
-        if (params.settingApiName != null && params.settingApiName !== '')
+        if (isSettingWrite && params.settingApiName != null && params.settingApiName !== '')
           mapped.apiName = params.settingApiName
-        if (params.settingDataType != null && params.settingDataType !== '')
+        if (isSettingWrite && params.settingDataType != null && params.settingDataType !== '')
           mapped.dataType = params.settingDataType
         if (params.secretValue != null && params.secretValue !== '')
           mapped.secretValue = params.secretValue
@@ -1378,8 +1387,8 @@ Return ONLY the sort expression - no explanations, no extra text.`,
         if (params.settingBooleanValue != null && params.settingBooleanValue !== '')
           mapped.booleanValue = params.settingBooleanValue === 'true'
 
-        setFlag('includeObjectIds', params.includeObjectIds)
-        setFlag('includeTotalRows', params.includeTotalRows)
+        setBoolean('includeObjectIds', params.includeObjectIds)
+        setBoolean('includeTotalRows', params.includeTotalRows)
         if (params.formatDateFields != null && params.formatDateFields !== '') {
           try {
             mapped.formatDateFields =
@@ -1403,7 +1412,7 @@ Return ONLY the sort expression - no explanations, no extra text.`,
         if (params.outputType != null && params.outputType !== '')
           mapped.outputType = params.outputType
 
-        setFlag('allOrNothing', params.allOrNothing)
+        setBoolean('allOrNothing', params.allOrNothing)
 
         for (const [key, ops] of QUERY_PARAM_OPS) {
           const value = params[key]

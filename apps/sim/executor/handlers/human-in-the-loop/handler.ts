@@ -440,6 +440,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
         toolIndex,
         toolConfig.type
       ),
+      storedParams: visibleParams,
     })
 
     if (!paramsTransform) return visibleParams

@@ -455,10 +455,15 @@ Return ONLY the email body - no explanations, no extra text.`,
         if (operation === 'send_email') return 'resend_send'
         return `resend_${operation}`
       },
-      params: (params) => {
+      params: (params, context) => {
         const { operation, ...rest } = params
 
         rest.unsubscribed = toBooleanFromInput(rest.unsubscribed)
+
+        // The tool prefers a segment, so a model's segmentId would retarget a row's pinned audience.
+        if (context?.pinnedParams?.has('audienceId') && !context.pinnedParams.has('segmentId')) {
+          rest.segmentId = undefined
+        }
 
         if (typeof rest.limit === 'string') {
           const limit = rest.limit.trim()

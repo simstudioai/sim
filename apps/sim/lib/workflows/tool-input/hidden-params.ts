@@ -65,8 +65,10 @@ function decodeScalar(value: unknown): unknown {
 
 /**
  * True only when the clause is decidably false. A clause on a field with no decidable value is
- * treated as satisfiable, and a stored string is also tried in its typed reading, so every doubt
- * resolves toward keeping the value.
+ * treated as satisfiable, and the stored value is also tried in the clause's own type, so every
+ * doubt resolves toward keeping the value. A clause whose options are all strings compares the
+ * stored value as text: a typed reading of `'true'` would always satisfy a `not` clause on the
+ * string option `'true'`, leaving it undecidable.
  */
 function isClauseFalse(
   clause: SubBlockCondition,
@@ -77,8 +79,12 @@ function isClauseFalse(
   if (!isDecidableField(field)) return false
   const single: SubBlockCondition = { field, value: clause.value, not: clause.not }
   if (evaluateSubBlockCondition(single, values)) return false
-  const decoded = decodeScalar(values[field])
-  return decoded === values[field] || !evaluateSubBlockCondition(single, { [field]: decoded })
+  const stored = values[field]
+  const options = Array.isArray(clause.value) ? clause.value : [clause.value]
+  const alternate = options.every((option) => typeof option === 'string')
+    ? String(stored)
+    : decodeScalar(stored)
+  return alternate === stored || !evaluateSubBlockCondition(single, { [field]: alternate })
 }
 
 /**

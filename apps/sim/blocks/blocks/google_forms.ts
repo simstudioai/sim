@@ -355,7 +355,7 @@ Example for "Add a required multiple choice question about favorite color":
           case 'create_form':
             return {
               ...baseParams,
-              title: String(title).trim(),
+              title: title == null ? undefined : String(title).trim(),
               documentTitle: documentTitle ? String(documentTitle).trim() : undefined,
               unpublished: unpublished ?? false,
             }
@@ -377,8 +377,8 @@ Example for "Add a required multiple choice question about favorite color":
             return {
               ...baseParams,
               formId: effectiveFormId,
-              eventType: String(eventType),
-              topicName: String(topicName).trim(),
+              eventType: eventType == null ? undefined : String(eventType),
+              topicName: topicName == null ? undefined : String(topicName).trim(),
               watchId: watchId ? String(watchId).trim() : undefined,
             }
           case 'delete_watch':
@@ -386,7 +386,7 @@ Example for "Add a required multiple choice question about favorite color":
             return {
               ...baseParams,
               formId: effectiveFormId,
-              watchId: String(watchId).trim(),
+              watchId: watchId == null ? undefined : String(watchId).trim(),
             }
           default:
             throw new Error(`Invalid Google Forms operation: ${operation}`)
