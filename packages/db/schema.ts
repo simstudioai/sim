@@ -454,13 +454,6 @@ export const workflow = pgTable(
     lastRunAt: timestamp('last_run_at'),
     variables: json('variables').default('{}'),
     archivedAt: timestamp('archived_at'),
-    /**
-     * Source-form facts the graph does not hold (each block's TS binding, declaration order, and
-     * comments), keyed by block id so canvas edits never orphan them. Shape and validator:
-     * `WorkflowCodeMetaV1` / `parseCodeMeta` in `@sim/workflow-code/code-meta`. Not part of the
-     * workflow state, so it never counts as a deploy change. `null` until a source is applied.
-     */
-    codeMeta: jsonb('code_meta'),
   },
   (table) => ({
     workspaceIdIdx: index('workflow_workspace_id_idx').on(table.workspaceId),
@@ -478,6 +471,22 @@ export const workflow = pgTable(
       .where(sql`${table.archivedAt} IS NOT NULL`),
   })
 )
+
+/**
+ * Source-form facts a workflow's graph does not hold (each block's TS binding, declaration order,
+ * and comments), keyed by block id so canvas edits never orphan them. Shape and validator:
+ * `WorkflowCodeMetaV1` / `parseCodeMeta` in `@sim/workflow-code/code-meta`. A side table rather
+ * than a `workflow` column, so the hot workflow row (and every `select()` of it) never carries it;
+ * only the source get/apply, copy and prune paths read it. Not part of the workflow state, so it
+ * never counts as a deploy change. No row until a source is applied; an empty value deletes it.
+ */
+export const workflowCodeMeta = pgTable('workflow_code_meta', {
+  workflowId: text('workflow_id')
+    .primaryKey()
+    .references(() => workflow.id, { onDelete: 'cascade' }),
+  meta: jsonb('meta').notNull(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
 
 export const workflowBlocks = pgTable(
   'workflow_blocks',

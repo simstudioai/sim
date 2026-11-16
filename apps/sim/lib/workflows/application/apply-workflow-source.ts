@@ -8,6 +8,7 @@ import {
   type AnchorKey,
   type BlockCatalog,
   type CanonicalDiff,
+  type CanonicalizeResult,
   type CanonicalWorkflowMeta,
   type CompileResult,
   canonicalize,
@@ -34,11 +35,7 @@ import {
 } from '@sim/workflow-code'
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
-import {
-  readCodeMetaValue,
-  readWorkflowCodeMeta,
-  writeWorkflowCodeMeta,
-} from '@sim/workflow-persistence/code-meta'
+import { readWorkflowCodeMeta, writeWorkflowCodeMeta } from '@sim/workflow-persistence/code-meta'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit'
@@ -65,12 +62,13 @@ import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow
 import { buildCodeCatalog } from '@/lib/workflows/code/catalog/workspace-catalog'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
-import { createRecordingResolver, loadResourceKeyResolver } from '@/lib/workflows/code/resources'
+import { loadResourceKeyResolver } from '@/lib/workflows/code/resources'
 import {
   buildLockFromState,
   codeMetaPrintInputs,
   mergeCodeMetaFromLock,
 } from '@/lib/workflows/code/source-lock'
+import { canonicalizeStored, canonicalizeUnderLock } from '@/lib/workflows/code/stored-canonical'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
@@ -609,29 +607,55 @@ interface Reprinted {
   fingerprint: SourceFingerprint
 }
 
+/** What a re-print of one state reads, computed once however many prints share it. */
+interface PrintBase {
+  /** The state canonicalized under the bound identity, so branch keys follow the lock. */
+  canonical: CanonicalizeResult
+  /** The `sf1:` fingerprint exactly as `source get` computes it (no lock). */
+  fingerprint: string
+}
+
 /**
- * Prints `state` back as source with the bindings, order and comments of `codeMeta` (the
+ * The canonical model and fingerprint of `state` for a re-print. `lockless` is the state's
+ * lockless canonical model when the caller already holds it; it is reused for the fingerprint and,
+ * when the identity lock changes nothing, for the print.
+ */
+function printBase(args: {
+  state: WorkflowState
+  meta: CanonicalWorkflowMeta
+  identity: LockIdentity
+  catalog: BlockCatalog
+  resources: ResourceKeyResolver
+  lockless?: CanonicalizeResult
+}): PrintBase {
+  const { state, meta, identity, catalog, resources } = args
+  const lockless = args.lockless ?? canonicalize(state, { catalog, meta, resources })
+  return {
+    canonical: canonicalizeUnderLock(
+      state,
+      { catalog, meta, resources },
+      lockless,
+      identityLock(identity)
+    ),
+    fingerprint: sourceFingerprint(lockless.workflow, lockless.identity),
+  }
+}
+
+/**
+ * Prints a state back as source with the bindings, order and comments of `codeMeta` (the
  * submission's, merged onto the ids it now binds), so the response shows exactly what is (or
  * would be) stored and what the next `source get` prints. The lock is assembled the way `source
  * get` assembles it, and the fingerprint is computed the way it computes it, so it is the next
  * apply's base.
  */
 function reprint(args: {
-  state: WorkflowState
-  meta: CanonicalWorkflowMeta
-  identity: LockIdentity
+  base: PrintBase
   codeMeta: WorkflowCodeMetaV1 | null
   usesCodeFiles: boolean
   catalog: BlockCatalog
-  resources: ResourceKeyResolver
 }): Reprinted {
-  const { state, meta, identity, codeMeta, usesCodeFiles, catalog, resources } = args
-  const canonical = canonicalize(state, {
-    catalog,
-    meta,
-    lock: identityLock(identity),
-    resources,
-  })
+  const { base, codeMeta, usesCodeFiles, catalog } = args
+  const { canonical } = base
   const metaInputs = codeMetaPrintInputs(codeMeta, canonical)
   const printed = printWorkflow({
     workflow: {
@@ -647,7 +671,7 @@ function reprint(args: {
   return {
     files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),
     lock: buildLockFromState(codeMeta, canonical, printed.hints),
-    fingerprint: fingerprintOf({ state, meta }, catalog, resources),
+    fingerprint: base.fingerprint,
   }
 }
 
@@ -685,9 +709,13 @@ function emptySummary(): SourceDiffSummary {
  * The write is one `replaceWorkflowNormalizedState` under the workflow row lock, which re-checks
  * the fingerprint (409 when the draft moved), keeps current canvas positions for existing blocks
  * and asserts the protected-block merge is the identity, then stores the submission's bindings,
- * order and comments in `workflow.code_meta` in the same transaction. A source that changes only
- * those (a renamed const, a moved declaration, a comment) is a graph no-op that stores just
- * `code_meta`, so the next `source get` prints it. Draft only: it never deploys.
+ * order and comments as the workflow's code metadata in the same transaction. A source that
+ * changes only those (a renamed const, a moved declaration, a comment) is a graph no-op that
+ * stores just the code metadata, so the next `source get` prints it. Draft only: it never deploys.
+ *
+ * The stored graph is canonicalized once and that result is reused for the fingerprint, the diff
+ * base and the re-print; the re-check under the row lock reuses it too when the re-read graph is
+ * unchanged.
  */
 export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.applySource,
@@ -703,8 +731,10 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
       }).attributedUserId
       const isCopilot = principal.kind === 'delegated' && principal.serviceId === 'copilot'
 
-      const stored = await loadStoredSource(context)
-      const storedCodeMeta = readCodeMetaValue(context.workflowId, context.workflow.codeMeta)
+      const [stored, storedCodeMeta] = await Promise.all([
+        loadStoredSource(context),
+        readWorkflowCodeMeta(db, context.workflowId),
+      ])
       const storedTypes = [...new Set(Object.values(stored.state.blocks).map((b) => b.type))]
       const { catalog } = buildCodeCatalog({
         gate,
@@ -712,14 +742,17 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
         storedTypes,
       })
 
-      const recording = createRecordingResolver()
-      const storedIdentity = canonicalize(stored.state, {
-        catalog,
+      const storedSource = await canonicalizeStored({
+        workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
+        state: stored.state,
         meta: stored.meta,
-        resources: recording.resolver,
-      }).identity
-      let resources = await loadResourceKeyResolver(context.workspaceId, recording.requestedKinds)
-      const currentFingerprint = fingerprintOf(stored, catalog, resources)
+        catalog,
+      })
+      const storedCanonical = storedSource.canonical
+      const storedIdentity = storedCanonical.identity
+      let resources = storedSource.resources
+      const currentFingerprint = sourceFingerprint(storedCanonical.workflow, storedIdentity)
 
       const base = {
         workflowId: context.workflowId,
@@ -793,9 +826,9 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
 
       const compiledKinds = new Set<ResourceKind>()
       collectResourceKinds(compiled.workflow.blocks, compiledKinds)
-      if ([...compiledKinds].some((kind) => !recording.requestedKinds.has(kind))) {
+      if ([...compiledKinds].some((kind) => !storedSource.loadedKinds.has(kind))) {
         resources = await loadResourceKeyResolver(context.workspaceId, [
-          ...recording.requestedKinds,
+          ...storedSource.loadedKinds,
           ...compiledKinds,
         ])
       }
@@ -864,12 +897,12 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
         return refuse([...compiled.diagnostics, ...materializeDiagnostics].map(locate))
       }
 
-      const baseCanonical = canonicalize(stored.state, {
-        catalog,
-        meta: stored.meta,
-        lock,
-        resources,
-      })
+      const baseCanonical = canonicalizeUnderLock(
+        stored.state,
+        { catalog, meta: stored.meta, resources },
+        storedCanonical,
+        lock
+      )
       const canonicalDiff = diffCanonical(
         baseCanonical.workflow,
         compiled.workflow,
@@ -996,28 +1029,27 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
       const lockAfter = boundLock(materialized.identity, lock)
       const nextCodeMeta = mergeCodeMetaFromLock(storedCodeMeta, lockAfter, compiledModel)
       const usesCodeFiles = Object.values(compiled.hints.blocks).some((hint) => hint.codeFile)
-      const reprintFrom = (state: WorkflowState) =>
-        reprint({
+      const printBaseOf = (state: WorkflowState, lockless?: CanonicalizeResult) =>
+        printBase({
           state,
           meta: stored.meta,
           identity: materialized.identity,
-          codeMeta: nextCodeMeta,
-          usesCodeFiles,
           catalog,
           resources,
+          ...(lockless ? { lockless } : {}),
         })
+      const reprintFrom = (base: PrintBase) =>
+        reprint({ base, codeMeta: nextCodeMeta, usesCodeFiles, catalog })
 
       if (noop) {
-        const printed = reprintFrom(stored.state)
+        const storedBase = printBaseOf(stored.state, storedCanonical)
+        const printed = reprintFrom(storedBase)
         if (!input.dryRun) {
           const storedPrint = reprint({
-            state: stored.state,
-            meta: stored.meta,
-            identity: materialized.identity,
+            base: storedBase,
             codeMeta: storedCodeMeta,
             usesCodeFiles,
             catalog,
-            resources,
           })
           if (
             !isEqual(printed.files, storedPrint.files) ||
@@ -1048,7 +1080,7 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
           context.workflowId,
           collectWorkflowGraphIds(prepared.state)
         )
-        const printed = reprintFrom({ ...prepared.state, variables: storedVariables })
+        const printed = reprintFrom(printBaseOf({ ...prepared.state, variables: storedVariables }))
         logger.info('Evaluated workflow source without persisting', {
           workflowId: context.workflowId,
           workspaceId: context.workspaceId,
@@ -1088,7 +1120,9 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
         subjectUserId,
         state: async (tx) => {
           const current = await loadStoredSource(context, tx)
-          const fingerprint = fingerprintOf(current, catalog, resources)
+          const fingerprint = isEqual(current, stored)
+            ? currentFingerprint
+            : fingerprintOf(current, catalog, resources)
           if (fingerprint !== input.baseFingerprint) {
             throw new WorkflowSourceStaleError(fingerprint)
           }
@@ -1113,7 +1147,7 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
         },
       })
 
-      const printed = reprintFrom({ ...persisted.state, variables: storedVariables })
+      const printed = reprintFrom(printBaseOf({ ...persisted.state, variables: storedVariables }))
       logger.info('Applied workflow source', {
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,

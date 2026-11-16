@@ -145,29 +145,6 @@ export function assignResourceKeys(kind: ResourceKind, rows: readonly ResourceRo
 }
 
 /**
- * A resolver that answers nothing and records every `(kind, id)` canonicalize asked about, so a
- * first pass learns which kinds a workflow references before any resource table is read.
- */
-export function createRecordingResolver(): {
-  resolver: ResourceKeyResolver
-  requestedKinds: Set<ResourceKind>
-} {
-  const requestedKinds = new Set<ResourceKind>()
-  return {
-    requestedKinds,
-    resolver: {
-      toKey(kind) {
-        requestedKinds.add(kind)
-        return null
-      },
-      toId() {
-        return null
-      },
-    },
-  }
-}
-
-/**
  * Loads the resource keys of `kinds` in one workspace and returns a resolver over them. Only
  * this workspace's live resources are read, so an id from elsewhere never resolves.
  */

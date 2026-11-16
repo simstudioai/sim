@@ -1,13 +1,15 @@
 /**
- * `workflow.code_meta` against real Postgres: it survives a canvas rename (keyed by block id), is
- * pruned when blocks or variables are deleted, follows duplicate and fork onto the copied ids, and
- * never counts as a deploy change.
+ * Workflow code metadata (the `workflow_code_meta` side table) against real Postgres: it survives
+ * a canvas rename (keyed by block id), is pruned when blocks or variables are deleted (and its row
+ * removed once nothing is left), follows duplicate and fork onto the copied ids, goes with its
+ * workflow on delete, stays off the workflow row, and never counts as a deploy change.
  */
 import { db } from '@sim/db'
 import {
   user,
   workflow,
   workflowBlocks,
+  workflowCodeMeta,
   workflowDeploymentVersion,
   workspace,
 } from '@sim/db/schema'
@@ -109,6 +111,14 @@ async function storedCodeMeta(id: string): Promise<WorkflowCodeMetaV1> {
   return meta
 }
 
+async function codeMetaRowCount(id: string): Promise<number> {
+  const rows = await db
+    .select({ workflowId: workflowCodeMeta.workflowId })
+    .from(workflowCodeMeta)
+    .where(eq(workflowCodeMeta.workflowId, id))
+  return rows.length
+}
+
 async function deployCurrentDraft(): Promise<void> {
   const state = await loadWorkflowDeploymentSnapshot(workflowId)
   if (!state) throw new Error('missing draft')
@@ -167,16 +177,47 @@ afterAll(async () => {
   await db.$client.end()
 })
 
-describe('workflow.code_meta against real Postgres', () => {
-  it('stores code_meta without making the draft differ from its deployment', async () => {
+describe('workflow_code_meta against real Postgres', () => {
+  it('stores code_meta in the side table without making the draft differ from its deployment', async () => {
     expect(await checkNeedsRedeployment(workflowId)).toBe(false)
+    expect(await codeMetaRowCount(workflowId)).toBe(0)
 
     await writeWorkflowCodeMeta(db, workflowId, storedMeta)
 
     expect(await storedCodeMeta(workflowId)).toEqual(storedMeta)
+    expect(await codeMetaRowCount(workflowId)).toBe(1)
     expect(await checkNeedsRedeployment(workflowId)).toBe(false)
     const snapshot = await loadWorkflowDeploymentSnapshot(workflowId)
     expect(JSON.stringify(snapshot)).not.toContain('fetchUser')
+    const [row] = await db.select().from(workflow).where(eq(workflow.id, workflowId))
+    expect(JSON.stringify(row)).not.toContain('fetchUser')
+  })
+
+  it('overwrites on a second write, and deletes the row when the value becomes empty', async () => {
+    const scratchId = generateId()
+    const now = new Date()
+    await db.insert(workflow).values({
+      id: scratchId,
+      userId: ownerId,
+      workspaceId,
+      name: 'Code meta scratch',
+      lastSynced: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    await writeWorkflowCodeMeta(db, scratchId, storedMeta)
+    const rewritten = { ...storedMeta, bindings: { [fetchId]: 'loadUser' } }
+    await writeWorkflowCodeMeta(db, scratchId, rewritten)
+    expect(await storedCodeMeta(scratchId)).toEqual(rewritten)
+    expect(await codeMetaRowCount(scratchId)).toBe(1)
+
+    await writeWorkflowCodeMeta(db, scratchId, { v: 1, bindings: {}, order: {}, comments: {} })
+    expect(await codeMetaRowCount(scratchId)).toBe(0)
+    expect(await readWorkflowCodeMeta(db, scratchId)).toBeNull()
+
+    await writeWorkflowCodeMeta(db, scratchId, storedMeta)
+    await db.delete(workflow).where(eq(workflow.id, scratchId))
+    expect(await codeMetaRowCount(scratchId)).toBe(0)
   })
 
   it('keeps every entry across a canvas rename, so the lock keeps the binding', async () => {
@@ -222,6 +263,32 @@ describe('workflow.code_meta against real Postgres', () => {
     )
   })
 
+  it('skips a prune whose read is stale, and removes the row when a prune empties it', async () => {
+    const scratchId = generateId()
+    const now = new Date()
+    await db.insert(workflow).values({
+      id: scratchId,
+      userId: ownerId,
+      workspaceId,
+      name: 'Code meta prune scratch',
+      lastSynced: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const onlyFetch: WorkflowCodeMetaV1 = {
+      v: 1,
+      bindings: { [fetchId]: 'fetchUser' },
+      order: { [fetchId]: 0 },
+      comments: {},
+    }
+    await writeWorkflowCodeMeta(db, scratchId, onlyFetch)
+    await db.transaction((tx) =>
+      pruneWorkflowCodeMeta(tx, scratchId, { blocks: (id) => id !== fetchId })
+    )
+    expect(await codeMetaRowCount(scratchId)).toBe(0)
+    await db.delete(workflow).where(eq(workflow.id, scratchId))
+  })
+
   it('re-keys code_meta onto the copy when the workflow is duplicated', async () => {
     const copy = await db.transaction((tx) =>
       duplicateWorkflow({
@@ -258,10 +325,6 @@ describe('workflow.code_meta against real Postgres', () => {
   it('re-keys code_meta onto the derived block ids when the workflow is forked', async () => {
     const sourceState = await loadWorkflowDeploymentSnapshot(workflowId)
     if (!sourceState) throw new Error('missing draft')
-    const [sourceRow] = await db
-      .select({ codeMeta: workflow.codeMeta })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
     const targetWorkflowId = generateId()
 
     await db.transaction(async (tx) => {
@@ -278,8 +341,8 @@ describe('workflow.code_meta against real Postgres', () => {
           description: null,
           folderId: null,
           sortOrder: 0,
-          codeMeta: sourceRow?.codeMeta,
         },
+        codeMetaSourceWorkflowId: workflowId,
         workflowIdMap: new Map([[workflowId, targetWorkflowId]]),
         folderIdMap: new Map(),
         nameRegistry: await loadWorkflowNameRegistry(tx, forkWorkspaceId),

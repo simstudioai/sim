@@ -1,9 +1,9 @@
+import { db } from '@sim/db'
 import { compareStrings } from '@sim/utils/string'
 import {
   type CanonicalWorkflow,
   type CodeComment,
   canonicalHash,
-  canonicalize,
   type Diagnostic,
   encodeAnchor,
   type LockBase,
@@ -13,7 +13,7 @@ import {
   sourceFingerprint,
   type WorkflowLockV1,
 } from '@sim/workflow-code'
-import { readCodeMetaValue } from '@sim/workflow-persistence/code-meta'
+import { readWorkflowCodeMeta } from '@sim/workflow-persistence/code-meta'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { resolveCatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
@@ -22,8 +22,8 @@ import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/pri
 import { loadWorkflowGraph } from '@/lib/workflows/application/read-workflow-graph'
 import { buildCodeCatalog } from '@/lib/workflows/code/catalog/workspace-catalog'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
-import { createRecordingResolver, loadResourceKeyResolver } from '@/lib/workflows/code/resources'
 import { buildLockFromState, codeMetaPrintInputs } from '@/lib/workflows/code/source-lock'
+import { canonicalizeStored } from '@/lib/workflows/code/stored-canonical'
 
 /** Directory function-code files are printed into when `functionCode` is `files`. */
 const FUNCTION_CODE_DIR = 'functions'
@@ -108,17 +108,19 @@ function usedBlockTypes(workflow: CanonicalWorkflow): string[] {
  * Loads the stored, migrated graph; builds the per-workflow compile catalog (the blocks this
  * caller may place plus every type already in the workflow); projects the graph to the canonical
  * model with resource ids lifted to provisional keys; and prints it with the bindings, order and
- * comments `workflow.code_meta` keeps, so the lock comes from the same place. Pure read: no audit, so it
- * stays head-safe and pollable like `GET /state`.
+ * comments the workflow's code metadata keeps, so the lock comes from the same place. The catalog
+ * comes from the process cache and the stored graph is canonicalized once. Pure read: no audit, so
+ * it stays head-safe and pollable like `GET /state`.
  */
 export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
   resolveContext: resolvePrincipalWorkflowContext<GetWorkflowSourceInput>,
   async execute({ principal, input, context }): Promise<GetWorkflowSourceResult> {
     await requireWorkflowCodeEnabled()
-    const [graph, gate] = await Promise.all([
+    const [graph, gate, codeMeta] = await Promise.all([
       loadWorkflowGraph(context),
       resolveCatalogGate(principal, context, { customBlockInputs: true }),
+      readWorkflowCodeMeta(db, context.workflowId),
     ])
     const state: WorkflowState = {
       blocks: graph.blocks,
@@ -142,12 +144,14 @@ export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
       return catalog
     })
 
-    const recording = createRecordingResolver()
-    canonicalize(state, { catalog, meta, resources: recording.resolver })
-    const resources = await loadResourceKeyResolver(context.workspaceId, recording.requestedKinds)
-    const canonical = canonicalize(state, { catalog, meta, resources })
+    const { canonical } = await canonicalizeStored({
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      state,
+      meta,
+      catalog,
+    })
 
-    const codeMeta = readCodeMetaValue(context.workflowId, context.workflow.codeMeta)
     const metaInputs = codeMetaPrintInputs(codeMeta, canonical)
     const withComments: CanonicalWorkflow = {
       ...canonical.workflow,
