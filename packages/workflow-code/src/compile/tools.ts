@@ -1,4 +1,4 @@
-import type { CallExpression, Node, ObjectProperty } from '@babel/types'
+import type { CallExpression, Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import {
   buildMcpTool,
@@ -664,6 +664,85 @@ function compileResourceTool(
     : compileWorkflowTool(ctx, call, resource.value, site)
 }
 
+/** A non-computed property's key: an identifier or a string literal. */
+function literalKey(property: ObjectProperty): string | null {
+  if (property.computed) return null
+  if (property.key.type === 'Identifier') return property.key.name
+  if (property.key.type === 'StringLiteral') return property.key.value
+  return null
+}
+
+function isStoredCall(site: ValueSite, node: Node): boolean {
+  if (node.type !== 'CallExpression' || node.callee.type !== 'Identifier') return false
+  const binding = lookup(site.scope, node.callee.name)
+  return binding?.kind === 'sdk' && binding.name === 'stored' && node.arguments.length === 0
+}
+
+/**
+ * `raw(tool)`, the canonical tool verbatim. The printer writes a password param holding literal
+ * text as `params: { key: stored() }`, so a direct `stored()` entry of `params` is taken out of
+ * the literal and resolved like a builder tool's (`resolveStoredParams`), in its written place.
+ */
+function compileRawTool(
+  ctx: CompileContext,
+  call: CallExpression,
+  site: ValueSite
+): CompiledToolCall | null {
+  const [argument] = call.arguments
+  const paramsProperty =
+    argument?.type === 'ObjectExpression'
+      ? argument.properties.find(
+          (property): property is ObjectProperty =>
+            property.type === 'ObjectProperty' && literalKey(property) === 'params'
+        )
+      : undefined
+  const paramsNode =
+    paramsProperty?.value.type === 'ObjectExpression' ? paramsProperty.value : undefined
+  const pending: PendingStoredParam[] = []
+  const order: string[] = []
+  let literal = call
+  if (argument?.type === 'ObjectExpression' && paramsProperty && paramsNode) {
+    const kept: ObjectExpression['properties'] = []
+    for (const property of paramsNode.properties) {
+      const key = property.type === 'ObjectProperty' ? literalKey(property) : null
+      if (key !== null) order.push(key)
+      if (
+        key !== null &&
+        property.type === 'ObjectProperty' &&
+        isStoredCall(site, property.value)
+      ) {
+        pending.push({ param: key, key, node: property.value })
+      } else kept.push(property)
+    }
+    if (pending.length > 0) {
+      const params: ObjectExpression = { ...paramsNode, properties: kept }
+      const tool: ObjectExpression = {
+        ...argument,
+        properties: argument.properties.map((property) =>
+          property === paramsProperty ? { ...paramsProperty, value: params } : property
+        ),
+      }
+      literal = { ...call, arguments: [tool] }
+    }
+  }
+  const value = compileValue(ctx, literal, site)
+  if (!value || value.kind !== 'value') return null
+  if (!isCanonicalTool(value.value)) {
+    return unsupported(
+      ctx,
+      call,
+      'raw(tool) needs type, params and modes.',
+      'Write raw({ type, params: {}, modes: {} }).',
+      site.decl.key
+    )
+  }
+  if (pending.length === 0) return { tool: value.value, pending }
+  const compiled: CanonicalTool = value.value
+  const params: Record<string, Value> = {}
+  for (const key of order) setOwn(params, key, getOwn(compiled.params, key) ?? null)
+  return { tool: { ...compiled, params }, pending }
+}
+
 /**
  * A tool-input value: an array of `ns.tool.method(params, options?)` calls (the printer's
  * `printTools`), `customTool(key)`, `mcp(key).tool(name)`, `childWorkflow(key).asTool()` or
@@ -738,19 +817,10 @@ export function compileToolList(
       rootBinding.name === 'raw' &&
       element.callee.type === 'Identifier'
     ) {
-      const value = compileValue(ctx, element, site)
-      if (!value || value.kind !== 'value') return null
-      if (!isCanonicalTool(value.value)) {
-        return unsupported(
-          ctx,
-          element,
-          'raw(tool) needs type, params and modes.',
-          'Write raw({ type, params: {}, modes: {} }).',
-          site.decl.key
-        )
-      }
-      tools.push(value.value)
-      calls.push(null)
+      const call = compileRawTool(ctx, element, site)
+      if (!call) return null
+      tools.push(call.tool)
+      calls.push(call)
       continue
     }
     const call = compileToolCall(ctx, element, site)

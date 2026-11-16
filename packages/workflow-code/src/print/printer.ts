@@ -237,6 +237,13 @@ function toolJson(tool: CanonicalTool): Json {
   return value
 }
 
+/** One param of a tool entry as JSON, under the same contract as {@link toolJson}. */
+function toolParamJson(tool: CanonicalTool, param: Value): Json {
+  const value: unknown = param
+  if (!isJson(value)) throw new Error(`Tool entry of type "${tool.type}" is not plain JSON`)
+  return value
+}
+
 class WorkflowPrinter {
   private readonly workflow: CanonicalWorkflow
   private readonly catalog: BlockCatalog
@@ -741,7 +748,7 @@ class WorkflowPrinter {
       const aliasNames = new Set(aliases.values())
       // A stored key spelled like an alias would compile back to the param the alias names.
       if (!found || Object.keys(tool.params).some((id) => aliasNames.has(id))) {
-        return this.values.call('raw', [this.values.json(toolJson(tool))])
+        return this.rawToolCall(tool, catalogBlock, aliases)
       }
       const pinned = pinnedIds(found.builder)
       const nested: FieldContext = { tag: 't', from: block.key }
@@ -792,6 +799,46 @@ class WorkflowPrinter {
       return this.values.call(callee, args)
     })
     return arrayExpr(elements)
+  }
+
+  /**
+   * `raw(tool)`: the tool verbatim, except that a password param holding literal text prints as
+   * `stored()`, as it does through a builder. A param spelled like an alias is a password when the
+   * param the alias names is one.
+   */
+  private rawToolCall(
+    tool: CanonicalTool,
+    catalogBlock: CatalogBlock | undefined,
+    aliases: ReadonlyMap<string, string>
+  ): Expr {
+    const passwordIds = new Set<string>()
+    for (const subBlock of catalogBlock?.subBlocks ?? []) {
+      if (!subBlock.password) continue
+      passwordIds.add(subBlock.id)
+      const alias = aliases.get(subBlock.id)
+      if (alias !== undefined) passwordIds.add(alias)
+    }
+    const secret = (id: string, value: Value) => passwordIds.has(id) && isLiteralSecret(value)
+    const json = toolJson(tool)
+    if (!isPlainRecord(json) || !Object.entries(tool.params).some(([id, v]) => secret(id, v))) {
+      return this.values.call('raw', [this.values.json(json)])
+    }
+    const params = objectExpr(
+      Object.entries(tool.params).map(([id, value]) => ({
+        key: printKey(id),
+        value: secret(id, value)
+          ? this.values.call('stored', [])
+          : this.values.json(toolParamJson(tool, value)),
+      }))
+    )
+    return this.values.call('raw', [
+      objectExpr(
+        Object.entries(json).map(([key, value]) => ({
+          key: printKey(key),
+          value: key === 'params' ? params : this.values.json(value),
+        }))
+      ),
+    ])
   }
 
   private modesExpr(modes: Record<string, ParamMode>): Expr {

@@ -232,7 +232,9 @@ template.
     `toolId: 'workflow_executor'`). One with fixed inputs prints through `runWorkflow.tool(…)`;
   - `raw(tool)`: any other stored tool, including an MCP or child-workflow tool whose stored fields
     drifted from what the picker writes (a renamed title, a foreign `toolId`, explicit modes) and a
-    tool keyed by an alias name.
+    tool keyed by an alias name. A password param holding literal text prints as
+    `params: { key: stored() }`, resolved like a builder tool's `stored()`; `stored()` anywhere
+    else in the literal is refused.
 
   `mcp().tool()` and `asTool()` print only when compiling them reproduces the stored tool exactly
   (`agent-tools.ts`).

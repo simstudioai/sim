@@ -7,7 +7,7 @@ import { compileWorkflow } from './index'
 import { TEST_CATALOG } from './test-catalog'
 
 const IMPORTS =
-  "import { agent, api, childWorkflow, condition, customTool, credential, fn, js, mail, mcp, parallel, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
+  "import { agent, api, childWorkflow, condition, customTool, credential, fn, js, mail, mcp, parallel, raw, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
 
 function source(body: string, header = '// @sim-sdk 1'): string {
   return `${header}\n${IMPORTS}\n\nexport default workflow('Test', {}, () => {\n${body}\n})\n`
@@ -170,6 +170,21 @@ describe('tool params', () => {
       expect(text).toContain("mail.tool({ apiKey: stored(), to: 'a@x.y' })")
       expect(printed(compiled(text, storedWorkflow))).toBe(text)
     })
+  })
+
+  it('redact a secret inside raw(tool) as stored() and keep it on compile', () => {
+    // A stored key spelled like an alias (`credential`) has no builder form, so it prints raw().
+    const storedWorkflow = compiled(
+      source(
+        "  agent('A', { model: 'm', tools: [raw({ type: 'mail', params: { credential: 'c1', apiKey: 'sk-raw-1', to: 'a@x.y' }, modes: {} })] })"
+      )
+    )
+    const text = printed(storedWorkflow)
+    expect(text).toContain('apiKey: stored()')
+    expect(text).not.toContain('sk-raw-1')
+    const next = compiled(text, storedWorkflow)
+    expect(next.blocks.a?.params.tools).toEqual(storedWorkflow.blocks.a?.params.tools)
+    expect(printed(next)).toBe(text)
   })
 })
 
