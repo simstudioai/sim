@@ -35,6 +35,7 @@ const lockLayoutSchema = z
     height: z.number().optional().describe('Stored block height.'),
     horizontalHandles: z.boolean().optional().describe('Handles on the left and right.'),
   })
+  .strict()
   .describe('Stored canvas geometry; applied only to new blocks.')
 
 const lockBlockSchema = z
@@ -54,6 +55,7 @@ const lockBlockSchema = z
               name: z.string().describe('Item name.'),
               id: z.string().describe('Item id.'),
             })
+            .strict()
             .describe('One id-bearing list item.')
         )
       )
@@ -64,22 +66,25 @@ const lockBlockSchema = z
     layout: lockLayoutSchema.optional(),
     codeFile: z.string().optional().describe('Path of the block’s function-code file.'),
   })
+  .strict()
   .describe('One block’s identity.')
 
-const workflowLockSchema = z
+export const workflowLockSchema = z
   .object({
     lockVersion: z.literal(1).describe('Lock format version.'),
     blocks: z.record(z.string(), lockBlockSchema).describe('Block key → identity.'),
     variables: z.record(z.string(), z.string()).describe('Variable key → variable id.'),
   })
+  .strict()
   .describe('Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.')
 
-const lockBaseSchema = z
+export const lockBaseSchema = z
   .object({
     workspaceId: z.string().describe('Workspace the workflow belongs to.'),
     baseFingerprint: z.string().describe('The `fingerprint` this source was read at.'),
     catalogHash: z.string().describe('Hash of the block catalog the source was printed against.'),
   })
+  .strict()
   .describe('Freshness facts for the lock in this environment (`.sim/base.json`).')
 
 const sourceWarningSchema = z

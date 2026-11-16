@@ -11,6 +11,7 @@
     "getWorkflowState",
     "getWorkflowOutline",
     "getWorkflowSource",
+    "applyWorkflowSource",
     "replaceWorkflowState",
     "applyWorkflowOperations",
     "applyWorkflowVariables",
