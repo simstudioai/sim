@@ -1,6 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, posix } from 'node:path'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
 import {
@@ -172,7 +172,7 @@ interface ManifestResource {
 
 /** The resource manifest response, as `generateWorkspaceTypes` reads it. */
 function workspaceManifestFrom(raw: unknown): WorkspaceManifest {
-  const data = isRecordLike(raw) && isRecordLike(raw.data) ? raw.data : null
+  const data = isRecordLike(raw) ? toRecordOrNull(raw.data) : null
   if (!data)
     throw new SimApiError('The resource manifest response was not in the expected shape.', 0)
   const list = <T extends ManifestResource>(value: unknown): T[] =>

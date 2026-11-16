@@ -8,7 +8,7 @@ import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { workflowCodeOperations } from '@/lib/workflows/code/operations'
 
 const RESOURCE_MANIFEST_EXAMPLE = {
-  workspaceId: '7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28',
+  workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
   tables: [
     {
       key: 'tickets',
@@ -27,7 +27,7 @@ const RESOURCE_MANIFEST_EXAMPLE = {
   workflows: [
     {
       key: 'assign-owner',
-      id: '3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8',
+      id: '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36',
       name: 'Assign owner',
       inputs: [{ name: 'leads', type: 'array' }],
     },
