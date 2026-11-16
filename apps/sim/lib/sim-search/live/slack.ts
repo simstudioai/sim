@@ -420,7 +420,7 @@ async function slackFileText(
     // files.info already accepted this token, so reconnecting would not change a refused file.
     return {
       unavailable:
-        error.httpStatus === 401 || error.httpStatus === 403
+        error.status === 'reconnect' && (error.httpStatus === 401 || error.httpStatus === 403)
           ? "Slack did not serve this file's contents to your account. Open the source."
           : error.message,
     }

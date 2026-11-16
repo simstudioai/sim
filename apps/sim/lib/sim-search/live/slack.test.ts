@@ -117,6 +117,23 @@ describe('Slack file reads', () => {
     )
     expect(read.content).not.toContain('Reconnect')
     expect(read.content).toContain('Short preview')
+    const throttled = fileClient({ mimetype: 'text/plain' }, async () => {
+      throw new NativeSearchError(
+        'rate_limited',
+        'Provider rate limit reached. Try again later.',
+        30,
+        403
+      )
+    })
+    expect((await readSlack(throttled, 'F123', undefined, 'file')).content).toContain(
+      'Full text unavailable: Provider rate limit reached. Try again later.'
+    )
+    const relink = fileClient({ mimetype: 'text/plain' }, async () => {
+      throw new NativeSearchError('reconnect', 'Reconnect this provider to restore its API host.')
+    })
+    expect((await readSlack(relink, 'F123', undefined, 'file')).content).toContain(
+      'Full text unavailable: Reconnect this provider to restore its API host.'
+    )
     for (const failure of [
       new Error('Too many redirects (max: 0)'),
       new DOMException('The operation timed out.', 'TimeoutError'),
