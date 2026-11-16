@@ -19,10 +19,18 @@
  *      context type.
  *    Fix by taking the surface fact (a cursor's route identity, a wire shape) as input from
  *    the adapter.
+ * 3. `@sim/workflow-code` (every non-test file under `packages/workflow-code/src`) compiles
+ *    untrusted workflow source on the server, in the browser and in the CLI, so it must stay pure
+ *    and must never execute code: no Node built-in (`vm`, `child_process`, `fs`, any `node:*`,
+ *    even type-only), no dynamic `import()` or `require`, and no `eval` or `Function` reached as
+ *    a value (`new Function`, `globalThis.eval`, `globalThis['Function']`). Fix by keeping I/O in
+ *    the caller (the compiler takes file text as input) and interpreting the AST instead of
+ *    evaluating it.
  *
  * There is no allowlist. Run: `bun run check:boundaries`
  */
 import { readdir, readFile } from 'node:fs/promises'
+import { isBuiltin } from 'node:module'
 import path from 'node:path'
 import ts from '@typescript/typescript6'
 
@@ -173,6 +181,76 @@ async function scanImports(
   return offenders
 }
 
+const PURE_PACKAGE_SRC = path.join(PACKAGES_DIR, 'workflow-code', 'src')
+const CODE_EXECUTING_GLOBALS = new Set(['eval', 'Function'])
+
+/** Whether `node` names `eval`/`Function` as a value rather than as a key or a type. */
+function isCodeExecutingReference(node: ts.Identifier): boolean {
+  if (!CODE_EXECUTING_GLOBALS.has(node.text)) return false
+  const parent = node.parent
+  if (
+    (ts.isPropertyAssignment(parent) ||
+      ts.isPropertyDeclaration(parent) ||
+      ts.isPropertySignature(parent) ||
+      ts.isMethodDeclaration(parent) ||
+      ts.isMethodSignature(parent) ||
+      ts.isGetAccessorDeclaration(parent) ||
+      ts.isSetAccessorDeclaration(parent)) &&
+    parent.name === node
+  ) {
+    return false
+  }
+  for (let ancestor: ts.Node = parent; !ts.isSourceFile(ancestor); ancestor = ancestor.parent) {
+    if (ts.isTypeNode(ancestor)) return false
+  }
+  return true
+}
+
+/** Rule 3: every way a file in the pure package could reach the host or execute code. */
+async function scanPurePackageFile(file: string): Promise<Offender[]> {
+  const content = await readFile(file, 'utf8')
+  const source = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true)
+  const lines = content.split('\n')
+  const offenders: Offender[] = []
+  function report(node: ts.Node, description: string): void {
+    const { line } = source.getLineAndCharacterOfPosition(node.getStart(source))
+    offenders.push({
+      file: path.relative(ROOT, file),
+      line: line + 1,
+      description,
+      snippet: lines[line].trim(),
+    })
+  }
+
+  for (const { module } of importEdges(source)) {
+    if (module.text.startsWith('node:') || isBuiltin(module.text)) {
+      report(module, `@sim/workflow-code imports a Node built-in: ${module.text}`)
+    }
+  }
+  function visit(node: ts.Node): void {
+    if (ts.isCallExpression(node)) {
+      if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        report(node, '@sim/workflow-code uses dynamic import()')
+      } else if (ts.isIdentifier(node.expression) && node.expression.text === 'require') {
+        report(node, '@sim/workflow-code uses require()')
+      }
+    }
+    if (ts.isIdentifier(node) && isCodeExecutingReference(node)) {
+      report(node, `@sim/workflow-code references ${node.text}`)
+    }
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isStringLiteralLike(node.argumentExpression) &&
+      CODE_EXECUTING_GLOBALS.has(node.argumentExpression.text)
+    ) {
+      report(node, `@sim/workflow-code references ${node.argumentExpression.text}`)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  return offenders
+}
+
 /** Package dependencies point toward shared code, including type-only imports. */
 function forbiddenImport(file: string, specifier: string, appNames: ReadonlySet<string>): boolean {
   if (specifier.startsWith('@/') || specifier.startsWith('apps/')) return true
@@ -230,6 +308,9 @@ async function main() {
           forbiddenImport(file, module.text, appNames) ? `import into apps/: ${module.text}` : null
         ))
       )
+      if (file.startsWith(`${PURE_PACKAGE_SRC}${path.sep}`) && !TEST_FILE.test(file)) {
+        offenders.push(...(await scanPurePackageFile(file)))
+      }
     }
   }
 
@@ -248,7 +329,7 @@ async function main() {
 
   if (offenders.length === 0) {
     console.log(
-      '✅ Monorepo boundaries OK: no package imports from apps/*, and application code is surface-neutral'
+      '✅ Monorepo boundaries OK: no package imports from apps/*, application code is surface-neutral, and @sim/workflow-code is pure'
     )
     return
   }
