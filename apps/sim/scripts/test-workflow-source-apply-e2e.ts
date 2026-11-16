@@ -17,7 +17,8 @@ import postgres from 'postgres'
  * (`GET /api/v2/workspaces/{id}/workflows/source/resources`), creates a workflow from source
  * (`POST /api/v2/workspaces/{id}/workflows/source`: dry run, create, name conflict, refusal) and
  * applies to the new workflow with the lock the create returned. The app must have the `workflow-code`
- * flag on, and the key must be a personal API key (workspace keys are refused).
+ * flag on. The script seeds its own owner, workspace and personal API key (graph writes refuse
+ * workspace keys) in the app's disposable database and removes them when it finishes.
  *
  * The refusals are driven against the same app with fixtures seeded in its disposable database: a
  * locked workflow (423), an oversized body (413 in the v2 envelope), a personal key of a user
@@ -28,9 +29,10 @@ import postgres from 'postgres'
  * is the app process's `WORKFLOW_CODE` environment, read when the app starts, and this script runs
  * outside that process. The flag-off apply is proven in `apply-workflow-source.integration.ts`.
  *
- * Env: WORKFLOW_SOURCE_E2E_BASE_URL (loopback origin), WORKFLOW_SOURCE_E2E_API_KEY,
- * WORKFLOW_SOURCE_E2E_WORKSPACE_ID, WORKFLOW_SOURCE_E2E_DATABASE_URL (the app's disposable
- * loopback database), WORKFLOW_SOURCE_APPLY_E2E_REPORT_PATH.
+ *   WORKFLOW_SOURCE_APPLY_E2E_BASE_URL=http://127.0.0.1:3000 \
+ *   WORKFLOW_SOURCE_APPLY_E2E_DATABASE_URL=postgres://…/sim_test \
+ *   WORKFLOW_SOURCE_APPLY_E2E_REPORT_PATH=/tmp/workflow-source-apply-report.json \
+ *   bun run test:workflow-source-apply:e2e
  */
 const logger = createLogger('WorkflowSourceApplyE2E')
 
@@ -40,12 +42,10 @@ function requiredEnvironment(name: string): string {
   return value
 }
 
-const baseUrl = new URL(requiredEnvironment('WORKFLOW_SOURCE_E2E_BASE_URL'))
-const apiKey = requiredEnvironment('WORKFLOW_SOURCE_E2E_API_KEY')
-const workspaceId = requiredEnvironment('WORKFLOW_SOURCE_E2E_WORKSPACE_ID')
+const baseUrl = new URL(requiredEnvironment('WORKFLOW_SOURCE_APPLY_E2E_BASE_URL'))
 const reportPath = requiredEnvironment('WORKFLOW_SOURCE_APPLY_E2E_REPORT_PATH')
 const databaseUrl = assertDisposableTestDatabaseUrl(
-  requiredEnvironment('WORKFLOW_SOURCE_E2E_DATABASE_URL')
+  requiredEnvironment('WORKFLOW_SOURCE_APPLY_E2E_DATABASE_URL')
 )
 const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]'])
 assert(loopbackHosts.has(baseUrl.hostname), 'The app must use a loopback host')
@@ -58,8 +58,12 @@ const httpLog: { method: string; path: string; status: number }[] = []
 const startedAt = new Date().toISOString()
 const SCORE_CODE = 'return 40 + 2'
 const sql = postgres(databaseUrl.toString(), { max: 2 })
+const ownerId = generateId()
+const workspaceId = generateId()
+/** The workflows' author: an admin of the seeded workspace, calling with a personal key. */
+const ownerKey = `sk-sim-fixture-${generateId()}`
 
-/** Disposable callers seeded for the refusal checks; the env key stays the workflow's author. */
+/** Disposable callers seeded for the refusal checks. */
 const fixtures = {
   readerId: generateId(),
   outsiderId: generateId(),
@@ -78,7 +82,7 @@ function record(value: unknown): Json {
 }
 
 async function request(method: string, path: string, body?: unknown, expected = 200) {
-  return requestAs(apiKey, method, path, body, expected)
+  return requestAs(ownerKey, method, path, body, expected)
 }
 
 async function requestAs(
@@ -170,15 +174,21 @@ async function workflowCountNamed(name: string): Promise<number> {
 
 async function seedFixtures() {
   await sql.begin(async (tx) => {
-    for (const id of [fixtures.readerId, fixtures.outsiderId]) {
+    for (const id of [ownerId, fixtures.readerId, fixtures.outsiderId]) {
       const email = `${id}@workflow-source-apply.test`
       await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
         values (${id}, 'Workflow source apply fixture', ${email}, ${email}, true, now(), now())`
       await tx`insert into user_stats (id, user_id) values (${generateId()}, ${id})`
     }
+    await tx`insert into project (id, name, owner_id) values (${workspaceId}, 'Workflow source apply project', ${ownerId})`
+    await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id)
+      values (${workspaceId}, ${workspaceId}, 'Workflow source apply fixture', ${ownerId}, ${ownerId})`
+    await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
+      values (${generateId()}, ${ownerId}, 'workspace', ${workspaceId}, 'admin')`
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
       values (${generateId()}, ${fixtures.readerId}, 'workspace', ${workspaceId}, 'read')`
     for (const [userId, key] of [
+      [ownerId, ownerKey],
       [fixtures.readerId, fixtures.readerKey],
       [fixtures.outsiderId, fixtures.outsiderKey],
     ]) {
@@ -194,36 +204,36 @@ async function seedFixtures() {
   })
 }
 
+/**
+ * Deleting the workspace cascades to its workflows, folders and workspace keys; deleting the users
+ * cascades to their personal keys, permissions and stats.
+ */
 async function removeFixtures() {
   await sql.begin(async (tx) => {
-    await tx`delete from folder where id = ${fixtures.lockedFolderId}`
-    await tx`delete from api_key where key_hash in (${sha256Hex(fixtures.readerKey)},
-      ${sha256Hex(fixtures.outsiderKey)}, ${sha256Hex(fixtures.workspaceKey)})`
-    await tx`delete from permissions where user_id in (${fixtures.readerId}, ${fixtures.outsiderId})`
-    await tx`delete from "user" where id in (${fixtures.readerId}, ${fixtures.outsiderId})`
+    await tx`delete from workspace where id = ${workspaceId}`
+    await tx`delete from project where id = ${workspaceId}`
   })
+  await sql`delete from "user" where id in (${ownerId}, ${fixtures.readerId}, ${fixtures.outsiderId})`
 }
 
 async function main() {
-  await seedFixtures()
-  const created = record(
-    (
-      await request(
-        'POST',
-        '/api/v2/workflows',
-        { workspaceId, name: `Source apply e2e ${generateId().slice(0, 8)}` },
-        201
-      )
-    ).data
-  )
-  const workflowId = String(created.id)
-  const startId = String(record((created.blocks as unknown[])[0]).id)
-  const scoreId = generateId()
-  const seededBlocks = await storedBlocks(workflowId)
-  /** Workflows the create checks made, removed with the seeded one. */
-  const createdIds: string[] = []
-
   try {
+    await seedFixtures()
+    const created = record(
+      (
+        await request(
+          'POST',
+          '/api/v2/workflows',
+          { workspaceId, name: `Source apply e2e ${generateId().slice(0, 8)}` },
+          201
+        )
+      ).data
+    )
+    const workflowId = String(created.id)
+    const startId = String(record((created.blocks as unknown[])[0]).id)
+    const scoreId = generateId()
+    const seededBlocks = await storedBlocks(workflowId)
+
     await request('PUT', `/api/v2/workflows/${workflowId}/state`, {
       blocks: {
         ...seededBlocks,
@@ -363,7 +373,6 @@ async function main() {
       const result = record(data)
       assert.equal(result.applied, true)
       const newId = String(result.workflowId)
-      createdIds.push(newId)
       assert.notEqual(newId, workflowId)
       copy = {
         workflowId: newId,
@@ -513,14 +522,7 @@ async function main() {
       }
     )
   } finally {
-    await removeFixtures().catch((error: unknown) => {
-      logger.warn('Fixture cleanup failed', { error: getErrorMessage(error) })
-    })
-    for (const id of [workflowId, ...createdIds]) {
-      await request('DELETE', `/api/v2/workflows/${id}`).catch((error: unknown) => {
-        logger.warn('Cleanup failed', { workflowId: id, error: getErrorMessage(error) })
-      })
-    }
+    await check('remove disposable fixtures', removeFixtures)
   }
 }
 
