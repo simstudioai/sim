@@ -45,6 +45,11 @@ export interface PerformCreateWorkflowParams {
   sortOrder?: number
   deduplicate?: boolean
   requestId?: string
+  /**
+   * Writes the new workflow's graph in the create transaction, after the row is inserted, in
+   * place of the starter graph. A throw rolls the whole create back.
+   */
+  writeGraph?: (tx: DbTransaction, workflowId: string) => Promise<void>
 }
 
 export interface PerformCreateWorkflowResult {
@@ -334,6 +339,10 @@ export async function performCreateWorkflowTransition(
         })
         await tx.insert(workflow).values(row)
 
+        if (params.writeGraph) {
+          await params.writeGraph(tx, workflowId)
+          return
+        }
         await saveWorkflowToNormalizedTables(
           workflowId,
           workflowState,
@@ -400,8 +409,7 @@ export async function performCreateWorkflowTransition(
       sortOrder,
       createdAt: now,
       updatedAt: now,
-      startBlockId,
-      subBlockValues,
+      ...(params.writeGraph ? { subBlockValues: {} } : { startBlockId, subBlockValues }),
     },
   }
 }

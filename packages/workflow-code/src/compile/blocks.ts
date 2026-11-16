@@ -28,9 +28,9 @@ import {
   type CatalogField,
   type FieldIndex,
   isModalPair,
-  isRequired,
   isVisible,
   memberFor,
+  missingRequiredFields,
   valueKindMatches,
 } from './validate-catalog'
 import {
@@ -942,10 +942,7 @@ function checkFields(
       { hint: 'Move it into params.', blockKey: decl.key, param: id }
     )
   }
-  for (const field of index.fields.values()) {
-    const members = field.kind === 'single' ? [field.sub] : field.members
-    const required = members.some((sub) => isVisible(sub, values) && isRequired(sub, values))
-    if (!required || members.some((sub) => Object.hasOwn(params, sub.id))) continue
+  for (const field of missingRequiredFields(index, values, (id) => Object.hasOwn(params, id))) {
     const todo = state.todos.get(field.param)
     ctx.reporter.report(
       'W_REQUIRED_MISSING',

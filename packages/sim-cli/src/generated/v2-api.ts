@@ -4199,6 +4199,127 @@ export type CreateWorkflowFolderResponse = {
   data: CreateWorkflowFolderResponseRef0
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/workflows/source` */
+export type CreateWorkflowFromSourceParams = {
+  workspaceId: string
+}
+
+export type CreateWorkflowFromSourceQuery = {
+  dryRun?: boolean
+}
+
+type CreateWorkflowFromSourceBodyRef0 = string
+
+export type CreateWorkflowFromSourceBody = {
+  files: Record<string, string>
+  name?: string
+  description?: string | null
+  folderPath?: CreateWorkflowFromSourceBodyRef0
+  provenance?: {
+    client: 'cli' | 'copilot' | 'canvas' | 'api'
+    gitSha?: string
+    repo?: string
+  }
+}
+
+export type CreateWorkflowFromSourceResponse = {
+  data: {
+    workflowId: string
+    workspaceId: string
+    dryRun: boolean
+    applied: boolean
+    diff: {
+      noop: boolean
+      blocks: {
+        added: Array<{
+          id: string
+          key: string
+        }>
+        removed: Array<{
+          id: string
+          key: string
+        }>
+        renamed: Array<{
+          id: string
+          from: string
+          to: string
+        }>
+        modified: Array<{
+          id: string
+          key: string
+          fields: Array<string>
+          reparented?: boolean
+        }>
+      }
+      edges: {
+        added: number
+        removed: number
+      }
+      variables: {
+        added: Array<string>
+        removed: Array<string>
+        modified: Array<string>
+      }
+    }
+    diagnostics: Array<{
+      code: string
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      blockKey?: string
+      blockId?: string
+      param?: string
+      path?: string
+    }>
+    newFingerprint: string
+    files: Record<string, string>
+    lock: {
+      lockVersion: 1
+      blocks: Record<
+        string,
+        {
+          id: string
+          parent: string | null
+          branches?: Record<string, string>
+          items?: Record<
+            string,
+            Array<{
+              name: string
+              id: string
+            }>
+          >
+          binding: string
+          order: number
+          layout?: {
+            x: number
+            y: number
+            w?: number
+            h?: number
+            height?: number
+            horizontalHandles?: boolean
+          }
+          codeFile?: string
+        }
+      >
+      variables: Record<string, string>
+    }
+    lockBase: {
+      workspaceId: string
+      baseFingerprint: string
+      catalogHash: string
+    }
+    mintedIds: Record<string, string>
+    warnings: Array<string>
+    needsRedeployment: boolean
+  }
+}
+
 /** `POST /api/v2/workflow-mcp-servers` */
 export type CreateWorkflowMcpServerQuery = Record<string, unknown>
 
@@ -6324,6 +6445,34 @@ export type GetBlockCatalogResponse = {
                     opaque: true
                   }
               visibleFor?: Record<string, boolean>
+              visibleWhen?: Record<
+                string,
+                {
+                  field: string
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string | number | boolean>
+                    | {
+                        list: number
+                      }
+                  not?: boolean
+                  and?: {
+                    field: string
+                    value?:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                  }
+                }
+              >
+              visibleForModel?: Record<string, boolean>
               required?:
                 | boolean
                 | {
@@ -6517,6 +6666,34 @@ export type GetBlockCatalogResponse = {
                     opaque: true
                   }
               visibleFor?: Record<string, boolean>
+              visibleWhen?: Record<
+                string,
+                {
+                  field: string
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string | number | boolean>
+                    | {
+                        list: number
+                      }
+                  not?: boolean
+                  and?: {
+                    field: string
+                    value?:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                  }
+                }
+              >
+              visibleForModel?: Record<string, boolean>
               required?:
                 | boolean
                 | {
@@ -6667,6 +6844,34 @@ export type GetBlockCatalogResponse = {
             opaque: true
           }
       visibleFor?: Record<string, boolean>
+      visibleWhen?: Record<
+        string,
+        {
+          field: string
+          value:
+            | string
+            | number
+            | boolean
+            | Array<string | number | boolean>
+            | {
+                list: number
+              }
+          not?: boolean
+          and?: {
+            field: string
+            value?:
+              | string
+              | number
+              | boolean
+              | Array<string | number | boolean>
+              | {
+                  list: number
+                }
+            not?: boolean
+          }
+        }
+      >
+      visibleForModel?: Record<string, boolean>
       required?:
         | boolean
         | {
@@ -7795,6 +8000,51 @@ type GetProjectFileVersionResponseRef1 = {
 
 export type GetProjectFileVersionResponse = {
   data: GetProjectFileVersionResponseRef0
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/resource-manifest` */
+export type GetResourceManifestParams = {
+  workspaceId: string
+}
+
+export type GetResourceManifestQuery = Record<string, unknown>
+
+export type GetResourceManifestResponse = {
+  data: {
+    workspaceId: string
+    tables: Array<{
+      key: string
+      id: string
+      name: string
+      columns: Array<{
+        name: string
+        type: string
+        options?: Array<string>
+      }>
+    }>
+    knowledgeBases: Array<{
+      key: string
+      id: string
+      name: string
+    }>
+    bindings: Array<{
+      key: string
+      id: string
+      name: string
+      service: string
+    }>
+    workflows: Array<{
+      key: string
+      id: string
+      name: string
+      inputs: Array<{
+        name: string
+        type: string
+      }>
+    }>
+    env: Array<string>
+    truncated: boolean
+  }
 }
 
 /** `GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]` */
@@ -18897,6 +19147,44 @@ export const V2_OPERATIONS = {
       path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
     },
   },
+  createWorkflowFromSource: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/workflows/source',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace in which to create the workflow.' },
+    responseMode: 'json',
+    summary: 'Create workflow from source',
+    workspaceKeyUnsupported: true,
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Run every check without writing, auditing, or notifying collaborators. Always answers `200`: errors are returned in `diagnostics` with `applied: false`, and the files, lock and fingerprint show what a committed apply would store.',
+      },
+    },
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`).',
+      },
+      name: {
+        kind: 'string',
+        describe: "Workflow name. Defaults to the name in the source's `workflow('…')` call.",
+      },
+      description: {
+        kind: 'string',
+        describe: 'Workflow description. Defaults to the description in the source.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe:
+          'Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as "New folder" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.',
+      },
+      provenance: { kind: 'object', describe: 'Where the source came from, for the audit log.' },
+    },
+  },
   createWorkflowMcpServer: {
     method: 'POST',
     path: '/api/v2/workflow-mcp-servers',
@@ -20546,6 +20834,14 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get Project File Version',
     workspaceKeyUnsupported: true,
+  },
+  getResourceManifest: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/resource-manifest',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace whose resources to list.' },
+    responseMode: 'json',
+    summary: 'Get resource manifest',
   },
   getRowEnrichment: {
     method: 'GET',

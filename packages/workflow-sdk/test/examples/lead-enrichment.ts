@@ -32,7 +32,7 @@ export default workflow('Lead enrichment', {}, () => {
       const lookup = api('Lookup', {
         url: t`https://crm.example.com/c/${p.currentItem.email}`,
         method: 'GET',
-        headers: { Authorization: t`Bearer ${env.CRM_KEY}` },
+        headers: [{ cells: { Key: 'Authorization', Value: t`Bearer ${env.CRM_KEY}` } }],
       })
       const score = fn('Score', { language: 'javascript', code: file('./functions/score.js') })
       const save = table.updateRowById('Save', {

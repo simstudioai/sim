@@ -4,10 +4,11 @@
  * Canonicalize is the dominant per-request cost after the catalog. Two facts let a request reuse
  * one result instead of re-running it:
  *
- * - Resource keys. Canonicalize asks the resolver only about the kinds the graph references, so a
- *   resolver that has loaded a superset of those kinds gives the same result as one that loaded
- *   exactly them. The kinds a workflow asked for last time are remembered, loaded up front, and
- *   checked after the pass; only a workflow that gained a kind pays a second pass.
+ * - Resource keys. Canonicalize asks the resolver only about the resources the graph references,
+ *   so a resolver that has resolved a superset of those references gives the same result as one
+ *   that resolved exactly them. The references a workflow made last time are remembered, resolved
+ *   up front through the workspace's bindings, and checked after the pass; only a workflow that
+ *   gained a reference pays a second pass.
  * - The lock. Canonicalize reads a lock only for branch keys, by row id
  *   (`CanonicalizeOptions.lock`: it never changes block keys). When every key the lock supplies
  *   for a row equals the key the lockless pass gave that row, the lock changes nothing.
@@ -20,22 +21,20 @@ import {
   canonicalize,
   type LockIdentity,
   type ResourceKeyResolver,
-  type ResourceKind,
   type WorkflowLockV1,
 } from '@sim/workflow-code'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { LRUCache } from 'lru-cache'
-import { loadResourceKeyResolver } from '@/lib/workflows/code/resources'
+import { loadResourceKeyResolver, type ResourceReferences } from '@/lib/workflows/code/resources'
 
 /**
- * Resource kinds each workflow's stored graph referenced on its last canonicalize: a hint for
- * which resource tables to read before the pass. A stale entry costs at most one extra table read
- * (a kind no longer referenced) or one extra pass (a kind newly referenced), never a wrong result.
- * Entries are a handful of kind names, so the ceiling is a memory backstop.
+ * Resources each workflow's stored graph referenced on its last canonicalize: a hint for which
+ * bindings to resolve before the pass. A stale entry costs at most resolving a resource no longer
+ * referenced (idempotent: it reads or allocates that resource's own key) or one extra pass (a
+ * resource newly referenced), never a wrong result. Entries are a handful of ids, so the ceiling
+ * is a memory backstop.
  */
-const referencedKindsByWorkflow = new LRUCache<string, ReadonlySet<ResourceKind>>({
-  max: 20_000,
-})
+const referencesByWorkflow = new LRUCache<string, ResourceReferences>({ max: 20_000 })
 
 interface StoredCanonicalInput {
   workflowId: string
@@ -43,49 +42,69 @@ interface StoredCanonicalInput {
   state: WorkflowState
   meta: CanonicalWorkflowMeta
   catalog: BlockCatalog
+  /** Attribution for resource keys allocated by this read; `null` for an actorless caller. */
+  createdBy: string | null
 }
 
 interface StoredCanonical {
   /** The lockless canonical model of the stored graph, resource ids lifted to keys. */
   canonical: CanonicalizeResult
-  /** Answers every kind in `loadedKinds` from this workspace's live resources. */
+  /** Answers every reference in `loaded` from this workspace's bindings. */
   resources: ResourceKeyResolver
-  /** The kinds `resources` has loaded: every kind the stored graph references, maybe more. */
-  loadedKinds: ReadonlySet<ResourceKind>
+  /** The references `resources` has resolved: every one the stored graph makes, maybe more. */
+  loaded: ResourceReferences
+}
+
+const idRefKey = (kind: string, id: string) => `${kind}\u0000${id}`
+
+/** `base` plus each reference in `extra` it lacks, in order, without duplicates. */
+function unionReferences(base: ResourceReferences, extra: ResourceReferences): ResourceReferences {
+  const ids = new Map(base.ids.map((ref) => [idRefKey(ref.kind, ref.id), ref]))
+  const keys = new Map(base.keys.map((ref) => [idRefKey(ref.kind, ref.key), ref]))
+  for (const ref of extra.ids) ids.set(idRefKey(ref.kind, ref.id), ref)
+  for (const ref of extra.keys) keys.set(idRefKey(ref.kind, ref.key), ref)
+  return { ids: [...ids.values()], keys: [...keys.values()] }
 }
 
 /**
  * Canonicalizes the stored graph with its resource keys, normally in one pass. The result equals
- * a recording pass followed by a pass over a resolver for exactly the recorded kinds.
+ * a recording pass followed by a pass over a resolver for exactly the recorded references. This is
+ * the single entry point for canonicalizing a stored workflow with resources: keys come only from
+ * the workspace's persisted bindings (`resolveKeys` / `resolveIds`), allocated on first reference.
  */
 export async function canonicalizeStored(input: StoredCanonicalInput): Promise<StoredCanonical> {
-  const { workflowId, workspaceId, state, meta, catalog } = input
-  let loadedKinds: ReadonlySet<ResourceKind> =
-    referencedKindsByWorkflow.get(workflowId) ?? new Set()
-  let resources = await loadResourceKeyResolver(workspaceId, loadedKinds)
+  const { workflowId, workspaceId, state, meta, catalog, createdBy } = input
+  let loaded: ResourceReferences = referencesByWorkflow.get(workflowId) ?? { ids: [], keys: [] }
+  let resources = await loadResourceKeyResolver(workspaceId, loaded, { createdBy })
   for (;;) {
-    const referenced = new Set<ResourceKind>()
+    const referenced: ResourceReferences = { ids: [], keys: [] }
+    const current = resources
     const canonical = canonicalize(state, {
       catalog,
       meta,
       resources: {
         toKey(kind, id) {
-          referenced.add(kind)
-          return resources.toKey(kind, id)
+          referenced.ids.push({ kind, id })
+          return current.toKey(kind, id)
         },
         toId(kind, key) {
-          referenced.add(kind)
-          return resources.toId(kind, key)
+          referenced.keys.push({ kind, key })
+          return current.toId(kind, key)
         },
       },
     })
-    const missing = [...referenced].filter((kind) => !loadedKinds.has(kind))
-    if (missing.length === 0) {
-      referencedKindsByWorkflow.set(workflowId, referenced)
-      return { canonical, resources, loadedKinds }
+    const loadedIds = new Set(loaded.ids.map((ref) => idRefKey(ref.kind, ref.id)))
+    const loadedKeys = new Set(loaded.keys.map((ref) => idRefKey(ref.kind, ref.key)))
+    const missing: ResourceReferences = {
+      ids: referenced.ids.filter((ref) => !loadedIds.has(idRefKey(ref.kind, ref.id))),
+      keys: referenced.keys.filter((ref) => !loadedKeys.has(idRefKey(ref.kind, ref.key))),
     }
-    loadedKinds = new Set([...loadedKinds, ...missing])
-    resources = await loadResourceKeyResolver(workspaceId, loadedKinds)
+    if (missing.ids.length === 0 && missing.keys.length === 0) {
+      referencesByWorkflow.set(workflowId, unionReferences({ ids: [], keys: [] }, referenced))
+      return { canonical, resources, loaded }
+    }
+    loaded = unionReferences(loaded, missing)
+    resources = await loadResourceKeyResolver(workspaceId, loaded, { createdBy })
   }
 }
 

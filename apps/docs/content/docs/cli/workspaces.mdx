@@ -716,6 +716,24 @@ sim workspaces block-catalog list <workspaceId> [options]
 
 API request and response schemas: [getBlockCatalog](/api-reference/catalog/getBlockCatalog).
 
+### List the tables, knowledge bases, credentials, workflows and env names source can name
+
+```bash
+sim workspaces resource-manifest get <workspaceId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workspaceId` | Yes | Workspace whose resources to list. |
+
+</CommandTable>
+
+API request and response schemas: [getResourceManifest](/api-reference/workflows/getResourceManifest).
+
 ## Related docs
 
 - [Workspace sync](/cli/workflow-sync)

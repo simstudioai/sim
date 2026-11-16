@@ -2,10 +2,8 @@
 import {
   agent,
   binding,
-  customTool,
   gmail,
   googleSheets,
-  mcp,
   md,
   note,
   picked,
@@ -28,8 +26,6 @@ export default workflow('Invoice report', {}, () => {
         { oauthCredential: binding('finance-google'), spreadsheetId: picked('1AbC') },
         { usageControl: 'auto' }
       ),
-      customTool('lookup-vendor'),
-      mcp('linear').tool('create_issue'),
     ],
   })
   const send = gmail.sendEmail('Send summary', {

@@ -7,6 +7,7 @@ import {
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   v2ApplyWorkflowSourceContract,
+  v2CreateWorkflowFromSourceContract,
   v2GetWorkflowSourceContract,
 } from '@/lib/api/contracts/v2/workflow-source'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
@@ -128,6 +129,74 @@ export const workflowSourceOpenApiRoutes = [
               lock: WORKFLOW_SOURCE_EXAMPLE.lock,
               lockBase: WORKFLOW_SOURCE_EXAMPLE.lockBase,
               mintedIds: {},
+              warnings: [],
+              needsRedeployment: false,
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateWorkflowFromSourceContract,
+    {
+      applicationOperation: workflowOperations.createFromSource,
+      operationId: 'createWorkflowFromSource',
+      summary: 'Create workflow from source',
+      description: `Create a workflow from TypeScript workflow source in one all-or-nothing write. Requires workspace write access. The source is compiled and checked against the same rules as Apply Workflow Source; every block is new. Any error returns \`400\` with \`details.code\` \`SOURCE_REJECTED\` and \`details.diagnostics\` (each with a file, line and column), and nothing is created. The name defaults to the one in the source's \`workflow('…')\` call; a name already used in the folder returns \`409\`. The response carries the new \`workflowId\` and the source re-printed from what was saved, with its lock and fingerprint, ready for the next apply. The workflow is not deployed. \`dryRun=true\` runs every check without creating anything and always returns \`200\`. Returns \`403\` while code-first workflows are not enabled. ${WORKSPACE_API_KEY_DENIED}`,
+      tags: ['Workflows'],
+      errors: RESOURCE_MUTATION_ERRORS,
+      success: { description: 'The created (or evaluated) workflow.', headers: RATE_LIMIT_HEADERS },
+    },
+    {
+      params: documentedSchema(
+        v2CreateWorkflowFromSourceContract.params,
+        'CreateWorkflowFromSourceParams',
+        'Create workflow from source path parameters',
+        'Workspace in which to create the workflow.'
+      ),
+      query: documentedSchema(
+        v2CreateWorkflowFromSourceContract.query,
+        'CreateWorkflowFromSourceQuery',
+        'Create workflow from source query',
+        'Whether to evaluate without creating.'
+      ),
+      body: documentedSchema(
+        v2CreateWorkflowFromSourceContract.body,
+        'CreateWorkflowFromSourceBody',
+        'Create workflow from source body',
+        'Source files and where to create the workflow.',
+        [{ files: WORKFLOW_SOURCE_EXAMPLE.files, folderPath: '/Operations' }]
+      ),
+      response: documentedSchema(
+        v2CreateWorkflowFromSourceContract.response.schema,
+        'CreateWorkflowFromSourceResponse',
+        'Create workflow from source response',
+        'The outcome, with the source re-printed from the saved workflow.',
+        [
+          {
+            data: {
+              workflowId: WORKFLOW_SOURCE_EXAMPLE.workflowId,
+              workspaceId: WORKFLOW_SOURCE_EXAMPLE.workspaceId,
+              dryRun: false,
+              applied: true,
+              diff: {
+                noop: false,
+                blocks: {
+                  added: [{ id: BLOCK_ID, key: 'start' }],
+                  removed: [],
+                  renamed: [],
+                  modified: [],
+                },
+                edges: { added: 0, removed: 0 },
+                variables: { added: [], removed: [], modified: [] },
+              },
+              diagnostics: [],
+              newFingerprint: FINGERPRINT,
+              files: WORKFLOW_SOURCE_EXAMPLE.files,
+              lock: WORKFLOW_SOURCE_EXAMPLE.lock,
+              lockBase: WORKFLOW_SOURCE_EXAMPLE.lockBase,
+              mintedIds: { start: BLOCK_ID },
               warnings: [],
               needsRedeployment: false,
             },

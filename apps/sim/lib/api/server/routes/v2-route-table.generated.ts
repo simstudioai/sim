@@ -1012,4 +1012,12 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     pattern: '/api/v2/workspaces/{workspaceId}/permission-config',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/permission-config/route'),
   },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/resource-manifest',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/resource-manifest/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/workflows/source',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/route'),
+  },
 ]

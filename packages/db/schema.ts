@@ -2714,6 +2714,77 @@ export const workspaceForkBlockMap = pgTable(
 )
 
 /**
+ * Resource kinds a workflow-source key can name: `ResourceKind` from `@sim/workflow-code`, which is
+ * `PortableResourceKind` from `@sim/workflow-types/resources` minus `env-var` (env names are their
+ * own keys). Kept as a literal list so `@sim/db` takes no dependency on the workflow packages; the
+ * binding service writes this column from a `ResourceKind`, so a kind missing here is a type error.
+ */
+export const workspaceResourceKindEnum = pgEnum('workspace_resource_kind', [
+  'credential',
+  'knowledge-base',
+  'knowledge-document',
+  'table',
+  'file',
+  'file-folder',
+  'mcp-server',
+  'custom-tool',
+  'custom-block',
+  'skill',
+  'sandbox',
+  'workflow',
+])
+
+/**
+ * Persisted resource keys for workflow source: `table('leads')` names the table bound to
+ * `(workspace, 'table', 'leads')` here, never one found by slugifying names. A key is allocated
+ * once, from the resource's name at that moment, and never changes: renaming the resource keeps
+ * it, and deleting the resource leaves the row pointing at the dead id so a later file reports the
+ * key as unresolved instead of silently binding another resource. Only the workspace cascades.
+ *
+ * `resource_id` is plain text with no FK: one column spans every kind's table, and the row must
+ * outlive the resource it names. `origin` records how the row came to exist: `allocated` (lazily,
+ * the first time source referenced the resource), `adopted` (a later sync bound an existing
+ * resource to a key), or `created` (a sync created the resource for the key).
+ */
+export const workspaceResourceBinding = pgTable(
+  'workspace_resource_binding',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    kind: workspaceResourceKindEnum('kind').notNull(),
+    key: text('key').notNull(),
+    resourceId: text('resource_id').notNull(),
+    origin: text('origin', { enum: ['allocated', 'adopted', 'created'] }).notNull(),
+    /** SET NULL: removing a user must not unbind the keys their source reads allocated. */
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    keyUnique: uniqueIndex('workspace_resource_binding_ws_kind_key_unique').on(
+      table.workspaceId,
+      table.kind,
+      table.key
+    ),
+    resourceUnique: uniqueIndex('workspace_resource_binding_ws_kind_resource_unique').on(
+      table.workspaceId,
+      table.kind,
+      table.resourceId
+    ),
+    keyFormat: check(
+      'workspace_resource_binding_key_format',
+      sql`${table.key} ~ '^[a-z][a-z0-9_-]{0,63}$'`
+    ),
+    originCheck: check(
+      'workspace_resource_binding_origin_check',
+      sql`${table.origin} IN ('allocated', 'adopted', 'created')`
+    ),
+  })
+)
+
+/**
  * The user's stored dependent-field re-picks for an edge: a (target workflow, target block,
  * subblock) -> selected value mapping (a Gmail label, a KB document, a sheet tab). The sync
  * modal reads and writes this, and every promote applies it verbatim - it is the single

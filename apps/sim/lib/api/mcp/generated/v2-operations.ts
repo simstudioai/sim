@@ -194,6 +194,7 @@ import {
   v2RemovePermissionGroupMemberContract,
   v2UpdatePermissionGroupContract,
 } from '@/lib/api/contracts/v2/permission-groups'
+import { v2GetResourceManifestContract } from '@/lib/api/contracts/v2/resource-manifest'
 import {
   v2CreateSandboxContract,
   v2DeleteSandboxContract,
@@ -297,6 +298,7 @@ import {
 } from '@/lib/api/contracts/v2/workflow-mcp-servers'
 import {
   v2ApplyWorkflowSourceContract,
+  v2CreateWorkflowFromSourceContract,
   v2GetWorkflowSourceContract,
 } from '@/lib/api/contracts/v2/workflow-source'
 import {
@@ -938,6 +940,17 @@ export const V2_MCP_OPERATIONS = {
       'Create a workflow folder at a non-root path with workspace write access. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/workflows/folders/route').then((route) => route.POST),
   },
+  createWorkflowFromSource: {
+    contract: v2CreateWorkflowFromSourceContract,
+    summary: 'Create workflow from source',
+    description:
+      "Create a workflow from TypeScript workflow source in one all-or-nothing write. Requires workspace write access. The source is compiled and checked against the same rules as Apply Workflow Source; every block is new. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is created. The name defaults to the one in the source's `workflow('…')` call; a name already used in the folder returns `409`. The response carries the new `workflowId` and the source re-printed from what was saved, with its lock and fingerprint, ready for the next apply. The workflow is not deployed. `dryRun=true` runs every check without creating anything and always returns `200`. Returns `403` while code-first workflows are not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/route').then(
+        (route) => route.POST
+      ),
+  },
   createWorkflowMcpServer: {
     contract: v2CreateWorkflowMcpServerContract,
     summary: 'Create workflow MCP server',
@@ -1532,6 +1545,16 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/route').then(
+        (route) => route.GET
+      ),
+  },
+  getResourceManifest: {
+    contract: v2GetResourceManifestContract,
+    summary: 'Get resource manifest',
+    description:
+      'List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/resource-manifest/route').then(
         (route) => route.GET
       ),
   },

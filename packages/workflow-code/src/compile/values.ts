@@ -32,6 +32,7 @@ import {
   visibleNames,
 } from './context'
 import { didYouMean, HINTS, hintForNode } from './hints'
+import { outputSchemasFor } from './validate-catalog'
 
 /** Where a value is compiled: the block it belongs to and the scope its identifiers resolve in. */
 export interface ValueSite {
@@ -577,7 +578,9 @@ function checkOutputPath(
   }
   const block = catalogBlockOf(target)
   if (!block || block.dynamicOutputs) return
-  if (!outputKnown(block.outputs, segments)) {
+  const builder = target.builder.kind === 'catalog' ? target.builder.builder : undefined
+  const schemas = outputSchemasFor(ctx.catalog, block, builder)
+  if (!schemas.some((outputs) => outputKnown(outputs, segments))) {
     ctx.reporter.report(
       'W_UNKNOWN_OUTPUT_PATH',
       `${block.name} has no output ${formatStoredPath(segments)}.`,

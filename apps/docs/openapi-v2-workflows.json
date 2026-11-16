@@ -6229,6 +6229,317 @@
         }
       }
     },
+    "/api/v2/workspaces/{workspaceId}/workflows/source": {
+      "post": {
+        "operationId": "createWorkflowFromSource",
+        "summary": "Create workflow from source",
+        "description": "Create a workflow from TypeScript workflow source in one all-or-nothing write. Requires workspace write access. The source is compiled and checked against the same rules as Apply Workflow Source; every block is new. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is created. The name defaults to the one in the source's `workflow('…')` call; a name already used in the folder returns `409`. The response carries the new `workflowId` and the source re-printed from what was saved, with its lock and fingerprint, ready for the next apply. The workflow is not deployed. `dryRun=true` runs every check without creating anything and always returns `200`. Returns `403` while code-first workflows are not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "workflows.source.create",
+        "x-oauth-scope": "api:write",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace in which to create the workflow.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace in which to create the workflow."
+            }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "description": "Run every check without writing, auditing, or notifying collaborators. Always answers `200`: errors are returned in `diagnostics` with `applied: false`, and the files, lock and fingerprint show what a committed apply would store.",
+            "schema": {
+              "description": "Run every check without writing, auditing, or notifying collaborators. Always answers `200`: errors are returned in `diagnostics` with `applied: false`, and the files, lock and fingerprint show what a committed apply would store.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Source files and where to create the workflow.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowFromSourceBody"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "files": {
+                      "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
+                    },
+                    "folderPath": "/Operations"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created (or evaluated) workflow.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateWorkflowFromSourceResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "workflowId": "3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8",
+                        "workspaceId": "7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28",
+                        "dryRun": false,
+                        "applied": true,
+                        "diff": {
+                          "noop": false,
+                          "blocks": {
+                            "added": [
+                              {
+                                "id": "5b0c2f7e-91d4-4a63-8e2b-0f6d3c9a1e47",
+                                "key": "start"
+                              }
+                            ],
+                            "removed": [],
+                            "renamed": [],
+                            "modified": []
+                          },
+                          "edges": {
+                            "added": 0,
+                            "removed": 0
+                          },
+                          "variables": {
+                            "added": [],
+                            "removed": [],
+                            "modified": []
+                          }
+                        },
+                        "diagnostics": [],
+                        "newFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                        "files": {
+                          "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
+                        },
+                        "lock": {
+                          "lockVersion": 1,
+                          "blocks": {
+                            "start": {
+                              "id": "5b0c2f7e-91d4-4a63-8e2b-0f6d3c9a1e47",
+                              "parent": null,
+                              "binding": "start",
+                              "order": 0
+                            }
+                          },
+                          "variables": {}
+                        },
+                        "lockBase": {
+                          "workspaceId": "7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28",
+                          "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                          "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
+                        },
+                        "mintedIds": {
+                          "start": "5b0c2f7e-91d4-4a63-8e2b-0f6d3c9a1e47"
+                        },
+                        "warnings": [],
+                        "needsRedeployment": false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workspaces/{workspaceId}/resource-manifest": {
+      "get": {
+        "operationId": "getResourceManifest",
+        "summary": "Get resource manifest",
+        "description": "List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workflows.code.resource_manifest.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace whose resources to list.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose resources to list."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The resource manifest.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetResourceManifestResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "workspaceId": "7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28",
+                        "tables": [
+                          {
+                            "key": "tickets",
+                            "id": "tbl_4f1c2a9e",
+                            "name": "Tickets",
+                            "columns": [
+                              {
+                                "name": "subject",
+                                "type": "string"
+                              },
+                              {
+                                "name": "status",
+                                "type": "select",
+                                "options": ["open", "closed"]
+                              }
+                            ]
+                          }
+                        ],
+                        "knowledgeBases": [
+                          {
+                            "key": "docs",
+                            "id": "kb_93a1e7c2",
+                            "name": "Docs"
+                          }
+                        ],
+                        "bindings": [
+                          {
+                            "key": "support-slack",
+                            "id": "cred_51d0b8f4",
+                            "name": "Support Slack",
+                            "service": "slack"
+                          }
+                        ],
+                        "workflows": [
+                          {
+                            "key": "assign-owner",
+                            "id": "3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8",
+                            "name": "Assign owner",
+                            "inputs": [
+                              {
+                                "name": "leads",
+                                "type": "array"
+                              }
+                            ]
+                          }
+                        ],
+                        "env": ["CRM_KEY"],
+                        "truncated": false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/workspaces/{workspaceId}/fork/preview": {
       "post": {
         "operationId": "previewWorkspaceFork",
@@ -18681,6 +18992,856 @@
               "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
             },
             "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d"
+          }
+        ]
+      },
+      "CreateWorkflowFromSourceResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "workflowId": {
+                "type": "string",
+                "description": "Workflow id."
+              },
+              "workspaceId": {
+                "type": "string",
+                "description": "Workspace id."
+              },
+              "dryRun": {
+                "type": "boolean",
+                "description": "True when nothing was written because `dryRun` was set."
+              },
+              "applied": {
+                "type": "boolean",
+                "description": "True only when the draft was written; false on a dry run and on a no-op."
+              },
+              "diff": {
+                "type": "object",
+                "properties": {
+                  "noop": {
+                    "type": "boolean",
+                    "description": "True when the source matches the saved draft."
+                  },
+                  "blocks": {
+                    "type": "object",
+                    "properties": {
+                      "added": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "Stored block id."
+                            },
+                            "key": {
+                              "type": "string",
+                              "description": "Block key in the source."
+                            }
+                          },
+                          "required": ["id", "key"],
+                          "additionalProperties": false,
+                          "description": "A block by id and source key."
+                        },
+                        "description": "New blocks."
+                      },
+                      "removed": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "Stored block id."
+                            },
+                            "key": {
+                              "type": "string",
+                              "description": "Block key in the source."
+                            }
+                          },
+                          "required": ["id", "key"],
+                          "additionalProperties": false,
+                          "description": "A block by id and source key."
+                        },
+                        "description": "Deleted blocks."
+                      },
+                      "renamed": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "Stored block id; unchanged by the rename."
+                            },
+                            "from": {
+                              "type": "string",
+                              "description": "Previous key."
+                            },
+                            "to": {
+                              "type": "string",
+                              "description": "New key."
+                            }
+                          },
+                          "required": ["id", "from", "to"],
+                          "additionalProperties": false,
+                          "description": "A renamed block."
+                        },
+                        "description": "Renamed blocks; each keeps its id."
+                      },
+                      "modified": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "Stored block id."
+                            },
+                            "key": {
+                              "type": "string",
+                              "description": "Block key in the source."
+                            },
+                            "fields": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Changed fields, modes (`modes.<param>`) and attributes."
+                            },
+                            "reparented": {
+                              "description": "Moved into or out of a container.",
+                              "type": "boolean"
+                            }
+                          },
+                          "required": ["id", "key", "fields"],
+                          "additionalProperties": false,
+                          "description": "A changed block."
+                        },
+                        "description": "Changed blocks."
+                      }
+                    },
+                    "required": ["added", "removed", "renamed", "modified"],
+                    "additionalProperties": false,
+                    "description": "Block changes."
+                  },
+                  "edges": {
+                    "type": "object",
+                    "properties": {
+                      "added": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Connections added."
+                      },
+                      "removed": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Connections removed."
+                      }
+                    },
+                    "required": ["added", "removed"],
+                    "additionalProperties": false,
+                    "description": "Connection changes."
+                  },
+                  "variables": {
+                    "type": "object",
+                    "properties": {
+                      "added": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Variable keys added."
+                      },
+                      "removed": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Variable keys removed."
+                      },
+                      "modified": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Variable keys changed."
+                      }
+                    },
+                    "required": ["added", "removed", "modified"],
+                    "additionalProperties": false,
+                    "description": "Variable changes."
+                  }
+                },
+                "required": ["noop", "blocks", "edges", "variables"],
+                "additionalProperties": false,
+                "description": "What the apply changed, or would change on a dry run."
+              },
+              "diagnostics": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_PROTECTED_BLOCK`."
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": ["error", "warning", "info"],
+                      "description": "Diagnostic severity."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "What was found."
+                    },
+                    "hint": {
+                      "description": "How to address it.",
+                      "type": "string"
+                    },
+                    "file": {
+                      "description": "Submitted file the finding is in.",
+                      "type": "string"
+                    },
+                    "line": {
+                      "description": "1-based line in `file`.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "column": {
+                      "description": "1-based column in `file`.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "endLine": {
+                      "description": "1-based line the finding ends on.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "endColumn": {
+                      "description": "1-based column the finding ends at.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "frame": {
+                      "description": "The source lines around the finding, with a caret row.",
+                      "type": "string"
+                    },
+                    "blockKey": {
+                      "description": "Block key the finding is about.",
+                      "type": "string"
+                    },
+                    "blockId": {
+                      "description": "Stored id of the block the finding is about.",
+                      "type": "string"
+                    },
+                    "param": {
+                      "description": "Field the finding is about.",
+                      "type": "string"
+                    },
+                    "path": {
+                      "description": "JSON Pointer into the lock, for a lock finding.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["code", "severity", "message"],
+                  "additionalProperties": false,
+                  "description": "A finding from applying workflow source, pinned to the submitted files."
+                },
+                "description": "Warnings, and on a dry run every error a commit would refuse."
+              },
+              "newFingerprint": {
+                "type": "string",
+                "description": "Fingerprint of the saved (or, on a dry run, would-be) draft: the next `baseFingerprint`."
+              },
+              "files": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "The source re-printed from what was saved, including any normalized values."
+              },
+              "lock": {
+                "type": "object",
+                "properties": {
+                  "lockVersion": {
+                    "type": "number",
+                    "const": 1,
+                    "description": "Lock format version."
+                  },
+                  "blocks": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Block id."
+                        },
+                        "parent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Key of the enclosing loop or parallel, or null."
+                        },
+                        "branches": {
+                          "description": "Condition or router branch key → stored branch id.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "items": {
+                          "description": "Per field, its id-bearing items (input format fields) in stored order.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Item name."
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "description": "Item id."
+                                }
+                              },
+                              "required": ["name", "id"],
+                              "additionalProperties": false,
+                              "description": "One id-bearing list item."
+                            }
+                          }
+                        },
+                        "binding": {
+                          "type": "string",
+                          "description": "The `const` name the block is printed as."
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "description": "Declaration-order tie-break."
+                        },
+                        "layout": {
+                          "type": "object",
+                          "properties": {
+                            "x": {
+                              "type": "number",
+                              "description": "Canvas x position."
+                            },
+                            "y": {
+                              "type": "number",
+                              "description": "Canvas y position."
+                            },
+                            "w": {
+                              "description": "Container width.",
+                              "type": "number"
+                            },
+                            "h": {
+                              "description": "Container height.",
+                              "type": "number"
+                            },
+                            "height": {
+                              "description": "Stored block height.",
+                              "type": "number"
+                            },
+                            "horizontalHandles": {
+                              "description": "Handles on the left and right.",
+                              "type": "boolean"
+                            }
+                          },
+                          "required": ["x", "y"],
+                          "additionalProperties": {
+                            "description": "An `x-` extension field, kept verbatim."
+                          },
+                          "description": "Stored canvas geometry; applied only to new blocks."
+                        },
+                        "codeFile": {
+                          "description": "Path of the block’s function-code file.",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["id", "parent", "binding", "order"],
+                      "additionalProperties": {
+                        "description": "An `x-` extension field, kept verbatim."
+                      },
+                      "description": "One block’s identity."
+                    },
+                    "description": "Block key → identity."
+                  },
+                  "variables": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Variable key → variable id."
+                  }
+                },
+                "required": ["lockVersion", "blocks", "variables"],
+                "additionalProperties": {
+                  "description": "An `x-` extension field, kept verbatim."
+                },
+                "description": "Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids."
+              },
+              "lockBase": {
+                "type": "object",
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "Workspace the workflow belongs to."
+                  },
+                  "baseFingerprint": {
+                    "type": "string",
+                    "description": "The `fingerprint` this source was read at."
+                  },
+                  "catalogHash": {
+                    "type": "string",
+                    "description": "Hash of the block catalog the source was printed against."
+                  }
+                },
+                "required": ["workspaceId", "baseFingerprint", "catalogHash"],
+                "additionalProperties": false,
+                "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
+              },
+              "mintedIds": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Block key → id for new blocks whose id was minted rather than taken from the lock."
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Non-fatal notes about the write."
+              },
+              "needsRedeployment": {
+                "type": "boolean",
+                "description": "Whether the draft now differs from the live deployment; apply never deploys."
+              }
+            },
+            "required": [
+              "workflowId",
+              "workspaceId",
+              "dryRun",
+              "applied",
+              "diff",
+              "diagnostics",
+              "newFingerprint",
+              "files",
+              "lock",
+              "lockBase",
+              "mintedIds",
+              "warnings",
+              "needsRedeployment"
+            ],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create workflow from source response",
+        "description": "The outcome, with the source re-printed from the saved workflow.",
+        "examples": [
+          {
+            "data": {
+              "workflowId": "3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8",
+              "workspaceId": "7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28",
+              "dryRun": false,
+              "applied": true,
+              "diff": {
+                "noop": false,
+                "blocks": {
+                  "added": [
+                    {
+                      "id": "5b0c2f7e-91d4-4a63-8e2b-0f6d3c9a1e47",
+                      "key": "start"
+                    }
+                  ],
+                  "removed": [],
+                  "renamed": [],
+                  "modified": []
+                },
+                "edges": {
+                  "added": 0,
+                  "removed": 0
+                },
+                "variables": {
+                  "added": [],
+                  "removed": [],
+                  "modified": []
+                }
+              },
+              "diagnostics": [],
+              "newFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+              "files": {
+                "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
+              },
+              "lock": {
+                "lockVersion": 1,
+                "blocks": {
+                  "start": {
+                    "id": "5b0c2f7e-91d4-4a63-8e2b-0f6d3c9a1e47",
+                    "parent": null,
+                    "binding": "start",
+                    "order": 0
+                  }
+                },
+                "variables": {}
+              },
+              "lockBase": {
+                "workspaceId": "7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28",
+                "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
+              },
+              "mintedIds": {
+                "start": "5b0c2f7e-91d4-4a63-8e2b-0f6d3c9a1e47"
+              },
+              "warnings": [],
+              "needsRedeployment": false
+            }
+          }
+        ]
+      },
+      "CreateWorkflowFromSourceBody": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`)."
+          },
+          "name": {
+            "description": "Workflow name. Defaults to the name in the source's `workflow('…')` call.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "description": "Workflow description. Defaults to the description in the source.",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "folderPath": {
+            "$ref": "#/components/schemas/FolderPathInput"
+          },
+          "provenance": {
+            "description": "Where the source came from, for the audit log.",
+            "type": "object",
+            "properties": {
+              "client": {
+                "type": "string",
+                "enum": ["cli", "copilot", "canvas", "api"],
+                "description": "What submitted the source."
+              },
+              "gitSha": {
+                "description": "The commit the source was taken from; recorded in the audit log.",
+                "type": "string",
+                "pattern": "^[0-9a-f]{7,64}$"
+              },
+              "repo": {
+                "description": "The repository the source was taken from.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            },
+            "required": ["client"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["files"],
+        "additionalProperties": false,
+        "title": "Create workflow from source body",
+        "description": "Source files and where to create the workflow."
+      },
+      "GetResourceManifestResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string",
+                "description": "Workspace id."
+              },
+              "tables": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "description": "The key workflow source names this resource by; it never changes once assigned."
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Resource id."
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Current display name."
+                    },
+                    "columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Column name, as row data names it."
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Column type, e.g. `string`, `number`, `boolean`, `json`, `select`."
+                          },
+                          "options": {
+                            "description": "Option ids a `select` column accepts.",
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": ["name", "type"],
+                        "additionalProperties": false
+                      },
+                      "description": "Columns in table order."
+                    }
+                  },
+                  "required": ["key", "id", "name", "columns"],
+                  "additionalProperties": false,
+                  "description": "A table: `table(key)`."
+                },
+                "description": "Tables, oldest first."
+              },
+              "knowledgeBases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "description": "The key workflow source names this resource by; it never changes once assigned."
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Resource id."
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Current display name."
+                    }
+                  },
+                  "required": ["key", "id", "name"],
+                  "additionalProperties": false,
+                  "description": "A knowledge base: `kb(key)`."
+                },
+                "description": "Knowledge bases, oldest first."
+              },
+              "bindings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "description": "The key workflow source names this resource by; it never changes once assigned."
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Resource id."
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Current display name."
+                    },
+                    "service": {
+                      "type": "string",
+                      "description": "The provider the credential is for, e.g. `slack` or `google-email`."
+                    }
+                  },
+                  "required": ["key", "id", "name", "service"],
+                  "additionalProperties": false,
+                  "description": "A saved credential: `binding(key)`."
+                },
+                "description": "Credential bindings, oldest first. Secrets are listed under `env`."
+              },
+              "workflows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "description": "The key workflow source names this resource by; it never changes once assigned."
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Resource id."
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Current display name."
+                    },
+                    "inputs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Input field name."
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Input field type, e.g. `string` or `number`."
+                          }
+                        },
+                        "required": ["name", "type"],
+                        "additionalProperties": false
+                      },
+                      "description": "Inputs the workflow start block declares."
+                    }
+                  },
+                  "required": ["key", "id", "name", "inputs"],
+                  "additionalProperties": false,
+                  "description": "A workflow: `workflow(key)`."
+                },
+                "description": "Workflows, oldest first."
+              },
+              "env": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Environment variable names a run can read as `env.NAME`: the workspace secrets and, for a user, their personal ones. Never values."
+              },
+              "truncated": {
+                "type": "boolean",
+                "description": "True when a kind had more than 1000 resources; only the oldest 1000 of that kind are listed."
+              }
+            },
+            "required": [
+              "workspaceId",
+              "tables",
+              "knowledgeBases",
+              "bindings",
+              "workflows",
+              "env",
+              "truncated"
+            ],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get resource manifest response",
+        "description": "The workspace resources workflow source can name.",
+        "examples": [
+          {
+            "data": {
+              "workspaceId": "7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28",
+              "tables": [
+                {
+                  "key": "tickets",
+                  "id": "tbl_4f1c2a9e",
+                  "name": "Tickets",
+                  "columns": [
+                    {
+                      "name": "subject",
+                      "type": "string"
+                    },
+                    {
+                      "name": "status",
+                      "type": "select",
+                      "options": ["open", "closed"]
+                    }
+                  ]
+                }
+              ],
+              "knowledgeBases": [
+                {
+                  "key": "docs",
+                  "id": "kb_93a1e7c2",
+                  "name": "Docs"
+                }
+              ],
+              "bindings": [
+                {
+                  "key": "support-slack",
+                  "id": "cred_51d0b8f4",
+                  "name": "Support Slack",
+                  "service": "slack"
+                }
+              ],
+              "workflows": [
+                {
+                  "key": "assign-owner",
+                  "id": "3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8",
+                  "name": "Assign owner",
+                  "inputs": [
+                    {
+                      "name": "leads",
+                      "type": "array"
+                    }
+                  ]
+                }
+              ],
+              "env": ["CRM_KEY"],
+              "truncated": false
+            }
           }
         ]
       },

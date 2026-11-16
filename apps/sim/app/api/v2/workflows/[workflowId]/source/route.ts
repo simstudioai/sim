@@ -1,12 +1,10 @@
-import { isUserCredentialPrincipal, type Principal } from '@sim/auth/principal'
 import {
   v2ApplyWorkflowSourceContract,
   v2GetWorkflowSourceContract,
 } from '@/lib/api/contracts/v2/workflow-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import type { WorkflowWriteSource } from '@/lib/posthog/events'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { sourceWriteActor, v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { getWorkflowSource } from '@/lib/workflows/application/get-workflow-source'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -34,20 +32,6 @@ export const GET = defineV2JsonRoute({
   useCase: getWorkflowSource,
   present: (source) => ({ data: source }),
 })
-
-/** The user a source apply is attributed to in analytics, and the surface it came through. */
-function sourceActor(
-  principal: Principal,
-  client: string | undefined
-): { userId: string; source: WorkflowWriteSource } | null {
-  if (isUserCredentialPrincipal(principal)) {
-    return { userId: principal.userId, source: client === 'cli' ? 'cli' : 'api' }
-  }
-  if (principal.kind === 'delegated' && principal.serviceId === 'copilot') {
-    return { userId: principal.subjectUserId, source: 'copilot' }
-  }
-  return null
-}
 
 /**
  * POST /api/v2/workflows/[workflowId]/source — writes TypeScript source to the draft in one
@@ -98,7 +82,7 @@ export const POST = defineV2JsonRoute({
    */
   onSuccess: ({ principal, input, result }) => {
     if (!result.applied) return
-    const actor = sourceActor(principal, input.provenance?.client)
+    const actor = sourceWriteActor(principal, input.provenance?.client)
     if (!actor) return
     const { blocks, edges, variables } = result.diff
     captureServerEvent(

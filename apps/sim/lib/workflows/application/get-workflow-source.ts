@@ -1,3 +1,4 @@
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { compareStrings } from '@sim/utils/string'
 import {
@@ -107,10 +108,12 @@ function usedBlockTypes(workflow: CanonicalWorkflow): string[] {
  *
  * Loads the stored, migrated graph; builds the per-workflow compile catalog (the blocks this
  * caller may place plus every type already in the workflow); projects the graph to the canonical
- * model with resource ids lifted to provisional keys; and prints it with the bindings, order and
- * comments the workflow's code metadata keeps, so the lock comes from the same place. The catalog
- * comes from the process cache and the stored graph is canonicalized once. Pure read: no audit, so
- * it stays head-safe and pollable like `GET /state`.
+ * model with resource ids lifted to their persisted keys; and prints it with the bindings, order
+ * and comments the workflow's code metadata keeps, so the lock comes from the same place. The
+ * catalog comes from the process cache and the stored graph is canonicalized once. No audit. The
+ * one write is resource-key allocation: the first get that references a resource with no key binds
+ * one (`resolveKeys`). That is idempotent identity metadata, not a change to any resource, so read
+ * access may cause it; later gets only read the binding.
  */
 export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
@@ -150,6 +153,7 @@ export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
       state,
       meta,
       catalog,
+      createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
     })
 
     const metaInputs = codeMetaPrintInputs(codeMeta, canonical)

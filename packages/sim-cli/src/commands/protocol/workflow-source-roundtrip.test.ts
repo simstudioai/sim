@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
@@ -126,12 +126,28 @@ async function sim(...argv: string[]): Promise<void> {
   await program().parseAsync(['node', 'sim', ...argv])
 }
 
+const NEW_WORKFLOW_ID = '00000000-0000-4000-8000-00000000000c'
+const MANIFEST = {
+  workspaceId: WORKSPACE_ID,
+  tables: [
+    { key: 'tickets', id: 't-1', name: 'Tickets', columns: [{ name: 'subject', type: 'string' }] },
+  ],
+  knowledgeBases: [],
+  bindings: [{ key: 'support-slack', id: 'c-1', name: 'Support Slack', service: 'slack' }],
+  workflows: [],
+  env: ['CRM_KEY'],
+  truncated: false,
+}
+
 let dir: string
 let applyBodies: unknown[]
+let createBodies: unknown[]
 
 beforeEach(() => {
   dir = join(mkdtempSync(join(tmpdir(), 'sim-source-roundtrip-')), 'source')
+  vi.stubEnv('SIM_CONFIG_DIR', join(dir, '..', 'config'))
   applyBodies = []
+  createBodies = []
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.stubGlobal(
     'fetch',
@@ -143,6 +159,17 @@ beforeEach(() => {
       }
       if (url.pathname === `/api/v2/workspaces/${WORKSPACE_ID}/block-catalog`) {
         return json({ data: CATALOG })
+      }
+      if (url.pathname === `/api/v2/workspaces/${WORKSPACE_ID}/resource-manifest`) {
+        return json({ data: MANIFEST })
+      }
+      if (url.pathname === `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source`) {
+        createBodies.push(JSON.parse(String(init?.body)))
+        const created = appliedResponse({
+          'workflow.ts': WORKFLOW_TS,
+          'functions/score.js': 'return 1\n',
+        })
+        return json({ data: { ...created.data, workflowId: NEW_WORKFLOW_ID } })
       }
       if (url.pathname === `/api/v2/workflows/${WORKFLOW_ID}/source` && method === 'POST') {
         applyBodies.push(JSON.parse(String(init?.body)))
@@ -162,7 +189,7 @@ afterEach(() => {
 describe('sim workflows source get --out → apply --from', () => {
   it('sends back exactly the directory get wrote, then saves what the server stored', async () => {
     await sim('workflows', 'source', 'get', WORKFLOW_ID, '--out', dir)
-    await sim('workflows', 'source', 'apply', WORKFLOW_ID, '--from', dir)
+    await sim('workflows', 'source', 'apply', WORKFLOW_ID, '--from', dir, '--yes')
 
     expect(applyBodies).toEqual([
       {
@@ -178,5 +205,38 @@ describe('sim workflows source get --out → apply --from', () => {
       SECOND
     )
     expect(JSON.parse(readFileSync(join(dir, '.sim/lock.json'), 'utf8'))).toEqual(LOCK)
+  })
+
+  it('writes workspace types from the manifest, so resource keys are checked locally', async () => {
+    await sim('workflows', 'source', 'get', WORKFLOW_ID, '--out', dir)
+
+    const types = readFileSync(join(dir, '.sim/sdk/workspace.d.ts'), 'utf8')
+    expect(types).toContain(`'tickets': { subject: string }`)
+    expect(types).toContain(`'support-slack': { service: 'slack' }`)
+    expect(types).toContain('CRM_KEY: true')
+    expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toContain('@sim/workflow-sdk')
+  })
+
+  it('creates a workflow from a bare directory with --new, then applies to it by its new id', async () => {
+    await sim('workflows', 'source', 'get', WORKFLOW_ID, '--out', dir)
+    rmSync(join(dir, '.sim/lock.json'))
+    rmSync(join(dir, '.sim/base.json'))
+
+    await sim('workflows', 'source', 'apply', '--new', '--from', dir, '--name', 'Copy', '--yes')
+
+    expect(createBodies).toEqual([
+      {
+        files: { 'workflow.ts': WORKFLOW_TS, 'functions/score.js': 'return 1\n' },
+        name: 'Copy',
+        provenance: { client: 'cli' },
+      },
+    ])
+    expect(existsSync(join(dir, '.sim/lock.json'))).toBe(true)
+    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).baseFingerprint).toBe(
+      SECOND
+    )
+
+    await sim('workflows', 'source', 'apply', WORKFLOW_ID, '--from', dir, '--yes')
+    expect((applyBodies[0] as { baseFingerprint: string }).baseFingerprint).toBe(SECOND)
   })
 })

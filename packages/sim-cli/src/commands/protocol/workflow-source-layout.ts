@@ -9,5 +9,7 @@ export const SOURCE_ENTRY_FILE = 'workflow.ts'
 export const SOURCE_LOCK_FILE = '.sim/lock.json'
 /** The freshness facts for the lock in this environment (`LockBase`). */
 export const SOURCE_BASE_FILE = '.sim/base.json'
-/** Generated SDK declarations for the block types the workflow uses. */
+/** Generated SDK declarations: every block in the workspace catalog, plus `workspace.d.ts`. */
 export const SOURCE_SDK_DIR = '.sim/sdk'
+/** A short guide for an agent working in the directory. */
+export const SOURCE_AGENTS_FILE = 'AGENTS.md'

@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
+import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import { v2DataResponse, v2FolderPathInputSchema } from '@/lib/api/contracts/v2/shared'
 import { v2WorkflowIdParamsSchema } from '@/lib/api/contracts/v2/workflows'
 import {
   lockBaseSchema,
@@ -52,6 +52,29 @@ const sourceFilesSchema = z
     'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`).'
   )
 
+const provenanceSchema = z
+  .object({
+    client: z
+      .enum(['cli', 'copilot', 'canvas', 'api'], {
+        error: 'provenance.client: expected one of "cli" | "copilot" | "canvas" | "api"',
+      })
+      .describe('What submitted the source.'),
+    gitSha: z
+      .string()
+      .regex(/^[0-9a-f]{7,64}$/, 'provenance.gitSha must be a hexadecimal commit hash')
+      .optional()
+      .describe('The commit the source was taken from; recorded in the audit log.'),
+    repo: z
+      .string()
+      .min(1, 'provenance.repo cannot be empty')
+      .max(512, 'provenance.repo is too long')
+      .optional()
+      .describe('The repository the source was taken from.'),
+  })
+  .strict()
+  .optional()
+  .describe('Where the source came from, for the audit log.')
+
 const applyWorkflowSourceBodySchema = z
   .object({
     files: sourceFilesSchema,
@@ -72,28 +95,7 @@ const applyWorkflowSourceBodySchema = z
       .describe(
         '`preserve` (default): existing blocks keep their canvas positions and lock positions apply only to new blocks. `lock`: every block the lock positions moves there.'
       ),
-    provenance: z
-      .object({
-        client: z
-          .enum(['cli', 'copilot', 'canvas', 'api'], {
-            error: 'provenance.client: expected one of "cli" | "copilot" | "canvas" | "api"',
-          })
-          .describe('What submitted the source.'),
-        gitSha: z
-          .string()
-          .regex(/^[0-9a-f]{7,64}$/, 'provenance.gitSha must be a hexadecimal commit hash')
-          .optional()
-          .describe('The commit the source was taken from; recorded in the audit log.'),
-        repo: z
-          .string()
-          .min(1, 'provenance.repo cannot be empty')
-          .max(512, 'provenance.repo is too long')
-          .optional()
-          .describe('The repository the source was taken from.'),
-      })
-      .strict()
-      .optional()
-      .describe('Where the source came from, for the audit log.'),
+    provenance: provenanceSchema,
   })
   .strict()
 
@@ -214,5 +216,45 @@ export const v2ApplyWorkflowSourceContract = defineRouteContract({
   params: v2WorkflowIdParamsSchema,
   query: applyWorkflowSourceQuerySchema,
   body: applyWorkflowSourceBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(applyWorkflowSourceDataSchema) },
+})
+
+const createWorkflowFromSourceParamsSchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace in which to create the workflow.'),
+  })
+  .strict()
+
+const createWorkflowFromSourceBodySchema = z
+  .object({
+    files: sourceFilesSchema,
+    name: z
+      .string()
+      .trim()
+      .min(1, 'name cannot be empty')
+      .max(255, 'name is too long')
+      .optional()
+      .describe("Workflow name. Defaults to the name in the source's `workflow('…')` call."),
+    description: z
+      .string()
+      .max(50_000, 'description is too long')
+      .nullable()
+      .optional()
+      .describe('Workflow description. Defaults to the description in the source.'),
+    folderPath: v2FolderPathInputSchema.optional(),
+    provenance: provenanceSchema,
+  })
+  .strict()
+
+/**
+ * `POST /api/v2/workspaces/{workspaceId}/workflows/source`: create a workflow from TypeScript
+ * source, through the same checks as an apply.
+ */
+export const v2CreateWorkflowFromSourceContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workspaces/[workspaceId]/workflows/source',
+  params: createWorkflowFromSourceParamsSchema,
+  query: applyWorkflowSourceQuerySchema,
+  body: createWorkflowFromSourceBodySchema,
   response: { mode: 'json', schema: v2DataResponse(applyWorkflowSourceDataSchema) },
 })

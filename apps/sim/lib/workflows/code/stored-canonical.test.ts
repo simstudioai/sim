@@ -4,8 +4,8 @@
  * - a lock that renames a branch row is treated as changing nothing (stale diff base, wrong print);
  * - a lock that keys only some rows, or keys rows the stored graph lacks, is wrongly refused or
  *   wrongly accepted;
- * - a remembered resource-kind hint goes stale when a workflow starts referencing a new kind, and
- *   the stored graph is canonicalized against a resolver that cannot answer for it;
+ * - a remembered resource-reference hint goes stale when a workflow starts referencing a new
+ *   resource, and the stored graph is canonicalized against a resolver that cannot answer for it;
  * - a warm workflow still pays a second canonicalize pass.
  */
 import {
@@ -207,13 +207,25 @@ function resourceField(kind: ResourceKind): { type: string; subBlockId: string }
 }
 
 /** Resolves `<kind>-id` to `<kind>-key` for every loaded kind, like the real loader. */
-function fakeResolver(kinds: Iterable<ResourceKind>): ResourceKeyResolver {
-  const loaded = new Set(kinds)
+interface References {
+  ids?: { kind: ResourceKind; id: string }[]
+  keys?: { kind: ResourceKind; key: string }[]
+}
+
+/** Answers only the references it was loaded with, as `loadResourceKeyResolver` does. */
+function fakeResolver(references: References): ResourceKeyResolver {
+  const ids = new Set((references.ids ?? []).map((ref) => `${ref.kind}:${ref.id}`))
+  const keys = new Set((references.keys ?? []).map((ref) => `${ref.kind}:${ref.key}`))
   return {
-    toKey: (kind, id) => (loaded.has(kind) && id === `${kind}-id` ? `${kind}-key` : null),
-    toId: (kind, key) => (loaded.has(kind) && key === `${kind}-key` ? `${kind}-id` : null),
+    toKey: (kind, id) => (ids.has(`${kind}:${id}`) && id === `${kind}-id` ? `${kind}-key` : null),
+    toId: (kind, key) =>
+      keys.has(`${kind}:${key}`) && key === `${kind}-key` ? `${kind}-id` : null,
   }
 }
+
+const idsOf = (kinds: ResourceKind[]) => ({
+  ids: kinds.map((kind) => ({ kind, id: `${kind}-id` })),
+})
 
 describe('canonicalizeStored', () => {
   const table = resourceField('table')
@@ -224,11 +236,11 @@ describe('canonicalizeStored', () => {
     block('k', knowledge.type, 'Docs', { [knowledge.subBlockId]: 'knowledge-base-id' }),
   ])
   const expected = (graph: WorkflowState, kinds: ResourceKind[]) =>
-    canonicalize(graph, { catalog, meta, resources: fakeResolver(kinds) })
+    canonicalize(graph, { catalog, meta, resources: fakeResolver(idsOf(kinds)) })
 
   beforeEach(() => {
     hoisted.loadResourceKeyResolver.mockImplementation(
-      async (_workspaceId: string, kinds: Iterable<ResourceKind>) => fakeResolver(kinds)
+      async (_workspaceId: string, references: References) => fakeResolver(references)
     )
   })
 
@@ -238,6 +250,7 @@ describe('canonicalizeStored', () => {
       workspaceId: 'ws',
       meta,
       catalog: catalog as BlockCatalog,
+      createdBy: null,
     }
     const cold = await canonicalizeStored({ ...input, state: withTable })
     expect(cold.canonical).toEqual(expected(withTable, ['table']))
@@ -247,29 +260,34 @@ describe('canonicalizeStored', () => {
     const warm = await canonicalizeStored({ ...input, state: withTable })
     expect(warm.canonical).toEqual(cold.canonical)
     expect(hoisted.loadResourceKeyResolver).toHaveBeenCalledTimes(1)
-    expect([...hoisted.loadResourceKeyResolver.mock.calls[0][1]]).toEqual(['table'])
+    expect(hoisted.loadResourceKeyResolver.mock.calls[0][1]).toEqual({
+      ids: [{ kind: 'table', id: 'table-id' }],
+      keys: [],
+    })
   })
 
-  it('re-resolves when a workflow starts referencing a kind its hint lacks', async () => {
+  it('re-resolves when a workflow starts referencing a resource its hint lacks', async () => {
     const input = {
       workflowId: 'wf-grows',
       workspaceId: 'ws',
       meta,
       catalog: catalog as BlockCatalog,
+      createdBy: null,
     }
     await canonicalizeStored({ ...input, state: withTable })
     const grown = await canonicalizeStored({ ...input, state: withTableAndKb })
     expect(grown.canonical).toEqual(expected(withTableAndKb, ['table', 'knowledge-base']))
     expect(JSON.stringify(grown.canonical.workflow)).toContain('knowledge-base-key')
-    expect([...grown.loadedKinds].sort()).toEqual(['knowledge-base', 'table'])
+    expect(grown.loaded.ids.map((ref) => ref.kind).sort()).toEqual(['knowledge-base', 'table'])
   })
 
-  it('keeps the remembered kinds per workflow', async () => {
+  it('keeps the remembered references per workflow', async () => {
     await canonicalizeStored({
       workflowId: 'wf-one',
       workspaceId: 'ws',
       meta,
       catalog,
+      createdBy: null,
       state: withTableAndKb,
     })
     hoisted.loadResourceKeyResolver.mockClear()
@@ -278,8 +296,9 @@ describe('canonicalizeStored', () => {
       workspaceId: 'ws',
       meta,
       catalog,
+      createdBy: null,
       state: withTable,
     })
-    expect([...hoisted.loadResourceKeyResolver.mock.calls[0][1]]).toEqual([])
+    expect(hoisted.loadResourceKeyResolver.mock.calls[0][1]).toEqual({ ids: [], keys: [] })
   })
 })

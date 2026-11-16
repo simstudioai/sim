@@ -1,11 +1,14 @@
 import { isRecordLike } from '@sim/utils/object'
 import type {
+  BlockCatalog,
   CatalogBlock,
-  CatalogCondition,
+  CatalogBuilder,
+  CatalogOutput,
   CatalogSubBlock,
   CatalogValueKind,
   SubBlockConditionClause,
 } from '../catalog/types'
+import { catalogTrigger } from '../catalog/view'
 import type { CanonicalParamId, SubBlockId, Value } from '../model'
 
 /**
@@ -112,38 +115,136 @@ function clauseMatches(
 }
 
 /**
- * Evaluates a subBlock condition the way the editor does (`evaluateSubBlockCondition`,
- * lib/workflows/subblocks/visibility.ts). An opaque function condition uses the projection's
- * per-operation answer, and counts as visible when there is none (s1 canonicalize step 9).
+ * Evaluates a data condition the way the editor does (`evaluateSubBlockCondition`,
+ * lib/workflows/subblocks/visibility.ts).
  */
 function conditionHolds(
-  condition: CatalogCondition | undefined,
-  values: ReadonlyMap<string, Value>,
-  visibleFor: Record<string, boolean> | undefined
+  clause: SubBlockConditionClause,
+  values: ReadonlyMap<string, Value>
 ): boolean {
-  if (!condition) return true
-  if ('opaque' in condition) {
-    const operation = values.get('operation')
-    if (typeof operation === 'string' && visibleFor && Object.hasOwn(visibleFor, operation)) {
-      return visibleFor[operation]
-    }
-    return true
-  }
-  const clause: SubBlockConditionClause = condition
   if (!clauseMatches(clause, values)) return false
   return clause.and ? clauseMatches(clause.and, values) : true
 }
 
-export function isVisible(sub: CatalogSubBlock, values: ReadonlyMap<string, Value>): boolean {
-  return conditionHolds(sub.condition, values, sub.visibleFor)
+/** Whether the catalog's data decides a field shown, hidden, or cannot tell. */
+type Visibility = 'visible' | 'hidden' | 'undecided'
+
+/**
+ * Visibility under `values`. A data condition is evaluated as the editor does. An opaque one is
+ * decided only by the data the catalog precomputed for it:
+ * - per operation, `visibleFor` (hidden when false) and the clause `visibleWhen` still asks then
+ *   (absent: shown);
+ * - per model, `visibleForModel`, for a model that is one of the block's literal options. A model
+ *   held as a reference or template, or not offered, is undecided.
+ * Anything else is undecided: field checks never warn on a field they cannot place.
+ */
+function visibility(sub: CatalogSubBlock, values: ReadonlyMap<string, Value>): Visibility {
+  const condition = sub.condition
+  if (!condition) return 'visible'
+  if (!('opaque' in condition)) {
+    return conditionHolds(condition, values) ? 'visible' : 'hidden'
+  }
+  const operation = values.get('operation')
+  if (typeof operation === 'string' && sub.visibleFor && Object.hasOwn(sub.visibleFor, operation)) {
+    if (!sub.visibleFor[operation]) return 'hidden'
+    const asked = sub.visibleWhen?.[operation]
+    if (!asked) return 'visible'
+    return conditionHolds(asked, values) ? 'visible' : 'hidden'
+  }
+  const model = values.get('model')
+  if (
+    typeof model === 'string' &&
+    sub.visibleForModel &&
+    Object.hasOwn(sub.visibleForModel, model)
+  ) {
+    return sub.visibleForModel[model] ? 'visible' : 'hidden'
+  }
+  return 'undecided'
 }
 
-export function isRequired(sub: CatalogSubBlock, values: ReadonlyMap<string, Value>): boolean {
+/** Whether a field may be shown: only a field the catalog's data decides hidden is not. */
+export function isVisible(sub: CatalogSubBlock, values: ReadonlyMap<string, Value>): boolean {
+  return visibility(sub, values) !== 'hidden'
+}
+
+/**
+ * The output schemas a declared block can expose. A trigger-mode builder runs as its trigger, so
+ * its outputs are that trigger's (the builder's pinned `selectedTriggerId`, else every trigger the
+ * block offers) besides the block's own; any other block exposes its own outputs.
+ */
+export function outputSchemasFor(
+  catalog: BlockCatalog,
+  block: CatalogBlock,
+  builder: CatalogBuilder | undefined
+): Array<Record<string, CatalogOutput>> {
+  if (!builder?.triggerMode) return [block.outputs]
+  const pinned = builder.fixed?.selectedTriggerId
+  const ids = pinned !== undefined ? [pinned] : (block.triggers?.available ?? [])
+  const schemas = [block.outputs]
+  for (const id of ids) {
+    const trigger = catalogTrigger(catalog, id)
+    if (trigger) schemas.push(trigger.outputs)
+  }
+  return schemas
+}
+
+/** A field's catalog default: the editor's `defaultValue`, else a constant `value()` thunk. */
+function catalogDefault(sub: CatalogSubBlock): Value | undefined {
+  if (sub.defaultValue !== undefined) return sub.defaultValue
+  return sub.valueDefault && 'constant' in sub.valueDefault ? sub.valueDefault.constant : undefined
+}
+
+/**
+ * The values a block runs with: what the source wrote, plus each unwritten field's catalog default
+ * (an omitted param means the default the canvas writes on creation, such as Slack's
+ * `destinationType: 'channel'` or the agent's default model).
+ */
+function effectiveValues(
+  index: FieldIndex,
+  written: ReadonlyMap<string, Value>
+): Map<string, Value> {
+  const values = new Map(written)
+  for (const sub of index.subBlocks.values()) {
+    if (values.has(sub.id)) continue
+    const fallback = catalogDefault(sub)
+    if (fallback !== undefined) values.set(sub.id, fallback)
+  }
+  return values
+}
+
+/**
+ * The fields a block leaves empty although they are required under the values it runs with
+ * (`W_REQUIRED_MISSING`). A field counts when no member holds a value and some member is
+ * certainly visible and certainly required, evaluated against the written values plus catalog
+ * defaults: a provider's credential fields never count for a model of another provider, and the
+ * half of a channel/DM switch the block does not use never counts. The server's lint, which runs
+ * the registry's own conditions, still reports what this static check cannot decide.
+ */
+export function missingRequiredFields(
+  index: FieldIndex,
+  written: ReadonlyMap<string, Value>,
+  isWritten: (subBlockId: SubBlockId) => boolean
+): CatalogField[] {
+  const values = effectiveValues(index, written)
+  const missing: CatalogField[] = []
+  for (const field of index.fields.values()) {
+    const members = field.kind === 'single' ? [field.sub] : field.members
+    if (members.some((sub) => isWritten(sub.id))) continue
+    if (members.some((sub) => visibility(sub, values) === 'visible' && isRequired(sub, values))) {
+      missing.push(field)
+    }
+  }
+  return missing
+}
+
+/** Whether a field certainly needs a value: an opaque `required` function is not decided. */
+function isRequired(sub: CatalogSubBlock, values: ReadonlyMap<string, Value>): boolean {
   if (sub.defaultValue !== undefined || sub.valueDefault !== undefined) return false
   if (sub.hidden || sub.readOnly) return false
   if (sub.required === undefined || sub.required === false) return false
   if (sub.required === true) return true
-  return conditionHolds(sub.required, values, undefined)
+  if ('opaque' in sub.required) return false
+  return conditionHolds(sub.required, values)
 }
 
 function isPlainObject(value: Value): boolean {
