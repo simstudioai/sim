@@ -25,7 +25,7 @@ const literalLineOnly: Doc = { type: 'line', soft: false, hard: true, literal: t
 export const breakParent: Doc = { type: 'breakParent' }
 export const hardline: Doc = [hardLineOnly, breakParent]
 /** A newline that resets the column to 0: template-literal content is never re-indented. */
-export const literalline: Doc = [literalLineOnly, breakParent]
+const literalline: Doc = [literalLineOnly, breakParent]
 
 export function group(contents: Doc, options: { shouldBreak?: boolean } = {}): Doc {
   return { type: 'group', contents, break: options.shouldBreak === true }

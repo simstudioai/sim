@@ -41,7 +41,7 @@ interface ParsedPath {
 }
 
 /** Splits `head.a[0].b-c` into a head and exact segments; `null` when the grammar does not fit. */
-export function parseRefPath(inner: string): ParsedPath | null {
+function parseRefPath(inner: string): ParsedPath | null {
   const headMatch = /^[^.[\]]+/.exec(inner)
   if (!headMatch) return null
   const head = headMatch[0]

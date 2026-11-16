@@ -30,7 +30,7 @@ type BlockInit = Partial<Omit<CanonicalBlock, 'params' | 'name' | 'type' | 'key'
   tools?: Record<string, CanonicalTool[]>
 }
 
-export function blk(name: string, type: string, init: BlockInit = {}): CanonicalBlock {
+function blk(name: string, type: string, init: BlockInit = {}): CanonicalBlock {
   const { params = {}, tools = {}, ...rest } = init
   const canonicalParams: Record<string, CanonicalParam> = {}
   for (const [id, value] of Object.entries(params)) canonicalParams[id] = { kind: 'value', value }
@@ -53,7 +53,7 @@ export function blk(name: string, type: string, init: BlockInit = {}): Canonical
   }
 }
 
-export function edge(from: string, to: string, port: Port = { kind: 'out' }): CanonicalEdge {
+function edge(from: string, to: string, port: Port = { kind: 'out' }): CanonicalEdge {
   return { from, port, to }
 }
 
@@ -67,7 +67,7 @@ interface WorkflowInit {
   comments?: Array<[AnchorKey, CodeComment[]]>
 }
 
-export function wf(init: WorkflowInit): CanonicalWorkflow {
+function wf(init: WorkflowInit): CanonicalWorkflow {
   return {
     modelVersion: 1,
     meta: { name: init.name ?? 'Fixture', description: init.description ?? null },

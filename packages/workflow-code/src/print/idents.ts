@@ -3,7 +3,7 @@ import { SDK_RESERVED_IDENTIFIERS } from '../sdk'
 import { isIdentifierName } from './strings'
 
 /** `'Classify ticket'` → `classifyTicket`; non-ASCII and punctuation split words. */
-export function deriveIdentifier(name: string): string {
+function deriveIdentifier(name: string): string {
   const words = name.split(/[^A-Za-z0-9]+/).filter((word) => word.length > 0)
   if (words.length === 0) return 'block'
   const [first = '', ...rest] = words

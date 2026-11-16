@@ -21,7 +21,7 @@ import {
 } from './doc'
 
 /** The syntactic shape of a printed expression, which drives Biome's layout choices. */
-export type ExprShape =
+type ExprShape =
   | 'string'
   | 'template'
   | 'number'
@@ -136,7 +136,7 @@ export function arrayExpr(elements: Expr[]): Expr {
 }
 
 /** Call arguments with Biome's last-argument hugging (`fn('Name', {` … `})`). */
-export function callArgs(args: Expr[]): Doc {
+function callArgs(args: Expr[]): Doc {
   if (args.length === 0) return '()'
   const docs = args.map((arg) => arg.doc)
   const separated: Doc[] = []
