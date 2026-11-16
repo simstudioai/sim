@@ -2,9 +2,10 @@ import type {
   GitLabUpdateMergeRequestParams,
   GitLabUpdateMergeRequestResponse,
 } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabUpdateMergeRequestTool: ToolConfig<
   GitLabUpdateMergeRequestParams,
@@ -107,8 +108,8 @@ export const gitlabUpdateMergeRequestTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${params.mergeRequestIid}`
+      const encodedId = encodeGitLabResourceId(params.projectId)
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${safeUrlPathSegment(params.mergeRequestIid, 'mergeRequestIid')}`
     },
     method: 'PUT',
     headers: (params) => ({
@@ -116,7 +117,7 @@ export const gitlabUpdateMergeRequestTool: ToolConfig<
       'PRIVATE-TOKEN': params.accessToken,
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const body: Record<string, unknown> = {}
 
       // GitLab has no `draft` body param — draft status is conveyed via the
       // "Draft:" title prefix, so it can only be changed when a title is sent.

@@ -2,9 +2,10 @@ import type {
   GitLabApproveMergeRequestParams,
   GitLabApproveMergeRequestResponse,
 } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabApproveMergeRequestTool: ToolConfig<
   GitLabApproveMergeRequestParams,
@@ -52,8 +53,8 @@ export const gitlabApproveMergeRequestTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${params.mergeRequestIid}/approve`
+      const encodedId = encodeGitLabResourceId(params.projectId)
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${safeUrlPathSegment(params.mergeRequestIid, 'mergeRequestIid')}/approve`
     },
     method: 'POST',
     headers: (params) => ({

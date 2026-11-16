@@ -160,6 +160,11 @@ describe('github_list_workflow_runs workflow_id', () => {
     }
   )
 
+  it("omits the block's 'All' status, which GitHub would answer with zero runs", () => {
+    const url = buildRunsUrl({ owner: 'sim', repo: 'sim', status: 'all' })
+    expect(new URL(url).searchParams.has('status')).toBe(false)
+  })
+
   it('escapes a workflow id so it cannot break out of its path segment', () => {
     expect(buildRunsUrl({ owner: 'sim', repo: 'sim', workflow_id: 'a/../b' })).toContain(
       '/actions/workflows/a%2F..%2Fb/runs'
@@ -239,6 +244,47 @@ describe('github block wiring', () => {
       gist_public: 'false',
     })
     expect(mapped).toEqual({ public: false })
+  })
+
+  /**
+   * On a tool call the operation arrives only in the context, and the params are
+   * the stored tool row merged with the model's arguments.
+   */
+  it('applies a stored block-only field on a tool call', () => {
+    const mapper = GitHubBlock.tools.config?.params
+    expect(
+      mapper?.({ owner: 'o', repo: 'r', fork_name: 'my-fork' }, { operation: 'github_fork_repo' })
+    ).toEqual({ name: 'my-fork' })
+    expect(
+      mapper?.({ files: '{}', gist_public: true }, { operation: 'github_create_gist' })
+    ).toEqual({ public: true })
+  })
+
+  it('leaves the model argument alone on a tool call when the block field is unset', () => {
+    const mapped =
+      GitHubBlock.tools.config?.params?.(
+        { owner: 'o', repo: 'r', title: 'From the model' },
+        { operation: 'github_create_milestone' }
+      ) ?? {}
+    expect(Object.keys(mapped)).toHaveLength(0)
+  })
+
+  it("sends the Draft and Prerelease dropdowns' strings as booleans", () => {
+    const mapper = GitHubBlock.tools.config?.params
+    expect(mapper?.({ operation: 'github_create_pr', draft: 'true' })).toEqual({ draft: true })
+    expect(
+      mapper?.({ operation: 'github_create_release', draft: 'false', prerelease: 'true' })
+    ).toEqual({ draft: false, prerelease: true })
+    expect(mapper?.({ operation: 'github_fork_repo', default_branch_only: 'true' })).toEqual({
+      default_branch_only: true,
+    })
+  })
+
+  it('keeps a Draft value left from Create Release out of Update Release', () => {
+    const mapped =
+      GitHubBlock.tools.config?.params?.({ operation: 'github_update_release', draft: 'false' }) ??
+      {}
+    expect(Object.keys(mapped)).toHaveLength(0)
   })
 })
 

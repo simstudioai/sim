@@ -624,9 +624,6 @@
   "apps/sim/blocks/blocks/airtable.test.ts": {
     "TS18048": 1
   },
-  "apps/sim/blocks/blocks/ashby.test.ts": {
-    "TS18048": 11
-  },
   "apps/sim/blocks/blocks/cloudtrail.test.ts": {
     "TS2554": 1
   },
@@ -650,9 +647,6 @@
     "TS2339": 1
   },
   "apps/sim/blocks/blocks/mem0.test.ts": {
-    "TS18048": 1
-  },
-  "apps/sim/blocks/blocks/mintlify.test.ts": {
     "TS18048": 1
   },
   "apps/sim/blocks/blocks/mssql.test.ts": {

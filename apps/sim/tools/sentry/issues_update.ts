@@ -2,6 +2,7 @@ import type { SentryUpdateIssueParams, SentryUpdateIssueResponse } from '@/tools
 import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIssueResponse> = {
   id: 'sentry_issues_update',
@@ -38,6 +39,12 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
       description:
         'New status for the issue: resolved, unresolved, ignored, or resolvedInNextRelease',
     },
+    priority: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'New priority for the issue: low, medium, or high',
+    },
     assignedTo: {
       type: 'string',
       required: false,
@@ -67,7 +74,7 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
 
   request: {
     url: (params) =>
-      `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${params.organizationSlug}/issues/${params.issueId}/`,
+      `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/issues/${safeUrlPathSegment(params.issueId, 'issueId')}/`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -78,6 +85,10 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
 
       if (params.status !== undefined && params.status !== null && params.status !== '') {
         body.status = params.status
+      }
+
+      if (params.priority) {
+        body.priority = params.priority
       }
 
       if (params.assignedTo !== undefined && params.assignedTo !== null) {

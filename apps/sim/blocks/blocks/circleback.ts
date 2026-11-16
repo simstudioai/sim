@@ -1,7 +1,7 @@
 import { ClipboardList, Table } from '@sim/emcn/icons'
 import { CirclebackIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const CirclebackBlock: BlockConfig = {
@@ -452,18 +452,19 @@ export const CirclebackBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `circleback_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         /* Filter variants live on their own subBlocks so an operation switch
            cannot leak a mutation input into a list filter; remap them onto the
            tool param names here. */
         const result: Record<string, unknown> = {}
-        if (params.operation === 'list_action_items') {
+        if (operation === 'list_action_items') {
           if (params.statusFilter) result.status = params.statusFilter
           if (params.assigneeFilterProfileId) {
             result.assigneeProfileId = params.assigneeFilterProfileId
           }
         }
-        if (params.operation === 'search_meetings' && params.searchMeetingIds) {
+        if (operation === 'search_meetings' && params.searchMeetingIds) {
           result.meetingIds = params.searchMeetingIds
         }
         return result

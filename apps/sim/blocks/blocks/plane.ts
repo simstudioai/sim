@@ -1,7 +1,7 @@
 import { PlaneIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 interface PlaneOperationField {
@@ -4189,8 +4189,8 @@ export const PlaneBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => String(params.operation || 'plane_list_projects'),
-      params: (params) => {
-        const operation = String(params.operation || 'plane_list_projects')
+      params: (params, context) => {
+        const operation = mapperOperation(params, context) || 'plane_list_projects'
         const result: Record<string, unknown> = {
           apiKey: params.apiKey,
           baseUrl: params.baseUrl,

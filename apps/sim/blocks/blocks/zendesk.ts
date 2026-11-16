@@ -1,7 +1,12 @@
 import { ZendeskIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalBooleanInput, toolCallArg, withSavedCredential } from '@/blocks/utils'
+import {
+  mapperOperation,
+  parseOptionalBooleanInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const ZendeskBlock: BlockConfig = {
@@ -844,7 +849,7 @@ Return ONLY the search query - no explanations.`,
         }
       },
       params: (params, context) => {
-        const { apiToken, operation, organizationName, commentPublic, ...rest } = params
+        const { apiToken, organizationName, commentPublic, ...rest } = params
         const cleanParams: Record<string, unknown> = { apiToken }
 
         Object.entries(rest).forEach(([key, value]) => {
@@ -854,7 +859,7 @@ Return ONLY the search query - no explanations.`,
         })
 
         // Organization tools take `name`; the block's `name` field belongs to users.
-        const selectedOperation = operation ?? context?.operation
+        const selectedOperation = mapperOperation(params, context)
         if (
           selectedOperation === 'autocomplete_organizations' ||
           selectedOperation === 'create_organization' ||

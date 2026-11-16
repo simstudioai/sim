@@ -1,5 +1,6 @@
 import { ParallelIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
 export const ParallelBlock: BlockConfig = {
   type: 'parallel_ai',
@@ -220,9 +221,9 @@ export const ParallelBlock: BlockConfig = {
             return 'parallel_search'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
-        const operation = params.operation
+        const operation = mapperOperation(params, context)
 
         if (operation === 'search') {
           if (!params.search_queries && params.objective) {
@@ -233,8 +234,14 @@ export const ParallelBlock: BlockConfig = {
           if (params.max_chars_per_result) {
             result.max_chars_per_result = Number(params.max_chars_per_result)
           }
-          result.include_domains = params.search_include_domains || undefined
-          result.exclude_domains = params.search_exclude_domains || undefined
+          result.include_domains =
+            params.search_include_domains ||
+            toolCallArg(context, params.include_domains) ||
+            undefined
+          result.exclude_domains =
+            params.search_exclude_domains ||
+            toolCallArg(context, params.exclude_domains) ||
+            undefined
         }
 
         if (operation === 'extract') {

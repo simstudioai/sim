@@ -2,6 +2,7 @@ import type { SentryGetIssueParams, SentryGetIssueResponse } from '@/tools/sentr
 import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getIssueTool: ToolConfig<SentryGetIssueParams, SentryGetIssueResponse> = {
   id: 'sentry_issues_get',
@@ -35,7 +36,7 @@ export const getIssueTool: ToolConfig<SentryGetIssueParams, SentryGetIssueRespon
 
   request: {
     url: (params) =>
-      `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${params.organizationSlug}/issues/${params.issueId}/`,
+      `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/issues/${safeUrlPathSegment(params.issueId, 'issueId')}/`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -1,5 +1,5 @@
 import type { GitLabCreatePipelineParams, GitLabCreatePipelineResponse } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -56,7 +56,7 @@ export const gitlabCreatePipelineTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
+      const encodedId = encodeGitLabResourceId(params.projectId)
       return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipeline`
     },
     method: 'POST',
@@ -65,7 +65,7 @@ export const gitlabCreatePipelineTool: ToolConfig<
       'PRIVATE-TOKEN': params.accessToken,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         ref: params.ref,
       }
 

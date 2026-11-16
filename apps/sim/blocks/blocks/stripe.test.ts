@@ -95,6 +95,15 @@ describe('Stripe block keeps unset fields out of requests', () => {
     ).toThrow(/path separator/)
   })
 
+  it('an agent updates a subscription with the metadata object it passes', () => {
+    const params = agentToolParams(StripeBlock, 'update_subscription', {
+      apiKey: 'sk_test',
+      id: 'sub_1',
+      metadata: { plan: 'pro' },
+    })
+    expect(formBody(stripeUpdateSubscriptionTool, params).get('metadata[plan]')).toBe('pro')
+  })
+
   it('an agent paginates list charges with the cursor it passes', () => {
     const params = agentToolParams(StripeBlock, 'list_charges', {
       apiKey: 'sk_test',

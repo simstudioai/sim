@@ -3,7 +3,12 @@ import { GoogleVaultIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalBooleanInput, SERVICE_ACCOUNT_SUBBLOCKS, toolCallArg } from '@/blocks/utils'
+import {
+  mapperOperation,
+  parseOptionalBooleanInput,
+  SERVICE_ACCOUNT_SUBBLOCKS,
+  toolCallArg,
+} from '@/blocks/utils'
 
 export const GoogleVaultBlock: BlockConfig = {
   type: 'google_vault',
@@ -929,8 +934,9 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           dataScope,
           ...rest
         } = params
+        const operation = mapperOperation(params, context)
         const isQueryOperation =
-          params.operation === 'create_matters_export' || params.operation === 'create_saved_query'
+          operation === 'create_matters_export' || operation === 'create_saved_query'
         return {
           ...rest,
           oauthCredential,
@@ -954,8 +960,8 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           ...(listExportId && { exportId: listExportId }),
           ...(listHoldId && { holdId: listHoldId }),
           ...(listSavedQueryId && { savedQueryId: listSavedQueryId }),
-          ...(params.operation === 'list_matters' && matterView && { view: matterView }),
-          ...(params.operation === 'list_matters' && matterState && { state: matterState }),
+          ...(operation === 'list_matters' && matterView && { view: matterView }),
+          ...(operation === 'list_matters' && matterState && { state: matterState }),
           ...(isQueryOperation && {
             includeSharedDrives:
               exportIncludeSharedDrives == null
@@ -964,7 +970,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
                 : exportIncludeSharedDrives === true || exportIncludeSharedDrives === 'true',
             ...(dataScope && { dataScope }),
           }),
-          ...(params.operation === 'create_matters_export' && exportFormat && { exportFormat }),
+          ...(operation === 'create_matters_export' && exportFormat && { exportFormat }),
         }
       },
     },

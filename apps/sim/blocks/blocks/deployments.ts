@@ -1,5 +1,6 @@
 import { Rocket } from '@sim/emcn/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
 const WORKFLOW_FIELD = ['workflowSelector', 'manualWorkflowId'] as const
 
@@ -117,8 +118,8 @@ export const DeploymentsBlock: BlockConfig = {
     ],
     config: {
       tool: (params: Record<string, any>) => params.operation || 'deployments_deploy',
-      params: (params: Record<string, any>) => {
-        const operation = params.operation || 'deployments_deploy'
+      params: (params: Record<string, any>, context) => {
+        const operation = mapperOperation(params, context) || 'deployments_deploy'
         const workflowId = typeof params.workflowId === 'string' ? params.workflowId.trim() : ''
         if (!workflowId) {
           throw new Error('Deployments Block Error: Workflow is required')
@@ -127,8 +128,11 @@ export const DeploymentsBlock: BlockConfig = {
         if (operation === 'deployments_deploy') {
           return {
             workflowId,
-            name: params.versionName?.trim() || undefined,
-            description: params.versionDescription?.trim() || undefined,
+            name: params.versionName?.trim() || toolCallArg(context, params.name) || undefined,
+            description:
+              params.versionDescription?.trim() ||
+              toolCallArg(context, params.description) ||
+              undefined,
           }
         }
 

@@ -1,6 +1,6 @@
 import { PersonaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
 /** Canonical basic/advanced pair for the account importer's CSV. */
 const IMPORT_FILE_FIELD = ['importFile', 'importFileRef'] as const
@@ -519,10 +519,10 @@ export const PersonaBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `persona_${params.operation || 'create_inquiry'}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
 
-        if (params.operation === 'import_accounts') {
+        if (mapperOperation(params, context) === 'import_accounts') {
           const file = normalizeFileInput(params.file, { single: true })
           if (!file) {
             throw new Error('A CSV file is required to import accounts')

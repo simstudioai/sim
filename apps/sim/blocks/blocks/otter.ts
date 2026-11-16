@@ -1,6 +1,6 @@
 import { OtterIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const CONVERSATION_ID_OPERATIONS = ['get_conversation', 'get_conversation_audio']
@@ -205,13 +205,13 @@ export const OtterBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `otter_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
         if (params.limit !== undefined && params.limit !== null && params.limit !== '') {
           result.limit = Number(params.limit)
         }
         if (
-          params.operation === 'list_conversations' &&
+          mapperOperation(params, context) === 'list_conversations' &&
           params.includeShared !== undefined &&
           params.includeShared !== null &&
           params.includeShared !== ''

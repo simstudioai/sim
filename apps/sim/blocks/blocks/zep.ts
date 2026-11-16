@@ -1,8 +1,18 @@
 import { ZepIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import {
+  AuthMode,
+  type BlockConfig,
+  type BlockMeta,
+  type BlockToolParamsContext,
+  IntegrationType,
+} from '@/blocks/types'
+import { isToolCall, mapperOperation, withSavedCredential } from '@/blocks/utils'
 
-function zepToolParams(params: Record<string, any>, requireApiKey: boolean) {
+function zepToolParams(
+  params: Record<string, any>,
+  requireApiKey: boolean,
+  context?: BlockToolParamsContext
+) {
   const errors: string[] = []
 
   // Validate required API key for all operations
@@ -10,7 +20,7 @@ function zepToolParams(params: Record<string, any>, requireApiKey: boolean) {
     errors.push('API Key is required')
   }
 
-  const operation = params.operation || 'create_thread'
+  const operation = mapperOperation(params, context) || 'create_thread'
 
   // Validate operation-specific required fields
   if (
@@ -35,7 +45,9 @@ function zepToolParams(params: Record<string, any>, requireApiKey: boolean) {
     }
   }
 
-  if (operation === 'add_messages') {
+  // A tool call may send `messages` as a JSON string, which the tool parses and validates itself.
+  const toolParsesMessages = typeof params.messages === 'string' && isToolCall(context)
+  if (operation === 'add_messages' && !toolParsesMessages) {
     if (!params.messages) {
       errors.push('Messages are required')
     } else if (!Array.isArray(params.messages) || params.messages.length === 0) {
@@ -290,7 +302,7 @@ export const ZepBlock: BlockConfig = {
             return 'zep_create_thread'
         }
       },
-      params: (params) => zepToolParams(params, true),
+      params: (params, context) => zepToolParams(params, true, context),
     },
   },
   inputs: {
@@ -436,6 +448,6 @@ export const ZepV2Block: BlockConfig = {
   ...withSavedCredential(
     ZepBlock,
     { id: 'credential', type: 'oauth-input', serviceId: 'zep', title: 'Zep Credential' },
-    { params: (params) => zepToolParams(params, false) }
+    { params: (params, context) => zepToolParams(params, false, context) }
   ),
 }
