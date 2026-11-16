@@ -124,6 +124,47 @@ describe('tool params', () => {
   it('refuse stored() where the stored tool holds no value', () => {
     expect(codes(run(tools('{ apiKey: stored() }')))).toContain('E_STORED_VALUE_MISSING')
   })
+
+  describe('stored() follows the tool, not its position', () => {
+    const list = (...entries: string[]) =>
+      source(
+        `  agent('A', { model: 'm', tools: [${entries.map((e) => `mail.tool(${e})`).join(', ')}] })`
+      )
+    const storedWorkflow = compiled(
+      list("{ apiKey: 'sk-A', to: 'a@x.y' }", "{ apiKey: 'sk-B', to: 'b@x.y' }")
+    )
+    const keys = (workflow: CanonicalWorkflow) => {
+      const param = workflow.blocks.a?.params.tools
+      return param?.kind === 'tools' ? param.tools.map((tool) => tool.params.apiKey) : []
+    }
+
+    it('keeps each secret with its tool when the first tool is deleted', () => {
+      const next = compiled(list("{ apiKey: stored(), to: 'b@x.y' }"), storedWorkflow)
+      expect(keys(next)).toEqual(['sk-B'])
+    })
+
+    it('keeps each secret with its tool when the tools are reordered', () => {
+      const next = compiled(
+        list("{ apiKey: stored(), to: 'b@x.y' }", "{ apiKey: stored(), to: 'a@x.y' }"),
+        storedWorkflow
+      )
+      expect(keys(next)).toEqual(['sk-B', 'sk-A'])
+    })
+
+    it('matches by position while the list keeps its stored shape', () => {
+      const next = compiled(
+        list("{ apiKey: stored(), to: 'a2@x.y' }", "{ apiKey: stored(), to: 'b2@x.y' }"),
+        storedWorkflow
+      )
+      expect(keys(next)).toEqual(['sk-A', 'sk-B'])
+    })
+
+    it('refuses an edited tool that no longer identifies one stored tool', () => {
+      expect(codes(run(list("{ apiKey: stored(), to: 'c@x.y' }"), storedWorkflow))).toContain(
+        'E_STORED_VALUE_MISSING'
+      )
+    })
+  })
 })
 
 describe('header, names and hand-written references', () => {

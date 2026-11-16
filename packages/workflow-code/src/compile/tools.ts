@@ -17,7 +17,7 @@ import {
   type UnresolvedNode,
   type Value,
 } from '../model'
-import { getOwn, setOwn } from '../records'
+import { deepEqual, getOwn, setOwn } from '../records'
 import { CUSTOM_TOOL_TYPE } from '../sdk'
 import { type CompileContext, lookup, rangeOf, unsupported } from './context'
 import { didYouMean, hintForNode } from './hints'
@@ -128,12 +128,23 @@ function toolBuilderPath(
   return catalogBuilder(ctx.catalog, builderPath) ? builderPath : null
 }
 
+/** A `stored()` tool param, resolved once the whole list is matched to the stored tools. */
+interface PendingStoredParam {
+  param: string
+  key: string
+  node: Node
+}
+
+interface CompiledToolCall {
+  tool: CanonicalTool
+  pending: PendingStoredParam[]
+}
+
 function compileToolCall(
   ctx: CompileContext,
   call: CallExpression,
-  site: ValueSite,
-  storedTool: CanonicalTool | undefined
-): CanonicalTool | null {
+  site: ValueSite
+): CompiledToolCall | null {
   const builderPath = toolBuilderPath(ctx, site, call)
   if (builderPath === null) {
     const path = calleePath(call.callee)
@@ -169,6 +180,7 @@ function compileToolCall(
     )
   }
   const params: Record<string, Value> = {}
+  const pending: PendingStoredParam[] = []
   for (const [id, value] of Object.entries(builder.fixed ?? {})) setOwn(params, id, value)
   const block = catalogBlock(ctx.catalog, builder.type)
   const paramOf = new Map<string, string>()
@@ -177,22 +189,8 @@ function compileToolCall(
     const param = paramOf.get(key) ?? key
     const compiled = compileValue(ctx, property.value, site)
     if (!compiled) return null
-    const kept =
-      compiled.kind === 'stored' && storedTool?.type === builder.type
-        ? getOwn(storedTool.params, param)
-        : undefined
-    if (compiled.kind === 'stored' && kept === undefined) {
-      ctx.reporter.report(
-        'E_STORED_VALUE_MISSING',
-        `stored() keeps ${key}, but the stored tool in this position has no value for it.`,
-        rangeOf(ctx, property.value),
-        { hint: `Write the value of ${key}.`, blockKey: site.decl.key }
-      )
-      return null
-    }
-    const value = kept ?? nestedToolValue(ctx, property.value, compiled, site)
-    if (value === undefined) return null
-    if (Object.hasOwn(params, param) && !Object.hasOwn(builder.fixed ?? {}, param)) {
+    const written = Object.hasOwn(params, param) || pending.some((entry) => entry.param === param)
+    if (written && !Object.hasOwn(builder.fixed ?? {}, param)) {
       return unsupported(
         ctx,
         property,
@@ -201,11 +199,17 @@ function compileToolCall(
         site.decl.key
       )
     }
+    if (compiled.kind === 'stored') {
+      pending.push({ param, key, node: property.value })
+      continue
+    }
+    const value = nestedToolValue(ctx, property.value, compiled, site)
+    if (value === undefined) return null
     setOwn(params, param, value)
   }
   const tool: CanonicalTool = { type: builder.type, params, modes: {} }
   if (builder.operation !== undefined) tool.operation = builder.operation
-  if (!optionsNode) return tool
+  if (!optionsNode) return { tool, pending }
   if (optionsNode.type !== 'ObjectExpression') {
     return unsupported(
       ctx,
@@ -336,7 +340,111 @@ function compileToolCall(
         return null
     }
   }
-  return tool
+  return { tool, pending }
+}
+
+function sameKind(left: CanonicalTool, right: CanonicalTool): boolean {
+  return left.type === right.type && left.operation === right.operation
+}
+
+function countOf(list: readonly CanonicalTool[], tool: CanonicalTool): number {
+  return list.filter((entry) => sameKind(entry, tool)).length
+}
+
+/** Whether every param `tool` writes holds the same value in `stored`. */
+function writtenParamsAgree(tool: CanonicalTool, stored: CanonicalTool): boolean {
+  return Object.entries(tool.params).every(([param, value]) =>
+    deepEqual(getOwn(stored.params, param), value)
+  )
+}
+
+/**
+ * The stored tool each `stored()`-carrying tool continues, matched by identity rather than list
+ * position, since a deleted or reordered tool would otherwise take its neighbour's secret. A
+ * candidate has the same type and operation. The one candidate whose written params all agree wins.
+ * Otherwise a lone candidate wins while the list holds as many tools of its kind as stored, and
+ * position decides while the list keeps its stored shape (same length, same type at every index).
+ * Anything else is ambiguous: `null`.
+ */
+function matchStoredTools(
+  calls: ReadonlyArray<CompiledToolCall | null>,
+  tools: readonly CanonicalTool[],
+  storedTools: readonly CanonicalTool[]
+): Map<number, CanonicalTool | null> {
+  const sameShape =
+    tools.length === storedTools.length &&
+    tools.every((tool, index) => storedTools[index]?.type === tool.type)
+  const claimed = new Set<number>()
+  const matches = new Map<number, CanonicalTool | null>()
+  const candidatesOf = (tool: CanonicalTool) =>
+    storedTools
+      .map((stored, index) => ({ stored, index }))
+      .filter(({ stored, index }) => !claimed.has(index) && sameKind(stored, tool))
+  const needing = calls.flatMap((call, index) =>
+    call && call.pending.length > 0 ? [{ call, index }] : []
+  )
+  const claim = (position: number, index: number) => {
+    claimed.add(index)
+    matches.set(position, storedTools[index] ?? null)
+  }
+  for (const { call, index } of needing) {
+    const agreeing = candidatesOf(call.tool).filter(({ stored }) =>
+      writtenParamsAgree(call.tool, stored)
+    )
+    if (agreeing.length === 1 && agreeing[0]) claim(index, agreeing[0].index)
+  }
+  for (const { call, index } of needing) {
+    if (matches.has(index)) continue
+    const candidates = candidatesOf(call.tool)
+    const agreeing = candidates.filter(({ stored }) => writtenParamsAgree(call.tool, stored))
+    const pool = agreeing.length > 0 ? agreeing : candidates
+    const positional = pool.find((candidate) => candidate.index === index)
+    const only = pool.length === 1 ? pool[0] : undefined
+    if (only && countOf(tools, call.tool) === countOf(storedTools, call.tool)) {
+      claim(index, only.index)
+    } else if (sameShape && positional) claim(index, positional.index)
+    else matches.set(index, null)
+  }
+  return matches
+}
+
+/** Fills each `stored()` param from the stored tool its tool matched; `false` after a refusal. */
+function resolveStoredParams(
+  ctx: CompileContext,
+  site: ValueSite,
+  calls: ReadonlyArray<CompiledToolCall | null>,
+  tools: readonly CanonicalTool[],
+  storedTools: readonly CanonicalTool[]
+): boolean {
+  const matches = matchStoredTools(calls, tools, storedTools)
+  let ok = true
+  calls.forEach((call, index) => {
+    if (!call) return
+    const match = matches.get(index)
+    for (const { param, key, node } of call.pending) {
+      const kept = match ? getOwn(match.params, param) : undefined
+      if (kept !== undefined) {
+        setOwn(call.tool.params, param, kept)
+        continue
+      }
+      ok = false
+      ctx.reporter.report(
+        'E_STORED_VALUE_MISSING',
+        match === null
+          ? `stored() keeps ${key}, but more than one stored ${call.tool.type} tool could be this one.`
+          : `stored() keeps ${key}, but the stored tool this one continues has no value for it.`,
+        rangeOf(ctx, node),
+        {
+          hint:
+            match === null
+              ? `Write the value of ${key}, or keep the tool's other params as stored.`
+              : `Write the value of ${key}.`,
+          blockKey: site.decl.key,
+        }
+      )
+    }
+  })
+  return ok
 }
 
 /**
@@ -583,6 +691,7 @@ export function compileToolList(
     return null
   }
   const tools: CanonicalTool[] = []
+  const calls: Array<CompiledToolCall | null> = []
   for (const element of node.elements) {
     if (!element || element.type === 'SpreadElement') {
       return unsupported(
@@ -606,6 +715,7 @@ export function compileToolList(
     if (resourceTool !== undefined) {
       if (!resourceTool) return null
       tools.push(resourceTool)
+      calls.push(null)
       continue
     }
     const compiled = calleePath(element.callee)?.root
@@ -618,6 +728,7 @@ export function compileToolList(
       const tool = compileCustomTool(ctx, element, site)
       if (!tool) return null
       tools.push(tool)
+      calls.push(null)
       continue
     }
     if (
@@ -637,11 +748,13 @@ export function compileToolList(
         )
       }
       tools.push(value.value)
+      calls.push(null)
       continue
     }
-    const tool = compileToolCall(ctx, element, site, storedTools[tools.length])
-    if (!tool) return null
-    tools.push(tool)
+    const call = compileToolCall(ctx, element, site)
+    if (!call) return null
+    tools.push(call.tool)
+    calls.push(call)
   }
-  return tools
+  return resolveStoredParams(ctx, site, calls, tools, storedTools) ? tools : null
 }

@@ -164,11 +164,17 @@ no live resource is `E_MAT_UNKNOWN_RESOURCE` on apply.
 ### `stored()`
 
 The printer writes `stored()` for literal text in a `password` field (a secret is never printed;
-`{{ENV}}` and references print as themselves), in params and tool params alike (a tool by position
-and type). It compiles to the value `CompileInput.stored` (the stored workflow the file continues)
-holds for the same block key, type and param, a pair's members and mode included. A new block,
-another type or an empty field is `E_STORED_VALUE_MISSING`; inside a value it is
-`E_UNSUPPORTED_SYNTAX`.
+`{{ENV}}` and references print as themselves), in params and tool params alike. It compiles to the
+value `CompileInput.stored` (the stored workflow the file continues) holds for the same block key,
+type and param, a pair's members and mode included. A new block, another type or an empty field is
+`E_STORED_VALUE_MISSING`; inside a value it is `E_UNSUPPORTED_SYNTAX`.
+
+A tool's `stored()` takes the value of the stored tool it continues, matched by identity: the one
+stored tool of the same type and operation whose params agree with every param the source writes.
+Failing that, a lone candidate wins while the list holds as many tools of that kind as stored, and
+position decides while the list keeps its stored length and types. A tool no rule settles (two
+candidates after the list's count or order changed) is `E_STORED_VALUE_MISSING`, so a deleted or
+reordered tool never takes another tool's secret.
 
 ### References
 
