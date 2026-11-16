@@ -1006,7 +1006,10 @@ class WorkflowPrinter {
     return meta
   }
 
-  /** Branch rows as named keys, plus per-row title overrides and extra keys for the meta. */
+  /**
+   * Branch rows as named keys, plus the meta's per-row title overrides, `title: null` for a row
+   * stored with no title, and extra keys.
+   */
   private branchEntries(block: CanonicalBlock): { entries: Property[]; meta: Property[] } {
     const branches = block.branches
     if (!branches?.rows) return { entries: [], meta: [] }
@@ -1024,6 +1027,8 @@ class WorkflowPrinter {
       const rowMeta: Property[] = []
       if (row.titleOverride !== undefined) {
         rowMeta.push({ key: 'title', value: this.values.string(row.titleOverride) })
+      } else if (row.titleMissing) {
+        rowMeta.push({ key: 'title', value: NULL_EXPR })
       }
       if (row.extra && Object.keys(row.extra).length > 0) {
         rowMeta.push({ key: 'extra', value: this.values.json(row.extra) })

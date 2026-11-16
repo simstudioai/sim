@@ -287,9 +287,10 @@ export interface BlockMeta {
   retry?: BlockRetryConfig
   /**
    * Per branch key of a condition or router, the row's display `title` and any stored fields the
-   * SDK has no syntax for (`extra`, plain JSON).
+   * SDK has no syntax for (`extra`, plain JSON). `title: null` keeps a row stored with no title,
+   * which the executor never takes for `else`.
    */
-  branches?: Record<string, { title?: string; extra?: Record<string, Json> }>
+  branches?: Record<string, { title?: string | null; extra?: Record<string, Json> }>
   /**
    * Stored params that run but have no SDK syntax: a schema-agnostic custom block's inputs, the
    * agent's legacy prompt fields, a container's stored params. Values the block keeps but never

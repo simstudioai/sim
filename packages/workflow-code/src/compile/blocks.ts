@@ -479,7 +479,10 @@ function compileBranchRows(
   return rows
 }
 
-/** Applies meta `branches: { key: { title?, extra? } }` to the rows. */
+/**
+ * Applies meta `branches: { key: { title?, extra? } }` to the rows. `title: null` is a row stored
+ * with no title, which the executor never takes for `else`.
+ */
 function applyBranchMeta(
   ctx: CompileContext,
   rows: CanonicalBranchRow[] | null,
@@ -501,7 +504,7 @@ function applyBranchMeta(
     if (
       !isRecordLike(json) ||
       Object.keys(json).some((field) => field !== 'title' && field !== 'extra') ||
-      (json.title !== undefined && typeof json.title !== 'string') ||
+      (json.title !== undefined && json.title !== null && typeof json.title !== 'string') ||
       (json.extra !== undefined && !isRecordLike(json.extra))
     ) {
       unsupported(
@@ -514,6 +517,7 @@ function applyBranchMeta(
       continue
     }
     if (typeof json.title === 'string') row.titleOverride = json.title
+    if (json.title === null) row.titleMissing = true
     if (isRecordLike(json.extra)) row.extra = json.extra as Record<string, Json>
   }
 }

@@ -105,7 +105,7 @@ The value kind alone picks the member of a basic/advanced pair; there is no `met
 | `retry: { enabled, maxTries, waitBetweenTriesMs }` | The stored `BlockRetryConfig`, written whole. |
 | `advancedMode: boolean` | The block-level advanced toggle; it changes what serializes. |
 | `triggerMode: boolean` | Runs the block as its trigger. Trigger builders set it; any other builder writes it only for a block stored in trigger mode. |
-| `branches: { <key>: { title?, extra? } }` | Per condition/router row, the display title and stored row fields with no syntax. |
+| `branches: { <key>: { title?, extra? } }` | Per condition/router row, the display title and stored row fields with no syntax. `title: null` is a row stored with no title, which the executor never takes for `else`. |
 | `extra: { <subBlockId>: value }` | Stored params that run but have no SDK syntax (a schema-agnostic custom block's inputs, the agent's legacy prompt fields, a container's stored params). A key the block's params can name is `E_UNSUPPORTED_SYNTAX`. |
 | `subflowData: { <key>: json }` | Loop or parallel only: `block.data` subflow keys (`count`, `collection`, `loopType`, `whileCondition`, `doWhileCondition`, `parallelType`, `batchSize`) canonicalize could not read as config. Any other key, or on another block, is `E_UNSUPPORTED_SYNTAX`. |
 

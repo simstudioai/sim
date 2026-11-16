@@ -7,7 +7,7 @@ import { compileWorkflow } from './index'
 import { TEST_CATALOG } from './test-catalog'
 
 const IMPORTS =
-  "import { agent, api, childWorkflow, customTool, credential, mail, mcp, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
+  "import { agent, api, childWorkflow, condition, customTool, credential, js, mail, mcp, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
 
 function source(body: string, header = '// @sim-sdk 1'): string {
   return `${header}\n${IMPORTS}\n\nexport default workflow('Test', {}, () => {\n${body}\n})\n`
@@ -164,6 +164,18 @@ describe('tool params', () => {
         'E_STORED_VALUE_MISSING'
       )
     })
+  })
+})
+
+describe('condition rows stored with no title', () => {
+  it('round-trip as title: null, so the last row never becomes the else branch', () => {
+    const workflow = compiled(source("  condition('Gate', { if: js`x > 1`, else: true })"))
+    const rows = workflow.blocks.gate?.branches?.rows
+    if (!rows?.[1]) throw new Error('expected two rows')
+    rows[1].titleMissing = true
+    const text = printed(workflow)
+    expect(text).toContain('else: { title: null }')
+    expect(compiled(text).blocks.gate?.branches).toEqual(workflow.blocks.gate?.branches)
   })
 })
 
