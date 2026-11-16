@@ -49,12 +49,14 @@ import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/reso
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { getWorkflowCopilotUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
 import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands'
 import {
+  Code,
   Deploy,
   Editor,
   Toolbar,
@@ -185,8 +187,13 @@ export const Panel = memo(function Panel() {
    * paint an empty panel — resolve it to the toolbar instead.
    */
   const isCopilotTabAvailable = chatEnabled && !permissionConfig.hideCopilot
+  /** A persisted `activeTab: 'code'` resolves to the toolbar while code-first workflows are off. */
+  const isCodeTabAvailable = useFeatureFlag('workflow-code')
   const activeTab: PanelTab =
-    storedActiveTab === 'copilot' && !isCopilotTabAvailable ? 'toolbar' : storedActiveTab
+    (storedActiveTab === 'copilot' && !isCopilotTabAvailable) ||
+    (storedActiveTab === 'code' && !isCodeTabAvailable)
+      ? 'toolbar'
+      : storedActiveTab
   const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
@@ -580,6 +587,13 @@ export const Panel = memo(function Panel() {
    * Handles tab click events
    */
   const handleTabClick = (tab: PanelTab) => {
+    if (tab === 'code' && activeTab !== 'code' && scopedWorkflowId) {
+      captureEvent(posthogRef.current, 'code_view_opened', {
+        workflow_id: scopedWorkflowId,
+        workspace_id: workspaceId,
+        entry: 'toolbar',
+      })
+    }
     setActiveTab(tab)
   }
 
@@ -980,6 +994,20 @@ export const Panel = memo(function Panel() {
               >
                 Editor
               </Button>
+              {isCodeTabAvailable && (
+                <Button
+                  className={`h-[28px] rounded-md border py-[5px] text-[12.5px] ${
+                    _hasHydrated && activeTab === 'code'
+                      ? 'border-[var(--border-1)]'
+                      : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
+                  }`}
+                  variant={_hasHydrated && activeTab === 'code' ? 'active' : 'ghost'}
+                  onClick={() => handleTabClick('code')}
+                  data-tab-button='code'
+                >
+                  Code
+                </Button>
+              )}
             </div>
           </div>
 
@@ -1108,6 +1136,14 @@ export const Panel = memo(function Panel() {
             >
               <Toolbar ref={toolbarRef} isActive={activeTab === 'toolbar'} />
             </div>
+            {isCodeTabAvailable && (
+              <div
+                className={_hasHydrated && activeTab === 'code' ? 'h-full' : 'hidden'}
+                data-tab-content='code'
+              >
+                <Code isActive={_hasHydrated && activeTab === 'code'} />
+              </div>
+            )}
           </div>
         </div>
 

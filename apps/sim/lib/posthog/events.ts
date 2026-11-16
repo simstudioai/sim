@@ -771,6 +771,13 @@ export interface PostHogEventMap {
   }
 
   /** A workflow's edit-lock was toggled on or off. */
+  /** The canvas Code tab was opened. */
+  code_view_opened: {
+    workflow_id: string
+    workspace_id: string
+    entry: 'toolbar' | 'shortcut' | 'link'
+  }
+
   workflow_lock_toggled: {
     workflow_id: string
     workspace_id?: string
