@@ -21,7 +21,11 @@ const REQUIRED = {
 function buildBody(overrides: Record<string, unknown>): Record<string, unknown> {
   const body = brexCreateSpendLimitTool.request.body
   if (!body) throw new Error('create_spend_limit has no request body builder')
-  return body({ ...REQUIRED, ...overrides } as Parameters<typeof body>[0])
+  const result = body({ ...REQUIRED, ...overrides } as Parameters<typeof body>[0])
+  if (typeof result !== 'object' || result instanceof FormData) {
+    throw new Error('create_spend_limit must build a JSON object body')
+  }
+  return result
 }
 
 function authorizationSettings(body: Record<string, unknown>): Record<string, unknown> {
