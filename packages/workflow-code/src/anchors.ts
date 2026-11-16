@@ -1,6 +1,6 @@
 /**
  * String forms of ports and comment anchors. Edges sort by `portKey`, and comment maps (in the CWM
- * and in `workflow.code_meta`) are keyed by `encodeAnchor`, so every engine must use these and
+ * and in `workflow_source_meta`) are keyed by `encodeAnchor`, so every engine must use these and
  * never format either by hand.
  */
 

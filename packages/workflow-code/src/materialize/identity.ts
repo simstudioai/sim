@@ -44,7 +44,7 @@ interface IdentityInputs {
   catalog: BlockCatalog
   hooks: MaterializeHooks
   freshness: MaterializeOptions['lockFreshness']
-  compiledBindings: Record<BlockKey, string> | undefined
+  compiledIdents: Record<BlockKey, string> | undefined
   inferRenames: boolean
   diagnostics: Diagnostic<MaterializeDiagnosticCode>[]
 }
@@ -88,7 +88,7 @@ function duplicateLockKeys(
 /**
  * Binds every compiled block to an id (s1 §4, build-spec decision 3), in rule order:
  * 1. the lock entry under the same key, when its id is in prev;
- * 2. a lock entry whose key the file dropped but whose binding the file still uses;
+ * 2. a lock entry whose key the file dropped but whose ident the file still uses;
  * 3. the prev block with the same canonical key (the lockless and stale-lock path);
  * 4. an inferred rename, only without a fresh lock: exactly one unmatched prev block and one
  *    unmatched compiled block with the same type and parent and agreeing edge neighbourhoods;
@@ -140,7 +140,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     resolved.set(key, {
       id: prevId,
       prevKey,
-      lockOwned: via === 'lock-key' || via === 'lock-binding',
+      lockOwned: via === 'lock-key' || via === 'lock-ident',
       entry,
     })
     return true
@@ -169,17 +169,17 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     }
   }
 
-  const bindingEntries = Object.entries(lock?.blocks ?? {}).filter(
+  const identEntries = Object.entries(lock?.blocks ?? {}).filter(
     ([key]) => !duplicates.has(key) && !Object.hasOwn(workflow.blocks, key)
   )
   for (const key of open()) {
     if (lockEntry(key)) continue
-    const binding = inputs.compiledBindings?.[key]
-    if (binding === undefined) continue
-    const found = bindingEntries.find(
-      ([, entry]) => entry.binding === binding && Object.hasOwn(prevBlocks, entry.id)
+    const ident = inputs.compiledIdents?.[key]
+    if (ident === undefined) continue
+    const found = identEntries.find(
+      ([, entry]) => entry.ident === ident && Object.hasOwn(prevBlocks, entry.id)
     )
-    if (found) match(key, found[1].id, 'lock-binding')
+    if (found) match(key, found[1].id, 'lock-ident')
   }
 
   for (const key of open()) {

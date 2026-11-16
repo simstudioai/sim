@@ -3,14 +3,14 @@
  * so a canvas rename, a drag or a branch reorder never changes identity (build-spec decision 4,
  * s1 §2, s3 D10/D11). Edge ids are never in the lock (s1 D5).
  *
- * The lock holds only environment-independent facts: logical ids, bindings, print order, code
+ * The lock holds only environment-independent facts: logical ids, idents, print order, code
  * files and layout. Everything tied to one environment's stored state (workspace, freshness
- * fingerprint, catalog hash) is the separate {@link LockBase}: single-workflow `source get/apply`
- * returns and takes it beside the lock, and a repo keeps it in `.sim/state/<env>/revision.json`.
+ * fingerprint, catalog hash) is the separate {@link SourceBase}: single-workflow `source get/apply`
+ * returns and takes it beside the lock, and the CLI keeps it in `.sim/base.json`.
  * Logical ids equal physical ids in the home environment; elsewhere
  * `workspace_repo_block_binding` maps them (build-spec decision 4).
  *
- * Version policy: adding an optional field does not bump `lockVersion`. Validators learn a field
+ * Version policy: adding an optional field does not bump `version`. Validators learn a field
  * before writers emit it; until every reader knows a field, data goes under an `x-` key, which
  * every validator tolerates and preserves. Removing or changing the meaning of a field bumps it.
  */
@@ -78,7 +78,7 @@ export interface WorkflowLockBlock extends LockIdentityBlock {
    * the name on first print, then persisted, so a canvas rename changes one line
    * (build-spec decision 4). Never one of `SDK_RESERVED_IDENTIFIERS`.
    */
-  binding: string
+  ident: string
   /**
    * Print-order tie-break: the second key of the declaration sort (isTrigger, order, key)
    * (build-spec decision 10, s3 D10). Not unique: equal orders fall back to the key, so locks
@@ -92,16 +92,16 @@ export interface WorkflowLockBlock extends LockIdentityBlock {
 
 export interface WorkflowLockV1 {
   [extension: LockExtensionKey]: Json
-  lockVersion: 1
+  version: 1
   blocks: Record<BlockKey, WorkflowLockBlock>
   variables: Record<VarKey, string>
 }
 
-/** One environment's freshness facts for a lock (see the module comment). */
-export interface LockBase {
+/** One environment's freshness facts for a lock, `.sim/base.json` (see the module comment). */
+export interface SourceBase {
   workspaceId: string
   /** The DB freshness token at pull; apply answers 409 when it no longer matches. */
-  baseFingerprint: SourceFingerprint
+  fingerprint: string
   /** The catalog `hash` the file was printed against. */
   catalogHash: string
 }
@@ -112,8 +112,8 @@ export type LockDiagnostic = Diagnostic<
   | 'E_LOCK_SHAPE'
   | 'E_LOCK_UNKNOWN_FIELD'
   | 'E_LOCK_KEY'
-  | 'E_LOCK_BINDING'
-  | 'E_LOCK_DUPLICATE_BINDING'
+  | 'E_LOCK_IDENT'
+  | 'E_LOCK_DUPLICATE_IDENT'
   | 'E_LOCK_DUPLICATE_ID'
   | 'E_LOCK_PARENT'
   | 'E_LOCK_BRANCH'
@@ -126,8 +126,8 @@ export type ParseWorkflowLockResult =
 
 const DRIVE_PATH = /^[A-Za-z]:/
 
-const LOCK_FIELDS = ['lockVersion', 'blocks', 'variables']
-const BLOCK_FIELDS = ['id', 'parent', 'branches', 'items', 'binding', 'order', 'layout', 'codeFile']
+const LOCK_FIELDS = ['version', 'blocks', 'variables']
+const BLOCK_FIELDS = ['id', 'parent', 'branches', 'items', 'ident', 'order', 'layout', 'codeFile']
 const LAYOUT_FIELDS = ['x', 'y', 'w', 'h', 'height', 'horizontalHandles']
 const ITEM_FIELDS = ['name', 'id']
 
@@ -141,20 +141,20 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
-/** A print-order tie-break, in the lock and in `code_meta`: a non-negative integer. */
+/** A print-order tie-break, in the lock and in source meta: a non-negative integer. */
 export function isPrintOrder(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 }
 
-/** A block's `const` binding, in the lock or in `code_meta`, or why `value` cannot be one. */
-export function readBinding(value: unknown): { binding: string } | { problem: string } {
+/** A block's `const` ident, in the lock or in source meta, or why `value` cannot be one. */
+export function readIdent(value: unknown): { ident: string } | { problem: string } {
   if (typeof value !== 'string' || !isIdentifierName(value)) {
-    return { problem: 'A binding must be a JS identifier.' }
+    return { problem: 'An ident must be a JS identifier.' }
   }
   if (SDK_RESERVED_IDENTIFIERS.has(value)) {
     return { problem: `"${value}" is a reserved word or an SDK export.` }
   }
-  return { binding: value }
+  return { ident: value }
 }
 
 export function isExtensionKey(key: string): key is LockExtensionKey {
@@ -338,9 +338,9 @@ class LockReader {
       this.report('E_LOCK_SHAPE', [...at, 'parent'], '"parent" must be a block key or null.')
     }
 
-    const read = readBinding(raw.binding)
-    if ('problem' in read) this.report('E_LOCK_BINDING', [...at, 'binding'], read.problem)
-    const binding = 'binding' in read ? read.binding : ''
+    const read = readIdent(raw.ident)
+    if ('problem' in read) this.report('E_LOCK_IDENT', [...at, 'ident'], read.problem)
+    const ident = 'ident' in read ? read.ident : ''
 
     let order = 0
     if (isPrintOrder(raw.order)) {
@@ -349,7 +349,7 @@ class LockReader {
       this.report('E_LOCK_SHAPE', [...at, 'order'], '"order" must be a non-negative integer.')
     }
 
-    const block: WorkflowLockBlock = { ...extensions, id, parent, binding, order }
+    const block: WorkflowLockBlock = { ...extensions, id, parent, ident, order }
 
     if (raw.branches !== undefined) {
       const branches = this.idRecord(raw.branches, [...at, 'branches'])
@@ -398,17 +398,17 @@ class LockReader {
   }
 
   crossCheckBlocks(blocks: Record<BlockKey, WorkflowLockBlock>): void {
-    const bindings = new Map<string, BlockKey>()
+    const idents = new Map<string, BlockKey>()
     const ids = new Map<string, BlockKey>()
     for (const [key, block] of Object.entries(blocks)) {
-      if (block.binding) {
-        const holder = bindings.get(block.binding)
-        if (holder === undefined) bindings.set(block.binding, key)
+      if (block.ident) {
+        const holder = idents.get(block.ident)
+        if (holder === undefined) idents.set(block.ident, key)
         else {
           this.report(
-            'E_LOCK_DUPLICATE_BINDING',
-            ['blocks', key, 'binding'],
-            `Binding "${block.binding}" is already used by "${holder}".`
+            'E_LOCK_DUPLICATE_IDENT',
+            ['blocks', key, 'ident'],
+            `Ident "${block.ident}" is already used by "${holder}".`
           )
         }
       }
@@ -481,8 +481,8 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
     reader.report('E_LOCK_SHAPE', [], 'The lock must be a JSON object.')
     return { diagnostics: reader.diagnostics }
   }
-  if (json.lockVersion !== 1) {
-    reader.report('E_LOCK_VERSION', ['lockVersion'], 'Unsupported lock version; expected 1.')
+  if (json.version !== 1) {
+    reader.report('E_LOCK_VERSION', ['version'], 'Unsupported lock version; expected 1.')
     return { diagnostics: reader.diagnostics }
   }
 
@@ -501,5 +501,5 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
   const variables = reader.variables(json.variables)
 
   if (reader.diagnostics.length > 0) return { diagnostics: reader.diagnostics }
-  return { lock: { ...extensions, lockVersion: 1, blocks, variables } }
+  return { lock: { ...extensions, version: 1, blocks, variables } }
 }

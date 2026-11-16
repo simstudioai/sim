@@ -1,21 +1,21 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { decodeAnchor, encodeAnchor } from './anchors'
-import {
-  codeMetaEquals,
-  parseCodeMeta,
-  pruneCodeMeta,
-  remapCodeMeta,
-  type WorkflowCodeMetaV1,
-} from './code-meta'
 import type { Anchor, AnchorKey, CodeComment } from './model'
+import {
+  parseSourceMeta,
+  pruneSourceMeta,
+  remapSourceMeta,
+  sourceMetaEquals,
+  type WorkflowSourceMetaV1,
+} from './source-meta'
 
 const line = (text: string): CodeComment => ({ text, kind: 'line', placement: 'leading' })
 
 function validMeta(): Record<string, unknown> {
   return {
-    v: 1,
-    bindings: { 'blk-a': 'fetchUser', 'blk-b': 'route' },
+    version: 1,
+    idents: { 'blk-a': 'fetchUser', 'blk-b': 'route' },
     order: { 'blk-a': 0, 'blk-b': 1 },
     comments: {
       header: [line(' file header')],
@@ -30,17 +30,17 @@ function validMeta(): Record<string, unknown> {
 }
 
 function codesFor(input: unknown): string[] {
-  const result = parseCodeMeta(input)
+  const result = parseSourceMeta(input)
   return result.diagnostics ? result.diagnostics.map((d) => `${d.code} ${d.path ?? ''}`) : []
 }
 
-function parsed(input: unknown): WorkflowCodeMetaV1 {
-  const result = parseCodeMeta(input)
+function parsed(input: unknown): WorkflowSourceMetaV1 {
+  const result = parseSourceMeta(input)
   if (!result.meta) throw new Error(codesFor(input).join(', '))
   return result.meta
 }
 
-describe('parseCodeMeta', () => {
+describe('parseSourceMeta', () => {
   it('accepts a well-formed value from an object or JSON text and keeps x- fields', () => {
     const meta = parsed(validMeta())
     expect(meta['x-future']).toEqual({ anything: [1, 'two'] })
@@ -48,39 +48,41 @@ describe('parseCodeMeta', () => {
   })
 
   it('stops at an unsupported version and at text that is not JSON', () => {
-    expect(codesFor({ ...validMeta(), v: 2, bindings: 'nope' })).toEqual(['E_CODE_META_VERSION /v'])
-    expect(codesFor('{"v":1,')).toEqual(['E_CODE_META_JSON '])
-    expect(codesFor([])).toEqual(['E_CODE_META_SHAPE '])
+    expect(codesFor({ ...validMeta(), version: 2, idents: 'nope' })).toEqual([
+      'E_SOURCE_META_VERSION /version',
+    ])
+    expect(codesFor('{"version":1,')).toEqual(['E_SOURCE_META_JSON '])
+    expect(codesFor([])).toEqual(['E_SOURCE_META_SHAPE '])
   })
 
-  it('rejects bindings that would not compile: non-identifiers, reserved names, duplicates', () => {
+  it('rejects idents that would not compile: non-identifiers, reserved names, duplicates', () => {
     expect(
       codesFor({
         ...validMeta(),
-        bindings: { a: 'two words', b: 'workflow', c: 'class', d: 'same', e: 'same' },
+        idents: { a: 'two words', b: 'workflow', c: 'class', d: 'same', e: 'same' },
       })
     ).toEqual([
-      'E_CODE_META_BINDING /bindings/a',
-      'E_CODE_META_BINDING /bindings/b',
-      'E_CODE_META_BINDING /bindings/c',
-      'E_CODE_META_DUPLICATE_BINDING /bindings/e',
+      'E_SOURCE_META_IDENT /idents/a',
+      'E_SOURCE_META_IDENT /idents/b',
+      'E_SOURCE_META_IDENT /idents/c',
+      'E_SOURCE_META_DUPLICATE_IDENT /idents/e',
     ])
   })
 
   it('reports every problem at once with a JSON pointer, escaping ~ and /', () => {
     expect(
       codesFor({
-        v: 1,
-        bindings: {},
+        version: 1,
+        idents: {},
         order: { 'a/b': -1, 'c~d': 1.5 },
         comments: { 'block:x': [{ text: 1, kind: 'line', placement: 'leading' }] },
         typo: true,
       })
     ).toEqual([
-      'E_CODE_META_UNKNOWN_FIELD /typo',
-      'E_CODE_META_SHAPE /order/a~1b',
-      'E_CODE_META_SHAPE /order/c~0d',
-      'E_CODE_META_SHAPE /comments/block:x/0/text',
+      'E_SOURCE_META_UNKNOWN_FIELD /typo',
+      'E_SOURCE_META_SHAPE /order/a~1b',
+      'E_SOURCE_META_SHAPE /order/c~0d',
+      'E_SOURCE_META_SHAPE /comments/block:x/0/text',
     ])
   })
 
@@ -96,10 +98,10 @@ describe('parseCodeMeta', () => {
         },
       })
     ).toEqual([
-      'E_CODE_META_ANCHOR /comments/nowhere:x',
-      'E_CODE_META_ANCHOR /comments/block:a%zz',
-      'E_CODE_META_ANCHOR /comments/edges:a:nonsense',
-      'E_CODE_META_ANCHOR /comments/block:a:b',
+      'E_SOURCE_META_ANCHOR /comments/nowhere:x',
+      'E_SOURCE_META_ANCHOR /comments/block:a%zz',
+      'E_SOURCE_META_ANCHOR /comments/edges:a:nonsense',
+      'E_SOURCE_META_ANCHOR /comments/block:a:b',
     ])
   })
 
@@ -116,21 +118,21 @@ describe('parseCodeMeta', () => {
         },
       })
     ).toEqual([
-      'E_CODE_META_SHAPE /comments/header/0/kind',
-      'E_CODE_META_SHAPE /comments/header/1/placement',
-      'E_CODE_META_UNKNOWN_FIELD /comments/header/2/color',
+      'E_SOURCE_META_SHAPE /comments/header/0/kind',
+      'E_SOURCE_META_SHAPE /comments/header/1/placement',
+      'E_SOURCE_META_UNKNOWN_FIELD /comments/header/2/color',
     ])
   })
 })
 
-describe('pruneCodeMeta and remapCodeMeta', () => {
+describe('pruneSourceMeta and remapSourceMeta', () => {
   it('prunes every entry of a deleted block or variable and keeps id-free anchors', () => {
     const meta = parsed(validMeta())
-    const pruned = pruneCodeMeta(meta, {
+    const pruned = pruneSourceMeta(meta, {
       blocks: (id) => id !== 'blk-b',
       variables: () => false,
     })
-    expect(pruned.bindings).toEqual({ 'blk-a': 'fetchUser' })
+    expect(pruned.idents).toEqual({ 'blk-a': 'fetchUser' })
     expect(pruned.order).toEqual({ 'blk-a': 0 })
     expect(Object.keys(pruned.comments).sort()).toEqual(['block:blk-a', 'header'])
     expect(pruned['x-future']).toEqual(meta['x-future'])
@@ -138,15 +140,15 @@ describe('pruneCodeMeta and remapCodeMeta', () => {
 
   it('remaps ids onto a copy and drops ids the copy did not take', () => {
     const meta = parsed(validMeta())
-    const copy = remapCodeMeta(meta, new Map([['blk-a', 'new-a']]), new Map([['var-1', 'v-2']]))
-    expect(copy.bindings).toEqual({ 'new-a': 'fetchUser' })
+    const copy = remapSourceMeta(meta, new Map([['blk-a', 'new-a']]), new Map([['var-1', 'v-2']]))
+    expect(copy.idents).toEqual({ 'new-a': 'fetchUser' })
     expect(copy.order).toEqual({ 'new-a': 0 })
     expect(Object.keys(copy.comments).sort()).toEqual(['block:new-a', 'header', 'var:v-2'])
   })
 
-  it('keeps one binding when two ids collapse onto one', () => {
+  it('keeps one ident when two ids collapse onto one', () => {
     const meta = parsed(validMeta())
-    const merged = remapCodeMeta(
+    const merged = remapSourceMeta(
       meta,
       new Map([
         ['blk-a', 'same'],
@@ -154,8 +156,8 @@ describe('pruneCodeMeta and remapCodeMeta', () => {
       ]),
       new Map()
     )
-    expect(merged.bindings).toEqual({ same: 'fetchUser' })
-    expect(parseCodeMeta(merged).diagnostics).toBeUndefined()
+    expect(merged.idents).toEqual({ same: 'fetchUser' })
+    expect(parseSourceMeta(merged).diagnostics).toBeUndefined()
   })
 })
 
@@ -163,7 +165,8 @@ const idArb = fc.stringMatching(/^[a-z0-9:%-]{1,8}$/)
 const identifierArb = fc
   .stringMatching(/^[a-z][A-Za-z0-9]{0,6}$/)
   .filter(
-    (s) => parseCodeMeta({ v: 1, bindings: { x: s }, order: {}, comments: {} }).meta !== undefined
+    (s) =>
+      parseSourceMeta({ version: 1, idents: { x: s }, order: {}, comments: {} }).meta !== undefined
   )
 const commentArb: fc.Arbitrary<CodeComment> = fc.record({
   text: fc.string(),
@@ -188,7 +191,7 @@ function anchorArb(blockIds: string[], variableIds: string[]): fc.Arbitrary<Anch
 }
 
 const metaArb: fc.Arbitrary<{
-  meta: WorkflowCodeMetaV1
+  meta: WorkflowSourceMetaV1
   blockIds: string[]
   variableIds: string[]
 }> = fc
@@ -199,7 +202,7 @@ const metaArb: fc.Arbitrary<{
   .chain(({ blockIds, variableIds }) =>
     fc
       .record({
-        bindings: fc.uniqueArray(identifierArb, {
+        idents: fc.uniqueArray(identifierArb, {
           minLength: blockIds.length,
           maxLength: blockIds.length,
         }),
@@ -212,10 +215,10 @@ const metaArb: fc.Arbitrary<{
           { maxLength: 6 }
         ),
       })
-      .map(({ bindings, order, comments }) => {
-        const meta: WorkflowCodeMetaV1 = {
-          v: 1,
-          bindings: Object.fromEntries(blockIds.map((id, i) => [id, bindings[i] ?? 'b'])),
+      .map(({ idents, order, comments }) => {
+        const meta: WorkflowSourceMetaV1 = {
+          version: 1,
+          idents: Object.fromEntries(blockIds.map((id, i) => [id, idents[i] ?? 'b'])),
           order: Object.fromEntries(blockIds.map((id, i) => [id, order[i] ?? 0])),
           comments: {},
         }
@@ -228,8 +231,8 @@ const metaArb: fc.Arbitrary<{
  * The block ids `meta` mentions. Variable ids are a separate namespace (`var:` anchors), so a
  * variable that shares a removed block's id is not a mention of that block.
  */
-function mentionedBlockIds(meta: WorkflowCodeMetaV1): Set<string> {
-  const ids = new Set([...Object.keys(meta.bindings), ...Object.keys(meta.order)])
+function mentionedBlockIds(meta: WorkflowSourceMetaV1): Set<string> {
+  const ids = new Set([...Object.keys(meta.idents), ...Object.keys(meta.order)])
   for (const key of Object.keys(meta.comments)) {
     const anchor = decodeAnchor(key as AnchorKey)
     if (anchor && 'block' in anchor) ids.add(anchor.block)
@@ -237,11 +240,11 @@ function mentionedBlockIds(meta: WorkflowCodeMetaV1): Set<string> {
   return ids
 }
 
-describe('code_meta properties', () => {
+describe('source meta properties', () => {
   it('every generated value parses back to itself', () => {
     fc.assert(
       fc.property(metaArb, ({ meta }) => {
-        expect(codeMetaEquals(parsed(JSON.stringify(meta)), meta)).toBe(true)
+        expect(sourceMetaEquals(parsed(JSON.stringify(meta)), meta)).toBe(true)
       })
     )
   })
@@ -251,14 +254,14 @@ describe('code_meta properties', () => {
       fc.property(metaArb, ({ meta, blockIds, variableIds }) => {
         const forward = new Map(blockIds.map((id, i) => [id, `copy-${i}`]))
         const vars = new Map(variableIds.map((id, i) => [id, `copyvar-${i}`]))
-        const copy = remapCodeMeta(meta, forward, vars)
-        expect(parseCodeMeta(copy).diagnostics).toBeUndefined()
-        const back = remapCodeMeta(
+        const copy = remapSourceMeta(meta, forward, vars)
+        expect(parseSourceMeta(copy).diagnostics).toBeUndefined()
+        const back = remapSourceMeta(
           copy,
           new Map([...forward].map(([a, b]) => [b, a])),
           new Map([...vars].map(([a, b]) => [b, a]))
         )
-        expect(codeMetaEquals(back, meta)).toBe(true)
+        expect(sourceMetaEquals(back, meta)).toBe(true)
       })
     )
   })
@@ -267,11 +270,11 @@ describe('code_meta properties', () => {
     fc.assert(
       fc.property(metaArb, fc.integer({ min: 0, max: 5 }), ({ meta, blockIds }, drop) => {
         const removed = blockIds[drop % blockIds.length]
-        const pruned = pruneCodeMeta(meta, { blocks: (id) => id !== removed })
+        const pruned = pruneSourceMeta(meta, { blocks: (id) => id !== removed })
         expect(mentionedBlockIds(pruned).has(removed)).toBe(false)
-        expect(codeMetaEquals(pruneCodeMeta(meta, { blocks: () => true }), meta)).toBe(true)
+        expect(sourceMetaEquals(pruneSourceMeta(meta, { blocks: () => true }), meta)).toBe(true)
         for (const id of blockIds) {
-          if (id !== removed) expect(pruned.bindings[id]).toBe(meta.bindings[id])
+          if (id !== removed) expect(pruned.idents[id]).toBe(meta.idents[id])
         }
         for (const key of Object.keys(meta.comments) as AnchorKey[]) {
           if (decodeAnchor(key)?.kind === 'var') {

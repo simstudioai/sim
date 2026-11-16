@@ -38,7 +38,7 @@ interface DiagnosticFields {
   /** Set by the apply path once identity is resolved (s4 `SourceDiagnostic.blockId`). */
   blockId?: string
   param?: SubBlockId
-  /** RFC 6901 JSON Pointer into a non-source input, such as the lock (`/blocks/agent/binding`). */
+  /** RFC 6901 JSON Pointer into a non-source input, such as the lock (`/blocks/agent/ident`). */
   path?: string
 }
 

@@ -1,5 +1,5 @@
 /**
- * `workflow.code_meta`: the server-side half of the lock (build-spec decision 6). It keeps the
+ * `workflow_source_meta`: the server-side half of the lock (build-spec decision 6). It keeps the
  * facts a source file carries that the stored graph does not (each block's `const` identifier,
  * its declaration order, and comments) so they survive edits made only on the canvas and prints
  * that have no repo lock.
@@ -11,13 +11,13 @@
  * Branch keys are not stored here: they persist on the condition/router rows themselves as the
  * optional row `key` (s1 D2b), which canonicalize already reads.
  *
- * Version policy matches the lock's: adding an optional field does not bump `v`; until every
+ * Version policy matches the lock's: adding an optional field does not bump `version`; until every
  * reader knows a field, data goes under an `x-` key, which the validator tolerates and preserves.
  */
 
 import { isRecordLike } from '@sim/utils/object'
 import { decodeAnchor, encodeAnchor } from './anchors'
-import type { CodeMetaDiagnosticCode } from './diagnostics/codes'
+import type { SourceMetaDiagnosticCode } from './diagnostics/codes'
 import type { Diagnostic } from './diagnostics/frame'
 import { stableStringify } from './hash'
 import {
@@ -27,79 +27,83 @@ import {
   jsonInput,
   type LockExtensionKey,
   pointer,
-  readBinding,
   readExtensions,
+  readIdent,
 } from './lock'
 import type { Anchor, AnchorKey, CodeComment, Json } from './model'
 
-export interface WorkflowCodeMetaV1 {
+export interface WorkflowSourceMetaV1 {
   [extension: LockExtensionKey]: Json
-  v: 1
+  version: 1
   /** Block id → the TS `const` identifier it prints as. Never in `SDK_RESERVED_IDENTIFIERS`. */
-  bindings: Record<string, string>
+  idents: Record<string, string>
   /** Block id → print-order tie-break (a non-negative integer; not unique, like the lock's). */
   order: Record<string, number>
   /** Comments by id-anchored `AnchorKey`, in source order. */
   comments: Partial<Record<AnchorKey, CodeComment[]>>
 }
 
-export type CodeMetaDiagnostic = Diagnostic<CodeMetaDiagnosticCode>
+export type SourceMetaDiagnostic = Diagnostic<SourceMetaDiagnosticCode>
 
-export type ParseCodeMetaResult =
-  | { meta: WorkflowCodeMetaV1; diagnostics?: undefined }
-  | { meta?: undefined; diagnostics: CodeMetaDiagnostic[] }
+export type ParseSourceMetaResult =
+  | { meta: WorkflowSourceMetaV1; diagnostics?: undefined }
+  | { meta?: undefined; diagnostics: SourceMetaDiagnostic[] }
 
-const META_FIELDS = ['v', 'bindings', 'order', 'comments']
+const META_FIELDS = ['version', 'idents', 'order', 'comments']
 const COMMENT_FIELDS = ['text', 'kind', 'placement']
 
-class CodeMetaReader {
-  readonly diagnostics: CodeMetaDiagnostic[] = []
+class SourceMetaReader {
+  readonly diagnostics: SourceMetaDiagnostic[] = []
 
-  report(code: CodeMetaDiagnosticCode, segments: readonly string[], message: string): void {
+  report(code: SourceMetaDiagnosticCode, segments: readonly string[], message: string): void {
     this.diagnostics.push({ code, severity: 'error', message, path: pointer(segments) })
   }
 
   extensions(value: Record<string, unknown>): Record<LockExtensionKey, Json> {
     return readExtensions(value, META_FIELDS, (field, problem) =>
       problem === 'unknown'
-        ? this.report('E_CODE_META_UNKNOWN_FIELD', [field], `Unknown code_meta field "${field}".`)
-        : this.report('E_CODE_META_SHAPE', [field], 'An extension field must hold JSON.')
+        ? this.report(
+            'E_SOURCE_META_UNKNOWN_FIELD',
+            [field],
+            `Unknown source meta field "${field}".`
+          )
+        : this.report('E_SOURCE_META_SHAPE', [field], 'An extension field must hold JSON.')
     )
   }
 
-  bindings(raw: unknown): Record<string, string> {
+  idents(raw: unknown): Record<string, string> {
     if (!isRecordLike(raw)) {
-      this.report('E_CODE_META_SHAPE', ['bindings'], '"bindings" must be an object.')
+      this.report('E_SOURCE_META_SHAPE', ['idents'], '"idents" must be an object.')
       return {}
     }
     const holders = new Map<string, string>()
     const entries: Array<[string, string]> = []
     for (const [blockId, value] of Object.entries(raw)) {
-      const at = ['bindings', blockId]
-      const read = readBinding(value)
+      const at = ['idents', blockId]
+      const read = readIdent(value)
       if ('problem' in read) {
-        this.report('E_CODE_META_BINDING', at, read.problem)
+        this.report('E_SOURCE_META_IDENT', at, read.problem)
         continue
       }
-      const { binding } = read
-      const holder = holders.get(binding)
+      const { ident } = read
+      const holder = holders.get(ident)
       if (holder !== undefined) {
         this.report(
-          'E_CODE_META_DUPLICATE_BINDING',
+          'E_SOURCE_META_DUPLICATE_IDENT',
           at,
-          `Binding "${binding}" is already used by block "${holder}".`
+          `Ident "${ident}" is already used by block "${holder}".`
         )
         continue
       }
-      holders.set(binding, blockId)
-      entries.push([blockId, binding])
+      holders.set(ident, blockId)
+      entries.push([blockId, ident])
     }
     return Object.fromEntries(entries)
   }
 
   order(raw: unknown): Record<string, number> {
     if (!isRecordLike(raw)) {
-      this.report('E_CODE_META_SHAPE', ['order'], '"order" must be an object.')
+      this.report('E_SOURCE_META_SHAPE', ['order'], '"order" must be an object.')
       return {}
     }
     const entries: Array<[string, number]> = []
@@ -107,7 +111,11 @@ class CodeMetaReader {
       if (isPrintOrder(order)) {
         entries.push([blockId, order])
       } else {
-        this.report('E_CODE_META_SHAPE', ['order', blockId], 'An order is a non-negative integer.')
+        this.report(
+          'E_SOURCE_META_SHAPE',
+          ['order', blockId],
+          'An order is a non-negative integer.'
+        )
       }
     }
     return Object.fromEntries(entries)
@@ -115,13 +123,13 @@ class CodeMetaReader {
 
   comment(raw: unknown, at: readonly string[]): CodeComment | null {
     if (!isRecordLike(raw)) {
-      this.report('E_CODE_META_SHAPE', at, 'A comment must be an object.')
+      this.report('E_SOURCE_META_SHAPE', at, 'A comment must be an object.')
       return null
     }
     for (const field of Object.keys(raw)) {
       if (!COMMENT_FIELDS.includes(field)) {
         this.report(
-          'E_CODE_META_UNKNOWN_FIELD',
+          'E_SOURCE_META_UNKNOWN_FIELD',
           [...at, field],
           `Unknown comment field "${field}".`
         )
@@ -129,16 +137,16 @@ class CodeMetaReader {
     }
     const { text, kind, placement } = raw
     if (typeof text !== 'string') {
-      this.report('E_CODE_META_SHAPE', [...at, 'text'], '"text" must be a string.')
+      this.report('E_SOURCE_META_SHAPE', [...at, 'text'], '"text" must be a string.')
       return null
     }
     if (kind !== 'line' && kind !== 'block') {
-      this.report('E_CODE_META_SHAPE', [...at, 'kind'], '"kind" is "line" or "block".')
+      this.report('E_SOURCE_META_SHAPE', [...at, 'kind'], '"kind" is "line" or "block".')
       return null
     }
     if (placement !== 'leading' && placement !== 'trailing') {
       this.report(
-        'E_CODE_META_SHAPE',
+        'E_SOURCE_META_SHAPE',
         [...at, 'placement'],
         '"placement" is "leading" or "trailing".'
       )
@@ -149,7 +157,7 @@ class CodeMetaReader {
 
   comments(raw: unknown): Partial<Record<AnchorKey, CodeComment[]>> {
     if (!isRecordLike(raw)) {
-      this.report('E_CODE_META_SHAPE', ['comments'], '"comments" must be an object.')
+      this.report('E_SOURCE_META_SHAPE', ['comments'], '"comments" must be an object.')
       return {}
     }
     const result: Partial<Record<AnchorKey, CodeComment[]>> = {}
@@ -157,11 +165,11 @@ class CodeMetaReader {
       const at = ['comments', key]
       const anchor = decodeAnchor(key)
       if (!anchor || encodeAnchor(anchor) !== key) {
-        this.report('E_CODE_META_ANCHOR', at, `"${key}" is not a comment anchor.`)
+        this.report('E_SOURCE_META_ANCHOR', at, `"${key}" is not a comment anchor.`)
         continue
       }
       if (!Array.isArray(list)) {
-        this.report('E_CODE_META_SHAPE', at, 'Comments must be an array.')
+        this.report('E_SOURCE_META_SHAPE', at, 'Comments must be an array.')
         continue
       }
       const comments: CodeComment[] = []
@@ -176,38 +184,42 @@ class CodeMetaReader {
 }
 
 /**
- * Validates a stored `code_meta` value, given as parsed JSON or as JSON text. Mirrors
+ * Validates a stored source meta value, given as parsed JSON or as JSON text. Mirrors
  * `parseWorkflowLock`: every problem is reported at once with an RFC 6901 `path`, any problem
  * rejects the whole value, unknown fields are errors except `x-` extensions (preserved), and a
  * version other than 1 stops validation there.
  */
-export function parseCodeMeta(input: unknown): ParseCodeMetaResult {
-  const reader = new CodeMetaReader()
+export function parseSourceMeta(input: unknown): ParseSourceMetaResult {
+  const reader = new SourceMetaReader()
   const parsed = jsonInput(input)
   if (!parsed) {
-    reader.report('E_CODE_META_JSON', [], 'code_meta is not valid JSON.')
+    reader.report('E_SOURCE_META_JSON', [], 'source meta is not valid JSON.')
     return { diagnostics: reader.diagnostics }
   }
   const { json } = parsed
   if (!isRecordLike(json)) {
-    reader.report('E_CODE_META_SHAPE', [], 'code_meta must be a JSON object.')
+    reader.report('E_SOURCE_META_SHAPE', [], 'source meta must be a JSON object.')
     return { diagnostics: reader.diagnostics }
   }
-  if (json.v !== 1) {
-    reader.report('E_CODE_META_VERSION', ['v'], 'Unsupported code_meta version; expected 1.')
+  if (json.version !== 1) {
+    reader.report(
+      'E_SOURCE_META_VERSION',
+      ['version'],
+      'Unsupported source meta version; expected 1.'
+    )
     return { diagnostics: reader.diagnostics }
   }
   const extensions = reader.extensions(json)
-  const bindings = reader.bindings(json.bindings)
+  const idents = reader.idents(json.idents)
   const order = reader.order(json.order)
   const comments = reader.comments(json.comments)
   if (reader.diagnostics.length > 0) return { diagnostics: reader.diagnostics }
-  return { meta: { ...extensions, v: 1, bindings, order, comments } }
+  return { meta: { ...extensions, version: 1, idents, order, comments } }
 }
 
-/** An empty `code_meta`. */
-export function emptyCodeMeta(): WorkflowCodeMetaV1 {
-  return { v: 1, bindings: {}, order: {}, comments: {} }
+/** An empty source meta. */
+export function emptySourceMeta(): WorkflowSourceMetaV1 {
+  return { version: 1, idents: {}, order: {}, comments: {} }
 }
 
 /**
@@ -236,8 +248,8 @@ export function mapAnchorIds(
   }
 }
 
-/** The `x-` extension fields of a `code_meta`, which every rewrite preserves. */
-export function codeMetaExtensions(meta: WorkflowCodeMetaV1): Record<LockExtensionKey, Json> {
+/** The `x-` extension fields of a source meta, which every rewrite preserves. */
+export function sourceMetaExtensions(meta: WorkflowSourceMetaV1): Record<LockExtensionKey, Json> {
   const extensions: Record<LockExtensionKey, Json> = {}
   for (const [field, value] of Object.entries(meta)) {
     if (isExtensionKey(field) && isJson(value)) extensions[field] = value
@@ -247,21 +259,21 @@ export function codeMetaExtensions(meta: WorkflowCodeMetaV1): Record<LockExtensi
 
 /**
  * Maps every block id and variable id in `meta` through the callbacks; an entry whose callback
- * returns `null` is dropped. When two ids map onto one, the first entry wins, and a binding
- * already claimed is dropped, so the result always passes {@link parseCodeMeta}.
+ * returns `null` is dropped. When two ids map onto one, the first entry wins, and an ident
+ * already claimed is dropped, so the result always passes {@link parseSourceMeta}.
  */
-function mapCodeMetaIds(
-  meta: WorkflowCodeMetaV1,
+function mapSourceMetaIds(
+  meta: WorkflowSourceMetaV1,
   block: (id: string) => string | null,
   variable: (id: string) => string | null
-): WorkflowCodeMetaV1 {
-  const bindings: Record<string, string> = {}
+): WorkflowSourceMetaV1 {
+  const idents: Record<string, string> = {}
   const taken = new Set<string>()
-  for (const [id, binding] of Object.entries(meta.bindings)) {
+  for (const [id, ident] of Object.entries(meta.idents)) {
     const next = block(id)
-    if (next === null || Object.hasOwn(bindings, next) || taken.has(binding)) continue
-    bindings[next] = binding
-    taken.add(binding)
+    if (next === null || Object.hasOwn(idents, next) || taken.has(ident)) continue
+    idents[next] = ident
+    taken.add(ident)
   }
   const order: Record<string, number> = {}
   for (const [id, value] of Object.entries(meta.order)) {
@@ -276,7 +288,7 @@ function mapCodeMetaIds(
     const mappedKey = encodeAnchor(mapped)
     comments[mappedKey] = [...(comments[mappedKey] ?? []), ...list]
   }
-  return { ...codeMetaExtensions(meta), v: 1, bindings, order, comments }
+  return { ...sourceMetaExtensions(meta), version: 1, idents, order, comments }
 }
 
 /**
@@ -284,12 +296,12 @@ function mapCodeMetaIds(
  * answer whether an id is still stored; an omitted predicate keeps every id of that kind.
  * Readers still tolerate stale ids: pruning is hygiene, not the correctness gate.
  */
-export function pruneCodeMeta(
-  meta: WorkflowCodeMetaV1,
+export function pruneSourceMeta(
+  meta: WorkflowSourceMetaV1,
   live: { blocks?: (id: string) => boolean; variables?: (id: string) => boolean }
-): WorkflowCodeMetaV1 {
+): WorkflowSourceMetaV1 {
   const { blocks, variables } = live
-  return mapCodeMetaIds(
+  return mapSourceMetaIds(
     meta,
     (id) => (!blocks || blocks(id) ? id : null),
     (id) => (!variables || variables(id) ? id : null)
@@ -301,12 +313,12 @@ export function pruneCodeMeta(
  * `blockIds` and each variable id through `variableIds`. Ids absent from a map are dropped, so a
  * copy never carries entries for blocks it did not copy.
  */
-export function remapCodeMeta(
-  meta: WorkflowCodeMetaV1,
+export function remapSourceMeta(
+  meta: WorkflowSourceMetaV1,
   blockIds: ReadonlyMap<string, string>,
   variableIds: ReadonlyMap<string, string>
-): WorkflowCodeMetaV1 {
-  return mapCodeMetaIds(
+): WorkflowSourceMetaV1 {
+  return mapSourceMetaIds(
     meta,
     (id) => blockIds.get(id) ?? null,
     (id) => variableIds.get(id) ?? null
@@ -314,16 +326,16 @@ export function remapCodeMeta(
 }
 
 /** Whether two values hold the same entries, extensions included, in any key order. */
-export function codeMetaEquals(a: WorkflowCodeMetaV1, b: WorkflowCodeMetaV1): boolean {
+export function sourceMetaEquals(a: WorkflowSourceMetaV1, b: WorkflowSourceMetaV1): boolean {
   return stableStringify(a) === stableStringify(b)
 }
 
 /** Whether `meta` holds nothing worth storing (no entries and no extensions). */
-export function isEmptyCodeMeta(meta: WorkflowCodeMetaV1): boolean {
+export function isEmptySourceMeta(meta: WorkflowSourceMetaV1): boolean {
   return (
-    Object.keys(meta.bindings).length === 0 &&
+    Object.keys(meta.idents).length === 0 &&
     Object.keys(meta.order).length === 0 &&
     Object.keys(meta.comments).length === 0 &&
-    Object.keys(codeMetaExtensions(meta)).length === 0
+    Object.keys(sourceMetaExtensions(meta)).length === 0
   )
 }

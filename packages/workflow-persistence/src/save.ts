@@ -9,7 +9,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import type { InferInsertModel } from 'drizzle-orm'
 import { eq } from 'drizzle-orm'
-import { pruneWorkflowCodeMeta } from './code-meta'
+import { pruneWorkflowSourceMeta } from './source-meta'
 import { generateLoopBlocks, generateParallelBlocks } from './subflow-helpers'
 import type { DbOrTx } from './types'
 
@@ -102,7 +102,7 @@ export async function saveWorkflowToNormalizedTables(
     }
 
     const savedBlockIds = new Set(Object.keys(state.blocks))
-    await pruneWorkflowCodeMeta(tx, workflowId, { blocks: (id) => savedBlockIds.has(id) })
+    await pruneWorkflowSourceMeta(tx, workflowId, { blocks: (id) => savedBlockIds.has(id) })
   }
 
   if (externalTx) {

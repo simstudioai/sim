@@ -58,21 +58,21 @@ instead of failing at run time.
 
 8. **The lock has two halves.** The first, `LockIdentity`, holds ids, type, name, parent, branches
    and items. Canonicalize derives it and materialize returns it, and the fingerprint hashes it.
-   The second, `WorkflowLockBlock`, adds `binding`, `order`, `contentHash`, `layout` and
+   The second, `WorkflowLockBlock`, adds `ident`, `order`, `contentHash`, `layout` and
    `codeFile`. The source use case assembles the full `WorkflowLockV1` from identity plus
-   print/compile `LockHints` plus `workflowId`/`catalogHash`/fingerprint. Canonicalize does not
+   print/compile `SourceHints` plus `workflowId`/`catalogHash`/fingerprint. Canonicalize does not
    return a full lock: it cannot know the fingerprint, which hashes its own output.
 9. **`codeFile` is per block**, not a top-level `codeFiles` map keyed by id (s3).
-10. **`LockHints` are keyed by block key** (s3 keyed them by id): neither print nor compile sees
-    ids. They hold the same fields `workflow.code_meta` will store (decision 6).
+10. **`SourceHints` are keyed by block key** (s3 keyed them by id): neither print nor compile sees
+    ids. They hold the same fields `workflow_source_meta` will store (decision 6).
 11. **`order` is not unique.** Ties fall back to the key, so a lock merged from two branches
     stays valid.
 12. **The validator is strict.** It rejects any unknown field. Keys must already be in
     normalized form and must match `normalizeWorkflowBlockName(name)` or that name's `~n`
-    collision form. `binding` must be a non-reserved identifier, unique in the lock. Ids must be
+    collision form. `ident` must be a non-reserved identifier, unique in the lock. Ids must be
     unique per scope: blocks, variables, branches within a block, items within a subBlock.
     Parents must exist and must not form a cycle. `contentHash` is 64 lowercase hex characters,
-    and `baseFingerprint` is `sf1:` plus 64 lowercase hex characters. `codeFile` must be a
+    and a fingerprint is `sf1:` plus 64 lowercase hex characters. `codeFile` must be a
     normalized relative POSIX path. Every problem is reported at once, with an RFC 6901 `path`.
     A string input is parsed as JSON text.
 
@@ -93,7 +93,7 @@ instead of failing at run time.
 15. **Codes added beyond s3 §4**, because the grammar implies them:
     - syntax and limits: `E_WORKFLOW_EXPORT`, `E_LIMIT_EXCEEDED`;
     - scope: `E_UNKNOWN_VARIABLE`, `E_DUPLICATE_VARIABLE`, `E_INVALID_ENV_NAME`,
-      `E_UNKNOWN_LOOP_PROPERTY`, `W_FORWARD_REF`;
+      `E_UNKNOWN_SUBFLOW_PROPERTY`, `W_FORWARD_REF`;
     - branches: `E_UNKNOWN_BRANCH`, `E_DUPLICATE_BRANCH_KEY`, `E_BRANCH_ELSE_LAST`;
     - code files and handles: `E_CODE_FILE_MISSING`, `E_CODE_FILE_PATH`, `W_CODE_FILE_INLINED`,
       `W_RAW_HANDLE`.
@@ -116,7 +116,8 @@ instead of failing at run time.
     - `CatalogBlock.dynamicOutputs` and `singleInstance`;
     - `CatalogSubBlock.surface`, which separates the action and trigger copies of one id.
 19. **`valueKind`** is one of `string | number | boolean | array | object | json | code |
-    branches | tools | resource | picked | upload | none`. `resource`, `picked` and `upload` are
+    branches | tools | resource | picked | upload | none`. `resource`, `picked` and `upload` (a
+    workspace file, `file()`) are
     the selector kinds, so a pair member of those kinds is the basic member (build-spec
     decision 7). `resourceKind` is set iff `valueKind` is `resource`.
 20. **`options` can be opaque.** It is a static list, `{ dynamic: true }` (fetched through a
@@ -154,20 +155,20 @@ instead of failing at run time.
   no `storage`, so equality, hashes, diffs and the fingerprint never see the encoding.
   Materialize chooses it: prev's raw encoding first, then `CatalogSubBlock.storage`. `ParamStorage`
   now lives in `catalog/types.ts`.
-- **A2. Two new materialize inputs.** `MaterializeOptions.compiledBindings` feeds identity rule 2.
+- **A2. Two new materialize inputs.** `MaterializeOptions.compiledIdents` feeds identity rule 2.
   `MaterializeOptions.lockFreshness` (`fresh | stale | none`, required) gates rule 4 and the
   `W_MAT_DELETED_SINCE_PULL` handling.
 - **A3. The lock is split.** This supersedes items 8 and 12.
-  - `WorkflowLockV1` is `{ lockVersion, blocks, variables }`. Each block holds `id`, `parent`,
-    `branches?`, `items?`, `binding`, `order`, `layout?` and `codeFile?`, and every id is logical.
+  - `WorkflowLockV1` is `{ version, blocks, variables }`. Each block holds `id`, `parent`,
+    `branches?`, `items?`, `ident`, `order`, `layout?` and `codeFile?`, and every id is logical.
   - These lock fields were removed: `workflowId`, `workspaceId`, `catalogHash`,
     `baseFingerprint`, `blocks[].type`, `blocks[].name` and `blocks[].contentHash`. The
-    environment facts now live in `LockBase { workspaceId, baseFingerprint, catalogHash }`, which
-    `source get/apply` carries beside the lock and a repo stores in
-    `.sim/state/<env>/revision.json`.
+    environment facts now live in `SourceBase { workspaceId, fingerprint, catalogHash }`, which
+    `source get/apply` carries beside the lock (wire `base`, required on apply) and the CLI stores
+    in `.sim/base.json`.
   - The validator tolerates `x-` fields on the lock, on blocks and on layout, and preserves them.
     Item entries stay strict.
-  - Version policy: adding an optional field does not bump `lockVersion`. Validators ship support
+  - Version policy: adding an optional field does not bump `version`. Validators ship support
     for a field before writers emit it, and data waits under `x-` until then.
 - **A4. One resource-kind list.** `WORKFLOW_RESOURCE_KINDS`, `WorkflowResourceKind` and
   `PortableResourceKind` moved to `@sim/workflow-types/resources`. This supersedes item 6.
@@ -189,7 +190,7 @@ instead of failing at run time.
     conditions), `columns?`, `step?` and `integer?`.
 - **A6. Every stored type prints and compiles.**
   - `CatalogBlock.addable?: false` marks a type that may stay in a workflow but cannot be added.
-    Compile reports a new block of that type as `E_TYPE_NOT_ADDABLE`.
+    Compile reports a new block of that type as `E_APPLY_TYPE_NOT_ADDABLE`.
   - A type with no builder (legacy, unknown, or `custom_block_*` without a method) uses the
     generic builder `block(type, name, params, meta?)` (`GENERIC_BUILDER`).
 - **A7. `rows: null` has a source form.** It is an empty branch object: `condition('Name', {})`,
@@ -214,12 +215,12 @@ instead of failing at run time.
     `decodeAnchor`. Each segment escapes `%` and `:`.
   - For a basic/advanced pair, a `param` anchor uses the `canonicalParamId`.
   - `portKey` and `parsePortKey` are the only port string forms.
-- **A11. Bindings avoid SDK names.** `SDK_RESERVED_IDENTIFIERS` (JS reserved words plus
-  `SDK_CORE_EXPORTS`) is enforced on lock bindings.
+- **A11. Idents avoid SDK names.** `SDK_RESERVED_IDENTIFIERS` (JS reserved words plus
+  `SDK_CORE_EXPORTS`) is enforced on lock idents.
   - **Note for 2E:** `core.d.ts` must export exactly `SDK_CORE_EXPORTS`, and `BlockMeta` needs
     `advancedMode?: boolean`, because the CWM keeps that legacy flag.
 - **A12. Diagnostic changes.** `Diagnostic.related?: Array<{ span, message }>` was added, along
-  with the codes `E_APPLY_LINT` and `E_TYPE_NOT_ADDABLE`. `E_MAT_LOCK_WORKFLOW_MISMATCH` was
+  with the codes `E_APPLY_LINT` and `E_APPLY_TYPE_NOT_ADDABLE`. `E_MAT_LOCK_WORKFLOW_MISMATCH` was
   removed, because the lock no longer carries a workflow or workspace.
 - **A13. The boundary rule is tighter.** Rule 3 also bans `.constructor` reads, `import.meta`, and
   value references to `globalThis`, `window`, `self`, `global`, `Reflect` and `require`. That
@@ -249,20 +250,20 @@ instead of failing at run time.
     consumer indexes `catalog.blocks`, `catalog.triggers` or `catalog.builders` directly.
   - The hash is still SHA-256 over `stableStringify` of the core shard, so it stays the ETag and
     `lock.catalogHash`. It is deterministic: the tables fill in catalog key order.
-- **A17. `workflow.code_meta` (Wave 3E).** `WorkflowCodeMetaV1` in `src/code-meta.ts` is
-  `{ v: 1, bindings, order, comments }`, the server-side copy of what the lock's `LockHints`
+- **A17. `workflow_source_meta` (Wave 3E).** `WorkflowSourceMetaV1` in `src/source-meta.ts` is
+  `{ version: 1, idents, order, comments }`, the server-side copy of what the lock's `SourceHints`
   carry, plus comments.
   - Every entry is keyed by **block id**, never by key, so a canvas rename never orphans one.
     Comment anchors are `encodeAnchor` keys whose block segment is the block id and whose `var`
     segment is the variable id.
   - There is no `branchKeys` map: branch keys persist on the rows as the optional row `key`
     (s1 D2b), so there is one source of truth for them.
-  - `parseCodeMeta` mirrors `parseWorkflowLock`: strict, every problem at once, `x-` fields
-    preserved. Its codes are `E_CODE_META_*`.
+  - `parseSourceMeta` mirrors `parseWorkflowLock`: strict, every problem at once, `x-` fields
+    preserved. Its codes are `E_SOURCE_META_*`.
   - `CompileInput.knownKeys` (the lock's block keys) gates the new `meta.key` override, which is
     how source carries a legacy `name~n` collision key or a reserved name (`Loop`, `Parallel`)
     without being able to introduce one. A violation is `E_KEY_OVERRIDE`.
-  - Wave 4D: it is stored in the `workflow_code_meta(workflow_id pk → workflow on delete
+  - Wave 4D: it is stored in the `workflow_source_meta(workflow_id pk → workflow on delete
     cascade, meta jsonb, updated_at)` side table, not on the `workflow` row, so no `select()` of
     the hot row loads it. Only source get/apply, duplicate, fork/promote copy and the prune on
     block or variable delete read it. An empty value deletes the row.
@@ -295,7 +296,7 @@ instead of failing at run time.
     `meta.extra`, the only place source takes such a field: a schema-agnostic custom block's
     input, the agent's legacy prompt fields, or a container's stored params. A container's
     subflow keys of `block.data` canonicalize could not read as config print under
-    `meta.extraData`, kept apart because canvas containers often store params under the same
+    `meta.subflowData`, kept apart because canvas containers often store params under the same
     names. The CWM keeps unknown `block.data`
     under `extra` too, so `opaque` means only the catalog's "could not evaluate" marker.
   - **A pair's member follows from the value kind alone.** A selector call is basic, anything
@@ -323,7 +324,7 @@ instead of failing at run time.
     mode; when a plain id changed and prev showed the basic selector member of a `picked` pair,
     prev's member; then every param inactive under the target's values, from prev (absent
     included, so defaults compile filled into fields that never run are dropped); off-type subflow
-    fields and prev's whole config when it runs the same; unknown residue source does not
+    fields and prev's whole config when it runs the same; unknown extra data source does not
     carry. A full CWM restores onto itself unchanged, so O1 holds. Source cannot pick a pair
     member for a plain id: that is canvas state.
   - **The loop count is the one that runs.** `loopSpec` reads `block.data.count`, and an absent

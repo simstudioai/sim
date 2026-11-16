@@ -121,7 +121,7 @@ export const materialize: MaterializeFn = (input, lock, options) => {
     catalog,
     hooks,
     freshness: options.lockFreshness,
-    compiledBindings: options.compiledBindings,
+    compiledIdents: options.compiledIdents,
     inferRenames: options.inferRenames !== false,
     diagnostics,
   })

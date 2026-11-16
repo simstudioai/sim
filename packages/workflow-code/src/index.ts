@@ -16,8 +16,6 @@ export type {
   DiffCanonicalFn,
   IdentityEntry,
   IdentityMatchRule,
-  LockHintBlock,
-  LockHints,
   MaterializeFn,
   MaterializeHooks,
   MaterializeOptions,
@@ -29,6 +27,8 @@ export type {
   PrintWorkflowFn,
   ResourceKeyResolver,
   SourceFingerprintFn,
+  SourceHintBlock,
+  SourceHints,
 } from './api'
 export { canonicalize } from './canonicalize'
 export { executableInactiveParams } from './catalog/activity'
@@ -87,25 +87,11 @@ export {
   isIdentifierName,
   toCodeFile,
 } from './code-files'
-export {
-  type CodeMetaDiagnostic,
-  codeMetaEquals,
-  codeMetaExtensions,
-  emptyCodeMeta,
-  isEmptyCodeMeta,
-  mapAnchorIds,
-  type ParseCodeMetaResult,
-  parseCodeMeta,
-  pruneCodeMeta,
-  remapCodeMeta,
-  type WorkflowCodeMetaV1,
-} from './code-meta'
 export { compileWorkflow } from './compile'
 export type {
   ApplyDiagnosticCode,
   CanonicalizeDiagnosticCode,
   CodeFileCode,
-  CodeMetaDiagnosticCode,
   CompileCatalogCode,
   CompileDiagnosticCode,
   CompileEdgeCode,
@@ -118,6 +104,7 @@ export type {
   PrintDiagnosticCode,
   ReferenceCode,
   SeverityOf,
+  SourceMetaDiagnosticCode,
 } from './diagnostics/codes'
 export {
   codeFrame,
@@ -137,7 +124,6 @@ export {
 } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
 export {
-  type LockBase,
   type LockDiagnostic,
   type LockExtensionKey,
   type LockIdentity,
@@ -146,6 +132,7 @@ export {
   type LockLayout,
   type ParseWorkflowLockResult,
   parseWorkflowLock,
+  type SourceBase,
   type SourceFingerprint,
   type WorkflowLockBlock,
   type WorkflowLockV1,
@@ -188,3 +175,16 @@ export type {
 export { assignIdentifiers, printWorkflow } from './print'
 export { parseJsonContainer, setOwn } from './records'
 export { GENERIC_BUILDER, SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from './sdk'
+export {
+  emptySourceMeta,
+  isEmptySourceMeta,
+  mapAnchorIds,
+  type ParseSourceMetaResult,
+  parseSourceMeta,
+  pruneSourceMeta,
+  remapSourceMeta,
+  type SourceMetaDiagnostic,
+  sourceMetaEquals,
+  sourceMetaExtensions,
+  type WorkflowSourceMetaV1,
+} from './source-meta'

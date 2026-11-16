@@ -3,14 +3,14 @@ import { parseWorkflowLock } from './lock'
 
 function validLock(): Record<string, unknown> {
   return {
-    lockVersion: 1,
+    version: 1,
     blocks: {
-      start: { id: 'blk-start', parent: null, binding: 'start', order: 0 },
-      each: { id: 'blk-each', parent: null, binding: 'each', order: 1 },
+      start: { id: 'blk-start', parent: null, ident: 'start', order: 0 },
+      each: { id: 'blk-each', parent: null, ident: 'each', order: 1 },
       route: {
         id: 'blk-route',
         parent: 'each',
-        binding: 'route',
+        ident: 'route',
         order: 2,
         branches: { if: 'blk-route-if', else: 'blk-route-else' },
         items: {
@@ -60,37 +60,37 @@ describe('parseWorkflowLock', () => {
   })
 
   it('rejects text that is not JSON and values that are not objects', () => {
-    expect(codesFor('{"lockVersion":')).toEqual(['E_LOCK_JSON '])
+    expect(codesFor('{"version":')).toEqual(['E_LOCK_JSON '])
     expect(codesFor([])).toEqual(['E_LOCK_SHAPE '])
     expect(codesFor(null)).toEqual(['E_LOCK_SHAPE '])
   })
 
   it('rejects any lock version but 1 before reading the rest', () => {
-    expect(codesFor({ ...validLock(), lockVersion: 2, blocks: 'nope' })).toEqual([
-      'E_LOCK_VERSION /lockVersion',
+    expect(codesFor({ ...validLock(), version: 2, blocks: 'nope' })).toEqual([
+      'E_LOCK_VERSION /version',
     ])
   })
 
   it('reports every problem at once with JSON Pointer paths', () => {
-    const lock = withBlock('route', { id: '', binding: 'class', order: -1 })
+    const lock = withBlock('route', { id: '', ident: 'class', order: -1 })
     lock.variables = { retries: 7 }
     expect(codesFor(lock)).toEqual([
       'E_LOCK_SHAPE /blocks/route/id',
-      'E_LOCK_BINDING /blocks/route/binding',
+      'E_LOCK_IDENT /blocks/route/ident',
       'E_LOCK_SHAPE /blocks/route/order',
       'E_LOCK_SHAPE /variables/retries',
     ])
   })
 
   it('rejects fields the schema does not define, at every level', () => {
-    const lock = withBlock('start', { ident: 'start' })
+    const lock = withBlock('start', { alias: 'start' })
     lock.workflowId = 'wf-1'
     const route = (lock.blocks as Record<string, Record<string, unknown>>).route
     route.layout = { x: 1, y: 2, z: 3 }
     route.items = { inputFormat: [{ name: 'a', id: 'f', type: 'string' }] }
     expect(codesFor(lock)).toEqual([
       'E_LOCK_UNKNOWN_FIELD /workflowId',
-      'E_LOCK_UNKNOWN_FIELD /blocks/start/ident',
+      'E_LOCK_UNKNOWN_FIELD /blocks/start/alias',
       'E_LOCK_UNKNOWN_FIELD /blocks/route/items/inputFormat/0/type',
       'E_LOCK_UNKNOWN_FIELD /blocks/route/layout/z',
     ])
@@ -114,8 +114,8 @@ describe('parseWorkflowLock', () => {
   it('requires block and variable keys in normalized form, including ~n collision keys', () => {
     const lock = validLock()
     const blocks = lock.blocks as Record<string, Record<string, unknown>>
-    blocks['My Block'] = { id: 'blk-x', parent: null, binding: 'myBlock', order: 3 }
-    blocks['start~2'] = { id: 'blk-start-2', parent: null, binding: 'start2', order: 4 }
+    blocks['My Block'] = { id: 'blk-x', parent: null, ident: 'myBlock', order: 3 }
+    blocks['start~2'] = { id: 'blk-start-2', parent: null, ident: 'start2', order: 4 }
     lock.variables = { 'Retry Count': 'var-2' }
     expect(codesFor(lock)).toEqual([
       'E_LOCK_KEY /blocks/My Block',
@@ -123,14 +123,14 @@ describe('parseWorkflowLock', () => {
     ])
   })
 
-  it('rejects bindings that are not identifiers, are reserved, shadow the SDK, or repeat', () => {
-    for (const binding of ['2fast', 'await', 'env', 'block', 't']) {
-      expect(codesFor(withBlock('route', { binding })), binding).toEqual([
-        'E_LOCK_BINDING /blocks/route/binding',
+  it('rejects idents that are not identifiers, are reserved, shadow the SDK, or repeat', () => {
+    for (const ident of ['2fast', 'await', 'env', 'block', 't']) {
+      expect(codesFor(withBlock('route', { ident })), ident).toEqual([
+        'E_LOCK_IDENT /blocks/route/ident',
       ])
     }
-    expect(codesFor(withBlock('route', { binding: 'start' }))).toEqual([
-      'E_LOCK_DUPLICATE_BINDING /blocks/route/binding',
+    expect(codesFor(withBlock('route', { ident: 'start' }))).toEqual([
+      'E_LOCK_DUPLICATE_IDENT /blocks/route/ident',
     ])
   })
 
@@ -207,7 +207,7 @@ describe('parseWorkflowLock', () => {
   it('escapes ~ and / in pointer segments', () => {
     const lock = validLock()
     const blocks = lock.blocks as Record<string, Record<string, unknown>>
-    blocks['a/b~2'] = { id: 'blk-ab', parent: null, binding: 'ab', order: 'x' }
+    blocks['a/b~2'] = { id: 'blk-ab', parent: null, ident: 'ab', order: 'x' }
     expect(codesFor(lock)).toEqual(['E_LOCK_SHAPE /blocks/a~1b~02/order'])
   })
 })

@@ -10,9 +10,9 @@
     "node": ">=20.0.0"
   },
   "exports": {
-    "./code-meta": {
-      "types": "./src/code-meta.ts",
-      "default": "./src/code-meta.ts"
+    "./source-meta": {
+      "types": "./src/source-meta.ts",
+      "default": "./src/source-meta.ts"
     },
     "./load": {
       "types": "./src/load.ts",

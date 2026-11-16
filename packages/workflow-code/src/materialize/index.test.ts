@@ -415,19 +415,19 @@ describe('materialize: identity (s1 §4)', () => {
     })
   }
 
-  it('keeps the id across a rename matched by lock binding and rewrites <oldkey. references', () => {
+  it('keeps the id across a rename matched by lock ident and rewrites <oldkey. references', () => {
     const prev = base()
     const lock = lockFor(prev)
     const target = renameFetch(canonical(prev, lock).workflow)
     const result = run(target, lock, {
       prev,
-      compiledBindings: { load: lock.blocks.fetch.binding },
+      compiledIdents: { load: lock.blocks.fetch.ident },
     })
     expect(result.entries).toContainEqual({
       status: 'matched',
       key: 'load',
       id: 'a1',
-      via: 'lock-binding',
+      via: 'lock-ident',
       renamedFrom: 'Fetch',
     })
     expect(result.state.blocks.a1.name).toBe('Load')
@@ -669,7 +669,7 @@ describe('materialize: identity (s1 §4)', () => {
     const result = run(target, lockFor(prev), {
       prev,
       lockFreshness: 'fresh',
-      compiledBindings: { reply: 'b_answer' },
+      compiledIdents: { reply: 'b_answer' },
     })
     expect(Object.keys(result.state.blocks).sort()).toEqual(['gate', 'out', 'sched', 'trig'])
     expect(result.state.blocks.trig).toBe(prev.blocks.trig)
@@ -694,14 +694,14 @@ describe('materialize: positions and server-owned fields', () => {
       draft.blocks.three = { ...draft.blocks.one, key: 'three', name: 'Three' }
     })
     const lock: WorkflowLockV1 = {
-      lockVersion: 1,
+      version: 1,
       variables: {},
       blocks: {
-        one: { id: 'f1', parent: null, binding: 'one', order: 0, layout: { x: 99, y: 99 } },
+        one: { id: 'f1', parent: null, ident: 'one', order: 0, layout: { x: 99, y: 99 } },
         two: {
           id: 'f2',
           parent: null,
-          binding: 'two',
+          ident: 'two',
           order: 1,
           layout: { x: 1, y: 2, w: 300, height: 80 },
         },

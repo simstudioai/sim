@@ -35,7 +35,7 @@ import type {
 
 /**
  * Maps workspace resources between internal ids and stable keys. Implemented server-side over the
- * workspace's tables, knowledge bases, credentials (bindings) and so on; `null` when there is no
+ * workspace's tables, knowledge bases, credentials (idents) and so on; `null` when there is no
  * mapping.
  */
 export interface ResourceKeyResolver {
@@ -81,7 +81,7 @@ export interface MaterializeHooks {
 }
 
 /** How identity rule matched a compiled block to a stored one (s1 §4, rules 1–4). */
-export type IdentityMatchRule = 'lock-key' | 'lock-binding' | 'db-name' | 'inferred'
+export type IdentityMatchRule = 'lock-key' | 'lock-ident' | 'db-name' | 'inferred'
 
 /** One block's identity outcome, for plan output and audit. */
 export type IdentityEntry =
@@ -115,11 +115,11 @@ export interface MaterializeOptions {
   /** Disables identity rule 4 (`--no-infer-renames`). */
   inferRenames?: boolean
   /**
-   * Bindings as written in the compiled file (`CompileResult.hints`), by block key. Identity
-   * rule 2 matches a lock entry whose key is gone by its binding, so a human who edits only the
+   * Idents as written in the compiled file (`CompileResult.hints`), by block key. Identity
+   * rule 2 matches a lock entry whose key is gone by its ident, so a human who edits only the
    * display string keeps the block's id (s1 §4).
    */
-  compiledBindings?: Record<BlockKey, string>
+  compiledIdents?: Record<BlockKey, string>
   /**
    * How the lock relates to `prev`: `fresh` when its base fingerprint matches the stored graph,
    * `stale` when it does not, `none` when there is no lock. Rule 4 (inferred renames) runs only
@@ -215,14 +215,14 @@ export type DiffCanonicalFn = (
 ) => CanonicalDiff
 
 /**
- * Per-block print hints: the parts of the lock (or of `workflow.code_meta`, build-spec
+ * Per-block print hints: the parts of the lock (or of `workflow_source_meta`, build-spec
  * decision 6) the printer reads and the compiler reports. Keyed by block key, since neither stage
  * sees ids.
  */
-export type LockHintBlock = Partial<Pick<WorkflowLockBlock, 'binding' | 'order' | 'codeFile'>>
+export type SourceHintBlock = Partial<Pick<WorkflowLockBlock, 'ident' | 'order' | 'codeFile'>>
 
-export interface LockHints {
-  blocks: Record<BlockKey, LockHintBlock>
+export interface SourceHints {
+  blocks: Record<BlockKey, SourceHintBlock>
 }
 
 /** Caps on hostile input (s4 D7). Defaults are the compile module's. */
@@ -232,9 +232,9 @@ export interface CompileLimits {
   maxNodes?: number
   /** Nesting depth of the entry file, and bracket depth of each JavaScript code file. */
   maxDepth?: number
-  /** Bytes summed over the distinct code files `file()` references. */
+  /** Bytes summed over the distinct code files `codeFile()` references. */
   maxCodeFileBytesTotal?: number
-  /** `file()` references across the workflow, distinct or not. */
+  /** `codeFile()` references across the workflow, distinct or not. */
   maxCodeFileRefs?: number
 }
 
@@ -248,7 +248,7 @@ export interface CompileInput {
   limits?: CompileLimits
   /**
    * Block keys already bound to stored ids: the keys of the lock, or of the lock assembled from
-   * `workflow.code_meta`. A `meta.key` override (a legacy `name~n` collision key or a reserved
+   * `workflow_source_meta`. A `meta.key` override (a legacy `name~n` collision key or a reserved
    * name) compiles only for one of these, so source can carry a legacy key losslessly but never
    * introduce one. Absent means no override is accepted.
    */
@@ -261,8 +261,8 @@ export interface CompileResult {
   diagnostics: LocatedDiagnostic<CompileDiagnosticCode>[]
   /** Where each anchor sits, to map later server findings back to lines. */
   spans: Partial<Record<AnchorKey, SourceSpan>>
-  /** Bindings as written, `order` as declaration index, and code files, for the lock. */
-  hints: LockHints
+  /** Idents as written, `order` as declaration index, and code files, for the lock. */
+  hints: SourceHints
   /** The header's major, or `null` when the header is missing. */
   sdkMajor: number | null
 }
@@ -282,7 +282,7 @@ export interface PrintOptions {
 export interface PrintInput {
   workflow: CanonicalWorkflow
   catalog: BlockCatalog
-  hints?: LockHints
+  hints?: SourceHints
   options: PrintOptions
 }
 
@@ -294,8 +294,8 @@ export interface PrintedFile {
 export interface PrintResult {
   /** The workflow file first, then code files. */
   files: [PrintedFile, ...PrintedFile[]]
-  /** Input hints plus a binding, order and code file for every block. */
-  hints: LockHints
+  /** Input hints plus an ident, order and code file for every block. */
+  hints: SourceHints
   diagnostics: Diagnostic<PrintDiagnosticCode>[]
 }
 

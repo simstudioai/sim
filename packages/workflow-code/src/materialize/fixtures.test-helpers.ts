@@ -302,15 +302,15 @@ export function canonical(state: WorkflowState, lock?: WorkflowLockV1 | null) {
   return canonicalize(state, { catalog: CATALOG, meta: META, lock, resources: RESOURCES })
 }
 
-/** A fresh lock for `state`, as `source get` would hand out: identity plus key-derived bindings. */
+/** A fresh lock for `state`, as `source get` would hand out: identity plus key-derived idents. */
 export function lockFor(state: WorkflowState): WorkflowLockV1 {
   const { identity, layout } = canonical(state)
   const blocks: WorkflowLockV1['blocks'] = {}
   Object.entries(identity.blocks).forEach(([key, entry], order) => {
-    blocks[key] = { ...entry, binding: `b_${key.replace(/[^A-Za-z0-9_$]/g, '_')}`, order }
+    blocks[key] = { ...entry, ident: `b_${key.replace(/[^A-Za-z0-9_$]/g, '_')}`, order }
     if (layout[key]) blocks[key].layout = layout[key]
   })
-  return { lockVersion: 1, blocks, variables: identity.variables }
+  return { version: 1, blocks, variables: identity.variables }
 }
 
 function copyJson(value: unknown): unknown {

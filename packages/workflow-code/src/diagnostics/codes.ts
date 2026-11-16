@@ -1,6 +1,6 @@
 /**
- * Every diagnostic code `@sim/workflow-code` and the source apply path can emit. Codes are stable
- * wire values: CLI output, the copilot and tests match on them, so never rename one; retire it.
+ * Every diagnostic code `@sim/workflow-code` and the source apply path can emit. CLI output, the
+ * copilot and tests match on them, so they freeze at release.
  *
  * The first letter fixes the severity (`E_` error, `W_` warning, `I_` info; see
  * {@link SeverityOf}). The segment after it names the stage that owns the code:
@@ -48,7 +48,7 @@ export type CompileScopeCode =
   /** `env.X` where X does not match `PATTERNS.ENV_VAR_NAME` (constants.ts:431). */
   | 'E_INVALID_ENV_NAME'
   /** `p.<prop>` not in the loop/parallel KNOWN_PROPERTIES (loop.ts:44, parallel.ts:45). */
-  | 'E_UNKNOWN_LOOP_PROPERTY'
+  | 'E_UNKNOWN_SUBFLOW_PROPERTY'
   /** A ref to a block declared later; it resolves, but the order is unusual. */
   | 'W_FORWARD_REF'
 
@@ -76,8 +76,6 @@ export type CompileEdgeCode =
 /** Checks against the block catalog (s3 §4 "Catalog checks", build-spec decision 2). */
 export type CompileCatalogCode =
   | 'E_UNKNOWN_BUILDER'
-  /** A new block of a catalog type marked `addable: false`; existing blocks keep compiling. */
-  | 'E_TYPE_NOT_ADDABLE'
   /** `hint` carries a did-you-mean over the params visible for the chosen operation. */
   | 'E_UNKNOWN_PARAM'
   /** The builder already pins this param (`operation` or a `fixed` entry). */
@@ -129,7 +127,7 @@ export type PrintDiagnosticCode = ReferenceCode | 'W_CODE_FILE_INLINED' | 'W_RAW
 export type LockDiagnosticCode =
   /** The lock text is not valid JSON. */
   | 'E_LOCK_JSON'
-  /** `lockVersion` is missing or not `1`. */
+  /** `version` is missing or not `1`. */
   | 'E_LOCK_VERSION'
   /** A required field is missing or has the wrong type or format. */
   | 'E_LOCK_SHAPE'
@@ -137,9 +135,9 @@ export type LockDiagnosticCode =
   | 'E_LOCK_UNKNOWN_FIELD'
   /** A block or variable key that is not in normalized form. */
   | 'E_LOCK_KEY'
-  /** A `binding` that is not a JS identifier, or is in `SDK_RESERVED_IDENTIFIERS`. */
-  | 'E_LOCK_BINDING'
-  | 'E_LOCK_DUPLICATE_BINDING'
+  /** A `ident` that is not a JS identifier, or is in `SDK_RESERVED_IDENTIFIERS`. */
+  | 'E_LOCK_IDENT'
+  | 'E_LOCK_DUPLICATE_IDENT'
   /** The same block, variable or branch id under two keys (s1 §4 "Stale lock"). */
   | 'E_LOCK_DUPLICATE_ID'
   /** A `parent` naming no lock block, itself, or forming a cycle. */
@@ -149,21 +147,21 @@ export type LockDiagnosticCode =
   /** A `codeFile` that is absolute, escapes the repo, or uses backslashes. */
   | 'E_LOCK_CODE_FILE_PATH'
 
-/** `parseCodeMeta` (code-meta.ts), for the stored `workflow.code_meta` value. */
-export type CodeMetaDiagnosticCode =
+/** `parseSourceMeta` (source-meta.ts), for the stored `workflow_source_meta` value. */
+export type SourceMetaDiagnosticCode =
   /** The text is not valid JSON. */
-  | 'E_CODE_META_JSON'
+  | 'E_SOURCE_META_JSON'
   /** `v` is missing or not `1`. */
-  | 'E_CODE_META_VERSION'
+  | 'E_SOURCE_META_VERSION'
   /** A required field is missing or has the wrong type or format. */
-  | 'E_CODE_META_SHAPE'
+  | 'E_SOURCE_META_SHAPE'
   /** A field the schema does not define. */
-  | 'E_CODE_META_UNKNOWN_FIELD'
-  /** A binding that is not a JS identifier, or is in `SDK_RESERVED_IDENTIFIERS`. */
-  | 'E_CODE_META_BINDING'
-  | 'E_CODE_META_DUPLICATE_BINDING'
+  | 'E_SOURCE_META_UNKNOWN_FIELD'
+  /** An ident that is not a JS identifier, or is in `SDK_RESERVED_IDENTIFIERS`. */
+  | 'E_SOURCE_META_IDENT'
+  | 'E_SOURCE_META_DUPLICATE_IDENT'
   /** A `comments` key that `decodeAnchor` does not accept. */
-  | 'E_CODE_META_ANCHOR'
+  | 'E_SOURCE_META_ANCHOR'
 
 /** canonicalize (s1 §2 algorithm, §5 quirks). */
 export type CanonicalizeDiagnosticCode =
@@ -215,21 +213,23 @@ export type MaterializeDiagnosticCode =
 /**
  * The server apply pipeline. Gate codes mirror the editing engine's `SkippedItemType`
  * (apps/sim/lib/workflows/editing/types.ts `WORKFLOW_SKIPPED_ITEM_TYPES`) minus
- * `invalid_edge_target`, as `E_APPLY_<UPPER_SNAKE>`; the rest are s4 §2 additions. The engine
+ * `invalid_edge_target`, as `E_APPLY_<UPPER_SNAKE>` (`block_locked` shares `E_APPLY_LOCKED_BLOCK`);
+ * the rest are s4 §2 additions. The engine
  * skips such an item silently, while source apply refuses the whole write (s4 D1, D5).
  */
 export type ApplyDiagnosticCode =
   /** The base fingerprint no longer matches the stored graph (HTTP 409; s4 D3). */
   | 'E_APPLY_STALE'
   /** The diff touches a locked block or a child of a locked container (s4 D2). */
-  | 'E_APPLY_PROTECTED_BLOCK'
+  | 'E_APPLY_LOCKED_BLOCK'
+  /** A new block of a catalog type marked `addable: false`; existing blocks keep applying. */
+  | 'E_APPLY_TYPE_NOT_ADDABLE'
   /** `validateWorkflowState` rejected the materialized graph. */
   | 'E_APPLY_INVALID_STATE'
   | 'E_APPLY_BLOCK_NOT_FOUND'
   | 'E_APPLY_INVALID_BLOCK_TYPE'
   | 'E_APPLY_BLOCK_NOT_ALLOWED'
   | 'E_APPLY_MODEL_NOT_ALLOWED'
-  | 'E_APPLY_BLOCK_LOCKED'
   | 'E_APPLY_TOOL_NOT_ALLOWED'
   | 'E_APPLY_INVALID_EDGE_SOURCE'
   | 'E_APPLY_INVALID_EDGE_SCOPE'
@@ -263,7 +263,7 @@ export type ApplyDiagnosticCode =
 export type DiagnosticCode =
   | CompileDiagnosticCode
   | LockDiagnosticCode
-  | CodeMetaDiagnosticCode
+  | SourceMetaDiagnosticCode
   | CanonicalizeDiagnosticCode
   | MaterializeDiagnosticCode
   | ApplyDiagnosticCode
