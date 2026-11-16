@@ -7,6 +7,7 @@
  * `SubBlockConfig` and a `CatalogSubBlock` both fit.
  */
 
+import { setOwn } from '../../records'
 import type { OpaqueMarker } from '../types'
 
 export type CanonicalMode = 'basic' | 'advanced'
@@ -182,7 +183,7 @@ function extractPrefixedModes(
   for (const [key, value] of Object.entries(overrides)) {
     if (key.startsWith(prefix) && value) {
       scoped = scoped ?? {}
-      scoped[key.slice(prefix.length)] = value
+      setOwn(scoped, key.slice(prefix.length), value)
     }
   }
   return scoped
@@ -232,7 +233,7 @@ export function reindexCanonicalModesByPosition(
     if (!mode) continue
     const match = INDEX_SCOPED_KEY.exec(key)
     if (!match) {
-      result[key] = mode
+      setOwn(result, key, mode)
       continue
     }
     const newIndex = newIndexByOldIndex.get(Number(match[1]))
@@ -242,7 +243,7 @@ export function reindexCanonicalModesByPosition(
       continue
     }
     if (newIndex !== Number(match[1])) changed = true
-    result[`${newIndex}:${match[2]}`] = mode
+    setOwn(result, `${newIndex}:${match[2]}`, mode)
   }
   return changed ? result : undefined
 }

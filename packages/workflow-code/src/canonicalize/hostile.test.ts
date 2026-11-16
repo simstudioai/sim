@@ -1,5 +1,9 @@
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { describe, expect, it } from 'vitest'
+import {
+  reindexCanonicalModesByPosition,
+  scopeCanonicalModesForTool,
+} from '../catalog/canonical-index'
 import { compileWorkflow } from '../compile'
 import { canonicalEquals } from '../equivalence'
 import { catalog } from '../print/__fixtures__/catalog'
@@ -109,5 +113,20 @@ describe('canonicalize: prototype-named keys', () => {
     expect(Object.getOwnPropertyDescriptor(call.opaque?.data ?? {}, '__proto__')?.value).toEqual({
       kept: true,
     })
+  })
+})
+
+describe('stored canonicalModes keys named like prototype members', () => {
+  it('scopes a nested tool mode keyed __proto__ as data', () => {
+    const overrides = JSON.parse('{"0:__proto__":"advanced"}')
+    const scoped = scopeCanonicalModesForTool(overrides, 0)
+    expect(Object.getOwnPropertyDescriptor(scoped ?? {}, '__proto__')?.value).toBe('advanced')
+  })
+
+  it('carries a tool mode keyed __proto__ to its new position and keeps a legacy one', () => {
+    const overrides = JSON.parse('{"1:__proto__":"advanced","__proto__":"basic"}')
+    const moved = reindexCanonicalModesByPosition(new Map([[1, 0]]), overrides)
+    expect(Object.getOwnPropertyDescriptor(moved ?? {}, '0:__proto__')?.value).toBe('advanced')
+    expect(Object.getOwnPropertyDescriptor(moved ?? {}, '__proto__')?.value).toBe('basic')
   })
 })
