@@ -15,7 +15,7 @@ const LAYOUT_BLOCK_KEYS: ReadonlySet<string> = new Set(['position', 'height', 'l
 const LAYOUT_DATA_KEYS: ReadonlySet<string> = new Set(['width', 'height'])
 
 /** One block present on both sides whose semantic content differs. */
-export interface ModifiedBlock {
+interface ModifiedBlock {
   id: string
   /** Subblock ids whose stored entry differs, in sorted order. */
   subBlocks: string[]

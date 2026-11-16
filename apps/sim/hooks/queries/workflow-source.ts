@@ -3,7 +3,7 @@ import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowSourceContract, type WorkflowSource } from '@/lib/api/contracts/workflow-source'
 
 /** The Code tab invalidates after every persisted edit, so staleness only covers idle refocus. */
-export const WORKFLOW_SOURCE_STALE_TIME = 30_000
+const WORKFLOW_SOURCE_STALE_TIME = 30_000
 
 export const workflowSourceKeys = {
   all: ['workflow-source'] as const,

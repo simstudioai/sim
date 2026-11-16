@@ -87,7 +87,7 @@ interface ImpliedEdge {
 }
 
 /** Code-file reads within one compile: each distinct file is read and parsed once. */
-export interface CodeFileBudget {
+interface CodeFileBudget {
   /** Repo-relative path → stored code, or `null` when the file was rejected. */
   reads: Map<string, string | null>
   /** `file()` references seen so far. */

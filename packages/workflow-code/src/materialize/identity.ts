@@ -14,7 +14,7 @@ import type { BlockKey, CanonicalWorkflow } from '../model'
 import { catalogBlock, report } from './context'
 
 /** The stored graph being replaced, with its canonical projection (keys, identity). */
-export interface PrevGraph {
+interface PrevGraph {
   state: { blocks: Record<string, BlockState> }
   canonical: CanonicalizeResult
 }

@@ -1,5 +1,5 @@
 import type { ResourceKeyResolver } from '../api'
-import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from '../catalog/types'
+import type { BlockCatalog, CatalogBlock } from '../catalog/types'
 import { catalogBlock as readCatalogBlock } from '../catalog/view'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
@@ -33,12 +33,4 @@ export function report(context: CanonContext, diagnostic: Diagnostic<Canonicaliz
 
 export function catalogBlock(context: CanonContext, type: string): CatalogBlock | undefined {
   return readCatalogBlock(context.catalog, type)
-}
-
-/** Every catalog declaration of `id` on a block, in declared order (action and trigger copies). */
-export function subBlockDeclarations(
-  block: CatalogBlock | undefined,
-  id: string
-): CatalogSubBlock[] {
-  return block ? block.subBlocks.filter((subBlock) => subBlock.id === id) : []
 }

@@ -41,7 +41,7 @@ export function deepEqual(left: unknown, right: unknown): boolean {
   )
 }
 
-export function isSimNode(value: unknown): value is SimNode {
+function isSimNode(value: unknown): value is SimNode {
   return isRecordLike(value) && typeof value.$sim === 'string' && SIM_NODE_KINDS.has(value.$sim)
 }
 

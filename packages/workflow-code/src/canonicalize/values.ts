@@ -39,7 +39,7 @@ export function toJson(value: unknown): Json {
  * variable by normalized name or id (resolvers/workflow.ts:54-56). Tokens the executor would not
  * treat as references, and references that resolve to nothing, are left verbatim.
  */
-export function rewriteReferences(text: string, context: CanonContext): string {
+function rewriteReferences(text: string, context: CanonContext): string {
   if (!text.includes('<')) return text
   return text.replace(REFERENCE_CANDIDATE, (match: string, inner: string) => {
     if (!isLikelyWorkflowReferenceSegment(match)) return match

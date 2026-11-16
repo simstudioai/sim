@@ -291,7 +291,7 @@ export function edge(
   return { id, source, target, sourceHandle, targetHandle: 'target', type: 'default', ...extra }
 }
 
-export const META = { name: 'Fixture', description: null }
+const META = { name: 'Fixture', description: null }
 
 export const RESOURCES: ResourceKeyResolver = {
   toKey: (kind, id) => (id.startsWith('missing') ? null : `${kind}:${id}`),

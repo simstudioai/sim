@@ -22,7 +22,7 @@ import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
  * per-block accessors) from `@sim/workflow-code` rather than walking these references themselves.
  */
 
-export const v2BlockCatalogQuerySchema = z
+const v2BlockCatalogQuerySchema = z
   .object({
     workflowId: workflowIdSchema
       .optional()
@@ -32,13 +32,13 @@ export const v2BlockCatalogQuerySchema = z
   })
   .strict()
 
-export const v2BlockCatalogParamsSchema = z.object({
+const v2BlockCatalogParamsSchema = z.object({
   workspaceId: workspaceIdSchema.describe(
     'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains.'
   ),
 })
 
-export const v2BlockCatalogHeadersSchema = z.object({
+const v2BlockCatalogHeadersSchema = z.object({
   'if-none-match': z
     .string()
     .max(1024, 'if-none-match must be at most 1024 characters')

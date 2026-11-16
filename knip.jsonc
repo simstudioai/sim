@@ -180,9 +180,17 @@
     // this setting once those import it.
     "packages/workflow-code": { "includeEntryExports": false },
     // The SDK's codegen is consumed by the catalog route and `sim types` in Wave 3.
+    // `test/examples` and `test/negative` are type-check fixtures: nothing imports them, because
+    // `test/typecheck-project.ts` globs them into a tsconfig that a test runs tsgo against.
     "packages/workflow-sdk": {
       "includeEntryExports": false,
-      "entry": ["src/runtime.ts", "src/codegen/index.ts", "scripts/*.ts"]
+      "entry": [
+        "src/runtime.ts",
+        "src/codegen/index.ts",
+        "scripts/*.ts",
+        "test/examples/*.ts",
+        "test/negative/*.ts"
+      ]
     },
     // This shared config is consumed by apps that own the Next dependency.
     "packages/tsconfig": { "ignoreUnresolved": ["next"] }

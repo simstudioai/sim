@@ -35,7 +35,7 @@ const SKIPPED_KEYS = new Set([
   'extra',
 ])
 
-export function isNode(value: unknown): value is Node {
+function isNode(value: unknown): value is Node {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -44,7 +44,7 @@ export function isNode(value: unknown): value is Node {
 }
 
 /** Every child AST node of `node`, in no particular order. */
-export function childNodes(node: Node): Node[] {
+function childNodes(node: Node): Node[] {
   const children: Node[] = []
   for (const [key, value] of Object.entries(node)) {
     if (SKIPPED_KEYS.has(key)) continue

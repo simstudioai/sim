@@ -133,7 +133,7 @@ function rejectNode(ctx: CompileContext, node: Node, site?: ValueSite): null {
 }
 
 /** The literal text of a property key, or `null` (after reporting) for a computed key. */
-export function propertyKey(ctx: CompileContext, property: ObjectProperty): string | null {
+function propertyKey(ctx: CompileContext, property: ObjectProperty): string | null {
   if (property.computed) {
     report(ctx, property, 'Computed keys are not supported.', HINTS.computedKey)
     return null
