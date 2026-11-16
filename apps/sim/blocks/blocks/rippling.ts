@@ -1,5 +1,5 @@
 import { RipplingIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
   isToolCall,
@@ -201,6 +201,33 @@ const CUSTOM_OBJECT_FIELD_WRITE_OPS = [
   'create_custom_object_field',
   'update_custom_object_field',
 ] as const
+
+/**
+ * A Yes/No custom object field setting. Create defaults to No; every other context (an update, an
+ * agent tool row with no operation) leads with "No change" so an update does not resend it.
+ */
+const customObjectFieldFlag = (
+  id: 'isUnique' | 'enableHistory',
+  title: string
+): SubBlockConfig => ({
+  id,
+  title,
+  type: 'dropdown',
+  options: ({ values } = { values: {} }) => [
+    ...(values?.operation === 'create_custom_object_field' ? [] : [{ label: 'No change', id: '' }]),
+    { label: 'No', id: 'false' },
+    { label: 'Yes', id: 'true' },
+  ],
+  value: (p) =>
+    p?.operation === 'create_custom_object_field'
+      ? 'false'
+      : p?.operation === 'update_custom_object_field'
+        ? ''
+        : undefined,
+  dependsOn: ['operation'],
+  mode: 'advanced',
+  condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
+})
 
 /** Operations for custom setting fields */
 const CUSTOM_SETTING_WRITE_OPS = ['create_custom_setting', 'update_custom_setting'] as const
@@ -800,28 +827,8 @@ Return ONLY the JSON - no explanations, no extra text.`,
       mode: 'advanced',
       condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
     },
-    {
-      id: 'isUnique',
-      title: 'Unique',
-      type: 'dropdown',
-      options: [
-        { label: 'No', id: 'false' },
-        { label: 'Yes', id: 'true' },
-      ],
-      mode: 'advanced',
-      condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
-    },
-    {
-      id: 'enableHistory',
-      title: 'Enable History',
-      type: 'dropdown',
-      options: [
-        { label: 'No', id: 'false' },
-        { label: 'Yes', id: 'true' },
-      ],
-      mode: 'advanced',
-      condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
-    },
+    customObjectFieldFlag('isUnique', 'Unique'),
+    customObjectFieldFlag('enableHistory', 'Enable History'),
     {
       id: 'rqlDefinition',
       title: 'RQL Definition',
@@ -1257,11 +1264,12 @@ Return ONLY the sort expression - no explanations, no extra text.`,
         }
         /**
          * A Yes/No field whose id is the tool's own param: a `'false'` left unmapped would reach the
-         * tool as text, so both answers are sent as booleans.
+         * tool as text, so both answers are sent as booleans and "No change" (`''`) sends nothing.
          */
         const setBoolean = (key: string, value: unknown) => {
           const flag = parseOptionalBooleanInput(value)
           if (flag !== undefined) mapped[key] = flag
+          else if (value === '') mapped[key] = undefined
         }
         const isSettingWrite = (CUSTOM_SETTING_WRITE_OPS as readonly string[]).includes(op)
 

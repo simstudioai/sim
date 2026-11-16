@@ -133,3 +133,35 @@ describe('RipplingBlock canvas', () => {
     expect(mapped).toMatchObject({ apiName: 'region', dataType: 'STRING' })
   })
 })
+
+describe('RipplingBlock custom object field flags', () => {
+  const flags = ['isUnique', 'enableHistory'] as const
+
+  it.each(flags)('offers No change for %s everywhere except a known create', (id) => {
+    const subBlock = RipplingBlock.subBlocks.find((candidate) => candidate.id === id)
+    const options = subBlock?.options
+    if (typeof options !== 'function') throw new Error(`${id} options are static`)
+    expect(options({ values: {} })[0]?.id).toBe('')
+    expect(options({ values: { operation: 'update_custom_object_field' } })[0]?.id).toBe('')
+    expect(options({ values: { operation: 'create_custom_object_field' } })[0]?.id).toBe('false')
+    expect(subBlock?.value?.({ operation: 'create_custom_object_field' })).toBe('false')
+    expect(subBlock?.value?.({ operation: 'update_custom_object_field' })).toBe('')
+    expect(subBlock?.value?.({})).toBeUndefined()
+    expect(subBlock?.dependsOn).toEqual(expect.arrayContaining(['operation']))
+  })
+
+  it.each(flags)('sends no %s when an update leaves it on No change', (id) => {
+    const mapped = canvasRun({ operation: 'update_custom_object_field', apiKey: 'key', [id]: '' })
+    expect(mapped).toHaveProperty(id, undefined)
+  })
+
+  it.each(['true', 'false'])('keeps sending a saved %s as a boolean on an update', (saved) => {
+    const mapped = canvasRun({
+      operation: 'update_custom_object_field',
+      apiKey: 'key',
+      isUnique: saved,
+      enableHistory: saved,
+    })
+    expect(mapped).toMatchObject({ isUnique: saved === 'true', enableHistory: saved === 'true' })
+  })
+})
