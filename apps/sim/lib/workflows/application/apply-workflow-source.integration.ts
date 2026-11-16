@@ -42,10 +42,7 @@ import {
   type ApplyWorkflowSourceInput,
   applyWorkflowSource,
 } from '@/lib/workflows/application/apply-workflow-source'
-import {
-  type GetWorkflowSourceResult,
-  getWorkflowSource,
-} from '@/lib/workflows/application/get-workflow-source'
+import { getWorkflowSource } from '@/lib/workflows/application/get-workflow-source'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 
@@ -133,6 +130,8 @@ async function seedWorkflow(): Promise<Seeded> {
   if (!saved.success) throw new Error(`Seeding the workflow failed: ${saved.error}`)
   return { workflowId, startId, scoreId, edgeId, variableId }
 }
+
+type GetWorkflowSourceResult = Awaited<ReturnType<typeof getWorkflowSource.execute>>
 
 function getSource(workflowId: string): Promise<GetWorkflowSourceResult> {
   return withPermissionGroupScope(() =>
@@ -419,6 +418,32 @@ check('a rename keeps the block id, so a webhook row bound to it stays valid', a
     .where(eq(webhook.id, webhookId))
   expect(after.state?.blocks[row.blockId ?? '']).toBeDefined()
 })
+
+check(
+  'an apply stores its bindings, order and comments in code_meta, and the next get prints them',
+  async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+    const scoreBinding = source.lock.blocks.score.binding
+    const renamed = source.files['workflow.ts']
+      .replace(new RegExp(`(?<![\\w/])${scoreBinding}(?![\\w]|\\.js)`, 'g'), 'scoring')
+      .replace(/(\n\s*)const scoring = /, '$1// kept across reads$1const scoring = ')
+
+    const result = await apply(source, { ...source.files, 'workflow.ts': renamed })
+
+    expect(result.lock.blocks.score.binding).toBe('scoring')
+    const [row] = await db
+      .select({ codeMeta: workflow.codeMeta })
+      .from(workflow)
+      .where(eq(workflow.id, seeded.workflowId))
+    expect(row.codeMeta).toMatchObject({ v: 1, bindings: { [seeded.scoreId]: 'scoring' } })
+    const again = await getSource(seeded.workflowId)
+    expect(again.lock.blocks.score.binding).toBe('scoring')
+    expect(again.files['workflow.ts']).toContain('const scoring = ')
+    expect(again.files['workflow.ts']).toContain('// kept across reads')
+    expect(again.fingerprint).toBe(result.newFingerprint)
+  }
+)
 
 check('a workspace API key is refused before anything is read', async () => {
   const seeded = await seedWorkflow()

@@ -33,7 +33,11 @@ import {
 } from '@sim/workflow-code'
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
-import { readCodeMetaValue } from '@sim/workflow-persistence/code-meta'
+import {
+  readCodeMetaValue,
+  readWorkflowCodeMeta,
+  writeWorkflowCodeMeta,
+} from '@sim/workflow-persistence/code-meta'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit'
@@ -615,7 +619,7 @@ function reprint(args: {
   state: WorkflowState
   meta: CanonicalWorkflowMeta
   identity: LockIdentity
-  codeMeta: WorkflowCodeMetaV1
+  codeMeta: WorkflowCodeMetaV1 | null
   usesCodeFiles: boolean
   catalog: BlockCatalog
   resources: ResourceKeyResolver
@@ -679,7 +683,10 @@ function emptySummary(): SourceDiffSummary {
  *
  * The write is one `replaceWorkflowNormalizedState` under the workflow row lock, which re-checks
  * the fingerprint (409 when the draft moved), keeps current canvas positions for existing blocks
- * and asserts the protected-block merge is the identity. Draft only: it never deploys.
+ * and asserts the protected-block merge is the identity, then stores the submission's bindings,
+ * order and comments in `workflow.code_meta` in the same transaction. A source that changes only
+ * those (a renamed const, a moved declaration, a comment) is a graph no-op that stores just
+ * `code_meta`, so the next `source get` prints it. Draft only: it never deploys.
  */
 export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.applySource,
@@ -705,7 +712,11 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
       })
 
       const recording = createRecordingResolver()
-      canonicalize(stored.state, { catalog, meta: stored.meta, resources: recording.resolver })
+      const storedIdentity = canonicalize(stored.state, {
+        catalog,
+        meta: stored.meta,
+        resources: recording.resolver,
+      }).identity
       let resources = await loadResourceKeyResolver(context.workspaceId, recording.requestedKinds)
       const currentFingerprint = fingerprintOf(stored, catalog, resources)
 
@@ -771,6 +782,7 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
         files: new Map(Object.entries(input.files).filter(([path]) => path !== ENTRY_FILE)),
         catalog,
         sdkMajor: catalog.sdkMajor,
+        knownKeys: new Set([...Object.keys(lock.blocks), ...Object.keys(storedIdentity.blocks)]),
       })
       const compileLocate = createLocator(input.files, compiled.spans, new Map())
       if (!compiled.workflow || hasErrors(compiled.diagnostics)) {
@@ -996,6 +1008,23 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
 
       if (noop) {
         const printed = reprintFrom(stored.state)
+        if (!input.dryRun) {
+          const storedPrint = reprint({
+            state: stored.state,
+            meta: stored.meta,
+            identity: materialized.identity,
+            codeMeta: storedCodeMeta,
+            usesCodeFiles,
+            catalog,
+            resources,
+          })
+          if (
+            !isEqual(printed.files, storedPrint.files) ||
+            !isEqual(printed.lock, storedPrint.lock)
+          ) {
+            await writeWorkflowCodeMeta(db, context.workflowId, nextCodeMeta)
+          }
+        }
         return {
           ...base,
           applied: false,
@@ -1069,6 +1098,15 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
           assertProtectedBlocksPreserved(
             { blocks: current.state.blocks, edges: current.state.edges },
             next
+          )
+          await writeWorkflowCodeMeta(
+            tx,
+            context.workflowId,
+            mergeCodeMetaFromLock(
+              await readWorkflowCodeMeta(tx, context.workflowId),
+              lockAfter,
+              compiledModel
+            )
           )
           return variables === undefined ? next : { ...next, variables }
         },
