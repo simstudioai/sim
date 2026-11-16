@@ -157,6 +157,11 @@ export type CanonicalizeDiagnosticCode =
   | 'W_CANON_RESERVED_NAME'
   /** An edge whose source or target block does not exist; dropped. */
   | 'W_CANON_DANGLING_EDGE'
+  /**
+   * A block whose `data.parentId` names no stored block. It is placed at the root and the raw
+   * `parentId` is kept under `opaque.data`, so nothing is lost.
+   */
+  | 'W_CANON_DANGLING_PARENT'
   /** An unknown edge handle, kept as a `raw` port. */
   | 'W_CANON_RAW_HANDLE'
   /** A block type absent from the catalog; params kept, nothing marked inactive. */

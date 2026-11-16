@@ -166,6 +166,7 @@
     "@sim/utils": "workspace:*",
     "@sim/workflow-persistence": "workspace:*",
     "@sim/workflow-renderer": "workspace:*",
+    "@sim/workflow-code": "workspace:*",
     "@sim/workflow-types": "workspace:*",
     "@smithy/node-http-handler": "4.14.1",
     "@t3-oss/env-nextjs": "0.13.11",

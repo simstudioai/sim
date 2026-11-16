@@ -30,6 +30,7 @@ export type {
   ResourceKeyResolver,
   SourceFingerprintFn,
 } from './api'
+export { canonicalize } from './canonicalize'
 export type {
   BlockCatalog,
   CatalogBlock,
@@ -75,6 +76,7 @@ export {
   type LocatedDiagnostic,
   type SourceSpan,
 } from './diagnostics/frame'
+export { canonicalEquals, canonicalHash, sourceFingerprint } from './equivalence'
 export { sha256Hex, stableStringify } from './hash'
 export {
   type LockBase,
