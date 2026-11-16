@@ -1,0 +1,74 @@
+// @sim-sdk 1
+// Each `@ts-expect-error` must see an error, or the type-check fails with "unused directive".
+import {
+  agent,
+  binding,
+  env,
+  gmail,
+  js,
+  kb,
+  knowledge,
+  slack,
+  t,
+  table,
+  trigger,
+  workflow,
+} from '@sim/workflow-sdk'
+
+export default workflow('Rejected', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { subject: 'string' } })
+  const classify = agent('Classify', {
+    model: 'claude-sonnet-5-5',
+    responseFormat: {
+      schema: {
+        type: 'object',
+        properties: { category: { type: 'string', enum: ['billing', 'bug'] } },
+      },
+    },
+  })
+
+  // A misspelled output path.
+  // @ts-expect-error `categroy` is not an output of `classify`
+  js`${classify.categroy} === 'billing'`
+
+  // A misspelled input-format field.
+  // @ts-expect-error `subjct` is not a field of the start input format
+  t`${start.subjct}`
+
+  // An unknown param.
+  gmail.sendEmail('Send', {
+    oauthCredential: binding('finance-gmail'),
+    to: 'a@b.co',
+    body: 'hi',
+    // @ts-expect-error `recipient` is not a param of gmail.sendEmail
+    recipient: 'a@b.co',
+  })
+
+  // A wrong literal option.
+  knowledge.search('Search', {
+    knowledgeBaseId: kb('docs'),
+    // @ts-expect-error `semantic` is not a search mode
+    searchMode: 'semantic',
+  })
+
+  // A missing required param (`to`).
+  // @ts-expect-error `to` is required by gmail.sendEmail
+  gmail.sendEmail('Send', { oauthCredential: binding('finance-gmail'), body: 'hi' })
+
+  // An unknown table column, with workspace types loaded.
+  table.insertRow('Log', {
+    tableId: table('tickets'),
+    // @ts-expect-error `priority` is not a column of the tickets table
+    data: { priority: 'high' },
+  })
+
+  // Unknown workspace resources and env names.
+  // @ts-expect-error `dosc` is not a knowledge base of the workspace
+  kb('dosc')
+  // @ts-expect-error `CRM_KYE` is not a workspace environment variable
+  t`${env.CRM_KYE}`
+
+  // An operation that does not exist.
+  // @ts-expect-error `sendMesage` is not a Slack operation
+  slack.sendMesage('Typo', {})
+})

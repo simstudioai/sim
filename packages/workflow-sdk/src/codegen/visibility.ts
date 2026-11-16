@@ -1,0 +1,365 @@
+/**
+ * The three-way visibility evaluator (s2 §2 "How visibility conditions become types").
+ *
+ * For one builder (an operation, or a trigger mode), every candidate subBlock is evaluated against
+ * the builder's pinned values (`operation` and `fixed`) and every combination of the static
+ * siblings its conditions read: dropdowns with a static option list, and switches. Combinations
+ * are capped at {@link MAX_COMBINATIONS}; the widest siblings stop being enumerated first. A field
+ * nobody enumerates is unknown, so a condition on it is "sometimes".
+ *
+ * Evaluation mirrors `evaluateSubBlockCondition` (apps/sim/lib/workflows/subblocks/visibility.ts):
+ * strict equality, array values mean "one of", `not` negates, `and` must also hold.
+ */
+
+import type { CatalogSubBlock } from '@sim/workflow-code'
+import { isConditionClause, isOpaque } from './catalog'
+
+export const MAX_COMBINATIONS = 64
+
+/** A dropdown with at most this many options may become one nested union level. */
+const MAX_GATE_OPTIONS = 4
+
+export type Scalar = string | number | boolean
+
+/** Three-valued truth: `null` means the answer depends on a field nobody enumerates. */
+type Tri = boolean | null
+
+interface SiblingDomain {
+  field: string
+  values: Scalar[]
+}
+
+export interface VisibilityContext {
+  /** Values the builder pins: its `operation` and `fixed` entries. */
+  pinned: Readonly<Record<string, Scalar>>
+  /** The pinned operation, for `visibleFor` on function conditions. */
+  operation?: string
+  /** Enumerated siblings, sorted by field. */
+  siblings: SiblingDomain[]
+  /** Every combination of sibling values (one empty combination when there are none). */
+  combos: Array<Readonly<Record<string, Scalar>>>
+}
+
+export interface ParamVisibility {
+  kind: 'always' | 'sometimes' | 'never'
+  /** True iff the param is visible and required in every combination. */
+  required: boolean
+  /** Visibility per combination, aligned with `context.combos`. */
+  visible: Tri[]
+  /** Visible and required per combination. */
+  requiredIn: boolean[]
+  /** Human-readable `@when` text for a "sometimes" param. */
+  when?: string
+}
+
+type ClauseValue = Scalar | null | undefined | ReadonlyArray<Scalar | null | undefined>
+
+interface ClausePart {
+  field: string
+  value: ClauseValue
+  not?: boolean
+}
+
+/** The shape shared by subBlock conditions and output conditions. */
+interface ConditionLike extends ClausePart {
+  and?: ClausePart
+}
+
+function clauseFields(clause: ConditionLike): string[] {
+  return clause.and ? [clause.field, clause.and.field] : [clause.field]
+}
+
+function referencedFields(subBlock: CatalogSubBlock): string[] {
+  const fields: string[] = []
+  if (isConditionClause(subBlock.condition)) fields.push(...clauseFields(subBlock.condition))
+  if (isConditionClause(subBlock.required)) fields.push(...clauseFields(subBlock.required))
+  return fields
+}
+
+function domainOf(subBlocks: readonly CatalogSubBlock[], field: string): Scalar[] | null {
+  const values: Scalar[] = []
+  let found = false
+  for (const subBlock of subBlocks) {
+    if (subBlock.id !== field) continue
+    if (subBlock.type === 'switch') {
+      found = true
+      for (const value of [true, false]) if (!values.includes(value)) values.push(value)
+      continue
+    }
+    if (subBlock.type !== 'dropdown' || subBlock.multiple || !Array.isArray(subBlock.options)) {
+      return null
+    }
+    if (subBlock.options.length === 0) return null
+    found = true
+    for (const option of subBlock.options) if (!values.includes(option.id)) values.push(option.id)
+  }
+  return found ? values : null
+}
+
+function product(domains: readonly SiblingDomain[]): number {
+  return domains.reduce((total, domain) => total * domain.values.length, 1)
+}
+
+function byField(a: SiblingDomain, b: SiblingDomain): number {
+  return a.field < b.field ? -1 : a.field > b.field ? 1 : 0
+}
+
+/**
+ * Builds the evaluation context for one builder: which siblings to enumerate and every
+ * combination of their values.
+ */
+export function buildVisibilityContext(
+  candidates: readonly CatalogSubBlock[],
+  pinned: Readonly<Record<string, Scalar>>,
+  operation?: string
+): VisibilityContext {
+  const fields = new Set<string>()
+  for (const subBlock of candidates) {
+    for (const field of referencedFields(subBlock)) {
+      if (!(field in pinned)) fields.add(field)
+    }
+  }
+  let siblings: SiblingDomain[] = []
+  for (const field of fields) {
+    const values = domainOf(candidates, field)
+    if (values) siblings.push({ field, values })
+  }
+  siblings.sort(byField)
+  while (product(siblings) > MAX_COMBINATIONS) {
+    const widest = [...siblings].sort(
+      (a, b) => b.values.length - a.values.length || byField(a, b)
+    )[0]
+    siblings = siblings.filter((sibling) => sibling !== widest)
+  }
+  let combos: Array<Record<string, Scalar>> = [{}]
+  for (const sibling of siblings) {
+    combos = combos.flatMap((combo) =>
+      sibling.values.map((value) => ({ ...combo, [sibling.field]: value }))
+    )
+  }
+  return { pinned, operation, siblings, combos }
+}
+
+function lookup(
+  context: VisibilityContext,
+  combo: Readonly<Record<string, Scalar>>,
+  field: string
+): { known: true; value: Scalar } | { known: false } {
+  if (field in context.pinned) return { known: true, value: context.pinned[field] }
+  if (field in combo) return { known: true, value: combo[field] }
+  return { known: false }
+}
+
+function evalSingle(
+  clause: ClausePart,
+  context: VisibilityContext,
+  combo: Readonly<Record<string, Scalar>>
+): Tri {
+  const actual = lookup(context, combo, clause.field)
+  if (!actual.known) return null
+  const expected = clause.value
+  if (Array.isArray(expected)) {
+    const included = expected.includes(actual.value)
+    return clause.not ? !included : included
+  }
+  return clause.not ? actual.value !== expected : actual.value === expected
+}
+
+function and(a: Tri, b: Tri): Tri {
+  if (a === false || b === false) return false
+  if (a === null || b === null) return null
+  return true
+}
+
+/** Evaluates a condition clause; `null` when it reads a field that is not known. */
+export function evaluateClause(
+  clause: ConditionLike,
+  context: VisibilityContext,
+  combo: Readonly<Record<string, Scalar>>
+): Tri {
+  const head = evalSingle(clause, context, combo)
+  return clause.and ? and(head, evalSingle(clause.and, context, combo)) : head
+}
+
+function visibleIn(
+  subBlock: CatalogSubBlock,
+  context: VisibilityContext,
+  combo: Readonly<Record<string, Scalar>>
+): Tri {
+  const { condition } = subBlock
+  if (condition === undefined) return true
+  if (isConditionClause(condition)) return evaluateClause(condition, context, combo)
+  if (isOpaque(condition) && context.operation !== undefined && subBlock.visibleFor) {
+    const visible = subBlock.visibleFor[context.operation]
+    // A function condition visible for the operation may still read other fields.
+    if (visible === false) return false
+  }
+  return null
+}
+
+function requiredIn(
+  subBlock: CatalogSubBlock,
+  context: VisibilityContext,
+  combo: Readonly<Record<string, Scalar>>
+): boolean {
+  const { required } = subBlock
+  if (required === true) return true
+  if (isConditionClause(required)) return evaluateClause(required, context, combo) === true
+  return false
+}
+
+function describeWhen(
+  members: readonly CatalogSubBlock[],
+  context: VisibilityContext,
+  visible: readonly Tri[]
+): string {
+  const parts: string[] = []
+  for (const sibling of context.siblings) {
+    const seen = new Set<Scalar>()
+    context.combos.forEach((combo, index) => {
+      if (visible[index] !== false) seen.add(combo[sibling.field])
+    })
+    if (seen.size < sibling.values.length) {
+      const values = sibling.values.filter((value) => seen.has(value))
+      parts.push(`${sibling.field} is ${values.map((value) => JSON.stringify(value)).join(' | ')}`)
+    }
+  }
+  if (visible.includes(null)) {
+    const unknown = new Set<string>()
+    let opaque = false
+    for (const member of members) {
+      if (isConditionClause(member.condition)) {
+        for (const field of clauseFields(member.condition)) {
+          if (!(field in context.pinned) && !context.siblings.some((s) => s.field === field)) {
+            unknown.add(field)
+          }
+        }
+      } else if (isOpaque(member.condition)) {
+        opaque = true
+      }
+    }
+    if (unknown.size > 0) parts.push(`depends on ${[...unknown].sort().join(', ')}`)
+    if (opaque) parts.push('depends on other fields')
+  }
+  return parts.join('; ')
+}
+
+/**
+ * Classifies one param (one subBlock, a basic/advanced pair, or a duplicated id) across every
+ * combination: visible in a combination iff any member is.
+ */
+export function classifyParam(
+  members: readonly CatalogSubBlock[],
+  context: VisibilityContext
+): ParamVisibility {
+  const visible: Tri[] = []
+  const required: boolean[] = []
+  for (const combo of context.combos) {
+    let anyTrue = false
+    let anyUnknown = false
+    let isRequired = false
+    for (const member of members) {
+      const memberVisible = visibleIn(member, context, combo)
+      if (memberVisible === true) {
+        anyTrue = true
+        if (requiredIn(member, context, combo)) isRequired = true
+      } else if (memberVisible === null) {
+        anyUnknown = true
+      }
+    }
+    visible.push(anyTrue ? true : anyUnknown ? null : false)
+    required.push(isRequired)
+  }
+  const kind = visible.every((value) => value === true)
+    ? 'always'
+    : visible.every((value) => value === false)
+      ? 'never'
+      : 'sometimes'
+  return {
+    kind,
+    required: kind === 'always' && required.every(Boolean),
+    visible,
+    requiredIn: required,
+    when: kind === 'sometimes' ? describeWhen(members, context, visible) : undefined,
+  }
+}
+
+interface GateVariant {
+  /** The gate values this variant covers (variants with identical fields are merged). */
+  values: Scalar[]
+  /** Gated params visible for these values, and whether each is required there. */
+  params: Array<{ name: string; required: boolean }>
+}
+
+export interface Gate {
+  field: string
+  variants: GateVariant[]
+}
+
+/**
+ * Finds the one sibling dropdown (at most {@link MAX_GATE_OPTIONS} options, itself always
+ * visible) whose value alone decides the visibility of the most "sometimes" params, so the params
+ * type becomes one nested union level keyed on it. Returns `null` when no sibling gates anything.
+ */
+export function findGate(
+  params: ReadonlyArray<{ name: string; visibility: ParamVisibility }>,
+  context: VisibilityContext,
+  alwaysVisibleFields: ReadonlySet<string>
+): Gate | null {
+  let best: { field: string; gated: string[] } | null = null
+  for (const sibling of context.siblings) {
+    if (sibling.values.length > MAX_GATE_OPTIONS || sibling.values.length < 2) continue
+    if (typeof sibling.values[0] !== 'string') continue
+    if (!alwaysVisibleFields.has(sibling.field)) continue
+    const gated: string[] = []
+    for (const param of params) {
+      if (param.visibility.kind !== 'sometimes' || param.name === sibling.field) continue
+      if (isDecidedBy(param.visibility, context, sibling)) gated.push(param.name)
+    }
+    if (gated.length > 0 && (!best || gated.length > best.gated.length)) {
+      best = { field: sibling.field, gated }
+    }
+  }
+  if (!best) return null
+  const gate = best
+  const sibling = context.siblings.find((candidate) => candidate.field === gate.field)
+  if (!sibling) return null
+  const variants: GateVariant[] = []
+  for (const value of sibling.values) {
+    const indices = indicesWhere(context, sibling.field, value)
+    const variantParams: GateVariant['params'] = []
+    for (const name of gate.gated) {
+      const param = params.find((candidate) => candidate.name === name)
+      if (!param || param.visibility.visible[indices[0]] !== true) continue
+      const required = indices.every((index) => param.visibility.requiredIn[index])
+      variantParams.push({ name, required })
+    }
+    const signature = JSON.stringify(variantParams)
+    const same = variants.find((variant) => JSON.stringify(variant.params) === signature)
+    if (same) same.values.push(value)
+    else variants.push({ values: [value], params: variantParams })
+  }
+  return variants.length > 1 ? { field: gate.field, variants } : null
+}
+
+function indicesWhere(context: VisibilityContext, field: string, value: Scalar): number[] {
+  const indices: number[] = []
+  context.combos.forEach((combo, index) => {
+    if (combo[field] === value) indices.push(index)
+  })
+  return indices
+}
+
+function isDecidedBy(
+  visibility: ParamVisibility,
+  context: VisibilityContext,
+  sibling: SiblingDomain
+): boolean {
+  for (const value of sibling.values) {
+    const indices = indicesWhere(context, sibling.field, value)
+    const first = visibility.visible[indices[0]]
+    if (first === null) return false
+    if (!indices.every((index) => visibility.visible[index] === first)) return false
+  }
+  return true
+}
