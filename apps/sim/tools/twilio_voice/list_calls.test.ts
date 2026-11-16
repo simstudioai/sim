@@ -123,3 +123,19 @@ describe('Twilio list calls pagination', () => {
     expect(result.output.nextPageToken).toBe('PA2')
   })
 })
+
+describe('Twilio list calls page size', () => {
+  function pageSizeSent(pageSize: number): string | null {
+    const url = listCallsTool.request.url
+    if (typeof url !== 'function') throw new Error('Expected a URL builder')
+    return new URL(url({ accountSid: 'AC123', authToken: 'secret', pageSize })).searchParams.get(
+      'PageSize'
+    )
+  }
+
+  it('clamps PageSize to the 1-1000 integer range Twilio accepts', () => {
+    expect(pageSizeSent(5000)).toBe('1000')
+    expect(pageSizeSent(-3)).toBe('1')
+    expect(pageSizeSent(20.9)).toBe('20')
+  })
+})
