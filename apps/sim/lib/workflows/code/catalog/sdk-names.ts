@@ -1,0 +1,406 @@
+import { compareStrings, stripVersionSuffix } from '@sim/utils/string'
+import { SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from '@sim/workflow-code'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+
+/**
+ * The frozen SDK names (`apps/sim/blocks/sdk-names.json`, build-spec decision 7, s2 D3/D4).
+ *
+ * A builder's method name is API: once a workflow file says `slack.sendMessage(...)`, renaming the
+ * option label must not break it. So names are derived once, written to a checked-in file, and
+ * afterwards only ever added to. The stored operation id is never renamed by any of this.
+ */
+interface SdkNamesBlockEntry {
+  /** Dotted builder namespace (`slack`, `legacy.slackV1`). */
+  namespace: string
+  /** Operation dropdown id → method name, for blocks with an `operation` dropdown. */
+  methods?: Record<string, string>
+  /** Trigger id → method name under `trigger.<namespace>`. */
+  triggers?: Record<string, string>
+  /** Param renames per surface (s2 D4: `oauthCredential` / `triggerCredentials` → `credential`). */
+  params?: Partial<Record<SdkSurface, Record<string, string>>>
+}
+
+export interface SdkNamesFile {
+  version: 1
+  blocks: Record<string, SdkNamesBlockEntry>
+}
+
+type SdkSurface = 'action' | 'trigger'
+
+/** One parameter as the SDK sees it: a pair is one param named by its `canonicalParamId`. */
+interface SdkParamSource {
+  name: string
+  /** `pair:<canonicalParamId>` or `id:<subBlockId>`; two identities may not share a name. */
+  identity: string
+}
+
+/** The registry facts name derivation reads, so it stays a pure function of data. */
+export interface SdkNameSource {
+  type: string
+  /** Hidden from the toolbar: a superseded version or a sunset block. */
+  hidden: boolean
+  operations: Array<{ id: string; label: string }>
+  triggers: Array<{ id: string; provider: string }>
+  params: Record<SdkSurface, SdkParamSource[]>
+}
+
+/** Param names aliased to `credential` when the surface has no `credential` of its own. */
+const CREDENTIAL_ALIAS_SOURCES = new Set(['oauthCredential', 'triggerCredentials'])
+const CREDENTIAL_ALIAS = 'credential'
+
+/**
+ * Core SDK exports that ARE block builders: the core blocks' namespaces (`condition(...)`,
+ * `table.queryRows(...)` by declaration merging, `fn(...)`). Every other core export is a value
+ * constructor or tree root (`block`, `trigger`, `legacy`, `env`, `kb`, `loop`, ...), which no block
+ * namespace may take.
+ */
+const CORE_BLOCK_BUILDERS = new Set<string>([
+  'condition',
+  'fn',
+  'human',
+  'note',
+  'response',
+  'router',
+  'runWorkflow',
+  'setVariables',
+  'table',
+])
+
+const CORE_EXPORTS: ReadonlySet<string> = new Set(SDK_CORE_EXPORTS)
+
+/** Namespace roots a block may never take; `custom` is the per-org custom block tree. */
+const SDK_OWNED_ROOTS = new Set<string>([
+  'custom',
+  ...SDK_CORE_EXPORTS.filter((name) => !CORE_BLOCK_BUILDERS.has(name)),
+])
+
+/**
+ * Default namespaces that are not the camelCased type, matching the builder names `core.d.ts`
+ * documents for the core blocks (s2 §2 core types).
+ */
+const NAMESPACE_SEEDS: Record<string, string> = {
+  function: 'fn',
+  workflow_input: 'runWorkflow',
+  human_in_the_loop_v2: 'human',
+  variables: 'setVariables',
+}
+
+/** Members a generated namespace declares besides its methods (s2 §2: `const tool`). */
+const NAMESPACE_MEMBERS = new Set<string>(['tool'])
+
+const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
+
+/** `'Send Message'` → `sendMessage`; `'list_dns_records'` → `listDnsRecords`. */
+export function toCamelIdentifier(text: string): string {
+  const words = text
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(/[^A-Za-z0-9]+/)
+    .filter((word) => word.length > 0)
+  return words
+    .map((word, index) => {
+      const lower = word.toLowerCase()
+      return index === 0 ? lower : lower.charAt(0).toUpperCase() + lower.slice(1)
+    })
+    .join('')
+}
+
+/**
+ * A method or trigger name: an identifier that is not a JS reserved word (a generated
+ * `namespace { function delete() }` does not parse). Core SDK exports are fine here: a method is a
+ * member, so `helpscout.runWorkflow` never shadows the core `runWorkflow`.
+ */
+function isUsableIdentifier(name: string): boolean {
+  return IDENTIFIER.test(name) && (!SDK_RESERVED_IDENTIFIERS.has(name) || CORE_EXPORTS.has(name))
+}
+
+/** First of `candidates` that is a usable identifier, else the first with a `_` suffix. */
+function firstUsable(candidates: string[]): string | undefined {
+  for (const candidate of candidates) if (isUsableIdentifier(candidate)) return candidate
+  for (const candidate of candidates) {
+    if (IDENTIFIER.test(candidate)) return `${candidate}_`
+  }
+  return undefined
+}
+
+/** `base`, else `base2`, `base3`, … — the first not in `taken`. */
+function suffixUntilFree(base: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(base)) return base
+  let n = 2
+  while (taken.has(`${base}${n}`)) n++
+  return `${base}${n}`
+}
+
+function pickFree(candidates: string[], taken: ReadonlySet<string>, fallback: string): string {
+  const usable = candidates.filter((candidate) => isUsableIdentifier(candidate))
+  for (const candidate of usable) if (!taken.has(candidate)) return candidate
+  return suffixUntilFree(usable[0] ?? firstUsable(candidates) ?? fallback, taken)
+}
+
+/**
+ * A visible block takes its seed, else its unversioned camelCased type, else the full type; a
+ * toolbar-hidden one (superseded or sunset) lives under `legacy.` by its full type. The first free
+ * usable candidate wins, else the first candidate with a numeric suffix.
+ */
+function defaultNamespace(source: SdkNameSource, taken: ReadonlySet<string>): string {
+  const full = toCamelIdentifier(source.type)
+  const prefix = source.hidden ? 'legacy.' : ''
+  const candidates = (
+    source.hidden
+      ? [full]
+      : [NAMESPACE_SEEDS[source.type], toCamelIdentifier(stripVersionSuffix(source.type)), full]
+  ).filter(
+    (candidate): candidate is string =>
+      candidate !== undefined &&
+      isUsableIdentifier(candidate) &&
+      (source.hidden || !SDK_OWNED_ROOTS.has(candidate))
+  )
+  const base = candidates[0] ?? `${full.replace(/^(?=\d)/, '_')}Block`
+  for (const candidate of [...candidates, base]) {
+    if (!taken.has(`${prefix}${candidate}`)) return `${prefix}${candidate}`
+  }
+  let n = 2
+  while (taken.has(`${prefix}${base}${n}`)) n++
+  return `${prefix}${base}${n}`
+}
+
+function triggerMethodCandidates(blockType: string, trigger: { id: string; provider: string }) {
+  const id = stripVersionSuffix(trigger.id)
+  const prefixes = [`${stripVersionSuffix(blockType)}_`, `${trigger.provider}_`]
+  const stripped = prefixes.reduce(
+    (current, prefix) => (current.startsWith(prefix) ? current.slice(prefix.length) : current),
+    id
+  )
+  return [toCamelIdentifier(stripped), toCamelIdentifier(trigger.id)]
+}
+
+/**
+ * Returns `existing` plus entries for every block, operation, trigger and alias it lacks.
+ * Existing names are never changed, so a later label edit cannot rename a method. Sources are
+ * processed in type order, visible blocks first, so a new block's namespace is deterministic.
+ */
+export function extendSdkNames(
+  existing: SdkNamesFile,
+  sources: readonly SdkNameSource[]
+): { names: SdkNamesFile; added: string[] } {
+  const blocks: Record<string, SdkNamesBlockEntry> = structuredClone(existing.blocks)
+  const added: string[] = []
+  const takenNamespaces = new Set(Object.values(blocks).map((entry) => entry.namespace))
+
+  const ordered = [...sources].sort((a, b) =>
+    a.hidden === b.hidden ? compareStrings(a.type, b.type) : a.hidden ? 1 : -1
+  )
+
+  for (const source of ordered) {
+    let entry = blocks[source.type]
+    if (!entry) {
+      const namespace = defaultNamespace(source, takenNamespaces)
+      takenNamespaces.add(namespace)
+      entry = { namespace }
+      blocks[source.type] = entry
+      added.push(`${source.type}: namespace ${namespace}`)
+    }
+
+    if (source.operations.length > 0) {
+      const methods = entry.methods ?? {}
+      const taken = new Set([...NAMESPACE_MEMBERS, ...Object.values(methods)])
+      for (const operation of source.operations) {
+        if (Object.hasOwn(methods, operation.id)) continue
+        const method = pickFree(
+          [toCamelIdentifier(operation.label), toCamelIdentifier(operation.id)],
+          taken,
+          'operation'
+        )
+        methods[operation.id] = method
+        taken.add(method)
+        added.push(`${source.type}: method ${operation.id} → ${method}`)
+      }
+      entry.methods = methods
+    }
+
+    if (source.triggers.length > 0) {
+      const triggers = entry.triggers ?? {}
+      const taken = new Set(Object.values(triggers))
+      for (const trigger of source.triggers) {
+        if (Object.hasOwn(triggers, trigger.id)) continue
+        const method = pickFree(triggerMethodCandidates(source.type, trigger), taken, 'trigger')
+        triggers[trigger.id] = method
+        taken.add(method)
+        added.push(`${source.type}: trigger ${trigger.id} → ${method}`)
+      }
+      entry.triggers = triggers
+    }
+
+    for (const surface of ['action', 'trigger'] as const) {
+      const aliases = entry.params?.[surface] ?? {}
+      const names = new Set(source.params[surface].map((param) => param.name))
+      const used = new Set([...names, ...Object.values(aliases)])
+      for (const name of [...names].sort(compareStrings)) {
+        if (Object.hasOwn(aliases, name) || !CREDENTIAL_ALIAS_SOURCES.has(name)) continue
+        if (used.has(CREDENTIAL_ALIAS)) continue
+        aliases[name] = CREDENTIAL_ALIAS
+        used.add(CREDENTIAL_ALIAS)
+        added.push(`${source.type}: ${surface} param ${name} → ${CREDENTIAL_ALIAS}`)
+      }
+      if (Object.keys(aliases).length > 0) entry.params = { ...entry.params, [surface]: aliases }
+    }
+  }
+
+  return { names: { version: 1, blocks: sortEntries(blocks) }, added }
+}
+
+function sortRecord<T>(record: Record<string, T>): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(record).sort(([a], [b]) => compareStrings(a, b))
+  ) as Record<string, T>
+}
+
+/** Key-sorted copy so the file diffs one line per added name. */
+function sortEntries(
+  blocks: Record<string, SdkNamesBlockEntry>
+): Record<string, SdkNamesBlockEntry> {
+  const sorted: Record<string, SdkNamesBlockEntry> = {}
+  for (const [type, entry] of Object.entries(sortRecord(blocks))) {
+    const next: SdkNamesBlockEntry = { namespace: entry.namespace }
+    if (entry.methods) next.methods = sortRecord(entry.methods)
+    if (entry.triggers) next.triggers = sortRecord(entry.triggers)
+    if (entry.params) {
+      const params: Partial<Record<SdkSurface, Record<string, string>>> = {}
+      if (entry.params.action) params.action = sortRecord(entry.params.action)
+      if (entry.params.trigger) params.trigger = sortRecord(entry.params.trigger)
+      next.params = params
+    }
+    sorted[type] = next
+  }
+  return sorted
+}
+
+function namespaceIsValid(namespace: string): boolean {
+  const segments = namespace.split('.')
+  if (segments.some((segment) => !isUsableIdentifier(segment))) return false
+  if (segments.length === 1) return !SDK_OWNED_ROOTS.has(namespace)
+  return segments.length === 2 && segments[0] === 'legacy'
+}
+
+/**
+ * Every problem with `names` against the registry: a missing entry (the generator was not run),
+ * an invalid identifier, or two things sharing one name. Sorted, so the check output is stable.
+ */
+export function validateSdkNames(names: SdkNamesFile, sources: readonly SdkNameSource[]): string[] {
+  const issues: string[] = []
+  const namespaceOwners = new Map<string, string>()
+  for (const [type, entry] of Object.entries(names.blocks)) {
+    if (!namespaceIsValid(entry.namespace)) {
+      issues.push(`${type}: namespace "${entry.namespace}" is not a valid SDK namespace`)
+    }
+    const owner = namespaceOwners.get(entry.namespace)
+    if (owner) issues.push(`${type}: namespace "${entry.namespace}" collides with ${owner}`)
+    else namespaceOwners.set(entry.namespace, type)
+
+    for (const [kind, record] of [
+      ['method', entry.methods],
+      ['trigger', entry.triggers],
+    ] as const) {
+      const seen = new Map<string, string>()
+      for (const [id, name] of Object.entries(record ?? {})) {
+        if (!isUsableIdentifier(name) || (kind === 'method' && NAMESPACE_MEMBERS.has(name))) {
+          issues.push(`${type}: ${kind} "${name}" (${id}) is not a usable identifier`)
+        }
+        const other = seen.get(name)
+        if (other) issues.push(`${type}: ${kind} "${name}" names both ${other} and ${id}`)
+        else seen.set(name, id)
+      }
+    }
+  }
+
+  for (const source of sources) {
+    const entry = names.blocks[source.type]
+    if (!entry) {
+      issues.push(`${source.type}: missing entry`)
+      continue
+    }
+    for (const operation of source.operations) {
+      if (!entry.methods || !Object.hasOwn(entry.methods, operation.id)) {
+        issues.push(`${source.type}: missing method for operation ${operation.id}`)
+      }
+    }
+    for (const trigger of source.triggers) {
+      if (!entry.triggers || !Object.hasOwn(entry.triggers, trigger.id)) {
+        issues.push(`${source.type}: missing method for trigger ${trigger.id}`)
+      }
+    }
+    for (const surface of ['action', 'trigger'] as const) {
+      const aliases = entry.params?.[surface] ?? {}
+      const identities = new Map<string, Set<string>>()
+      for (const param of source.params[surface]) {
+        const name = aliases[param.name] ?? param.name
+        const set = identities.get(name) ?? new Set<string>()
+        set.add(param.identity)
+        identities.set(name, set)
+      }
+      for (const [name, set] of identities) {
+        if (set.size > 1) {
+          issues.push(
+            `${source.type}: ${surface} param "${name}" names ${[...set].sort(compareStrings).join(', ')}`
+          )
+        }
+      }
+      for (const name of Object.keys(aliases)) {
+        if (!CREDENTIAL_ALIAS_SOURCES.has(name)) {
+          issues.push(`${source.type}: ${surface} alias for "${name}" is not a credential alias`)
+        }
+      }
+    }
+  }
+
+  return issues.sort(compareStrings)
+}
+
+function isTriggerSurface(subBlock: SubBlockConfig): boolean {
+  return subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
+}
+
+/** The `operation` dropdown's static options across every declaration, in declared order. */
+export function operationOptions(block: BlockConfig): Array<{ id: string; label: string }> {
+  const seen = new Set<string>()
+  const operations: Array<{ id: string; label: string }> = []
+  for (const subBlock of block.subBlocks) {
+    if (subBlock.id !== 'operation' || subBlock.type !== 'dropdown') continue
+    if (isTriggerSurface(subBlock) || !Array.isArray(subBlock.options)) continue
+    for (const option of subBlock.options) {
+      const id = String(option.id)
+      if (seen.has(id)) continue
+      seen.add(id)
+      operations.push({ id, label: typeof option.label === 'string' ? option.label : id })
+    }
+  }
+  return operations
+}
+
+/** Reads the name-relevant facts off one registry block. */
+export function sdkNameSource(
+  block: BlockConfig,
+  triggerProvider: (triggerId: string) => string | undefined
+): SdkNameSource {
+  const params: Record<SdkSurface, SdkParamSource[]> = { action: [], trigger: [] }
+  for (const subBlock of block.subBlocks) {
+    const surface: SdkSurface = isTriggerSurface(subBlock) ? 'trigger' : 'action'
+    params[surface].push(
+      subBlock.canonicalParamId
+        ? { name: subBlock.canonicalParamId, identity: `pair:${subBlock.canonicalParamId}` }
+        : { name: subBlock.id, identity: `id:${subBlock.id}` }
+    )
+  }
+  const triggers = block.triggers?.enabled
+    ? block.triggers.available.flatMap((id) => {
+        const provider = triggerProvider(id)
+        return provider === undefined ? [] : [{ id, provider }]
+      })
+    : []
+  return {
+    type: block.type,
+    hidden: block.hideFromToolbar === true,
+    operations: operationOptions(block),
+    triggers,
+    params,
+  }
+}

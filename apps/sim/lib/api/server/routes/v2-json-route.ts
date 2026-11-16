@@ -497,6 +497,22 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
     result: NoInfer<R>
   }): void | Promise<void>
   statusForResult?(result: NoInfer<R>): number
+  /**
+   * A strong validator for a result whose content is already content-addressed (the block
+   * catalog's hash). When set, a success carries `ETag`, and a request whose `If-None-Match`
+   * names that tag (or `*`) is answered `304` with no body, after the use case ran, so
+   * authorization is unchanged. Every other route leaves it unset (`v2-api-conventions`).
+   */
+  entityTag?(result: NoInfer<R>): string
+}
+
+/** `If-None-Match` uses weak comparison (RFC 9110 §13.1.2), so `W/` prefixes are ignored. */
+function ifNoneMatchSatisfied(header: string | null, tag: string): boolean {
+  if (!header) return false
+  return header
+    .split(',')
+    .map((candidate) => candidate.trim().replace(/^W\//, ''))
+    .some((candidate) => candidate === '*' || candidate === tag)
 }
 
 /**
@@ -594,6 +610,14 @@ export function defineV2JsonRoute<
           input,
           request,
         })
+        const entityTag = options.entityTag ? `"${options.entityTag(result)}"` : undefined
+        if (entityTag && ifNoneMatchSatisfied(request.headers.get('if-none-match'), entityTag)) {
+          await options.onSuccess?.({ principal: auth.principal, input, result })
+          return new NextResponse(null, {
+            status: 304,
+            headers: { 'Cache-Control': 'private, no-store', ETag: entityTag },
+          })
+        }
         const body = await options.present(result, parsed.data)
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
@@ -609,7 +633,10 @@ export function defineV2JsonRoute<
         await options.onSuccess?.({ principal: auth.principal, input, result })
         return NextResponse.json(validatedBody, {
           status: responseStatus,
-          headers: { 'Cache-Control': 'private, no-store' },
+          headers: {
+            'Cache-Control': 'private, no-store',
+            ...(entityTag ? { ETag: entityTag } : {}),
+          },
         })
       } catch (error) {
         const response = options.errorPolicy.render(error)

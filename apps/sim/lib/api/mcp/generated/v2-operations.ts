@@ -26,6 +26,7 @@ import {
   v2GetBillingStatusContract,
   v2ListBillingLogsContract,
 } from '@/lib/api/contracts/v2/billing'
+import { v2GetBlockCatalogContract } from '@/lib/api/contracts/v2/block-catalog'
 import {
   v2ExecuteToolContract,
   v2GetBlockContract,
@@ -1310,6 +1311,16 @@ export const V2_MCP_OPERATIONS = {
     description:
       "Get a block's fields, conditions, operations, tool schemas, and triggers. Unversioned types resolve to the newest visible version; the returned `id` identifies that version. Hidden or missing blocks return `404`.\n\nOAuth scope: `api:read`.",
     handler: () => import('@/app/api/v2/blocks/[blockId]/route').then((route) => route.GET),
+  },
+  getBlockCatalog: {
+    contract: v2GetBlockCatalogContract,
+    summary: 'Get block catalog',
+    description:
+      'Get the block catalog that workflow source is compiled and type-checked against: every block type the caller may place in the workspace, with its fields, visibility conditions, outputs, triggers, and SDK builder names. Pass `workflowId` to add the block types already placed in that workflow. The response carries the catalog `hash` as an `ETag`; send it back in `If-None-Match` to receive `304 Not Modified` with no body when the catalog is unchanged. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/block-catalog/route').then(
+        (route) => route.GET
+      ),
   },
   getCustomTool: {
     contract: v2GetCustomToolContract,

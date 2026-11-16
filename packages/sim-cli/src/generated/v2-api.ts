@@ -6095,6 +6095,320 @@ export type GetBlockResponse = {
   data: GetBlockResponseRef6
 }
 
+/** `GET /api/v2/workspaces/[workspaceId]/block-catalog` */
+export type GetBlockCatalogParams = {
+  workspaceId: string
+}
+
+export type GetBlockCatalogQuery = {
+  workflowId?: string
+}
+
+export type GetBlockCatalogHeaders = {
+  'if-none-match'?: string
+}
+
+export type GetBlockCatalogResponse = {
+  data: {
+    catalogVersion: 1
+    hash: string
+    sdkMajor: number
+    blocks: Record<
+      string,
+      {
+        type: string
+        name: string
+        category: 'blocks' | 'tools' | 'triggers'
+        addable?: false
+        lifecycle?: {
+          hidden?: true
+          preview?: true
+          sunset?: {
+            status: 'legacy' | 'deprecated'
+            replacedBy?: string
+          }
+        }
+        triggerAllowed?: boolean
+        triggers?: {
+          enabled: boolean
+          available: Array<string>
+        }
+        singleInstance?: boolean
+        subBlocks: Array<{
+          id: string
+          type: string
+          title?: string
+          mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
+          canonicalParamId?: string
+          surface?: 'action' | 'trigger'
+          condition?:
+            | {
+                field: string
+                value: string | number | boolean | Array<string | number | boolean>
+                not?: boolean
+                and?: {
+                  field: string
+                  value?: string | number | boolean | Array<string | number | boolean>
+                  not?: boolean
+                }
+              }
+            | {
+                opaque: true
+              }
+          visibleFor?: Record<string, boolean>
+          required?:
+            | boolean
+            | {
+                field: string
+                value: string | number | boolean | Array<string | number | boolean>
+                not?: boolean
+                and?: {
+                  field: string
+                  value?: string | number | boolean | Array<string | number | boolean>
+                  not?: boolean
+                }
+              }
+            | {
+                opaque: true
+              }
+          dependsOn?: {
+            all: Array<string>
+            any: Array<string>
+          }
+          defaultValue?: unknown
+          valueDefault?:
+            | {
+                computed: true
+              }
+            | {
+                constant: unknown
+              }
+          options?:
+            | Array<{
+                id: string
+                label: string
+              }>
+            | {
+                dynamic: true
+              }
+            | {
+                opaque: true
+              }
+          hidden?: boolean
+          readOnly?: boolean
+          password?: boolean
+          hideFromCopilot?: boolean
+          context?: 'tool-input'
+          paramVisibility?: string
+          emptyIsValid?: boolean
+          language?: string
+          multiple?: boolean
+          min?: number
+          max?: number
+          step?: number
+          integer?: boolean
+          columns?: Array<string>
+          selectorKey?: string
+          serviceId?: string
+          valueKind:
+            | 'string'
+            | 'number'
+            | 'boolean'
+            | 'array'
+            | 'object'
+            | 'json'
+            | 'code'
+            | 'branches'
+            | 'tools'
+            | 'resource'
+            | 'picked'
+            | 'upload'
+            | 'none'
+          resourceKind?: string
+          storage: 'native' | 'json-string'
+          structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+        }>
+        tools: {
+          access: Array<string>
+          selector: 'single' | 'operation' | 'opaque'
+        }
+        inputs: Record<
+          string,
+          {
+            type: string
+            schema?: unknown
+          }
+        >
+        outputs: Record<
+          string,
+          {
+            type: string
+            description?: string
+            condition?: unknown
+            hiddenFromDisplay?: boolean
+            properties?: Record<string, unknown>
+            items?: unknown
+          }
+        >
+        dynamicOutputs?: {
+          source: 'responseFormat' | 'inputFormat' | 'humanForm' | 'tableRows'
+          param: string
+        }
+        graph: {
+          canBeTarget: boolean
+          errorPort: boolean
+          container: 'loop' | 'parallel' | null
+          annotationOnly: boolean
+          branches?: {
+            subBlockId: string
+            kind: 'condition' | 'router'
+          }
+        }
+        legacyIds?: Array<{
+          from: string
+          to: string | null
+          whenOperation?: Array<string>
+          conditional?: true
+        }>
+        legacyCanonicalIds?: Array<{
+          from: string
+          to: string
+        }>
+        custom?: {
+          sourceWorkflowId?: string
+        }
+      }
+    >
+    triggers: Record<
+      string,
+      {
+        id: string
+        provider: string
+        name: string
+        polling?: boolean
+        webhook?: boolean
+        subBlocks: Array<{
+          id: string
+          type: string
+          title?: string
+          mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
+          canonicalParamId?: string
+          surface?: 'action' | 'trigger'
+          condition?:
+            | {
+                field: string
+                value: string | number | boolean | Array<string | number | boolean>
+                not?: boolean
+                and?: {
+                  field: string
+                  value?: string | number | boolean | Array<string | number | boolean>
+                  not?: boolean
+                }
+              }
+            | {
+                opaque: true
+              }
+          visibleFor?: Record<string, boolean>
+          required?:
+            | boolean
+            | {
+                field: string
+                value: string | number | boolean | Array<string | number | boolean>
+                not?: boolean
+                and?: {
+                  field: string
+                  value?: string | number | boolean | Array<string | number | boolean>
+                  not?: boolean
+                }
+              }
+            | {
+                opaque: true
+              }
+          dependsOn?: {
+            all: Array<string>
+            any: Array<string>
+          }
+          defaultValue?: unknown
+          valueDefault?:
+            | {
+                computed: true
+              }
+            | {
+                constant: unknown
+              }
+          options?:
+            | Array<{
+                id: string
+                label: string
+              }>
+            | {
+                dynamic: true
+              }
+            | {
+                opaque: true
+              }
+          hidden?: boolean
+          readOnly?: boolean
+          password?: boolean
+          hideFromCopilot?: boolean
+          context?: 'tool-input'
+          paramVisibility?: string
+          emptyIsValid?: boolean
+          language?: string
+          multiple?: boolean
+          min?: number
+          max?: number
+          step?: number
+          integer?: boolean
+          columns?: Array<string>
+          selectorKey?: string
+          serviceId?: string
+          valueKind:
+            | 'string'
+            | 'number'
+            | 'boolean'
+            | 'array'
+            | 'object'
+            | 'json'
+            | 'code'
+            | 'branches'
+            | 'tools'
+            | 'resource'
+            | 'picked'
+            | 'upload'
+            | 'none'
+          resourceKind?: string
+          storage: 'native' | 'json-string'
+          structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+        }>
+        outputs: Record<
+          string,
+          {
+            type: string
+            description?: string
+            condition?: unknown
+            hiddenFromDisplay?: boolean
+            properties?: Record<string, unknown>
+            items?: unknown
+          }
+        >
+      }
+    >
+    builders: Record<
+      string,
+      {
+        type: string
+        operation?: string
+        triggerMode?: boolean
+        fixed?: Record<string, string>
+      }
+    >
+    scope?: {
+      organizationId: string
+    }
+  }
+}
+
 /** `GET /api/v2/custom-tools/[customToolId]` */
 export type GetCustomToolParams = {
   customToolId: string
@@ -19202,6 +19516,30 @@ export const V2_OPERATIONS = {
         required: true,
         describe:
           'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+    },
+  },
+  getBlockCatalog: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/block-catalog',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: {
+      workspaceId:
+        'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains.',
+    },
+    responseMode: 'json',
+    summary: 'Get block catalog',
+    query: {
+      workflowId: {
+        kind: 'string',
+        describe:
+          'Return the compile catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`.',
+      },
+    },
+    headers: {
+      'if-none-match': {
+        kind: 'string',
+        describe: 'A catalog `hash` (quoted, as sent in `ETag`) the caller already holds.',
       },
     },
   },

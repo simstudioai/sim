@@ -1,0 +1,558 @@
+import type {
+  CatalogBlock,
+  CatalogBlockGraph,
+  CatalogCondition,
+  CatalogLegacyId,
+  CatalogOption,
+  CatalogOutput,
+  CatalogSubBlock,
+  CatalogTool,
+  CatalogTrigger,
+  Json,
+  SubBlockConditionClause,
+} from '@sim/workflow-code'
+import type { OutputCondition, PrimitiveValueType } from '@sim/workflow-types/blocks'
+import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
+import { resolveSubBlockOptions } from '@/lib/catalog/projection/subblock'
+import { probeThunk, readsOnly } from '@/lib/workflows/code/catalog/probe'
+import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
+import { deriveValueShape } from '@/lib/workflows/code/catalog/value-kind'
+import {
+  CANONICAL_ID_MIGRATIONS,
+  SUBBLOCK_ID_MIGRATIONS,
+} from '@/lib/workflows/migrations/subblock-migrations'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import {
+  isHumanInTheLoopBlock,
+  isMetadataOnlyBlockType,
+  isSentinelBlockType,
+} from '@/executor/constants'
+import type { ToolMetadata } from '@/tools/metadata'
+import type { TriggerConfig } from '@/triggers/types'
+
+/**
+ * Projects registry definitions into the catalog's pure-data shape (s1 §2, build-spec decision 14).
+ *
+ * Every thunk is classified with {@link probeThunk}: one that reads no block value depends only on
+ * the deployment and is evaluated here; one that reads values becomes `{ opaque: true }`. A
+ * condition that reads only `operation` is additionally pre-expanded into `visibleFor`, which is
+ * what the SDK codegen's visibility evaluator runs on (s2 §2).
+ */
+
+/** Where a thunk could not be turned into data; the registry-wide sweep counts these. */
+export interface OpaqueSite {
+  block: string
+  subBlock: string
+  surface: 'action' | 'trigger'
+  field: 'condition' | 'required' | 'options' | 'tool'
+  /** For a condition: whether `visibleFor` pre-expanded it per operation. */
+  expanded?: boolean
+}
+
+export interface ProjectionReport {
+  opaque: OpaqueSite[]
+}
+
+const OPAQUE = { opaque: true } as const
+
+const PRIMITIVE_TYPES = new Set<string>([
+  'string',
+  'number',
+  'boolean',
+  'json',
+  'array',
+  'file',
+  'file[]',
+  'any',
+])
+
+const OPERATION_ONLY = new Set(['operation'])
+
+type RegistryClause = Exclude<NonNullable<SubBlockConfig['condition']>, (...args: never) => unknown>
+
+function copyClause(clause: RegistryClause): SubBlockConditionClause {
+  const copy: SubBlockConditionClause = {
+    field: clause.field,
+    value: Array.isArray(clause.value) ? [...clause.value] : clause.value,
+  }
+  if (clause.not !== undefined) copy.not = clause.not
+  if (clause.and) {
+    copy.and = {
+      field: clause.and.field,
+      value: Array.isArray(clause.and.value) ? [...clause.and.value] : clause.and.value,
+    }
+    if (clause.and.not !== undefined) copy.and.not = clause.and.not
+  }
+  return copy
+}
+
+/**
+ * Whether a clause is decided false by the operation alone. A clause on another field (Slack's
+ * `destinationType`) is undecided, which counts as visible: the field can apply to that operation.
+ */
+function excludedByOperation(clause: SubBlockConditionClause, operation: string): boolean {
+  const decided = (field: string, value: unknown, not: boolean | undefined): boolean | null => {
+    if (field !== 'operation') return null
+    const matches = Array.isArray(value) ? value.includes(operation) : value === operation
+    return not ? !matches : matches
+  }
+  const main = decided(clause.field, clause.value, clause.not)
+  const and = clause.and ? decided(clause.and.field, clause.and.value, clause.and.not) : null
+  return main === false || and === false
+}
+
+type ConditionThunk = (values: Record<string, unknown>) => RegistryClause
+
+function projectConditionThunk(
+  thunk: ConditionThunk,
+  operations: readonly string[]
+): { condition: CatalogCondition; visibleFor?: Record<string, boolean> } {
+  const probe = probeThunk(thunk)
+  if (probe.ok && probe.reads.size === 0) return { condition: copyClause(probe.result) }
+  if (operations.length === 0 || !readsOnly(probe.reads, OPERATION_ONLY)) {
+    return { condition: OPAQUE }
+  }
+  const visibleFor: Record<string, boolean> = {}
+  for (const operation of operations) {
+    const perOperation = probeThunk(thunk, { operation })
+    if (!perOperation.ok || !readsOnly(perOperation.reads, OPERATION_ONLY)) {
+      return { condition: OPAQUE }
+    }
+    visibleFor[operation] = !excludedByOperation(copyClause(perOperation.result), operation)
+  }
+  return { condition: OPAQUE, visibleFor }
+}
+
+function projectRequired(
+  required: NonNullable<SubBlockConfig['required']>
+): boolean | CatalogCondition {
+  if (typeof required === 'boolean') return required
+  if (typeof required !== 'function') return copyClause(required)
+  const probe = probeThunk(required as ConditionThunk)
+  return probe.ok && probe.reads.size === 0 ? copyClause(probe.result) : OPAQUE
+}
+
+function copyOptions(
+  options: ReadonlyArray<{ id: unknown; label?: unknown }> | undefined
+): CatalogOption[] {
+  const projected: CatalogOption[] = []
+  for (const option of options ?? []) {
+    if (option?.id === undefined || option.id === null) continue
+    const id = String(option.id)
+    projected.push({ id, label: typeof option.label === 'string' ? option.label : id })
+  }
+  return projected
+}
+
+type OptionsThunk = (params?: { values: Record<string, unknown> }) => unknown
+
+/**
+ * Static options are copied. A `selectorKey` field fetches its list per workspace, so it is
+ * `dynamic`. An options function that ignores block values is a deployment-shaped list (the model
+ * pickers) and is evaluated once through the shared resolver, which substitutes the code-defined
+ * model list for the browser store; one that reads values stays opaque.
+ */
+function projectOptions(subBlock: SubBlockConfig): CatalogSubBlock['options'] {
+  if (subBlock.selectorKey) return { dynamic: true }
+  if (subBlock.options === undefined) return undefined
+  if (typeof subBlock.options !== 'function') return copyOptions(subBlock.options)
+  const optionsThunk = subBlock.options as OptionsThunk
+  const probe = probeThunk((values) => optionsThunk({ values }))
+  if (probe.reads.size > 0) return OPAQUE
+  const resolved = resolveSubBlockOptions(subBlock)
+  return resolved === undefined ? OPAQUE : copyOptions(resolved)
+}
+
+function isJson(value: unknown): value is Json {
+  if (value === null) return true
+  switch (typeof value) {
+    case 'string':
+    case 'boolean':
+      return true
+    case 'number':
+      return Number.isFinite(value)
+    case 'object':
+      return Array.isArray(value)
+        ? value.every(isJson)
+        : Object.values(value as Record<string, unknown>).every(isJson)
+    default:
+      return false
+  }
+}
+
+/**
+ * A `value()` thunk is a constant when it reads no param and returns the same value twice (some
+ * thunks mint ids, which must never be frozen into the catalog); anything else is `computed`.
+ */
+function projectValueDefault(
+  thunk: NonNullable<SubBlockConfig['value']>
+): CatalogSubBlock['valueDefault'] {
+  const first = probeThunk(thunk)
+  if (!first.ok || first.reads.size > 0) return { computed: true }
+  if (first.result === undefined) return undefined
+  const second = probeThunk(thunk)
+  if (!second.ok || second.result !== first.result || !isJson(first.result)) {
+    return { computed: true }
+  }
+  return { constant: first.result }
+}
+
+function subBlockSurface(subBlock: SubBlockConfig): 'action' | 'trigger' {
+  return subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced' ? 'trigger' : 'action'
+}
+
+interface SubBlockContext {
+  blockType: string
+  operations: readonly string[]
+  /** Whether this block has trigger-surface subBlocks, so every subBlock records its surface. */
+  tagSurface: boolean
+  report: ProjectionReport
+}
+
+function assign<T extends object, K extends keyof T>(target: T, key: K, value: T[K] | null): void {
+  if (value !== undefined && value !== null) target[key] = value
+}
+
+function projectSubBlock(subBlock: SubBlockConfig, ctx: SubBlockContext): CatalogSubBlock {
+  const shape = deriveValueShape(subBlock)
+  const surface = subBlockSurface(subBlock)
+  const projected: CatalogSubBlock = { id: subBlock.id, type: subBlock.type, ...shape }
+  const site = (field: OpaqueSite['field'], expanded?: boolean) => {
+    const entry: OpaqueSite = { block: ctx.blockType, subBlock: subBlock.id, surface, field }
+    if (expanded !== undefined) entry.expanded = expanded
+    ctx.report.opaque.push(entry)
+  }
+
+  assign(projected, 'title', subBlock.title)
+  assign(projected, 'mode', subBlock.mode)
+  assign(projected, 'canonicalParamId', subBlock.canonicalParamId)
+  if (ctx.tagSurface) projected.surface = surface
+
+  if (subBlock.condition !== undefined) {
+    if (typeof subBlock.condition === 'function') {
+      const { condition, visibleFor } = projectConditionThunk(
+        subBlock.condition as ConditionThunk,
+        ctx.operations
+      )
+      projected.condition = condition
+      if (visibleFor) projected.visibleFor = visibleFor
+      if ('opaque' in condition) site('condition', visibleFor !== undefined)
+    } else {
+      projected.condition = copyClause(subBlock.condition)
+    }
+  }
+  if (subBlock.required !== undefined) {
+    const required = projectRequired(subBlock.required)
+    projected.required = required
+    if (typeof required === 'object' && 'opaque' in required) site('required')
+  }
+  if (subBlock.dependsOn) {
+    projected.dependsOn = Array.isArray(subBlock.dependsOn)
+      ? { all: [...subBlock.dependsOn], any: [] }
+      : { all: [...(subBlock.dependsOn.all ?? [])], any: [...(subBlock.dependsOn.any ?? [])] }
+  }
+  const writable = shape.valueKind !== 'none'
+  if (writable && subBlock.defaultValue !== undefined && isJson(subBlock.defaultValue)) {
+    projected.defaultValue = structuredClone(subBlock.defaultValue)
+  }
+  if (writable && typeof subBlock.value === 'function') {
+    assign(projected, 'valueDefault', projectValueDefault(subBlock.value))
+  }
+  const options = projectOptions(subBlock)
+  if (options !== undefined) {
+    projected.options = options
+    if (!Array.isArray(options) && 'opaque' in options) site('options')
+  }
+
+  assign(projected, 'hidden', subBlock.hidden)
+  assign(projected, 'readOnly', subBlock.readOnly)
+  assign(projected, 'password', subBlock.password)
+  assign(projected, 'hideFromCopilot', subBlock.hideFromCopilot)
+  assign(projected, 'context', subBlock.context)
+  assign(projected, 'paramVisibility', subBlock.paramVisibility)
+  assign(projected, 'emptyIsValid', subBlock.emptyIsValid)
+  assign(projected, 'language', subBlock.language)
+  assign(projected, 'multiple', subBlock.multiple)
+  assign(projected, 'min', subBlock.min)
+  assign(projected, 'max', subBlock.max)
+  assign(projected, 'step', subBlock.step)
+  assign(projected, 'integer', subBlock.integer)
+  if (subBlock.columns) projected.columns = [...subBlock.columns]
+  assign(projected, 'selectorKey', subBlock.selectorKey)
+  assign(projected, 'serviceId', subBlock.serviceId)
+  return projected
+}
+
+function primitiveType(type: unknown): PrimitiveValueType {
+  if (type === 'object') return 'json'
+  return typeof type === 'string' && PRIMITIVE_TYPES.has(type)
+    ? (type as PrimitiveValueType)
+    : 'any'
+}
+
+const OUTPUT_META_KEYS = new Set([
+  'type',
+  'description',
+  'condition',
+  'hiddenFromDisplay',
+  'nullable',
+  'properties',
+  'items',
+])
+
+/**
+ * An output condition's `and.value` may list `undefined` for "unset" (google_forms). JSON has no
+ * `undefined`, so it is written as `null`; a catalog consumer reads a listed `null` as "unset or
+ * null", which is what the editor's `evaluateOutputCondition` matches for those entries.
+ */
+function copyOutputCondition(condition: OutputCondition): OutputCondition {
+  const copy = structuredClone(condition)
+  if (copy.and && Array.isArray(copy.and.value)) {
+    copy.and.value = copy.and.value.map((value) => (value === undefined ? null : value))
+  }
+  return copy
+}
+
+function projectOutputRecord(record: Record<string, unknown>): Record<string, CatalogOutput> {
+  const projected: Record<string, CatalogOutput> = {}
+  for (const [key, definition] of Object.entries(record)) {
+    const output = projectOutput(definition)
+    if (output) projected[key] = output
+  }
+  return projected
+}
+
+/**
+ * One output definition, recursively. Block outputs are `OutputFieldDefinition`s (a type name or
+ * `{ type, description, condition }`), possibly nesting plain records; trigger outputs are the
+ * open, self-nesting `TriggerOutput`, where a key that is not a meta key is a nested output.
+ */
+function projectOutput(definition: unknown): CatalogOutput | undefined {
+  if (typeof definition === 'string') return { type: primitiveType(definition) }
+  if (!definition || typeof definition !== 'object' || Array.isArray(definition)) return undefined
+  const record = definition as Record<string, unknown>
+  const typed = typeof record.type === 'string'
+  const output: CatalogOutput = { type: typed ? primitiveType(record.type) : 'json' }
+  if (typed && typeof record.description === 'string') output.description = record.description
+  if (typed && record.condition && typeof record.condition === 'object') {
+    output.condition = copyOutputCondition(record.condition as OutputCondition)
+  }
+  if (typed && record.hiddenFromDisplay === true) output.hiddenFromDisplay = true
+
+  const nested: Record<string, unknown> = {}
+  if (record.properties && typeof record.properties === 'object') {
+    Object.assign(nested, record.properties)
+  }
+  for (const [key, value] of Object.entries(record)) {
+    if (typed && OUTPUT_META_KEYS.has(key)) continue
+    if (value && typeof value === 'object') nested[key] = value
+  }
+  const properties = projectOutputRecord(nested)
+  if (Object.keys(properties).length > 0) output.properties = properties
+  if (typed && record.items !== undefined) {
+    const items = projectOutput(record.items)
+    if (items) output.items = items
+  }
+  return output
+}
+
+function projectTools(
+  block: BlockConfig,
+  operations: readonly string[],
+  report: ProjectionReport
+): CatalogBlock['tools'] {
+  const access = [...block.tools.access]
+  const selectTool = block.tools.config?.tool
+  if (!selectTool) return { access, selector: 'single' }
+  const accessSet = new Set(access)
+  const perOperation =
+    operations.length > 0 &&
+    operations.every((operation) => {
+      const probe = probeThunk(selectTool, { operation })
+      return (
+        probe.ok &&
+        readsOnly(probe.reads, OPERATION_ONLY) &&
+        typeof probe.result === 'string' &&
+        accessSet.has(probe.result)
+      )
+    })
+  if (perOperation) return { access, selector: 'operation' }
+  report.opaque.push({ block: block.type, subBlock: '', surface: 'action', field: 'tool' })
+  return { access, selector: 'opaque' }
+}
+
+function projectGraph(block: BlockConfig): CatalogBlockGraph {
+  const annotationOnly = isWorkflowAnnotationOnlyBlockType(block.type)
+  const graph: CatalogBlockGraph = {
+    canBeTarget: block.category !== 'triggers' && !annotationOnly,
+    errorPort:
+      block.category !== 'triggers' &&
+      !annotationOnly &&
+      !isSentinelBlockType(block.type) &&
+      !isMetadataOnlyBlockType(block.type),
+    container: null,
+    annotationOnly,
+  }
+  const branchSubBlock = block.subBlocks.find(
+    (subBlock) => subBlock.type === 'condition-input' || subBlock.type === 'router-input'
+  )
+  if (branchSubBlock) {
+    graph.branches = {
+      subBlockId: branchSubBlock.id,
+      kind: branchSubBlock.type === 'condition-input' ? 'condition' : 'router',
+    }
+  }
+  return graph
+}
+
+/**
+ * Outputs derived from params at run time, mirroring `getEffectiveBlockOutputs`: the agent's
+ * `responseFormat`, the human-in-the-loop resume form, and any block whose Start-style
+ * `input-format` field adds outputs.
+ */
+function projectDynamicOutputs(block: BlockConfig): CatalogBlock['dynamicOutputs'] {
+  if (block.type === 'agent') return { source: 'responseFormat', param: 'responseFormat' }
+  const inputFormat = block.subBlocks.find(
+    (subBlock) => subBlock.type === 'input-format' && subBlockSurface(subBlock) === 'action'
+  )
+  if (!inputFormat) return undefined
+  return isHumanInTheLoopBlock(block.type)
+    ? { source: 'humanForm', param: inputFormat.id }
+    : { source: 'inputFormat', param: inputFormat.id }
+}
+
+function projectLegacyIds(type: string): CatalogLegacyId[] | undefined {
+  const migrations = SUBBLOCK_ID_MIGRATIONS[type]
+  if (!migrations?.length) return undefined
+  return migrations.map((migration) => {
+    const legacy: CatalogLegacyId = {
+      from: migration.from,
+      to: migration.to.startsWith('_removed_') ? null : migration.to,
+    }
+    if (migration.whenOperation) legacy.whenOperation = [...migration.whenOperation]
+    if (migration.whenValue) legacy.conditional = true
+    return legacy
+  })
+}
+
+export interface ProjectedBlock {
+  block: CatalogBlock
+  /** Docs-shard text, kept out of the core shard. */
+  description: string
+}
+
+/** Projects one registry block (built-in or custom) into the core-shard shape. */
+export function projectBlock(block: BlockConfig, report: ProjectionReport): ProjectedBlock {
+  const operations = operationOptions(block).map((operation) => operation.id)
+  const tagSurface = block.subBlocks.some((subBlock) => subBlockSurface(subBlock) === 'trigger')
+  const ctx: SubBlockContext = { blockType: block.type, operations, tagSurface, report }
+
+  const projected: CatalogBlock = {
+    type: block.type,
+    name: block.name,
+    category: block.category,
+    subBlocks: block.subBlocks.map((subBlock) => projectSubBlock(subBlock, ctx)),
+    tools: projectTools(block, operations, report),
+    inputs: Object.fromEntries(
+      Object.entries(block.inputs ?? {}).map(([key, input]) => [
+        key,
+        input.schema && isJson(input.schema)
+          ? { type: input.type, schema: structuredClone(input.schema) as Json }
+          : { type: input.type },
+      ])
+    ),
+    outputs: projectOutputRecord(block.outputs ?? {}),
+    graph: projectGraph(block),
+  }
+
+  const lifecycle: NonNullable<CatalogBlock['lifecycle']> = {}
+  if (block.hideFromToolbar) lifecycle.hidden = true
+  if (block.preview) lifecycle.preview = true
+  if (block.sunset) {
+    lifecycle.sunset = block.sunset.replacedBy
+      ? { status: block.sunset.status, replacedBy: block.sunset.replacedBy }
+      : { status: block.sunset.status }
+  }
+  if (Object.keys(lifecycle).length > 0) projected.lifecycle = lifecycle
+  if (block.hideFromToolbar) projected.addable = false
+  assign(projected, 'triggerAllowed', block.triggerAllowed)
+  if (block.triggers) {
+    projected.triggers = {
+      enabled: block.triggers.enabled,
+      available: [...block.triggers.available],
+    }
+  }
+  assign(projected, 'singleInstance', block.singleInstance)
+  const dynamicOutputs = projectDynamicOutputs(block)
+  if (dynamicOutputs) projected.dynamicOutputs = dynamicOutputs
+  const legacyIds = projectLegacyIds(block.type)
+  if (legacyIds) projected.legacyIds = legacyIds
+  const legacyCanonicalIds = CANONICAL_ID_MIGRATIONS[block.type]
+  if (legacyCanonicalIds?.length) {
+    projected.legacyCanonicalIds = legacyCanonicalIds.map(({ from, to }) => ({ from, to }))
+  }
+  if (block.sourceWorkflowId !== undefined) {
+    projected.custom = { sourceWorkflowId: block.sourceWorkflowId }
+  }
+  return { block: projected, description: block.description }
+}
+
+/**
+ * The two subflow containers. They live outside the block registry (the editor stores their
+ * config in block `data`, which canonicalize reads into `LoopSpec` / `ParallelSpec`), so the
+ * catalog declares them here to give compile one vocabulary for every placeable type.
+ */
+export function containerBlock(type: 'loop' | 'parallel'): CatalogBlock {
+  return {
+    type,
+    name: type === 'loop' ? 'Loop' : 'Parallel',
+    category: 'blocks',
+    subBlocks: [],
+    tools: { access: [], selector: 'single' },
+    inputs: {},
+    outputs: { results: { type: 'array' } },
+    graph: { canBeTarget: true, errorPort: false, container: type, annotationOnly: false },
+  }
+}
+
+/** Projects one trigger as `getTrigger()` returns it (namespaced display subBlocks). */
+export function projectTrigger(trigger: TriggerConfig, report: ProjectionReport): CatalogTrigger {
+  const ctx: SubBlockContext = {
+    blockType: `trigger:${trigger.id}`,
+    operations: [],
+    tagSurface: false,
+    report,
+  }
+  const projected: CatalogTrigger = {
+    id: trigger.id,
+    provider: trigger.provider,
+    name: trigger.name,
+    subBlocks: trigger.subBlocks.map((subBlock) => projectSubBlock(subBlock, ctx)),
+    outputs: projectOutputRecord(trigger.outputs ?? {}),
+  }
+  if (trigger.polling) projected.polling = true
+  if (trigger.webhook) projected.webhook = true
+  return projected
+}
+
+/** Docs-shard projection of one tool from its generated metadata (never the executable registry). */
+export function projectCatalogTool(
+  id: string,
+  metadata: ToolMetadata,
+  outputs: Record<string, unknown> | undefined
+): CatalogTool {
+  const params: CatalogTool['params'] = {}
+  for (const [name, param] of Object.entries(metadata.params ?? {})) {
+    const entry: CatalogTool['params'][string] = {
+      type: String(param.type ?? 'any'),
+      visibility: param.visibility ?? 'user-or-llm',
+    }
+    if (param.required !== undefined) entry.required = param.required
+    if (param.default !== undefined && isJson(param.default)) {
+      entry.default = structuredClone(param.default)
+    }
+    if (typeof param.description === 'string') entry.description = param.description
+    params[name] = entry
+  }
+  return { id, params, outputs: projectOutputRecord(outputs ?? {}) }
+}

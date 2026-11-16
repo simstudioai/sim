@@ -33,6 +33,7 @@ import {
 } from '@/lib/api/contracts/v2/mcp-servers'
 import { v2GetMetaContract } from '@/lib/api/contracts/v2/meta'
 import { accessRequestOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/access-requests'
+import { blockCatalogOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/block-catalog'
 import { credentialMemberOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/credential-members'
 import { organizationUsageOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/organization-usage'
 import { organizationOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/organizations'
@@ -2502,6 +2503,7 @@ const declaredRoutes = [
   ...workspaceInvitationOpenApiRoutes,
   ...organizationUsageOpenApiRoutes,
   ...accessRequestOpenApiRoutes,
+  ...blockCatalogOpenApiRoutes,
 ] as const
 
 const routes = declaredRoutes.map(withRequestBodyErrors)
