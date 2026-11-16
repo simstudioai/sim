@@ -65,9 +65,7 @@ const source = {
     fingerprint: FINGERPRINT,
     catalogHash: 'h',
   },
-  fingerprint: FINGERPRINT,
   canonicalHash: 'd'.repeat(64),
-  catalogHash: 'h',
   sdkMajor: 1,
   blockTypes: ['start_trigger'],
   diagnostics: [],
@@ -178,7 +176,6 @@ const applied = {
     variables: { added: [], removed: [], modified: [] },
   },
   diagnostics: [],
-  fingerprint: `sf1:${'e'.repeat(64)}`,
   files: source.files,
   lock: source.lock,
   base: source.base,
@@ -186,7 +183,6 @@ const applied = {
   notes: [],
   needsRedeployment: true,
   sdkMajor: 1,
-  catalogHash: 'h',
 }
 
 describe('POST /api/v2/workflows/{workflowId}/source', () => {

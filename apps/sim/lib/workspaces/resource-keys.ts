@@ -327,30 +327,31 @@ export async function resolveKeys(
   options: ResolveKeysOptions = {}
 ): Promise<ResourceKeyMap> {
   const executor = options.executor ?? db
-  const resolved: ResourceKeyMap = new Map()
-  for (const [kind, ids] of groupByKind(refs, (ref) => ref.id)) {
-    const live = await loadLiveResources(executor, workspaceId, kind, ids)
-    if (live.length === 0) continue
-    const keys = await readKeysByResource(
-      executor,
-      workspaceId,
-      kind,
-      live.map((row) => row.id)
-    )
-    const unbound = live.filter((row) => !keys.has(row.id))
-    if (unbound.length > 0) {
-      const allocated = await allocateKeys(
+  const byKind = await Promise.all(
+    [...groupByKind(refs, (ref) => ref.id)].map(async ([kind, ids]) => {
+      const live = await loadLiveResources(executor, workspaceId, kind, ids)
+      if (live.length === 0) return null
+      const keys = await readKeysByResource(
         executor,
         workspaceId,
         kind,
-        unbound,
-        options.createdBy ?? null
+        live.map((row) => row.id)
       )
-      for (const [id, key] of allocated) keys.set(id, key)
-    }
-    resolved.set(kind, keys)
-  }
-  return resolved
+      const unbound = live.filter((row) => !keys.has(row.id))
+      if (unbound.length > 0) {
+        const allocated = await allocateKeys(
+          executor,
+          workspaceId,
+          kind,
+          unbound,
+          options.createdBy ?? null
+        )
+        for (const [id, key] of allocated) keys.set(id, key)
+      }
+      return [kind, keys] as const
+    })
+  )
+  return new Map(byKind.filter((entry) => entry !== null))
 }
 
 /**
@@ -364,36 +365,37 @@ export async function resolveIds(
   options: ResourceKeyOptions = {}
 ): Promise<ResourceKeyMap> {
   const executor = options.executor ?? db
-  const resolved: ResourceKeyMap = new Map()
-  for (const [kind, keys] of groupByKind(refs, (ref) => ref.key)) {
-    if (!LIVE_RESOURCE_LOADERS[kind]) continue
-    const rows = await executor
-      .select({
-        key: workspaceResourceKey.key,
-        resourceId: workspaceResourceKey.resourceId,
-      })
-      .from(workspaceResourceKey)
-      .where(
-        and(
-          eq(workspaceResourceKey.workspaceId, workspaceId),
-          eq(workspaceResourceKey.kind, kind),
-          inArray(workspaceResourceKey.key, keys)
+  const byKind = await Promise.all(
+    [...groupByKind(refs, (ref) => ref.key)].map(async ([kind, keys]) => {
+      if (!LIVE_RESOURCE_LOADERS[kind]) return null
+      const rows = await executor
+        .select({
+          key: workspaceResourceKey.key,
+          resourceId: workspaceResourceKey.resourceId,
+        })
+        .from(workspaceResourceKey)
+        .where(
+          and(
+            eq(workspaceResourceKey.workspaceId, workspaceId),
+            eq(workspaceResourceKey.kind, kind),
+            inArray(workspaceResourceKey.key, keys)
+          )
         )
+      if (rows.length === 0) return null
+      const live = new Set(
+        (
+          await loadLiveResources(
+            executor,
+            workspaceId,
+            kind,
+            rows.map((row) => row.resourceId)
+          )
+        ).map((row) => row.id)
       )
-    if (rows.length === 0) continue
-    const live = new Set(
-      (
-        await loadLiveResources(
-          executor,
-          workspaceId,
-          kind,
-          rows.map((row) => row.resourceId)
-        )
-      ).map((row) => row.id)
-    )
-    const ids = new Map<string, string>()
-    for (const row of rows) if (live.has(row.resourceId)) ids.set(row.key, row.resourceId)
-    if (ids.size > 0) resolved.set(kind, ids)
-  }
-  return resolved
+      const ids = new Map<string, string>()
+      for (const row of rows) if (live.has(row.resourceId)) ids.set(row.key, row.resourceId)
+      return ids.size > 0 ? ([kind, ids] as const) : null
+    })
+  )
+  return new Map(byKind.filter((entry) => entry !== null))
 }

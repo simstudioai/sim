@@ -789,18 +789,17 @@ export type ApplyWorkflowSourceResponse = {
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
+      blockKey?: string
+      param?: string
       file?: string
       line?: number
       column?: number
       endLine?: number
       endColumn?: number
       frame?: string
-      blockKey?: string
       blockId?: string
-      param?: string
       path?: string
     }>
-    fingerprint: string
     files: Record<string, string>
     lock: {
       version: 1
@@ -4266,18 +4265,17 @@ export type CreateWorkflowFromSourceResponse = {
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
+      blockKey?: string
+      param?: string
       file?: string
       line?: number
       column?: number
       endLine?: number
       endColumn?: number
       frame?: string
-      blockKey?: string
       blockId?: string
-      param?: string
       path?: string
     }>
-    fingerprint: string
     files: Record<string, string>
     lock: {
       version: 1
@@ -9058,9 +9056,7 @@ export type GetWorkflowSourceResponse = {
       fingerprint: string
       catalogHash: string
     }
-    fingerprint: string
     canonicalHash: string
-    catalogHash: string
     sdkMajor: number
     blockTypes: Array<string>
     diagnostics: Array<{

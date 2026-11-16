@@ -11,14 +11,14 @@
 
 import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, posix } from 'node:path'
+import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import { embedStore } from '../../embed-context'
 import { SimApiError } from '../../http/client'
 import { embeddedFileContent } from '../../transfer/local-file'
 import { removeStagingOnSignal, saveToFile } from './files-get'
 
-/** The entry file every source directory holds; function code sits beside it under `functions/`. */
-export const SOURCE_ENTRY_FILE = 'workflow.ts'
 /** Where function-code files live; the only files the CLI ever prunes. */
 const SOURCE_FUNCTIONS_DIR = 'functions'
 /** The identity lock (`WorkflowLockV1`). */
@@ -76,7 +76,7 @@ export function lockCodeFiles(lock: unknown): Set<string> {
  * wrote them), no longer named by the new lock, and not being written now. A file the person
  * added and no lock ever named is never pruned.
  */
-export function orphanedCodeFiles(
+function orphanedCodeFiles(
   previousLock: unknown,
   nextLock: unknown,
   written: Iterable<string>
@@ -190,10 +190,8 @@ export interface SourceDirChange {
   remove?: readonly string[]
 }
 
-async function inBatches<T>(items: readonly T[], run: (item: T) => Promise<void>): Promise<void> {
-  for (let start = 0; start < items.length; start += WRITE_CONCURRENCY) {
-    await Promise.all(items.slice(start, start + WRITE_CONCURRENCY).map(run))
-  }
+async function inBatches<T>(items: T[], run: (item: T) => Promise<void>): Promise<void> {
+  for (const batch of chunkArray(items, WRITE_CONCURRENCY)) await Promise.all(batch.map(run))
 }
 
 /**
@@ -248,4 +246,38 @@ export async function updateSourceDir(dir: string, change: SourceDirChange): Pro
     if (staging) await rm(staging, { recursive: true, force: true })
     disposeSignalCleanup()
   }
+}
+
+/** What the server answers a get, apply or create with: the printed files, lock and base. */
+interface PrintedSourceAnswer {
+  files: Record<string, string>
+  lock: unknown
+  base: unknown
+}
+
+/**
+ * Writes a server answer into the source directory in one staged update: its files, lock and base,
+ * plus `extra`, pruning the function files the previous lock named and the new one no longer does.
+ * Returns how many files it wrote.
+ */
+export async function writeBack(
+  dir: string,
+  answer: PrintedSourceAnswer,
+  previousLock: unknown,
+  extra: SourceDirChange = { write: [] }
+): Promise<number> {
+  const write = [
+    ...Object.entries(answer.files),
+    [SOURCE_LOCK_FILE, `${JSON.stringify(answer.lock, null, 2)}\n`] as const,
+    [SOURCE_BASE_FILE, `${JSON.stringify(answer.base, null, 2)}\n`] as const,
+    ...extra.write,
+  ]
+  await updateSourceDir(dir, {
+    write,
+    remove: [
+      ...orphanedCodeFiles(previousLock, answer.lock, Object.keys(answer.files)),
+      ...(extra.remove ?? []),
+    ],
+  })
+  return write.length
 }

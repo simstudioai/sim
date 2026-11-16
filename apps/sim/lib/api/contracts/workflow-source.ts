@@ -106,13 +106,15 @@ export const sourceBaseSchema = z
       .string()
       .min(1, 'base.fingerprint cannot be empty')
       .max(256, 'base.fingerprint is too long')
-      .describe('The `fingerprint` this source was read at.'),
+      .describe(
+        'Freshness token of the draft the source was read at: a hash of the canonical workflow and its ids. It ignores canvas positions, so moving blocks does not change it.'
+      ),
     catalogHash: z.string().describe('Hash of the block catalog the source was printed against.'),
   })
   .strict()
   .describe('Freshness facts for the lock in this environment (`.sim/base.json`).')
 
-const sourceReadDiagnosticSchema = z
+export const sourceReadDiagnosticSchema = z
   .object({
     code: z.string().describe('Diagnostic code, e.g. `W_CANON_UNRESOLVED_ID`.'),
     severity: z.enum(['error', 'warning', 'info']).describe('Diagnostic severity.'),
@@ -132,15 +134,9 @@ export const workflowSourceSchema = z
       .describe('Relative path → file text: `workflow.ts`, then any `functions/*` files.'),
     lock: workflowLockSchema,
     base: sourceBaseSchema,
-    fingerprint: z
-      .string()
-      .describe(
-        'Freshness token of the stored draft: a hash of the canonical workflow and its ids. It ignores canvas positions, so moving blocks does not change it.'
-      ),
     canonicalHash: z
       .string()
       .describe('Hash of the canonical workflow alone, without ids; comments do not affect it.'),
-    catalogHash: z.string().describe('Hash of the block catalog the source was printed against.'),
     sdkMajor: z.number().int().describe('Workflow SDK major version of the source.'),
     blockTypes: z
       .array(z.string())

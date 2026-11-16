@@ -254,9 +254,9 @@ async function expectEditorToShowNewSource(page: Page, previous: WorkflowSource)
   await expect
     .poll(async () => {
       current = await serverSource()
-      return current.fingerprint
+      return current.base.fingerprint
     })
-    .not.toBe(previous.fingerprint)
+    .not.toBe(previous.base.fingerprint)
   const expected = compact(entryFile(current))
   await expect.poll(async () => compact(await editorText(page))).toBe(expected)
   return current

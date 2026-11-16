@@ -17,7 +17,8 @@ vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
  * The per-workflow source catalog reads a workflow's stored block types, so the workflow id is
  * an input the caller controls. Against real Postgres: a workflow that belongs to another
  * workspace (one the caller also administers, so only the workspace binding can refuse it) and an
- * archived workflow both answer as not found, while the caller's own active workflow is read.
+ * archived workflow both answer as not found, while the caller's own active workflow is read,
+ * a blockless one included.
  */
 
 const ownerId = generateId()
@@ -26,6 +27,7 @@ const otherWorkspaceId = generateId()
 const activeWorkflowId = generateId()
 const archivedWorkflowId = generateId()
 const foreignWorkflowId = generateId()
+const blocklessWorkflowId = generateId()
 const principal = createSessionPrincipal({ userId: ownerId })
 const checks: { name: string; status: string; durationMs: number; error?: string }[] = []
 
@@ -84,6 +86,7 @@ beforeAll(async () => {
       { id: activeWorkflowId, workspaceId, archivedAt: null },
       { id: archivedWorkflowId, workspaceId, archivedAt: now },
       { id: foreignWorkflowId, workspaceId: otherWorkspaceId, archivedAt: null },
+      { id: blocklessWorkflowId, workspaceId, archivedAt: null },
     ].map((row) => ({
       ...row,
       userId: ownerId,
@@ -132,4 +135,9 @@ check('answers not found for a workflow that belongs to another workspace', asyn
 
 check('answers not found for an archived workflow', async () => {
   await expect(read(archivedWorkflowId)).rejects.toMatchObject({ code: 'not_found' })
+})
+
+check('reads the workspace catalog for an active workflow with no blocks', async () => {
+  const catalog = await read(blocklessWorkflowId)
+  expect(Object.hasOwn(catalog.blocks, 'function')).toBe(true)
 })

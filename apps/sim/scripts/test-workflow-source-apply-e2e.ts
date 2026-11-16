@@ -140,7 +140,6 @@ async function readSource(workflowId: string) {
     files: record(source.files) as Record<string, string>,
     lock: record(source.lock),
     base: record(source.base),
-    fingerprint: String(source.fingerprint),
   }
 }
 
@@ -251,7 +250,7 @@ async function main() {
       const result = record(data)
       assert.equal(result.applied, false)
       assert.equal(record(result.diff).noop, true)
-      assert.equal(result.fingerprint, source.fingerprint)
+      assert.equal(record(result.base).fingerprint, source.base.fingerprint)
     })
 
     await check('a dry run reports the edit and saves nothing', async () => {
@@ -284,7 +283,7 @@ async function main() {
       assert.equal(record(record(after[scoreId].subBlocks).code).value, 'return 7')
       assert.deepEqual(after[startId], before[startId])
       const reread = await readSource(workflowId)
-      assert.equal(reread.fingerprint, result.fingerprint)
+      assert.equal(reread.base.fingerprint, record(result.base).fingerprint)
     })
 
     await check('source read before that edit is refused with 409', async () => {
@@ -376,7 +375,7 @@ async function main() {
       assert.equal(Object.keys(blocks).length, Object.keys(await storedBlocks(workflowId)).length)
       assert(!(scoreId in blocks), 'the new workflow mints its own block ids')
       const reread = await readSource(newId)
-      assert.equal(reread.fingerprint, result.fingerprint)
+      assert.equal(reread.base.fingerprint, record(result.base).fingerprint)
     })
 
     await check(

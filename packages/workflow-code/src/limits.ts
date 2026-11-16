@@ -36,6 +36,9 @@ export const SOURCE_LIMITS = {
  */
 export const SOURCE_REQUEST_MAX_BYTES = 2 * SOURCE_LIMITS.maxTotalBytes + 2_000_000
 
+/** The entry file every source holds; function-code files sit beside it. */
+export const SOURCE_ENTRY_FILE = 'workflow.ts'
+
 /** One size limit a source exceeds, with the measured value. */
 export interface SourceLimitExcess {
   limit: 'maxBlocks' | 'maxFiles' | 'maxTotalBytes'

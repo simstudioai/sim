@@ -1,4 +1,4 @@
-import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
+import { SOURCE_ENTRY_FILE, SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { z } from 'zod'
 import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -6,6 +6,7 @@ import { v2DataResponse, v2FolderPathInputSchema } from '@/lib/api/contracts/v2/
 import { v2WorkflowIdParamsSchema } from '@/lib/api/contracts/v2/workflows'
 import {
   sourceBaseSchema,
+  sourceReadDiagnosticSchema,
   workflowLockSchema,
   workflowSourceQuerySchema,
   workflowSourceSchema,
@@ -19,8 +20,6 @@ export const v2GetWorkflowSourceContract = defineRouteContract({
   query: workflowSourceQuerySchema,
   response: { mode: 'json', schema: v2DataResponse(workflowSourceSchema) },
 })
-
-const SOURCE_ENTRY_FILE = 'workflow.ts'
 
 const applyWorkflowSourceQuerySchema = z
   .object({
@@ -89,21 +88,16 @@ const applyWorkflowSourceBodySchema = z
   })
   .strict()
 
-const sourceDiagnosticSchema = z
-  .object({
+const sourceDiagnosticSchema = sourceReadDiagnosticSchema
+  .extend({
     code: z.string().describe('Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`.'),
-    severity: z.enum(['error', 'warning', 'info']).describe('Diagnostic severity.'),
-    message: z.string().describe('What was found.'),
-    hint: z.string().optional().describe('How to address it.'),
     file: z.string().optional().describe('Submitted file the finding is in.'),
     line: z.number().int().optional().describe('1-based line in `file`.'),
     column: z.number().int().optional().describe('1-based column in `file`.'),
     endLine: z.number().int().optional().describe('1-based line the finding ends on.'),
     endColumn: z.number().int().optional().describe('1-based column the finding ends at.'),
     frame: z.string().optional().describe('The source lines around the finding, with a caret row.'),
-    blockKey: z.string().optional().describe('Block key the finding is about.'),
     blockId: z.string().optional().describe('Stored id of the block the finding is about.'),
-    param: z.string().optional().describe('Field the finding is about.'),
     path: z.string().optional().describe('JSON Pointer into the lock, for a lock finding.'),
   })
   .describe('A finding from applying workflow source, pinned to the submitted files.')
@@ -175,16 +169,13 @@ const applyWorkflowSourceDataSchema = z
     diagnostics: z
       .array(sourceDiagnosticSchema)
       .describe('Warnings, and on a dry run every error a commit would refuse.'),
-    fingerprint: z
-      .string()
-      .describe(
-        'Fingerprint of the saved (or, on a dry run, would-be) draft: the next `base.fingerprint`.'
-      ),
     files: z
       .record(z.string(), z.string())
       .describe('The source re-printed from what was saved, including any normalized values.'),
     lock: workflowLockSchema,
-    base: sourceBaseSchema,
+    base: sourceBaseSchema.describe(
+      'Where the saved (or, on a dry run, would-be) draft was read: the next apply’s `base`.'
+    ),
     mintedIds: z
       .record(z.string(), z.string())
       .describe(
@@ -196,6 +187,8 @@ const applyWorkflowSourceDataSchema = z
       .describe('Whether the draft now differs from the live deployment; apply never deploys.'),
   })
   .describe('The outcome of applying workflow source.')
+
+export type V2ApplyWorkflowSourceData = z.output<typeof applyWorkflowSourceDataSchema>
 
 /** `POST /api/v2/workflows/{workflowId}/source`: write TypeScript source to the draft graph. */
 export const v2ApplyWorkflowSourceContract = defineRouteContract({

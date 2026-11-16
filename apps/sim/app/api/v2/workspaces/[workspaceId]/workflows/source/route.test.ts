@@ -52,7 +52,6 @@ const created = {
     variables: { added: [], removed: [], modified: [] },
   },
   diagnostics: [],
-  fingerprint: FINGERPRINT,
   files,
   lock: {
     version: 1 as const,
@@ -69,7 +68,6 @@ const created = {
   notes: [],
   needsRedeployment: false,
   sdkMajor: 1,
-  catalogHash: 'h',
 }
 
 function createRequest(body: unknown, query = '') {

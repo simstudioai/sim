@@ -102,6 +102,14 @@ function header(sdkMajor: number): string {
   return `${HEADER_PREFIX} ${sdkMajor} · generated from the block catalog; do not edit`
 }
 
+/**
+ * The first line of `index.d.ts`, which names the catalog hash. The rest of the index follows from
+ * the catalog, so an index with this line was generated from this catalog.
+ */
+export function sdkIndexHeader(catalog: Pick<BlockCatalog, 'sdkMajor' | 'hash'>): string {
+  return `${HEADER_PREFIX} ${catalog.sdkMajor} · generated from block catalog ${catalog.hash}; do not edit`
+}
+
 /** The subBlocks a builder can write: the ones its surface uses (`onSurface`) that source can state. */
 function candidateSubBlocks(block: CatalogBlock, entry: BuilderEntry): CatalogSubBlock[] {
   const triggerMode = entry.builder.triggerMode === true
@@ -606,7 +614,7 @@ export const generateSdkTypes: GenerateSdkTypesFn = (catalog) => {
   files.push({
     path: 'index.d.ts',
     text: [
-      `${HEADER_PREFIX} ${catalog.sdkMajor} · generated from block catalog ${catalog.hash}; do not edit`,
+      sdkIndexHeader(catalog),
       `import './models'`,
       ...types.map((type) => `import './blocks/${type}'`),
       '',

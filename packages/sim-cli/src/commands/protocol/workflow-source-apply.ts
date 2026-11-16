@@ -1,5 +1,6 @@
 import { createInterface } from 'node:readline/promises'
 import { isRecordLike } from '@sim/utils/object'
+import { SOURCE_ENTRY_FILE as ENTRY_FILE } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { embedStore, setSoftExitCode } from '../../embed-context'
@@ -14,18 +15,16 @@ import type {
   CreateWorkflowFromSourceBody,
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
-import { apiCommand } from '../../runtime/called-operations'
+import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
 import {
   SOURCE_BASE_FILE as BASE_FILE,
-  SOURCE_ENTRY_FILE as ENTRY_FILE,
   SOURCE_LOCK_FILE as LOCK_FILE,
   lockCodeFiles,
-  orphanedCodeFiles,
   readPreviousLock,
   readSourceText,
   sourceRelativePath,
-  updateSourceDir,
+  writeBack,
 } from './workflow-source-layout'
 
 /** `code: codeFile('./functions/x.js')` in the entry file (the SDK's only code-file form). */
@@ -209,23 +208,41 @@ function printRefusal(error: unknown): never {
   )
 }
 
+type SourceWriteOperation = 'applyWorkflowSource' | 'createWorkflowFromSource'
+
 /**
  * The shared write flow of `apply` and `create`: refuse a write without consent when no terminal
  * can ask, preview and ask on a terminal, send, print the diagnostics, and after a successful
  * write save the re-printed files, the lock and the base back into the directory, pruning the
  * function files the new lock no longer names.
  */
-async function runSourceWrite(args: {
+async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   directory: string
   options: SourceWriteOptions
   creating: boolean
   question: string
   /** The lock the directory held before the write: the record of the files the CLI wrote. */
   previousLock: unknown
-  send: (dryRun: boolean) => Promise<SourceApplyData>
+  client: OperationClient<Operation>
+  operation: Operation
+  params: Record<string, string>
+  body: ApplyWorkflowSourceBody | CreateWorkflowFromSourceBody
   output: Parameters<typeof printProtocolResult>[0]
 }): Promise<void> {
-  const { directory, options, creating, send } = args
+  const { directory, options, creating } = args
+  /** Sends the write (or its dry run); a refusal prints its diagnostics and rethrows. */
+  const send = async (dryRun: boolean): Promise<SourceApplyData> => {
+    try {
+      const response = await args.client.request<ApplyWorkflowSourceResponse>(args.operation, {
+        params: args.params,
+        ...(dryRun ? { query: { dryRun: true } } : {}),
+        body: args.body,
+      })
+      return response.data
+    } catch (error) {
+      return printRefusal(error)
+    }
+  }
   if (!options.dryRun && !options.yes) {
     const preview = await send(true)
     for (const diagnostic of preview.diagnostics) printError(formatDiagnostic(diagnostic))
@@ -246,15 +263,7 @@ async function runSourceWrite(args: {
   if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
 
   if (!data.dryRun && !refused && (data.applied || !creating)) {
-    const write: Array<[string, string]> = Object.entries(data.files)
-    write.push(
-      [LOCK_FILE, `${JSON.stringify(data.lock, null, 2)}\n`],
-      [BASE_FILE, `${JSON.stringify(data.base, null, 2)}\n`]
-    )
-    await updateSourceDir(directory, {
-      write,
-      remove: orphanedCodeFiles(args.previousLock, data.lock, Object.keys(data.files)),
-    })
+    await writeBack(directory, data, args.previousLock)
   }
 
   printProtocolResult(args.output, summarize(data, creating))
@@ -306,26 +315,10 @@ export function attachWorkflowSourceApply(source: Command): void {
         question: `Apply these changes to workflow ${workflowId}?`,
         previousLock: lock,
         output: profile.output,
-        send: async (dryRun) => {
-          try {
-            const response = await client.request<ApplyWorkflowSourceResponse>(
-              'applyWorkflowSource',
-              {
-                params: { workflowId },
-                ...(dryRun ? { query: { dryRun: true } } : {}),
-                body: {
-                  files,
-                  lock,
-                  base,
-                  provenance: { client: 'cli' },
-                } satisfies ApplyWorkflowSourceBody,
-              }
-            )
-            return response.data
-          } catch (error) {
-            return printRefusal(error)
-          }
-        },
+        client,
+        operation: 'applyWorkflowSource',
+        params: { workflowId },
+        body: { files, lock, base, provenance: { client: 'cli' } },
       })
     })
 }
@@ -359,31 +352,20 @@ export function attachWorkflowSourceCreate(source: Command): void {
         question: 'Create this workflow?',
         previousLock,
         output: profile.output,
-        send: async (dryRun) => {
-          try {
-            const response = await client.request<ApplyWorkflowSourceResponse>(
-              'createWorkflowFromSource',
-              {
-                params: { workspaceId },
-                ...(dryRun ? { query: { dryRun: true } } : {}),
-                body: {
-                  files,
-                  ...(options.name !== undefined ? { name: options.name } : {}),
-                  ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
-                  provenance: { client: 'cli' },
-                } satisfies CreateWorkflowFromSourceBody,
-              }
-            )
-            return response.data
-          } catch (error) {
-            return printRefusal(error)
-          }
+        client,
+        operation: 'createWorkflowFromSource',
+        params: { workspaceId },
+        body: {
+          files,
+          ...(options.name !== undefined ? { name: options.name } : {}),
+          ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
+          provenance: { client: 'cli' },
         },
       })
     })
 }
 
-function summarize(data: SourceApplyData, created = false) {
+function summarize(data: SourceApplyData, created: boolean) {
   return {
     workflowId: data.workflowId,
     ...(created ? { created: data.applied } : {}),
@@ -399,7 +381,7 @@ function summarize(data: SourceApplyData, created = false) {
     warnings:
       data.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning').length +
       data.notes.length,
-    fingerprint: data.fingerprint,
+    fingerprint: data.base.fingerprint,
     needsRedeployment: data.needsRedeployment,
   }
 }

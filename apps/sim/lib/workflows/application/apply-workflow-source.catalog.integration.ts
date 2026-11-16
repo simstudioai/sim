@@ -297,7 +297,7 @@ check(
     )
 
     expect(result.applied).toBe(true)
-    expect(result.catalogHash).not.toBe(source.catalogHash)
+    expect(result.base.catalogHash).not.toBe(source.base.catalogHash)
     const stored = await loadWorkflowFromNormalizedTables(consumer.workflowId)
     expect(stored?.blocks[consumer.placedId]?.subBlocks['f-score']?.value).toBe('90')
     expect(stored?.blocks[consumer.placedId]?.subBlocks['f-lead']?.value).toBe('acme')

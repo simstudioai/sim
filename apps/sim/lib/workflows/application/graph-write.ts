@@ -18,9 +18,9 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 
 /**
- * Graph-level helpers shared by the use cases that write a whole workflow graph
- * (operations apply today, source apply next): reading the stored graph, proving
- * it unchanged under the row lock, and laying out only what changed.
+ * Graph-level helpers for the use cases that write a whole workflow graph. Operations apply
+ * reads the stored graph and proves it unchanged under the row lock; operations apply and source
+ * apply both lay out only what changed.
  */
 
 const logger = createLogger('WorkflowGraphWrite')

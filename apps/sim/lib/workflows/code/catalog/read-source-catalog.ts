@@ -21,13 +21,15 @@ interface ReadBlockCatalogInput {
 }
 
 /**
- * The distinct block types placed in an active workflow of this workspace. A workflow in another
- * workspace, or archived, answers as absent so the read cannot probe workflow ids.
+ * The distinct block types placed in an active workflow of this workspace, in one query: the
+ * workflow row left-joined to its blocks, so a blockless workflow answers one null type. A workflow
+ * in another workspace, or archived, answers as absent so the read cannot probe workflow ids.
  */
 async function loadStoredBlockTypes(workspaceId: string, workflowId: string): Promise<string[]> {
-  const [owned] = await db
-    .select({ id: workflow.id })
+  const rows = await db
+    .selectDistinct({ type: workflowBlocks.type })
     .from(workflow)
+    .leftJoin(workflowBlocks, eq(workflowBlocks.workflowId, workflow.id))
     .where(
       and(
         eq(workflow.id, workflowId),
@@ -35,13 +37,8 @@ async function loadStoredBlockTypes(workspaceId: string, workflowId: string): Pr
         isNull(workflow.archivedAt)
       )
     )
-    .limit(1)
-  if (!owned) throw new OrchestrationError('not_found', 'Workflow not found')
-  const rows = await db
-    .selectDistinct({ type: workflowBlocks.type })
-    .from(workflowBlocks)
-    .where(eq(workflowBlocks.workflowId, workflowId))
-  return rows.map((row) => row.type)
+  if (rows.length === 0) throw new OrchestrationError('not_found', 'Workflow not found')
+  return rows.flatMap((row) => (row.type === null ? [] : [row.type]))
 }
 
 /**

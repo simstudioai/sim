@@ -23,9 +23,9 @@ import {
   type WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
+import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, inArray, ne } from 'drizzle-orm'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { layoutChangedBlocks } from '@/lib/workflows/application/graph-write'
 import { snapshotMcpToolOutputSchemas } from '@/lib/workflows/application/mcp-output-schemas'
@@ -52,8 +52,6 @@ import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 import type { ResourceKeyRef } from '@/lib/workspaces/resource-keys'
 
-/** The entry file every submission carries; function code lives beside it. */
-const ENTRY_FILE = 'workflow.ts'
 const META_FIELDS: Array<keyof CanonicalWorkflowMeta> = ['name', 'description']
 
 export interface SourceEvaluationInput {
@@ -69,14 +67,13 @@ export interface SourceEvaluationInput {
   stored: StoredSource
   /** `stored` canonicalized with its resource keys. */
   storedCanonical: StoredCanonical
-  storedFingerprint: string
   storedSourceMeta: WorkflowSourceMetaV1 | null
   catalog: BlockCatalog
   /** Attribution for resource keys a submitted reference allocates. */
   createdBy: string | null
   files: Record<string, string>
   lock: WorkflowLockV1
-  /** Where and when the source was read; absent for a create. */
+  /** Where and when the source was read, its fingerprint already matched; absent for a create. */
   base?: SourceBase
   /** Set when the apply creates the workflow: the caller's name and description overrides. */
   create?: { name?: string; description?: string | null }
@@ -162,10 +159,6 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   }
   const lock = parsedLock.lock
 
-  const entryText = files[ENTRY_FILE]
-  if (entryText === undefined) {
-    throw new OrchestrationError('validation', `files must include ${ENTRY_FILE}`)
-  }
   const { state } = input.stored
   let resources = input.storedCanonical.resources
   let meta = input.stored.meta
@@ -180,8 +173,8 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     lock
   )
   const compiled = compileWorkflow({
-    entry: { path: ENTRY_FILE, text: entryText },
-    files: new Map(Object.entries(files).filter(([path]) => path !== ENTRY_FILE)),
+    entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
+    files: new Map(Object.entries(files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
     catalog,
     sdkMajor: catalog.sdkMajor,
     knownKeys: new Set([
@@ -232,9 +225,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     Object.keys(lock.blocks).length > 0 || Object.keys(lock.variables).length > 0
   const lockFreshness: 'fresh' | 'stale' | 'none' = !hasLockEntries
     ? 'none'
-    : input.base &&
-        (input.base.workspaceId !== scope.workspaceId ||
-          input.base.fingerprint !== input.storedFingerprint)
+    : input.base && input.base.workspaceId !== scope.workspaceId
       ? 'stale'
       : 'fresh'
   const compiledIdents: Record<string, string> = {}
@@ -261,7 +252,15 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   const lockSuppliedIds = materialized.entries.flatMap((entry) =>
     entry.status === 'created' && entry.idSource === 'lock' ? [entry.id] : []
   )
-  const claimed = new Set(await findBlockIdsClaimedElsewhere(scope.workflowId, lockSuppliedIds))
+  const [claimedIds, permissionConfig] = await Promise.all([
+    findBlockIdsClaimedElsewhere(scope.workflowId, lockSuppliedIds),
+    resolvePermissionGroupConfig(
+      scope.subjectUserId,
+      scope.workspaceId,
+      scope.workspaceOrganizationId
+    ),
+  ])
+  const claimed = new Set(claimedIds)
   if (claimed.size > 0) {
     const blocks: Record<string, WorkflowLockBlock> = {}
     for (const [key, entry] of Object.entries(lock.blocks)) {
@@ -311,28 +310,26 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   const edges = materialized.state.edges
   const graphDiff = diffGraphs(storedGraph, { blocks, edges })
 
-  const permissionConfig = await resolvePermissionGroupConfig(
-    scope.subjectUserId,
-    scope.workspaceId,
-    scope.workspaceOrganizationId
-  )
-  const gateDiagnostics = await gateSourceDiff({
-    base: storedGraph,
-    target: { blocks, edges },
-    diff: graphDiff,
-    permissionConfig,
-    subjectUserId: scope.subjectUserId,
-    workspaceId: scope.workspaceId,
-    isCopilot: principal.kind === 'delegated' && principal.serviceId === 'copilot',
-  })
   const typeChanged = graphDiff.modified.filter((change) => change.typeChanged).map((c) => c.id)
+  const [gateDiagnostics, liveTriggerRefusals] = await Promise.all([
+    gateSourceDiff({
+      base: storedGraph,
+      target: { blocks, edges },
+      diff: graphDiff,
+      permissionConfig,
+      subjectUserId: scope.subjectUserId,
+      workspaceId: scope.workspaceId,
+      isCopilot: principal.kind === 'delegated' && principal.serviceId === 'copilot',
+    }),
+    findLiveTriggerRemovals(
+      scope.workflowId,
+      [...graphDiff.removed, ...typeChanged].map((id) => state.blocks[id])
+    ),
+  ])
   const refusals: Diagnostic[] = [
     ...findLockedBlockRefusals(storedGraph, { blocks, edges }, graphDiff),
     ...gateDiagnostics,
-    ...(await findLiveTriggerRemovals(
-      scope.workflowId,
-      [...graphDiff.removed, ...typeChanged].map((id) => state.blocks[id])
-    )),
+    ...liveTriggerRefusals,
   ]
 
   for (const id of [...graphDiff.added, ...typeChanged]) {
