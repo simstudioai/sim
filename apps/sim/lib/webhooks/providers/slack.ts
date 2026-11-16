@@ -15,7 +15,11 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
-import { assertSlackFileHost, slackFileDownloadUrl } from '@/lib/internal/slack/file-download'
+import {
+  assertSlackFileHost,
+  isExternalSlackFile,
+  slackFileDownloadUrl,
+} from '@/lib/internal/slack/file-download'
 import {
   getSlackBotCredential,
   refreshAccessTokenIfNeeded,
@@ -322,7 +326,7 @@ async function downloadSlackFiles(
 
   for (const file of filesToProcess) {
     let f = file as Record<string, unknown>
-    if (!f.url_private && !f.url_private_download && f.id) {
+    if (!f.url_private_download && f.id && !isExternalSlackFile(f)) {
       const resolved = await resolveSlackFileInfo(f.id as string, botToken)
       if (resolved) f = { ...f, ...resolved }
     }

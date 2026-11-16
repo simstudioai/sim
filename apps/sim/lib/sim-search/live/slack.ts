@@ -392,7 +392,7 @@ function decodeFileText(bytes: Buffer, mimetype: string): string | undefined {
  * The full text of a file Slack hosts: canvases as HTML, snippets and text files as text, PDF and
  * DOCX extracted, from Slack's download URL when it has one. The token only goes to Slack's file
  * host. Short of the caller aborting, any failure (denial, redirect, size limit, unreadable bytes,
- * slow download) leaves the read with its preview, plus the provider's reason when it gave one.
+ * slow download) leaves the read with its preview and a reason when one applies.
  */
 async function slackFileText(
   client: NativeClient,
@@ -416,7 +416,14 @@ async function slackFileText(
     return text && Buffer.byteLength(text, 'utf8') <= MAX_FILE_TEXT_BYTES ? { text } : {}
   } catch (error) {
     signal?.throwIfAborted()
-    return error instanceof NativeSearchError ? { unavailable: error.message } : {}
+    if (!(error instanceof NativeSearchError)) return {}
+    // files.info already accepted this token, so reconnecting would not change a refused file.
+    return {
+      unavailable:
+        error.httpStatus === 401 || error.httpStatus === 403
+          ? "Slack did not serve this file's contents to your account. Open the source."
+          : error.message,
+    }
   }
 }
 
