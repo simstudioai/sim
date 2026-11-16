@@ -17,9 +17,6 @@ import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { buildLockFromState, hintsFromSourceMeta } from '@/lib/workflows/code/source-lock'
 import { canonicalizeUnderLock } from '@/lib/workflows/code/stored-canonical'
 
-/** Directory function-code files are printed into when `functionCode` is `files`. */
-const FUNCTION_CODE_DIR = 'functions'
-
 /** A stored draft as canonicalize reads it, plus the row fields the canonical `meta` carries. */
 export interface StoredSource {
   state: WorkflowState
@@ -81,10 +78,7 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
     },
     catalog,
     hints: metaInputs.hints,
-    options:
-      input.functionCode === 'files'
-        ? { functionCode: 'files', codeDir: FUNCTION_CODE_DIR }
-        : { functionCode: 'inline' },
+    options: { functionCode: input.functionCode },
   })
   return {
     files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),

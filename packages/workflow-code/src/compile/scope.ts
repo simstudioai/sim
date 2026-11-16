@@ -235,7 +235,6 @@ function declare(
     parent: container,
     order: ctx.decls.length,
     builder: classified.builder,
-    body: null,
     duplicate: false,
     ...(override?.collisionBase && { collisionBase: override.collisionBase }),
   }
@@ -279,7 +278,6 @@ function collectContainerBody(ctx: CompileContext, decl: BlockDecl): void {
     return
   }
   const scope: Scope = { parent: decl.scope, bindings: new Map(), container: decl }
-  decl.body = scope
   const param = body.params[0]
   if (param) {
     if (param.type !== 'Identifier') {

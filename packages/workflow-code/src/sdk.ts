@@ -4,6 +4,8 @@
  * validator. `core.d.ts` in `@sim/workflow-sdk` must export exactly {@link SDK_CORE_EXPORTS}.
  */
 
+import type { ResourceKind } from './model'
+
 /**
  * The generic builder, `block(type, name, params, meta?)`. The printer uses it for any stored type
  * with no generated builder (legacy, unknown, or `custom_block_*` without a method), and the
@@ -22,6 +24,23 @@ export const RESPONSE_BLOCK_TYPE = 'response'
  * without `body` the params are the block's own (`dataMode`, `builderData`, `data`, ...).
  */
 export const RESPONSE_BODY_KEYS = ['body', 'status', 'headers'] as const
+
+/**
+ * Resource kinds with a call form, and the SDK function each prints as (`table('orders')`). A
+ * kind without one prints as `raw(<the node>)`, which compiles back to the same node.
+ */
+export const SDK_RESOURCE_CALLS = {
+  credential: 'credential',
+  table: 'table',
+  'knowledge-base': 'knowledgeBase',
+  workflow: 'childWorkflow',
+  skill: 'skill',
+  'custom-tool': 'customTool',
+  'mcp-server': 'mcp',
+  sandbox: 'sandbox',
+  file: 'file',
+  'file-folder': 'folder',
+} as const satisfies Partial<Record<ResourceKind, string>>
 
 /**
  * The oldest SDK major the compiler reads. A header below it is `E_SDK_MAJOR_OLD`: no

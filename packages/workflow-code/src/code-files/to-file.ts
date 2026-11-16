@@ -8,11 +8,12 @@ export type CodeFileLanguage = 'javascript' | 'python' | 'shell'
 export const REF_ROOT = '$ref'
 export const ENV_ROOT = '$env'
 
-const CODE_FILE_EXTENSIONS: Record<CodeFileLanguage, string> = {
-  javascript: '.js',
-  python: '.py',
-  shell: '.sh',
-}
+/** Each language's code file extension, which is also its template tag (`js```). */
+export const CODE_FILE_EXTENSIONS = {
+  javascript: 'js',
+  python: 'py',
+  shell: 'sh',
+} as const satisfies Record<CodeFileLanguage, string>
 
 /** Candidate tokens: `<path>` on one line, or `{{NAME}}`. */
 const TOKEN = /<([^<>\s]+)>|\{\{([^{}\s]+)\}\}/g
@@ -20,7 +21,7 @@ const TOKEN = /<([^<>\s]+)>|\{\{([^{}\s]+)\}\}/g
 /** The language a code file's extension names, or `null` for any other extension. */
 export function codeFileLanguage(path: string): CodeFileLanguage | null {
   for (const [language, extension] of Object.entries(CODE_FILE_EXTENSIONS)) {
-    if (path.endsWith(extension)) return language as CodeFileLanguage
+    if (path.endsWith(`.${extension}`)) return language as CodeFileLanguage
   }
   return null
 }

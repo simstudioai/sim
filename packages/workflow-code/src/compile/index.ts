@@ -379,7 +379,6 @@ export function compileWorkflow(input: CompileInput): CompileResult {
 
   const ctx: CompileContext = {
     file,
-    text,
     reporter,
     catalog: input.catalog,
     files: input.files,

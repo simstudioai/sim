@@ -384,7 +384,7 @@ next segment names the owning stage: none for compile and print (one shared voca
 meaning; codes freeze at release.
 
 A diagnostic carries `span: SourceSpan` (file, 1-based line and column in UTF-16 units, end, UTF-16
-offsets), `frame`, optional `fix`, `hint` and `related`. Compile returns `LocatedDiagnostic`, which
+offsets), `frame`, optional `hint` and `related`. Compile returns `LocatedDiagnostic`, which
 always has `span` and `frame`; lock and source meta diagnostics carry an RFC 6901 `path` instead.
 `codeFrame` shows two context lines, marks every spanned line with `>`, puts the caret under the
 start line, and clamps bad input (NaN to 1, ±Infinity to a bound).

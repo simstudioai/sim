@@ -29,7 +29,7 @@ import {
   catalogBuilderPaths,
   catalogBuildersOfType,
 } from '../catalog/view'
-import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
+import { CODE_FILE_EXTENSIONS, type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import {
@@ -66,12 +66,8 @@ import { arrayExpr, arrowExpr, callExpr, type Expr, objectExpr, type Property } 
 import { type FieldContext, type PrintedValue, type Tag, ValuePrinter } from './values'
 
 interface PrintOptions {
-  /** `files`: function code in `codeDir` files (repo mode); `inline`: `js``...``. */
+  /** `files`: function code in `functions/` code files (repo mode); `inline`: `js``...``. */
   functionCode: 'inline' | 'files'
-  /** Repo-relative directory for code files; required when `functionCode` is `files`. */
-  codeDir?: string
-  /** Defaults to 100 (biome.json). */
-  lineWidth?: number
 }
 
 export interface PrintInput {
@@ -94,17 +90,11 @@ export interface PrintResult {
   diagnostics: Diagnostic<PrintDiagnosticCode>[]
 }
 
-const DEFAULT_WIDTH = 100
-const DEFAULT_CODE_DIR = 'functions'
+/** biome.json's line width. */
+const LINE_WIDTH = 100
+const CODE_DIR = 'functions'
 const ENTRY_PATH = 'workflow.ts'
 const SDK_MODULE = '@sim/workflow-sdk'
-
-const LANGUAGE_TAGS: Record<CodeFileLanguage, Tag> = { javascript: 'js', python: 'py', shell: 'sh' }
-const LANGUAGE_EXTENSIONS: Record<CodeFileLanguage, string> = {
-  javascript: 'js',
-  python: 'py',
-  shell: 'sh',
-}
 
 type Diag = Diagnostic<PrintDiagnosticCode>
 
@@ -241,7 +231,6 @@ class WorkflowPrinter {
   private readonly workflow: CanonicalWorkflow
   private readonly catalog: BlockCatalog
   private readonly hints: SourceHints
-  private readonly width: number
   private readonly options: PrintInput['options']
   private readonly diagnostics: Diag[] = []
   private readonly imports = new Set<string>(['workflow'])
@@ -268,7 +257,6 @@ class WorkflowPrinter {
     this.workflow = input.workflow
     this.catalog = input.catalog
     this.hints = input.hints ?? { blocks: {} }
-    this.width = input.options.lineWidth ?? DEFAULT_WIDTH
     this.options = input.options
     this.blocks = new Map(Object.entries(this.workflow.blocks))
     for (const [key, block] of this.blocks) {
@@ -464,7 +452,7 @@ class WorkflowPrinter {
     if (sb?.valueKind === 'code') {
       if (sb.language === 'json') return 'json'
       const language = toLanguage(stringParam(block, 'language')) ?? toLanguage(sb.language)
-      return language ? LANGUAGE_TAGS[language] : 'js'
+      return language ? CODE_FILE_EXTENSIONS[language] : 'js'
     }
     if (catalogBlock?.graph.annotationOnly) return 'md'
     return 't'
@@ -629,13 +617,12 @@ class WorkflowPrinter {
     const check = checkCodeFileBijection(code, language)
     if (!check.ok) return inline('its tokens cannot be rewritten for a code file')
     const text = check.file
-    const extension = LANGUAGE_EXTENSIONS[language]
+    const extension = CODE_FILE_EXTENSIONS[language]
     const hinted = getOwn(this.hints.blocks, block.key)?.codeFile
-    const dir = (this.options.codeDir ?? DEFAULT_CODE_DIR).replace(/\/+$/, '')
     let path =
       hinted?.endsWith(`.${extension}`) && !this.takenCodePaths.has(hinted)
         ? hinted
-        : `${dir}/${kebab(this.idents.get(block.key) ?? block.key)}.${extension}`
+        : `${CODE_DIR}/${kebab(this.idents.get(block.key) ?? block.key)}.${extension}`
     let suffix = 2
     const base = path.slice(0, -(extension.length + 1))
     while (this.takenCodePaths.has(path)) {
@@ -1415,7 +1402,7 @@ class WorkflowPrinter {
     ]
     if (footer.leading.length > 0) parts.push(hardline, join(hardline, footer.leading))
     parts.push(hardline)
-    const text = printDoc(parts, this.width)
+    const text = printDoc(parts, LINE_WIDTH)
 
     const hintBlocks: Record<BlockKey, SourceHintBlock> = { ...this.hints.blocks }
     this.preorder.forEach((key, index) => {

@@ -30,6 +30,7 @@ import {
 import { JsonRef, type JsonTree, jsonFieldText, valueTree } from '../json-fields'
 import type { CanonicalParam, Json, ResourceKind, SubBlockId, Value, VarNode } from '../model'
 import { setOwn } from '../records'
+import { SDK_RESOURCE_CALLS } from '../sdk'
 import {
   type BlockDecl,
   type CompileContext,
@@ -83,24 +84,15 @@ export function isSelectorForm(form: ValueForm): boolean {
 }
 
 /** Call-form resource constructors and the kind each produces. */
-const RESOURCE_CALLS: Record<string, ResourceKind> = {
-  credential: 'credential',
-  table: 'table',
-  knowledgeBase: 'knowledge-base',
-  childWorkflow: 'workflow',
-  skill: 'skill',
-  customTool: 'custom-tool',
-  mcp: 'mcp-server',
-  sandbox: 'sandbox',
-  folder: 'file-folder',
-  file: 'file',
-}
+const RESOURCE_KIND_BY_CALL: ReadonlyMap<string, ResourceKind> = new Map(
+  Object.entries(SDK_RESOURCE_CALLS).map(([kind, call]) => [call, kind as ResourceKind])
+)
 
 const TEMPLATE_TAGS = new Set(['t', 'js', 'json', 'md', 'py', 'sh'])
 
 /** SDK functions that are values, not block builders. */
 export const SDK_VALUE_FUNCTIONS = new Set([
-  ...Object.keys(RESOURCE_CALLS),
+  ...RESOURCE_KIND_BY_CALL.keys(),
   ...TEMPLATE_TAGS,
   'raw',
   'todo',
@@ -737,7 +729,7 @@ function compileCall(
 ): CompiledValue | null {
   const path = sdkCallPath(site.scope, call)
   if (path === null) return rejectNode(ctx, call, site)
-  const resourceKind = RESOURCE_CALLS[path]
+  const resourceKind = RESOURCE_KIND_BY_CALL.get(path)
   if (resourceKind) {
     const argument = singleStringArgument(ctx, call, path, site)
     if (!argument) return null

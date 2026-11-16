@@ -56,8 +56,6 @@ export interface BlockDecl {
   parent: BlockDecl | null
   order: number
   builder: ResolvedBuilder
-  /** The body scope, for containers. */
-  body: Scope | null
   /** A duplicate name: reported, never emitted. */
   duplicate: boolean
   /**
@@ -108,7 +106,6 @@ interface CodeFileBudget {
 
 export interface CompileContext {
   file: string
-  text: string
   reporter: Reporter
   catalog: BlockCatalog
   files: ReadonlyMap<string, string>

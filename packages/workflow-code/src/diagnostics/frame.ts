@@ -17,13 +17,6 @@ export interface SourceSpan {
   end: number
 }
 
-/** A machine-applicable edit in `span.file`: replace `[start, end)` with `text`. */
-interface DiagnosticFix {
-  start: number
-  end: number
-  text: string
-}
-
 interface DiagnosticFields {
   message: string
   /** The supported form, or a did-you-mean. */
@@ -31,7 +24,6 @@ interface DiagnosticFields {
   span?: SourceSpan
   /** `codeFrame(text, span)`; present whenever `span` is. */
   frame?: string
-  fix?: DiagnosticFix
   /** Other locations that explain this one, such as the first declaration for a duplicate name. */
   related?: Array<{ span: SourceSpan; message: string }>
   blockKey?: BlockKey

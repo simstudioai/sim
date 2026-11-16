@@ -7,7 +7,8 @@
 
 import type { CatalogSubBlock } from '../catalog/types'
 import { type BlockKey, isSimNode, type Json, type SimNode, type Value } from '../model'
-import { parseJsonContainer } from '../records'
+import { getOwn, parseJsonContainer } from '../records'
+import { SDK_RESOURCE_CALLS } from '../sdk'
 import { type Doc, literalText } from './doc'
 import type { RefPrinter } from './refs'
 import { escapeTemplateText, printKey, printMember, printNumber, quoteString } from './strings'
@@ -28,23 +29,6 @@ export interface FieldContext {
    */
   variablesField?: boolean
   subBlock?: CatalogSubBlock
-}
-
-/**
- * Resource kinds with a dedicated call form. A kind without one prints as
- * `raw(<the CWM node>)`, which compiles back to the same node.
- */
-const RESOURCE_CALLS: Partial<Record<string, string>> = {
-  credential: 'credential',
-  table: 'table',
-  'knowledge-base': 'knowledgeBase',
-  workflow: 'childWorkflow',
-  skill: 'skill',
-  'custom-tool': 'customTool',
-  'mcp-server': 'mcp',
-  sandbox: 'sandbox',
-  file: 'file',
-  'file-folder': 'folder',
 }
 
 export interface PrintedValue extends Expr {
@@ -134,7 +118,7 @@ export class ValuePrinter {
       return { doc: `vars${printMember(node.key)}`, shape: 'member' }
     }
     if (node.$sim === 'resource') {
-      const callee = RESOURCE_CALLS[node.kind]
+      const callee = getOwn<string>(SDK_RESOURCE_CALLS, node.kind)
       if (callee) return { ...this.call(callee, [this.string(node.key)]), selector: true }
     }
     return this.call('raw', [this.json(node as unknown as Json)])

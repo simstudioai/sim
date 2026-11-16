@@ -5,7 +5,12 @@ import { encodeAnchor } from '../anchors'
 import { DEFAULT_LOOP_ITERATIONS, SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { editorDefaults } from '../catalog/defaults'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
-import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
+import {
+  CODE_FILE_EXTENSIONS,
+  type CodeFileLanguage,
+  codeFileLanguage,
+  fromCodeFile,
+} from '../code-files'
 import { isIdentifierName } from '../code-files/ref-path'
 import { utf8Bytes } from '../limits'
 import {
@@ -77,7 +82,6 @@ const META_KEYS = [
   'subflowData',
 ]
 const EDGE_METHOD_NAMES = new Set(['to', 'onError'])
-const CODE_LANGUAGES: ReadonlySet<string> = new Set(['javascript', 'python', 'shell'])
 
 interface CompiledMeta {
   enabled: boolean
@@ -288,7 +292,7 @@ function readCodeFile(
     }
     return null
   }
-  if (!CODE_LANGUAGES.has(language)) {
+  if (!Object.hasOwn(CODE_FILE_EXTENSIONS, language)) {
     ctx.reporter.report(
       'E_CODE_FILE_PATH',
       `Code files hold javascript, python or shell, not ${language}.`,
