@@ -1,5 +1,5 @@
 import { DatadogIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { DATADOG_SITE_LABELS, DATADOG_SITES } from '@/tools/datadog/types'
@@ -31,21 +31,6 @@ function datadogNumber(value: unknown): number | undefined {
   if (value == null || value === '') return undefined
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : undefined
-}
-
-/**
- * A block field stored under its own id, or, on a tool call where that field is blank, the
- * model's argument under the tool's param name. Model args are keyed by the tool's params, so
- * a block field renamed onto one would otherwise overwrite the model's value. On the canvas
- * (no context) the field is returned unchanged, so a saved workflow's request is the same.
- */
-function fieldOrToolArg(
-  context: BlockToolParamsContext | undefined,
-  blockValue: unknown,
-  toolArg: unknown
-): unknown {
-  if (blockValue != null && blockValue !== '') return blockValue
-  return toolCallArg(context, toolArg) ?? blockValue
 }
 
 export const DatadogBlock: BlockConfig = {
@@ -1982,9 +1967,14 @@ Return ONLY the search query string - no explanations.`,
           applicationKey: params.applicationKey,
           site: params.site,
         }
-        /** The block field, or on a tool call the model's arg under the tool's param name. */
+        /**
+         * A block field, or on a tool call where it is blank, the model's arg under the tool's
+         * param name. On the canvas the field is returned unchanged.
+         */
         const field = (blockValue: unknown, toolParam: string) =>
-          fieldOrToolArg(context, blockValue, params[toolParam])
+          blockValue != null && blockValue !== ''
+            ? blockValue
+            : (toolCallArg(context, params[toolParam]) ?? blockValue)
         /** Like {@link field} for numeric fields, coercing both values. */
         const numberField = (blockValue: unknown, toolParam: string) =>
           datadogNumber(blockValue) ?? toolCallArg(context, datadogNumber(params[toolParam]))

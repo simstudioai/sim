@@ -2336,6 +2336,9 @@ Return ONLY the JSON array - no explanations, no extra text.`,
           page: params.page ? Number(params.page) : undefined,
         }
         const sort = params.sortOrder || toolCallArg(context, params.sort) || undefined
+        /** A block text field, or on a tool call the model's arg under the tool's param name. */
+        const textOrToolArg = (blockValue: unknown, toolValue: unknown) =>
+          inputText(blockValue) || inputText(toolCallArg(context, toolValue))
 
         switch (operation) {
           case 'gitlab_list_projects':
@@ -2508,11 +2511,9 @@ Return ONLY the JSON array - no explanations, no extra text.`,
                 toolCallArg(context, params.state),
               labels: optionalText(params.labels),
               sourceBranch:
-                optionalText(params.sourceBranchFilter) ||
-                optionalText(toolCallArg(context, params.sourceBranch)),
+                textOrToolArg(params.sourceBranchFilter, params.sourceBranch) || undefined,
               targetBranch:
-                optionalText(params.targetBranchFilter) ||
-                optionalText(toolCallArg(context, params.targetBranch)),
+                textOrToolArg(params.targetBranchFilter, params.targetBranch) || undefined,
               orderBy: params.mrOrderBy || toolCallArg(context, params.orderBy) || undefined,
               sort,
               ...pagination,
@@ -2592,7 +2593,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               shouldRemoveSourceBranch:
                 params.removeSourceBranch || toolCallArg(context, params.shouldRemoveSourceBranch),
               mergeWhenPipelineSucceeds: switchInput(params.mergeWhenPipelineSucceeds, context),
-              sha: optionalText(params.mergeSha) || optionalText(toolCallArg(context, params.sha)),
+              sha: textOrToolArg(params.mergeSha, params.sha) || undefined,
             }
 
           case 'gitlab_create_merge_request_note': {
@@ -2754,9 +2755,8 @@ Return ONLY the JSON array - no explanations, no extra text.`,
           }
 
           case 'gitlab_compare_branches': {
-            const from =
-              inputText(params.compareFrom) || inputText(toolCallArg(context, params.from))
-            const to = inputText(params.compareTo) || inputText(toolCallArg(context, params.to))
+            const from = textOrToolArg(params.compareFrom, params.from)
+            const to = textOrToolArg(params.compareTo, params.to)
             if (!projectId || !from || !to) {
               throw new Error('Project ID, from ref, and to ref are required.')
             }
@@ -2862,8 +2862,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               ...baseParams,
               projectId,
               tagName,
-              name:
-                optionalText(params.releaseName) || optionalText(toolCallArg(context, params.name)),
+              name: textOrToolArg(params.releaseName, params.name) || undefined,
               description: optionalText(params.description),
               ref: optionalText(params.ref),
               releasedAt: optionalText(params.releasedAt),
@@ -2886,9 +2885,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               directOnly:
                 params.directMembersOnly || toolCallArg(context, params.directOnly) || undefined,
               query: optionalText(params.query),
-              userIds:
-                optionalText(params.memberUserIds) ||
-                optionalText(toolCallArg(context, params.userIds)),
+              userIds: textOrToolArg(params.memberUserIds, params.userIds) || undefined,
               state: params.memberState || toolCallArg(context, params.state) || undefined,
               showSeatInfo: params.showSeatInfo || undefined,
               ...pagination,
@@ -3081,9 +3078,7 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               samlGroupName,
               accessLevel: coerceGitLabAccessLevel(params.accessLevel),
               memberRoleId: params.memberRoleId ? Number(params.memberRoleId) : undefined,
-              provider:
-                optionalText(params.samlProvider) ||
-                optionalText(toolCallArg(context, params.provider)),
+              provider: textOrToolArg(params.samlProvider, params.provider) || undefined,
             }
           }
 
@@ -3096,15 +3091,12 @@ Return ONLY the JSON array - no explanations, no extra text.`,
               ...baseParams,
               groupId,
               samlGroupName,
-              provider:
-                optionalText(params.samlProvider) ||
-                optionalText(toolCallArg(context, params.provider)),
+              provider: textOrToolArg(params.samlProvider, params.provider) || undefined,
             }
           }
 
           case 'gitlab_search_users': {
-            const search =
-              inputText(params.userSearch) || inputText(toolCallArg(context, params.search))
+            const search = textOrToolArg(params.userSearch, params.search)
             if (!search) {
               throw new Error('Search query is required.')
             }
@@ -3116,16 +3108,10 @@ Return ONLY the JSON array - no explanations, no extra text.`,
           }
 
           case 'gitlab_create_user': {
-            const email =
-              inputText(params.userAdminEmail) || inputText(toolCallArg(context, params.email))
-            const username =
-              inputText(params.userAdminUsername) ||
-              inputText(toolCallArg(context, params.username))
-            const name =
-              inputText(params.userAdminName) || inputText(toolCallArg(context, params.name))
-            const password =
-              inputText(params.userAdminPassword) ||
-              inputText(toolCallArg(context, params.password))
+            const email = textOrToolArg(params.userAdminEmail, params.email)
+            const username = textOrToolArg(params.userAdminUsername, params.username)
+            const name = textOrToolArg(params.userAdminName, params.name)
+            const password = textOrToolArg(params.userAdminPassword, params.password)
             if (!email || !username || !name) {
               throw new Error('Email, Username, and Full Name are required.')
             }
@@ -3154,15 +3140,9 @@ Return ONLY the JSON array - no explanations, no extra text.`,
             return {
               ...baseParams,
               userId: Number(params.userId),
-              email:
-                optionalText(params.userAdminEmail) ||
-                optionalText(toolCallArg(context, params.email)),
-              username:
-                optionalText(params.userAdminUsername) ||
-                optionalText(toolCallArg(context, params.username)),
-              name:
-                optionalText(params.userAdminName) ||
-                optionalText(toolCallArg(context, params.name)),
+              email: textOrToolArg(params.userAdminEmail, params.email) || undefined,
+              username: textOrToolArg(params.userAdminUsername, params.username) || undefined,
+              name: textOrToolArg(params.userAdminName, params.name) || undefined,
               // Only pass a real boolean: an explicit `false` demotes the user,
               // while an untouched switch serializes as `null` and must be
               // dropped so an unrelated update never touches the admin flag.

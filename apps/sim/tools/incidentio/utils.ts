@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { toArray } from '@sim/utils/object'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   IncidentioActionSummary,
   IncidentioFollowUpSummary,
@@ -7,12 +7,6 @@ import type {
   Workflow,
 } from '@/tools/incidentio/types'
 import type { ToolResponse } from '@/tools/types'
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
-}
 
 function toStringValue(value: unknown): string {
   return typeof value === 'string' ? value : String(value ?? '')
@@ -72,12 +66,12 @@ export function parseRequiredIncidentioJsonParam(value: unknown, paramName: stri
  * the raw actor keys are passed through alongside them.
  */
 function mapIncidentioCreator(value: unknown): IncidentioLegacyCreator | undefined {
-  const creator = asRecord(value)
+  const creator = toRecordOrNull(value)
   if (!creator) return undefined
-  const user = asRecord(creator.user)
-  const apiKey = asRecord(creator.api_key)
-  const workflow = asRecord(creator.workflow)
-  const alert = asRecord(creator.alert)
+  const user = toRecordOrNull(creator.user)
+  const apiKey = toRecordOrNull(creator.api_key)
+  const workflow = toRecordOrNull(creator.workflow)
+  const alert = toRecordOrNull(creator.alert)
   const source = user ?? apiKey ?? workflow ?? alert
   return {
     id: toOptionalStringValue(source?.id),
@@ -91,7 +85,7 @@ function mapIncidentioCreator(value: unknown): IncidentioLegacyCreator | undefin
 }
 
 function mapAssignee(value: unknown): IncidentioActionSummary['assignee'] {
-  const assignee = asRecord(value)
+  const assignee = toRecordOrNull(value)
   if (!assignee) return undefined
   return {
     id: toStringValue(assignee.id),
@@ -103,7 +97,7 @@ function mapAssignee(value: unknown): IncidentioActionSummary['assignee'] {
 function mapExternalIssueReference(
   value: unknown
 ): IncidentioFollowUpSummary['external_issue_reference'] {
-  const reference = asRecord(value)
+  const reference = toRecordOrNull(value)
   if (!reference) return undefined
   return {
     provider: toStringValue(reference.provider),
@@ -114,7 +108,7 @@ function mapExternalIssueReference(
 
 /** Maps an action as returned by `GET /v3/actions[/{id}]` onto the list/show output shape. */
 export function mapIncidentioActionSummary(value: unknown): IncidentioActionSummary {
-  const action = asRecord(value) ?? {}
+  const action = toRecord(value)
   return {
     id: toStringValue(action.id),
     description: toOptionalStringValue(action.description) ?? '',
@@ -130,10 +124,10 @@ export function mapIncidentioActionSummary(value: unknown): IncidentioActionSumm
 
 /** Maps a follow-up as returned by `GET /v3/follow_ups[/{id}]` onto the list/show output shape. */
 export function mapIncidentioFollowUpSummary(value: unknown): IncidentioFollowUpSummary {
-  const followUp = asRecord(value) ?? {}
-  const priority = asRecord(followUp.priority)
-  const assigneeTeam = asRecord(followUp.assignee_team)
-  const category = asRecord(followUp.category)
+  const followUp = toRecord(value)
+  const priority = toRecordOrNull(followUp.priority)
+  const assigneeTeam = toRecordOrNull(followUp.assignee_team)
+  const category = toRecordOrNull(followUp.category)
   return {
     id: toStringValue(followUp.id),
     title: toOptionalStringValue(followUp.title) ?? '',
@@ -171,7 +165,7 @@ export function mapIncidentioFollowUpSummary(value: unknown): IncidentioFollowUp
 
 /** The API returns the trigger as `{ name, label }`; the output keeps the name string. */
 function mapWorkflowTrigger(value: unknown): string {
-  const trigger = asRecord(value)
+  const trigger = toRecordOrNull(value)
   return trigger ? toStringValue(trigger.name) : toStringValue(value)
 }
 
@@ -221,7 +215,7 @@ export async function collectIncidentioPages<T>(
     const page = await fetchPage(after)
     if (!page.success) return { error: page.error || 'Failed to fetch the next page' }
     items.push(...toArray<T>(page.output[itemsKey]))
-    after = toOptionalStringValue(asRecord(page.output.pagination_meta)?.after)
+    after = toOptionalStringValue(toRecord(page.output.pagination_meta).after)
   }
   return { items, after }
 }

@@ -2321,10 +2321,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             }
             // On a tool call with no Mark as Read setting, the model's readAt decides.
             if (isToolCall(context) && isBlank(params.markAsRead)) {
-              return {
-                ...baseParams,
-                notificationId: params.notificationId.trim(),
-              }
+              return { ...baseParams, notificationId: params.notificationId.trim() }
             }
             return {
               ...baseParams,
