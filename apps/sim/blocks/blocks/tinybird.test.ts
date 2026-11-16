@@ -25,4 +25,17 @@ describe('Tinybird on an Agent tool call', () => {
       )
     ).toMatchObject({ datasource: 'events', url: 'https://example.com/data.csv', format: 'csv' })
   })
+  it('keeps the source format the model supplied as format', () => {
+    expect(
+      toolCallParams(
+        {
+          token: 'tok',
+          datasource: 'events',
+          url: 'https://example.com/data.ndjson',
+          format: 'ndjson',
+        },
+        'tinybird_append_datasource'
+      )
+    ).toMatchObject({ format: 'ndjson' })
+  })
 })

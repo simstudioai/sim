@@ -309,7 +309,7 @@ export const TinybirdBlock: BlockConfig = {
 
           result.datasource = params.datasource
           result.url = sourceUrl
-          result.format = params.source_format || 'csv'
+          result.format = params.source_format || toolCallArg(context, params.format) || 'csv'
         } else if (operation === 'tinybird_truncate_datasource') {
           // Truncate Data Source operation
           if (!params.datasource) {

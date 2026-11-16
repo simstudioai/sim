@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { CloudWatchV2Block } from '@/blocks/blocks/cloudwatch'
 import type { BlockToolParamsContext } from '@/blocks/types'
 
-const mapParams = CloudWatchV2Block.tools.config?.params
-if (!mapParams) {
+const configuredParams = CloudWatchV2Block.tools.config?.params
+if (!configuredParams) {
   throw new Error('CloudWatch block must define tools.config.params')
 }
+const mapParams = configuredParams
 
 /** The tool-call merge: the mapped params land over the model's args (`{ ...args, ...mapped }`). */
 function merge(args: Record<string, unknown>, context?: BlockToolParamsContext) {
@@ -22,5 +23,21 @@ describe('CloudWatch block params', () => {
     expect(merged.namespace).toBe('Custom/App')
     expect(merged.metricName).toBe('Hits')
     expect(merged.value).toBe(3)
+  })
+  it('splits a comma-separated extendedStatistics the model sent without statistics', () => {
+    const merged = merge(
+      {
+        namespace: 'AWS/EC2',
+        metricName: 'CPUUtilization',
+        startTime: 1700000000,
+        endTime: 1700003600,
+        period: 300,
+        extendedStatistics: 'p99, p95',
+      },
+      { operation: 'get_metric_statistics' }
+    )
+
+    expect(merged.extendedStatistics).toEqual(['p99', 'p95'])
+    expect(merged.statistics).toBeUndefined()
   })
 })

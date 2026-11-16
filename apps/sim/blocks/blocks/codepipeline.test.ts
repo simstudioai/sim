@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { CodePipelineV2Block } from '@/blocks/blocks/codepipeline'
 import type { BlockToolParamsContext } from '@/blocks/types'
 
-const mapParams = CodePipelineV2Block.tools.config?.params
-if (!mapParams) {
+const configuredParams = CodePipelineV2Block.tools.config?.params
+if (!configuredParams) {
   throw new Error('CodePipeline block must define tools.config.params')
 }
+const mapParams = configuredParams
 
 /** The tool-call merge: the mapped params land over the model's args (`{ ...args, ...mapped }`). */
 function merge(args: Record<string, unknown>, context?: BlockToolParamsContext) {

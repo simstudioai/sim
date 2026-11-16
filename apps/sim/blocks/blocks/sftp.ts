@@ -3,7 +3,12 @@ import { omit } from '@sim/utils/object'
 import { SftpIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, mapperOperation, normalizeFileInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+} from '@/blocks/utils'
 
 export const SftpBlock = {
   type: 'sftp',
@@ -287,7 +292,8 @@ export const SftpBlock = {
             return {
               ...connectionConfig,
               remotePath: params.remotePath,
-              recursive: params.mkdirRecursive !== false,
+              recursive:
+                (params.mkdirRecursive ?? toolCallArg(context, params.recursive)) !== false,
             }
           default:
             return {

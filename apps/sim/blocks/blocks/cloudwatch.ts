@@ -923,7 +923,9 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             }
 
             const stat = rest.metricStatistics || toolCallArg(context, rest.statistics)
-            if (!stat && !toolCallArg(context, rest.extendedStatistics)) {
+            const extendedStat =
+              rest.metricExtendedStatistics || toolCallArg(context, rest.extendedStatistics)
+            if (!stat && !extendedStat) {
               throw new Error('Statistics is required')
             }
 
@@ -937,10 +939,10 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               endTime: Number(endTime),
               period: Number(period),
               ...(stat && { statistics: Array.isArray(stat) ? stat : [stat] }),
-              ...(rest.metricExtendedStatistics && {
-                extendedStatistics: Array.isArray(rest.metricExtendedStatistics)
-                  ? rest.metricExtendedStatistics
-                  : String(rest.metricExtendedStatistics)
+              ...(extendedStat && {
+                extendedStatistics: Array.isArray(extendedStat)
+                  ? extendedStat
+                  : String(extendedStat)
                       .split(',')
                       .map((s: string) => s.trim())
                       .filter(Boolean),

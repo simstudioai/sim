@@ -469,7 +469,11 @@ export const AzureDataExplorerBlock: BlockConfig = {
               table: params.table,
               mode: params.ingestMode || toolCallArg(context, params.mode) || undefined,
               sourceQuery: params.sourceQuery,
-              async: toBoolean(params.ingestAsync) ?? toBoolean(toolCallArg(context, params.async)),
+              async:
+                params.ingestAsync === false || params.ingestAsync === 'false'
+                  ? undefined
+                  : (toBoolean(params.ingestAsync) ??
+                    toBoolean(toolCallArg(context, params.async))),
               ingestionProperties: params.ingestionProperties || undefined,
             }
           case 'azure_data_explorer_create_table':
