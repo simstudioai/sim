@@ -1,6 +1,12 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { checkCodeFileBijection, codeFileLanguage, fromCodeFile, toCodeFile } from './index'
+import {
+  checkCodeFileBijection,
+  codeFileCodec,
+  codeFileLanguage,
+  fromCodeFile,
+  toCodeFile,
+} from './index'
 
 describe('toCodeFile rewrites only code-position tokens', () => {
   it.each([
@@ -103,6 +109,20 @@ describe('checkCodeFileBijection', () => {
       ok: true,
       file: 'print(<a.b>.x)',
     })
+  })
+})
+
+describe('codeFileCodec (the printer interface)', () => {
+  it('returns the file form only when it reads back exactly', () => {
+    expect(codeFileCodec.toFile('return <a.b>', 'javascript')).toBe('return $ref.a.b')
+    expect(codeFileCodec.toFile('return <a.b>.length', 'javascript')).toBeNull()
+    expect(codeFileCodec.toFile('return (', 'javascript')).toBeNull()
+  })
+
+  it('reads a file back, or null when it does not parse', () => {
+    expect(codeFileCodec.fromFile('return $ref.a.b', 'javascript')).toBe('return <a.b>')
+    expect(codeFileCodec.fromFile('return (', 'javascript')).toBeNull()
+    expect(codeFileCodec.fromFile('return (', 'shell')).toBe('return (')
   })
 })
 

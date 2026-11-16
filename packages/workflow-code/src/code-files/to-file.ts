@@ -17,10 +17,6 @@ const CODE_FILE_EXTENSIONS: Record<CodeFileLanguage, string> = {
 /** Candidate tokens: `<path>` on one line, or `{{NAME}}`. */
 const TOKEN = /<([^<>\s]+)>|\{\{([^{}\s]+)\}\}/g
 
-export function codeFileExtension(language: CodeFileLanguage): string {
-  return CODE_FILE_EXTENSIONS[language]
-}
-
 /** The language a code file's extension names, or `null` for any other extension. */
 export function codeFileLanguage(path: string): CodeFileLanguage | null {
   for (const [language, extension] of Object.entries(CODE_FILE_EXTENSIONS)) {
