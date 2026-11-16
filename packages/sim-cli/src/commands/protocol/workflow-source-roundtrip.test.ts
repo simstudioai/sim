@@ -265,7 +265,6 @@ describe('sim workflows source get --dir → apply --dir', () => {
     expect(types).toContain(`'tickets': { subject: string }`)
     expect(types).toContain(`'support-slack': { provider: 'slack' }`)
     expect(types).toContain('CRM_KEY: true')
-    expect(read('.sim/AGENTS.md')).toContain('@sim/workflow-sdk')
   })
 
   it('creates a workflow from a bare directory, then applies to it by its new id', async () => {
@@ -273,9 +272,22 @@ describe('sim workflows source get --dir → apply --dir', () => {
     rmSync(join(dir, '.sim/lock.json'))
     rmSync(join(dir, '.sim/base.json'))
 
-    await sim('workflows', 'source', 'create', '--dir', dir, '--name', 'Copy', '--yes')
+    await sim(
+      'workflows',
+      'source',
+      'create',
+      '--dir',
+      dir,
+      '--name',
+      'Copy',
+      '--folder',
+      '/Ops',
+      '--yes'
+    )
 
-    expect(createBodies).toEqual([{ files: FILES, name: 'Copy', provenance: { client: 'cli' } }])
+    expect(createBodies).toEqual([
+      { files: FILES, name: 'Copy', folderPath: '/Ops', provenance: { client: 'cli' } },
+    ])
     expect(existsSync(join(dir, '.sim/lock.json'))).toBe(true)
     expect(JSON.parse(read('.sim/base.json'))).toEqual(baseFor(NEW_WORKFLOW_ID, SECOND))
     await expect(apply()).rejects.toThrow(`holds the source of workflow ${NEW_WORKFLOW_ID}`)

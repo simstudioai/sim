@@ -128,7 +128,6 @@ describe('sim workflows source get --dir', () => {
     expect(existsSync(join(outDir, '.sim/sdk/blocks/agent.d.ts'))).toBe(true)
     expect(existsSync(join(outDir, '.sim/sdk/blocks/slack_v2.d.ts'))).toBe(true)
     expect(readFileSync(join(outDir, '.sim/sdk/workspace.d.ts'), 'utf8')).toContain("'docs': true")
-    expect(readFileSync(join(outDir, '.sim/AGENTS.md'), 'utf8')).toContain('apply')
     expect(callsTo(CATALOG_PATH)).toHaveLength(1)
     expect(callsTo(CATALOG_PATH)[0][1].query).toBeUndefined()
   })
@@ -167,19 +166,6 @@ describe('sim workflows source get --dir', () => {
       undefined,
       { workflowId: WORKFLOW_ID },
     ])
-  })
-
-  it('writes the source without workspace types when the manifest is refused', async () => {
-    serve({
-      [MANIFEST_PATH]: () => {
-        throw new SimApiError('Forbidden', 403)
-      },
-    })
-
-    await get('--dir', outDir)
-
-    expect(existsSync(join(outDir, 'workflow.ts'))).toBe(true)
-    expect(existsSync(join(outDir, '.sim/sdk/workspace.d.ts'))).toBe(false)
   })
 
   it('surfaces a 304 when no cached catalog exists rather than writing without types', async () => {

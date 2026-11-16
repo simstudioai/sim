@@ -20,7 +20,6 @@ const { mockRequest: request } = contextMockFns
 const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
 const WORKSPACE_ID = 'ws_local'
 const APPLY_PATH = `/api/v2/workflows/${WORKFLOW_ID}/source`
-const CREATE_PATH = `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source`
 const BASE = {
   workflowId: WORKFLOW_ID,
   workspaceId: WORKSPACE_ID,
@@ -73,10 +72,6 @@ function program(): Command {
 
 async function apply(...argv: string[]): Promise<void> {
   await program().parseAsync(['node', 'sim', 'workflows', 'source', 'apply', ...argv])
-}
-
-async function create(...argv: string[]): Promise<void> {
-  await program().parseAsync(['node', 'sim', 'workflows', 'source', 'create', ...argv])
 }
 
 /** Runs with a person at the terminal (stdin and stderr both TTYs) or without one. */
@@ -208,21 +203,5 @@ describe('sim workflows source apply', () => {
     await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
 
     expect(process.exitCode).toBe(7)
-  })
-
-  it('creates a workflow from the directory alone, then writes its lock files', async () => {
-    setTerminal(false)
-    rmSync(join(dir, '.sim'), { recursive: true })
-    request.mockResolvedValue(outcome())
-
-    await create('--dir', dir, '--folder', '/Ops', '--yes')
-
-    expect(request.mock.calls[0][0]).toBe(CREATE_PATH)
-    expect(request.mock.calls[0][1].body).toEqual({
-      files: { 'workflow.ts': ENTRY },
-      folderPath: '/Ops',
-      provenance: { client: 'cli' },
-    })
-    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).fingerprint).toBe('sf1:b')
   })
 })

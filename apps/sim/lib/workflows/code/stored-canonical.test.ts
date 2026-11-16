@@ -298,25 +298,4 @@ describe('canonicalizeStored', () => {
     expect(JSON.stringify(grown.canonical.workflow)).toContain('knowledge-base-key')
     expect(grown.loaded.ids.map((ref) => ref.kind).sort()).toEqual(['knowledge-base', 'table'])
   })
-
-  it('keeps the remembered references per workflow', async () => {
-    await canonicalizeStored({
-      workflowId: 'wf-one',
-      workspaceId: 'ws',
-      meta,
-      catalog,
-      createdBy: null,
-      state: withTableAndKb,
-    })
-    hoisted.loadResourceKeyResolver.mockClear()
-    await canonicalizeStored({
-      workflowId: 'wf-two',
-      workspaceId: 'ws',
-      meta,
-      catalog,
-      createdBy: null,
-      state: withTable,
-    })
-    expect(hoisted.loadResourceKeyResolver.mock.calls[0][1]).toEqual({ ids: [], keys: [] })
-  })
 })

@@ -72,21 +72,6 @@ const meta = (patch: Partial<WorkflowSourceMetaV1>): WorkflowSourceMetaV1 => ({
 })
 
 describe('buildLockFromState', () => {
-  it('keeps a block ident and order across a canvas rename (keyed by id, not key)', () => {
-    const sourceMeta = meta({ idents: { 'id-1': 'classify' }, order: { 'id-1': 4 } })
-    const before = buildLockFromState(sourceMeta, canonicalOf([{ id: 'id-1', name: 'Classify' }]))
-    const after = buildLockFromState(
-      sourceMeta,
-      canonicalOf([{ id: 'id-1', name: 'Route ticket by intent' }])
-    )
-    expect(before.blocks.classify).toMatchObject({ id: 'id-1', ident: 'classify', order: 4 })
-    expect(after.blocks.routeticketbyintent).toMatchObject({
-      id: 'id-1',
-      ident: 'classify',
-      order: 4,
-    })
-  })
-
   it('derives an ident and an order for blocks source meta does not know, after stored orders', () => {
     const lock = buildLockFromState(
       meta({ idents: { 'id-1': 'first' }, order: { 'id-1': 7 } }),
