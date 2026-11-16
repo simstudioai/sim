@@ -123,6 +123,7 @@ describe('createWorkflowWithState against PostgreSQL', () => {
       success: false,
       error: 'A workflow with this ID already exists',
       errorCode: 'conflict',
+      conflict: 'id',
     })
     expect(
       await db.select({ name: workflow.name }).from(workflow).where(eq(workflow.id, id))
@@ -158,6 +159,7 @@ describe('createWorkflowWithState against PostgreSQL', () => {
       success: false,
       error: 'A workflow named "Taken name" already exists in this folder',
       errorCode: 'conflict',
+      conflict: 'name',
     })
   })
 
