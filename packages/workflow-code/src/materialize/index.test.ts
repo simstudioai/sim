@@ -212,18 +212,30 @@ describe('materialize: params keep prev bytes unless they changed', () => {
     expect(codes(result)).toEqual(['E_MAT_UNKNOWN_RESOURCE'])
   })
 
-  it('recomputes stored outputs only for blocks that changed', () => {
+  it('keeps stored outputs through an edit their derivation does not read', () => {
     const state = workflowState([
       blockState('f1', 'function', 'One', { code: 'a' }),
-      blockState('f2', 'function', 'Two', { code: 'b' }),
+      blockState('f2', 'function', 'Two', { code: 'b' }, { outputs: {} }),
     ])
     const target = edit(canonical(state).workflow, (draft) => {
       draft.blocks.two.params.code = { kind: 'value', value: 'c' }
     })
     const result = run(target, null, { prev: state })
     expect(result.state.blocks.f1.outputs).toBe(state.blocks.f1.outputs)
-    expect(result.state.blocks.f2.outputs).toEqual({
-      computed: { type: 'string', description: 'function:false' },
+    expect(subBlockValue(result.state, 'f2', 'code')).toBe('c')
+    expect(result.state.blocks.f2.outputs).toBe(state.blocks.f2.outputs)
+  })
+
+  it('recomputes stored outputs when an edit changes what they derive from', () => {
+    const state = workflowState([
+      blockState('g1', 'gmail', 'Mail', { operation: 'send' }, { outputs: {} }),
+    ])
+    const target = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.mail.triggerMode = true
+    })
+    const result = run(target, null, { prev: state })
+    expect(result.state.blocks.g1.outputs).toEqual({
+      computed: { type: 'string', description: 'gmail:true' },
     })
   })
 

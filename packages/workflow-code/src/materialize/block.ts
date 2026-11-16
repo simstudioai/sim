@@ -311,9 +311,19 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
     }
   }
 
-  block.data = data as BlockData
+  if (base.data !== undefined || Object.keys(data).length > 0) {
+    block.data = deepEqual(base.data, data) ? base.data : (data as BlockData)
+  }
   block.subBlocks = subBlocks
-  if (outputsDirty) block.outputs = context.hooks.computeOutputs(block)
+  // Stored outputs are server-owned and derived. They are rewritten only when the derivation
+  // itself changes: a block whose stored outputs predate the registry (or were seeded empty)
+  // keeps them through an edit its outputs do not derive from, as it does on the canvas.
+  if (outputsDirty) {
+    const outputs = context.hooks.computeOutputs(block)
+    if (!prev || !deepEqual(outputs, context.hooks.computeOutputs(prev.block))) {
+      block.outputs = outputs
+    }
+  }
 
   let built = block
   let needsLayout = false
