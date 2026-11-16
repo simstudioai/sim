@@ -15,7 +15,7 @@ import {
 import { type MaterializeContext, report } from './context'
 
 /** Where a value sits, for diagnostics. */
-export interface ValueLocation {
+interface ValueLocation {
   blockKey?: BlockKey
   param?: string
 }

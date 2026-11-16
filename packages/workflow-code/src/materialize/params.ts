@@ -10,7 +10,7 @@ import type { MaterializeContext } from './context'
 import { unliftValue } from './values'
 
 /** What encoding one param needs besides the value itself. */
-export interface ParamSite {
+interface ParamSite {
   blockKey: BlockKey
   param: SubBlockId
   declaration: CatalogSubBlock | undefined

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { compareEdges } from '../canonicalize/edges'
+import { sha256Hex, stableStringify } from '../hash'
 import type { LockIdentity } from '../lock'
 import type { CanonicalBlock, CanonicalWorkflow } from '../model'
-import { canonicalEquals, canonicalHash, sourceFingerprint } from '.'
+import { canonicalDigests, canonicalEquals, canonicalHash, sourceFingerprint } from '.'
 
 function codeBlock(key: string, overrides: Partial<CanonicalBlock> = {}): CanonicalBlock {
   return {
@@ -150,5 +152,16 @@ describe('sourceFingerprint', () => {
     const locked = base()
     locked.blocks.b.locked = true
     expect(sourceFingerprint(locked, IDENTITY)).not.toBe(fingerprint)
+  })
+
+  it('hashes stableStringify({ workflow, identity }) of the semantic workflow, as canonicalDigests does', () => {
+    const { annotations, ...semantic } = base()
+    semantic.edges = [...semantic.edges].sort(compareEdges)
+    const expected = `sf1:${sha256Hex(stableStringify({ workflow: semantic, identity: IDENTITY }))}`
+    expect(sourceFingerprint(base(), IDENTITY)).toBe(expected)
+    expect(canonicalDigests(base(), IDENTITY)).toEqual({
+      canonicalHash: canonicalHash(base()),
+      fingerprint: expected,
+    })
   })
 })

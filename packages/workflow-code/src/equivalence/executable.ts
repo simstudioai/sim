@@ -46,7 +46,7 @@ import { setOwn } from '../records'
 const DEFAULT_PARALLEL_COUNT = 5
 
 /** A loop or parallel config exactly as the executor reads it for the type in effect. */
-export type ExecutableSubflow =
+type ExecutableSubflow =
   | {
       kind: 'loop'
       loopType: LoopSpec['loopType']
@@ -82,7 +82,7 @@ interface ExecutableBlock {
   subflowData?: Record<string, Json>
 }
 
-export interface ExecutableWorkflow {
+interface ExecutableWorkflow {
   meta: CanonicalWorkflowMeta
   blocks: Record<BlockKey, ExecutableBlock>
   edges: CanonicalEdge[]

@@ -27,7 +27,7 @@ export function isExcludedSubBlockId(id: string): boolean {
   )
 }
 
-export interface ParamInputs {
+interface ParamInputs {
   blockKey: BlockKey
   block: BlockState
   catalog: CatalogBlock | undefined
@@ -36,7 +36,7 @@ export interface ParamInputs {
   branchSubBlockId?: SubBlockId
 }
 
-export interface ParamsResult {
+interface ParamsResult {
   params: Record<SubBlockId, CanonicalParam>
   /** inputFormat ids by subBlock: field name → id (lock `items`). */
   items: Record<SubBlockId, Array<{ name: string; id: string }>>

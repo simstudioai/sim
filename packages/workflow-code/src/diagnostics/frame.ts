@@ -49,7 +49,7 @@ export type LocatedDiagnostic<C extends DiagnosticCode = DiagnosticCode> = Diagn
 }
 
 /** Where `codeFrame` points. `endLine`/`endColumn` default to a one-character span. */
-export interface FrameLocation {
+interface FrameLocation {
   line: number
   column: number
   endLine?: number

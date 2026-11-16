@@ -9,7 +9,7 @@ import type { Diagnostic } from '../diagnostics/frame'
 import type { BlockKey, VarKey } from '../model'
 import type { VariableEntry } from './context'
 
-export interface BlockKeys {
+interface BlockKeys {
   keyById: Map<string, BlockKey>
   /** Normalized name → the key of the block references resolve to. */
   referenceKeyByName: Map<string, BlockKey>

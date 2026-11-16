@@ -1,7 +1,7 @@
 import { fromCodeFile } from './from-file'
 import { type CodeFileLanguage, toCodeFile } from './to-file'
 
-export type CodeFileBijection =
+type CodeFileBijection =
   | { ok: true; file: string }
   | {
       ok: false

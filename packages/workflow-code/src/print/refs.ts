@@ -18,7 +18,7 @@ import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { BlockKey } from '../model'
 
-export type RefPart = { kind: 'text'; text: string } | { kind: 'ref'; expr: string }
+type RefPart = { kind: 'text'; text: string } | { kind: 'ref'; expr: string }
 
 /** What reference printing needs to know about declarations and scopes. */
 export interface RefScope {

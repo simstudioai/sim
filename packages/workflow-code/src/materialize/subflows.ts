@@ -38,7 +38,7 @@ export function writeSubflowData(
   }
 }
 
-export interface SubflowEntryInputs {
+interface SubflowEntryInputs {
   id: string
   block: BlockState
   spec: LoopSpec | ParallelSpec

@@ -24,7 +24,7 @@ import { writeSubflowData } from './subflows'
 /** `block.data` keys the model or the layout owns on any block; everything else is `extra`. */
 const MODEL_DATA_KEYS = new Set(['parentId', 'extent', 'width', 'height', 'canonicalModes'])
 
-export interface BlockInputs {
+interface BlockInputs {
   key: BlockKey
   target: CanonicalBlock
   resolved: ResolvedBlock

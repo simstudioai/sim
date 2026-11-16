@@ -36,7 +36,12 @@ export { sourceDepthOverflow } from './compile/parse'
 export type { ApplyDiagnosticCode, DiagnosticCode, DiagnosticSeverity } from './diagnostics/codes'
 export { codeFrame, type Diagnostic, type SourceSpan } from './diagnostics/frame'
 export { type CanonicalDiff, diffCanonical, renamesBetween } from './diff'
-export { canonicalEquals, canonicalHash, sourceFingerprint } from './equivalence'
+export {
+  canonicalDigests,
+  canonicalEquals,
+  canonicalHash,
+  sourceFingerprint,
+} from './equivalence'
 export { executableView } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
 export {

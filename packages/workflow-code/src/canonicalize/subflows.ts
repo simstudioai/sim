@@ -22,7 +22,7 @@ export const SUBFLOW_DATA_KEYS: ReadonlySet<string> = new Set([
 ])
 
 /** A subflow config with the `block.data` keys whose stored value it could not represent. */
-export interface SubflowResult<S> {
+interface SubflowResult<S> {
   spec: S
   /** Kept verbatim under `extra` so nothing is lost. */
   rejectedDataKeys: string[]

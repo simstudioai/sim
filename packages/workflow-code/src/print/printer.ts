@@ -83,7 +83,7 @@ interface PrintedFile {
   text: string
 }
 
-export interface PrintResult {
+interface PrintResult {
   /** The workflow file first, then code files. */
   files: [PrintedFile, ...PrintedFile[]]
   /** Input hints plus an ident, order and code file for every block. */

@@ -21,9 +21,7 @@ interface CodeFileSyntaxError {
   column: number
 }
 
-export type FromCodeFileResult =
-  | { ok: true; code: string }
-  | { ok: false; errors: CodeFileSyntaxError[] }
+type FromCodeFileResult = { ok: true; code: string } | { ok: false; errors: CodeFileSyntaxError[] }
 
 /**
  * Stored function code runs as a module-or-script body with top-level `return`, `await` and

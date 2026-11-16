@@ -30,7 +30,7 @@ import type {
   ExpandedBlockCatalog,
 } from './types'
 
-export interface CompactedBlockCatalog {
+interface CompactedBlockCatalog {
   /** The core shard, without its `hash` (the caller hashes these exact bytes). */
   core: Omit<BlockCatalog, 'hash'>
   /** Docs-shard parts by block type; a block with nothing to move has no entry. */

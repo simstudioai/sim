@@ -15,7 +15,7 @@ import type { CanonicalTool, Json, ResourceKind, ResourceNode, Value } from './m
 import { deepEqual, setOwn } from './records'
 
 /** The stored type of an MCP server tool entry. */
-export const MCP_TOOL_TYPE = 'mcp'
+const MCP_TOOL_TYPE = 'mcp'
 
 /** The stored type of a child workflow tool entry (the `runWorkflow` block as a tool). */
 const WORKFLOW_TOOL_TYPE = 'workflow_input'
