@@ -485,17 +485,34 @@ describe('pruning function files', () => {
 
 describe('apply refusals', () => {
   it.each([
-    [409, 'SOURCE_STALE', 5],
-    [423, 'WORKFLOW_LOCKED', 6],
-    [413, 'SOURCE_TOO_LARGE', 7],
-  ])('exits with a scriptable status on a %i, writing nothing', async (status, code, exitCode) => {
-    await get()
-    server.apply = () => refusal(status, code)
+    [409, { code: 'SOURCE_STALE', currentFingerprint: SECOND }, 5],
+    [409, undefined, 1],
+    [423, undefined, 6],
+    [413, undefined, 7],
+  ])(
+    'exits with a scriptable status on a %i (%o), writing nothing',
+    async (status, details, exitCode) => {
+      await get()
+      server.apply = () => refusal(status, 'REFUSED', details)
 
-    const error = await refusedWith(apply)
+      const error = await refusedWith(apply)
 
-    expect(error).toMatchObject({ status, code, exitCode })
-    expect(JSON.parse(read('.sim/base.json')).fingerprint).toBe(FIRST)
+      expect(error).toMatchObject({ status, exitCode })
+      expect(JSON.parse(read('.sim/base.json')).fingerprint).toBe(FIRST)
+    }
+  )
+
+  it('exits 1 when a create finds the name taken, pointing at --name rather than a fresh get', async () => {
+    mkdirSync(dir)
+    writeFileSync(join(dir, 'workflow.ts'), WORKFLOW_TS)
+    server.create = () => refusal(409, 'CONFLICT', { code: 'SOURCE_NAME_TAKEN', name: 'W' })
+
+    const error = await refusedWith(() =>
+      sim('workflows', 'source', 'create', '--dir', dir, '--yes')
+    )
+
+    expect(error).toMatchObject({ status: 409, exitCode: 1 })
+    expect(error.message).toContain('--name')
   })
 
   it('prints each compile error as file:line:column with its frame and hint, then exits 1', async () => {

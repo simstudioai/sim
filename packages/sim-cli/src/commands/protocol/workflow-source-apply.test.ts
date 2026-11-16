@@ -29,7 +29,7 @@ const BASE = {
 const LOCK = { version: 1, blocks: {}, variables: {} }
 const ENTRY = "// @sim-sdk 1\nexport default workflow('W', () => {})\n"
 
-function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[] } = {}) {
+function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[]; notes?: string[] } = {}) {
   const dryRun = overrides.dryRun ?? false
   return {
     data: {
@@ -48,7 +48,7 @@ function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[] } = {}) 
       lock: LOCK,
       base: { ...BASE, fingerprint: 'sf1:b' },
       mintedIds: {},
-      notes: [],
+      notes: overrides.notes ?? [],
       needsRedeployment: true,
     },
   }
@@ -106,6 +106,18 @@ afterEach(() => {
   process.exitCode = undefined
   rmSync(dir, { recursive: true, force: true })
 })
+
+function stderrLines(): string[] {
+  return vi.mocked(console.error).mock.calls.map((call) => call.join(' '))
+}
+
+/** The file paths the apply sent, beside the entry file. */
+function sentCodeFiles(): string[] {
+  const body = request.mock.calls[0][1].body as { files: Record<string, string> }
+  return Object.keys(body.files)
+    .filter((path) => path !== 'workflow.ts')
+    .sort()
+}
 
 function dryRunFlags() {
   return request.mock.calls.map((call) => call[1].query?.dryRun === true)
@@ -203,5 +215,129 @@ describe('sim workflows source apply', () => {
     await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
 
     expect(process.exitCode).toBe(7)
+  })
+
+  it('prints every note on a dry run, so a kept name or a dropped tool is never silent', async () => {
+    setTerminal(false)
+    const note = "The workflow name 'New' differs from the stored one and was not changed."
+    request.mockResolvedValue(outcome({ dryRun: true, notes: [note] }))
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    expect(stderrLines()).toContain(`note: ${note}`)
+  })
+
+  it('at a terminal, prints the notes of the preview and of the applied write', async () => {
+    setTerminal(true)
+    request.mockImplementation(async (_path: string, options: { query?: { dryRun?: boolean } }) =>
+      outcome({
+        dryRun: options.query?.dryRun === true,
+        notes: [options.query?.dryRun === true ? 'previewed note' : 'applied note'],
+      })
+    )
+    prompt.question.mockResolvedValue('y')
+
+    await apply(WORKFLOW_ID, '--dir', dir)
+
+    expect(stderrLines()).toEqual(
+      expect.arrayContaining(['note: previewed note', 'note: applied note'])
+    )
+  })
+
+  const STALE = {
+    code: 'E_APPLY_STALE',
+    severity: 'error',
+    message: 'The workflow changed since this directory was read.',
+  }
+
+  it('exits 5 when a dry run finds the directory stale', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [STALE] }))
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    expect(process.exitCode).toBe(5)
+  })
+
+  it('at a terminal, exits 5 without asking when the preview finds the directory stale', async () => {
+    setTerminal(true)
+    request.mockResolvedValue(outcome({ dryRun: true, diagnostics: [STALE] }))
+
+    await apply(WORKFLOW_ID, '--dir', dir)
+
+    expect(prompt.question).not.toHaveBeenCalled()
+    expect(process.exitCode).toBe(5)
+  })
+})
+
+describe('the code files an apply sends', () => {
+  function writeFunctions(...names: string[]) {
+    mkdirSync(join(dir, 'functions'), { recursive: true })
+    for (const name of names) writeFileSync(join(dir, name), `// ${name}\n`)
+  }
+
+  async function applyEntry(entry: string): Promise<void> {
+    writeFileSync(join(dir, 'workflow.ts'), entry)
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true }))
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+  }
+
+  it('sends a file named by a template literal without substitutions', async () => {
+    writeFunctions('functions/a.js')
+
+    await applyEntry(`${ENTRY}const a = fn('A', { code: codeFile(\`./functions/a.js\`) })\n`)
+
+    expect(sentCodeFiles()).toEqual(['functions/a.js'])
+  })
+
+  it('sends no file for a template literal with a substitution, which names no constant path', async () => {
+    writeFunctions(`functions/\${name}.js`)
+
+    await applyEntry(`${ENTRY}const a = fn('A', { code: codeFile(\`./functions/\${name}.js\`) })\n`)
+
+    expect(sentCodeFiles()).toEqual([])
+  })
+
+  it('never sends a file a codeFile() inside a comment or a string names', async () => {
+    writeFunctions(
+      'functions/line.js',
+      'functions/block.js',
+      'functions/quoted.js',
+      'functions/used.py'
+    )
+
+    await applyEntry(
+      [
+        ENTRY,
+        "// const old = fn('Old', { code: codeFile('./functions/line.js') })",
+        "/* const old = fn('Old', {\n  code: codeFile('./functions/block.js') }) */",
+        'const note = "codeFile(\'./functions/quoted.js\')"',
+        "const used = fn('Used', { language: 'python', code: codeFile(\"./functions/used.py\") })",
+        '',
+      ].join('\n')
+    )
+
+    expect(sentCodeFiles()).toEqual(['functions/used.py'])
+  })
+
+  it('sends only .js, .py and .sh files, whatever the source or the lock names', async () => {
+    writeFileSync(join(dir, '.env'), 'SECRET=1')
+    writeFileSync(join(dir, 'notes.txt'), 'SECRET')
+    writeFunctions('functions/run.sh')
+    writeFileSync(
+      join(dir, '.sim/lock.json'),
+      JSON.stringify({
+        ...LOCK,
+        blocks: { a: { id: 'b-a', parent: null, ident: 'a', order: 0, codeFile: 'notes.txt' } },
+      })
+    )
+
+    await applyEntry(
+      `${ENTRY}const leak = fn('Leak', { code: codeFile('./.env') })\nconst run = fn('Run', { language: 'shell', code: codeFile('./functions/run.sh') })\n`
+    )
+
+    expect(sentCodeFiles()).toEqual(['functions/run.sh'])
+    expect(JSON.stringify(request.mock.calls[0][1].body)).not.toContain('SECRET')
   })
 })

@@ -27,35 +27,49 @@ import {
   writeBack,
 } from './workflow-source-layout'
 
-/** `code: codeFile('./functions/x.js')` in the entry file (the SDK's only code-file form). */
-const CODE_FILE_REFERENCE = /\bcodeFile\(\s*(['"])([^'"\n]+)\1\s*\)/g
+/**
+ * One pass over the entry file that matches, in order of precedence, a comment, a
+ * `codeFile(<literal>)` call and any other string or template literal. Comments and other
+ * literals are matched only so that a `codeFile(` inside them is skipped: a commented-out or
+ * quoted reference names no file the source uses. The path is a quoted string or a template
+ * literal without `${`, the forms the compiler reads as a constant path.
+ */
+const ENTRY_TOKENS =
+  /\/\/[^\n]*|\/\*[\s\S]*?\*\/|\bcodeFile\(\s*(?:'([^'\n]*)'|"([^"\n]*)"|`((?:[^`$]|\$(?!\{))*)`)\s*\)|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\[\s\S])*`/g
+
+/** The only files an apply sends beside the entry: function code in a language a block runs. */
+const CODE_FILE_EXTENSION = /\.(?:js|py|sh)$/
 
 /** The exit status of a refused write a script can branch on; any other refusal exits 1. */
 const REFUSAL_EXIT_CODES: Readonly<Record<number, number>> = {
-  409: SOURCE_STALE_EXIT_CODE,
   413: SOURCE_TOO_LARGE_EXIT_CODE,
   423: SOURCE_LOCKED_EXIT_CODE,
 }
 
 const EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
-file:line:column with its frame and hint) or the command failed; 5 the workflow changed since
-the directory was read (SOURCE_STALE: get it again, reapply the edit, retry); 6 the workflow is
-locked; 7 the source is too large.`
+file:line:column with its frame and hint), a workflow with that name already exists
+(SOURCE_NAME_TAKEN: pass --name), or the command failed; 5 the workflow changed since the
+directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry);
+6 the workflow is locked; 7 the source is too large.`
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 type Diagnostic = SourceApplyData['diagnostics'][number]
 
 /**
  * The exit status of a dry run that found errors, matching the status a commit's refusal maps to:
- * 7 when a size limit refused the source (a commit answers `413`), else 1.
+ * 7 when a size limit refused the source (a commit answers `413`), 5 when the workflow changed
+ * since the directory was read (a commit answers `409 SOURCE_STALE`), else 1.
  */
 function refusedExitCode(diagnostics: Diagnostic[]): number {
-  return diagnostics.some(
-    (diagnostic) => diagnostic.severity === 'error' && diagnostic.code === 'E_LIMIT_EXCEEDED'
+  const codes = new Set(
+    diagnostics
+      .filter((diagnostic) => diagnostic.severity === 'error')
+      .map((diagnostic) => diagnostic.code)
   )
-    ? SOURCE_TOO_LARGE_EXIT_CODE
-    : 1
+  if (codes.has('E_LIMIT_EXCEEDED')) return SOURCE_TOO_LARGE_EXIT_CODE
+  if (codes.has('E_APPLY_STALE')) return SOURCE_STALE_EXIT_CODE
+  return 1
 }
 type SourceLock = ApplyWorkflowSourceBody['lock']
 type SourceBase = ApplyWorkflowSourceBody['base']
@@ -83,18 +97,19 @@ async function readJson(directory: string, path: string, hint: string): Promise<
 }
 
 /**
- * The function-code files the source can reference: every `codeFile('…')` in the entry file plus
- * every `codeFile` the lock records. Only those are sent; the server reports a referenced file
- * that is missing.
+ * The function-code files the source can reference: every `codeFile(…)` in the entry file's code
+ * plus every `codeFile` the lock records, limited to `.js`, `.py` and `.sh` files inside the
+ * directory. Only those are sent, so a reference to any other file never uploads it; the server
+ * reports a referenced file that is missing or of another kind.
  */
 function codeFilePaths(entry: string, lock: SourceLock | null): string[] {
-  const paths = lockCodeFiles(lock)
-  for (const match of entry.matchAll(CODE_FILE_REFERENCE)) {
-    const path = sourceRelativePath(match[2])
-    if (path) paths.add(path)
+  const candidates = lockCodeFiles(lock)
+  for (const match of entry.matchAll(ENTRY_TOKENS)) {
+    const literal = match[1] ?? match[2] ?? match[3]
+    const path = literal === undefined ? null : sourceRelativePath(literal)
+    if (path) candidates.add(path)
   }
-  paths.delete(ENTRY_FILE)
-  return [...paths]
+  return [...candidates].filter((path) => CODE_FILE_EXTENSION.test(path))
 }
 
 function formatDiagnostic(diagnostic: Diagnostic): string {
@@ -108,6 +123,11 @@ function formatDiagnostic(diagnostic: Diagnostic): string {
   if (diagnostic.frame) lines.push(diagnostic.frame)
   if (diagnostic.hint) lines.push(`  hint: ${diagnostic.hint}`)
   return lines.join('\n')
+}
+
+/** Prints the notes a write carries (a name the source changed but the apply kept, a dropped tool). */
+function printNotes(data: SourceApplyData): void {
+  for (const note of data.notes) printError(`note: ${note}`)
 }
 
 function isDiagnosticList(value: unknown): value is Diagnostic[] {
@@ -190,20 +210,34 @@ async function readSourceFiles(
 }
 
 /**
+ * The exit status of a refused write. A `409` is stale only when the server says so
+ * (`SOURCE_STALE`): a name another workflow holds (`SOURCE_NAME_TAKEN`) or any other conflict
+ * cannot be fixed by reading the workflow again, so it exits 1.
+ */
+function refusalExitCode(error: SimApiError, detailCode: unknown): number {
+  if (error.status === 409) return detailCode === 'SOURCE_STALE' ? SOURCE_STALE_EXIT_CODE : 1
+  return REFUSAL_EXIT_CODES[error.status] ?? error.exitCode
+}
+
+/**
  * Re-throws an API refusal after printing its diagnostics, so each shows its source line, with
  * the exit status a script branches on.
  */
 function printRefusal(error: unknown): never {
   if (!(error instanceof SimApiError)) throw error
-  const diagnostics = isRecordLike(error.details) ? error.details.diagnostics : undefined
+  const details = isRecordLike(error.details) ? error.details : {}
+  const diagnostics = details.diagnostics
   const printed = isDiagnosticList(diagnostics)
   if (printed) for (const diagnostic of diagnostics) printError(formatDiagnostic(diagnostic))
+  const nameTaken = error.status === 409 && details.code === 'SOURCE_NAME_TAKEN'
   throw new SimApiError(
-    error.message,
+    nameTaken
+      ? `${error.message} Pass --name to create it under another name, or apply to that workflow.`
+      : error.message,
     error.status,
     error.code,
     printed ? undefined : error.details,
-    REFUSAL_EXIT_CODES[error.status] ?? error.exitCode,
+    refusalExitCode(error, details.code),
     error.requestId
   )
 }
@@ -246,6 +280,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   if (!options.dryRun && !options.yes) {
     const preview = await send(true)
     for (const diagnostic of preview.diagnostics) printError(formatDiagnostic(diagnostic))
+    printNotes(preview)
     if (preview.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
       setSoftExitCode(refusedExitCode(preview.diagnostics))
       printProtocolResult(args.output, summarize(preview, creating))
@@ -259,6 +294,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
 
   const data = await send(options.dryRun === true)
   for (const diagnostic of data.diagnostics) printError(formatDiagnostic(diagnostic))
+  printNotes(data)
   const refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
   if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
 
