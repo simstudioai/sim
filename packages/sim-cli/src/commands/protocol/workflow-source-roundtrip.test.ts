@@ -41,15 +41,15 @@ const CATALOG = JSON.parse(
 )
 
 const WORKFLOW_TS =
-  "// @sim-sdk 1\nexport default workflow('W', {}, () => {\n  const score = fn('Score', { code: file('./functions/score.js') })\n})\n"
+  "// @sim-sdk 1\nexport default workflow('W', {}, () => {\n  const score = fn('Score', { code: codeFile('./functions/score.js') })\n})\n"
 const LOCK = {
-  lockVersion: 1,
+  version: 1,
   'x-tool': { pinned: true },
   blocks: {
     score: {
       id: 'b-1',
       parent: null,
-      binding: 'score',
+      ident: 'score',
       order: 0,
       codeFile: 'functions/score.js',
     },
@@ -64,13 +64,13 @@ function sourceResponse() {
       workspaceId: WORKSPACE_ID,
       files: { 'workflow.ts': WORKFLOW_TS, 'functions/score.js': 'return 1\n' },
       lock: LOCK,
-      lockBase: { workspaceId: WORKSPACE_ID, baseFingerprint: FIRST, catalogHash: CATALOG.hash },
+      base: { workspaceId: WORKSPACE_ID, fingerprint: FIRST, catalogHash: CATALOG.hash },
       fingerprint: FIRST,
       canonicalHash: 'h',
-      catalogVersion: CATALOG.hash,
+      catalogHash: CATALOG.hash,
       sdkMajor: 1,
       blockTypes: ['function'],
-      warnings: [],
+      diagnostics: [],
     },
   }
 }
@@ -90,15 +90,15 @@ function appliedResponse(files: Record<string, string>) {
         variables: { added: [], removed: [], modified: [] },
       },
       diagnostics: [],
-      newFingerprint: SECOND,
+      fingerprint: SECOND,
       files,
       lock: LOCK,
-      lockBase: { workspaceId: WORKSPACE_ID, baseFingerprint: SECOND, catalogHash: CATALOG.hash },
+      base: { workspaceId: WORKSPACE_ID, fingerprint: SECOND, catalogHash: CATALOG.hash },
       mintedIds: {},
-      warnings: [],
+      notes: [],
       needsRedeployment: true,
       sdkMajor: 1,
-      catalogVersion: CATALOG.hash,
+      catalogHash: CATALOG.hash,
     },
   }
 }
@@ -133,7 +133,7 @@ const MANIFEST = {
     { key: 'tickets', id: 't-1', name: 'Tickets', columns: [{ name: 'subject', type: 'string' }] },
   ],
   knowledgeBases: [],
-  bindings: [{ key: 'support-slack', id: 'c-1', name: 'Support Slack', service: 'slack' }],
+  credentials: [{ key: 'support-slack', id: 'c-1', name: 'Support Slack', provider: 'slack' }],
   workflows: [],
   env: ['CRM_KEY'],
   truncated: false,
@@ -157,10 +157,10 @@ beforeEach(() => {
       if (url.pathname === `/api/v2/workflows/${WORKFLOW_ID}/source` && method === 'GET') {
         return json(sourceResponse())
       }
-      if (url.pathname === `/api/v2/workspaces/${WORKSPACE_ID}/block-catalog`) {
+      if (url.pathname === `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/catalog`) {
         return json({ data: CATALOG })
       }
-      if (url.pathname === `/api/v2/workspaces/${WORKSPACE_ID}/resource-manifest`) {
+      if (url.pathname === `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/resources`) {
         return json({ data: MANIFEST })
       }
       if (url.pathname === `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source`) {
@@ -186,43 +186,40 @@ afterEach(() => {
   rmSync(join(dir, '..'), { recursive: true, force: true })
 })
 
-describe('sim workflows source get --out → apply --from', () => {
+describe('sim workflows source get --dir → apply --dir', () => {
   it('sends back exactly the directory get wrote, then saves what the server stored', async () => {
-    await sim('workflows', 'source', 'get', WORKFLOW_ID, '--out', dir)
-    await sim('workflows', 'source', 'apply', WORKFLOW_ID, '--from', dir, '--yes')
+    await sim('workflows', 'source', 'get', WORKFLOW_ID, '--dir', dir)
+    await sim('workflows', 'source', 'apply', WORKFLOW_ID, '--dir', dir, '--yes')
 
     expect(applyBodies).toEqual([
       {
         files: { 'workflow.ts': WORKFLOW_TS, 'functions/score.js': 'return 1\n' },
         lock: LOCK,
-        lockBase: { workspaceId: WORKSPACE_ID, baseFingerprint: FIRST, catalogHash: CATALOG.hash },
-        baseFingerprint: FIRST,
+        base: { workspaceId: WORKSPACE_ID, fingerprint: FIRST, catalogHash: CATALOG.hash },
         provenance: { client: 'cli' },
       },
     ])
     expect(readFileSync(join(dir, 'functions/score.js'), 'utf8')).toBe('return 2\n')
-    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).baseFingerprint).toBe(
-      SECOND
-    )
+    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).fingerprint).toBe(SECOND)
     expect(JSON.parse(readFileSync(join(dir, '.sim/lock.json'), 'utf8'))).toEqual(LOCK)
   })
 
   it('writes workspace types from the manifest, so resource keys are checked locally', async () => {
-    await sim('workflows', 'source', 'get', WORKFLOW_ID, '--out', dir)
+    await sim('workflows', 'source', 'get', WORKFLOW_ID, '--dir', dir)
 
     const types = readFileSync(join(dir, '.sim/sdk/workspace.d.ts'), 'utf8')
     expect(types).toContain(`'tickets': { subject: string }`)
-    expect(types).toContain(`'support-slack': { service: 'slack' }`)
+    expect(types).toContain(`'support-slack': { provider: 'slack' }`)
     expect(types).toContain('CRM_KEY: true')
     expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toContain('@sim/workflow-sdk')
   })
 
-  it('creates a workflow from a bare directory with --new, then applies to it by its new id', async () => {
-    await sim('workflows', 'source', 'get', WORKFLOW_ID, '--out', dir)
+  it('creates a workflow from a bare directory, then applies to it by its new id', async () => {
+    await sim('workflows', 'source', 'get', WORKFLOW_ID, '--dir', dir)
     rmSync(join(dir, '.sim/lock.json'))
     rmSync(join(dir, '.sim/base.json'))
 
-    await sim('workflows', 'source', 'apply', '--new', '--from', dir, '--name', 'Copy', '--yes')
+    await sim('workflows', 'source', 'create', '--dir', dir, '--name', 'Copy', '--yes')
 
     expect(createBodies).toEqual([
       {
@@ -232,11 +229,9 @@ describe('sim workflows source get --out → apply --from', () => {
       },
     ])
     expect(existsSync(join(dir, '.sim/lock.json'))).toBe(true)
-    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).baseFingerprint).toBe(
-      SECOND
-    )
+    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).fingerprint).toBe(SECOND)
 
-    await sim('workflows', 'source', 'apply', WORKFLOW_ID, '--from', dir, '--yes')
-    expect((applyBodies[0] as { baseFingerprint: string }).baseFingerprint).toBe(SECOND)
+    await sim('workflows', 'source', 'apply', WORKFLOW_ID, '--dir', dir, '--yes')
+    expect((applyBodies[0] as { base: { fingerprint: string } }).base.fingerprint).toBe(SECOND)
   })
 })

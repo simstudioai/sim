@@ -643,16 +643,19 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows source get',
     describe: 'Show a workflow’s draft as TypeScript source with its identity lock',
   },
-  /** `workflows source apply --from <dir>` reads and writes a source directory by hand. */
+  /** `workflows source apply --dir <dir>` reads and writes a source directory by hand. */
   applyWorkflowSource: { hidden: true },
   // The ETag revalidation header is for a client that caches the catalog, as `workflows source
-  // get --out` does by hand; a one-off read has no cached hash to send.
-  getBlockCatalog: { flags: { 'if-none-match': { omit: true } } },
-  /** `workflows source apply --new --from <dir>` reads and writes a source directory by hand. */
+  // get --dir` does by hand; a one-off read has no cached hash to send.
+  getSourceCatalog: {
+    command: 'workflows source catalog',
+    flags: { 'if-none-match': { omit: true } },
+  },
+  /** `workflows source create --dir <dir>` reads and writes a source directory by hand. */
   createWorkflowFromSource: { hidden: true },
-  /** One document, not a page: `workflows source get --out` writes it as `workspace.d.ts`. */
-  getResourceManifest: {
-    command: 'workspaces resource-manifest get',
+  /** One document, not a page: `workflows source get --dir` writes it as `workspace.d.ts`. */
+  getSourceResources: {
+    command: 'workflows source resources',
     describe:
       'List the tables, knowledge bases, credentials, workflows and env names source can name',
   },

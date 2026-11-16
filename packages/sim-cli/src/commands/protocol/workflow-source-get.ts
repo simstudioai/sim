@@ -25,7 +25,7 @@ import {
   SOURCE_LOCK_FILE,
 } from './workflow-source-layout'
 
-const OUT_FLAG = 'out'
+const DIR_FLAG = 'dir'
 /** The SDK file that names the catalog hash; unchanged text means unchanged declarations. */
 const SDK_INDEX_FILE = `${SDK_DIR}/index.d.ts`
 const WORKSPACE_TYPES_FILE = `${SDK_DIR}/workspace.d.ts`
@@ -38,7 +38,7 @@ interface WorkflowSource {
   workspaceId: string
   files: Record<string, string>
   lock: unknown
-  lockBase: unknown
+  base: unknown
   fingerprint: string
   blockTypes: string[]
 }
@@ -60,7 +60,7 @@ function isBlockCatalog(value: unknown): value is BlockCatalog {
   )
 }
 
-/** A server-supplied relative path that stays inside the output directory. */
+/** A server-supplied relative path that stays inside the source directory. */
 function isSafeRelativePath(path: string): boolean {
   if (!path || path.includes('\\') || path.startsWith('/') || /^[A-Za-z]:/.test(path)) return false
   return path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..')
@@ -90,7 +90,7 @@ function readSource(raw: unknown): WorkflowSource {
     workspaceId: data.workspaceId,
     files,
     lock: data.lock,
-    lockBase: data.lockBase,
+    base: data.base,
     fingerprint: data.fingerprint,
     blockTypes: data.blockTypes.filter((type): type is string => typeof type === 'string'),
   }
@@ -102,7 +102,7 @@ function readSource(raw: unknown): WorkflowSource {
  * the same copy. Workspace ids are uuids, so the name is safe as given.
  */
 function catalogCachePath(workspaceId: string): string {
-  return join(configDir(), 'cache', 'block-catalog', `${workspaceId}.json`)
+  return join(configDir(), 'cache', 'source-catalog', `${workspaceId}.json`)
 }
 
 /** Standalone runs only: an embedded run has no local disk of its own to cache on. */
@@ -140,14 +140,14 @@ function catalogFrom(raw: unknown): BlockCatalog {
  * catalog fetched instead, uncached, so its types still resolve.
  */
 async function loadCatalog(
-  client: OperationClient<'getBlockCatalog'>,
+  client: OperationClient<'getSourceCatalog'>,
   source: WorkflowSource
 ): Promise<BlockCatalog> {
   const cached = await readCachedCatalog(source.workspaceId)
   let catalog: BlockCatalog
   try {
     catalog = catalogFrom(
-      await client.request<unknown>('getBlockCatalog', {
+      await client.request<unknown>('getSourceCatalog', {
         params: { workspaceId: source.workspaceId },
         ...(cached ? { headers: { 'if-none-match': `"${cached.hash}"` } } : {}),
       })
@@ -159,7 +159,7 @@ async function loadCatalog(
   }
   if (source.blockTypes.every((type) => catalogBlock(catalog, type) !== undefined)) return catalog
   return catalogFrom(
-    await client.request<unknown>('getBlockCatalog', {
+    await client.request<unknown>('getSourceCatalog', {
       params: { workspaceId: source.workspaceId },
       query: { workflowId: source.workflowId },
     })
@@ -209,10 +209,10 @@ function workspaceManifestFrom(raw: unknown): WorkspaceManifest {
       ])
     ),
     knowledgeBases: list(data.knowledgeBases).map((kb) => kb.key),
-    bindings: Object.fromEntries(
-      list<ManifestResource & { service?: unknown }>(data.bindings).map((binding) => [
-        binding.key,
-        { service: typeof binding.service === 'string' ? binding.service : '' },
+    credentials: Object.fromEntries(
+      list<ManifestResource & { provider?: unknown }>(data.credentials).map((credential) => [
+        credential.key,
+        { provider: typeof credential.provider === 'string' ? credential.provider : '' },
       ])
     ),
     workflows: Object.fromEntries(
@@ -242,11 +242,11 @@ function workspaceManifestFrom(raw: unknown): WorkspaceManifest {
  * predates the route. The source still writes and type-checks, with every key a plain string.
  */
 async function loadWorkspaceTypes(
-  client: OperationClient<'getResourceManifest'>,
+  client: OperationClient<'getSourceResources'>,
   workspaceId: string
 ): Promise<string | null> {
   try {
-    const raw = await client.request<unknown>('getResourceManifest', { params: { workspaceId } })
+    const raw = await client.request<unknown>('getSourceResources', { params: { workspaceId } })
     return generateWorkspaceTypes(workspaceManifestFrom(raw)).text
   } catch (error) {
     if (error instanceof SimApiError && (error.status === 403 || error.status === 404)) return null
@@ -254,25 +254,22 @@ async function loadWorkspaceTypes(
   }
 }
 
-function localPath(outDir: string, relativePath: string): string {
-  return join(outDir, ...relativePath.split('/'))
+function localPath(dir: string, relativePath: string): string {
+  return join(dir, ...relativePath.split('/'))
 }
 
-/** Writes files under `outDir`: straight to a local disk, through the host's writer when embedded. */
-async function writeOutFiles(
-  outDir: string,
-  files: ReadonlyArray<[string, string]>
-): Promise<void> {
+/** Writes files under `dir`: straight to a local disk, through the host's writer when embedded. */
+async function writeTreeFiles(dir: string, files: ReadonlyArray<[string, string]>): Promise<void> {
   if (embedStore.getStore()) {
     for (const [path, text] of files) {
-      await saveToFile(new Blob([text]).stream(), posix.join(outDir, path), true)
+      await saveToFile(new Blob([text]).stream(), posix.join(dir, path), true)
     }
     return
   }
   for (let start = 0; start < files.length; start += WRITE_CONCURRENCY) {
     await Promise.all(
       files.slice(start, start + WRITE_CONCURRENCY).map(async ([path, text]) => {
-        const target = localPath(outDir, path)
+        const target = localPath(dir, path)
         await mkdir(dirname(target), { recursive: true })
         await writeFile(target, text)
       })
@@ -281,10 +278,10 @@ async function writeOutFiles(
 }
 
 /** The index the directory already holds, so an unchanged catalog is not rewritten. */
-async function writtenSdkIndex(outDir: string): Promise<string | null> {
+async function writtenSdkIndex(dir: string): Promise<string | null> {
   if (embedStore.getStore()) return null
   try {
-    return await readFile(localPath(outDir, SDK_INDEX_FILE), 'utf8')
+    return await readFile(localPath(dir, SDK_INDEX_FILE), 'utf8')
   } catch {
     return null
   }
@@ -317,12 +314,12 @@ const AGENTS_GUIDE = `# Sim workflow source
 This directory is a Sim workflow written as TypeScript. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`), then:
 
 \`\`\`bash
-sim workflows source apply <workflowId> --from . --dry-run   # check; prints file:line diagnostics
-sim workflows source apply <workflowId> --from . --yes       # save the draft
+sim workflows source apply <workflowId> --dir . --dry-run   # check; prints file:line diagnostics
+sim workflows source apply <workflowId> --dir . --yes       # save the draft
 \`\`\`
 
 - Types: \`${SDK_DIR}/core.d.ts\` (SDK), \`${SDK_DIR}/blocks/*.d.ts\` and \`${SDK_DIR}/operations/<block>/<operation>.d.ts\` (every block's builders, params and outputs), \`${WORKSPACE_TYPES_FILE}\` (this workspace's tables, knowledge bases, credentials, workflows and env names). \`tsc -p .\` checks the file locally.
-- Keep \`${SOURCE_LOCK_FILE}\` and \`${SOURCE_BASE_FILE}\`. A \`409\` (\`SOURCE_STALE\`) means the workflow changed: run \`sim workflows source get <workflowId> --out <fresh dir>\`, reapply your edit there and retry.
+- Keep \`${SOURCE_LOCK_FILE}\` and \`${SOURCE_BASE_FILE}\`. A \`409\` (\`SOURCE_STALE\`) means the workflow changed: run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there and retry.
 - The full guide is the \`@sim/workflow-sdk\` README: the edit loop, the diagnostics format and the rebase loop.
 `
 
@@ -333,7 +330,7 @@ interface SourceTree {
 }
 
 async function writeSourceTree(
-  outDir: string,
+  dir: string,
   source: WorkflowSource,
   catalog: BlockCatalog,
   workspaceTypes: string | null
@@ -341,7 +338,7 @@ async function writeSourceTree(
   const files: Array<[string, string]> = [
     ...Object.entries(source.files),
     [SOURCE_LOCK_FILE, `${JSON.stringify(source.lock, null, 2)}\n`],
-    [SOURCE_BASE_FILE, `${JSON.stringify(source.lockBase, null, 2)}\n`],
+    [SOURCE_BASE_FILE, `${JSON.stringify(source.base, null, 2)}\n`],
     ['tsconfig.json', TSCONFIG],
     [SOURCE_AGENTS_FILE, AGENTS_GUIDE],
     [`${SDK_DIR}/core.d.ts`, CORE_DTS],
@@ -351,47 +348,47 @@ async function writeSourceTree(
     file.text,
   ])
   const index = sdkFiles.find(([path]) => path === SDK_INDEX_FILE)?.[1]
-  if (index === undefined || index !== (await writtenSdkIndex(outDir))) {
+  if (index === undefined || index !== (await writtenSdkIndex(dir))) {
     if (!embedStore.getStore()) {
-      await rm(localPath(outDir, SDK_DIR), { recursive: true, force: true })
+      await rm(localPath(dir, SDK_DIR), { recursive: true, force: true })
     }
     files.push(...sdkFiles)
   }
   if (workspaceTypes !== null) files.push([WORKSPACE_TYPES_FILE, workspaceTypes])
-  await writeOutFiles(outDir, files)
+  await writeTreeFiles(dir, files)
   return { written: files.length, workspaceTypes: workspaceTypes !== null }
 }
 
 /**
- * Teaches the generated `workflows source get` leaf `--out <dir>`: instead of printing the
+ * Teaches the generated `workflows source get` leaf `--dir <dir>`: instead of printing the
  * response, it writes `workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`, SDK
  * declarations for every block in the workspace's catalog (`.sim/sdk/**`, so a block an agent
  * adds resolves too; the catalog is ETag-cached per workspace in the CLI's config directory),
  * `.sim/sdk/workspace.d.ts` from the resource manifest, a `tsconfig.json` that resolves them and
- * a short `AGENTS.md`. Without `--out` the generated handler runs unchanged. Commander offers no
+ * a short `AGENTS.md`. Without `--dir` the generated handler runs unchanged. Commander offers no
  * way to read the action it holds, so it is captured and delegated to, as `runs get` does.
  */
 export function attachWorkflowSourceGet(source: Command): void {
   const get = source.commands.find((command) => command.name() === 'get')
   const held = (get as (Command & { _actionHandler?: unknown }) | undefined)?._actionHandler
   if (!get || typeof held !== 'function') {
-    throw new Error('workflows source get must be registered before --out can be attached to it')
+    throw new Error('workflows source get must be registered before --dir can be attached to it')
   }
   const previous = held as (args: unknown[]) => unknown
   const connectGet = callsOperations(get, [
     'getWorkflowSource',
-    'getBlockCatalog',
-    'getResourceManifest',
+    'getSourceCatalog',
+    'getSourceResources',
   ])
 
   get.option(
-    `--${OUT_FLAG} <dir>`,
+    `--${DIR_FLAG} <dir>`,
     'Write the source, its lock and SDK type declarations into this directory instead of printing them'
   )
   get.action(async (workflowId: string, _options: unknown, command: Command): Promise<void> => {
     const flags = command.optsWithGlobals() as Record<string, unknown>
-    const outDir = flags[OUT_FLAG]
-    if (typeof outDir !== 'string') {
+    const dir = flags[DIR_FLAG]
+    if (typeof dir !== 'string') {
       await previous(command.processedArgs)
       return
     }
@@ -412,10 +409,10 @@ export function attachWorkflowSourceGet(source: Command): void {
       loadCatalog(client, workflowSource),
       loadWorkspaceTypes(client, workflowSource.workspaceId),
     ])
-    const tree = await writeSourceTree(outDir, workflowSource, catalog, workspaceTypes)
+    const tree = await writeSourceTree(dir, workflowSource, catalog, workspaceTypes)
     printProtocolResult(profile.output, {
       workflowId: workflowSource.workflowId,
-      outDir,
+      dir,
       files: tree.written,
       workspaceTypes: tree.workspaceTypes,
       fingerprint: workflowSource.fingerprint,

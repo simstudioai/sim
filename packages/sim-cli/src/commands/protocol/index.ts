@@ -18,7 +18,7 @@ import { attachTableImport } from './tables-import'
 import { attachWorkflowRunFollow } from './workflow-run-follow'
 import { attachWorkflowRunGet } from './workflow-run-get'
 import { attachWorkflowRunWait } from './workflow-run-wait'
-import { attachWorkflowSourceApply } from './workflow-source-apply'
+import { attachWorkflowSourceApply, attachWorkflowSourceCreate } from './workflow-source-apply'
 import { attachWorkflowSourceGet } from './workflow-source-get'
 import { attachWorkspaceOperationWait } from './workspace-operation-wait'
 
@@ -77,7 +77,7 @@ export function attachProtocolCommands(program: Command): void {
     createFolder: 'createWorkflowFolder',
   })
   // All four augment commands the generated pass already built — `run` gains
-  // `--follow`, `runs get` gains block names, `runs` gains `wait`, and `source get` gains `--out` — so they
+  // `--follow`, `runs get` gains block names, `runs` gains `wait`, and `source get` gains `--dir` — so they
   // must attach after it, which is the order `buildProgram` calls them in.
   attachWorkflowRunFollow(workflows)
   const runs = group(workflows, 'runs')
@@ -86,6 +86,7 @@ export function attachProtocolCommands(program: Command): void {
   const source = group(workflows, 'source')
   attachWorkflowSourceGet(source)
   attachWorkflowSourceApply(source)
+  attachWorkflowSourceCreate(source)
 
   attachWorkspaceOperationWait(group(group(program, 'workspaces'), 'operations'))
 

@@ -15,8 +15,8 @@ const { mockRequest: request } = contextMockFns
 const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
 const WORKSPACE_ID = '00000000-0000-4000-8000-00000000000b'
 const SOURCE_PATH = `/api/v2/workflows/${WORKFLOW_ID}/source`
-const CATALOG_PATH = `/api/v2/workspaces/${WORKSPACE_ID}/block-catalog`
-const MANIFEST_PATH = `/api/v2/workspaces/${WORKSPACE_ID}/resource-manifest`
+const CATALOG_PATH = `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/catalog`
+const MANIFEST_PATH = `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/resources`
 
 /** A real catalog projected from registry blocks, shared with the SDK's own type checks. */
 const CATALOG = JSON.parse(
@@ -32,14 +32,14 @@ function source(
       workflowId: WORKFLOW_ID,
       workspaceId: WORKSPACE_ID,
       files,
-      lock: { lockVersion: 1, blocks: {}, variables: {} },
-      lockBase: { workspaceId: WORKSPACE_ID, baseFingerprint: 'sf1:x', catalogHash: CATALOG.hash },
+      lock: { version: 1, blocks: {}, variables: {} },
+      base: { workspaceId: WORKSPACE_ID, fingerprint: 'sf1:x', catalogHash: CATALOG.hash },
       fingerprint: 'sf1:x',
       canonicalHash: 'h',
-      catalogVersion: CATALOG.hash,
+      catalogHash: CATALOG.hash,
       sdkMajor: 1,
       blockTypes,
-      warnings: [],
+      diagnostics: [],
     },
   }
 }
@@ -71,7 +71,7 @@ const MANIFEST = {
     workspaceId: WORKSPACE_ID,
     tables: [],
     knowledgeBases: [{ key: 'docs', id: 'kb-1', name: 'Docs' }],
-    bindings: [],
+    credentials: [],
     workflows: [],
     env: [],
     truncated: false,
@@ -107,18 +107,18 @@ afterEach(() => {
   rmSync(rootDir, { recursive: true, force: true })
 })
 
-describe('sim workflows source get --out', () => {
+describe('sim workflows source get --dir', () => {
   it('writes the source, lock, base, an agent guide and declarations for every block in the workspace catalog', async () => {
     serve({
       [SOURCE_PATH]: () =>
         source({ 'workflow.ts': '// @sim-sdk 1\n', 'functions/score.js': 'return 1\n' }),
     })
 
-    await get('--out', outDir)
+    await get('--dir', outDir)
 
     expect(readFileSync(join(outDir, 'functions/score.js'), 'utf8')).toBe('return 1\n')
-    expect(JSON.parse(readFileSync(join(outDir, '.sim/lock.json'), 'utf8')).lockVersion).toBe(1)
-    expect(JSON.parse(readFileSync(join(outDir, '.sim/base.json'), 'utf8')).baseFingerprint).toBe(
+    expect(JSON.parse(readFileSync(join(outDir, '.sim/lock.json'), 'utf8')).version).toBe(1)
+    expect(JSON.parse(readFileSync(join(outDir, '.sim/base.json'), 'utf8')).fingerprint).toBe(
       'sf1:x'
     )
     expect(existsSync(join(outDir, '.sim/sdk/core.d.ts'))).toBe(true)
@@ -132,7 +132,7 @@ describe('sim workflows source get --out', () => {
 
   it('revalidates one cached catalog per workspace, whatever the output directory, and reuses it on 304', async () => {
     serve()
-    await get('--out', outDir)
+    await get('--dir', outDir)
     request.mockReset()
     serve({
       [CATALOG_PATH]: () => {
@@ -141,13 +141,13 @@ describe('sim workflows source get --out', () => {
     })
     const otherDir = join(rootDir, 'other')
 
-    await get('--out', otherDir)
+    await get('--dir', otherDir)
 
     expect(callsTo(CATALOG_PATH)[0][1].headers).toEqual({ 'if-none-match': `"${CATALOG.hash}"` })
     expect(existsSync(join(otherDir, '.sim/sdk/blocks/agent.d.ts'))).toBe(true)
   })
 
-  it('fetches the workflow compile catalog when the workflow holds a type the workspace no longer offers', async () => {
+  it('fetches the per-workflow source catalog when the workflow holds a type the workspace no longer offers', async () => {
     const compileCatalog = {
       ...CATALOG,
       blocks: { ...CATALOG.blocks, legacy_block: { ...CATALOG.blocks.note, type: 'legacy_block' } },
@@ -158,7 +158,7 @@ describe('sim workflows source get --out', () => {
         callsTo(CATALOG_PATH).length === 1 ? { data: CATALOG } : { data: compileCatalog },
     })
 
-    await get('--out', outDir)
+    await get('--dir', outDir)
 
     expect(callsTo(CATALOG_PATH).map((call) => call[1].query)).toEqual([
       undefined,
@@ -173,7 +173,7 @@ describe('sim workflows source get --out', () => {
       },
     })
 
-    await get('--out', outDir)
+    await get('--dir', outDir)
 
     expect(existsSync(join(outDir, 'workflow.ts'))).toBe(true)
     expect(existsSync(join(outDir, '.sim/sdk/workspace.d.ts'))).toBe(false)
@@ -186,19 +186,19 @@ describe('sim workflows source get --out', () => {
       },
     })
 
-    await expect(get('--out', outDir)).rejects.toThrow('Not modified')
+    await expect(get('--dir', outDir)).rejects.toThrow('Not modified')
     expect(existsSync(join(outDir, 'workflow.ts'))).toBe(false)
   })
 
   it('refuses a file path that would escape the output directory, writing nothing', async () => {
     serve({ [SOURCE_PATH]: () => source({ '../escape.js': 'x' }) })
 
-    await expect(get('--out', outDir)).rejects.toThrow('unsafe file path')
+    await expect(get('--dir', outDir)).rejects.toThrow('unsafe file path')
     expect(existsSync(join(rootDir, 'escape.js'))).toBe(false)
     expect(request).toHaveBeenCalledTimes(1)
   })
 
-  it('prints the response unchanged without --out', async () => {
+  it('prints the response unchanged without --dir', async () => {
     request.mockResolvedValue(source())
 
     await get('--function-code', 'inline')

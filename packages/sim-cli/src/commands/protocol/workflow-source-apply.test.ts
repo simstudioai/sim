@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { buildGeneratedCommands } from '../../runtime/build'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
-import { attachWorkflowSourceApply } from './workflow-source-apply'
+import { attachWorkflowSourceApply, attachWorkflowSourceCreate } from './workflow-source-apply'
 
 const prompt = vi.hoisted(() => ({ question: vi.fn() }))
 
@@ -21,8 +21,8 @@ const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
 const WORKSPACE_ID = 'ws_local'
 const APPLY_PATH = `/api/v2/workflows/${WORKFLOW_ID}/source`
 const CREATE_PATH = `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source`
-const BASE = { workspaceId: WORKSPACE_ID, baseFingerprint: 'sf1:a', catalogHash: 'h' }
-const LOCK = { lockVersion: 1, blocks: {}, variables: {} }
+const BASE = { workspaceId: WORKSPACE_ID, fingerprint: 'sf1:a', catalogHash: 'h' }
+const LOCK = { version: 1, blocks: {}, variables: {} }
 const ENTRY = "// @sim-sdk 1\nexport default workflow('W', () => {})\n"
 
 function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[] } = {}) {
@@ -40,12 +40,12 @@ function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[] } = {}) 
         variables: { added: [], removed: [], modified: [] },
       },
       diagnostics: overrides.diagnostics ?? [],
-      newFingerprint: 'sf1:b',
+      fingerprint: 'sf1:b',
       files: { 'workflow.ts': `${ENTRY}// stored\n` },
       lock: LOCK,
-      lockBase: { ...BASE, baseFingerprint: 'sf1:b' },
+      base: { ...BASE, fingerprint: 'sf1:b' },
       mintedIds: {},
-      warnings: [],
+      notes: [],
       needsRedeployment: true,
     },
   }
@@ -58,6 +58,7 @@ function program(): Command {
   const sourceGroup = workflows?.commands.find((command) => command.name() === 'source')
   if (!sourceGroup) throw new Error('workflows source group missing')
   attachWorkflowSourceApply(sourceGroup)
+  attachWorkflowSourceCreate(sourceGroup)
   const override = (command: Command) => {
     command.exitOverride()
     command.commands.forEach(override)
@@ -68,6 +69,10 @@ function program(): Command {
 
 async function apply(...argv: string[]): Promise<void> {
   await program().parseAsync(['node', 'sim', 'workflows', 'source', 'apply', ...argv])
+}
+
+async function create(...argv: string[]): Promise<void> {
+  await program().parseAsync(['node', 'sim', 'workflows', 'source', 'create', ...argv])
 }
 
 /** Runs with a person at the terminal (stdin and stderr both TTYs) or without one. */
@@ -108,13 +113,13 @@ function dryRunFlags() {
 }
 
 describe('sim workflows source apply', () => {
-  it('exits 2 without --yes when nobody is at a terminal, sending nothing', async () => {
+  it('refuses without --yes when nobody is at a terminal, sending nothing', async () => {
     setTerminal(false)
 
-    const error = await apply(WORKFLOW_ID, '--from', dir).catch((caught: unknown) => caught)
+    const error = await apply(WORKFLOW_ID, '--dir', dir).catch((caught: unknown) => caught)
 
     expect(error).toBeInstanceOf(SimApiError)
-    expect((error as SimApiError).exitCode).toBe(2)
+    expect((error as SimApiError).code).toBe('CONFIRMATION_REQUIRED')
     expect((error as SimApiError).message).toContain('--yes')
     expect(request).not.toHaveBeenCalled()
   })
@@ -123,7 +128,7 @@ describe('sim workflows source apply', () => {
     setTerminal(false)
     request.mockResolvedValue(outcome())
 
-    await apply(WORKFLOW_ID, '--from', dir, '--yes')
+    await apply(WORKFLOW_ID, '--dir', dir, '--yes')
 
     expect(dryRunFlags()).toEqual([false])
     expect(request.mock.calls[0][0]).toBe(APPLY_PATH)
@@ -135,7 +140,7 @@ describe('sim workflows source apply', () => {
     setTerminal(true)
     request.mockResolvedValue(outcome({ dryRun: true }))
 
-    await apply(WORKFLOW_ID, '--from', dir, '--dry-run')
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
 
     expect(dryRunFlags()).toEqual([true])
     expect(prompt.question).not.toHaveBeenCalled()
@@ -149,7 +154,7 @@ describe('sim workflows source apply', () => {
     )
     prompt.question.mockResolvedValue('y')
 
-    await apply(WORKFLOW_ID, '--from', dir)
+    await apply(WORKFLOW_ID, '--dir', dir)
 
     expect(dryRunFlags()).toEqual([true, false])
     expect(prompt.question).toHaveBeenCalledTimes(1)
@@ -161,7 +166,7 @@ describe('sim workflows source apply', () => {
     request.mockResolvedValue(outcome({ dryRun: true }))
     prompt.question.mockResolvedValue('n')
 
-    await expect(apply(WORKFLOW_ID, '--from', dir)).rejects.toThrow('Nothing was applied')
+    await expect(apply(WORKFLOW_ID, '--dir', dir)).rejects.toThrow('Nothing was applied')
 
     expect(dryRunFlags()).toEqual([true])
     expect(readFileSync(join(dir, 'workflow.ts'), 'utf8')).toBe(ENTRY)
@@ -178,19 +183,19 @@ describe('sim workflows source apply', () => {
       })
     )
 
-    await apply(WORKFLOW_ID, '--from', dir)
+    await apply(WORKFLOW_ID, '--dir', dir)
 
     expect(prompt.question).not.toHaveBeenCalled()
     expect(dryRunFlags()).toEqual([true])
     expect(process.exitCode).toBe(1)
   })
 
-  it('creates a workflow with --new from the directory alone, then writes its lock files', async () => {
+  it('creates a workflow from the directory alone, then writes its lock files', async () => {
     setTerminal(false)
     rmSync(join(dir, '.sim'), { recursive: true })
     request.mockResolvedValue(outcome())
 
-    await apply('--new', '--from', dir, '--folder', '/Ops', '--yes')
+    await create('--dir', dir, '--folder', '/Ops', '--yes')
 
     expect(request.mock.calls[0][0]).toBe(CREATE_PATH)
     expect(request.mock.calls[0][1].body).toEqual({
@@ -198,19 +203,6 @@ describe('sim workflows source apply', () => {
       folderPath: '/Ops',
       provenance: { client: 'cli' },
     })
-    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).baseFingerprint).toBe(
-      'sf1:b'
-    )
-  })
-
-  it.each([
-    ['a workflow id with --new', [WORKFLOW_ID, '--new'], 'drop the workflow id'],
-    ['neither a workflow id nor --new', [], '--new'],
-    ['--name without --new', [WORKFLOW_ID, '--name', 'X'], 'only with --new'],
-  ])('refuses %s before sending anything', async (_label, argv, message) => {
-    setTerminal(false)
-
-    await expect(apply(...argv, '--from', dir, '--yes')).rejects.toThrow(message)
-    expect(request).not.toHaveBeenCalled()
+    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).fingerprint).toBe('sf1:b')
   })
 })

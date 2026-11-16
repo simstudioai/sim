@@ -686,54 +686,6 @@ sim workspaces unlink [options]
 
 API request and response schemas: [unlinkWorkspaceFork](/api-reference/workspace-sync/unlinkWorkspaceFork).
 
-## Other commands
-
-### Get block catalog
-
-```bash
-sim workspaces block-catalog list <workspaceId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workspaceId` | Yes | Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--workflow-id <value>` | No | Return the compile catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`. |
-
-</CommandTable>
-
-API request and response schemas: [getBlockCatalog](/api-reference/catalog/getBlockCatalog).
-
-### List the tables, knowledge bases, credentials, workflows and env names source can name
-
-```bash
-sim workspaces resource-manifest get <workspaceId>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workspaceId` | Yes | Workspace whose resources to list. |
-
-</CommandTable>
-
-API request and response schemas: [getResourceManifest](/api-reference/workflows/getResourceManifest).
-
 ## Related docs
 
 - [Workspace sync](/cli/workflow-sync)

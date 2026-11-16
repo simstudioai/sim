@@ -8171,6 +8171,143 @@ sim workflows export <workflowId> [options]
 
 API request and response schemas: [exportWorkflow](/api-reference/workflows/exportWorkflow).
 
+### sim workflows source catalog
+
+Get source catalog
+
+```bash
+sim workflows source catalog <workspaceId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workspaceId` | Yes | Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-id <value>` | No | Return the source catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`. |
+
+</CommandTable>
+
+API request and response schemas: [getSourceCatalog](/api-reference/catalog/getSourceCatalog).
+
+### sim workflows source resources
+
+List the tables, knowledge bases, credentials, workflows and env names source can name
+
+```bash
+sim workflows source resources <workspaceId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workspaceId` | Yes | Workspace whose resources to list. |
+
+</CommandTable>
+
+API request and response schemas: [getSourceResources](/api-reference/workflows/getSourceResources).
+
+### sim workflows source get
+
+Show a workflow’s draft as TypeScript source with its identity lock
+
+```bash
+sim workflows source get <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--function-code <value>` | No | Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `codeFile()`; `inline` prints it in tagged templates. Accepted values: `inline`, `files`. |
+| `--dir <dir>` | No | Write the source, its lock and SDK type declarations into this directory instead of printing them. |
+
+</CommandTable>
+
+API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
+
+### sim workflows source apply
+
+Apply a workflow source directory to a workflow draft
+
+```bash
+sim workflows source apply <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Workflow whose draft the source replaces |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | Yes | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. |
+| `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
+| `-y, --yes` | No | Apply without asking for confirmation. |
+
+</CommandTable>
+
+API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource).
+
+### sim workflows source create
+
+Create a workflow from a workflow source directory
+
+```bash
+sim workflows source create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | Yes | Source directory: workflow.ts and functions/*. |
+| `--dry-run` | No | Check the source and show the outcome without creating anything. |
+| `--name <name>` | No | The workflow name (default: the source's). |
+| `--folder <path>` | No | The folder to create it in (default: the root). |
+| `-y, --yes` | No | Create without asking for confirmation. |
+
+</CommandTable>
+
+API request and response schemas: [createWorkflowFromSource](/api-reference/workflows/createWorkflowFromSource).
+
 ### sim workflows get
 
 Get workflow
@@ -8260,72 +8397,6 @@ sim workflows outline <workflowId>
 </CommandTable>
 
 API request and response schemas: [getWorkflowOutline](/api-reference/workflows/getWorkflowOutline).
-
-### sim workflows source get
-
-Show a workflow’s draft as TypeScript source with its identity lock
-
-```bash
-sim workflows source get <workflowId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workflowId` | Yes | Unique workflow identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--function-code <value>` | No | Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `file()`; `inline` prints it in tagged templates. Accepted values: `inline`, `files`. |
-| `--out <dir>` | No | Write the source, its lock and SDK type declarations into this directory instead of printing them. |
-
-</CommandTable>
-
-API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
-
-### sim workflows source apply
-
-Apply a workflow source directory to a workflow draft, or create one with --new
-
-```bash
-sim workflows source apply [workflowId] [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workflowId` | No | Workflow whose draft the source replaces (omit with --new) |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--from <dir>` | Yes | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. |
-| `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
-| `--new` | No | Create a new workflow from the directory instead of updating one. |
-| `--name <name>` | No | With --new: the workflow name (default: the source's). |
-| `--folder <path>` | No | With --new: the folder to create it in (default: the root). |
-| `-y, --yes` | No | Apply without asking for confirmation. |
-
-</CommandTable>
-
-API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource).
 
 ### sim workflows state get
 
@@ -8906,56 +8977,6 @@ sim workspaces fork [options]
 </CommandTable>
 
 API request and response schemas: [forkWorkspace](/api-reference/workspace-sync/forkWorkspace).
-
-### sim workspaces block-catalog list
-
-Get block catalog
-
-```bash
-sim workspaces block-catalog list <workspaceId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workspaceId` | Yes | Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--workflow-id <value>` | No | Return the compile catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`. |
-
-</CommandTable>
-
-API request and response schemas: [getBlockCatalog](/api-reference/catalog/getBlockCatalog).
-
-### sim workspaces resource-manifest get
-
-List the tables, knowledge bases, credentials, workflows and env names source can name
-
-```bash
-sim workspaces resource-manifest get <workspaceId>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workspaceId` | Yes | Workspace whose resources to list. |
-
-</CommandTable>
-
-API request and response schemas: [getResourceManifest](/api-reference/workflows/getResourceManifest).
 
 ### sim workspaces get
 
