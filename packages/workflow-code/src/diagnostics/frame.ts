@@ -18,7 +18,7 @@ export interface SourceSpan {
 }
 
 /** A machine-applicable edit in `span.file`: replace `[start, end)` with `text`. */
-export interface DiagnosticFix {
+interface DiagnosticFix {
   start: number
   end: number
   text: string

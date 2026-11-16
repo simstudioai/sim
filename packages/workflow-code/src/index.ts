@@ -1,187 +1,78 @@
-export { decodeAnchor, encodeAnchor, parsePortKey, portKey } from './anchors'
-export {
-  type CanonicalizeOptions,
-  type CanonicalizeResult,
-  canonicalize,
-} from './canonicalize'
+export { decodeAnchor, encodeAnchor } from './anchors'
+export { type CanonicalizeResult, canonicalize } from './canonicalize'
 export { executableInactiveParams } from './catalog/activity'
-export { type CompactedBlockCatalog, compactBlockCatalog } from './catalog/compact'
+export { compactBlockCatalog } from './catalog/compact'
 export type {
   BlockCatalog,
   CatalogBlock,
   CatalogBlockDocs,
-  CatalogBlockEntry,
   CatalogBlockGraph,
-  CatalogBlockLifecycle,
   CatalogBuilder,
   CatalogCondition,
-  CatalogConditionClauseEntry,
-  CatalogConditionEntry,
   CatalogDynamicOutputs,
   CatalogLegacyId,
-  CatalogListRef,
   CatalogOption,
-  CatalogOptionEntry,
   CatalogOutput,
-  CatalogOutputEntry,
-  CatalogSharedSubBlockRef,
   CatalogStructuredKind,
   CatalogSubBlock,
-  CatalogSubBlockEntry,
   CatalogTool,
   CatalogTrigger,
-  CatalogTriggerEntry,
-  CatalogTriggerSubBlocksRef,
   CatalogValueKind,
   ExpandedBlockCatalog,
-  OpaqueMarker,
   ParamStorage,
   SubBlockConditionClause,
 } from './catalog/types'
 export {
-  type CatalogDocsReader,
   catalogBlock,
   catalogBlockTypes,
   catalogBuilder,
   catalogBuilderPaths,
-  catalogTool,
   catalogTrigger,
-  catalogTriggerIds,
   expandBlockCatalog,
 } from './catalog/view'
-export {
-  type CodeFileBijection,
-  type CodeFileLanguage,
-  type CodeFileSyntaxError,
-  checkCodeFileBijection,
-  codeFileLanguage,
-  type FromCodeFileResult,
-  fromCodeFile,
-  isIdentifierName,
-  toCodeFile,
-} from './code-files'
-export { type CompileInput, type CompileResult, compileWorkflow } from './compile'
-export type { CompileLimits } from './compile/parse'
-export type {
-  ApplyDiagnosticCode,
-  CanonicalizeDiagnosticCode,
-  CodeFileCode,
-  CompileCatalogCode,
-  CompileDiagnosticCode,
-  CompileEdgeCode,
-  CompileScopeCode,
-  CompileSyntaxCode,
-  DiagnosticCode,
-  DiagnosticSeverity,
-  LockDiagnosticCode,
-  MaterializeDiagnosticCode,
-  PrintDiagnosticCode,
-  ReferenceCode,
-  SeverityOf,
-  SourceMetaDiagnosticCode,
-} from './diagnostics/codes'
-export {
-  codeFrame,
-  type Diagnostic,
-  type DiagnosticFix,
-  type FrameLocation,
-  type LocatedDiagnostic,
-  type SourceSpan,
-} from './diagnostics/frame'
-export {
-  type BlockAttribute,
-  type BlockChange,
-  type CanonicalBlockDiff,
-  type CanonicalDiff,
-  diffCanonical,
-  renamesBetween,
-} from './diff'
+export { isIdentifierName } from './code-files'
+export { type CompileResult, compileWorkflow } from './compile'
+export type { ApplyDiagnosticCode, DiagnosticCode, DiagnosticSeverity } from './diagnostics/codes'
+export { codeFrame, type Diagnostic, type SourceSpan } from './diagnostics/frame'
+export { type CanonicalDiff, diffCanonical, renamesBetween } from './diff'
 export { canonicalEquals, canonicalHash, sourceFingerprint } from './equivalence'
-export {
-  type ExecutableBlock,
-  type ExecutableSubflow,
-  type ExecutableWorkflow,
-  executableView,
-} from './equivalence/executable'
+export { executableView } from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
 export {
-  type LockDiagnostic,
-  type LockExtensionKey,
   type LockIdentity,
-  type LockIdentityBlock,
-  type LockItem,
-  type LockLayout,
-  type ParseWorkflowLockResult,
   parseWorkflowLock,
   type SourceBase,
   type SourceFingerprint,
-  type SourceHintBlock,
   type SourceHints,
   type WorkflowLockBlock,
   type WorkflowLockV1,
 } from './lock'
-export {
-  type MaterializeOptions,
-  type MaterializeResult,
-  materialize,
-} from './materialize'
+export { type MaterializeResult, materialize } from './materialize'
 export type { MaterializeHooks } from './materialize/context'
-export type { IdentityEntry, IdentityMatchRule } from './materialize/identity'
 export type {
-  Anchor,
   AnchorKey,
   BlockKey,
   BranchKey,
   CanonicalBlock,
-  CanonicalBranches,
-  CanonicalBranchRow,
   CanonicalEdge,
   CanonicalParam,
-  CanonicalParamId,
   CanonicalTool,
   CanonicalVariable,
   CanonicalWorkflow,
   CanonicalWorkflowMeta,
   CodeComment,
-  CsvNode,
   Json,
-  LiteralNode,
-  LoopSpec,
-  ParallelSpec,
-  ParamMode,
   Port,
-  PortKey,
   ResourceKeyResolver,
   ResourceKind,
-  ResourceNode,
-  SimNode,
-  SubBlockId,
-  UnresolvedNode,
   Value,
-  VarKey,
-  VarNode,
-  WorkflowAnnotations,
 } from './model'
-export {
-  assignIdentifiers,
-  type PrintedFile,
-  type PrintInput,
-  type PrintOptions,
-  type PrintResult,
-  printWorkflow,
-} from './print'
+export { assignIdentifiers, printWorkflow } from './print'
 export { parseJsonContainer, setOwn } from './records'
-export { GENERIC_BUILDER, SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from './sdk'
+export { SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from './sdk'
 export {
-  emptySourceMeta,
-  isEmptySourceMeta,
   mapAnchorIds,
-  type ParseSourceMetaResult,
   parseSourceMeta,
-  pruneSourceMeta,
-  remapSourceMeta,
-  type SourceMetaDiagnostic,
-  sourceMetaEquals,
   sourceMetaExtensions,
   type WorkflowSourceMetaV1,
 } from './source-meta'

@@ -106,7 +106,7 @@ export interface SourceBase {
   catalogHash: string
 }
 
-export type LockDiagnostic = Diagnostic<
+type LockDiagnostic = Diagnostic<
   | 'E_LOCK_JSON'
   | 'E_LOCK_VERSION'
   | 'E_LOCK_SHAPE'

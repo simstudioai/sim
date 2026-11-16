@@ -248,7 +248,7 @@ drops labels equal to their id, and moves other labels (except the `operation` d
 block `inputs` into the per-block docs shard (`CatalogBlockDocs`). Titles, output descriptions,
 defaults and option ids stay in the core shard because codegen and the printer read them.
 `expandBlockCatalog(catalog, docs?)` and the accessors in `catalog/view.ts` (`catalogBlock`,
-`catalogBlockTypes`, `catalogTrigger`, `catalogTriggerIds`, `catalogBuilder`, `catalogBuilderPaths`,
+`catalogBlockTypes`, `catalogTrigger`, `catalogBuilder`, `catalogBuilderPaths`,
 `catalogTool`) decode lazily, memoized per catalog object. No consumer indexes `catalog.blocks`,
 `catalog.triggers` or `catalog.builders` directly. The hash is SHA-256 over `stableStringify` of
 the core shard, deterministic because tables fill in key order; it is the ETag and

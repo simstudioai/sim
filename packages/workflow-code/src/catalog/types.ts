@@ -84,7 +84,7 @@ export interface CatalogOption {
  * A static option as the core shard stores it: `label` is absent when it equals `id`, or when the
  * block's docs shard holds it (`CatalogBlockDocs.optionLabels`).
  */
-export interface CatalogOptionEntry {
+interface CatalogOptionEntry {
   id: string
   label?: string
 }
@@ -174,7 +174,7 @@ export interface CatalogOutput {
   items?: CatalogOutput
 }
 
-export interface CatalogBlockLifecycle {
+interface CatalogBlockLifecycle {
   hidden?: true
   preview?: true
   sunset?: { status: 'legacy' | 'deprecated'; replacedBy?: string }
@@ -321,7 +321,7 @@ export interface CatalogListRef {
 type ClauseValue = SubBlockConditionClause['value']
 
 /** `SubBlockConditionClause` with value lists possibly interned. */
-export interface CatalogConditionClauseEntry {
+interface CatalogConditionClauseEntry {
   field: SubBlockId
   value: ClauseValue | CatalogListRef
   not?: boolean

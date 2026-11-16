@@ -18,7 +18,7 @@ import { deepEqual, setOwn } from './records'
 export const MCP_TOOL_TYPE = 'mcp'
 
 /** The stored type of a child workflow tool entry (the `runWorkflow` block as a tool). */
-export const WORKFLOW_TOOL_TYPE = 'workflow_input'
+const WORKFLOW_TOOL_TYPE = 'workflow_input'
 
 /** The title and tool id the picker stores on every child workflow tool. */
 const WORKFLOW_TOOL_TITLE = 'Workflow'

@@ -98,7 +98,7 @@ export interface UnresolvedNode {
  * lib/workflows/references/manifest.ts:96 and import-plan.ts:73). Materialize joins the items with
  * `,`; prev's raw string (including any spaces after commas) is kept when the items are equal.
  */
-export interface CsvNode {
+interface CsvNode {
   $sim: 'csv'
   items: Array<ResourceNode | UnresolvedNode>
 }
@@ -107,7 +107,7 @@ export interface CsvNode {
  * Escape for a stored object that itself carries a `$sim` key, so the encoding stays a bijection:
  * canonicalize wraps such an object as `{ $sim: 'literal', value }` and materialize unwraps it.
  */
-export interface LiteralNode {
+interface LiteralNode {
   $sim: 'literal'
   value: Json
 }
@@ -361,7 +361,7 @@ export interface CodeComment {
  * Non-semantic facts carried beside the graph. Excluded from `canonicalEquals`,
  * `canonicalHash`, `diffCanonical` and `sourceFingerprint`.
  */
-export interface WorkflowAnnotations {
+interface WorkflowAnnotations {
   /**
    * Per block, the param ids whose value is stored but not serialized under the current values
    * and not read by deploy (`catalog/activity.ts`; opaque catalog conditions count as

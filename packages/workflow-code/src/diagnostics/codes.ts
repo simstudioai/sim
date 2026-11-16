@@ -12,7 +12,7 @@
  */
 
 /** Syntax, header and file-shape errors from compile. */
-export type CompileSyntaxCode =
+type CompileSyntaxCode =
   /** A Babel parse error, re-coded. */
   | 'E_SYNTAX'
   /** The first line is not `// @sim-sdk N`. */
@@ -29,7 +29,7 @@ export type CompileSyntaxCode =
   | 'E_LIMIT_EXCEEDED'
 
 /** Names, identifiers and scope. */
-export type CompileScopeCode =
+type CompileScopeCode =
   | 'E_DUPLICATE_NAME'
   | 'E_RESERVED_NAME'
   /**
@@ -62,7 +62,7 @@ export type CompileScopeCode =
   | 'W_REF_NOT_NORMALIZED'
 
 /** Wiring. */
-export type CompileEdgeCode =
+type CompileEdgeCode =
   /** Reuses `getWorkflowEdgeScopeDropReason` (workflow.ts:595). */
   | 'E_EDGE_SCOPE'
   /** An edge to or from a note block. */
@@ -83,7 +83,7 @@ export type CompileEdgeCode =
   | 'W_RAW_HANDLE'
 
 /** Checks against the block catalog. */
-export type CompileCatalogCode =
+type CompileCatalogCode =
   | 'E_UNKNOWN_BUILDER'
   /** `hint` carries a did-you-mean over the params visible for the chosen operation. */
   | 'E_UNKNOWN_PARAM'
@@ -112,7 +112,7 @@ export type CompileCatalogCode =
   | 'W_JSON_REF_UNTYPED'
 
 /** Function-code files. */
-export type CodeFileCode =
+type CodeFileCode =
   /** `fn('./x.js')` names a file absent from `CompileInput.files`. */
   | 'E_CODE_FILE_MISSING'
   /** Not a relative path inside the repo, or the extension does not match the block language. */
@@ -121,7 +121,7 @@ export type CodeFileCode =
   | 'W_CODE_FILE_INLINED'
 
 /** References and comments, shared by compile and print. */
-export type ReferenceCode =
+type ReferenceCode =
   /** A `<x.y>` token that resolves to nothing; kept as literal text. */
   | 'W_UNRESOLVED_REF'
   /** A ref that would point forward (a ref cycle), printed as literal text. */
@@ -143,7 +143,7 @@ export type CompileDiagnosticCode =
 export type PrintDiagnosticCode = ReferenceCode | 'W_CODE_FILE_INLINED' | 'W_RAW_HANDLE'
 
 /** `parseWorkflowLock` (lock.ts). */
-export type LockDiagnosticCode =
+type LockDiagnosticCode =
   /** The lock text is not valid JSON. */
   | 'E_LOCK_JSON'
   /** `version` is missing or not `1`. */

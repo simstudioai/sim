@@ -1,8 +1,5 @@
-export {
-  type CodeFileBijection,
-  checkCodeFileBijection,
-} from './bijection'
-export { type CodeFileSyntaxError, type FromCodeFileResult, fromCodeFile } from './from-file'
+export { checkCodeFileBijection } from './bijection'
+export { fromCodeFile } from './from-file'
 export { isIdentifierName } from './ref-path'
 export {
   type CodeFileLanguage,

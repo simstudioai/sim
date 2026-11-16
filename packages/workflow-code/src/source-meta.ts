@@ -43,7 +43,7 @@ export interface WorkflowSourceMetaV1 {
   comments: Partial<Record<AnchorKey, CodeComment[]>>
 }
 
-export type SourceMetaDiagnostic = Diagnostic<SourceMetaDiagnosticCode>
+type SourceMetaDiagnostic = Diagnostic<SourceMetaDiagnosticCode>
 
 export type ParseSourceMetaResult =
   | { meta: WorkflowSourceMetaV1; diagnostics?: undefined }
@@ -215,11 +215,6 @@ export function parseSourceMeta(input: unknown): ParseSourceMetaResult {
   const comments = reader.comments(json.comments)
   if (reader.diagnostics.length > 0) return { diagnostics: reader.diagnostics }
   return { meta: { ...extensions, version: 1, idents, order, comments } }
-}
-
-/** An empty source meta. */
-export function emptySourceMeta(): WorkflowSourceMetaV1 {
-  return { version: 1, idents: {}, order: {}, comments: {} }
 }
 
 /**

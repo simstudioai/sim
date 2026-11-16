@@ -62,7 +62,7 @@ export type ExecutableSubflow =
       batchSize: number
     }
 
-export interface ExecutableBlock {
+interface ExecutableBlock {
   key: BlockKey
   name: string
   type: string

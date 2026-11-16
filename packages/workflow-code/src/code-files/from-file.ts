@@ -10,7 +10,7 @@ import {
 } from './ref-path'
 import { type CodeFileLanguage, ENV_ROOT, REF_ROOT } from './to-file'
 
-export interface CodeFileSyntaxError {
+interface CodeFileSyntaxError {
   message: string
   /** UTF-16 offset into the file text. */
   start: number

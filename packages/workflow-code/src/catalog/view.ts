@@ -219,11 +219,6 @@ export function catalogTrigger(catalog: BlockCatalog, id: string): CatalogTrigge
   return trigger
 }
 
-/** Every trigger id the catalog serves, in catalog order. */
-export function catalogTriggerIds(catalog: BlockCatalog): string[] {
-  return Object.keys(catalog.triggers)
-}
-
 /** The builder at a dotted SDK path (`slack.sendMessage`), or `undefined`. */
 export function catalogBuilder(catalog: BlockCatalog, path: string): CatalogBuilder | undefined {
   return Object.hasOwn(catalog.builders, path) ? catalog.builders[path] : undefined

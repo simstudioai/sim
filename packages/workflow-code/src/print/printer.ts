@@ -64,7 +64,7 @@ import { printKey, printMember, quoteString } from './strings'
 import { arrayExpr, arrowExpr, callExpr, type Expr, objectExpr, type Property } from './syntax'
 import { type FieldContext, type PrintedValue, type Tag, ValuePrinter } from './values'
 
-export interface PrintOptions {
+interface PrintOptions {
   /** `files`: function code in `codeDir` files (repo mode); `inline`: `js``...``. */
   functionCode: 'inline' | 'files'
   /** Repo-relative directory for code files; required when `functionCode` is `files`. */
@@ -80,7 +80,7 @@ export interface PrintInput {
   options: PrintOptions
 }
 
-export interface PrintedFile {
+interface PrintedFile {
   path: string
   text: string
 }

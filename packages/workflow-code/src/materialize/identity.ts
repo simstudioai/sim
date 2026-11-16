@@ -8,7 +8,7 @@ import type { BlockKey, CanonicalWorkflow } from '../model'
 import { catalogBlock, type MaterializeHooks, report } from './context'
 
 /** How identity rule matched a compiled block to a stored one (rules 1–4). */
-export type IdentityMatchRule = 'lock-key' | 'lock-ident' | 'db-name' | 'inferred'
+type IdentityMatchRule = 'lock-key' | 'lock-ident' | 'db-name' | 'inferred'
 
 /** One block's identity outcome, for plan output and audit. */
 export type IdentityEntry =

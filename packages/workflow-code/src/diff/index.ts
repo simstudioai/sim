@@ -62,7 +62,7 @@ function blockChanges(
 }
 
 /** Block-level fields a diff can name, besides params and modes. */
-export type BlockAttribute =
+type BlockAttribute =
   | 'name'
   | 'type'
   | 'parent'
@@ -76,12 +76,12 @@ export type BlockAttribute =
   | 'subflow'
   | 'extra'
 
-export type BlockChange =
+type BlockChange =
   | { kind: 'param'; param: SubBlockId }
   | { kind: 'mode'; canonicalParamId: CanonicalParamId }
   | { kind: 'attribute'; attribute: BlockAttribute }
 
-export interface CanonicalBlockDiff {
+interface CanonicalBlockDiff {
   /** The target key; equals the base key unless the block was renamed. */
   key: BlockKey
   baseKey: BlockKey
