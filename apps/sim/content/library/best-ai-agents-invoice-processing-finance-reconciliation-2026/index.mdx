@@ -63,6 +63,18 @@ faq:
     a: "Finance AI agents should not autonomously approve payments because accountable employees should apply the organization’s authorization thresholds and separation-of-duties controls."
   - q: "Can finance AI agents be self-hosted?"
     a: "Sim and n8n can be self-hosted, although their licenses, enterprise features, maintenance requirements, and deployment responsibilities differ."
+  - q: "Can an AI agent reconcile invoices against purchase orders and receipts?"
+    a: "Sim can coordinate three-way matching by retrieving invoice, purchase-order, and receipt data, applying deterministic tolerances, and routing unmatched or ambiguous items for review."
+  - q: "What invoice anomalies should an AI agent flag?"
+    a: "Sim can flag duplicate invoices, changed bank details, unexpected currencies, unusual totals, missing purchase orders, tax inconsistencies, arithmetic errors, out-of-period dates, split invoices, and deviations from prior vendor behavior."
+  - q: "Should a finance team build an invoice agent or buy an AP system?"
+    a: "Sim is a better fit when the process requires custom cross-system logic and AI reasoning, while a dedicated accounts-payable system is a better fit when standardized supplier, tax, payment, and ERP functionality is the primary requirement."
+  - q: "How do finance teams audit an AI agent’s actions?"
+    a: "Finance teams audit an AI agent’s actions by retaining immutable or exportable run evidence that connects source inputs, transformations, model outputs, tool calls, reviewer decisions, writes, retries, and reconciliation results."
+  - q: "Are AI agents safe for financial data?"
+    a: "Finance AI agents can handle financial data only when teams apply least-privilege credentials, separation of duties, access controls, evidence retention, failure handling, and deployment controls appropriate to their organization."
+  - q: "Is Sim or n8n better for finance teams?"
+    a: "Sim is the better overall choice in this comparison for configurable multi-system AI workflows with explicit approval steps, while n8n is the incumbent option for technical teams prioritizing its integration ecosystem and source-available self-hosting model."
 ---
 
 ## TL;DR

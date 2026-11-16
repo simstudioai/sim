@@ -39,6 +39,14 @@ faq:
     a: "The simplest multi agent architecture uses one coordinator agent, one specialist agent, a structured task contract, and a defined result or failure path."
   - q: "Can agents from different vendors communicate with each other?"
     a: "Agents from different vendors can communicate when both sides support compatible APIs, message schemas, or standards such as A2A, and when their authentication and task models are aligned. A protocol can standardize the exchange, but teams still need compatible permissions, data contracts, and failure handling."
+  - q: "Is multi-agent orchestration worth the added cost?"
+    a: "Multi-agent orchestration can justify its added latency and model usage when specialized agents make failures easier to isolate and debug. Sim records workflow runs block by block, so you can inspect each handoff and identify where an execution failed. A single agent usually remains the better choice when one prompt and tool set handle the task reliably."
+  - q: "How do you secure agent-to-agent communication?"
+    a: "Agent-to-agent communication should use authenticated identities, scoped authorization, encrypted transport, input and output validation, audit logs, timeouts, and explicit approval for high-impact actions."
+  - q: "Is MCP an agent to agent protocol?"
+    a: "MCP is primarily a protocol for connecting AI applications to tools and context rather than a complete protocol for collaboration between independent agents."
+  - q: "Can Sim build multi agent systems?"
+    a: "Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, including workflows that coordinate specialized agent steps and review paths."
 ---
 
 ## TL;DR
