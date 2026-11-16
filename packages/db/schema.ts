@@ -2707,8 +2707,8 @@ export const workspaceForkBlockMap = pgTable(
 /**
  * Resource kinds a workflow-source key can name: `ResourceKind` from `@sim/workflow-code`, which is
  * `PortableResourceKind` from `@sim/workflow-types/resources` minus `env-var` (env names are their
- * own keys). The binding service writes and reads this column as `ResourceKind`, so the two lists
- * cannot drift without a type error.
+ * own keys). Kept as a literal list so `@sim/db` takes no dependency on the workflow packages; the
+ * binding service writes this column from a `ResourceKind`, so a kind missing here is a type error.
  */
 export const workspaceResourceKindEnum = pgEnum('workspace_resource_kind', [
   'credential',

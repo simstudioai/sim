@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { resolvePrincipalAttribution, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflowBlocks, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -91,6 +91,7 @@ import {
 } from '@/lib/workflows/source/protected'
 import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
+import type { ResourceKeyRef } from '@/lib/workspaces/resource-bindings'
 import { getBlock } from '@/blocks/registry'
 
 const logger = createLogger('ApplyWorkflowSource')
@@ -229,18 +230,22 @@ function fingerprintOf(
   return sourceFingerprint(workflow, identity)
 }
 
-/** Every resource kind a compiled model references, so only those tables are read. */
-function collectResourceKinds(value: unknown, kinds: Set<ResourceKind>): void {
+/** Every `(kind, key)` resource reference in a compiled model, for binding lookup. */
+function collectResourceKeys(value: unknown, refs: ResourceKeyRef[]): void {
   if (Array.isArray(value)) {
-    for (const item of value) collectResourceKinds(item, kinds)
+    for (const item of value) collectResourceKeys(item, refs)
     return
   }
   if (value === null || typeof value !== 'object') return
   const record = value as Record<string, unknown>
-  if (record.$sim === 'resource' && typeof record.kind === 'string') {
-    kinds.add(record.kind as ResourceKind)
+  if (
+    record.$sim === 'resource' &&
+    typeof record.kind === 'string' &&
+    typeof record.key === 'string'
+  ) {
+    refs.push({ kind: record.kind as ResourceKind, key: record.key })
   }
-  for (const nested of Object.values(record)) collectResourceKinds(nested, kinds)
+  for (const nested of Object.values(record)) collectResourceKeys(nested, refs)
 }
 
 /**
@@ -717,7 +722,10 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
         meta: stored.meta,
         resources: recording.resolver,
       }).identity
-      let resources = await loadResourceKeyResolver(context.workspaceId, recording.requestedKinds)
+      const createdBy = resolvePrincipalSubjectUserId(principal) ?? null
+      let resources = await loadResourceKeyResolver(context.workspaceId, recording.references, {
+        createdBy,
+      })
       const currentFingerprint = fingerprintOf(stored, catalog, resources)
 
       const base = {
@@ -790,13 +798,15 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
       }
       const compiledModel = { ...compiled, workflow: compiled.workflow }
 
-      const compiledKinds = new Set<ResourceKind>()
-      collectResourceKinds(compiled.workflow.blocks, compiledKinds)
-      if ([...compiledKinds].some((kind) => !recording.requestedKinds.has(kind))) {
-        resources = await loadResourceKeyResolver(context.workspaceId, [
-          ...recording.requestedKinds,
-          ...compiledKinds,
-        ])
+      const compiledKeys: ResourceKeyRef[] = []
+      collectResourceKeys(compiled.workflow.blocks, compiledKeys)
+      const currentResources = resources
+      if (compiledKeys.some(({ kind, key }) => currentResources.toId(kind, key) === null)) {
+        resources = await loadResourceKeyResolver(
+          context.workspaceId,
+          { ids: recording.references.ids, keys: compiledKeys },
+          { createdBy }
+        )
       }
 
       const hasLockEntries =

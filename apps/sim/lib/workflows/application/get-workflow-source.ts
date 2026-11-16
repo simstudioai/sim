@@ -1,3 +1,4 @@
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { compareStrings } from '@sim/utils/string'
 import {
   type CanonicalWorkflow,
@@ -107,9 +108,12 @@ function usedBlockTypes(workflow: CanonicalWorkflow): string[] {
  *
  * Loads the stored, migrated graph; builds the per-workflow compile catalog (the blocks this
  * caller may place plus every type already in the workflow); projects the graph to the canonical
- * model with resource ids lifted to provisional keys; and prints it with the bindings, order and
- * comments `workflow.code_meta` keeps, so the lock comes from the same place. Pure read: no audit, so it
- * stays head-safe and pollable like `GET /state`.
+ * model with resource ids lifted to their persisted keys; and prints it with the bindings, order and
+ * comments `workflow.code_meta` keeps, so the lock comes from the same place. No audit, so it stays
+ * head-safe and pollable like `GET /state`. The one write is resource-key allocation: the first
+ * get that references a resource with no key binds one (`resolveKeys`). That is idempotent
+ * identity metadata, not a change to any resource, so read access may cause it; later gets only
+ * read the binding.
  */
 export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
@@ -144,7 +148,9 @@ export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
 
     const recording = createRecordingResolver()
     canonicalize(state, { catalog, meta, resources: recording.resolver })
-    const resources = await loadResourceKeyResolver(context.workspaceId, recording.requestedKinds)
+    const resources = await loadResourceKeyResolver(context.workspaceId, recording.references, {
+      createdBy: resolvePrincipalSubjectUserId(principal) ?? null,
+    })
     const canonical = canonicalize(state, { catalog, meta, resources })
 
     const codeMeta = readCodeMetaValue(context.workflowId, context.workflow.codeMeta)
