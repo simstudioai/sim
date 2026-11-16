@@ -5,6 +5,7 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
 import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -296,6 +297,22 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
       'user-1',
       'workflow_source_applied',
       { workflow_id: WORKFLOW_ID, workspace_id: WORKSPACE_ID, source: 'cli', ok: true, ops: 1 },
+      { groups: { workspace: WORKSPACE_ID } }
+    )
+  })
+
+  it('records a Copilot-delegated apply as its subject user with source copilot', async () => {
+    v2RouteMocks.authenticate.mockResolvedValue({
+      ...auth,
+      principal: createDelegatedPrincipal({ subjectUserId: 'user-9', workspaceId: WORKSPACE_ID }),
+    })
+
+    await POST(applyRequest({ ...applyBody, provenance: { client: 'cli' } }), context)
+
+    expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
+      'user-9',
+      'workflow_source_applied',
+      { workflow_id: WORKFLOW_ID, workspace_id: WORKSPACE_ID, source: 'copilot', ok: true, ops: 1 },
       { groups: { workspace: WORKSPACE_ID } }
     )
   })

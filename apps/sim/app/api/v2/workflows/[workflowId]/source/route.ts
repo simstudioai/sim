@@ -43,6 +43,9 @@ function sourceActor(
   if (isUserCredentialPrincipal(principal)) {
     return { userId: principal.userId, source: client === 'cli' ? 'cli' : 'api' }
   }
+  if (principal.kind === 'delegated' && principal.serviceId === 'copilot') {
+    return { userId: principal.subjectUserId, source: 'copilot' }
+  }
   return null
 }
 
@@ -89,8 +92,9 @@ export const POST = defineV2JsonRoute({
   }),
   /**
    * Telemetry only, for writes that changed the draft. A personal key or OAuth token counts as
-   * the user behind it (`cli` when the CLI submitted it). Workspace API keys are denied at
-   * admission, so no actorless write reaches here.
+   * the user behind it (`cli` when the CLI submitted it), and a Copilot delegation as its subject
+   * user with `source: 'copilot'`. Workspace API keys are denied at admission, so no actorless
+   * write reaches here.
    */
   onSuccess: ({ principal, input, result }) => {
     if (!result.applied) return
