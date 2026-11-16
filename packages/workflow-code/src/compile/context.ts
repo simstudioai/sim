@@ -52,7 +52,7 @@ export interface BlockDecl {
   duplicate: boolean
 }
 
-export type Binding =
+type Binding =
   | { kind: 'block'; decl: BlockDecl }
   | { kind: 'loopParam'; container: BlockDecl }
   | { kind: 'sdk'; name: string }
@@ -75,7 +75,7 @@ export interface WiringStatement {
 }
 
 /** An edge implied by an arrow-expression body: `(p) => block(...)` means `p.to(block)`. */
-export interface ImpliedEdge {
+interface ImpliedEdge {
   container: BlockDecl
   child: BlockDecl
   body: ArrowFunctionExpression
@@ -100,7 +100,7 @@ export interface CompileContext {
 }
 
 /** Anything with Babel-style offsets. */
-export interface Located {
+interface Located {
   start?: number | null
   end?: number | null
 }

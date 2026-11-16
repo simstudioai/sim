@@ -36,7 +36,7 @@ export interface Range {
   end: number
 }
 
-export interface ReportExtras {
+interface ReportExtras {
   hint?: string
   blockKey?: BlockKey
   param?: SubBlockId

@@ -10,7 +10,7 @@
  * so comments are reported as their own context.
  */
 
-export type JsContext = 'code' | 'single' | 'double' | 'template' | 'regex' | 'comment'
+type JsContext = 'code' | 'single' | 'double' | 'template' | 'regex' | 'comment'
 
 type ScanMode =
   | { type: 'normal' }
@@ -63,7 +63,7 @@ function wordEndingAt(text: string, end: number): string {
  * A forward-only scanner over one code body. `contextAt` must be called with non-decreasing
  * offsets; each call resumes where the previous one stopped, so a pass over all tokens is linear.
  */
-export interface JsContextScanner {
+interface JsContextScanner {
   contextAt(index: number): JsContext
 }
 

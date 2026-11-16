@@ -40,7 +40,7 @@ import {
   type ValueSite,
 } from './values'
 
-export interface CompiledBlock {
+interface CompiledBlock {
   block: CanonicalBlock
   /** Param ids written under `meta.inactive`. */
   inactive: SubBlockId[]

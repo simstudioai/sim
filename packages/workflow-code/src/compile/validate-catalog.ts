@@ -102,7 +102,7 @@ function clauseMatches(
  * lib/workflows/subblocks/visibility.ts). An opaque function condition uses the projection's
  * per-operation answer, and counts as visible when there is none (s1 canonicalize step 9).
  */
-export function conditionHolds(
+function conditionHolds(
   condition: CatalogCondition | undefined,
   values: ReadonlyMap<string, Value>,
   visibleFor: Record<string, boolean> | undefined

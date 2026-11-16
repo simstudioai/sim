@@ -153,7 +153,7 @@ function babelMessage(error: BabelErrorShape): string {
   return message.replace(/ \(\d+:\d+\)$/, '')
 }
 
-export interface ParsedSource {
+interface ParsedSource {
   ast: File | null
   /** The header's major, or `null` when the first line is not `// @sim-sdk N`. */
   sdkMajor: number | null

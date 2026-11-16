@@ -49,7 +49,7 @@ export interface ValueSite {
  * How a value was written, which picks the member of a basic/advanced pair (build-spec
  * decision 7) and decides whether `W_VALUE_KIND` applies (only to literals).
  */
-export type ValueForm = 'literal' | 'ref' | 'template' | 'resource' | 'picked' | 'upload' | 'raw'
+type ValueForm = 'literal' | 'ref' | 'template' | 'resource' | 'picked' | 'upload' | 'raw'
 
 export type CompiledValue =
   | { kind: 'value'; value: Value; form: ValueForm }
@@ -351,7 +351,7 @@ export function calleePath(node: Node): { root: string; rest: string[]; rootNode
 }
 
 /** The SDK export a call targets (`binding`, `slack.sendMessage`, ...), or `null`. */
-export function sdkCallPath(scope: Scope, call: CallExpression): string | null {
+function sdkCallPath(scope: Scope, call: CallExpression): string | null {
   const path = calleePath(call.callee)
   if (!path) return null
   const binding = lookup(scope, path.root)
@@ -439,11 +439,7 @@ function outputKnown(outputs: Record<string, CatalogOutput>, segments: RefSegmen
  * "Ref mapping"): a block chain to `<key.path>`, `vars.x` to `<variable.x>`, `env.X` to `{{X}}`,
  * a loop param to `<loop.prop>` (innermost loop of its kind) or `<key.prop>` (named form).
  */
-export function compileRef(
-  ctx: CompileContext,
-  node: Node,
-  site: ValueSite
-): string | VarNode | null {
+function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | VarNode | null {
   const { root, members } =
     node.type === 'MemberExpression' ? flattenMembers(node) : { root: node, members: [] }
   if (root.type !== 'Identifier') return rejectNode(ctx, node, site)

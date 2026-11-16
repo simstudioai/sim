@@ -128,7 +128,7 @@ function levenshtein(a: string, b: string, cap: number): number {
  * The closest candidate within a third of the word's length (at least 1, at most 3 edits), or
  * `null`. Ties keep the first candidate, so callers pass candidates in a stable order.
  */
-export function closest(word: string, candidates: Iterable<string>): string | null {
+function closest(word: string, candidates: Iterable<string>): string | null {
   const cap = Math.min(3, Math.max(1, Math.floor(word.length / 3)))
   let best: string | null = null
   let bestDistance = cap + 1
