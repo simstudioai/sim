@@ -237,6 +237,18 @@ function codeTab(page: Page) {
   return workflowPanel(page).locator('[data-tab-content="code"]')
 }
 
+/**
+ * Opens the Code tab. The panel is server-rendered, so a click that lands before React hydrates
+ * has no handler and is lost: click until the tab shows.
+ */
+async function openCodeTab(page: Page) {
+  const button = workflowPanel(page).locator('[data-tab-button="code"]')
+  await expect(async () => {
+    await button.click()
+    await expect(codeTab(page)).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: PAGE_LOAD_TIMEOUT_MS })
+}
+
 /** The editor's lines in screen order: Monaco recycles line nodes, so DOM order can drift. */
 async function editorText(page: Page): Promise<string> {
   return codeTab(page)
@@ -336,7 +348,7 @@ try {
     page,
     async () => {
       await visitWorkflow(page, baseUrl)
-      await workflowPanel(page).locator('[data-tab-button="code"]').click()
+      await openCodeTab(page)
       const editor = codeTab(page).locator('.monaco-editor')
       await expect(editor).toBeVisible()
       await expect.poll(async () => compact(await editorText(page))).toBe(compact(entryFile(shown)))
@@ -431,7 +443,7 @@ try {
   await failingPage.route(isSourceRead, (route) => route.abort('failed'))
   await check('a failed source read shows the error state', failingPage, async () => {
     await visitWorkflow(failingPage, baseUrl)
-    await workflowPanel(failingPage).locator('[data-tab-button="code"]').click()
+    await openCodeTab(failingPage)
     await expect(codeTab(failingPage).getByTestId('workflow-code-error')).toBeVisible()
     await expect(codeTab(failingPage).locator('.monaco-editor')).toHaveCount(0)
   })
