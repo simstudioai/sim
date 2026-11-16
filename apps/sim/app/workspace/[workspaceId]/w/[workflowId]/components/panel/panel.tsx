@@ -118,6 +118,16 @@ function copilotDraftKey(
 ): string | undefined {
   return workflowId ? `${workspaceId}:workflow-copilot:${workflowId}:${chatId ?? 'new'}` : undefined
 }
+/** Shared chrome for the panel's tab buttons: a border only while active or hovered. */
+function tabButtonClass(isActive: boolean): string {
+  return cn(
+    'h-[28px] rounded-md border py-[5px] text-[12.5px]',
+    isActive
+      ? 'border-[var(--border)]'
+      : 'border-transparent hover-hover:border-[var(--border)] hover-hover:bg-[var(--surface-5)]'
+  )
+}
+
 /**
  * Panel component with resizable width and tab navigation that persists across page refreshes.
  *
@@ -135,6 +145,7 @@ function copilotDraftKey(
  *
  * @returns Panel on the right side of the workflow
  */
+
 export const Panel = memo(function Panel() {
   const router = useResourceRouter()
   const { workspaceId, workflowId: scopedWorkflowId } = useWorkflowScope()
@@ -958,11 +969,10 @@ export const Panel = memo(function Panel() {
             <div className='flex gap-1'>
               {isCopilotTabAvailable && (
                 <Button
-                  className={`h-[28px] truncate rounded-md border py-[5px] text-[12.5px] ${
-                    _hasHydrated && activeTab === 'copilot'
-                      ? 'border-[var(--border-1)]'
-                      : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
-                  }`}
+                  className={cn(
+                    tabButtonClass(_hasHydrated && activeTab === 'copilot'),
+                    'truncate'
+                  )}
                   variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                   onClick={() => handleTabClick('copilot')}
                   data-tab-button='copilot'
@@ -971,11 +981,7 @@ export const Panel = memo(function Panel() {
                 </Button>
               )}
               <Button
-                className={`h-[28px] rounded-md border py-[5px] text-[12.5px] ${
-                  _hasHydrated && activeTab === 'toolbar'
-                    ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
-                }`}
+                className={tabButtonClass(_hasHydrated && activeTab === 'toolbar')}
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
@@ -983,11 +989,7 @@ export const Panel = memo(function Panel() {
                 Toolbar
               </Button>
               <Button
-                className={`h-[28px] rounded-md border py-[5px] text-[12.5px] ${
-                  _hasHydrated && activeTab === 'editor'
-                    ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
-                }`}
+                className={tabButtonClass(_hasHydrated && activeTab === 'editor')}
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
@@ -996,11 +998,7 @@ export const Panel = memo(function Panel() {
               </Button>
               {isCodeTabAvailable && (
                 <Button
-                  className={`h-[28px] rounded-md border py-[5px] text-[12.5px] ${
-                    _hasHydrated && activeTab === 'code'
-                      ? 'border-[var(--border-1)]'
-                      : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
-                  }`}
+                  className={tabButtonClass(_hasHydrated && activeTab === 'code')}
                   variant={_hasHydrated && activeTab === 'code' ? 'active' : 'ghost'}
                   onClick={() => handleTabClick('code')}
                   data-tab-button='code'

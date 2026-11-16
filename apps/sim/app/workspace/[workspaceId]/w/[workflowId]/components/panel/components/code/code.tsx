@@ -129,6 +129,7 @@ export function Code({ isActive }: CodeProps) {
   })
   useRefreshWhenDraftSettles(workflowId)
 
+  // A failed refresh replaces the code rather than leaving a stale copy that no longer matches the draft.
   if (error) {
     return (
       <div

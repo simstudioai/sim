@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
 
@@ -240,18 +240,21 @@ export const MonacoEditor = dynamic(
   { ssr: false }
 )
 
+function subscribeToThemeClass(onStoreChange: () => void) {
+  const observer = new MutationObserver(onStoreChange)
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+  return () => observer.disconnect()
+}
+
+const getIsDarkSnapshot = () => document.documentElement.classList.contains('dark')
+const getServerIsDarkSnapshot = () => false
+
 /** `sim-dark` or `sim-light`, following the document theme class. */
 export function useMonacoTheme(): string {
-  const [isDark, setIsDark] = useState(
-    () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  const isDark = useSyncExternalStore(
+    subscribeToThemeClass,
+    getIsDarkSnapshot,
+    getServerIsDarkSnapshot
   )
-
-  useEffect(() => {
-    const update = () => setIsDark(document.documentElement.classList.contains('dark'))
-    const observer = new MutationObserver(update)
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-    return () => observer.disconnect()
-  }, [])
-
   return isDark ? 'sim-dark' : 'sim-light'
 }
