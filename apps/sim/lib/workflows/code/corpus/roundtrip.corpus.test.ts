@@ -29,7 +29,6 @@ import {
   compileWorkflow,
   executableView,
   materialize,
-  type PrintWorkflowFn,
   printWorkflow,
 } from '@sim/workflow-code'
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
@@ -103,7 +102,7 @@ const serialize = (state: WorkflowState) =>
 /** One subject's canonical form, its inline print and that print compiled: P0, P3, P4, P5 share it. */
 interface SourceRun {
   canonical: CanonicalWorkflow
-  printed: ReturnType<PrintWorkflowFn>
+  printed: ReturnType<typeof printWorkflow>
   compiled: CompileResult
 }
 
@@ -157,7 +156,7 @@ function storedKeys(workflow: CanonicalWorkflow): ReadonlySet<string> {
 /** Compiles a print of `stored` as apply does: against the stored keys and values it continues. */
 function compileFiles(
   e: ResolvedEngines,
-  printed: ReturnType<PrintWorkflowFn>,
+  printed: ReturnType<typeof printWorkflow>,
   stored: CanonicalWorkflow
 ) {
   const [entry, ...codeFiles] = printed.files

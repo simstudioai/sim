@@ -10,11 +10,11 @@ import { describe, expect, it, vi } from 'vitest'
 vi.unmock('@/blocks/registry')
 vi.unmock('@/tools/registry')
 
+import { createExecutorContext } from '@sim/testing/factories/executor-context.factory'
 import { compileWorkflow, materialize } from '@sim/workflow-code'
 import { goldenCatalog as catalog } from '@/lib/workflows/code/golden-cases.test-helpers'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import { ExecutionState } from '@/executor/execution/state'
-import type { ExecutionContext } from '@/executor/types'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { Serializer } from '@/serializer'
 
@@ -78,18 +78,7 @@ async function resolvedParams(blockName: string) {
   const { serialized, byName } = compileAndSerialize()
   const executionState = new ExecutionState()
   executionState.setBlockOutput(byName('Ticket in').id, TICKET)
-  const ctx = {
-    blockStates: executionState.getBlockStates(),
-    blockLogs: [],
-    environmentVariables: {},
-    workflowVariables: {},
-    decisions: { router: new Map(), condition: new Map() },
-    loopExecutions: new Map(),
-    executedBlocks: new Set(),
-    activeExecutionPath: new Set(),
-    completedLoops: new Set(),
-    metadata: {},
-  } as ExecutionContext
+  const ctx = createExecutorContext({ blockStates: new Map(executionState.getBlockStates()) })
   const block = byName(blockName)
   const resolver = new VariableResolver(serialized, {}, executionState)
   return resolver.resolveInputs(ctx, block.id, block.config.params, block)

@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { createBlock } from '@sim/testing/factories/block.factory'
 import { canonicalize, catalogBlock, catalogBuilder } from '@sim/workflow-code'
 import { generateSdkTypes, SPECIAL_BUILDER_KEYS } from '@sim/workflow-sdk/codegen'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -93,15 +94,12 @@ describe('canonicalize and codegen over the real block catalog', () => {
     const result = canonicalize(
       {
         blocks: {
-          a1: {
+          a1: createBlock({
             id: 'a1',
             type: 'agent',
             name: 'Agent',
-            position: { x: 0, y: 0 },
-            enabled: true,
-            outputs: {},
             subBlocks: { tools: { id: 'tools', type: 'tool-input', value: tools } },
-          },
+          }),
         },
         edges: [],
         loops: {},

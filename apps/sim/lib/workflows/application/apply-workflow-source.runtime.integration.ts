@@ -20,6 +20,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { createBlock } from '@sim/testing/factories/block.factory'
 import {
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
@@ -148,16 +149,8 @@ beforeAll(async () => {
   })
   const saved = await saveWorkflowToNormalizedTables(workflowId, {
     blocks: {
-      [startId]: {
-        id: startId,
-        type: 'start_trigger',
-        name: 'Start',
-        position: { x: 0, y: 0 },
-        subBlocks: {},
-        outputs: {},
-        enabled: true,
-      },
-      [approvalId]: {
+      [startId]: createBlock({ id: startId, type: 'start_trigger', name: 'Start' }),
+      [approvalId]: createBlock({
         id: approvalId,
         type: 'human_in_the_loop',
         name: 'Approval',
@@ -174,9 +167,7 @@ beforeAll(async () => {
             value: [{ id: 'approved', name: 'approved', type: 'boolean', required: true }],
           },
         },
-        outputs: {},
-        enabled: true,
-      },
+      }),
     },
     edges: [{ id: generateId(), source: startId, target: approvalId }],
     loops: {},

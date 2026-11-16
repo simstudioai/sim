@@ -39,8 +39,6 @@ import { buildLockFromState } from '@/lib/workflows/code/source-lock'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
-import { getToolMetadata } from '@/tools/metadata'
-import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
@@ -49,10 +47,11 @@ const ownerId = generateId()
 const workspaceId = generateId()
 const principal = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
 const hooks = createMaterializeHooks()
-const catalog = buildBlockCatalog(
-  { blocks: Object.values(getBlockRegistry()), trigger: registryTrigger, sdkNames: SDK_NAMES },
-  { metadata: getToolMetadata, outputs: getToolOutputsMetadata }
-)
+const catalog = buildBlockCatalog({
+  blocks: Object.values(getBlockRegistry()),
+  trigger: registryTrigger,
+  sdkNames: SDK_NAMES,
+})
 
 const checks: { name: string; status: string; durationMs: number; error?: string }[] = []
 
