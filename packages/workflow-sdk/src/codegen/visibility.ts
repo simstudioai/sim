@@ -11,6 +11,7 @@
  * which leaves a condition on a field nobody enumerates undecided: "sometimes" here.
  */
 
+import { compareStrings } from '@sim/utils/string'
 import type { CatalogSubBlock } from '@sim/workflow-code'
 import {
   type ConditionClause,
@@ -18,10 +19,11 @@ import {
   type ConditionResult,
   evaluateClause as evaluateCatalogClause,
   evaluateCondition,
+  isConditionClause,
+  isOpaqueCondition,
 } from '@sim/workflow-code/catalog/conditions'
-import { isConditionClause, isOpaque } from './catalog'
 
-export const MAX_COMBINATIONS = 64
+const MAX_COMBINATIONS = 64
 
 /** A dropdown with at most this many options may become one nested union level. */
 const MAX_GATE_OPTIONS = 4
@@ -93,7 +95,7 @@ function product(domains: readonly SiblingDomain[]): number {
 }
 
 function byField(a: SiblingDomain, b: SiblingDomain): number {
-  return a.field < b.field ? -1 : a.field > b.field ? 1 : 0
+  return compareStrings(a.field, b.field)
 }
 
 /**
@@ -166,7 +168,7 @@ function visibleIn(
   combo: Readonly<Record<string, Scalar>>
 ): Tri {
   const visible = toTri(evaluateCondition(subBlock, comboLookup(context, combo)))
-  return visible === true && isOpaque(subBlock.condition) ? null : visible
+  return visible === true && isOpaqueCondition(subBlock.condition) ? null : visible
 }
 
 function requiredIn(
@@ -206,7 +208,7 @@ function describeWhen(
             unknown.add(field)
           }
         }
-      } else if (isOpaque(member.condition)) {
+      } else if (isOpaqueCondition(member.condition)) {
         opaque = true
       }
     }

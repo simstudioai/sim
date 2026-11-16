@@ -6,9 +6,10 @@
 
 import { compareStrings } from '@sim/utils/string'
 import type { BlockCatalog, CatalogBuilder } from '@sim/workflow-code'
+import { isIdentifierName, JS_RESERVED_WORDS } from '@sim/workflow-code'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '@sim/workflow-code/catalog/view'
 import { SDK_CORE_EXPORTS } from '@sim/workflow-code/sdk'
-import { isIdentifier, pascal, RESERVED_WORDS } from './emit'
+import { pascal } from './emit'
 
 /**
  * Builders `core.d.ts` declares itself, because their source form is special (named branches,
@@ -86,7 +87,7 @@ export function builderEntries(catalog: BlockCatalog): BuilderEntry[] {
     if (!builder) continue
     const path = key.split('.')
     for (const segment of path) {
-      if (!isIdentifier(segment) || RESERVED_WORDS.has(segment)) {
+      if (!isIdentifierName(segment) || JS_RESERVED_WORDS.has(segment)) {
         throw new Error(
           `sdk codegen: builder \`${key}\` has segment \`${segment}\`, which cannot name a declaration`
         )

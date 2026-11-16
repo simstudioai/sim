@@ -19,7 +19,7 @@ export function portKey(port: Port): PortKey {
 }
 
 /** Inverse of {@link portKey}; `null` for a string it cannot produce. */
-export function parsePortKey(text: string): Port | null {
+function parsePortKey(text: string): Port | null {
   switch (text) {
     case 'out':
     case 'error':

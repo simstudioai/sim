@@ -69,8 +69,9 @@ export type {
   Value,
 } from './model'
 export { assignIdentifiers, printWorkflow } from './print'
+export { printKey, quoteString } from './print/strings'
 export { parseJsonContainer, setOwn } from './records'
-export { SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from './sdk'
+export { JS_RESERVED_WORDS, SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from './sdk'
 export {
   mapAnchorIds,
   parseSourceMeta,

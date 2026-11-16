@@ -91,7 +91,7 @@ export const SDK_CORE_EXPORTS = [
 ] as const
 
 /** Reserved words and strict-mode restrictions: none can name a `const`. */
-const JS_RESERVED_WORDS = [
+export const JS_RESERVED_WORDS: ReadonlySet<string> = new Set([
   'arguments',
   'await',
   'break',
@@ -141,7 +141,7 @@ const JS_RESERVED_WORDS = [
   'while',
   'with',
   'yield',
-] as const
+])
 
 /**
  * Identifiers a block ident may never take: JS reserved words plus every SDK core export.

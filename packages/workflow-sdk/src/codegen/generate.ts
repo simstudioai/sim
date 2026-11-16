@@ -13,10 +13,11 @@
 
 import { compareStrings } from '@sim/utils/string'
 import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from '@sim/workflow-code'
+import { printKey, quoteString } from '@sim/workflow-code'
 import { subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
 import { onSurface, paramAliases } from '@sim/workflow-code/catalog/surface'
 import { catalogBlock, catalogBlockTypes, catalogTrigger } from '@sim/workflow-code/catalog/view'
-import { indentLines, jsdoc, literal, pascal, propertyKey, quote, union } from './emit'
+import { indentLines, jsdoc, literal, pascal, union } from './emit'
 import { mapSubBlock } from './map-subblock'
 import { type BuilderEntry, builderEntries, TOOL_NAMESPACE } from './names'
 import { builderOutputs, type DynamicOutputPlan, dynamicOutputPlan, renderMembers } from './outputs'
@@ -241,7 +242,7 @@ function renderProperty(param: Param, required: boolean, indent: string): string
   const nullable = param.members.some((member) => subBlockEditorDefault(member) !== undefined)
   return [
     ...jsdoc(param.doc, indent),
-    `${indent}${propertyKey(param.key)}${required ? '' : '?'}: ${param.type}${nullable ? ' | null' : ''}`,
+    `${indent}${printKey(param.key)}${required ? '' : '?'}: ${param.type}${nullable ? ' | null' : ''}`,
   ]
 }
 
@@ -271,7 +272,7 @@ function renderParamsType(
     const optional = fallback !== undefined && variant.values.includes(fallback)
     const lines: string[] = [
       ...jsdoc(gateParam?.doc ?? [], '    '),
-      `    ${propertyKey(gate.field)}${optional ? '?' : ''}: ${union(variant.values.map(literal))}`,
+      `    ${printKey(gate.field)}${optional ? '?' : ''}: ${union(variant.values.map(literal))}`,
     ]
     for (const { name, required } of variant.params) {
       const param = params.find((candidate) => candidate.name === name)
@@ -573,7 +574,7 @@ function modelIds(catalog: BlockCatalog): string[] {
 }
 
 function generateModelsFile(catalog: BlockCatalog): SdkTypeFile {
-  const members = modelIds(catalog).map((id) => `    ${quote(id)}: true`)
+  const members = modelIds(catalog).map((id) => `    ${quoteString(id)}: true`)
   const body =
     members.length > 0 ? ['  interface ModelIds {', ...members, '  }'] : ['  interface ModelIds {}']
   return {

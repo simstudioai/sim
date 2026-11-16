@@ -7,7 +7,8 @@
  */
 
 import { compareStrings } from '@sim/utils/string'
-import { propertyKey, quote, union } from './emit'
+import { printKey, quoteString } from '@sim/workflow-code'
+import { union } from './emit'
 import type { SdkTypeFile } from './generate'
 
 /** A table column, as the table's schema declares it (apps/sim/lib/table/column-types). */
@@ -43,7 +44,7 @@ function columnType(column: WorkspaceManifestColumn): string {
       return 'Json'
     case 'select':
       return column.options && column.options.length > 0
-        ? union(column.options.map(quote))
+        ? union(column.options.map((option) => quoteString(option)))
         : 'string'
     default:
       return 'string'
@@ -81,26 +82,25 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
   const tables = sortedKeys(manifest.tables).map((key) => {
     const columns = manifest.tables?.[key]?.columns ?? {}
     const fields = sortedKeys(columns).map(
-      (column) => `${propertyKey(column)}: ${columnType(columns[column])}`
+      (column) => `${printKey(column)}: ${columnType(columns[column])}`
     )
-    return `${quote(key)}: { ${fields.join('; ')} }`
+    return `${quoteString(key)}: { ${fields.join('; ')} }`
   })
   const knowledgeBases = [...new Set(manifest.knowledgeBases ?? [])]
     .sort(compareStrings)
-    .map((key) => `${quote(key)}: true`)
+    .map((key) => `${quoteString(key)}: true`)
   const credentials = sortedKeys(manifest.credentials).map(
-    (key) => `${quote(key)}: { provider: ${quote(manifest.credentials?.[key]?.provider ?? '')} }`
+    (key) =>
+      `${quoteString(key)}: { provider: ${quoteString(manifest.credentials?.[key]?.provider ?? '')} }`
   )
   const workflows = sortedKeys(manifest.workflows).map((key) => {
     const inputs = manifest.workflows?.[key]?.inputs ?? {}
-    const fields = sortedKeys(inputs).map(
-      (name) => `${propertyKey(name)}: ${inputType(inputs[name])}`
-    )
-    return `${quote(key)}: { inputs: { ${fields.join('; ')} } }`
+    const fields = sortedKeys(inputs).map((name) => `${printKey(name)}: ${inputType(inputs[name])}`)
+    return `${quoteString(key)}: { inputs: { ${fields.join('; ')} } }`
   })
   const env = [...new Set(manifest.env ?? [])]
     .sort(compareStrings)
-    .map((name) => `${propertyKey(name)}: true`)
+    .map((name) => `${printKey(name)}: true`)
   const body = [
     ...interfaceBlock('WorkspaceTables', tables),
     ...interfaceBlock('WorkspaceKnowledgeBases', knowledgeBases),

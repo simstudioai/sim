@@ -9,8 +9,9 @@
  */
 
 import type { CatalogSubBlock } from '@sim/workflow-code'
+import { quoteString } from '@sim/workflow-code'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
-import { arrayOf, literal, quote, union } from './emit'
+import { arrayOf, literal, union } from './emit'
 
 interface MappedType {
   /** The TS type expression. */
@@ -54,7 +55,7 @@ function tableType(subBlock: CatalogSubBlock): string {
   const { columns } = subBlock
   const cells =
     columns && columns.length > 0
-      ? `{ ${columns.map((column) => `${quote(column)}?: Value<string>`).join('; ')} }`
+      ? `{ ${columns.map((column) => `${quoteString(column)}?: Value<string>`).join('; ')} }`
       : 'Record<string, Value<string>>'
   return `Array<{ cells: ${cells} }>`
 }
