@@ -334,6 +334,8 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
   }
 }
 
+const BYTE_ORDER_MARK = '\uFEFF'
+
 /**
  * Statically interprets a workflow source file into the canonical model. Pass 1 collects
  * imports and every block declaration, nested bodies included; pass 2 evaluates values,
@@ -343,7 +345,10 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
 export function compileWorkflow(input: CompileInput): CompileResult {
   const limits = { ...DEFAULT_LIMITS, ...input.limits }
   const file = input.entry.path
-  const text = input.entry.text
+  // A leading BOM (Windows editors, PowerShell 5.1) would hide the SDK header on the first line.
+  const text = input.entry.text.startsWith(BYTE_ORDER_MARK)
+    ? input.entry.text.slice(BYTE_ORDER_MARK.length)
+    : input.entry.text
   const reporter = new Reporter()
   reporter.addFile(file, text)
 

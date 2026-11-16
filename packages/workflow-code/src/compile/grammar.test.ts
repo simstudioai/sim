@@ -798,6 +798,12 @@ describe('errors, each with its code, location and hint', () => {
     expect(result.workflow).toBeNull()
   })
 
+  it('reads the header behind a leading byte order mark', () => {
+    const result = run(`\uFEFF${source("const a = api('A', { url: 'x' })")}`)
+    expect(errorsOf(result)).toEqual([])
+    expect(result.sdkMajor).toBe(1)
+  })
+
   it('reports a missing header, a newer major and a missing or repeated default export', () => {
     const noHeader = `${IMPORTS}\nexport default workflow('X', {}, () => {})\n`
     expectDiagnostic(
