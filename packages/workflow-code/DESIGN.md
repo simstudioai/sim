@@ -188,13 +188,13 @@ key-keyed lock; `mergeSourceMetaFromLock` stores a write's hints back by id.
 2. `lock-ident`: a lock entry whose key the file dropped but whose ident it still uses
    (`MaterializeOptions.compiledIdents`), so editing only the display string keeps the id;
 3. `db-name`: the prev block with the same key (the lockless and stale-lock path);
-4. `inferred`: only without a fresh lock, exactly one unmatched prev block and one unmatched
-   compiled block with the same type and parent and agreeing edge neighbourhoods
-   (`W_MAT_INFERRED_RENAME`; off with `inferRenames: false`);
+4. `inferred`: exactly one unmatched prev block and one unmatched compiled block with the same
+   type and parent and agreeing edge neighbourhoods, so renaming the variable and the display
+   name together keeps the id (`W_MAT_INFERRED_RENAME`; off with `inferRenames: false`);
 5. otherwise created: the lock's id when unclaimed, else minted (`idSource`).
 
 A match across types is a delete plus a create (`W_MAT_RETYPE_RECREATED`), except a catalog
-`sunset.replacedBy` pair, which keeps the id. `lockFreshness` (`fresh`/`stale`/`none`) gates rule 4;
+`sunset.replacedBy` pair, which keeps the id. `lockFreshness` (`fresh`/`stale`/`none`) decides whether
 a stale lock entry whose id left prev is re-created with `W_MAT_DELETED_SINCE_PULL`. A lock id
 another workflow already stores is dropped and minted fresh (`W_MAT_LOCK_ID_CLAIMED`). Variables
 keep their ids by key: the lock's, then prev's, else new.

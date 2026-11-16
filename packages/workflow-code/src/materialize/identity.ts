@@ -114,8 +114,9 @@ function duplicateLockKeys(
  * 1. the lock entry under the same key, when its id is in prev;
  * 2. a lock entry whose key the file dropped but whose ident the file still uses;
  * 3. the prev block with the same canonical key (the lockless and stale-lock path);
- * 4. an inferred rename, only without a fresh lock: exactly one unmatched prev block and one
- *    unmatched compiled block with the same type and parent and agreeing edge neighbourhoods;
+ * 4. an inferred rename: exactly one unmatched prev block and one unmatched compiled block with
+ *    the same type and parent and agreeing edge neighbourhoods, so renaming the variable and the
+ *    display name together (an editor's rename-symbol) keeps the id;
  * 5. otherwise a new id (the lock's id when it is unclaimed, else a minted one).
  *
  * A match across types is a delete plus a create (`W_MAT_RETYPE_RECREATED`), except a catalog
@@ -211,7 +212,7 @@ export function resolveIdentity(inputs: IdentityInputs): IdentityResolution {
     if (prevId !== undefined) match(key, prevId, 'db-name')
   }
 
-  if (prev && inputs.inferRenames && inputs.freshness !== 'fresh') {
+  if (prev && inputs.inferRenames) {
     inferRenames({
       workflow,
       prev,

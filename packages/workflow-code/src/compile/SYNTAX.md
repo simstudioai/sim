@@ -429,7 +429,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_MAT_DUPLICATE_LOCK_ID` | Two lock keys carry one block id. |
 | `E_MAT_UNKNOWN_RESOURCE` | A resource key with no live resource in this workspace. |
 | `W_MAT_DELETED_SINCE_PULL` | A lock entry whose block was deleted since the read; re-created. |
-| `W_MAT_INFERRED_RENAME` | A lockless rename inferred from type, parent and edges. |
+| `W_MAT_INFERRED_RENAME` | A rename inferred from type, parent and edges (the key and the ident both changed). |
 | `W_MAT_RETYPE_RECREATED` | A key kept with a new type: delete plus create, so webhook URLs and schedules change. |
 | `W_MAT_LOCK_ID_CLAIMED` | A lock id another workflow holds; a new id was minted. |
 | `I_MAT_NEEDS_LAYOUT` | A new block with no position; placed by autolayout. |

@@ -521,13 +521,14 @@ describe('materialize: identity', () => {
     expect(codes(result)).not.toContain('W_MAT_INFERRED_RENAME')
   })
 
-  it('never infers a rename under a fresh lock', () => {
+  it('infers a rename under a fresh lock when the ident changed too', () => {
     const prev = base()
     const lock = lockFor(prev)
     const result = run(renameFetch(canonical(prev, lock).workflow), lock, { prev })
     expect(result.entries).toContainEqual(
-      expect.objectContaining({ status: 'created', key: 'load' })
+      expect.objectContaining({ status: 'matched', key: 'load', id: 'a1', via: 'inferred' })
     )
+    expect(codes(result)).toContain('W_MAT_INFERRED_RENAME')
   })
 
   it('deletes and creates on a removed block plus an added one', () => {
