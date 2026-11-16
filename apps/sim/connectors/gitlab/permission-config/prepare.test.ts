@@ -87,4 +87,10 @@ describe('GitLab setup failures', () => {
       message: EGRESS_UNAVAILABLE_MESSAGE,
     })
   })
+
+  it('keeps a missing internal routing scope out of GitLab validation errors', async () => {
+    const error = new OutboundRoutingError('MISSING_SCOPE')
+    fetchSource.mockRejectedValueOnce(error)
+    await expect(prepareGitLabPermissionChange(input)).rejects.toBe(error)
+  })
 })
