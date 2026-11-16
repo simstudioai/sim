@@ -32,9 +32,9 @@ export const NATIVE_RESPONSE_MAX_BYTES = 4 * 1024 * 1024
 
 /**
  * Sibling hosts a provider's token may reach, each only from its own provider origin: Google
- * serves Sheets apart from Drive, and Slack serves file contents apart from its Web API. Slack
- * redirects some file downloads, so its file host follows a few redirects: a hop that stays on
- * the file host keeps the token, and a hop to any other origin carries no headers at all.
+ * serves Sheets apart from Drive, and Slack serves file contents apart from its Web API. Slack's
+ * file host follows redirects only within itself: Slack sends a token it will not serve to a
+ * workspace sign-in page, which must be refused rather than read as the file.
  */
 const NATIVE_SERVICES = {
   sheets: {
@@ -44,6 +44,15 @@ const NATIVE_SERVICES = {
   },
   slackFiles: { origin: 'https://slack.com', hostname: 'files.slack.com', maxRedirects: 3 },
 } as const
+
+function assertSameHost(requested: URL, target: string) {
+  const next = new URL(target)
+  if (next.origin !== requested.origin)
+    throw new NativeSearchError(
+      'unavailable',
+      `The provider redirected this file to ${next.hostname}, outside its file host. Open the source.`
+    )
+}
 
 /** A sibling host a request may target instead of its client's provider origin. */
 export type NativeService = keyof typeof NATIVE_SERVICES
@@ -111,6 +120,9 @@ export function createNativeClient(input: {
           timeout: 10_000,
           maxResponseBytes: NATIVE_RESPONSE_MAX_BYTES,
           maxRedirects: service?.maxRedirects ?? 0,
+          ...(service?.maxRedirects
+            ? { assertRedirectTarget: (target: string) => assertSameHost(url, target) }
+            : {}),
           acceptCompressed: true,
           connectionPool: input.pool,
         })

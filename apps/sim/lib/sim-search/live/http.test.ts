@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-import { createNativeClient } from '@/lib/sim-search/live/http'
+import { createNativeClient, NativeSearchError } from '@/lib/sim-search/live/http'
 
 describe('native search network boundary', () => {
   beforeEach(() => {
@@ -75,28 +75,32 @@ describe('native search network boundary', () => {
       })
     ).rejects.toThrow('Invalid provider service')
     expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
-    await clientFor('https://slack.com').text('/files-pri/T1-F1/plan', undefined, {
-      service: 'slackFiles',
-    })
-    expect(inputValidationMockFns.mockSecureFetchWithValidation).toHaveBeenLastCalledWith(
-      'https://files.slack.com/files-pri/T1-F1/plan',
-      expect.objectContaining({ maxRedirects: 3 })
-    )
-    expect(
-      inputValidationMockFns.mockSecureFetchWithValidation.mock.lastCall?.[1]
-    ).not.toHaveProperty('redirectPolicy')
+    await clientFor('https://www.googleapis.com').json('/v4/spreadsheets/id', { service: 'sheets' })
+    const [url, options] = inputValidationMockFns.mockSecureFetchWithValidation.mock.lastCall ?? []
+    expect(url).toBe('https://sheets.googleapis.com/v4/spreadsheets/id')
+    expect(options).toMatchObject({ maxRedirects: 0 })
+    expect(options).not.toHaveProperty('assertRedirectTarget')
   })
-  it('never follows a redirect from a provider API', async () => {
+  it('follows Slack file redirects only within its file host', async () => {
     const client = createNativeClient({
       origin: 'https://slack.com',
       accessToken: 'private',
       signal: new AbortController().signal,
     })
-    await client.json('/api/files.info')
-    expect(inputValidationMockFns.mockSecureFetchWithValidation).toHaveBeenLastCalledWith(
-      'https://slack.com/api/files.info',
-      expect.objectContaining({ maxRedirects: 0 })
-    )
+    await client.text('/files-pri/T1-F1/plan', undefined, { service: 'slackFiles' })
+    const [url, options] = inputValidationMockFns.mockSecureFetchWithValidation.mock.lastCall ?? []
+    expect(url).toBe('https://files.slack.com/files-pri/T1-F1/plan')
+    expect(options?.maxRedirects).toBeGreaterThan(0)
+    const assertTarget = options?.assertRedirectTarget
+    expect(() =>
+      assertTarget('https://files.slack.com/files-pri/T1-F1/download/plan')
+    ).not.toThrow()
+    for (const target of [
+      'https://team.slack.com/?redir=%2Ffiles-pri%2FT1-F1',
+      'https://files.slack.com.example.com/plan',
+      'http://files.slack.com/files-pri/T1-F1/plan',
+    ])
+      expect(() => assertTarget(target)).toThrow(NativeSearchError)
   })
   it('keeps the HTTP status of a provider failure so callers can tell a missing item apart', async () => {
     const client = createNativeClient({
