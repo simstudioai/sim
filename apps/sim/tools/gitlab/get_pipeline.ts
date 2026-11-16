@@ -1,7 +1,8 @@
 import type { GitLabGetPipelineParams, GitLabGetPipelineResponse } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabGetPipelineTool: ToolConfig<GitLabGetPipelineParams, GitLabGetPipelineResponse> =
   {
@@ -41,8 +42,8 @@ export const gitlabGetPipelineTool: ToolConfig<GitLabGetPipelineParams, GitLabGe
 
     request: {
       url: (params) => {
-        const encodedId = encodeURIComponent(String(params.projectId).trim())
-        return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipelines/${params.pipelineId}`
+        const encodedId = encodeGitLabResourceId(params.projectId)
+        return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipelines/${safeUrlPathSegment(params.pipelineId, 'pipelineId')}`
       },
       method: 'GET',
       headers: (params) => ({

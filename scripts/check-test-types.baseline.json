@@ -624,9 +624,6 @@
   "apps/sim/blocks/blocks/airtable.test.ts": {
     "TS18048": 1
   },
-  "apps/sim/blocks/blocks/ashby.test.ts": {
-    "TS18048": 11
-  },
   "apps/sim/blocks/blocks/cloudtrail.test.ts": {
     "TS2554": 1
   },

@@ -5,6 +5,7 @@ import type {
 import { getGitLabApiBase, getGitLabResourcePath } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabRevokeInvitationTool: ToolConfig<
   GitLabRevokeInvitationParams,
@@ -53,7 +54,7 @@ export const gitlabRevokeInvitationTool: ToolConfig<
   request: {
     url: (params) => {
       const resourcePath = getGitLabResourcePath(params.resourceType, params.resourceId)
-      const encodedEmail = encodeURIComponent(String(params.email).trim())
+      const encodedEmail = safeUrlPathSegment(params.email, 'email', { allowSeparators: true })
       return `${getGitLabApiBase(params.host)}/${resourcePath}/invitations/${encodedEmail}`
     },
     method: 'DELETE',

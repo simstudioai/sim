@@ -2,6 +2,7 @@ import type { GitLabDeleteUserParams, GitLabDeleteUserResponse } from '@/tools/g
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabDeleteUserTool: ToolConfig<GitLabDeleteUserParams, GitLabDeleteUserResponse> = {
   id: 'gitlab_delete_user',
@@ -47,7 +48,7 @@ export const gitlabDeleteUserTool: ToolConfig<GitLabDeleteUserParams, GitLabDele
         queryParams.append('hard_delete', String(params.hardDelete))
       }
       const query = queryParams.toString()
-      return `${getGitLabApiBase(params.host)}/users/${params.userId}${query ? `?${query}` : ''}`
+      return `${getGitLabApiBase(params.host)}/users/${safeUrlPathSegment(params.userId, 'userId')}${query ? `?${query}` : ''}`
     },
     method: 'DELETE',
     headers: (params) => ({

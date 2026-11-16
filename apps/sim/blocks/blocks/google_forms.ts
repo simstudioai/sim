@@ -2,7 +2,7 @@ import { GoogleFormsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import { mapperOperation, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /*
@@ -314,10 +314,9 @@ Example for "Add a required multiple choice question about favorite color":
             throw new Error(`Invalid Google Forms operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
-          operation,
           formId, // Canonical param from formSelector (basic) or manualFormId (advanced)
           responseId,
           pageSize,
@@ -336,6 +335,7 @@ Example for "Add a required multiple choice question about favorite color":
           ...rest
         } = params
 
+        const operation = mapperOperation(params, context)
         const baseParams = { ...rest, oauthCredential }
         const effectiveFormId = formId ? String(formId).trim() : undefined
 

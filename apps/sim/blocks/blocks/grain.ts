@@ -2,7 +2,7 @@ import { omit } from '@sim/utils/object'
 import { GrainIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 import { GRAIN_HOOK_TYPE_OPTIONS, grainTriggerOptions } from '@/triggers/grain/utils'
 
@@ -368,12 +368,12 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
       tool: (params) => {
         return params.operation || 'grain_list_recordings'
       },
-      params: (params) => {
+      params: (params, context) => {
         const baseParams: Record<string, unknown> = {
           apiKey: params.apiKey,
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'grain_list_recordings':
             return {
               ...baseParams,
@@ -705,12 +705,12 @@ export const GrainV2Block: BlockConfig = {
       tool: (params) => {
         return params.operation || 'grain_list_recordings'
       },
-      params: (params) => {
+      params: (params, context) => {
         const baseParams: Record<string, unknown> = {
           apiKey: params.apiKey,
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'grain_create_hook_v2': {
             if (!params.hookUrl?.trim()) {
               throw new Error('Webhook URL is required.')
@@ -719,12 +719,10 @@ export const GrainV2Block: BlockConfig = {
               throw new Error('Event type is required.')
             }
             let include: unknown
-            if (params.hookInclude) {
+            const rawInclude = params.hookInclude || toolCallArg(context, params.include)
+            if (rawInclude) {
               try {
-                include =
-                  typeof params.hookInclude === 'string'
-                    ? JSON.parse(params.hookInclude)
-                    : params.hookInclude
+                include = typeof rawInclude === 'string' ? JSON.parse(rawInclude) : rawInclude
               } catch {
                 throw new Error('Invalid JSON for include options')
               }
@@ -740,8 +738,8 @@ export const GrainV2Block: BlockConfig = {
           case 'grain_list_hooks_v2':
             return {
               ...baseParams,
-              hookType: params.hookTypeFilter || undefined,
-              state: params.hookState || undefined,
+              hookType: params.hookTypeFilter || toolCallArg(context, params.hookType) || undefined,
+              state: params.hookState || toolCallArg(context, params.state) || undefined,
             }
 
           case 'grain_delete_hook_v2':
@@ -754,7 +752,7 @@ export const GrainV2Block: BlockConfig = {
             }
 
           default:
-            return GrainBlock.tools!.config!.params!(params)
+            return GrainBlock.tools!.config!.params!(params, context)
         }
       },
     },

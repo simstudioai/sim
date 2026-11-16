@@ -1,6 +1,7 @@
 import { HarmonicIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 const HARMONIC_OPERATIONS = [
   'harmonic_search_people_scout',
@@ -497,8 +498,8 @@ export const HarmonicBlock: BlockConfig = {
        * operation-specific key is therefore assigned explicitly; `undefined`
        * is what removes a stale value after the operation changes.
        */
-      params: (params) => {
-        const operation = String(params.operation ?? '')
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const isPaged = (PAGED_OPERATIONS as readonly string[]).includes(operation)
         const usesSavedSearch = (SAVED_SEARCH_OPERATIONS as readonly string[]).includes(operation)
         const usesPersonUrns = (PERSON_URN_OPERATIONS as readonly string[]).includes(operation)

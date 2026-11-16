@@ -127,7 +127,11 @@ ${data.workflows
               id: { type: 'number', description: 'Workflow ID' },
               name: { type: 'string', description: 'Workflow name' },
               path: { type: 'string', description: 'Path to workflow file' },
-              state: { type: 'string', description: 'Workflow state (active/disabled)' },
+              state: {
+                type: 'string',
+                description:
+                  'Workflow state (active, deleted, disabled_fork, disabled_inactivity, disabled_manually)',
+              },
               badge_url: { type: 'string', description: 'Badge URL for workflow' },
             },
           },

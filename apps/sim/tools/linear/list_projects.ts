@@ -1,5 +1,5 @@
 import type { LinearListProjectsParams, LinearListProjectsResponse } from '@/tools/linear/types'
-import { PAGE_INFO_OUTPUT, PROJECT_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { PAGE_INFO_OUTPUT, PROJECT_DETAIL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -57,17 +57,31 @@ export const linearListProjectsTool: ToolConfig<
       }
     },
     body: (params) => {
-      // Note: ProjectFilter does not support filtering by team directly
-      // We need to filter projects client-side by team if teamId is provided
+      const teamId = typeof params.teamId === 'string' ? params.teamId.trim() : ''
       return {
         query: `
-          query ListProjects($first: Int, $after: String, $includeArchived: Boolean) {
-            projects(first: $first, after: $after, includeArchived: $includeArchived) {
+          query ListProjects(
+            $first: Int
+            $after: String
+            $includeArchived: Boolean
+            $filter: ProjectFilter
+          ) {
+            projects(
+              first: $first
+              after: $after
+              includeArchived: $includeArchived
+              filter: $filter
+            ) {
               nodes {
                 id
                 name
                 description
                 state
+                status {
+                  id
+                  name
+                  type
+                }
                 priority
                 startDate
                 targetDate
@@ -97,12 +111,13 @@ export const linearListProjectsTool: ToolConfig<
           first: params.first ? Number(params.first) : 50,
           after: params.after?.trim() || undefined,
           includeArchived: params.includeArchived || false,
+          filter: teamId ? { accessibleTeams: { some: { id: { eq: teamId } } } } : undefined,
         },
       }
     },
   },
 
-  transformResponse: async (response, params) => {
+  transformResponse: async (response) => {
     const data = await response.json()
 
     if (data.errors) {
@@ -114,11 +129,12 @@ export const linearListProjectsTool: ToolConfig<
     }
 
     const result = data.data.projects
-    let projects = result.nodes.map((project: any) => ({
+    const projects = result.nodes.map((project: any) => ({
       id: project.id,
       name: project.name,
       description: project.description,
       state: project.state,
+      status: project.status,
       priority: project.priority,
       startDate: project.startDate,
       targetDate: project.targetDate,
@@ -129,13 +145,6 @@ export const linearListProjectsTool: ToolConfig<
       lead: project.lead,
       teams: project.teams?.nodes || [],
     }))
-
-    // Filter by teamId client-side if provided
-    if (params?.teamId) {
-      projects = projects.filter((project: any) =>
-        project.teams.some((team: any) => team.id === params.teamId)
-      )
-    }
 
     return {
       success: true,
@@ -155,7 +164,7 @@ export const linearListProjectsTool: ToolConfig<
       description: 'Array of projects',
       items: {
         type: 'object',
-        properties: PROJECT_FULL_OUTPUT_PROPERTIES,
+        properties: PROJECT_DETAIL_OUTPUT_PROPERTIES,
       },
     },
     pageInfo: PAGE_INFO_OUTPUT,

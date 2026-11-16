@@ -2,6 +2,7 @@ import type { SentryListProjectsParams, SentryListProjectsResponse } from '@/too
 import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListProjectsResponse> = {
   id: 'sentry_projects_list',
@@ -41,7 +42,7 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
 
   request: {
     url: (params) => {
-      const baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${params.organizationSlug}/projects/`
+      const baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/projects/`
       const queryParams: string[] = []
 
       if (params.cursor && params.cursor !== null && params.cursor !== '') {
@@ -126,6 +127,8 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
           nextCursor,
           hasMore,
         },
+        nextCursor,
+        hasMore,
       },
     }
   },
@@ -154,7 +157,9 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
           features: { type: 'array', description: 'Enabled features for the project' },
           organization: {
             type: 'object',
-            description: 'Organization information',
+            description:
+              'Organization information (not returned by this endpoint; use Get Project)',
+            optional: true,
             properties: {
               id: { type: 'string', description: 'Organization ID' },
               slug: { type: 'string', description: 'Organization slug' },
@@ -173,8 +178,17 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
               },
             },
           },
-          status: { type: 'string', description: 'Project status', optional: true },
-          isPublic: { type: 'boolean', description: 'Whether the project is publicly visible' },
+          status: {
+            type: 'string',
+            description: 'Project status (not returned by this endpoint; use Get Project)',
+            optional: true,
+          },
+          isPublic: {
+            type: 'boolean',
+            description:
+              'Whether the project is publicly visible (not returned by this endpoint; use Get Project)',
+            optional: true,
+          },
         },
       },
     },
@@ -191,6 +205,16 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
           description: 'Whether there are more results available',
         },
       },
+    },
+    nextCursor: {
+      type: 'string',
+      description:
+        'Cursor for the next page of results; pass it as the Pagination Cursor to fetch that page',
+      optional: true,
+    },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether there are more results available',
     },
   },
 }

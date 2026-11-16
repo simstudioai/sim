@@ -8,12 +8,15 @@ import {
 } from '@/lib/folders/paths'
 import { readFolderPaths } from '@/lib/folders/selection'
 import { inferContextFromKey } from '@/lib/uploads/utils/file'
-import type { BlockConfig, SubBlockType } from '@/blocks/types'
+import type { BlockConfig, BlockToolParamsContext, SubBlockType } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import {
   createVersionedToolSelector,
+  isToolCall,
+  mapperOperation,
   normalizeFileInput,
   parseOptionalNumberInput,
+  toolCallArg,
 } from '@/blocks/utils'
 
 const logger = createLogger('FileBlock')
@@ -184,7 +187,8 @@ interface FileFamilyParams {
 function fileFamilyInput(
   params: FileFamilyParams,
   label: string,
-  pickerValue: unknown
+  pickerValue: unknown,
+  context?: BlockToolParamsContext
 ): Record<string, unknown> {
   const workspaceId = params._context?.workspaceId
   const fileIds = pickerValue ? parseReadFileIds(pickerValue) : null
@@ -195,6 +199,9 @@ function fileFamilyInput(
 
   const folderPaths = folderScopePaths(params.folderScopeRef)
   if (!folderPaths) {
+    /* A tool call names its target in the tool's own `fileId` / `folderPaths` args,
+       which the merged params already carry. */
+    if (isToolCall(context)) return { workspaceId }
     throw new Error(`File or folder is required for ${label}`)
   }
   return {
@@ -273,6 +280,34 @@ function namedFileTarget(
     ...(scopes.length === 1 ? { folderPath: scopes[0] } : { folderPaths: scopes }),
     ...(switchValue(params.folderIncludeSubfolders, true) ? {} : { includeSubfolders: false }),
   }
+}
+
+/**
+ * {@link namedFileTarget} for a mapper that also runs on tool calls, where the stored picker may
+ * be empty and the model names the file with the tool's own `fileName` and `folderPath` args. The
+ * model's folder applies only to the model's name, and never beside a scope the row already pins.
+ *
+ * The result is spread over the merged row and model params, so a folder arg the model sent stays
+ * in the request unless it is cleared here; the tool refuses `folderPath` and `folderPaths` together.
+ */
+function namedFileTargetWithModelFolder(
+  params: FileFamilyParams & { fileName?: unknown },
+  pickerValue: unknown,
+  label: string,
+  context: BlockToolParamsContext | undefined,
+  modelFolderPath: string | undefined
+): ReturnType<typeof namedFileTarget> {
+  const target = namedFileTarget(
+    params,
+    pickerValue || toolCallArg(context, params.fileName),
+    label
+  )
+  if (!isToolCall(context)) return target
+  if (pickerValue || target.folderPath || target.folderPaths) {
+    return { folderPath: undefined, folderPaths: undefined, ...target }
+  }
+  if (!modelFolderPath) return target
+  return { ...target, folderPath: modelFolderPath, folderPaths: undefined }
 }
 
 /**
@@ -663,8 +698,8 @@ export const FileV3Block: BlockConfig = {
     access: ['file_parser_v3', 'file_get', 'file_write', 'file_append'],
     config: {
       tool: (params) => params.operation || 'file_parser_v3',
-      params: (params) => {
-        const operation = params.operation || 'file_parser_v3'
+      params: (params, context) => {
+        const operation = mapperOperation(params, context) || 'file_parser_v3'
 
         if (operation === 'file_write') {
           return {
@@ -676,7 +711,7 @@ export const FileV3Block: BlockConfig = {
         }
 
         if (operation === 'file_append') {
-          const appendInput = params.appendFileInput
+          const appendInput = params.appendFileInput || toolCallArg(context, params.fileName)
           if (!appendInput) {
             throw new Error('File is required for append')
           }
@@ -696,13 +731,13 @@ export const FileV3Block: BlockConfig = {
 
           return {
             fileName,
-            content: params.appendContent,
+            content: params.appendContent ?? toolCallArg(context, params.content),
             workspaceId: params._context?.workspaceId,
           }
         }
 
         if (operation === 'file_get') {
-          const getInput = params.getFileInput
+          const getInput = params.getFileInput || toolCallArg(context, params.fileId)
           if (!getInput) {
             throw new Error('File is required for get')
           }
@@ -974,8 +1009,8 @@ export const FileV4Block: BlockConfig = {
         if (operation === 'file_fetch') return 'file_fetch'
         return operation
       },
-      params: (params) => {
-        const operation = params.operation || 'file_read'
+      params: (params, context) => {
+        const operation = mapperOperation(params, context) || 'file_read'
 
         if (operation === 'file_write') {
           return {
@@ -987,7 +1022,7 @@ export const FileV4Block: BlockConfig = {
         }
 
         if (operation === 'file_append') {
-          const appendInput = params.appendFileInput
+          const appendInput = params.appendFileInput || toolCallArg(context, params.fileName)
           if (!appendInput) {
             throw new Error('File is required for append')
           }
@@ -1007,13 +1042,13 @@ export const FileV4Block: BlockConfig = {
 
           return {
             fileName,
-            content: params.appendContent,
+            content: params.appendContent ?? toolCallArg(context, params.content),
             workspaceId: params._context?.workspaceId,
           }
         }
 
         if (operation === 'file_read') {
-          const readInput = params.readFileInput
+          const readInput = params.readFileInput || toolCallArg(context, params.fileId)
           if (!readInput) {
             throw new Error('File is required for read')
           }
@@ -1930,8 +1965,13 @@ export const FileV5Block: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation || 'file_read',
-      params: (params) => {
-        const operation = params.operation || 'file_read'
+      params: (params, context) => {
+        const operation = mapperOperation(params, context) || 'file_read'
+        /**
+         * A tool call's `folderPath` arg shares its name with the basic half of the `folderRef`
+         * pair, so the canonical pass republishes it as `folderRef`. Read on tool calls only.
+         */
+        const modelFolderPath = toolCallArg(context, optionalText(params.folderRef))
 
         if (operation === 'file_search') {
           const maxResultsInput =
@@ -1968,7 +2008,7 @@ export const FileV5Block: BlockConfig = {
             Boolean(fileInput) && (params.content == null || params.content === '')
           return {
             fileName: params.fileName,
-            folderPath: optionalText(params.writeFolderRef),
+            folderPath: optionalText(params.writeFolderRef) ?? modelFolderPath,
             content: omitContent ? undefined : params.content,
             ...(fileInput ? { fileInput } : {}),
             contentType: params.contentType ?? undefined,
@@ -1979,21 +2019,26 @@ export const FileV5Block: BlockConfig = {
 
         if (operation === 'file_list') {
           return {
-            path: optionalText(params.folderRef),
-            recursive: switchValue(params.folderRecursive),
+            path: optionalText(params.folderRef) ?? toolCallArg(context, params.path),
+            recursive: switchValue(
+              params.folderRecursive,
+              switchValue(toolCallArg(context, params.recursive))
+            ),
             /* Bounded here as well as at the contract, so a typo fails while
                configuring rather than on the first run. */
-            depth: parseOptionalNumberInput(params.folderDepth, 'Max Depth', {
-              integer: true,
-              min: 1,
-              max: MAX_FOLDER_PATH_SEGMENTS,
-            }),
-            search: optionalText(params.folderSearch),
-            limit: parseOptionalNumberInput(params.folderLimit, 'Limit', {
-              integer: true,
-              min: 1,
-              max: MAX_FILE_LIST_LIMIT,
-            }),
+            depth:
+              parseOptionalNumberInput(params.folderDepth, 'Max Depth', {
+                integer: true,
+                min: 1,
+                max: MAX_FOLDER_PATH_SEGMENTS,
+              }) ?? toolCallArg(context, params.depth),
+            search: optionalText(params.folderSearch) ?? toolCallArg(context, params.search),
+            limit:
+              parseOptionalNumberInput(params.folderLimit, 'Limit', {
+                integer: true,
+                min: 1,
+                max: MAX_FILE_LIST_LIMIT,
+              }) ?? toolCallArg(context, params.limit),
             workspaceId: params._context?.workspaceId,
           }
         }
@@ -2006,9 +2051,17 @@ export const FileV5Block: BlockConfig = {
            * tool takes a canonical path.
            */
           const name = optionalText(params.folderName)
-          const parentPrefix = folderPathPrefix(optionalText(params.createParentRef))
+          const createParent = optionalText(params.createParentRef)
+          const parentPrefix = folderPathPrefix(createParent)
+          /* A model-supplied path keeps only its last segment when the row pins a parent. */
+          const modelPath = toolCallArg(context, optionalText(params.path))
+          const modelSegment = modelPath?.split('/').filter(Boolean).pop()
           return {
-            path: name ? `${parentPrefix}/${encodeFolderPathSegment(name)}` : undefined,
+            path: name
+              ? `${parentPrefix}/${encodeFolderPathSegment(name)}`
+              : createParent && modelSegment
+                ? `${parentPrefix}/${modelSegment}`
+                : modelPath,
             workspaceId: params._context?.workspaceId,
           }
         }
@@ -2021,80 +2074,106 @@ export const FileV5Block: BlockConfig = {
            * carried from the source path's last segment. An unset parent means
            * the workspace root. Renaming is not a move and is not offered here.
            */
-          const sourcePath = optionalText(params.folderRef)
+          const sourcePath =
+            optionalText(params.folderRef) ?? toolCallArg(context, optionalText(params.path))
           const segment = sourcePath?.split('/').pop()
-          const parentPrefix = folderPathPrefix(optionalText(params.destinationParentRef))
+          const destinationParent = optionalText(params.destinationParentRef)
+          const parentPrefix = folderPathPrefix(destinationParent)
+          /* A model-supplied full destination applies unless the row pins a destination parent. */
+          const modelDestination = destinationParent
+            ? undefined
+            : toolCallArg(context, optionalText(params.destinationPath))
 
           return {
             path: sourcePath,
-            destinationPath: segment ? `${parentPrefix}/${segment}` : undefined,
+            destinationPath:
+              modelDestination ?? (segment ? `${parentPrefix}/${segment}` : undefined),
             workspaceId: params._context?.workspaceId,
           }
         }
 
         if (operation === 'file_delete_folder') {
           return {
-            path: optionalText(params.folderRef),
-            recursive: switchValue(params.deleteFolderRecursive),
+            path: optionalText(params.folderRef) ?? toolCallArg(context, params.path),
+            recursive: switchValue(
+              params.deleteFolderRecursive,
+              switchValue(toolCallArg(context, params.recursive))
+            ),
             workspaceId: params._context?.workspaceId,
           }
         }
 
         if (operation === 'file_move') {
           return {
-            fileId: optionalText(params.moveFileId),
-            folderPath: optionalText(params.moveTargetRef),
+            fileId: optionalText(params.moveFileId) ?? toolCallArg(context, params.fileId),
+            folderPath: optionalText(params.moveTargetRef) ?? modelFolderPath,
             workspaceId: params._context?.workspaceId,
           }
         }
 
         if (operation === 'file_restore_folder') {
           return {
-            folderId: optionalText(params.restoreFolderId),
+            folderId: optionalText(params.restoreFolderId) ?? toolCallArg(context, params.folderId),
             workspaceId: params._context?.workspaceId,
           }
         }
 
         if (operation === 'file_append') {
           return {
-            ...namedFileTarget(params, params.appendFileInput, 'append'),
-            content: params.appendContent,
+            ...namedFileTargetWithModelFolder(
+              params,
+              params.appendFileInput,
+              'append',
+              context,
+              modelFolderPath
+            ),
+            content: params.appendContent ?? toolCallArg(context, params.content),
             workspaceId: params._context?.workspaceId,
           }
         }
 
         if (operation === 'file_edit') {
-          const mode = optionalText(params.editMode) ?? 'search_replace'
+          const mode =
+            optionalText(params.editMode) ??
+            toolCallArg(context, optionalText(params.mode)) ??
+            'search_replace'
           if (!FILE_EDIT_MODES.has(mode)) throw new Error('Edit Type is invalid')
 
           return {
-            ...namedFileTarget(params, params.editFileInput, 'edit'),
+            ...namedFileTargetWithModelFolder(
+              params,
+              params.editFileInput,
+              'edit',
+              context,
+              modelFolderPath
+            ),
             mode,
-            search: params.editSearch,
-            content: params.editContent ?? '',
+            search: params.editSearch ?? toolCallArg(context, params.search),
+            content: params.editContent ?? toolCallArg(context, params.content) ?? '',
             replaceAll: switchValue(params.replaceAll),
             beforeAnchor: params.beforeAnchor,
             afterAnchor: params.afterAnchor,
             anchor: params.anchor,
             startAnchor: params.startAnchor,
             endAnchor: params.endAnchor,
-            occurrence: parseOptionalNumberInput(params.editOccurrence, 'Anchor Occurrence', {
-              integer: true,
-              min: 1,
-            }),
+            occurrence:
+              parseOptionalNumberInput(params.editOccurrence, 'Anchor Occurrence', {
+                integer: true,
+                min: 1,
+              }) ?? toolCallArg(context, params.occurrence),
             workspaceId: params._context?.workspaceId,
           }
         }
 
         if (operation === 'file_compress') {
           return {
-            ...fileFamilyInput(params, 'compress', params.compressInput),
+            ...fileFamilyInput(params, 'compress', params.compressInput, context),
             archiveName: optionalText(params.archiveName),
           }
         }
 
         if (operation === 'file_decompress') {
-          const decompressInput = params.decompressInput
+          const decompressInput = params.decompressInput || toolCallArg(context, params.fileId)
           if (!decompressInput) {
             throw new Error('File is required for decompress')
           }
@@ -2126,26 +2205,34 @@ export const FileV5Block: BlockConfig = {
         }
 
         if (operation === 'file_manage_sharing') {
-          const shareInput = params.shareInput
+          const shareInput = params.shareInput || toolCallArg(context, params.fileId)
           if (!shareInput) {
             throw new Error('File is required to manage sharing')
           }
 
-          const allowedEmails =
+          const rowEmails =
             typeof params.shareAllowedEmails === 'string'
               ? params.shareAllowedEmails
                   .split(/[\n,]/)
                   .map((email) => email.trim())
                   .filter(Boolean)
               : undefined
+          const allowedEmails = rowEmails?.length
+            ? rowEmails
+            : (toolCallArg(context, params.allowedEmails) ?? rowEmails)
 
+          /* A tool row has no visibility dropdown, so a tool call states the link
+             with the tool's own `isActive` / `authType` args. */
+          const modelSharing = !params.shareVisibility && isToolCall(context)
           const visibility = (params.shareVisibility as string) || 'public'
-          const isActive = visibility !== 'private'
+          const isActive = modelSharing
+            ? switchValue(params.isActive, true)
+            : visibility !== 'private'
           const shareParams = {
             isActive,
             // When disabling, leave authType unset so the stored access mode is preserved.
-            authType: isActive ? visibility : undefined,
-            password: params.sharePassword,
+            authType: isActive ? (modelSharing ? params.authType : visibility) : undefined,
+            password: params.sharePassword ?? toolCallArg(context, params.password),
             allowedEmails,
             workspaceId: params._context?.workspaceId,
           }
@@ -2189,13 +2276,13 @@ export const FileV5Block: BlockConfig = {
           const range = optionalPositiveInt(params.contentOffset, 'Start Line')
           const count = optionalPositiveInt(params.contentLimit, 'Line Count')
           return {
-            ...fileFamilyInput(params, 'get content', params.getContentInput),
+            ...fileFamilyInput(params, 'get content', params.getContentInput, context),
             ...(range === undefined ? {} : { offset: range }),
             ...(count === undefined ? {} : { limit: count }),
           }
         }
 
-        return fileFamilyInput(params, 'read', params.readFileInput)
+        return fileFamilyInput(params, 'read', params.readFileInput, context)
       },
     },
   },

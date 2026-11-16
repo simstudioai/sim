@@ -7,7 +7,8 @@ export const linearCreateCycleTool: ToolConfig<LinearCreateCycleParams, LinearCr
   {
     id: 'linear_create_cycle',
     name: 'Linear Create Cycle',
-    description: 'Create a new cycle (sprint/iteration) in Linear',
+    description:
+      'Deprecated: Linear no longer supports creating cycles through its API (they are generated from the team cycle settings), so this always returns an error from Linear.',
     version: '1.0.0',
 
     oauth: {

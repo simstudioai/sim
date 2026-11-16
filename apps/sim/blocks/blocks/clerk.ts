@@ -1,7 +1,7 @@
 import { ClerkIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -820,9 +820,9 @@ export const ClerkBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation as string,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           secretKey,
           emailAddressFilter,
           usernameFilter,

@@ -11,12 +11,12 @@ const buildParams = (
 /**
  * On an agent call the model supplies `threadId`/`format`/`name`/`query`/`labelIds` under the
  * tool's own names; the dedicated V2 fields (`targetThreadId`, `threadFormat`, `labelName`,
- * `listQuery`, `threadLabelIds`) are never rendered in the agent tool input.
+ * `listQuery`, `threadLabelIds`) are never rendered in the agent tool input. A tool call carries
+ * the operation only in `context`.
  */
 describe('GmailV2Block agent tool calls', () => {
   const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
-    const inputs = { ...args, operation }
-    return { ...inputs, ...buildParams(inputs, { operation }) }
+    return { ...args, ...buildParams(args, { operation }) }
   }
 
   it('keeps the model threadId and format on get_thread_gmail', () => {
@@ -40,6 +40,11 @@ describe('GmailV2Block agent tool calls', () => {
       expect(mapped.labelIds).toBe('INBOX')
     }
   )
+
+  it('joins model labelIds sent as an array on list_threads_gmail', () => {
+    const mapped = agentCall('list_threads_gmail', { labelIds: ['INBOX', 'UNREAD'] })
+    expect(mapped.labelIds).toBe('INBOX,UNREAD')
+  })
 
   it('drops a Send threadId left over on the canvas under get_thread_gmail', () => {
     const inputs = { operation: 'get_thread_gmail', threadId: 'stale' }

@@ -4,6 +4,7 @@ import type {
 } from '@/tools/incidentio/types'
 import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const escalationsShowTool: ToolConfig<
   IncidentioEscalationsShowParams,
@@ -11,7 +12,8 @@ export const escalationsShowTool: ToolConfig<
 > = {
   id: 'incidentio_escalations_show',
   name: 'Show Escalation',
-  description: 'Get details of a specific escalation policy in incident.io',
+  description:
+    'Get an escalation (a page sent to people) in incident.io. For an escalation policy, use Show Escalation Path.',
   version: '1.0.0',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
@@ -26,12 +28,13 @@ export const escalationsShowTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the escalation policy (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
+      description: 'The ID of the escalation (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/escalations/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/escalations/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

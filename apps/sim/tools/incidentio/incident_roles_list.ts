@@ -67,7 +67,11 @@ export const incidentRolesListTool: ToolConfig<
             description: 'Short form abbreviation of the role',
           },
           role_type: { type: 'string', description: 'The type of role' },
-          required: { type: 'boolean', description: 'Whether the role is required' },
+          required: {
+            type: 'boolean',
+            description: 'Not returned by the incident.io API; always empty',
+            optional: true,
+          },
           created_at: { type: 'string', description: 'When the role was created' },
           updated_at: { type: 'string', description: 'When the role was last updated' },
         },

@@ -2,7 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { InstantlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { isToolCall, mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const LEAD_LIST_OPERATIONS = ['list_leads'] as const
@@ -932,81 +932,198 @@ export const InstantlyBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `instantly_${params.operation}`,
-      params: (params) => ({
-        campaign: mapCampaignParam(params),
-        list_id: mapListIdParam(params),
-        campaign_id: mapCampaignIdParam(params),
-        leadId: params.leadId,
-        email: emptyToUndefined(params.email),
-        first_name: emptyToUndefined(params.firstName),
-        last_name: emptyToUndefined(params.lastName),
-        company_name: emptyToUndefined(params.companyName),
-        job_title: emptyToUndefined(params.jobTitle),
-        phone: emptyToUndefined(params.phone),
-        website: emptyToUndefined(params.website),
-        personalization: emptyToUndefined(params.personalization),
-        custom_variables: parseJsonObject(params.customVariables),
-        lt_interest_status: toNumberParam(params.leadInterestStatus),
-        pl_value_lead: emptyToUndefined(params.potentialLeadValue),
-        assigned_to: optionalIdParam(params.assignedTo),
-        blocklist_id: optionalIdParam(params.blocklistId),
-        skip_if_in_workspace: toBooleanParam(params.skipIfInWorkspace),
-        skip_if_in_campaign: toBooleanParam(params.skipIfInCampaign),
-        skip_if_in_list: toBooleanParam(params.skipIfInList),
-        verify_leads_for_lead_finder: toBooleanParam(params.verifyLeadsForLeadFinder),
-        verify_leads_on_import: toBooleanParam(params.verifyLeadsOnImport),
-        filter: emptyToUndefined(params.leadFilter),
-        ids: mapIdsParam(params),
-        excluded_ids: parseStringList(params.excludedLeadIds),
-        contacts: parseStringList(params.contacts),
-        organization_user_ids: parseStringList(params.organizationUserIds),
-        smart_view_id: optionalIdParam(params.smartViewId),
-        is_website_visitor: toBooleanParam(params.websiteVisitor),
-        distinct_contacts: toBooleanParam(params.distinctContacts),
-        enrichment_status: toNumberParam(params.enrichmentStatus),
-        esg_code: emptyToUndefined(params.esgCode),
-        in_campaign: toBooleanParam(params.inCampaign),
-        in_list: toBooleanParam(params.inList),
-        status: mapStatusParam(params),
-        limit: mapLimitParam(params),
-        starting_after: mapStartingAfterParam(params),
-        lead_email: emptyToUndefined(params.leadEmail),
-        interest_value:
-          params.operation === 'update_lead_interest_status'
-            ? toNullableNumberParam(params.interestValue, true)
-            : undefined,
-        ai_interest_value: toNumberParam(params.aiInterestValue),
-        disable_auto_interest: toBooleanParam(params.disableAutoInterest),
-        name: mapNameParam(params),
-        campaign_schedule: parseJsonObject(params.campaignSchedule),
-        sequences: parseJsonArray(params.sequences),
-        email_list: parseStringList(params.emailList),
-        daily_limit: toNumberParam(params.dailyLimit),
-        daily_max_leads: toNumberParam(params.dailyMaxLeads),
-        open_tracking: toBooleanParam(params.openTracking),
-        stop_on_reply: toBooleanParam(params.stopOnReply),
-        pl_value: toNumberParam(params.positiveLeadValue),
-        email_gap: toNumberParam(params.emailGap),
-        link_tracking: toBooleanParam(params.linkTracking),
-        text_only: toBooleanParam(params.textOnly),
-        tag_ids: emptyToUndefined(params.tagIds),
-        ai_sales_agent_id: optionalIdParam(params.aiSalesAgentId),
-        search: mapSearchParam(params),
-        eaccount: emptyToUndefined(params.emailAccount),
-        i_status: toNumberParam(params.emailStatus),
-        lead: emptyToUndefined(params.emailLead),
-        is_unread: toBooleanParam(params.emailIsUnread),
-        reply_to_uuid: emptyToUndefined(params.replyToUuid),
-        subject: emptyToUndefined(params.subject),
-        body: {
-          text: emptyToUndefined(params.bodyText),
-          html: emptyToUndefined(params.bodyHtml),
-        },
-        cc_address_email_list: emptyToUndefined(params.ccRecipients),
-        bcc_address_email_list: emptyToUndefined(params.bccRecipients),
-        has_enrichment_task: toBooleanParam(params.hasEnrichmentTask),
-        owned_by: optionalIdParam(params.ownedBy),
-      }),
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const toolCall = isToolCall(context)
+        /**
+         * The block field's value, else on a tool call the model's arg under the tool's own param
+         * name: the result is spread over the merged params, so an `undefined` here wipes that arg.
+         */
+        const orArg = <T>(
+          blockValue: T | undefined,
+          toolKey: string,
+          coerce: (value: unknown) => T | undefined
+        ): T | undefined =>
+          blockValue !== undefined || !toolCall ? blockValue : coerce(params[toolKey])
+
+        return {
+          campaign: orArg(mapCampaignParam(params, operation), 'campaign', optionalIdParam),
+          list_id: orArg(mapListIdParam(params, operation), 'list_id', optionalIdParam),
+          campaign_id: orArg(mapCampaignIdParam(params, operation), 'campaign_id', optionalIdParam),
+          leadId: params.leadId,
+          email: emptyToUndefined(params.email),
+          first_name: orArg(emptyToUndefined(params.firstName), 'first_name', emptyToUndefined),
+          last_name: orArg(emptyToUndefined(params.lastName), 'last_name', emptyToUndefined),
+          company_name: orArg(
+            emptyToUndefined(params.companyName),
+            'company_name',
+            emptyToUndefined
+          ),
+          job_title: orArg(emptyToUndefined(params.jobTitle), 'job_title', emptyToUndefined),
+          phone: emptyToUndefined(params.phone),
+          website: emptyToUndefined(params.website),
+          personalization: emptyToUndefined(params.personalization),
+          custom_variables: orArg(
+            parseJsonObject(params.customVariables),
+            'custom_variables',
+            parseJsonObject
+          ),
+          lt_interest_status: orArg(
+            toNumberParam(params.leadInterestStatus),
+            'lt_interest_status',
+            toNumberParam
+          ),
+          pl_value_lead: orArg(
+            emptyToUndefined(params.potentialLeadValue),
+            'pl_value_lead',
+            emptyToUndefined
+          ),
+          assigned_to: orArg(optionalIdParam(params.assignedTo), 'assigned_to', optionalIdParam),
+          blocklist_id: orArg(optionalIdParam(params.blocklistId), 'blocklist_id', optionalIdParam),
+          skip_if_in_workspace: orArg(
+            toBooleanParam(params.skipIfInWorkspace),
+            'skip_if_in_workspace',
+            toBooleanParam
+          ),
+          skip_if_in_campaign: orArg(
+            toBooleanParam(params.skipIfInCampaign),
+            'skip_if_in_campaign',
+            toBooleanParam
+          ),
+          skip_if_in_list: orArg(
+            toBooleanParam(params.skipIfInList),
+            'skip_if_in_list',
+            toBooleanParam
+          ),
+          verify_leads_for_lead_finder: orArg(
+            toBooleanParam(params.verifyLeadsForLeadFinder),
+            'verify_leads_for_lead_finder',
+            toBooleanParam
+          ),
+          verify_leads_on_import: orArg(
+            toBooleanParam(params.verifyLeadsOnImport),
+            'verify_leads_on_import',
+            toBooleanParam
+          ),
+          filter: orArg(emptyToUndefined(params.leadFilter), 'filter', emptyToUndefined),
+          ids: orArg(mapIdsParam(params, operation), 'ids', parseStringList),
+          excluded_ids: orArg(
+            parseStringList(params.excludedLeadIds),
+            'excluded_ids',
+            parseStringList
+          ),
+          contacts: parseStringList(params.contacts),
+          organization_user_ids: orArg(
+            parseStringList(params.organizationUserIds),
+            'organization_user_ids',
+            parseStringList
+          ),
+          smart_view_id: orArg(
+            optionalIdParam(params.smartViewId),
+            'smart_view_id',
+            optionalIdParam
+          ),
+          is_website_visitor: orArg(
+            toBooleanParam(params.websiteVisitor),
+            'is_website_visitor',
+            toBooleanParam
+          ),
+          distinct_contacts: orArg(
+            toBooleanParam(params.distinctContacts),
+            'distinct_contacts',
+            toBooleanParam
+          ),
+          enrichment_status: orArg(
+            toNumberParam(params.enrichmentStatus),
+            'enrichment_status',
+            toNumberParam
+          ),
+          esg_code: orArg(emptyToUndefined(params.esgCode), 'esg_code', emptyToUndefined),
+          in_campaign: orArg(toBooleanParam(params.inCampaign), 'in_campaign', toBooleanParam),
+          in_list: orArg(toBooleanParam(params.inList), 'in_list', toBooleanParam),
+          status: orArg(mapStatusParam(params, operation), 'status', toNumberParam),
+          limit: orArg(mapLimitParam(params, operation), 'limit', toNumberParam),
+          starting_after: orArg(
+            mapStartingAfterParam(params, operation),
+            'starting_after',
+            emptyToUndefined
+          ),
+          lead_email: orArg(emptyToUndefined(params.leadEmail), 'lead_email', emptyToUndefined),
+          interest_value: mapInterestValueParam(params, operation, toolCall),
+          ai_interest_value: orArg(
+            toNumberParam(params.aiInterestValue),
+            'ai_interest_value',
+            toNumberParam
+          ),
+          disable_auto_interest: orArg(
+            toBooleanParam(params.disableAutoInterest),
+            'disable_auto_interest',
+            toBooleanParam
+          ),
+          name: orArg(mapNameParam(params, operation), 'name', emptyToUndefined),
+          campaign_schedule: orArg(
+            parseJsonObject(params.campaignSchedule),
+            'campaign_schedule',
+            parseJsonObject
+          ),
+          sequences: parseJsonArray(params.sequences),
+          email_list: orArg(parseStringList(params.emailList), 'email_list', parseStringList),
+          daily_limit: orArg(toNumberParam(params.dailyLimit), 'daily_limit', toNumberParam),
+          daily_max_leads: orArg(
+            toNumberParam(params.dailyMaxLeads),
+            'daily_max_leads',
+            toNumberParam
+          ),
+          open_tracking: orArg(
+            toBooleanParam(params.openTracking),
+            'open_tracking',
+            toBooleanParam
+          ),
+          stop_on_reply: orArg(toBooleanParam(params.stopOnReply), 'stop_on_reply', toBooleanParam),
+          pl_value: orArg(toNumberParam(params.positiveLeadValue), 'pl_value', toNumberParam),
+          email_gap: orArg(toNumberParam(params.emailGap), 'email_gap', toNumberParam),
+          link_tracking: orArg(
+            toBooleanParam(params.linkTracking),
+            'link_tracking',
+            toBooleanParam
+          ),
+          text_only: orArg(toBooleanParam(params.textOnly), 'text_only', toBooleanParam),
+          tag_ids: orArg(emptyToUndefined(params.tagIds), 'tag_ids', emptyToUndefined),
+          ai_sales_agent_id: orArg(
+            optionalIdParam(params.aiSalesAgentId),
+            'ai_sales_agent_id',
+            optionalIdParam
+          ),
+          search: orArg(mapSearchParam(params, operation), 'search', emptyToUndefined),
+          eaccount: orArg(emptyToUndefined(params.emailAccount), 'eaccount', emptyToUndefined),
+          i_status: orArg(toNumberParam(params.emailStatus), 'i_status', toNumberParam),
+          lead: orArg(emptyToUndefined(params.emailLead), 'lead', emptyToUndefined),
+          is_unread: orArg(toBooleanParam(params.emailIsUnread), 'is_unread', toBooleanParam),
+          reply_to_uuid: orArg(
+            emptyToUndefined(params.replyToUuid),
+            'reply_to_uuid',
+            emptyToUndefined
+          ),
+          subject: emptyToUndefined(params.subject),
+          body: mapBodyParam(params, toolCall),
+          cc_address_email_list: orArg(
+            emptyToUndefined(params.ccRecipients),
+            'cc_address_email_list',
+            emptyToUndefined
+          ),
+          bcc_address_email_list: orArg(
+            emptyToUndefined(params.bccRecipients),
+            'bcc_address_email_list',
+            emptyToUndefined
+          ),
+          has_enrichment_task: orArg(
+            toBooleanParam(params.hasEnrichmentTask),
+            'has_enrichment_task',
+            toBooleanParam
+          ),
+          owned_by: orArg(optionalIdParam(params.ownedBy), 'owned_by', optionalIdParam),
+        }
+      },
     },
   },
   inputs: {
@@ -1232,14 +1349,14 @@ function emptyToUndefined(value: unknown): unknown {
   return trimmed === '' || trimmed === '-' ? undefined : trimmed
 }
 
-function mapCampaignParam(params: Record<string, unknown>): string | undefined {
-  if (params.operation === 'list_leads') return optionalIdParam(params.campaignId)
-  if (params.operation !== 'create_lead' || params.leadDestination !== 'campaign') return undefined
+function mapCampaignParam(params: Record<string, unknown>, operation: string): string | undefined {
+  if (operation === 'list_leads') return optionalIdParam(params.campaignId)
+  if (operation !== 'create_lead' || params.leadDestination !== 'campaign') return undefined
   return optionalIdParam(params.leadDestinationId)
 }
 
-function mapListIdParam(params: Record<string, unknown>): string | undefined {
-  switch (params.operation) {
+function mapListIdParam(params: Record<string, unknown>, operation: string): string | undefined {
+  switch (operation) {
     case 'delete_leads':
       return params.deleteSource === 'list' ? optionalIdParam(params.deleteSourceId) : undefined
     case 'create_lead':
@@ -1255,42 +1372,45 @@ function mapListIdParam(params: Record<string, unknown>): string | undefined {
   }
 }
 
-function mapCampaignIdParam(params: Record<string, unknown>): string | undefined {
-  if (params.operation === 'delete_leads') {
+function mapCampaignIdParam(
+  params: Record<string, unknown>,
+  operation: string
+): string | undefined {
+  if (operation === 'delete_leads') {
     return params.deleteSource === 'campaign' ? optionalIdParam(params.deleteSourceId) : undefined
   }
 
-  if (params.operation === 'update_lead_interest_status' || params.operation === 'list_emails') {
+  if (operation === 'update_lead_interest_status' || operation === 'list_emails') {
     return optionalIdParam(params.campaignId)
   }
 
   return undefined
 }
 
-function mapIdsParam(params: Record<string, unknown>): string[] | undefined {
-  if (params.operation === 'delete_leads') return parseStringList(params.deleteLeadIds)
-  if (params.operation === 'list_leads') return parseStringList(params.leadIds)
+function mapIdsParam(params: Record<string, unknown>, operation: string): string[] | undefined {
+  if (operation === 'delete_leads') return parseStringList(params.deleteLeadIds)
+  if (operation === 'list_leads') return parseStringList(params.leadIds)
   return undefined
 }
 
-function mapStatusParam(params: Record<string, unknown>): number | undefined {
-  if (params.operation === 'delete_leads') return toNumberParam(params.deleteStatus)
-  if (params.operation === 'list_campaigns') return toNumberParam(params.campaignStatus)
+function mapStatusParam(params: Record<string, unknown>, operation: string): number | undefined {
+  if (operation === 'delete_leads') return toNumberParam(params.deleteStatus)
+  if (operation === 'list_campaigns') return toNumberParam(params.campaignStatus)
   return undefined
 }
 
-function mapLimitParam(params: Record<string, unknown>): number | undefined {
-  if (params.operation === 'delete_leads') return toNumberParam(params.deleteLimit)
-  if (isPaginatedOperation(params.operation)) return toNumberParam(params.limit)
+function mapLimitParam(params: Record<string, unknown>, operation: string): number | undefined {
+  if (operation === 'delete_leads') return toNumberParam(params.deleteLimit)
+  if (isPaginatedOperation(operation)) return toNumberParam(params.limit)
   return undefined
 }
 
-function mapStartingAfterParam(params: Record<string, unknown>): unknown {
-  return isPaginatedOperation(params.operation) ? emptyToUndefined(params.startingAfter) : undefined
+function mapStartingAfterParam(params: Record<string, unknown>, operation: string): unknown {
+  return isPaginatedOperation(operation) ? emptyToUndefined(params.startingAfter) : undefined
 }
 
-function mapNameParam(params: Record<string, unknown>): unknown {
-  switch (params.operation) {
+function mapNameParam(params: Record<string, unknown>, operation: string): unknown {
+  switch (operation) {
     case 'create_lead_list':
       return emptyToUndefined(params.leadListName)
     case 'create_campaign':
@@ -1301,10 +1421,32 @@ function mapNameParam(params: Record<string, unknown>): unknown {
   }
 }
 
-function mapSearchParam(params: Record<string, unknown>): unknown {
-  if (params.operation === 'list_emails') return emptyToUndefined(params.emailSearch)
-  if (isSearchOperation(params.operation)) return emptyToUndefined(params.search)
+function mapSearchParam(params: Record<string, unknown>, operation: string): unknown {
+  if (operation === 'list_emails') return emptyToUndefined(params.emailSearch)
+  if (isSearchOperation(operation)) return emptyToUndefined(params.search)
   return undefined
+}
+
+function mapInterestValueParam(
+  params: Record<string, unknown>,
+  operation: string,
+  toolCall: boolean
+): number | null | undefined {
+  if (operation !== 'update_lead_interest_status') return undefined
+  const blockValueEmpty =
+    params.interestValue === undefined ||
+    (typeof params.interestValue === 'string' && params.interestValue.trim() === '')
+  if (toolCall && blockValueEmpty) return toNullableNumberParam(params.interest_value)
+  return toNullableNumberParam(params.interestValue, true)
+}
+
+function mapBodyParam(params: Record<string, unknown>, toolCall: boolean): unknown {
+  const text = emptyToUndefined(params.bodyText)
+  const html = emptyToUndefined(params.bodyHtml)
+  if (toolCall && text === undefined && html === undefined) {
+    return parseJsonObject(params.body) ?? emptyToUndefined(params.body)
+  }
+  return { text, html }
 }
 
 function isPaginatedOperation(value: unknown): boolean {
