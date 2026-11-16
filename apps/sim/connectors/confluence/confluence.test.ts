@@ -730,6 +730,42 @@ describe('Confluence Caelor Optics HTML macros', () => {
     expectOpticsText(document?.content)
   })
 
+  it('leaves commented-out records and bare base64 payloads out of the script data', async () => {
+    const markup =
+      '<h2>Find your app</h2><script>' +
+      "// const retired = {name: 'Retired app'};\n" +
+      "/* {name: 'Draft app'} */ const apps = [{name: 'Zoom', url: 'https://zoom.example/a'}];" +
+      " const icon = {png: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB'};</script>"
+    stubPage({ view: opticsView, storage: opticsMacro(JSON.stringify({ html: markup })) })
+
+    const document = await confluenceConnector.getDocument('token', config, 'optics-page', {
+      cloudId: 'cloud-1',
+    })
+
+    expect(document?.content).toContain('name: Zoom, url: https://zoom.example/a')
+    expect(document?.content).not.toContain('Retired app')
+    expect(document?.content).not.toContain('Draft app')
+    expect(document?.content).not.toContain('iVBORw0KGgo')
+  })
+
+  it('fails hydration when the storage response omits its body so the page retries', async () => {
+    stubFetchWithoutAttachments(
+      vi.fn(async (input: string | URL | Request) => {
+        const format = new URL(String(input)).searchParams.get('body-format')
+        return Response.json({
+          id: 'optics-page',
+          status: 'current',
+          version: { number: 4 },
+          body: format === 'storage' ? {} : { view: { value: `<p>Prose</p>${opticsView}` } },
+        })
+      })
+    )
+
+    await expect(
+      confluenceConnector.getDocument('token', config, 'optics-page', { cloudId: 'cloud-1' })
+    ).rejects.toThrow('missing its storage body')
+  })
+
   it('reads a contentByMode that holds raw HTML instead of JSON', async () => {
     stubPage({ view: opticsView, storage: opticsMacro(opticsHtml) })
 

@@ -940,9 +940,10 @@ export const confluenceConnector: ConnectorConfig = {
       }
       const storagePage = (await response.json()) as { body?: { storage?: { value?: unknown } } }
       const storage = storagePage.body?.storage?.value
-      if (typeof storage === 'string') {
-        plainText = [plainText, extractOpticsHtmlMacroText(storage)].filter(Boolean).join(' ')
+      if (typeof storage !== 'string') {
+        throw new Error('Confluence content is missing its storage body')
       }
+      plainText = [plainText, extractOpticsHtmlMacroText(storage)].filter(Boolean).join(' ')
     }
 
     const links = page._links as Record<string, unknown> | undefined

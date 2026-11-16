@@ -25,6 +25,14 @@ const OBJECT_PROPERTY_PATTERN =
 
 /** Values that are encoded payloads (inline images, fonts), not readable data. */
 const MAX_UNBROKEN_VALUE_LENGTH = 200
+const BASE64_PAYLOAD_PATTERN = /^[A-Za-z0-9+/]{20,}={0,2}$/
+
+/**
+ * A string literal (kept, so a `//` inside `'https://…'` survives) or a comment
+ * (dropped, so commented-out records never read as page data).
+ */
+const STRING_OR_COMMENT_PATTERN =
+  /("(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'|`(?:[^`\\]|\\.)*`)|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g
 
 /**
  * Whether a rendered `view` body may hold an Optics HTML macro, whose text only
@@ -122,7 +130,8 @@ function markupToText(markup: string): string {
 /** Object-literal properties as `key: value` lines, one line per object. */
 function readScriptData(script: string): string {
   const records: string[][] = [[]]
-  for (const match of script.matchAll(OBJECT_PROPERTY_PATTERN)) {
+  const code = script.replace(STRING_OR_COMMENT_PATTERN, (_, literal?: string) => literal ?? ' ')
+  for (const match of code.matchAll(OBJECT_PROPERTY_PATTERN)) {
     const [, opener, bareKey, doubleKey, singleKey, doubleValue, singleValue, numberValue] = match
     const key = bareKey ?? unescapeJsString(doubleKey ?? singleKey ?? '')
     const value = numberValue ?? unescapeJsString(doubleValue ?? singleValue ?? '').trim()
@@ -136,7 +145,7 @@ function readScriptData(script: string): string {
 }
 
 function isReadableValue(value: string): boolean {
-  if (!value || value.startsWith('data:')) return false
+  if (!value || value.startsWith('data:') || BASE64_PAYLOAD_PATTERN.test(value)) return false
   return value.length <= MAX_UNBROKEN_VALUE_LENGTH || /\s/.test(value)
 }
 
