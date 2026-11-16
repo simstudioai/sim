@@ -9,8 +9,10 @@ export const STILL_RUNNING_EXIT_CODE = 4
 
 /**
  * `workflows source apply`/`create` refusals a script handles differently: the workflow changed
- * since the directory was read (`409`: read it again and reapply the edit), the workflow is
- * locked (`423`), the source is over the size limits (`413`). Source errors exit 1.
+ * since the directory was read (`409` with `SOURCE_STALE`, or `E_APPLY_STALE` on a dry run: read
+ * it again and reapply the edit), the workflow is locked (`423`), the source is over the size
+ * limits (`413`, also when `workflows source get` reads it). Source errors and any other `409`
+ * (such as `SOURCE_NAME_TAKEN`) exit 1.
  */
 export const SOURCE_STALE_EXIT_CODE = 5
 export const SOURCE_LOCKED_EXIT_CODE = 6
