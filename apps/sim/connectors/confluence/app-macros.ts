@@ -25,14 +25,16 @@ const OBJECT_PROPERTY_PATTERN =
 
 /** Values that are encoded payloads (inline images, fonts), not readable data. */
 const MAX_UNBROKEN_VALUE_LENGTH = 200
-const BASE64_PAYLOAD_PATTERN = /^[A-Za-z0-9+/]{20,}={0,2}$/
+const BASE64_ALPHABET_PATTERN = /^[A-Za-z0-9+/]{24,}={0,2}$/
 
 /**
- * A string literal (kept, so a `//` inside `'https://…'` survives) or a comment
- * (dropped, so commented-out records never read as page data).
+ * A string literal (kept, so a `//` inside `'https://…'` survives), a regex
+ * literal (kept, so the `//` ending `/https?:\/\//` survives; recognized only
+ * where an expression can start, so division is not mistaken for one), or a
+ * comment (dropped, so commented-out records never read as page data).
  */
 const STRING_OR_COMMENT_PATTERN =
-  /("(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'|`(?:[^`\\]|\\.)*`)|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g
+  /("(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*'|`(?:[^`\\]|\\.)*`|\/(?<=(?:^|[=(,:;!&|?{}[\]+\-*%~^<>]|\breturn)\s*\/)(?![*/])(?:[^/\\\r\n[]|\\.|\[(?:[^\]\\\r\n]|\\.)*\])+\/[a-z]*)|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g
 
 /**
  * Whether a rendered `view` body may hold an Optics HTML macro, whose text only
@@ -145,8 +147,18 @@ function readScriptData(script: string): string {
 }
 
 function isReadableValue(value: string): boolean {
-  if (!value || value.startsWith('data:') || BASE64_PAYLOAD_PATTERN.test(value)) return false
+  if (!value || value.startsWith('data:') || isBase64Payload(value)) return false
   return value.length <= MAX_UNBROKEN_VALUE_LENGTH || /\s/.test(value)
+}
+
+/**
+ * Base64-alphabet runs that also carry the evidence of encoding: padding or
+ * `+`/`/`, or the upper, lower, and digit mix random bytes produce. A long name
+ * (`MicrosoftAuthenticationLibrary`) or numeric id has the alphabet but not this.
+ */
+function isBase64Payload(value: string): boolean {
+  if (!BASE64_ALPHABET_PATTERN.test(value)) return false
+  return /[+/=]/.test(value) || (/[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value))
 }
 
 const JS_ESCAPES: Record<string, string> = { n: ' ', r: ' ', t: ' ', b: '', f: '', v: '' }

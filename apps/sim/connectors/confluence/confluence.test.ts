@@ -730,11 +730,12 @@ describe('Confluence Caelor Optics HTML macros', () => {
     expectOpticsText(document?.content)
   })
 
-  it('leaves commented-out records and bare base64 payloads out of the script data', async () => {
+  it('keeps script data around regex literals and long names, without comments or base64', async () => {
     const markup =
       '<h2>Find your app</h2><script>' +
       "// const retired = {name: 'Retired app'};\n" +
-      "/* {name: 'Draft app'} */ const apps = [{name: 'Zoom', url: 'https://zoom.example/a'}];" +
+      "/* {name: 'Draft app'} */ const re = /https?:\\/\\//; const apps = [{name: 'Zoom', url: 'https://zoom.example/a'}," +
+      " {name: 'MicrosoftAuthenticationLibrary', id: '100200300400500600700'}];" +
       " const icon = {png: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB'};</script>"
     stubPage({ view: opticsView, storage: opticsMacro(JSON.stringify({ html: markup })) })
 
@@ -743,6 +744,9 @@ describe('Confluence Caelor Optics HTML macros', () => {
     })
 
     expect(document?.content).toContain('name: Zoom, url: https://zoom.example/a')
+    expect(document?.content).toContain(
+      'name: MicrosoftAuthenticationLibrary, id: 100200300400500600700'
+    )
     expect(document?.content).not.toContain('Retired app')
     expect(document?.content).not.toContain('Draft app')
     expect(document?.content).not.toContain('iVBORw0KGgo')
