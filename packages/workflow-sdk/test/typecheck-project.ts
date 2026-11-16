@@ -1,14 +1,15 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import type { BlockCatalog } from '@sim/workflow-code'
+import type { ExpandedBlockCatalog } from '@sim/workflow-code'
 import { generateSdkTypes, generateWorkspaceTypes, type SdkTypeFile } from '../src/codegen'
 import { FIXTURE_WORKSPACE } from './fixtures/workspace'
 
 const testRoot = import.meta.dirname
 const packageRoot = path.resolve(testRoot, '..')
 
-export function loadFixtureCatalog(): BlockCatalog {
+/** The fixture catalog, written in expanded form (a valid core shard). */
+export function loadFixtureCatalog(): ExpandedBlockCatalog {
   return JSON.parse(readFileSync(path.join(testRoot, 'fixtures', 'catalog.json'), 'utf8'))
 }
 

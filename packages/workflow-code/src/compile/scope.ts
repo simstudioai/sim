@@ -10,6 +10,7 @@ import {
   RESERVED_WORKFLOW_BLOCK_NAMES,
 } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
+import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
 import { GENERIC_BUILDER } from '../sdk'
 import type { ListOptions } from './comments'
 import {
@@ -87,17 +88,15 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
     return {
       kind: 'builder',
       path: dotted,
-      builder: { kind: 'generic', type, block: ctx.catalog.blocks[type] },
+      builder: { kind: 'generic', type, block: catalogBlock(ctx.catalog, type) },
     }
   }
   if (path.rest.length === 0 && SDK_VALUE_FUNCTIONS.has(root)) return { kind: 'value' }
 
-  const builder = Object.hasOwn(ctx.catalog.builders, dotted)
-    ? ctx.catalog.builders[dotted]
-    : undefined
+  const builder = catalogBuilder(ctx.catalog, dotted)
   if (!builder) {
     const candidates = [
-      ...Object.keys(ctx.catalog.builders),
+      ...catalogBuilderPaths(ctx.catalog),
       ...[...LOOP_METHODS].map((method) => `loop.${method}`),
       ...[...PARALLEL_METHODS].map((method) => `parallel.${method}`),
     ]
@@ -119,7 +118,7 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
       path: dotted,
       type: builder.type,
       builder,
-      block: ctx.catalog.blocks[builder.type],
+      block: catalogBlock(ctx.catalog, builder.type),
     },
   }
 }

@@ -15,6 +15,11 @@ import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
  * no body when nothing changed. That is a deliberate exception to v2's no-ETag rule: the document
  * is megabytes, is already content-addressed, and is what a workflow lock pins, so revalidating by
  * hash is the read's whole purpose.
+ *
+ * The core shard never stores a value twice: a block's trigger-mode fields reference the shared
+ * `triggers` table, and repeated fields, condition lists and output records live once in the
+ * `subBlocks`, `lists` and `outputs` tables. Readers expand it with `expandBlockCatalog` (or the
+ * per-block accessors) from `@sim/workflow-code` rather than walking these references themselves.
  */
 
 export const v2BlockCatalogQuerySchema = z
@@ -43,9 +48,17 @@ export const v2BlockCatalogHeadersSchema = z.object({
 
 const scalarSchema = z.union([z.string(), z.number(), z.boolean()])
 
+const listRefSchema = z
+  .strictObject({
+    list: z.number().int().nonnegative().describe('Index into the catalog `lists` table.'),
+  })
+  .describe('A value list stored once in the catalog `lists` table.')
+
 const conditionValueSchema = z
-  .union([scalarSchema, z.array(scalarSchema)])
-  .describe('Value, or set of accepted values, the named field must hold.')
+  .union([scalarSchema, z.array(scalarSchema), listRefSchema])
+  .describe(
+    'Value, or set of accepted values, the named field must hold; a set may be a `lists` reference.'
+  )
 
 const opaqueSchema = z
   .object({ opaque: z.literal(true).describe('Always true.') })
@@ -74,7 +87,10 @@ const catalogConditionSchema = z
 const catalogOptionSchema = z
   .object({
     id: z.string().describe('Stored option id.'),
-    label: z.string().describe('Display label.'),
+    label: z
+      .string()
+      .optional()
+      .describe('Display label; absent when it equals `id` or lives in the block docs shard.'),
   })
   .describe('One static option.')
 
@@ -187,6 +203,12 @@ const catalogOutputSchema = z
       .record(z.string(), z.unknown().describe('A nested output, of this same shape.'))
       .optional()
       .describe('Nested outputs by name, each of this same shape.'),
+    sharedProperties: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe('In place of `properties`: index of the nested outputs in the catalog `outputs`.'),
     items: z.unknown().optional().describe('Array element output, of this same shape.'),
   })
   .describe('One output field.')
@@ -194,6 +216,27 @@ const catalogOutputSchema = z
 const catalogOutputsSchema = z
   .record(z.string(), catalogOutputSchema)
   .describe('Declared outputs by name.')
+
+const sharedOutputsSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .optional()
+  .describe('In place of `outputs`: index of the outputs in the catalog `outputs` table.')
+
+const sharedSubBlockRefSchema = z
+  .strictObject({
+    shared: z.number().int().nonnegative().describe('Index into the catalog `subBlocks` table.'),
+  })
+  .describe('A field stored once in the catalog `subBlocks` table.')
+
+const triggerSubBlocksRefSchema = z
+  .strictObject({
+    trigger: z.string().describe('Trigger id in the catalog `triggers` table.'),
+    start: z.number().int().nonnegative().describe('First of that trigger’s fields in the run.'),
+    count: z.number().int().positive().describe('How many consecutive fields the run holds.'),
+  })
+  .describe('A run of a shared trigger’s fields, spliced in place, each with `surface: "trigger"`.')
 
 const catalogBlockSchema = z
   .object({
@@ -227,7 +270,9 @@ const catalogBlockSchema = z
       .optional()
       .describe('Trigger mode support.'),
     singleInstance: z.boolean().optional().describe('At most one per workflow.'),
-    subBlocks: z.array(catalogSubBlockSchema).describe('Configuration fields in declared order.'),
+    subBlocks: z
+      .array(z.union([catalogSubBlockSchema, sharedSubBlockRefSchema, triggerSubBlocksRefSchema]))
+      .describe('Configuration fields in declared order, inline or by reference.'),
     tools: z
       .object({
         access: z.array(z.string()).describe('Tool ids the block can call.'),
@@ -247,8 +292,10 @@ const catalogBlockSchema = z
           })
           .describe('One declared input.')
       )
-      .describe('Declared inputs by name.'),
-    outputs: catalogOutputsSchema,
+      .optional()
+      .describe('Declared inputs by name; absent when empty or kept in the block docs shard.'),
+    outputs: catalogOutputsSchema.optional(),
+    sharedOutputs: sharedOutputsSchema,
     dynamicOutputs: z
       .object({
         source: z
@@ -319,8 +366,11 @@ const catalogTriggerSchema = z
     name: z.string().describe('Display name.'),
     polling: z.boolean().optional().describe('Poll-based rather than webhook-based.'),
     webhook: z.boolean().optional().describe('Receives webhooks.'),
-    subBlocks: z.array(catalogSubBlockSchema).describe('Configuration fields in declared order.'),
-    outputs: catalogOutputsSchema,
+    subBlocks: z
+      .array(z.union([catalogSubBlockSchema, sharedSubBlockRefSchema]))
+      .describe('Configuration fields in declared order, inline or by reference.'),
+    outputs: catalogOutputsSchema.optional(),
+    sharedOutputs: sharedOutputsSchema,
   })
   .describe('One trigger a block can run in trigger mode.')
 
@@ -351,6 +401,18 @@ export const v2BlockCatalogSchema = z
     builders: z
       .record(z.string(), catalogBuilderSchema)
       .describe('SDK builder methods keyed by dotted path, e.g. `slack.sendMessage`.'),
+    subBlocks: z
+      .array(catalogSubBlockSchema)
+      .optional()
+      .describe('Fields declared identically by several blocks or triggers, stored once.'),
+    lists: z
+      .array(z.array(scalarSchema))
+      .optional()
+      .describe('Condition value lists used by several fields, stored once.'),
+    outputs: z
+      .array(catalogOutputsSchema)
+      .optional()
+      .describe('Output records repeated across blocks and triggers, stored once.'),
     scope: z
       .object({
         organizationId: z.string().describe('Organization whose custom blocks are included.'),

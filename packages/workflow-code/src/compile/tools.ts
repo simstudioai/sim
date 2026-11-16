@@ -1,5 +1,6 @@
 import type { CallExpression, Node } from '@babel/types'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
+import { catalogBuilder, catalogBuilderPaths } from '../catalog/view'
 import type { CanonicalTool, Json, ParamMode, ResourceNode, UnresolvedNode, Value } from '../model'
 import { setOwn } from '../records'
 import { type CompileContext, lookup, rangeOf } from './context'
@@ -74,7 +75,7 @@ function toolBuilderPath(
   if (toolIndex < 1 || toolIndex < segments.length - 2) return null
   segments.splice(toolIndex, 1)
   const builderPath = segments.join('.')
-  return Object.hasOwn(ctx.catalog.builders, builderPath) ? builderPath : null
+  return catalogBuilder(ctx.catalog, builderPath) ? builderPath : null
 }
 
 function compileToolCall(
@@ -94,7 +95,7 @@ function compileToolCall(
           hint:
             didYouMean(
               [path.root, ...path.rest].filter((segment) => segment !== 'tool').join('.'),
-              Object.keys(ctx.catalog.builders)
+              catalogBuilderPaths(ctx.catalog)
             ) ?? 'Write namespace.tool.method(params, options), or raw(tool).',
         }),
         blockKey: site.decl.key,
@@ -102,7 +103,8 @@ function compileToolCall(
     )
     return null
   }
-  const builder = ctx.catalog.builders[builderPath]
+  const builder = catalogBuilder(ctx.catalog, builderPath)
+  if (!builder) return null
   const [paramsNode, optionsNode, ...extra] = call.arguments
   for (const node of extra)
     unsupported(ctx, node, 'Too many arguments.', 'Write tool(params, options).', site)

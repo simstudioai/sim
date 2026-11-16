@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { canonicalize } from '@sim/workflow-code'
+import { canonicalize, catalogBlock, catalogBuilder } from '@sim/workflow-code'
 import { generateSdkTypes, SPECIAL_BUILDER_KEYS } from '@sim/workflow-sdk/codegen'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
@@ -53,7 +53,7 @@ describe('wave 2 engines over the real block catalog', () => {
 
   it('maps every builder core.d.ts declares to the block type its signature is written for', () => {
     expect(
-      Object.fromEntries(SPECIAL_BUILDER_KEYS.map((key) => [key, catalog.builders[key]]))
+      Object.fromEntries(SPECIAL_BUILDER_KEYS.map((key) => [key, catalogBuilder(catalog, key)]))
     ).toEqual({
       condition: { type: 'condition' },
       router: { type: 'router_v2' },
@@ -73,7 +73,7 @@ describe('wave 2 engines over the real block catalog', () => {
       block.subBlocks.forEach((subBlock, index) => {
         if (subBlock.multiSelect !== true) return
         multiSelects += 1
-        if (catalog.blocks[block.type].subBlocks[index].multiple !== true) {
+        if (catalogBlock(catalog, block.type)?.subBlocks[index]?.multiple !== true) {
           missing.push(`${block.type}.${subBlock.id}`)
         }
       })

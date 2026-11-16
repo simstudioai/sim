@@ -9,6 +9,11 @@ import { compareStrings } from '@sim/utils/string'
 import { portKey } from '../anchors'
 import type { LockHintBlock, LockHints, PrintInput, PrintResult, PrintWorkflowFn } from '../api'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder, CatalogSubBlock } from '../catalog/types'
+import {
+  catalogBlock as catalogBlockOf,
+  catalogBuilder,
+  catalogBuilderPaths,
+} from '../catalog/view'
 import { type CodeFileCodec, type CodeFileLanguage, codeFileCodec } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
@@ -75,13 +80,22 @@ function hasValue(block: CanonicalBlock, id: string): boolean {
  * whose trigger mode differs is used only when none matches, and the caller then prints
  * `triggerMode` in the meta.
  */
+function catalogBuilderEntries(catalog: BlockCatalog): Array<[string, CatalogBuilder]> {
+  const entries: Array<[string, CatalogBuilder]> = []
+  for (const path of catalogBuilderPaths(catalog)) {
+    const builder = catalogBuilder(catalog, path)
+    if (builder) entries.push([path, builder])
+  }
+  return entries
+}
+
 function findBuilder(
   catalog: BlockCatalog,
   type: string,
   triggerMode: boolean,
   read: (id: string) => string | undefined
 ): { path: string; builder: CatalogBuilder } | null {
-  const candidates = Object.entries(catalog.builders)
+  const candidates = catalogBuilderEntries(catalog)
     .filter(([, builder]) => {
       if (builder.type !== type) return false
       if (builder.operation !== undefined && read('operation') !== builder.operation) return false
@@ -272,7 +286,7 @@ class WorkflowPrinter {
   }
 
   private isTrigger(block: CanonicalBlock): boolean {
-    return block.triggerMode || this.catalog.blocks[block.type]?.category === 'triggers'
+    return block.triggerMode || catalogBlockOf(this.catalog, block.type)?.category === 'triggers'
   }
 
   private layout(): void {
@@ -322,7 +336,7 @@ class WorkflowPrinter {
     visit(null)
 
     const reserved = new Set<string>()
-    for (const path of Object.keys(this.catalog.builders)) {
+    for (const path of catalogBuilderPaths(this.catalog)) {
       const [namespace] = path.split('.')
       if (namespace) reserved.add(namespace)
     }
@@ -490,7 +504,7 @@ class WorkflowPrinter {
 
   private printTools(block: CanonicalBlock, tools: CanonicalTool[]): PrintedValue {
     const elements = tools.map((tool) => {
-      const catalogBlock = getOwn(this.catalog.blocks, tool.type)
+      const catalogBlock = catalogBlockOf(this.catalog, tool.type)
       const found = findBuilder(this.catalog, tool.type, false, (id) => {
         if (id === 'operation') return tool.operation
         const value = getOwn(tool.params, id)
@@ -675,7 +689,8 @@ class WorkflowPrinter {
     if (sb.valueKind === 'none' || sb.valueKind === 'branches' || sb.valueKind === 'tools')
       return false
     if (block.triggerMode) return sb.mode === 'trigger'
-    if (sb.mode === 'trigger') return this.catalog.blocks[block.type]?.category === 'triggers'
+    if (sb.mode === 'trigger')
+      return catalogBlockOf(this.catalog, block.type)?.category === 'triggers'
     return sb.mode === undefined || sb.mode === 'basic' || sb.mode === 'both'
   }
 
@@ -761,7 +776,7 @@ class WorkflowPrinter {
 
   private blockCall(block: CanonicalBlock): Expr {
     if (block.subflow) return this.containerCall(block)
-    const catalogBlock = getOwn(this.catalog.blocks, block.type)
+    const catalogBlock = catalogBlockOf(this.catalog, block.type)
     const found = findBuilder(this.catalog, block.type, block.triggerMode, (id) =>
       stringParam(block, id)
     )
@@ -869,7 +884,7 @@ class WorkflowPrinter {
       field('distribution', 'collection', spec.distribution, type !== 'count', 't')
       field('batchSize', 'batchSize', spec.batchSize, true, 't')
     }
-    const catalogBlock = getOwn(this.catalog.blocks, block.type)
+    const catalogBlock = catalogBlockOf(this.catalog, block.type)
     const {
       params,
       inactive: inactiveParams,
@@ -939,7 +954,7 @@ class WorkflowPrinter {
       const isContainer = block.subflow !== undefined
       const hasBranches =
         block.branches !== undefined ||
-        this.catalog.blocks[block.type]?.graph.branches !== undefined
+        catalogBlockOf(this.catalog, block.type)?.graph.branches !== undefined
       const groups = new Map<PortKey, CanonicalEdge[]>()
       for (const edge of edges) {
         const key = portKey(edge.port)

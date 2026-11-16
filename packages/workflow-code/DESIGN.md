@@ -230,3 +230,24 @@ instead of failing at run time.
 - **A15. knip.** Wave 3 removes `includeEntryExports: false` and the `@babel/parser` ignore from
   `knip.jsonc` once the consumers land. The `@sim/utils` ignore is already gone, because
   `hash.ts` uses it.
+- **A16. The core shard is a compact encoding; consumers read it through `catalog/view.ts`.**
+  This extends item 18 and decision 14.
+  - `BlockCatalog` is the served core shard. Its entry types are supersets of the expanded types,
+    so a catalog written in expanded form (every test fixture) is still a valid shard.
+  - A block's trigger-mode subBlocks that equal a run of a shared trigger's subBlocks are stored
+    as `{ trigger, start, count }` and expand with `surface: 'trigger'`.
+  - SubBlocks declared identically more than once live in `BlockCatalog.subBlocks` (`{ shared }`),
+    condition value lists used more than once in `lists` (`{ list }`), and output records used
+    more than once in `outputs` (`sharedOutputs`, `sharedProperties`).
+  - Option labels equal to their id are dropped. Every other label except the `operation`
+    dropdown's (SDK codegen documents operation methods with it) moves to the block's docs shard
+    (`CatalogBlockDocs`), as do the block's `inputs`, which nothing reads.
+  - Titles, output descriptions, defaults and option ids stay in the core shard. SDK codegen reads
+    titles and output descriptions for JSDoc, defaults for optionality and gate values, and option
+    ids for literal unions; the printer checks values against option ids.
+  - `compactBlockCatalog` (`catalog/compact.ts`) encodes. `expandBlockCatalog(catalog, docs?)` and
+    the per-block accessors (`catalogBlock`, `catalogTrigger`, `catalogBuilder`,
+    `catalogBuilderPaths`, `catalogTool`) decode, lazily and memoized per catalog object. No
+    consumer indexes `catalog.blocks`, `catalog.triggers` or `catalog.builders` directly.
+  - The hash is still SHA-256 over `stableStringify` of the core shard, so it stays the ETag and
+    `lock.catalogHash`. It is deterministic: the tables fill in catalog key order.

@@ -12,7 +12,15 @@
  */
 
 import { compareStrings } from '@sim/utils/string'
-import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from '@sim/workflow-code'
+import {
+  type BlockCatalog,
+  type CatalogBlock,
+  type CatalogOutput,
+  type CatalogSubBlock,
+  catalogBlock,
+  catalogBlockTypes,
+  catalogTrigger,
+} from '@sim/workflow-code'
 import { indentLines, jsdoc, literal, pascal, propertyKey, quote, union } from './emit'
 import { mapSubBlock } from './map-subblock'
 import { type BuilderEntry, builderEntries, TOOL_NAMESPACE } from './names'
@@ -213,13 +221,13 @@ function outputSource(
   entry: BuilderEntry
 ): Record<string, CatalogOutput> {
   const triggerId = entry.builder.fixed?.selectedTriggerId
-  if (triggerId && catalog.triggers[triggerId]) return catalog.triggers[triggerId].outputs
+  const pinned = triggerId ? catalogTrigger(catalog, triggerId) : undefined
+  if (pinned) return pinned.outputs
   const isTrigger = entry.builder.triggerMode === true || block.category === 'triggers'
   const available = block.triggers?.available ?? []
-  if (isTrigger && available.length === 1 && catalog.triggers[available[0]]) {
-    return catalog.triggers[available[0]].outputs
-  }
-  return block.outputs
+  const only =
+    isTrigger && available.length === 1 ? catalogTrigger(catalog, available[0]) : undefined
+  return only ? only.outputs : block.outputs
 }
 
 function operationLabel(block: CatalogBlock, operation: string): string | undefined {
@@ -329,7 +337,10 @@ function buildParams(
 }
 
 function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): BuilderTypes {
-  const block = catalog.blocks[entry.builder.type]
+  const block = catalogBlock(catalog, entry.builder.type)
+  if (!block) {
+    throw new Error(`sdk codegen: builder \`${entry.key}\` names unknown block type`)
+  }
   const outputs = outputSource(catalog, block, entry)
   const spec = block.dynamicOutputs ?? null
   const plan = spec && !entry.special ? dynamicOutputPlan(spec, outputs) : null
@@ -553,8 +564,8 @@ function generateBlockFiles(
 
 function modelIds(catalog: BlockCatalog): string[] {
   const ids = new Set<string>()
-  for (const block of Object.values(catalog.blocks)) {
-    for (const subBlock of block.subBlocks) {
+  for (const type of catalogBlockTypes(catalog)) {
+    for (const subBlock of catalogBlock(catalog, type)?.subBlocks ?? []) {
       if (subBlock.id !== 'model' || subBlock.type !== 'combobox') continue
       if (!Array.isArray(subBlock.options)) continue
       for (const option of subBlock.options) ids.add(option.id)
