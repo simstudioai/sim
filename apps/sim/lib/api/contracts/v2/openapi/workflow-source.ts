@@ -30,6 +30,7 @@ const WORKFLOW_SOURCE_EXAMPLE = {
     variables: {},
   },
   base: {
+    workflowId: '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36',
     workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
     fingerprint: FINGERPRINT,
     catalogHash: CATALOG_HASH,
@@ -50,7 +51,7 @@ export const workflowSourceOpenApiRoutes = [
       operationId: 'getWorkflowSource',
       summary: 'Get workflow source',
       description:
-        'Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `base` records the workspace, fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.',
+        'Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `base` records the workflow, workspace, fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.',
       tags: ['Workflows'],
       errors: RESOURCE_ERRORS,
       success: { description: 'The workflow draft as source.', headers: RATE_LIMIT_HEADERS },
@@ -78,7 +79,7 @@ export const workflowSourceOpenApiRoutes = [
       applicationOperation: workflowOperations.applySource,
       operationId: 'applyWorkflowSource',
       summary: 'Apply workflow source',
-      description: `Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and \`fingerprint\` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns \`400\` with \`details.code\` \`SOURCE_REJECTED\` and \`details.diagnostics\` (each with a file, line and column), and nothing is saved. A \`409\` means the draft changed since the source was read (\`details.currentFingerprint\`): get the source again, reapply the edit and retry. Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns \`applied: false\` without saving. The response re-prints the saved source with its new lock and fingerprint. \`dryRun=true\` runs every check without saving and always returns \`200\`. Returns \`403\` while code-first workflows are not enabled. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and \`fingerprint\` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns \`400\` with \`details.code\` \`SOURCE_REJECTED\` and \`details.diagnostics\` (each with a file, line and column), and nothing is saved. A \`409\` means the draft changed since the source was read (\`details.currentFingerprint\`): get the source again, reapply the edit and retry. A \`base.workflowId\` that names another workflow is refused with \`400\` (\`E_APPLY_WORKFLOW_MISMATCH\`). Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns \`applied: false\` without saving. The response re-prints the saved source with its new lock and fingerprint. \`dryRun=true\` runs every check without saving and always returns \`200\`. Returns \`403\` while code-first workflows are not enabled. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Workflows'],
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The applied (or evaluated) source.', headers: RATE_LIMIT_HEADERS },

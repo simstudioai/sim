@@ -3,8 +3,7 @@ import {
   v2GetWorkflowSourceContract,
 } from '@/lib/api/contracts/v2/workflow-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { sourceWriteActor, v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
@@ -38,9 +37,9 @@ export const GET = defineV2JsonRoute({
 
 /**
  * POST /api/v2/workflows/[workflowId]/source — writes TypeScript source to the draft in one
- * all-or-nothing write. Error diagnostics answer 400, a stale fingerprint 409, a locked workflow
- * 423; a dry run answers 200 with its diagnostics in the body. Answers 403 while the
- * `workflow-code` flag is off.
+ * all-or-nothing write. Error diagnostics (and a `base` read from another workflow) answer 400, a
+ * stale fingerprint 409, a locked workflow 423; a dry run answers 200 with its diagnostics in the
+ * body. Answers 403 while the `workflow-code` flag is off. Analytics are recorded by the use case.
  */
 export const POST = defineV2JsonRoute({
   contract: v2ApplyWorkflowSourceContract,
@@ -75,37 +74,4 @@ export const POST = defineV2JsonRoute({
       needsRedeployment: result.needsRedeployment,
     },
   }),
-  /**
-   * Telemetry only, for writes that changed the draft. A personal key or OAuth token counts as
-   * the user behind it (`cli` when the CLI submitted it), and a Copilot delegation as its subject
-   * user with `source: 'copilot'`. Workspace API keys are denied at admission, so no actorless
-   * write reaches here.
-   */
-  onSuccess: ({ principal, input, result }) => {
-    if (!result.applied) return
-    const actor = sourceWriteActor(principal, input.provenance?.client)
-    if (!actor) return
-    const { blocks, edges, variables } = result.diff
-    captureServerEvent(
-      actor.userId,
-      'workflow_source_applied',
-      {
-        workflow_id: result.workflowId,
-        workspace_id: result.workspaceId,
-        source: actor.source,
-        operation: 'apply',
-        changes:
-          blocks.added.length +
-          blocks.removed.length +
-          blocks.renamed.length +
-          blocks.modified.length +
-          edges.added +
-          edges.removed +
-          variables.added.length +
-          variables.removed.length +
-          variables.modified.length,
-      },
-      { groups: { workspace: result.workspaceId } }
-    )
-  },
 })

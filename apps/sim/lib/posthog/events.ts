@@ -147,6 +147,7 @@ export interface PostHogEventMap {
     workflow_id: string
     workspace_id: string
     name: string
+    source?: WorkflowWriteSource
   }
 
   workflow_deployed: {
@@ -937,14 +938,20 @@ export interface PostHogEventMap {
     entry: 'toolbar'
   }
 
-  /** Workflow source wrote a draft: an apply to an existing workflow, or a create. */
+  /**
+   * A workflow source write settled: an apply to an existing workflow, or a create. `ok: false`
+   * is a refusal (`error_kind` `stale`, `rejected` or `locked`); a refused create has an empty
+   * `workflow_id`.
+   */
   workflow_source_applied: {
     workflow_id: string
     workspace_id: string
     source: WorkflowWriteSource
     operation: 'apply' | 'create'
+    ok: boolean
     /** How many blocks, connections and variables the write added, removed or changed. */
-    changes: number
+    ops: number
+    error_kind?: string
   }
 }
 

@@ -41,6 +41,7 @@ import {
 import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
 import { gateSourceDiff } from '@/lib/workflows/code/apply/gates'
 import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
+import { findLiveTriggerRemovals } from '@/lib/workflows/code/apply/live-triggers'
 import { findLockedBlockRefusals } from '@/lib/workflows/code/apply/locked'
 import { boundLock, type StoredSource } from '@/lib/workflows/code/apply/print'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
@@ -175,7 +176,17 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
   })
   const compiledWorkflow = compiled.workflow
   if (!compiledWorkflow || hasErrors(compiled.diagnostics)) {
-    return { refused: compiled.diagnostics.map(createLocator(files, compiled.spans, new Map())) }
+    const refused: Diagnostic[] = [...compiled.diagnostics]
+    if (input.base && input.base.catalogHash !== catalog.hash) {
+      refused.push({
+        code: 'W_APPLY_CATALOG_MOVED',
+        severity: 'warning',
+        message:
+          'The block catalog changed since this source was read, which can explain these errors.',
+        hint: 'Get the source again to print it against the current catalog, then reapply your edit.',
+      })
+    }
+    return { refused: refused.map(createLocator(files, compiled.spans, new Map())) }
   }
 
   const { state } = input.stored
@@ -308,12 +319,16 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     workspaceId: scope.workspaceId,
     isCopilot: principal.kind === 'delegated' && principal.serviceId === 'copilot',
   })
+  const typeChanged = graphDiff.modified.filter((change) => change.typeChanged).map((c) => c.id)
   const refusals: Diagnostic[] = [
     ...findLockedBlockRefusals(storedGraph, { blocks, edges }, graphDiff),
     ...gateDiagnostics,
+    ...(await findLiveTriggerRemovals(
+      scope.workflowId,
+      [...graphDiff.removed, ...typeChanged].map((id) => state.blocks[id])
+    )),
   ]
 
-  const typeChanged = graphDiff.modified.filter((change) => change.typeChanged).map((c) => c.id)
   for (const id of [...graphDiff.added, ...typeChanged]) {
     const block = blocks[id]
     if (block && catalogBlock(catalog, block.type)?.addable === false) {

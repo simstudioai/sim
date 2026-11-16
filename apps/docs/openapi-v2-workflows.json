@@ -5911,7 +5911,7 @@
       "get": {
         "operationId": "getWorkflowSource",
         "summary": "Get workflow source",
-        "description": "Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `base` records the workspace, fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.",
+        "description": "Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `base` records the workflow, workspace, fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.source.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -5990,6 +5990,7 @@
                           "variables": {}
                         },
                         "base": {
+                          "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                           "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                           "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                           "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
@@ -6033,7 +6034,7 @@
       "post": {
         "operationId": "applyWorkflowSource",
         "summary": "Apply workflow source",
-        "description": "Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and `fingerprint` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is saved. A `409` means the draft changed since the source was read (`details.currentFingerprint`): get the source again, reapply the edit and retry. Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns `applied: false` without saving. The response re-prints the saved source with its new lock and fingerprint. `dryRun=true` runs every check without saving and always returns `200`. Returns `403` while code-first workflows are not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and `fingerprint` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is saved. A `409` means the draft changed since the source was read (`details.currentFingerprint`): get the source again, reapply the edit and retry. A `base.workflowId` that names another workflow is refused with `400` (`E_APPLY_WORKFLOW_MISMATCH`). Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns `applied: false` without saving. The response re-prints the saved source with its new lock and fingerprint. `dryRun=true` runs every check without saving and always returns `200`. Returns `403` while code-first workflows are not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.source.apply",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -6097,6 +6098,7 @@
                       "variables": {}
                     },
                     "base": {
+                      "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                       "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                       "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                       "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
@@ -6171,6 +6173,7 @@
                           "variables": {}
                         },
                         "base": {
+                          "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                           "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                           "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                           "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
@@ -6349,6 +6352,7 @@
                           "variables": {}
                         },
                         "base": {
+                          "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                           "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                           "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                           "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
@@ -18069,6 +18073,11 @@
               "base": {
                 "type": "object",
                 "properties": {
+                  "workflowId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Workflow the source was read from; an apply to another workflow is refused."
+                  },
                   "workspaceId": {
                     "type": "string",
                     "description": "Workspace the workflow belongs to."
@@ -18084,7 +18093,7 @@
                     "description": "Hash of the block catalog the source was printed against."
                   }
                 },
-                "required": ["workspaceId", "fingerprint", "catalogHash"],
+                "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
                 "additionalProperties": false,
                 "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
               },
@@ -18193,6 +18202,7 @@
                 "variables": {}
               },
               "base": {
+                "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                 "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                 "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                 "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
@@ -18628,6 +18638,11 @@
               "base": {
                 "type": "object",
                 "properties": {
+                  "workflowId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Workflow the source was read from; an apply to another workflow is refused."
+                  },
                   "workspaceId": {
                     "type": "string",
                     "description": "Workspace the workflow belongs to."
@@ -18643,7 +18658,7 @@
                     "description": "Hash of the block catalog the source was printed against."
                   }
                 },
-                "required": ["workspaceId", "fingerprint", "catalogHash"],
+                "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
                 "additionalProperties": false,
                 "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
               },
@@ -18735,6 +18750,7 @@
                 "variables": {}
               },
               "base": {
+                "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                 "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                 "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                 "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
@@ -18905,6 +18921,11 @@
           "base": {
             "type": "object",
             "properties": {
+              "workflowId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Workflow the source was read from; an apply to another workflow is refused."
+              },
               "workspaceId": {
                 "type": "string",
                 "description": "Workspace the workflow belongs to."
@@ -18920,9 +18941,9 @@
                 "description": "Hash of the block catalog the source was printed against."
               }
             },
-            "required": ["workspaceId", "fingerprint", "catalogHash"],
+            "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
             "additionalProperties": false,
-            "description": "Where and when the source was read (`.sim/base.json`). The apply answers `409` when the saved draft no longer matches `base.fingerprint`."
+            "description": "Where and when the source was read (`.sim/base.json`). The apply answers `409` when the saved draft no longer matches `base.fingerprint`, and `400` when `base.workflowId` names another workflow."
           },
           "provenance": {
             "description": "Where the source came from, for the audit log.",
@@ -18971,6 +18992,7 @@
               "variables": {}
             },
             "base": {
+              "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
               "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
               "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
@@ -19399,6 +19421,11 @@
               "base": {
                 "type": "object",
                 "properties": {
+                  "workflowId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Workflow the source was read from; an apply to another workflow is refused."
+                  },
                   "workspaceId": {
                     "type": "string",
                     "description": "Workspace the workflow belongs to."
@@ -19414,7 +19441,7 @@
                     "description": "Hash of the block catalog the source was printed against."
                   }
                 },
-                "required": ["workspaceId", "fingerprint", "catalogHash"],
+                "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
                 "additionalProperties": false,
                 "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
               },
@@ -19511,6 +19538,7 @@
                 "variables": {}
               },
               "base": {
+                "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
                 "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
                 "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                 "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"

@@ -14,20 +14,25 @@ import { dirname, resolve } from 'node:path'
 import { db, runOutsideTransactionContext } from '@sim/db'
 import {
   auditLog,
+  chat,
   permissions,
   user,
   webhook,
   workflow,
   workflowBlocks,
+  workflowDeploymentVersion,
+  workflowSchedule,
   workflowSourceMeta,
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import {
+  createPersonalApiKeyPrincipal,
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -36,7 +41,7 @@ import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, sql } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit'
-import { afterAll, beforeAll, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import {
@@ -49,6 +54,7 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/ut
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 const ownerId = generateId()
 const workspaceId = generateId()
@@ -524,3 +530,236 @@ function waitForBlocked(holderPid: number, settled: () => boolean): Promise<void
     throw new Error(`Expected a session blocked behind backend ${holderPid}`)
   })
 }
+
+/**
+ * Edge cases of the write itself (polish phase E2): the base names its workflow, the workflow lock
+ * and the source-meta-only write are re-checked under the row lock, a removed block with a live
+ * deployment warns, and refusals reach analytics.
+ */
+describe('apply edges: identity, row lock, live triggers', () => {
+  /** Renames the Score block's ident: a graph no-op that changes only source meta. */
+  function renameScoreIdent(source: ReadWorkflowSourceResult): Record<string, string> {
+    const ident = source.lock.blocks.score.ident
+    return {
+      ...source.files,
+      'workflow.ts': source.files['workflow.ts'].replace(
+        new RegExp(`(?<![\\w/])${ident}(?![\\w]|\\.js)`, 'g'),
+        'scoring'
+      ),
+    }
+  }
+
+  /** Drops the Score block: every line naming its ident, and its function file. */
+  function deleteScore(source: ReadWorkflowSourceResult): Record<string, string> {
+    const ident = source.lock.blocks.score.ident
+    const mentions = new RegExp(`(?<![\\w/])${ident}(?![\\w])`)
+    const files = Object.fromEntries(
+      Object.entries(source.files).filter(([path]) => !path.startsWith('functions/'))
+    )
+    return {
+      ...files,
+      'workflow.ts': source.files['workflow.ts']
+        .split('\n')
+        .filter((line) => !mentions.test(line))
+        .join('\n'),
+    }
+  }
+
+  async function storedSourceMeta(workflowId: string) {
+    const [row] = await db
+      .select({ meta: workflowSourceMeta.meta })
+      .from(workflowSourceMeta)
+      .where(eq(workflowSourceMeta.workflowId, workflowId))
+    return row?.meta ?? null
+  }
+
+  check('a base read from another workflow is refused with 400 and writes nothing', async () => {
+    const [target, other] = await Promise.all([seedWorkflow(), seedWorkflow()])
+    const otherSource = await getSource(other.workflowId)
+    const before = await snapshot(target.workflowId)
+
+    const error = await expectRejected(
+      apply(
+        { ...otherSource, workflowId: target.workflowId },
+        edit(otherSource.files, SCORE_CODE, 'return 20')
+      ),
+      'E_APPLY_WORKFLOW_MISMATCH'
+    )
+
+    expect(error.code).toBe('validation')
+    expect(await snapshot(target.workflowId)).toEqual(before)
+    expect(await settledAuditRows(target.workflowId, 0)).toHaveLength(0)
+  })
+
+  check('a workflow locked while the apply waits on the row lock refuses it with 423', async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+    let outcome: Promise<unknown> = Promise.resolve()
+    let settled = false
+
+    await db.transaction(async (tx) => {
+      const [self] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      await tx
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(eq(workflow.id, seeded.workflowId))
+        .for('update')
+      outcome = runOutsideTransactionContext(() =>
+        apply(source, edit(source.files, SCORE_CODE, 'return 21')).finally(() => {
+          settled = true
+        })
+      )
+      await waitForBlocked(Number(self?.pid), () => settled)
+      await tx.update(workflow).set({ locked: true }).where(eq(workflow.id, seeded.workflowId))
+    })
+
+    await expect(outcome).rejects.toMatchObject({ code: 'locked' })
+    const after = await snapshot(seeded.workflowId)
+    expect(after.state?.blocks[seeded.scoreId]?.subBlocks.code?.value).toBe(SCORE_CODE)
+  })
+
+  check(
+    'a source-meta-only apply queues on the row lock and refuses a draft that moved meanwhile',
+    async () => {
+      const seeded = await seedWorkflow()
+      const source = await getSource(seeded.workflowId)
+      const metaBefore = await storedSourceMeta(seeded.workflowId)
+      let outcome: Promise<unknown> = Promise.resolve()
+      let settled = false
+
+      await db.transaction(async (tx) => {
+        const [self] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        await tx
+          .select({ id: workflow.id })
+          .from(workflow)
+          .where(eq(workflow.id, seeded.workflowId))
+          .for('update')
+        outcome = runOutsideTransactionContext(() =>
+          apply(source, renameScoreIdent(source)).finally(() => {
+            settled = true
+          })
+        )
+        await waitForBlocked(Number(self?.pid), () => settled)
+        await canvasSubBlockWrite(tx, seeded.scoreId, 'return 22')
+      })
+
+      await expect(outcome).rejects.toMatchObject({ code: 'conflict' })
+      expect(await storedSourceMeta(seeded.workflowId)).toEqual(metaBefore)
+    }
+  )
+
+  check('a source-meta-only apply stores the meta and notifies open Code tabs', async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+    const before = await snapshot(seeded.workflowId)
+
+    const result = await apply(source, renameScoreIdent(source))
+
+    expect(result.applied).toBe(false)
+    expect(result.lock.blocks.score.ident).toBe('scoring')
+    expect(await storedSourceMeta(seeded.workflowId)).toMatchObject({
+      idents: { [seeded.scoreId]: 'scoring' },
+    })
+    expect(await snapshot(seeded.workflowId)).toEqual(before)
+    expect(notifiedFor(seeded.workflowId)).toBe(1)
+    expect(await settledAuditRows(seeded.workflowId, 0)).toHaveLength(0)
+  })
+
+  check(
+    'deleting a block the live deployment serves warns with its webhook, schedule and chat output',
+    async () => {
+      const seeded = await seedWorkflow()
+      const versionId = generateId()
+      await db.insert(workflowDeploymentVersion).values({
+        id: versionId,
+        workflowId: seeded.workflowId,
+        version: 1,
+        state: {},
+        isActive: true,
+      })
+      await db.insert(webhook).values({
+        id: generateId(),
+        workflowId: seeded.workflowId,
+        deploymentVersionId: versionId,
+        blockId: seeded.scoreId,
+        path: `source-live-${generateId()}`,
+      })
+      await db.insert(workflowSchedule).values({
+        id: generateId(),
+        workflowId: seeded.workflowId,
+        deploymentVersionId: versionId,
+        blockId: seeded.scoreId,
+        triggerType: 'schedule',
+      })
+      await db.insert(chat).values({
+        id: generateId(),
+        workflowId: seeded.workflowId,
+        userId: ownerId,
+        identifier: `source-live-${generateId()}`,
+        title: 'Live chat',
+        outputConfigs: [{ blockId: seeded.scoreId, path: 'result' }],
+      })
+      const source = await getSource(seeded.workflowId)
+
+      const result = await apply(source, deleteScore(source))
+
+      expect(result.applied).toBe(true)
+      expect(result.diff.blocks.removed.map((block) => block.id)).toEqual([seeded.scoreId])
+      const warning = result.diagnostics.find((d) => d.code === 'W_APPLY_TRIGGER_REMOVED')
+      expect(warning).toMatchObject({ severity: 'warning', blockId: seeded.scoreId })
+      expect(warning?.message).toContain('webhook, schedule, chat output')
+      expect(warning?.message).toContain('only the draft')
+    }
+  )
+
+  check('the same delete with no active deployment carries no live-trigger warning', async () => {
+    const seeded = await seedWorkflow()
+    await db.insert(webhook).values({
+      id: generateId(),
+      workflowId: seeded.workflowId,
+      blockId: seeded.scoreId,
+      path: `source-draft-${generateId()}`,
+    })
+    const source = await getSource(seeded.workflowId)
+
+    const result = await apply(source, deleteScore(source))
+
+    expect(result.applied).toBe(true)
+    expect(result.diagnostics.map((d) => d.code)).not.toContain('W_APPLY_TRIGGER_REMOVED')
+  })
+
+  check('a stale apply by a personal key is recorded as a refused apply', async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+    await db
+      .update(workflowBlocks)
+      .set({ locked: true })
+      .where(eq(workflowBlocks.id, seeded.startId))
+
+    await expect(
+      withPermissionGroupScope(() =>
+        applyWorkflowSource.execute({
+          principal: createPersonalApiKeyPrincipal({ userId: ownerId, keyId: generateId() }),
+          input: {
+            workflowId: seeded.workflowId,
+            files: edit(source.files, SCORE_CODE, 'return 23'),
+            lock: source.lock,
+            base: source.base,
+            provenance: { client: 'cli' },
+          },
+        })
+      )
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
+      ownerId,
+      'workflow_source_applied',
+      expect.objectContaining({
+        workflow_id: seeded.workflowId,
+        source: 'cli',
+        ok: false,
+        error_kind: 'stale',
+      }),
+      { groups: { workspace: workspaceId } }
+    )
+  })
+})

@@ -733,6 +733,7 @@ export type ApplyWorkflowSourceBody = {
     variables: Record<string, string>
   }
   base: {
+    workflowId: string
     workspaceId: string
     fingerprint: string
     catalogHash: string
@@ -832,6 +833,7 @@ export type ApplyWorkflowSourceResponse = {
       variables: Record<string, string>
     }
     base: {
+      workflowId: string
       workspaceId: string
       fingerprint: string
       catalogHash: string
@@ -4308,6 +4310,7 @@ export type CreateWorkflowFromSourceResponse = {
       variables: Record<string, string>
     }
     base: {
+      workflowId: string
       workspaceId: string
       fingerprint: string
       catalogHash: string
@@ -9046,6 +9049,7 @@ export type GetWorkflowSourceResponse = {
       variables: Record<string, string>
     }
     base: {
+      workflowId: string
       workspaceId: string
       fingerprint: string
       catalogHash: string
@@ -17635,7 +17639,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         required: true,
         describe:
-          'Where and when the source was read (`.sim/base.json`). The apply answers `409` when the saved draft no longer matches `base.fingerprint`.',
+          'Where and when the source was read (`.sim/base.json`). The apply answers `409` when the saved draft no longer matches `base.fingerprint`, and `400` when `base.workflowId` names another workflow.',
       },
       provenance: { kind: 'object', describe: 'Where the source came from, for the audit log.' },
     },
