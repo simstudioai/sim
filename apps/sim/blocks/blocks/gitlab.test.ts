@@ -95,9 +95,13 @@ describe('GitLabBlock access operations', () => {
   })
 })
 
+const blockParams = block.tools.config?.params
+if (!blockParams) throw new Error('GitLab block has no params mapper')
+const mapParams = blockParams
+
 /** Runs the mapper the way a tool call does: model/stored args with no operation, which arrives in context. */
 function mapToolCall(operation: string, args: Record<string, unknown>) {
-  return block.tools.config.params?.({ accessToken: 'pat', ...args }, { operation })
+  return mapParams({ accessToken: 'pat', ...args }, { operation })
 }
 
 describe('GitLabBlock mapper on tool calls', () => {
@@ -171,7 +175,7 @@ describe('GitLabBlock mapper on tool calls', () => {
   })
 
   it('does not apply tool-named fallbacks on the canvas', () => {
-    const canvas = block.tools.config.params?.({
+    const canvas = mapParams({
       accessToken: 'pat',
       operation: 'gitlab_list_merge_requests',
       projectId: '1',
@@ -182,7 +186,7 @@ describe('GitLabBlock mapper on tool calls', () => {
 
   it('keeps create-only advanced values saved under another operation off update and merge requests', () => {
     const canvas = (operation: string, extra: Record<string, unknown>) =>
-      block.tools.config.params?.({
+      mapParams({
         accessToken: 'pat',
         operation,
         projectId: '1',
@@ -294,7 +298,7 @@ describe('GitLabBlock mapper on tool calls', () => {
   })
 
   it('leaves a blank canvas field unsent on update operations', () => {
-    const result = block.tools.config.params?.({
+    const result = mapParams({
       accessToken: 'pat',
       operation: 'gitlab_update_issue',
       projectId: '1',

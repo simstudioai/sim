@@ -21,13 +21,13 @@ export const slackRevokeCanvasAccessTool = createSlackWebApiTool({
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'One Slack user ID to remove, as ["U123"] or U123. Omit channel_ids.',
+      description: 'One Slack user ID to remove, as ["U123"] or U123.',
     },
     channel_ids: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'One Slack channel ID to remove, as ["C123"] or C123. Omit user_ids.',
+      description: 'One Slack channel ID to remove, as ["C123"] or C123.',
     },
   },
   input: z

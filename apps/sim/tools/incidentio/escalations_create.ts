@@ -86,7 +86,8 @@ export const escalationsCreateTool: ToolConfig<
         body.user_ids = parseIncidentioList(params.user_ids)
       }
 
-      if (params.incident_id) body.incident_id = params.incident_id.trim()
+      const incidentId = params.incident_id?.trim()
+      if (incidentId) body.incident_id = incidentId
       if (params.description) body.description = params.description
 
       return body

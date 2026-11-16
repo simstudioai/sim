@@ -1798,7 +1798,7 @@ export interface GetIssueParams extends BaseGitHubParams {
 
 export interface CloseIssueParams extends BaseGitHubParams {
   issue_number: number
-  state_reason?: 'completed' | 'not_planned'
+  state_reason?: 'completed' | 'not_planned' | 'duplicate'
 }
 
 export interface AddLabelsParams extends BaseGitHubParams {

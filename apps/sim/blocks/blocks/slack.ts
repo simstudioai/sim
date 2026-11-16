@@ -1993,7 +1993,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             baseParams.accessToken = botToken
           }
         } else {
-          baseParams.credential = oauthCredential ?? toolCallArg(context, params.credential)
+          baseParams.credential = oauthCredential
         }
 
         switch (operation) {

@@ -109,6 +109,12 @@ describe('github_get_file_content URL', () => {
     expect(built.pathname).toBe('/repos/o/r/contents/docs/a%23b.md')
     expect(built.searchParams.get('ref')).toBe('feat+x')
   })
+
+  it('rejects a path that would climb out of the contents endpoint', () => {
+    expect(() =>
+      url(getFileContentTool, { owner: 'o', repo: 'r', path: 'docs/../../pulls' })
+    ).toThrow('..')
+  })
 })
 
 describe('github_list_issue_comments', () => {

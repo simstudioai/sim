@@ -195,8 +195,8 @@ export function encodeGitLabResourceId(resourceId: string | number): string {
   } catch {
     // Not a valid percent-encoding (e.g. a bare `%`) - treat as already raw.
   }
-  if (decoded.trim() === '.' || decoded.trim() === '..') {
-    throw new Error(`GitLab project or group ID cannot be "${decoded.trim()}"`)
+  if (decoded === '.' || decoded === '..') {
+    throw new Error(`GitLab project or group ID cannot be "${decoded}"`)
   }
   return encodeURIComponent(decoded)
 }

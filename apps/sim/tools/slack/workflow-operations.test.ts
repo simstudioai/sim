@@ -35,6 +35,7 @@ import { slackRemoveBookmarkTool } from '@/tools/slack/remove_bookmark'
 import { slackRevokeCanvasAccessTool } from '@/tools/slack/revoke_canvas_access'
 import { slackSetUserPresenceTool } from '@/tools/slack/set_user_presence'
 import { slackShareCanvasTool } from '@/tools/slack/share_canvas'
+import type { SlackOpenViewParams } from '@/tools/slack/types'
 import { slackUnarchiveConversationTool } from '@/tools/slack/unarchive_conversation'
 import { slackUnfurlLinksTool } from '@/tools/slack/unfurl_links'
 import { slackUnpinMessageTool } from '@/tools/slack/unpin_message'
@@ -385,9 +386,13 @@ describe('Slack ID list inputs', () => {
 
 describe('Slack views.open targeting', () => {
   it('accepts an interactivity pointer alone and rejects a call with neither target', () => {
-    const body = (params: Record<string, unknown>) =>
-      (slackOpenViewTool.request.body as (p: Record<string, unknown>) => unknown)({
-        ...auth,
+    const buildBody = slackOpenViewTool.request.body
+    if (typeof buildBody !== 'function') throw new Error('views.open has no request body builder')
+    const body = (params: Partial<SlackOpenViewParams>) =>
+      buildBody({
+        authMethod: 'oauth',
+        accessToken: 'test-token',
+        botToken: '',
         view: { type: 'modal' },
         ...params,
       })

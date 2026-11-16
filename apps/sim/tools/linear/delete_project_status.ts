@@ -10,7 +10,7 @@ export const linearDeleteProjectStatusTool: ToolConfig<
   LinearDeleteProjectStatusResponse
 > = {
   id: 'linear_delete_project_status',
-  name: 'Linear Archive Project Status',
+  name: 'Linear Delete Project Status',
   description:
     'Archive a project status in Linear (Linear does not support deleting one). The status must have no active projects and must not be the last status of its type.',
   version: '1.0.0',

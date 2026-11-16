@@ -13,7 +13,9 @@ const COMMITS_FORMAT_ERROR =
  */
 function parseCommits(value: SentryCreateReleaseParams['commits']): unknown[] | undefined {
   if (Array.isArray(value)) return value
-  if (typeof value !== 'string' || value.trim() === '') return undefined
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') throw new Error(COMMITS_FORMAT_ERROR)
+  if (value.trim() === '') return undefined
   let parsed: unknown
   try {
     parsed = JSON.parse(value)

@@ -12,7 +12,7 @@ export const linearCreateCustomerRequestTool: ToolConfig<
   id: 'linear_create_customer_request',
   name: 'Linear Create Customer Request',
   description:
-    'Create a customer request (need) in Linear. Assign to customer, set urgency (priority: 0 = Not important, 1 = Important), and optionally link to an issue.',
+    'Create a customer request (need) in Linear. Assign to customer, set urgency (priority: 0 = Not important, 1 = Important), and link it to an issue (required for API calls).',
   version: '1.0.0',
 
   oauth: {

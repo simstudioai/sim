@@ -30,6 +30,10 @@ describe('sentry_releases_create body', () => {
     expect(() => releaseBody({ commits: '[{"id":"abc123"},]' })).toThrow(/JSON array/)
   })
 
+  it('rejects a commits value that is neither an array nor JSON text', () => {
+    expect(() => releaseBody({ commits: JSON.parse('{"id":"abc123"}') })).toThrow(/JSON array/)
+  })
+
   it('accepts projects that arrive as an array', () => {
     expect(releaseBody({ projects: ['web', ' api ', ''] })).toMatchObject({
       projects: ['web', 'api'],

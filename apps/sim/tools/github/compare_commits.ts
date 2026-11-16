@@ -92,7 +92,7 @@ export const compareCommitsTool: ToolConfig<CompareCommitsParams, CompareCommits
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Page of the commit list. Changed files are returned only on page 1. Leave unset (with per_page) for a single unpaginated comparison.',
+        'Page of the commit list. Changed files are returned only on page 1. Omit both page and per_page to get up to 250 commits in one response.',
     },
     apiKey: {
       type: 'string',

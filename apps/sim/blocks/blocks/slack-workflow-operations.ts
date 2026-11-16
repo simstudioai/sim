@@ -18,6 +18,8 @@ interface SlackWorkflowField {
   dependsOn?: string[]
   default?: string
   allowEmpty?: boolean
+  /** A Slack ID list: Slack's comma-separated form (`U1,U2`) is passed through for the tool to parse. */
+  idList?: boolean
   basic?: boolean
   min?: number
   max?: number
@@ -215,6 +217,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'user_ids',
         title: 'User IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -223,6 +226,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'channel_ids',
         title: 'Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
     ],
@@ -246,6 +250,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'user_ids',
         title: 'User IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -254,6 +259,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'channel_ids',
         title: 'Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
     ],
@@ -374,6 +380,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'users',
         title: 'User IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -946,6 +953,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'channels',
         title: 'Default Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -953,6 +961,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'additional_channels',
         title: 'Additional Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -1022,6 +1031,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'channels',
         title: 'Default Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -1029,6 +1039,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'additional_channels',
         title: 'Additional Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -1195,6 +1206,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'users',
         title: 'User IDs',
         type: 'json',
+        idList: true,
         required: true,
       },
       {
@@ -1202,6 +1214,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'additional_channels',
         title: 'Additional Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -1260,6 +1273,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'users',
         title: 'User IDs',
         type: 'json',
+        idList: true,
         required: true,
       },
       {
@@ -1442,8 +1456,15 @@ export function mapSlackWorkflowParams(
     if (isEmpty && toolCallArg(context, params[field.param]) !== undefined) continue
     const value = isEmpty ? field.default : raw
     if (value === undefined) continue
-    if (field.type === 'json') result[field.param] = parseOptionalJsonInput(value, field.title)
-    else if (field.type === 'number')
+    if (field.type === 'json') {
+      const csvIdList =
+        field.idList === true &&
+        typeof value === 'string' &&
+        value.trim() !== '' &&
+        !/^\s*[[{"]/.test(value)
+      if (csvIdList) result[field.param] = value
+      else result[field.param] = parseOptionalJsonInput(value, field.title)
+    } else if (field.type === 'number')
       result[field.param] = parseOptionalNumberInput(value, field.title, {
         integer: true,
         min: field.min,

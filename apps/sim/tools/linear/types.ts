@@ -185,6 +185,7 @@ export const PROJECT_FULL_OUTPUT_PROPERTIES = {
     type: 'object',
     description: 'Current project status',
     optional: true,
+    nullable: true,
     properties: {
       id: { type: 'string', description: 'Project status ID' },
       name: { type: 'string', description: 'Project status name' },
@@ -249,7 +250,7 @@ export const ISSUE_OUTPUT_PROPERTIES = {
   },
   estimate: { type: 'number', description: 'Estimate in points' },
   url: { type: 'string', description: 'Issue URL' },
-  dueDate: { type: 'string', description: 'Due date (YYYY-MM-DD)' },
+  dueDate: { type: 'string', description: 'Due date (YYYY-MM-DD)', nullable: true },
   createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
   updatedAt: { type: 'string', description: 'Last update timestamp (ISO 8601)' },
   completedAt: { type: 'string', description: 'Completion timestamp (ISO 8601)' },

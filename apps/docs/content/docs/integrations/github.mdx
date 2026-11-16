@@ -210,26 +210,8 @@ Retrieve the latest commit from a GitHub repository
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `commit` | object | Core commit data |
-|   ↳ `url` | string | Commit API URL |
-|   ↳ `message` | string | Commit message |
-|   ↳ `comment_count` | number | Number of comments |
-|   ↳ `author` | object | Git actor \(author/committer\) |
-|     ↳ `name` | string | Name |
-|     ↳ `email` | string | Email address |
-|     ↳ `date` | string | Timestamp \(ISO 8601\) |
-|   ↳ `committer` | object | Git actor \(author/committer\) |
-|     ↳ `name` | string | Name |
-|     ↳ `email` | string | Email address |
-|     ↳ `date` | string | Timestamp \(ISO 8601\) |
-|   ↳ `tree` | object | Tree object |
-|     ↳ `sha` | string | Tree SHA |
-|     ↳ `url` | string | Tree API URL |
-|   ↳ `verification` | object | Signature verification |
-|     ↳ `verified` | boolean | Whether signature is verified |
-|     ↳ `reason` | string | Verification reason |
-|     ↳ `signature` | string | GPG signature |
-|     ↳ `payload` | string | Signed payload |
+| `sha` | string | Commit SHA |
+| `html_url` | string | GitHub web URL |
 | `author` | object | GitHub user object |
 |   ↳ `login` | string | GitHub username |
 |   ↳ `id` | number | User ID |
@@ -248,8 +230,6 @@ Retrieve the latest commit from a GitHub repository
 |   ↳ `html_url` | string | Profile page URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
-| `sha` | string | Commit SHA |
-| `html_url` | string | GitHub web URL |
 
 </ReferenceDetails>
 
@@ -2726,7 +2706,7 @@ Compare two commits or branches to see the diff, commits between them, and chang
 | `base` | string | Yes | Base branch/tag/SHA for comparison |
 | `head` | string | Yes | Head branch/tag/SHA for comparison |
 | `per_page` | number | No | Commits per page \(max 100\). Setting per_page or page paginates the commit list, and changed files are returned only on page 1. Leave both unset to get up to 250 commits and every changed file in one response. |
-| `page` | number | No | Page of the commit list. Changed files are returned only on page 1. Leave unset \(with per_page\) for a single unpaginated comparison. |
+| `page` | number | No | Page of the commit list. Changed files are returned only on page 1. Omit both page and per_page to get up to 250 commits in one response. |
 
 #### Output
 

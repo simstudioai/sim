@@ -102,7 +102,14 @@ describe('Slack operations', () => {
     )
 
     const result = await executeSlackGetChannelHistoryOperation(
-      { accessToken: 'token', channel: 'C1', limit: 999, maxPages: 10000 },
+      {
+        authMethod: 'oauth',
+        accessToken: 'token',
+        botToken: '',
+        channel: 'C1',
+        limit: 999,
+        maxPages: 10000,
+      },
       new AbortController().signal
     )
 
