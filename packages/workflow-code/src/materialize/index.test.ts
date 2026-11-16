@@ -280,6 +280,34 @@ describe('materialize: params keep prev bytes unless they changed', () => {
   })
 })
 
+describe('materialize: tool params', () => {
+  it('stores a changed tool param as the text decodeToolParamValue reads back, else natively', () => {
+    const state = workflowState([blockState('a1', 'agent', 'Agent', { model: 'gpt-4o' })])
+    const target = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.agent.params.tools = {
+        kind: 'tools',
+        tools: [
+          {
+            type: 'slack',
+            toolId: 'slack_message',
+            params: { limit: 5, notify: true, channel: 'C1', manualChannel: null },
+            modes: { channel: 'basic', oauthCredential: 'basic' },
+          },
+        ],
+      }
+    })
+    const result = run(target, null, { prev: state })
+    const stored = JSON.parse(String(subBlockValue(result.state, 'a1', 'tools')))
+    expect(stored[0].params).toEqual({
+      limit: '5',
+      notify: 'true',
+      channel: 'C1',
+      manualChannel: null,
+    })
+    expect(canonicalEquals(canonical(result.state).workflow, target)).toBe(true)
+  })
+})
+
 describe('materialize: branches', () => {
   const state = () => QUIRK_STATES[3][1]
 
