@@ -336,6 +336,7 @@ export const compileWorkflow: CompileWorkflowFn = (input) => {
     catalog: input.catalog,
     files: input.files,
     limits,
+    codeFiles: { reads: new Map(), refs: 0, bytes: 0 },
     comments: new CommentCollector(file, reporter),
     decls: [],
     declsByKey: new Map(),

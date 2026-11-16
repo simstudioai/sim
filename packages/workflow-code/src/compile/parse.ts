@@ -11,6 +11,9 @@ export const DEFAULT_LIMITS: Required<CompileLimits> = {
   maxBytes: 1_000_000,
   maxNodes: 500_000,
   maxDepth: 200,
+  maxCodeFileBytesTotal: 5_000_000,
+  /** One code file per block at the v2 graph block cap (`MAX_WORKFLOW_GRAPH_BLOCKS`). */
+  maxCodeFileRefs: 2_000,
 }
 
 const HEADER = /^\/\/ @sim-sdk ([0-9]{1,6})[ \t]*(?=\r\n|[\n\r\u2028\u2029]|$)/
@@ -55,7 +58,7 @@ export function childNodes(node: Node): Node[] {
 }
 
 /** UTF-8 length of `text`, counting at most `cap + 1` bytes. */
-function utf8Length(text: string, cap: number): number {
+export function utf8Length(text: string, cap: number): number {
   let bytes = 0
   for (let i = 0; i < text.length && bytes <= cap; i++) {
     const code = text.charCodeAt(i)
@@ -75,7 +78,7 @@ function utf8Length(text: string, cap: number): number {
  * comments are skipped well enough that their brackets never count; regex bodies may, which only
  * matters for pathological input that is rejected anyway.
  */
-function bracketDepthOverflow(text: string, maxDepth: number): number {
+export function bracketDepthOverflow(text: string, maxDepth: number): number {
   const templateDepths: number[] = []
   let depth = 0
   for (let i = 0; i < text.length; i++) {

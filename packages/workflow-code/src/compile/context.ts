@@ -81,6 +81,16 @@ interface ImpliedEdge {
   body: ArrowFunctionExpression
 }
 
+/** Code-file reads within one compile: each distinct file is read and parsed once. */
+export interface CodeFileBudget {
+  /** Repo-relative path → stored code, or `null` when the file was rejected. */
+  reads: Map<string, string | null>
+  /** `file()` references seen so far. */
+  refs: number
+  /** Bytes of the distinct files read so far. */
+  bytes: number
+}
+
 export interface CompileContext {
   file: string
   text: string
@@ -88,6 +98,7 @@ export interface CompileContext {
   catalog: BlockCatalog
   files: ReadonlyMap<string, string>
   limits: Required<CompileLimits>
+  codeFiles: CodeFileBudget
   comments: CommentCollector
   decls: BlockDecl[]
   declsByKey: Map<BlockKey, BlockDecl>

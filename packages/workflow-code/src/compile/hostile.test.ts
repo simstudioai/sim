@@ -34,6 +34,10 @@ function codes(result: CompileResult): string[] {
   return result.diagnostics.map((d) => d.code)
 }
 
+function errorCodes(result: CompileResult): string[] {
+  return result.diagnostics.filter((d) => d.severity === 'error').map((d) => d.code)
+}
+
 function sentinel(): unknown {
   return Reflect.get(globalThis, SENTINEL)
 }
@@ -149,6 +153,61 @@ describe('hostile sources produce diagnostics only', () => {
     const text = `// @sim-sdk 1\nimport { file, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('X', {}, () => {\n  const a = fn('A', { code: file('../../etc/passwd.js') })\n  const b = fn('B', { code: file('./big.js') })\n})\n`
     const result = run(text, { maxBytes: 1_000 }, { 'workflows/big.js': 'x'.repeat(5_000) })
     expect(codes(result)).toEqual(expect.arrayContaining(['E_CODE_FILE_PATH', 'E_LIMIT_EXCEEDED']))
+  })
+
+  describe('code file budget', () => {
+    const FILE_HEADER = "// @sim-sdk 1\nimport { file, fn, workflow } from '@sim/workflow-sdk'\n\n"
+    const fnFile = (count: number, path: (i: number) => string) =>
+      `${FILE_HEADER}export default workflow('X', {}, () => {\n${Array.from(
+        { length: count },
+        (_, i) => `  const f${i} = fn('F${i}', { code: file('${path(i)}') })`
+      ).join('\n')}\n})\n`
+
+    it('parses a code file referenced by many blocks once', () => {
+      const body = `const x = [${Array.from({ length: 60_000 }, (_, i) => i).join(',')}]\n`
+      const started = Date.now()
+      const result = run(
+        fnFile(200, () => './a.js'),
+        undefined,
+        { 'workflows/a.js': body }
+      )
+      const elapsed = Date.now() - started
+      expect(codes(result)).toEqual([])
+      expect(elapsed).toBeLessThan(2_000)
+    })
+
+    it('caps the total bytes of distinct code files', () => {
+      const files = Object.fromEntries(
+        Array.from({ length: 4 }, (_, i) => [`workflows/f${i}.js`, `return ${'1'.repeat(700)}\n`])
+      )
+      const result = run(
+        fnFile(4, (i) => `./f${i}.js`),
+        { maxBytes: 1_000, maxCodeFileBytesTotal: 2_000 },
+        files
+      )
+      expect(codes(result)).toContain('E_LIMIT_EXCEEDED')
+      expect(result.workflow).toBeNull()
+    })
+
+    it('caps the number of file() references with one diagnostic', () => {
+      const result = run(
+        fnFile(10, () => './a.js'),
+        { maxCodeFileRefs: 3 },
+        { 'workflows/a.js': 'return 1\n' }
+      )
+      expect(errorCodes(result)).toEqual(['E_LIMIT_EXCEEDED'])
+    })
+
+    it('rejects a depth bomb in a code file before parsing it', () => {
+      const result = run(
+        fnFile(1, () => './a.js'),
+        undefined,
+        {
+          'workflows/a.js': `return ${'['.repeat(100_000)}${']'.repeat(100_000)}\n`,
+        }
+      )
+      expect(errorCodes(result)).toEqual(['E_LIMIT_EXCEEDED'])
+    })
   })
 
   it('returns diagnostics for binary garbage', () => {

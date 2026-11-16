@@ -232,9 +232,15 @@ export interface LockHints {
 
 /** Caps on hostile input (s4 D7). Defaults are the compile module's. */
 export interface CompileLimits {
+  /** Bytes of the entry file, and of each code file. */
   maxBytes?: number
   maxNodes?: number
+  /** Nesting depth of the entry file, and bracket depth of each JavaScript code file. */
   maxDepth?: number
+  /** Bytes summed over the distinct code files `file()` references. */
+  maxCodeFileBytesTotal?: number
+  /** `file()` references across the workflow, distinct or not. */
+  maxCodeFileRefs?: number
 }
 
 export interface CompileInput {

@@ -20,6 +20,8 @@ import type {
 import { setOwn } from '../records'
 import { type BlockDecl, type CompileContext, rangeOf, recordSpan } from './context'
 import { didYouMean } from './hints'
+import { bracketDepthOverflow, utf8Length } from './parse'
+import type { Range } from './report'
 import { compileToolList } from './tools'
 import {
   buildFieldIndex,
@@ -290,6 +292,19 @@ function readCodeFile(
   decl: BlockDecl
 ): { code: string; path: string } | null {
   const at = rangeOf(ctx, compiled.pathNode)
+  const budget = ctx.codeFiles
+  budget.refs++
+  if (budget.refs > ctx.limits.maxCodeFileRefs) {
+    if (budget.refs === ctx.limits.maxCodeFileRefs + 1) {
+      ctx.reporter.report(
+        'E_LIMIT_EXCEEDED',
+        `The workflow has more than ${ctx.limits.maxCodeFileRefs} file() references.`,
+        at,
+        { hint: 'Write short code inline with js``.', blockKey: decl.key }
+      )
+    }
+    return null
+  }
   if (!CODE_LANGUAGES.has(language)) {
     ctx.reporter.report(
       'E_CODE_FILE_PATH',
@@ -322,17 +337,62 @@ function readCodeFile(
     })
     return null
   }
-  if (text.length > ctx.limits.maxBytes) {
+  const cached = budget.reads.get(path)
+  if (cached !== undefined) return cached === null ? null : { code: cached, path }
+  const code = parseCodeFile(ctx, path, text, language as CodeFileLanguage, at, decl)
+  budget.reads.set(path, code)
+  return code === null ? null : { code, path }
+}
+
+/**
+ * Reads one distinct code file under the byte caps (per file and in total) and, for JavaScript,
+ * the bracket-depth cap that keeps Babel's recursive descent off a depth bomb.
+ */
+function parseCodeFile(
+  ctx: CompileContext,
+  path: string,
+  text: string,
+  language: CodeFileLanguage,
+  at: Range,
+  decl: BlockDecl
+): string | null {
+  const { limits } = ctx
+  const bytes = utf8Length(text, limits.maxBytes)
+  if (bytes > limits.maxBytes) {
     ctx.reporter.report(
       'E_LIMIT_EXCEEDED',
-      `${path} is larger than ${ctx.limits.maxBytes} bytes.`,
+      `${path} is larger than ${limits.maxBytes} bytes.`,
       at,
-      { blockKey: decl.key }
+      {
+        blockKey: decl.key,
+      }
+    )
+    return null
+  }
+  ctx.codeFiles.bytes += bytes
+  if (ctx.codeFiles.bytes > limits.maxCodeFileBytesTotal) {
+    ctx.reporter.report(
+      'E_LIMIT_EXCEEDED',
+      `Code files total more than ${limits.maxCodeFileBytesTotal} bytes.`,
+      at,
+      { hint: 'Share one code file between blocks, or shorten the code.', blockKey: decl.key }
     )
     return null
   }
   ctx.reporter.addFile(path, text)
-  const back = fromCodeFile(text, language as CodeFileLanguage)
+  if (language === 'javascript') {
+    const overflowAt = bracketDepthOverflow(text, limits.maxDepth)
+    if (overflowAt !== -1) {
+      ctx.reporter.report(
+        'E_LIMIT_EXCEEDED',
+        `${path} nests deeper than ${limits.maxDepth} levels.`,
+        { file: path, start: overflowAt, end: overflowAt + 1 },
+        { blockKey: decl.key }
+      )
+      return null
+    }
+  }
+  const back = fromCodeFile(text, language)
   if (!back.ok) {
     for (const error of back.errors) {
       ctx.reporter.report(
@@ -344,7 +404,7 @@ function readCodeFile(
     }
     return null
   }
-  return { code: back.code, path }
+  return back.code
 }
 
 /** input-format sugar: `{ name: 'string' }` or `{ name: { type, ... } }` → stored item list. */
