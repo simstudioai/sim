@@ -24,6 +24,9 @@ const SPECIAL_BUILDERS: Readonly<Record<string, { coreParams: readonly string[] 
   note: { coreParams: [] },
 }
 
+/** The builder paths `core.d.ts` declares itself; the catalog must map each to its block type. */
+export const SPECIAL_BUILDER_KEYS: readonly string[] = Object.keys(SPECIAL_BUILDERS)
+
 /**
  * Core exports a generated namespace may merge with: functions (`table.insertRow` beside
  * `table('leads')`) and the empty `trigger` / `legacy` namespaces. Consts (`env`, `loop`, `js`,

@@ -459,6 +459,7 @@
         "@playwright/test": "1.64.1",
         "@sim/testing": "workspace:*",
         "@sim/tsconfig": "workspace:*",
+        "@sim/workflow-sdk": "workspace:*",
         "@tailwindcss/postcss": "^4.3.4",
         "@tailwindcss/typography": "0.5.20",
         "@testing-library/jest-dom": "^6.10.0",

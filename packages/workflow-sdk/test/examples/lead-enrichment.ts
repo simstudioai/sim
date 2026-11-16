@@ -45,7 +45,7 @@ export default workflow('Lead enrichment', {}, () => {
   )
   const handoff = runWorkflow('Hand off', {
     workflowId: workflow('assign-owner'),
-    input: enrichAll.results,
+    inputMapping: { leads: enrichAll.results },
   })
   const legacyPing = slack.sendMessage(
     'Old ping',
