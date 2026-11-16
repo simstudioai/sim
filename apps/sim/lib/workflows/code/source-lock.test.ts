@@ -173,7 +173,9 @@ describe('mergeCodeMetaFromLock', () => {
               [encodeAnchor({ kind: 'block', block: 'nosuchblock' })]: [
                 { text: ' dropped', kind: 'line', placement: 'leading' },
               ],
-              header: [{ text: ' kept', kind: 'line', placement: 'leading' }],
+              [encodeAnchor({ kind: 'header' })]: [
+                { text: ' kept', kind: 'line', placement: 'leading' },
+              ],
             },
           },
         },
