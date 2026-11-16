@@ -98,6 +98,27 @@ export function deployReadIds(
 }
 
 /**
+ * A declaration's visibility condition over the block's values. A function condition the catalog
+ * could not evaluate to data is `{ opaque: true }` and counts as satisfied (s1 canonicalize step
+ * 9), except where the projection pre-expanded it per operation (`visibleFor`, computed only for a
+ * function that reads nothing but `operation`): there it is exactly what the function returns.
+ */
+function conditionHolds(subBlock: CatalogSubBlock, values: Record<string, unknown>): boolean {
+  const { condition, visibleFor } = subBlock
+  const operation = values.operation
+  if (
+    condition &&
+    'opaque' in condition &&
+    visibleFor &&
+    typeof operation === 'string' &&
+    Object.hasOwn(visibleFor, operation)
+  ) {
+    return visibleFor[operation] === true
+  }
+  return evaluateSubBlockCondition(condition, values)
+}
+
+/**
  * `shouldSerializeSubBlock` (serializer/index.ts:55-108) over one catalog declaration.
  * Env-gated hiding (`hideWhenHosted` / `hideWhenEnvSet`) is deployment state the catalog does not
  * carry, so it is not applied. An opaque condition counts as satisfied (s1 canonicalize step 9).
@@ -125,14 +146,14 @@ function serializes(subBlock: CatalogSubBlock, inputs: ActivityInputs): boolean 
         mode === 'advanced'
           ? group.advancedIds.includes(subBlock.id)
           : group.basicId === subBlock.id
-      return matchesMode && evaluateSubBlockCondition(subBlock.condition, values)
+      return matchesMode && conditionHolds(subBlock, values)
     }
-    return evaluateSubBlockCondition(subBlock.condition, values)
+    return conditionHolds(subBlock, values)
   }
 
   if (subBlock.mode === 'advanced' && !advancedMode) return isNonEmptyValue(values[subBlock.id])
   if (subBlock.mode === 'basic' && advancedMode) return false
-  return evaluateSubBlockCondition(subBlock.condition, values)
+  return conditionHolds(subBlock, values)
 }
 
 /**

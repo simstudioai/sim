@@ -3,10 +3,15 @@ import { agent, env, t, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
   const start = trigger.start('Start', { inputFormat: [] })
-  const html = agent('Html', {
-    model: '{{ not valid }}',
-    systemPrompt: t`<div>hello</div> <missing.field> ${env.lower_ok} <variable.nope> <loop.index>`,
-  })
+  const html = agent(
+    'Html',
+    { model: '{{ not valid }}' },
+    {
+      inactive: {
+        systemPrompt: t`<div>hello</div> <missing.field> ${env.lower_ok} <variable.nope> <loop.index>`,
+      },
+    }
+  )
 
   start.to(html)
 })

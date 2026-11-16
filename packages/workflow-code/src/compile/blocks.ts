@@ -2,6 +2,7 @@ import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
 import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
+import { editorDefaults } from '../catalog/defaults'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
 import type {
@@ -564,6 +565,11 @@ interface BlockState {
   modes: Record<string, ParamMode>
   written: WrittenParam[]
   todos: Map<string, ObjectProperty>
+  /**
+   * Subblock ids written as `null` or `todo()`: stored-absent on purpose, so the editor default
+   * never fills them.
+   */
+  unset: Set<SubBlockId>
   pendingFile: { compiled: Extract<CompiledValue, { kind: 'file' }>; target: SubBlockId } | null
 }
 
@@ -591,9 +597,12 @@ function compileField(
     return
   }
   const compiled = compileValue(ctx, property.value, site)
-  if (!compiled || compiled.kind === 'absent') return
-  if (compiled.kind === 'todo') {
-    state.todos.set(field.param, property)
+  if (!compiled) return
+  if (compiled.kind === 'absent' || compiled.kind === 'todo') {
+    const member =
+      field.kind === 'pair' ? memberFor(field, meta.modes.get(field.param) ?? 'basic') : field.sub
+    if (member) state.unset.add(member.id)
+    if (compiled.kind === 'todo') state.todos.set(field.param, property)
     return
   }
   if (compiled.kind === 'file') {
@@ -658,6 +667,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     modes: {},
     written: [],
     todos: new Map(),
+    unset: new Set(),
     pendingFile: null,
   }
   const { params, modes } = state
@@ -805,10 +815,16 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
   let codeFile: string | undefined
   if (state.pendingFile) {
     const languageParam = params.language
+    const omittedLanguage =
+      catalogBlock && !state.unset.has('language')
+        ? editorDefaults(catalogBlock).get('language')
+        : undefined
     const language =
       languageParam?.kind === 'value' && typeof languageParam.value === 'string'
         ? languageParam.value
-        : 'javascript'
+        : typeof omittedLanguage === 'string'
+          ? omittedLanguage
+          : 'javascript'
     const read = readCodeFile(ctx, state.pendingFile.compiled, language, decl)
     if (read) {
       setOwn(params, state.pendingFile.target, { kind: 'value', value: read.code })
@@ -825,6 +841,13 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
   }
 
   const inactive = compileInactive(ctx, meta.inactive, params, site)
+  if (catalogBlock) {
+    for (const [id, value] of editorDefaults(catalogBlock)) {
+      if (Object.hasOwn(params, id) || state.unset.has(id) || pinned.has(id)) continue
+      if (id === branchField?.subBlockId) continue
+      setOwn(params, id, { kind: 'value', value })
+    }
+  }
   if (index) checkFields(ctx, index, state, inactive.properties)
 
   const block: CanonicalBlock = {
@@ -965,7 +988,7 @@ const CONTAINER_CONFIG: Record<string, Record<string, string>> = {
   'loop.for': { count: 'iterations' },
   'loop.forEach': { collection: 'forEachItems' },
   'loop.while': { condition: 'whileCondition' },
-  'loop.doWhile': { condition: 'doWhileCondition' },
+  'loop.doWhile': { condition: 'doWhileCondition', count: 'iterations' },
   'parallel.count': { count: 'count', batchSize: 'batchSize' },
   'parallel.collection': { collection: 'distribution', batchSize: 'batchSize' },
   parallel: { count: 'count', collection: 'distribution', batchSize: 'batchSize' },

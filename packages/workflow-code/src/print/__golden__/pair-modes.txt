@@ -1,23 +1,14 @@
 // @sim-sdk 1
-import { picked, slack, trigger, workflow } from '@sim/workflow-sdk'
+import { slack, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
   const start = trigger.start('Start', { inputFormat: [] })
-  const advancedEmpty = slack.sendMessage(
-    'Advanced empty',
-    { text: 'd' },
-    { modes: { channel: 'advanced' } }
-  )
-  const basicHoldingText = slack.sendMessage(
-    'Basic holding text',
-    { channel: start.channel, text: 'c' },
-    { modes: { channel: 'basic' } }
-  )
-  const bothMembers = slack.sendMessage(
-    'Both members',
-    { channel: 'C0NEW', text: 'e' },
-    { inactive: { channel: picked('C0OLD') } }
-  )
+  const advancedEmpty = slack.sendMessage('Advanced empty', { text: 'd' })
+  const basicHoldingText = slack.sendMessage('Basic holding text', {
+    channel: start.channel,
+    text: 'c',
+  })
+  const bothMembers = slack.sendMessage('Both members', { channel: 'C0NEW', text: 'e' })
   const manualAdvanced = slack.sendMessage('Manual advanced', { channel: start.channel, text: 'b' })
-  const pickedBasic = slack.sendMessage('Picked basic', { channel: picked('C0ONE'), text: 'a' })
+  const pickedBasic = slack.sendMessage('Picked basic', { channel: 'C0ONE', text: 'a' })
 })

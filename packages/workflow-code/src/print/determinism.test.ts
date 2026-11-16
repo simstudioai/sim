@@ -7,10 +7,12 @@
 
 import { describe, expect, it } from 'vitest'
 import type { LockHints } from '../api'
+import { editorDefaults } from '../catalog/defaults'
 import { catalogBlock } from '../catalog/view'
+import { executableInactiveParams } from '../equivalence/executable'
 import type { CanonicalWorkflow } from '../model'
 import { cases } from './__fixtures__/cases'
-import { catalog } from './__fixtures__/catalog'
+import { realCatalog as catalog } from './__fixtures__/real-catalog'
 import { printWorkflow } from './printer'
 
 /** A deep copy of plain data: every CWM value is JSON (`model.ts`). */
@@ -44,13 +46,20 @@ function reorder(workflow: CanonicalWorkflow): CanonicalWorkflow {
 
 const EDITABLE_TYPES = new Set(['short-input', 'long-input', 'combobox'])
 
-/** Every single-line, token-free text param a user could retype, as (block, param) pairs. */
+/**
+ * Every single-line, token-free text param a user could retype, as (block, param) pairs. Inactive
+ * params and values equal to the editor default are not printed, so editing one adds a line.
+ */
 function editableParams(workflow: CanonicalWorkflow): Array<[string, string]> {
   const pairs: Array<[string, string]> = []
   for (const block of Object.values(workflow.blocks)) {
-    const subBlocks = catalogBlock(catalog, block.type)?.subBlocks ?? []
+    const declared = catalogBlock(catalog, block.type)
+    const subBlocks = declared?.subBlocks ?? []
+    const inactive = new Set(executableInactiveParams(block, catalog))
+    const defaults = declared ? editorDefaults(declared) : new Map()
     for (const [id, param] of Object.entries(block.params)) {
       if (param.kind !== 'value' || typeof param.value !== 'string') continue
+      if (inactive.has(id) || defaults.get(id) === param.value) continue
       if (!/^[\w .:/-]+$/.test(param.value)) continue
       const subBlock = subBlocks.find((candidate) => candidate.id === id)
       if (subBlock && !EDITABLE_TYPES.has(subBlock.type)) continue

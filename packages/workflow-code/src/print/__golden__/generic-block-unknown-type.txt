@@ -7,6 +7,6 @@ export default workflow('Fixture', {}, () => {
     'custom_block_acme',
     'Mystery',
     { alpha: t`a ${start.input}`, zeta: 1 },
-    { triggerMode: true, modes: { someCid: 'advanced' } }
+    { triggerMode: true }
   )
 })

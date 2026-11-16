@@ -106,6 +106,7 @@ export const TEST_CATALOG: BlockCatalog = {
             { id: 'GET', label: 'GET' },
             { id: 'POST', label: 'POST' },
           ],
+          valueDefault: { constant: 'GET' },
         }),
         sub('headers', 'table', 'object'),
         sub('body', 'code', 'json', { language: 'json' }),

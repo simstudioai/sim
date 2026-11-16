@@ -1,10 +1,11 @@
 // @sim-sdk 1
-import { block, raw, trigger, workflow } from '@sim/workflow-sdk'
+import { raw, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
   const start = trigger.start('Start', { inputFormat: [] })
-  const oldTableOp = block('table', 'Old table op', {
-    operation: raw('delete_everything'),
-    limit: '10',
-  })
+  const oldTableOp = trigger.table.newRow(
+    'Old table op',
+    { operation: raw('delete_everything') },
+    { triggerMode: false }
+  )
 })

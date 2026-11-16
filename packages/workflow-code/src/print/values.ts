@@ -67,10 +67,16 @@ function isSimNode(value: object): value is SimNode {
 
 /** Prints values, recording SDK imports and reference diagnostics as it goes. */
 export class ValuePrinter {
+  /**
+   * @param pickedCalls Whether a plain selector id prints as `picked('C1')`. Only verbose prints
+   *   do: the call records that a selector produced the id, which is UI state, so source writes
+   *   the id as a plain string and materialize keeps the stored member.
+   */
   constructor(
     private readonly refs: RefPrinter,
     private readonly use: (name: string) => void,
-    private readonly useVars: () => void
+    private readonly useVars: () => void,
+    private readonly pickedCalls: boolean
   ) {}
 
   call(callee: string, args: Expr[]): Expr {
@@ -82,7 +88,7 @@ export class ValuePrinter {
   field(value: Value, context: FieldContext): PrintedValue {
     const subBlock = context.subBlock
     const kind = subBlock?.valueKind
-    if (kind === 'picked' && isPlainSelectorValue(value)) {
+    if (this.pickedCalls && kind === 'picked' && isPlainSelectorValue(value)) {
       return { ...this.call('picked', [this.json(value as Json)]), selector: true }
     }
     if (

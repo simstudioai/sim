@@ -27,6 +27,7 @@ import {
   canonicalEquals,
   canonicalize,
   compileWorkflow,
+  executableView,
   materialize,
   type PrintWorkflowFn,
   printWorkflow,
@@ -189,21 +190,22 @@ const properties: Record<ProofProperty, (e: ResolvedEngines, s: ProofSubject) =>
   P0: (e, s) =>
     idempotence({
       oracle: 'P0',
-      value: canonical(e, s),
-      step: () => compiledOrThrow(sourceRun(e, s).compiled),
-      equals: canonicalEquals,
+      value: executableView(canonical(e, s), e.catalog),
+      step: () => executableView(compiledOrThrow(sourceRun(e, s).compiled), e.catalog),
     }),
   P1: (e, s) => {
     const original = canonical(e, s)
     return idempotence({
       oracle: 'P1',
-      value: original,
-      step: (c) =>
-        canonicalize(materialized(e, compiledWorkflow(e, c), s.state), {
-          catalog: e.catalog,
-          meta: c.meta,
-        }).workflow,
-      equals: canonicalEquals,
+      value: executableView(original, e.catalog),
+      step: () =>
+        executableView(
+          canonicalize(materialized(e, compiledWorkflow(e, original), s.state), {
+            catalog: e.catalog,
+            meta: original.meta,
+          }).workflow,
+          e.catalog
+        ),
     })
   },
   P2: (e, s) =>
@@ -233,6 +235,12 @@ const properties: Record<ProofProperty, (e: ResolvedEngines, s: ProofSubject) =>
       equals: canonicalEquals,
     })
   },
+  P6: (e, s) =>
+    assertNoopIdentity({
+      oracle: 'P6',
+      original: s.state,
+      materialized: materialized(e, compiledOrThrow(sourceRun(e, s).compiled), s.state),
+    }),
   O1: (e, s) =>
     assertNoopIdentity({
       original: s.state,
@@ -281,12 +289,13 @@ function expectedFailures(property: ProofProperty): string[] {
 }
 
 const PROPERTY_TITLES: Record<ProofProperty, string> = {
-  P0: 'P0 source fidelity: compile(print(c)) equals c',
-  P1: 'P1 fidelity: canonicalize(materialize(compile(print(c)))) equals c',
+  P0: 'P0 source fidelity: compile(print(c)) runs as c (executable view)',
+  P1: 'P1 fidelity: canonicalize(materialize(compile(print(c)), prev)) runs as c',
   P2: 'P2 serializer parity after a full source round trip',
   P3: 'P3 print idempotence: print(compile(print(c))) is byte-identical',
   P4: 'P4 printed code compiles with zero errors',
   P5: 'P5 files mode compiles to the same workflow as inline mode',
+  P6: 'P6 no-op apply: materialize(compile(print(c)), prev x) deep-equals x',
   O1: 'O1 no-op identity: materialize(canonicalize(x), prev x) deep-equals x',
   O2: 'O2 lockless execution parity',
   O3: 'O3 idempotence: canonicalize(materialize(c)) equals c',

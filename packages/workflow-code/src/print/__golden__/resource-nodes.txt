@@ -1,5 +1,5 @@
 // @sim-sdk 1
-import { kb, raw, setVariables, t, table, trigger, workflow } from '@sim/workflow-sdk'
+import { raw, setVariables, t, table, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow(
   'Fixture',
@@ -11,22 +11,16 @@ export default workflow(
   },
   ({ vars }) => {
     const start = trigger.start('Start', { inputFormat: [] })
-    const query = table.queryRows(
-      'Query',
-      {
-        tableId: raw({ $sim: 'unresolved', kind: 'table', id: 'tbl_deleted' }),
-        data: raw({ $sim: 'literal', value: { $sim: 'user data', n: 1 } }),
-        limit: raw({
-          $sim: 'csv',
-          items: [
-            { $sim: 'resource', kind: 'knowledge-document', key: 'a' },
-            { $sim: 'unresolved', kind: 'knowledge-document', id: 'doc_9' },
-          ],
-        }),
-        knowledgeBases: [kb('docs'), kb('faq')],
-      },
-      { modes: { tableId: 'basic' } }
-    )
+    const query = table.queryRows('Query', {
+      tableId: raw({ $sim: 'unresolved', kind: 'table', id: 'tbl_deleted' }),
+      limit: raw({
+        $sim: 'csv',
+        items: [
+          { $sim: 'resource', kind: 'knowledge-document', key: 'a' },
+          { $sim: 'unresolved', kind: 'knowledge-document', id: 'doc_9' },
+        ],
+      }),
+    })
     const setVars = setVariables('Set vars', {
       variables: [
         { variable: vars.retries, value: t`${vars.retries}` },

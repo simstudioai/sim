@@ -5,8 +5,6 @@ import {
   condition,
   env,
   js,
-  json,
-  picked,
   response,
   slack,
   t,
@@ -28,7 +26,6 @@ export default workflow(
       inputFormat: { subject: 'string', body: 'string' },
     })
     const classify = agent('Classify', {
-      model: 'claude-sonnet-5-5',
       messages: [
         { role: 'system', content: 'Classify support tickets.' },
         {
@@ -38,6 +35,7 @@ export default workflow(
 ${ticketIn.body}`,
         },
       ],
+      model: 'claude-sonnet-5-5',
       temperature: 0.2,
     })
     const byCategory = condition('By category', {
@@ -47,21 +45,20 @@ ${ticketIn.body}`,
     })
     const logTicket = table.insertRow('Log ticket', {
       tableId: table('tickets'),
-      data: json`{
+      data: t`{
   "subject": "${ticketIn.subject}"
 }`,
     })
     const notify = slack.sendMessage(
       'Notify',
       {
-        authMethod: 'oauth',
-        credential: binding('support-slack'),
-        channel: picked('C0SUPPORT'),
+        oauthCredential: binding('support-slack'),
+        channel: 'C0SUPPORT',
         text: t`New ${classify.content} ticket: ${ticketIn.subject}`,
       },
       { errorPort: true }
     )
-    const reply = response('Reply', { dataMode: 'structured', builderData: { ok: true } })
+    const reply = response('Reply', { builderData: { ok: true } })
 
     ticketIn.to(classify)
     classify.to(byCategory)

@@ -90,6 +90,12 @@ const CATALOG: BlockCatalog = {
         condition: { field: 'operation', value: SEND_OPERATIONS },
       }),
       sb({ id: 'threadTs', type: 'short-input', mode: 'advanced' }),
+      sb({
+        id: 'pageLimit',
+        type: 'short-input',
+        condition: { opaque: true },
+        visibleFor: { read: true, send: false },
+      }),
       sb({ id: 'botToken', type: 'short-input', mode: 'trigger', surface: 'trigger' }),
       sb({ id: 'signingSecret', type: 'short-input', mode: 'trigger', surface: 'trigger' }),
       sb({
@@ -673,6 +679,17 @@ describe('canonicalize: inactive annotation (step 9, quirks 1, 10, 14)', () => {
       ])
     )
     expect(result.workflow.annotations.inactive.slack).toEqual(['channel'])
+  })
+
+  it('reads an opaque condition the catalog expanded per operation from visibleFor', () => {
+    const send = run(
+      workflow([blockState('b1', 'slack', 'Slack', { operation: 'send', pageLimit: '5' })])
+    )
+    expect(send.workflow.annotations.inactive.slack).toEqual(['pageLimit'])
+    const read = run(
+      workflow([blockState('b1', 'slack', 'Slack', { operation: 'read', pageLimit: '5' })])
+    )
+    expect(read.workflow.annotations.inactive.slack).toBeUndefined()
   })
 
   it('marks trigger fields inactive outside trigger mode and active inside it (quirk 10)', () => {

@@ -148,6 +148,11 @@ function executableParallel(spec: ParallelSpec): ExecutableSubflow {
     : { kind: 'parallel', parallelType, distribution: spec.distribution || '', batchSize }
 }
 
+/** A loop or parallel config as the executor reads it for the type in effect. */
+export function executableSubflow(spec: LoopSpec | ParallelSpec): ExecutableSubflow {
+  return spec.kind === 'loop' ? executableLoop(spec) : executableParallel(spec)
+}
+
 /** The executable form of one block's params: inactive values dropped, pairs keyed by id. */
 function executableParams(
   block: CanonicalBlock,
@@ -192,10 +197,7 @@ function executableBlock(block: CanonicalBlock, catalog: BlockCatalog): Executab
   }
   if (block.branches) view.branches = block.branches
   if (block.subflow) {
-    view.subflow =
-      block.subflow.kind === 'loop'
-        ? executableLoop(block.subflow)
-        : executableParallel(block.subflow)
+    view.subflow = executableSubflow(block.subflow)
     const residue: Record<string, Json> = {}
     for (const [key, value] of Object.entries(block.opaque?.data ?? {})) {
       if (SUBFLOW_DATA_KEYS.has(key)) setOwn(residue, key, value)
