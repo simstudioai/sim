@@ -17,7 +17,7 @@ import type {
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
-import { writeSourceDirectory } from './workflow-source-get'
+import { writeSourceDirectory, writeSourceScaffold } from './workflow-source-get'
 import {
   SOURCE_BASE_FILE as BASE_FILE,
   SOURCE_LOCK_FILE as LOCK_FILE,
@@ -377,7 +377,10 @@ export function attachWorkflowSourceCreate(source: Command): void {
     'getSourceResources',
   ])
   command
-    .requiredOption('--dir <dir>', 'Source directory: workflow.ts and functions/*')
+    .requiredOption(
+      '--dir <dir>',
+      'Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead'
+    )
     .option('--dry-run', 'Check the source and show the outcome without creating anything')
     .option('--name <name>', "The workflow name (default: the source's)")
     .option('--folder <path>', 'The folder to create it in (default: the root)')
@@ -386,6 +389,15 @@ export function attachWorkflowSourceCreate(source: Command): void {
     .description('Create a workflow from a workflow source directory')
     .addHelpText('after', EXIT_CODES_HELP)
     .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) => {
+      if ((await readSourceText(options.dir, ENTRY_FILE)) === null) {
+        const { client, profile } = connectCreate()
+        const tree = await writeSourceScaffold(client, options.dir, client.requireWorkspace())
+        printError(
+          `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types, tsconfig.json and .sim/AGENTS.md were written and nothing was created. Edit ${ENTRY_FILE}, then run \`sim workflows source create --dir ${options.dir} --yes\`.`
+        )
+        printProtocolResult(profile.output, { created: false, scaffolded: true, ...tree })
+        return
+      }
       requireConsent(options, 'creates a workflow')
       const { client, profile } = connectCreate()
       const workspaceId = client.requireWorkspace()

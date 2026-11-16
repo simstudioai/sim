@@ -212,7 +212,7 @@ export async function readSourceText(dir: string, path: string): Promise<string 
 }
 
 /** What one write does to the source directory: files to remove first, then files to write. */
-interface SourceDirChange {
+export interface SourceDirChange {
   write: ReadonlyArray<readonly [path: string, text: string]>
   /** Files or directories (removed recursively); an embedded run cannot remove, so skips these. */
   remove?: readonly string[]
@@ -227,7 +227,7 @@ async function inBatches<T>(items: T[], run: (item: T) => Promise<void>): Promis
  * before anything is touched; the files are written to a staging directory inside it, then the
  * removals run and each file is renamed into place, never through a link.
  */
-async function updateSourceDir(dir: string, change: SourceDirChange): Promise<void> {
+export async function updateSourceDir(dir: string, change: SourceDirChange): Promise<void> {
   for (const path of [...change.write.map(([path]) => path), ...(change.remove ?? [])]) {
     if (sourceRelativePath(path) !== path) {
       throw new SimApiError(`Refusing to write ${path} outside ${dir}`, 0)
