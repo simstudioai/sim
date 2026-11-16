@@ -136,13 +136,31 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
   }
   const found = schemas.map((outputs) => outputAt(outputs, segments)).find(Boolean)
   if (found) return found.type === 'string' ? 'string' : 'typed'
-  const [first] = segments
-  if (declared.dynamicOutputs && segments.length === 1 && first?.kind === 'name') {
+  if (declared.dynamicOutputs) {
     const { source, param } = declared.dynamicOutputs
-    const type = dynamicFieldType(block, source, param, first.name)
+    const field = dynamicFieldName(source, segments)
+    // A human form stores its fields as an input format; they surface under `submission`.
+    const type =
+      field === undefined
+        ? undefined
+        : dynamicFieldType(block, source === 'humanForm' ? 'inputFormat' : source, param, field)
     if (type !== undefined) return type === 'string' ? 'string' : 'typed'
   }
   return 'untyped'
+}
+
+/**
+ * The dynamic field a ref path names: `<key.field>`, or for a human form `<key.submission.field>`,
+ * where the SDK types its fields (`human()` in core.d.ts).
+ */
+function dynamicFieldName(source: string, segments: readonly RefSegment[]): string | undefined {
+  const [first, second] = segments
+  if (source !== 'humanForm') {
+    return segments.length === 1 && first?.kind === 'name' ? first.name : undefined
+  }
+  const underSubmission =
+    segments.length === 2 && first?.kind === 'name' && first.name === 'submission'
+  return underSubmission && second?.kind === 'name' ? second.name : undefined
 }
 
 /**

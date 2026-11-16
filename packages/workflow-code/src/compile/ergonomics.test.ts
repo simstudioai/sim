@@ -7,7 +7,7 @@ import { compileWorkflow } from './index'
 import { TEST_CATALOG } from './test-catalog'
 
 const IMPORTS =
-  "import { agent, api, childWorkflow, condition, customTool, credential, fn, js, mail, mcp, parallel, raw, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
+  "import { agent, api, childWorkflow, condition, customTool, credential, fn, human, js, mail, mcp, parallel, raw, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
 
 function source(body: string, header = '// @sim-sdk 1'): string {
   return `${header}\n${IMPORTS}\n\nexport default workflow('Test', {}, () => {\n${body}\n})\n`
@@ -361,6 +361,21 @@ describe('JSON field literals', () => {
       )
     )
     expect(codes(result)).toEqual(['W_JSON_REF_UNTYPED'])
+  })
+
+  it("types a human form's fields under submission, as the SDK does", () => {
+    const workflow = compiled(
+      source(
+        [
+          "  const h = human('Approve', { inputFormat: { ok: 'boolean', note: 'string' } })",
+          "  table.insertRow('Row', { data: { ok: h.submission.ok, note: h.submission.note } })",
+        ].join('\n')
+      )
+    )
+    expect(workflow.blocks.row?.params.data).toEqual({
+      kind: 'value',
+      value: '{\n  "ok": <approve.submission.ok>,\n  "note": "<approve.submission.note>"\n}',
+    })
   })
 
   it('keeps text a literal cannot reproduce as text', () => {
