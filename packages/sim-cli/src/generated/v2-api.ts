@@ -7937,6 +7937,10 @@ export type GetSourceCatalogResponse = {
           from: string
           to: string
         }>
+        paramAliases?: {
+          action?: Record<string, string>
+          trigger?: Record<string, string>
+        }
         custom?: {
           sourceWorkflowId?: string
         }
