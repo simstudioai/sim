@@ -46,23 +46,17 @@ function bounds(subBlock: CatalogSubBlock): string[] {
   return parts.length > 0 ? [`Range: ${parts.join(', ')}.`] : []
 }
 
-function isKeyValueTable(columns: readonly string[] | undefined): boolean {
-  return (
-    columns !== undefined &&
-    columns.length === 2 &&
-    /^(key|name)$/i.test(columns[0]) &&
-    /^value$/i.test(columns[1])
-  )
-}
-
+/**
+ * A table holds rows as the printer writes them, `[{ cells: { Key: …, Value: … } }]`, with one
+ * optional cell per declared column.
+ */
 function tableType(subBlock: CatalogSubBlock): string {
   const { columns } = subBlock
-  if (isKeyValueTable(columns)) return 'Record<string, Value<string>>'
-  if (columns && columns.length > 0) {
-    const row = columns.map((column) => `${quote(column)}?: Value<string>`).join('; ')
-    return `Array<{ ${row} }>`
-  }
-  return 'Record<string, Value<string>> | Array<Record<string, Value<string>>>'
+  const cells =
+    columns && columns.length > 0
+      ? `{ ${columns.map((column) => `${quote(column)}?: Value<string>`).join('; ')} }`
+      : 'Record<string, Value<string>>'
+  return `Array<{ cells: ${cells} }>`
 }
 
 function codeType(subBlock: CatalogSubBlock): string {

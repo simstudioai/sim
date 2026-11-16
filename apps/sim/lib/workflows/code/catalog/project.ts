@@ -11,6 +11,7 @@ import type {
   Json,
   SubBlockConditionClause,
 } from '@sim/workflow-code'
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import type { OutputCondition, PrimitiveValueType } from '@sim/workflow-types/blocks'
 import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
 import { resolveSubBlockOptions } from '@/lib/catalog/projection/subblock'
@@ -103,24 +104,134 @@ function excludedByOperation(clause: SubBlockConditionClause, operation: string)
 
 type ConditionThunk = (values: Record<string, unknown>) => RegistryClause
 
-function projectConditionThunk(
-  thunk: ConditionThunk,
+/**
+ * What a clause still asks once `operation` decided its operation parts: `null` when the
+ * operation excludes it, `true` when nothing else is asked, else the clause on other fields.
+ */
+function residualAfterOperation(
+  clause: SubBlockConditionClause,
+  operation: string
+): SubBlockConditionClause | true | null {
+  if (excludedByOperation(clause, operation)) return null
+  const and = clause.and
+  if (clause.field === 'operation') {
+    if (!and || and.field === 'operation') return true
+    const rest: SubBlockConditionClause = { field: and.field, value: and.value ?? null }
+    if (and.not !== undefined) rest.not = and.not
+    return rest
+  }
+  if (and?.field === 'operation') {
+    const rest: SubBlockConditionClause = { field: clause.field, value: clause.value }
+    if (clause.not !== undefined) rest.not = clause.not
+    return rest
+  }
+  return clause
+}
+
+/** What a function condition is probed with: operations, model ids and dropdown values. */
+interface ConditionInputs {
   operations: readonly string[]
-): { condition: CatalogCondition; visibleFor?: Record<string, boolean> } {
+  /** The block's literal `model` options. */
+  models: readonly string[]
+  /** Each value a static dropdown can hold, `undefined` (unset) included. */
+  choices: ReadonlyMap<string, ReadonlyArray<string | undefined>>
+}
+
+/** Value combinations tried per model before that model is left undecided. */
+const MAX_MODEL_PROBE_VARIANTS = 16
+
+function clauseFields(clause: SubBlockConditionClause): string[] {
+  return clause.and ? [clause.field, clause.and.field] : [clause.field]
+}
+
+/**
+ * Whether `thunk` shows its field for `model` whatever the dropdowns it also reads hold: `true`
+ * or `false` when every combination agrees, `undefined` when they disagree or a read or returned
+ * clause reaches a field the probe cannot enumerate.
+ */
+function visibleForModel(
+  thunk: ConditionThunk,
+  model: string,
+  choices: ConditionInputs['choices']
+): boolean | undefined {
+  const outcomes = new Set<boolean>()
+  let pending: Array<Record<string, unknown>> = [{ model }]
+  let probes = 0
+  while (pending.length > 0) {
+    const next: Array<Record<string, unknown>> = []
+    for (const bag of pending) {
+      probes += 1
+      if (probes > MAX_MODEL_PROBE_VARIANTS) return undefined
+      const probe = probeThunk(thunk, bag)
+      if (!probe.ok || probe.reads.has('*')) return undefined
+      const unbound = [...probe.reads].find((read) => !Object.hasOwn(bag, read))
+      if (unbound !== undefined) {
+        const values = choices.get(unbound)
+        if (!values) return undefined
+        for (const value of values) next.push({ ...bag, [unbound]: value })
+        continue
+      }
+      const clause = copyClause(probe.result)
+      if (clauseFields(clause).some((field) => !Object.hasOwn(bag, field))) return undefined
+      outcomes.add(evaluateSubBlockCondition(clause, bag))
+    }
+    pending = next
+  }
+  return outcomes.size === 1 ? outcomes.has(true) : undefined
+}
+
+/**
+ * Per model id of the block, whether a model-dependent condition shows its field, or `undefined`
+ * when the condition does not read the model. Models it cannot decide alone are left out.
+ */
+function projectVisibleForModel(
+  thunk: ConditionThunk,
+  inputs: ConditionInputs
+): Record<string, boolean> | undefined {
+  if (inputs.models.length === 0) return undefined
+  if (!probeThunk(thunk, { model: inputs.models[0] }).reads.has('model')) return undefined
+  const visible: Record<string, boolean> = {}
+  for (const model of inputs.models) {
+    const shown = visibleForModel(thunk, model, inputs.choices)
+    if (shown !== undefined) visible[model] = shown
+  }
+  return Object.keys(visible).length > 0 ? visible : undefined
+}
+
+interface ProjectedCondition {
+  condition: CatalogCondition
+  visibleFor?: Record<string, boolean>
+  visibleWhen?: Record<string, SubBlockConditionClause>
+  visibleForModel?: Record<string, boolean>
+}
+
+/**
+ * A function condition as data: evaluated when it reads no value; expanded per operation into
+ * `visibleFor` when it reads only `operation`, with the clause on other fields each shown
+ * operation still asks in `visibleWhen`; expanded per model into `visibleForModel` when it reads
+ * the model. `condition` itself stays opaque for anything that reads values.
+ */
+function projectConditionThunk(thunk: ConditionThunk, inputs: ConditionInputs): ProjectedCondition {
   const probe = probeThunk(thunk)
   if (probe.ok && probe.reads.size === 0) return { condition: copyClause(probe.result) }
-  if (operations.length === 0 || !readsOnly(probe.reads, OPERATION_ONLY)) {
-    return { condition: OPAQUE }
+  if (inputs.operations.length === 0 || !readsOnly(probe.reads, OPERATION_ONLY)) {
+    const perModel = projectVisibleForModel(thunk, inputs)
+    return perModel ? { condition: OPAQUE, visibleForModel: perModel } : { condition: OPAQUE }
   }
   const visibleFor: Record<string, boolean> = {}
-  for (const operation of operations) {
+  const visibleWhen: Record<string, SubBlockConditionClause> = {}
+  for (const operation of inputs.operations) {
     const perOperation = probeThunk(thunk, { operation })
     if (!perOperation.ok || !readsOnly(perOperation.reads, OPERATION_ONLY)) {
       return { condition: OPAQUE }
     }
-    visibleFor[operation] = !excludedByOperation(copyClause(perOperation.result), operation)
+    const residual = residualAfterOperation(copyClause(perOperation.result), operation)
+    visibleFor[operation] = residual !== null
+    if (residual !== null && residual !== true) visibleWhen[operation] = residual
   }
-  return { condition: OPAQUE, visibleFor }
+  return Object.keys(visibleWhen).length > 0
+    ? { condition: OPAQUE, visibleFor, visibleWhen }
+    : { condition: OPAQUE, visibleFor }
 }
 
 function projectRequired(
@@ -201,9 +312,8 @@ function subBlockSurface(subBlock: SubBlockConfig): 'action' | 'trigger' {
   return subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced' ? 'trigger' : 'action'
 }
 
-interface SubBlockContext {
+interface SubBlockContext extends ConditionInputs {
   blockType: string
-  operations: readonly string[]
   /** Whether this block has trigger-surface subBlocks, so every subBlock records its surface. */
   tagSurface: boolean
   report: ProjectionReport
@@ -230,12 +340,14 @@ function projectSubBlock(subBlock: SubBlockConfig, ctx: SubBlockContext): Catalo
 
   if (subBlock.condition !== undefined) {
     if (typeof subBlock.condition === 'function') {
-      const { condition, visibleFor } = projectConditionThunk(
+      const { condition, visibleFor, visibleWhen, visibleForModel } = projectConditionThunk(
         subBlock.condition as ConditionThunk,
-        ctx.operations
+        ctx
       )
       projected.condition = condition
       if (visibleFor) projected.visibleFor = visibleFor
+      if (visibleWhen) projected.visibleWhen = visibleWhen
+      if (visibleForModel) projected.visibleForModel = visibleForModel
       if ('opaque' in condition) site('condition', visibleFor !== undefined)
     } else {
       projected.condition = copyClause(subBlock.condition)
@@ -438,6 +550,24 @@ function projectLegacyIds(type: string): CatalogLegacyId[] | undefined {
   })
 }
 
+/** A block's literal `model` options and static dropdown values, for model-condition probes. */
+function conditionChoices(block: BlockConfig): Pick<ConditionInputs, 'models' | 'choices'> {
+  let models: string[] = []
+  const choices = new Map<string, ReadonlyArray<string | undefined>>()
+  for (const subBlock of block.subBlocks) {
+    if (subBlock.id !== 'model' && subBlock.type !== 'dropdown') continue
+    const options = projectOptions(subBlock)
+    if (!Array.isArray(options)) continue
+    const ids = options.map((option) => option.id)
+    if (subBlock.id === 'model') {
+      if (models.length === 0) models = ids
+    } else if (!choices.has(subBlock.id)) {
+      choices.set(subBlock.id, [...ids, undefined])
+    }
+  }
+  return { models, choices }
+}
+
 export interface ProjectedBlock {
   block: CatalogBlock
   /** Docs-shard text, kept out of the core shard. */
@@ -448,7 +578,13 @@ export interface ProjectedBlock {
 export function projectBlock(block: BlockConfig, report: ProjectionReport): ProjectedBlock {
   const operations = operationOptions(block).map((operation) => operation.id)
   const tagSurface = block.subBlocks.some((subBlock) => subBlockSurface(subBlock) === 'trigger')
-  const ctx: SubBlockContext = { blockType: block.type, operations, tagSurface, report }
+  const ctx: SubBlockContext = {
+    blockType: block.type,
+    operations,
+    ...conditionChoices(block),
+    tagSurface,
+    report,
+  }
 
   const projected: CatalogBlock = {
     type: block.type,
@@ -523,6 +659,8 @@ export function projectTrigger(trigger: TriggerConfig, report: ProjectionReport)
   const ctx: SubBlockContext = {
     blockType: `trigger:${trigger.id}`,
     operations: [],
+    models: [],
+    choices: new Map(),
     tagSurface: false,
     report,
   }
