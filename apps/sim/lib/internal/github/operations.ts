@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import {
   secureFetchWithPinnedIP,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { GitHubOperationError } from '@/lib/internal/github/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import { formatGitHubErrorMessage } from '@/tools/github/response-parsers'
 import type {
   CreateCommentParams,
@@ -19,6 +21,7 @@ import type {
 } from '@/tools/github/types'
 import { secureGitHubRequest } from '@/tools/github/utils.server'
 import type { ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('GitHubLatestCommitOperation')
 const MAX_COMMIT_RESPONSE_BYTES = 10 * 1024 * 1024
@@ -123,8 +126,20 @@ function githubHeaders(apiKey: string): Record<string, string> {
   }
 }
 
+/** Builds a request path from caller input, reporting a rejected segment as a 400. */
+function buildRequestPath(build: () => string): string {
+  try {
+    return build()
+  } catch (error) {
+    throw new GitHubOperationError(getErrorMessage(error, 'Invalid GitHub request path'), 400)
+  }
+}
+
 function pullRequestUrl(params: CreateCommentParams): string {
-  return `${GITHUB_API_BASE}/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}`
+  return buildRequestPath(
+    () =>
+      `${GITHUB_API_BASE}/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${githubPathSegment(params.pullNumber, 'pullNumber')}`
+  )
 }
 
 function isFileCommentRequest(params: CreateCommentParams): boolean {
@@ -400,10 +415,10 @@ export async function getGitHubLatestCommit(
   context: GitHubOperationContext
 ): Promise<LatestCommitResponse> {
   context.signal?.throwIfAborted()
-  const owner = encodeURIComponent(input.owner)
-  const repo = encodeURIComponent(input.repo)
-  const revision = encodeURIComponent(input.branch || 'HEAD')
-  const commitUrl = `https://api.github.com/repos/${owner}/${repo}/commits/${revision}`
+  const commitUrl = buildRequestPath(
+    () =>
+      `${GITHUB_API_BASE}/repos/${githubRepoPath(input.owner, input.repo)}/commits/${safeUrlPathSegment(input.branch || 'HEAD', 'branch', { allowSeparators: true })}`
+  )
   const validation = await validateUrlWithDNS(commitUrl, 'commitUrl', 'configuredEndpoint')
   context.signal?.throwIfAborted()
   if (!validation.isValid) {

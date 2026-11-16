@@ -1,3 +1,4 @@
+import { githubPathSegment } from '@/tools/github/request-path'
 import { GIST_FILES_OUTPUT, GIST_OUTPUT_PROPERTIES, GIST_OWNER_OUTPUT } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -76,7 +77,7 @@ export const listGistsTool: ToolConfig<ListGistsParams, ListGistsResponse> = {
   request: {
     url: (params) => {
       const baseUrl = params.username
-        ? `https://api.github.com/users/${params.username}/gists`
+        ? `https://api.github.com/users/${githubPathSegment(params.username, 'username')}/gists`
         : 'https://api.github.com/gists'
       const url = new URL(baseUrl)
       if (params.since) url.searchParams.append('since', params.since)

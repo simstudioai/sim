@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { ListPRsParams, PRListResponse } from '@/tools/github/types'
 import { BRANCH_REF_OUTPUT, PR_SUMMARY_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
@@ -81,7 +82,9 @@ export const listPRsTool: ToolConfig<ListPRsParams, PRListResponse> = {
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/pulls`)
+      const url = new URL(
+        `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls`
+      )
       if (params.state) url.searchParams.append('state', params.state)
       if (params.head) url.searchParams.append('head', params.head)
       if (params.base) url.searchParams.append('base', params.base)

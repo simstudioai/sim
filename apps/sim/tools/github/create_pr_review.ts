@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import {
   nullableNonEmptyString,
   optionalNonEmptyString,
@@ -161,7 +162,7 @@ export const createPRReviewTool: ToolConfig<CreatePRReviewParams, PRReviewRespon
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/reviews`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${githubPathSegment(params.pullNumber, 'pullNumber')}/reviews`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

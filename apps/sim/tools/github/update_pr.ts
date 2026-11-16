@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { PRResponse, UpdatePRParams } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -62,7 +63,7 @@ export const updatePRTool: ToolConfig<UpdatePRParams, PRResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${githubPathSegment(params.pullNumber, 'pullNumber')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',

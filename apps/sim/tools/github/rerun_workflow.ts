@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { RerunWorkflowParams, RerunWorkflowResponse } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -46,7 +47,7 @@ export const rerunWorkflowTool: ToolConfig<RerunWorkflowParams, RerunWorkflowRes
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/actions/runs/${params.run_id}/rerun`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/actions/runs/${githubPathSegment(params.run_id, 'run_id')}/rerun`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

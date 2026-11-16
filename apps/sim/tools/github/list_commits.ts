@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import {
   COMMIT_DATA_OUTPUT,
   COMMIT_PARENT_OUTPUT_PROPERTIES,
@@ -119,7 +120,9 @@ export const listCommitsTool: ToolConfig<ListCommitsParams, ListCommitsResponse>
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/commits`)
+      const url = new URL(
+        `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/commits`
+      )
       if (params.sha) url.searchParams.append('sha', params.sha)
       if (params.path) url.searchParams.append('path', params.path)
       if (params.author) url.searchParams.append('author', params.author)

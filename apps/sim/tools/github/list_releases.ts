@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { ListReleasesParams, ListReleasesResponse } from '@/tools/github/types'
 import {
   RELEASE_ASSET_OUTPUT_PROPERTIES,
@@ -52,7 +53,9 @@ export const listReleasesTool: ToolConfig<ListReleasesParams, ListReleasesRespon
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/releases`)
+      const url = new URL(
+        `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/releases`
+      )
       if (params.per_page) {
         url.searchParams.append('per_page', Number(params.per_page).toString())
       }
