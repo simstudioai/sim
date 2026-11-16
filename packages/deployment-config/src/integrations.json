@@ -23357,7 +23357,7 @@
         },
         {
           "name": "Create Broadcast",
-          "description": "Create a broadcast email for an audience in Resend"
+          "description": "Create a broadcast email for a segment (or legacy audience) in Resend"
         },
         {
           "name": "Send Broadcast",
@@ -23421,7 +23421,7 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["email-marketing", "messaging"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "revenuecat",
@@ -25603,7 +25603,7 @@
         },
         {
           "name": "List Templates",
-          "description": "Get all email templates from SendGrid"
+          "description": "List email templates from SendGrid. Returns legacy templates only unless generations includes dynamic"
         },
         {
           "name": "Delete Template",
@@ -25622,7 +25622,7 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["email-marketing", "messaging"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "sentry_v2",
@@ -29799,7 +29799,7 @@
       "operations": [
         {
           "name": "Twilio Send SMS",
-          "description": "Send text messages to single or multiple recipients using the Twilio API."
+          "description": "Send a text message to one recipient using the Twilio API. Call once per recipient to reach several numbers."
         }
       ],
       "operationCount": 1,
@@ -29821,7 +29821,7 @@
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "automation"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "twilio_voice_v2",

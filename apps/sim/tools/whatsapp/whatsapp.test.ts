@@ -15,6 +15,9 @@ import {
   whatsappMediaLimitFor,
 } from '@/tools/whatsapp/utils'
 
+const blockParams = WhatsAppBlock.tools.config?.params
+if (!blockParams) throw new Error('WhatsAppBlock has no params mapper')
+
 const auth = { phoneNumberId: ' 15550001111 ', accessToken: ' token ' }
 
 describe('WhatsApp request URL and headers', () => {
@@ -316,7 +319,7 @@ describe('WhatsAppBlock file param mapping', () => {
   }
 
   function mapParams(params: Record<string, unknown>) {
-    return WhatsAppBlock.tools.config!.params!(params) as Record<string, unknown>
+    return blockParams(params) as Record<string, unknown>
   }
 
   /**
@@ -363,10 +366,10 @@ describe('WhatsAppBlock file param mapping', () => {
    * tool's `mediaId` directly because `downloadMediaId` is not a tool param.
    */
   it('keeps the model mediaId for Download Media on a tool call', () => {
-    const mapped = WhatsAppBlock.tools.config!.params!(
-      { mediaId: 'model-media-1' },
-      { operation: 'get_media' }
-    ) as Record<string, unknown>
+    const mapped = blockParams({ mediaId: 'model-media-1' }, { operation: 'get_media' }) as Record<
+      string,
+      unknown
+    >
 
     expect(mapped.mediaId).toBe('model-media-1')
   })
