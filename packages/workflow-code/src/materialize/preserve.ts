@@ -120,6 +120,23 @@ function sameParams(
   return deepEqual(left, right)
 }
 
+/**
+ * Whether `id` stays inactive once prev's value is back in it. A field whose activity hangs on its
+ * own value (a standalone advanced field runs only while non-empty) is inactive only because
+ * source emptied it, and restoring prev's value would run what source cleared.
+ */
+function staysInactiveWithPrev(
+  next: CanonicalBlock,
+  id: SubBlockId,
+  restored: CanonicalParam | undefined,
+  declared: CatalogBlock,
+  catalog: BlockCatalog
+): boolean {
+  const params = { ...next.params }
+  setParam(params, id, restored)
+  return inactiveSet({ ...next, params }, declared, catalog)(id)
+}
+
 function restoreInactive(
   next: CanonicalBlock,
   prev: CanonicalBlock,
@@ -131,7 +148,12 @@ function restoreInactive(
     const inactive = inactiveSet(next, declared, catalog)
     const ids = new Set([...Object.keys(next.params), ...Object.keys(prev.params)])
     for (const id of ids) {
-      if (inactive(id)) setParam(next.params, id, getOwn(prev.params, id))
+      if (!inactive(id)) continue
+      const restored = getOwn(prev.params, id)
+      if (deepEqual(getOwn(next.params, id), restored)) continue
+      if (staysInactiveWithPrev(next, id, restored, declared, catalog)) {
+        setParam(next.params, id, restored)
+      }
     }
     if (sameParams(before, next.params)) return
   }

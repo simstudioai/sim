@@ -814,6 +814,20 @@ describe('materialize: preserved UI state comes from prev', () => {
     expect(subBlockValue(result.state, 's1', 'text')).toBe('stale message')
   })
 
+  it('clears a standalone advanced field that source emptied instead of restoring it', () => {
+    const state = workflowState([
+      blockState('s1', 'slack', 'Post', { operation: 'send', text: 'hi', threadTs: '123.456' }),
+    ])
+    const removed = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.post.params = omit(draft.blocks.post.params, ['threadTs'])
+    })
+    const emptied = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.post.params.threadTs = { kind: 'value', value: '' }
+    })
+    expect(subBlockValue(run(removed, null, { prev: state }).state, 's1', 'threadTs')).toBeNull()
+    expect(subBlockValue(run(emptied, null, { prev: state }).state, 's1', 'threadTs')).toBe('')
+  })
+
   it("keeps a forEach loop's stored count through a collection edit", () => {
     const state = workflowState([
       blockState(
