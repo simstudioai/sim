@@ -322,6 +322,40 @@ export default workflow('Each item', {}, () => {
   expect(result.diff.noop).toBe(true)
 })
 
+check('create keeps the function file name the source wrote', async () => {
+  const created = await withPermissionGroupScope(() =>
+    createWorkflowFromSource.execute({
+      principal,
+      input: {
+        workspaceId,
+        name: `Source create ${generateId()}`,
+        files: {
+          'workflow.ts': `// @sim-sdk 1
+import { codeFile, fn, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Normalize', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { email: 'string' } })
+  const normalize = fn('Normalize Domain', { code: codeFile('./functions/normalize-domain.js') })
+  start.to(normalize)
+})
+`,
+          'functions/normalize-domain.js': "return String($ref.start.email ?? '').toLowerCase()\n",
+        },
+      },
+    })
+  )
+
+  expect(created.applied).toBe(true)
+  expect(Object.keys(created.files).sort()).toEqual([
+    'functions/normalize-domain.js',
+    'workflow.ts',
+  ])
+  expect(created.files['workflow.ts']).toContain("codeFile('./functions/normalize-domain.js')")
+  expect(Object.values(created.lock.blocks).map((block) => block.codeFile)).toContain(
+    'functions/normalize-domain.js'
+  )
+})
+
 check('a legacy ~n key block keeps its stored secret through get → apply unchanged', async () => {
   const workflowId = generateId()
   const now = new Date()
