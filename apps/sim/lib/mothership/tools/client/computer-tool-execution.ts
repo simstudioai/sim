@@ -5,6 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { cancelComputerUseTool, executeComputerUseTool } from '@/lib/computer-use/transport'
+import { getDesktopBridge } from '@/lib/desktop'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   type AsyncConfirmationStatus,
@@ -245,7 +246,10 @@ export async function executeComputerToolOnClient(
                   : result.kind === 'action' && !result.verified
                     ? 'Input was dispatched. Inspect the returned observation or the app to verify its effect.'
                     : 'Computer observation completed',
-            data: computerToolResultForModel(result),
+            data: computerToolResultForModel(result, {
+              baseSnapshotId: 'snapshotId' in parsed.data ? parsed.data.snapshotId : undefined,
+              stableElementIds: getDesktopBridge()?.computerUse?.stableElementIds === true,
+            }),
           }
     } else
       execution.completion = {

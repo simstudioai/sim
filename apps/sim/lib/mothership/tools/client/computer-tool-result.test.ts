@@ -299,3 +299,106 @@ describe('native computer model projection', () => {
     expect(computerToolResultForModel(result)).toEqual(result)
   })
 })
+
+describe('change-only observations after an action', () => {
+  const buttons = (snapshotId: string, labels: string[], windowId = '1'): ComputerUseSnapshot => ({
+    kind: 'state',
+    bundleId: 'com.example.Fixture',
+    snapshotId,
+    windowId,
+    windows: [{ windowId, title: 'Fixture', x: 0, y: 0, width: 400, height: 300 }],
+    nodes: labels.map((label, index) => ({
+      elementId: `e${index}`,
+      role: 'AXButton',
+      label,
+      actions: ['AXPress'],
+    })),
+    truncated: false,
+  })
+  const click = (observation: ComputerUseSnapshot): ComputerUseResult => ({
+    kind: 'action',
+    action: 'click',
+    bundleId: observation.bundleId,
+    dispatched: true,
+    verified: false,
+    observation,
+  })
+  const tree = (result: unknown) =>
+    (result as { observation: { accessibilityTree: string } }).observation.accessibilityTree
+  const field = (result: unknown, name: string) =>
+    (result as { observation: Record<string, unknown> }).observation[name]
+  const labels = ['One', 'Two', 'Three', 'Four', 'Five', 'Six']
+  const stable = { stableElementIds: true }
+
+  it('sends whole trees when the desktop cannot keep ids stable', () => {
+    computerToolResultForModel(buttons('a1', labels))
+    const result = computerToolResultForModel(
+      click(buttons('a2', [...labels.slice(0, 5), 'Changed'])),
+      {
+        baseSnapshotId: 'a1',
+      }
+    )
+    expect(field(result, 'changedSince')).toBeUndefined()
+    expect(tree(result).split('\n')).toHaveLength(6)
+  })
+
+  it('sends a whole tree when the snapshot the action used is unknown', () => {
+    const result = computerToolResultForModel(click(buttons('b2', labels)), {
+      ...stable,
+      baseSnapshotId: 'never-seen',
+    })
+    expect(field(result, 'changedSince')).toBeUndefined()
+    expect(tree(result).split('\n')).toHaveLength(6)
+  })
+
+  it('lists only changed and new rows and the ids that disappeared', () => {
+    computerToolResultForModel(buttons('c1', labels))
+    const next = buttons('c2', ['One', 'Two', 'Three', 'Four', 'Renamed'])
+    next.nodes.push({ elementId: 'e9', role: 'AXButton', label: 'Added', actions: ['AXPress'] })
+    const result = computerToolResultForModel(click(next), { ...stable, baseSnapshotId: 'c1' })
+    expect(field(result, 'changedSince')).toBe('c1')
+    expect(tree(result)).toContain('label="Renamed"')
+    expect(tree(result)).toContain('e9 AXButton label="Added"')
+    expect(tree(result)).not.toContain('label="One"')
+    expect(field(result, 'removedElementIds')).toEqual(['e5'])
+  })
+
+  it('folds earlier change lists into what the next action is compared against', () => {
+    computerToolResultForModel(buttons('d1', labels))
+    const renamed = [...labels.slice(0, 5), 'Renamed']
+    computerToolResultForModel(click(buttons('d2', renamed)), { ...stable, baseSnapshotId: 'd1' })
+    const result = computerToolResultForModel(click(buttons('d3', renamed)), {
+      ...stable,
+      baseSnapshotId: 'd2',
+    })
+    expect(field(result, 'changedSince')).toBe('d2')
+    expect(tree(result)).toBe('')
+  })
+
+  it('returns to a whole tree after a run of change lists', () => {
+    computerToolResultForModel(buttons('f0', labels))
+    let result: unknown
+    for (let step = 1; step <= 5; step++)
+      result = computerToolResultForModel(click(buttons(`f${step}`, labels)), {
+        ...stable,
+        baseSnapshotId: `f${step - 1}`,
+      })
+    expect(field(result, 'changedSince')).toBeUndefined()
+    expect(tree(result).split('\n')).toHaveLength(6)
+  })
+
+  it('sends a whole tree for another window or when most of the tree changed', () => {
+    computerToolResultForModel(buttons('g1', labels))
+    const otherWindow = computerToolResultForModel(click(buttons('g2', labels, '2')), {
+      ...stable,
+      baseSnapshotId: 'g1',
+    })
+    expect(field(otherWindow, 'changedSince')).toBeUndefined()
+    computerToolResultForModel(buttons('h1', labels))
+    const rewritten = computerToolResultForModel(
+      click(buttons('h2', ['A', 'B', 'C', 'D', 'Five', 'Six'])),
+      { ...stable, baseSnapshotId: 'h1' }
+    )
+    expect(field(rewritten, 'changedSince')).toBeUndefined()
+  })
+})

@@ -85,6 +85,11 @@ export class ComputerUseError extends Error {
 
 /** Optional so a new web deployment remains compatible with older desktop shells. */
 interface SimDesktopComputerUseApi {
+  /**
+   * An element keeps its id across observations of the same app process, so an action's observation
+   * can list only what changed. Absent in older shells, whose ids are positional.
+   */
+  stableElementIds?: true
   /** Current activity without starting the helper; absent in older shells. */
   getActivity?(): Promise<ComputerUseActivity | null>
   getStatus(): Promise<ComputerUseStatus>
