@@ -55,6 +55,7 @@ describe('Slack operations', () => {
           name: 'report.pdf',
           mimetype: 'application/pdf',
           url_private: 'https://files.slack.com/report.pdf',
+          url_private_download: 'https://files.slack.com/download/report.pdf',
         },
       })
     )
@@ -66,14 +67,22 @@ describe('Slack operations', () => {
     )
 
     expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
-      'https://files.slack.com/report.pdf',
+      'https://files.slack.com/download/report.pdf',
       '93.184.216.34',
       {
         headers: { Authorization: 'Bearer token' },
         profile: 'contentFetch',
         maxResponseBytes: MAX_FILE_SIZE,
         signal: controller.signal,
+        assertRedirectTarget: expect.any(Function),
       }
+    )
+    const guard = mockSecureFetchWithPinnedIP.mock.lastCall?.[2]?.assertRedirectTarget
+    expect(() =>
+      guard?.('https://files.slack.com/files-pri/T1-F1/download/report.pdf')
+    ).not.toThrow()
+    expect(() => guard?.('https://slack-files.com/files-pri-safe/T1-F1/report.pdf')).toThrow(
+      expect.objectContaining({ status: 400 })
     )
     assert(isInternalToolFileResult(result))
     expect(result.files).toEqual([
@@ -90,6 +99,25 @@ describe('Slack operations', () => {
       context: 'execution',
     }
     expect(result.present([storedFile])).toEqual({ success: true, output: { file: storedFile } })
+  })
+
+  it('never sends the token to a file hosted outside Slack', async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      slackResponse({
+        ok: true,
+        file: {
+          name: 'plan.pdf',
+          is_external: true,
+          url_private: 'https://files.example.com/plan.pdf',
+        },
+      })
+    )
+
+    await expect(executeSlackDownload({ accessToken: 'token', fileId: 'F1' })).rejects.toThrow(
+      'File has no Slack-hosted download URL'
+    )
+    expect(mockValidateUrlWithDNS).not.toHaveBeenCalled()
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 
   it('stops following history cursors at the page ceiling whatever maxPages asks for', async () => {

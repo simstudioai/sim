@@ -1,3 +1,4 @@
+import { slackFileDownloadUrl } from '@/lib/internal/slack/file-download'
 import { recordSearchProviderSignal } from '@/lib/knowledge/search/diagnostics'
 import { dateSortDirection, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import {
@@ -389,9 +390,9 @@ function decodeFileText(bytes: Buffer, mimetype: string): string | undefined {
 
 /**
  * The full text of a file Slack hosts: canvases as HTML, snippets and text files as text, PDF and
- * DOCX extracted. The token only goes to Slack's file host, never a remote file's own URL. Short of
- * the caller aborting, any failure (denial, redirect, size limit, unreadable bytes, slow download)
- * leaves the read with its preview, plus the provider's reason when it gave one.
+ * DOCX extracted, from Slack's download URL when it has one. The token only goes to Slack's file
+ * host. Short of the caller aborting, any failure (denial, redirect, size limit, unreadable bytes,
+ * slow download) leaves the read with its preview, plus the provider's reason when it gave one.
  */
 async function slackFileText(
   client: NativeClient,
@@ -399,10 +400,9 @@ async function slackFileText(
   signal?: AbortSignal
 ): Promise<{ text: string } | { unavailable?: string }> {
   const format = slackFileFormat(file)
-  if (!format || file.is_external === true || Number(file.size) > MAX_FILE_DOWNLOAD_BYTES[format])
-    return {}
-  const source = URL.parse(string(file.url_private))
-  if (source?.origin !== 'https://files.slack.com') return {}
+  if (!format || Number(file.size) > MAX_FILE_DOWNLOAD_BYTES[format]) return {}
+  const source = slackFileDownloadUrl(file)
+  if (!source) return {}
   const timeout = AbortSignal.timeout(FILE_DOWNLOAD_TIMEOUT_MS)
   const download = signal ? AbortSignal.any([signal, timeout]) : timeout
   const request = { service: 'slackFiles', signal: download } as const
