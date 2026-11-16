@@ -18,6 +18,7 @@ import { attachTableImport } from './tables-import'
 import { attachWorkflowRunFollow } from './workflow-run-follow'
 import { attachWorkflowRunGet } from './workflow-run-get'
 import { attachWorkflowRunWait } from './workflow-run-wait'
+import { attachWorkflowSourceApply } from './workflow-source-apply'
 import { attachWorkspaceOperationWait } from './workspace-operation-wait'
 
 function group(program: Command, name: string): Command {
@@ -81,6 +82,7 @@ export function attachProtocolCommands(program: Command): void {
   const runs = group(workflows, 'runs')
   attachWorkflowRunGet(runs)
   attachWorkflowRunWait(runs)
+  attachWorkflowSourceApply(group(workflows, 'source'))
 
   attachWorkspaceOperationWait(group(group(program, 'workspaces'), 'operations'))
 
