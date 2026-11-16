@@ -364,9 +364,10 @@ def _analyze_many(
     score_threshold: float | None,
     ad_hoc_recognizers: list[PatternRecognizer] | None = None,
 ):
-    """Analyze many texts, skipping the spaCy pass for regex-only requests and
-    analyzing any text longer than NER_WINDOW_CHARS on its own (see
-    `_analyze_long`)."""
+    """Analyze many texts, skipping the spaCy pass for regex-only requests. A text
+    longer than NER_WINDOW_CHARS is analyzed on its own (see `_analyze_long`); the
+    rest share NER passes of at most NER_WINDOW_CHARS in total, since a batched pass
+    costs memory for every character in it, like one long text."""
     if _regex_only(entities, score_threshold):
         blank = _BLANK_ARTIFACTS.get(language)
         return [
@@ -380,21 +381,32 @@ def _analyze_many(
             )
             for text in texts
         ]
-    long_indices = {i for i, text in enumerate(texts) if len(text) > NER_WINDOW_CHARS}
-    short_indices = [i for i in range(len(texts)) if i not in long_indices]
+    long_indices: list[int] = []
+    batches: list[list[int]] = []
+    batch_chars = 0
+    for i, text in enumerate(texts):
+        if len(text) > NER_WINDOW_CHARS:
+            long_indices.append(i)
+            continue
+        if not batches or batch_chars + len(text) > NER_WINDOW_CHARS:
+            batches.append([])
+            batch_chars = 0
+        batches[-1].append(i)
+        batch_chars += len(text)
     results: list[list[RecognizerResult]] = [[] for _ in texts]
-    with _NER_SLOT:
-        short_results = batch_analyzer.analyze_iterator(
-            texts=[texts[i] for i in short_indices],
-            language=language,
-            batch_size=NLP_BATCH_SIZE,
-            entities=entities or None,
-            score_threshold=score_threshold,
-            ad_hoc_recognizers=ad_hoc_recognizers or None,
-        )
-        for i, per_text in zip(short_indices, short_results):
-            results[i] = list(per_text)
-    for i in sorted(long_indices):
+    for batch in batches:
+        with _NER_SLOT:
+            batch_results = batch_analyzer.analyze_iterator(
+                texts=[texts[i] for i in batch],
+                language=language,
+                batch_size=NLP_BATCH_SIZE,
+                entities=entities or None,
+                score_threshold=score_threshold,
+                ad_hoc_recognizers=ad_hoc_recognizers or None,
+            )
+            for i, per_text in zip(batch, batch_results):
+                results[i] = list(per_text)
+    for i in long_indices:
         results[i] = _analyze_long(
             texts[i], language, entities, score_threshold, ad_hoc_recognizers=ad_hoc_recognizers
         )
