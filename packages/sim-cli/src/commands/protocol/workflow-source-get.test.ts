@@ -125,7 +125,7 @@ describe('sim workflows source get --dir', () => {
     expect(existsSync(join(outDir, '.sim/sdk/blocks/agent.d.ts'))).toBe(true)
     expect(existsSync(join(outDir, '.sim/sdk/blocks/slack_v2.d.ts'))).toBe(true)
     expect(readFileSync(join(outDir, '.sim/sdk/workspace.d.ts'), 'utf8')).toContain("'docs': true")
-    expect(readFileSync(join(outDir, 'AGENTS.md'), 'utf8')).toContain('apply')
+    expect(readFileSync(join(outDir, '.sim/AGENTS.md'), 'utf8')).toContain('apply')
     expect(callsTo(CATALOG_PATH)).toHaveLength(1)
     expect(callsTo(CATALOG_PATH)[0][1].query).toBeUndefined()
   })

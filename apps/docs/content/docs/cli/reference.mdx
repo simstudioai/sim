@@ -8282,6 +8282,8 @@ sim workflows source apply <workflowId> [options]
 
 </CommandTable>
 
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE: get it again, reapply the edit, retry); 6 the workflow is locked; 7 the source is too large.
+
 API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource).
 
 ### sim workflows source create
@@ -8305,6 +8307,8 @@ sim workflows source create [options]
 | `-y, --yes` | No | Create without asking for confirmation. |
 
 </CommandTable>
+
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE: get it again, reapply the edit, retry); 6 the workflow is locked; 7 the source is too large.
 
 API request and response schemas: [createWorkflowFromSource](/api-reference/workflows/createWorkflowFromSource).
 

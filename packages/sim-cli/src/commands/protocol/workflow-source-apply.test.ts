@@ -21,7 +21,12 @@ const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
 const WORKSPACE_ID = 'ws_local'
 const APPLY_PATH = `/api/v2/workflows/${WORKFLOW_ID}/source`
 const CREATE_PATH = `/api/v2/workspaces/${WORKSPACE_ID}/workflows/source`
-const BASE = { workspaceId: WORKSPACE_ID, fingerprint: 'sf1:a', catalogHash: 'h' }
+const BASE = {
+  workflowId: WORKFLOW_ID,
+  workspaceId: WORKSPACE_ID,
+  fingerprint: 'sf1:a',
+  catalogHash: 'h',
+}
 const LOCK = { version: 1, blocks: {}, variables: {} }
 const ENTRY = "// @sim-sdk 1\nexport default workflow('W', () => {})\n"
 

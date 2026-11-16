@@ -1,9 +1,13 @@
-import { mkdir, readFile } from 'node:fs/promises'
-import { dirname, posix, resolve } from 'node:path'
 import { createInterface } from 'node:readline/promises'
+import { isRecordLike } from '@sim/utils/object'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { embedStore, setSoftExitCode } from '../../embed-context'
+import {
+  SOURCE_LOCKED_EXIT_CODE,
+  SOURCE_STALE_EXIT_CODE,
+  SOURCE_TOO_LARGE_EXIT_CODE,
+} from '../../exit-codes'
 import type {
   ApplyWorkflowSourceBody,
   ApplyWorkflowSourceResponse,
@@ -11,21 +15,39 @@ import type {
 } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand } from '../../runtime/called-operations'
-import { embeddedFileContent } from '../../transfer/local-file'
-import { saveToFile } from './files-get'
 import { printProtocolResult } from './result'
 import {
   SOURCE_BASE_FILE as BASE_FILE,
   SOURCE_ENTRY_FILE as ENTRY_FILE,
   SOURCE_LOCK_FILE as LOCK_FILE,
+  lockCodeFiles,
+  orphanedCodeFiles,
+  readPreviousLock,
+  readSourceText,
+  sourceRelativePath,
+  updateSourceDir,
 } from './workflow-source-layout'
 
 /** `code: codeFile('./functions/x.js')` in the entry file (the SDK's only code-file form). */
 const CODE_FILE_REFERENCE = /\bcodeFile\(\s*(['"])([^'"\n]+)\1\s*\)/g
 
+/** The exit status of a refused write a script can branch on; any other refusal exits 1. */
+const REFUSAL_EXIT_CODES: Readonly<Record<number, number>> = {
+  409: SOURCE_STALE_EXIT_CODE,
+  413: SOURCE_TOO_LARGE_EXIT_CODE,
+  423: SOURCE_LOCKED_EXIT_CODE,
+}
+
+const EXIT_CODES_HELP = `
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
+file:line:column with its frame and hint) or the command failed; 5 the workflow changed since
+the directory was read (SOURCE_STALE: get it again, reapply the edit, retry); 6 the workflow is
+locked; 7 the source is too large.`
+
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 type Diagnostic = SourceApplyData['diagnostics'][number]
 type SourceLock = ApplyWorkflowSourceBody['lock']
+type SourceBase = ApplyWorkflowSourceBody['base']
 
 interface SourceWriteOptions {
   dir: string
@@ -33,46 +55,20 @@ interface SourceWriteOptions {
   yes?: boolean
 }
 
-/** A path inside the source directory, refusing absolute paths and `..` escapes. */
-function sourceRelativePath(path: string): string | null {
-  const normalized = posix.normalize(path.replace(/\\/g, '/'))
-  if (normalized.startsWith('/') || normalized === '..' || normalized.startsWith('../')) return null
-  return normalized.startsWith('./') ? normalized.slice(2) : normalized
-}
-
-function locate(directory: string, path: string): string {
-  return embedStore.getStore() ? posix.join(directory, path) : resolve(directory, path)
-}
-
-async function readText(directory: string, path: string): Promise<string> {
-  const target = locate(directory, path)
-  const embedded = embedStore.getStore()
-  if (embedded) {
-    const content = await embeddedFileContent(embedded, target)
-    return typeof content === 'string' ? content : new TextDecoder().decode(content)
-  }
-  try {
-    return await readFile(target, 'utf8')
-  } catch (error) {
-    throw new SimApiError(`Cannot read ${target}: ${(error as Error).message}`, 0)
-  }
+/** The text of a file the directory must hold, or a refusal that says how to write it. */
+async function requireText(directory: string, path: string, hint: string): Promise<string> {
+  const text = await readSourceText(directory, path)
+  if (text === null) throw new SimApiError(`${directory} has no ${path}. ${hint}`, 0)
+  return text
 }
 
 async function readJson(directory: string, path: string, hint: string): Promise<unknown> {
-  const text = await readText(directory, path).catch((error: unknown) => {
-    throw new SimApiError(`${(error as Error).message}. ${hint}`, 0)
-  })
+  const text = await requireText(directory, path, hint)
   try {
     return JSON.parse(text)
   } catch {
-    throw new SimApiError(`${locate(directory, path)} is not valid JSON. ${hint}`, 0)
+    throw new SimApiError(`${path} in ${directory} is not valid JSON. ${hint}`, 0)
   }
-}
-
-async function writeText(directory: string, path: string, text: string): Promise<void> {
-  const target = locate(directory, path)
-  if (!embedStore.getStore()) await mkdir(dirname(target), { recursive: true })
-  await saveToFile(new Blob([text]).stream(), target, true)
 }
 
 /**
@@ -81,13 +77,9 @@ async function writeText(directory: string, path: string, text: string): Promise
  * that is missing.
  */
 function codeFilePaths(entry: string, lock: SourceLock | null): string[] {
-  const paths = new Set<string>()
+  const paths = lockCodeFiles(lock)
   for (const match of entry.matchAll(CODE_FILE_REFERENCE)) {
     const path = sourceRelativePath(match[2])
-    if (path) paths.add(path)
-  }
-  for (const block of Object.values(lock?.blocks ?? {})) {
-    const path = block.codeFile ? sourceRelativePath(block.codeFile) : null
     if (path) paths.add(path)
   }
   paths.delete(ENTRY_FILE)
@@ -146,58 +138,78 @@ async function confirm(question: string): Promise<boolean> {
   }
 }
 
-interface SourceSubmission {
-  files: Record<string, string>
-  lock: SourceLock | null
-  base: ApplyWorkflowSourceBody['base'] | null
+const GET_HINT = 'Write the directory with `sim workflows source get` first.'
+
+/**
+ * The base an apply sends, refused when it is not this workflow's: a directory written for one
+ * workflow and applied to another would replace that workflow's draft with a stranger's source.
+ */
+async function readBase(directory: string, workflowId: string): Promise<SourceBase> {
+  const base = await readJson(directory, BASE_FILE, GET_HINT)
+  if (!isRecordLike(base) || typeof base.fingerprint !== 'string') {
+    throw new SimApiError(`${BASE_FILE} in ${directory} has no fingerprint. ${GET_HINT}`, 0)
+  }
+  if (base.workflowId !== workflowId) {
+    throw new SimApiError(
+      typeof base.workflowId === 'string'
+        ? `${directory} holds the source of workflow ${base.workflowId}, not ${workflowId}. Apply it to ${base.workflowId}, or write this workflow's source with \`sim workflows source get ${workflowId} --dir <dir>\`.`
+        : `${BASE_FILE} in ${directory} names no workflow. ${GET_HINT}`,
+      0,
+      'SOURCE_WORKFLOW_MISMATCH'
+    )
+  }
+  return base as SourceBase
 }
 
-/** Reads the directory: the entry file, its code files and, unless creating, the lock files. */
-async function readSubmission(directory: string, creating: boolean): Promise<SourceSubmission> {
-  const hint = 'Write the directory with `sim workflows source get` first.'
-  const entry = await readText(directory, ENTRY_FILE)
-  let lock: SourceLock | null = null
-  let base: SourceSubmission['base'] = null
-  if (!creating) {
-    lock = (await readJson(directory, LOCK_FILE, hint)) as SourceLock
-    base = (await readJson(directory, BASE_FILE, hint)) as ApplyWorkflowSourceBody['base']
-    if (typeof base?.fingerprint !== 'string') {
-      throw new SimApiError(`${locate(directory, BASE_FILE)} has no fingerprint. ${hint}`, 0)
-    }
-  }
+/**
+ * The files a write sends: the entry file and the code files it or the lock references. A
+ * referenced file that is missing is left out, and the server reports it with its source line.
+ */
+async function readSourceFiles(
+  directory: string,
+  lock: SourceLock | null
+): Promise<Record<string, string>> {
+  const entry = await requireText(directory, ENTRY_FILE, GET_HINT)
   const files: Record<string, string> = { [ENTRY_FILE]: entry }
   for (const path of codeFilePaths(entry, lock)) {
-    try {
-      files[path] = await readText(directory, path)
-    } catch {
-      // A referenced file that is missing is reported by the server with its source line.
-    }
+    const text = await readSourceText(directory, path)
+    if (text !== null) files[path] = text
   }
-  return { files, lock, base }
+  return files
 }
 
-/** Re-throws an API refusal after printing its diagnostics, so each shows its source line. */
+/**
+ * Re-throws an API refusal after printing its diagnostics, so each shows its source line, with
+ * the exit status a script branches on.
+ */
 function printRefusal(error: unknown): never {
-  if (error instanceof SimApiError && error.details && typeof error.details === 'object') {
-    const diagnostics = (error.details as { diagnostics?: unknown }).diagnostics
-    if (isDiagnosticList(diagnostics)) {
-      for (const diagnostic of diagnostics) printError(formatDiagnostic(diagnostic))
-      throw new SimApiError(error.message, error.status, error.code, undefined)
-    }
-  }
-  throw error
+  if (!(error instanceof SimApiError)) throw error
+  const diagnostics = isRecordLike(error.details) ? error.details.diagnostics : undefined
+  const printed = isDiagnosticList(diagnostics)
+  if (printed) for (const diagnostic of diagnostics) printError(formatDiagnostic(diagnostic))
+  throw new SimApiError(
+    error.message,
+    error.status,
+    error.code,
+    printed ? undefined : error.details,
+    REFUSAL_EXIT_CODES[error.status] ?? error.exitCode,
+    error.requestId
+  )
 }
 
 /**
  * The shared write flow of `apply` and `create`: refuse a write without consent when no terminal
  * can ask, preview and ask on a terminal, send, print the diagnostics, and after a successful
- * write save the re-printed files, the lock and the base back into the directory.
+ * write save the re-printed files, the lock and the base back into the directory, pruning the
+ * function files the new lock no longer names.
  */
 async function runSourceWrite(args: {
   directory: string
   options: SourceWriteOptions
   creating: boolean
   question: string
+  /** The lock the directory held before the write: the record of the files the CLI wrote. */
+  previousLock: unknown
   send: (dryRun: boolean) => Promise<SourceApplyData>
   output: Parameters<typeof printProtocolResult>[0]
 }): Promise<void> {
@@ -222,13 +234,15 @@ async function runSourceWrite(args: {
   if (refused) setSoftExitCode(1)
 
   if (!data.dryRun && !refused && (data.applied || !creating)) {
-    for (const [path, text] of Object.entries(data.files)) {
-      const relative = sourceRelativePath(path)
-      if (!relative) throw new SimApiError(`Refusing to write ${path} outside ${directory}`, 0)
-      await writeText(directory, relative, text)
-    }
-    await writeText(directory, LOCK_FILE, `${JSON.stringify(data.lock, null, 2)}\n`)
-    await writeText(directory, BASE_FILE, `${JSON.stringify(data.base, null, 2)}\n`)
+    const write: Array<[string, string]> = Object.entries(data.files)
+    write.push(
+      [LOCK_FILE, `${JSON.stringify(data.lock, null, 2)}\n`],
+      [BASE_FILE, `${JSON.stringify(data.base, null, 2)}\n`]
+    )
+    await updateSourceDir(directory, {
+      write,
+      remove: orphanedCodeFiles(args.previousLock, data.lock, Object.keys(data.files)),
+    })
   }
 
   printProtocolResult(args.output, summarize(data, creating))
@@ -266,18 +280,19 @@ export function attachWorkflowSourceApply(source: Command): void {
     .option('-y, --yes', 'Apply without asking for confirmation')
     .allowExcessArguments(false)
     .description('Apply a workflow source directory to a workflow draft')
+    .addHelpText('after', EXIT_CODES_HELP)
     .action(async (workflowId: string, options: SourceWriteOptions) => {
       requireConsent(options, 'writes the workflow draft')
       const { client, profile } = connectApply()
-      const submission = await readSubmission(options.dir, false)
-      const { lock, base } = submission
-      if (!lock || !base)
-        throw new SimApiError('The source directory has no lock to apply with.', 0)
+      const lock = (await readJson(options.dir, LOCK_FILE, GET_HINT)) as SourceLock
+      const base = await readBase(options.dir, workflowId)
+      const files = await readSourceFiles(options.dir, lock)
       await runSourceWrite({
         directory: options.dir,
         options,
         creating: false,
         question: `Apply these changes to workflow ${workflowId}?`,
+        previousLock: lock,
         output: profile.output,
         send: async (dryRun) => {
           try {
@@ -287,7 +302,7 @@ export function attachWorkflowSourceApply(source: Command): void {
                 params: { workflowId },
                 ...(dryRun ? { query: { dryRun: true } } : {}),
                 body: {
-                  files: submission.files,
+                  files,
                   lock,
                   base,
                   provenance: { client: 'cli' },
@@ -318,16 +333,19 @@ export function attachWorkflowSourceCreate(source: Command): void {
     .option('-y, --yes', 'Create without asking for confirmation')
     .allowExcessArguments(false)
     .description('Create a workflow from a workflow source directory')
+    .addHelpText('after', EXIT_CODES_HELP)
     .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) => {
       requireConsent(options, 'creates a workflow')
       const { client, profile } = connectCreate()
       const workspaceId = client.requireWorkspace()
-      const submission = await readSubmission(options.dir, true)
+      const files = await readSourceFiles(options.dir, null)
+      const previousLock = await readPreviousLock(options.dir)
       await runSourceWrite({
         directory: options.dir,
         options,
         creating: true,
         question: 'Create this workflow?',
+        previousLock,
         output: profile.output,
         send: async (dryRun) => {
           try {
@@ -337,7 +355,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
                 params: { workspaceId },
                 ...(dryRun ? { query: { dryRun: true } } : {}),
                 body: {
-                  files: submission.files,
+                  files,
                   ...(options.name !== undefined ? { name: options.name } : {}),
                   ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
                   provenance: { client: 'cli' },

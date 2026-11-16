@@ -36,7 +36,8 @@ the new workflow id and writes the lock files back into the directory.
 | `.sim/sdk/operations/{type}/{operation}.d.ts` | One operation's params and outputs, about 1-2 KB each. Read these to learn a block. |
 | `.sim/sdk/workspace.d.ts` | This workspace's tables (with columns), knowledge bases, credentials, workflows (with inputs) and env var names, so `table('tickets')`, `credential('support-slack')` and `env.X` are checked. |
 | `tsconfig.json` | Resolves `@sim/workflow-sdk` to `.sim/sdk`. |
-| `AGENTS.md` | A pointer to this README. |
+| `.sim/AGENTS.md` | A pointer to this README. A top-level `AGENTS.md` of your own is never touched. |
+| `.gitattributes` | `text eol=lf` for `workflow.ts` and `functions/**`, added to any file already there. |
 
 The block declarations come from the workspace's block catalog, cached by ETag in the CLI's config
 directory, so a second `get` in the same workspace does not download it again.
