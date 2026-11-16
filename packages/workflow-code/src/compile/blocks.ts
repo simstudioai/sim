@@ -50,6 +50,7 @@ interface CompiledBlock {
 }
 
 const META_KEYS = [
+  'key',
   'disabled',
   'locked',
   'advancedMode',
@@ -181,6 +182,8 @@ function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSit
   }
   for (const [key, property] of objectEntries(ctx, node)) {
     switch (key) {
+      case 'key':
+        break
       case 'disabled':
         meta.enabled = !booleanLiteral(ctx, property, decl)
         break

@@ -343,6 +343,7 @@ export const compileWorkflow: CompileWorkflowFn = (input) => {
     wiring: [],
     implied: [],
     spans: new Map(),
+    knownKeys: input.knownKeys ?? new Set(),
   }
 
   const moduleScope: Scope = { parent: null, bindings: new Map(), container: null }
@@ -405,6 +406,20 @@ export const compileWorkflow: CompileWorkflowFn = (input) => {
         hint: "Add export default workflow('Name', {}, ({ vars }) => { ... }).",
       }
     )
+  }
+
+  for (const decl of ctx.decls) {
+    if (decl.collisionBase && !ctx.declsByKey.has(decl.collisionBase.base)) {
+      reporter.report(
+        'E_KEY_OVERRIDE',
+        `${decl.key} is a collision key, but no block is keyed ${decl.collisionBase.base}.`,
+        rangeOf(ctx, decl.collisionBase.node),
+        {
+          hint: 'A name~n key only keeps a legacy collision apart; remove meta.key.',
+          blockKey: decl.key,
+        }
+      )
+    }
   }
 
   const compiled = new Map<BlockKey, CanonicalBlock>()

@@ -10,6 +10,7 @@ import {
   RESERVED_WORKFLOW_BLOCK_NAMES,
 } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
+import type { BlockKey } from '../model'
 import { GENERIC_BUILDER } from '../sdk'
 import type { ListOptions } from './comments'
 import {
@@ -133,6 +134,57 @@ function nameArgumentIndex(builder: ResolvedBuilder, path: string): number {
   return builder.kind === 'generic' || path === GENERIC_BUILDER ? 1 : 0
 }
 
+function isReservedKey(key: string): boolean {
+  return (RESERVED_WORKFLOW_BLOCK_NAMES as readonly string[]).includes(key)
+}
+
+/** `name~n` with n ≥ 2, the form canonicalize gives the losing block of a legacy collision. */
+function collisionSuffix(key: string, base: string): boolean {
+  return key.startsWith(`${base}~`) && /^(?:[2-9]|[1-9]\d+)$/.test(key.slice(base.length + 1))
+}
+
+/**
+ * Reads `meta.key`: the source form of a legacy key that the display name cannot carry. It is
+ * accepted only for a key already bound to an id (`CompileInput.knownKeys`) and only in one of
+ * the two legacy shapes canonicalize produces: the block's reserved normalized name (`Loop`,
+ * `Parallel`), or the `~n` collision form of its normalized name. So source can keep such a
+ * block losslessly but can never introduce one. `null` when there is no `meta.key` or it was
+ * rejected (`E_KEY_OVERRIDE`), in which case the normalized name is the key.
+ */
+function keyOverride(
+  ctx: CompileContext,
+  metaNode: Node | undefined,
+  normalized: string
+): { key: BlockKey; collisionBase?: { base: BlockKey; node: Node } } | null {
+  if (!metaNode || metaNode.type !== 'ObjectExpression') return null
+  const property = metaNode.properties.find(
+    (candidate) =>
+      candidate.type === 'ObjectProperty' &&
+      !candidate.computed &&
+      ((candidate.key.type === 'Identifier' && candidate.key.name === 'key') ||
+        (candidate.key.type === 'StringLiteral' && candidate.key.value === 'key'))
+  )
+  if (!property || property.type !== 'ObjectProperty') return null
+  const reject = (message: string): null => {
+    ctx.reporter.report('E_KEY_OVERRIDE', message, rangeOf(ctx, property), {
+      hint: 'meta.key only keeps a legacy key the stored workflow already has; remove it and rename the block.',
+    })
+    return null
+  }
+  const key = literalText(property.value)
+  if (key === null) return reject('meta.key must be a string literal.')
+  if (!ctx.knownKeys.has(key)) {
+    return reject(`meta.key ${key} is not a key of this workflow's stored blocks.`)
+  }
+  if (key === normalized && isReservedKey(key)) return { key }
+  if (collisionSuffix(key, normalized)) {
+    return { key, collisionBase: { base: normalized, node: property } }
+  }
+  return reject(
+    `meta.key ${key} is neither the reserved name ${normalized} nor a ${normalized}~n collision key.`
+  )
+}
+
 /** Registers one block declaration, checking its name (s3 §4 "Names and scopes"). */
 function declare(
   ctx: CompileContext,
@@ -154,14 +206,17 @@ function declare(
     )
     return null
   }
-  const key = normalizeWorkflowBlockName(name)
-  if (!key) {
+  const normalized = normalizeWorkflowBlockName(name)
+  if (!normalized) {
     ctx.reporter.report('E_EMPTY_NAME', 'A block name cannot be empty.', rangeOf(ctx, nameNode), {
       hint: 'Give the block a display name.',
     })
     return null
   }
-  if ((RESERVED_WORKFLOW_BLOCK_NAMES as readonly string[]).includes(key)) {
+  const metaIndex = classified.builder.kind === 'container' ? 3 : nameIndex + 2
+  const override = keyOverride(ctx, call.arguments[metaIndex], normalized)
+  const key = override?.key ?? normalized
+  if (!override && isReservedKey(normalized)) {
     ctx.reporter.report(
       'E_RESERVED_NAME',
       `${name} is reserved for <${key}.…> references.`,
@@ -185,6 +240,7 @@ function declare(
     builder: classified.builder,
     body: null,
     duplicate: false,
+    ...(override?.collisionBase && { collisionBase: override.collisionBase }),
   }
   const first = ctx.declsByKey.get(key)
   if (first) {

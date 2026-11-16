@@ -50,6 +50,11 @@ export interface BlockDecl {
   body: Scope | null
   /** A duplicate name: reported, never emitted. */
   duplicate: boolean
+  /**
+   * Set when `meta.key` keyed the block `${base}~n` (a legacy collision key). The plain `base`
+   * key must be declared too; that is checked once every declaration is collected.
+   */
+  collisionBase?: { base: BlockKey; node: Node }
 }
 
 type Binding =
@@ -97,6 +102,8 @@ export interface CompileContext {
   wiring: WiringStatement[]
   implied: ImpliedEdge[]
   spans: Map<AnchorKey, SourceSpan>
+  /** `CompileInput.knownKeys`: the only keys a `meta.key` override may name. */
+  knownKeys: ReadonlySet<BlockKey>
 }
 
 /** Anything with Babel-style offsets. */

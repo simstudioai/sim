@@ -31,9 +31,21 @@ printer's choice (build-spec first, then s2) was taken.
   advanced. `meta.modes` always wins (it is printed exactly when derivation would be wrong), so
   the compiler never emits `E_MODE_CONFLICT`. Every group on the block gets a mode; an unwritten
   group without `meta.modes` is `basic`.
-- `meta`: `disabled`, `locked`, `advancedMode`, `triggerMode` (any builder), `errorPort`,
+- `meta`: `key`, `disabled`, `locked`, `advancedMode`, `triggerMode` (any builder), `errorPort`,
   `retry: { enabled, maxTries, waitBetweenTriesMs }`, `modes`, `branches`, `inactive`,
   `$unknown` (opaque `block.data`, plain JSON).
+- `meta.key: '<key>'` (a string literal) keeps a legacy key that the display name cannot carry.
+  The printer writes it only for such a block, and the compiler accepts it only when the key is in
+  `CompileInput.knownKeys` (the stored workflow's keys, from the lock or `code_meta`) and is one of
+  the two legacy shapes canonicalize produces:
+  - the `~n` collision form of the normalized name (`api('agent1', {...}, { key: 'agent1~2' })`
+    next to `api('Agent 1', ...)`), with the plain key declared by another block;
+  - the normalized name itself when it is reserved (`api('Loop', {...}, { key: 'loop' })`).
+
+  Anything else is `E_KEY_OVERRIDE`, and the block falls back to its normalized name (so a
+  reserved name then also reports `E_RESERVED_NAME`). Source can therefore round-trip such a block
+  losslessly but never introduce one; renaming the block on the canvas or in source retires the
+  override.
 - `errorPort` in the CWM is `meta.errorPort || the block has an error edge`.
 - `inactive: { <subBlockId>: value }` accepts any id (annotated stale values, the non-effective
   pair member, ids the catalog does not know). Each id becomes a param and is listed in
