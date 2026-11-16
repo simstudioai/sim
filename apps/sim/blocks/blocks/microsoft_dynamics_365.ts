@@ -89,9 +89,12 @@ function optionalBoundedString(
   return normalized
 }
 
-/** `primary` unless it is unset (`undefined`, `null`, or `''`), else `fallback`. */
+function isUnset(value: unknown): boolean {
+  return value === undefined || value === null || value === ''
+}
+
 function firstSet(primary: unknown, fallback: unknown): unknown {
-  return primary === undefined || primary === null || primary === '' ? fallback : primary
+  return isUnset(primary) ? fallback : primary
 }
 
 function getListPaginationParams(
@@ -933,7 +936,7 @@ export const MicrosoftDynamics365Block: BlockConfig = {
 
           case 'qualify_lead': {
             const qualifySwitch = (value: unknown, label: string, defaultValue: boolean) =>
-              isToolCall(context) && (value === undefined || value === null || value === '')
+              isToolCall(context) && isUnset(value)
                 ? undefined
                 : parseBooleanWithDefault(value, label, defaultValue)
             const createAccount = qualifySwitch(params.createAccount, 'Create account', true)
@@ -956,9 +959,6 @@ export const MicrosoftDynamics365Block: BlockConfig = {
               params.qualifyOpportunityCurrencyId,
               params.opportunityCurrencyId
             )
-            const dedicatedCustomerId = createOpportunity
-              ? optionalString(params.qualifyOpportunityCustomerId)
-              : undefined
             const opportunityCustomerId = opportunityField(
               params.qualifyOpportunityCustomerId,
               params.opportunityCustomerId
@@ -982,7 +982,7 @@ export const MicrosoftDynamics365Block: BlockConfig = {
             }
             const opportunityCustomerType = opportunityCustomerId
               ? requiredString(
-                  dedicatedCustomerId
+                  optionalString(params.qualifyOpportunityCustomerId)
                     ? params.qualifyOpportunityCustomerType
                     : firstSet(
                         toolCallArg(context, params.opportunityCustomerType),

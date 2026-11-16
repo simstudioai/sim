@@ -35,6 +35,7 @@ import {
 
 const context = { oauthCredential: 'cred-1' }
 const table = { ...context, database: 'ANALYTICS', schema: 'PUBLIC', table: 'EVENTS' }
+const untyped = (flags: Record<string, unknown>) => flags as Record<string, never>
 const queryId = '01b71944-0301-b428-0000-69f706bf0001'
 
 /** ISO instants inside the history retention windows, so assertions never age out. */
@@ -483,7 +484,6 @@ describe('Snowflake SQL builders', () => {
   })
 
   it('never turns an absent or string-false flag from a tool call into a clause', () => {
-    const untyped = (flags: Record<string, unknown>) => flags as Record<string, never>
     expect(
       buildAlterWarehouse({
         ...context,
@@ -507,7 +507,6 @@ describe('Snowflake SQL builders', () => {
   })
 
   it('reads string flags from a tool call case-insensitively', () => {
-    const untyped = (flags: Record<string, unknown>) => flags as Record<string, never>
     expect(
       buildAlterWarehouse({
         ...context,
