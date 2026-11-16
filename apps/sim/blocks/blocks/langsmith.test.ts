@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { LangsmithBlock } from '@/blocks/blocks/langsmith'
 
-describe('LangsmithBlock', () => {
-  const buildParams = LangsmithBlock.tools.config.params!
+const buildParams = LangsmithBlock.tools.config?.params
+if (!buildParams) throw new Error('LangsmithBlock has no params mapper')
 
+describe('LangsmithBlock', () => {
   /**
    * The model names the create-run outputs after the tool's `run_outputs` param, not the
    * block's `outputs` field; the mapper must not overwrite them with the empty field.

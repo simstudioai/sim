@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { MintlifyBlock } from '@/blocks/blocks/mintlify'
 
+const blockParams = MintlifyBlock.tools.config?.params
+if (!blockParams) throw new Error('MintlifyBlock has no params mapper')
+
 /**
  * The executor merges `tools.config.params` on top of the raw inputs, so every
  * assertion runs against the merged result rather than the transform's return
  * value alone.
  */
 function resolveParams(inputs: Record<string, unknown>) {
-  return { ...inputs, ...MintlifyBlock.tools.config.params!(inputs) }
+  return { ...inputs, ...blockParams(inputs) }
 }
 
 describe('MintlifyBlock', () => {
@@ -56,7 +59,7 @@ describe('MintlifyBlock', () => {
       const args = { projectId: 'proj_1', source: 'contextual', status: 'pending', limit: '50' }
       const result = {
         ...args,
-        ...MintlifyBlock.tools.config.params!(args, { operation: 'get_feedback' }),
+        ...blockParams(args, { operation: 'get_feedback' }),
       }
 
       expect(result).toEqual({
