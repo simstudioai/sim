@@ -1,4 +1,5 @@
 import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
+import { omitConditionHiddenParams } from '@/lib/workflows/tool-input/hidden-params'
 import type { StoredTool } from '@/lib/workflows/tool-input/types'
 import { getBlock } from '@/blocks/registry'
 import type { ToolMetadata } from '@/tools/metadata'
@@ -27,10 +28,14 @@ export function clearDependentToolParams(
   return next ?? params
 }
 
-/** Keeps user-configured inputs that the newly selected operation accepts. */
+/**
+ * Keeps user-configured inputs that the newly selected operation accepts and still shows: a
+ * value whose fields the operation hides would otherwise linger out of sight and still run.
+ */
 export function getParamsForToolOperation(
   tool: Pick<StoredTool, 'type' | 'params'>,
-  nextTool: ToolMetadata
+  nextTool: ToolMetadata,
+  operation: string
 ): Record<string, string> {
   const newParamIds = new Set(
     Object.entries(nextTool.params ?? {})
@@ -64,5 +69,6 @@ export function getParamsForToolOperation(
   Object.entries(tool.params || {}).forEach(([paramId, value]) => {
     if (newParamIds.has(paramId) && value) preservedParams[paramId] = value
   })
-  return clearDependentToolParams(tool.type, preservedParams, 'operation')
+  const visibleParams = omitConditionHiddenParams(subBlocks, preservedParams, operation)
+  return clearDependentToolParams(tool.type, visibleParams, 'operation')
 }

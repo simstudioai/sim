@@ -21,6 +21,7 @@ import {
   resolveActiveCanonicalValue,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
+import { omitConditionHiddenParams } from '@/lib/workflows/tool-input/hidden-params'
 import { resolveBlockToolId } from '@/lib/workflows/tool-input/identity'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockToolParamsContext, SubBlockConfig } from '@/blocks/types'
@@ -841,7 +842,14 @@ export async function transformBlockTool(
 
   const { createLLMToolSchema } = await import('@/tools/params')
 
-  const userProvidedParams = block.params || {}
+  const operation =
+    selectedOperation ??
+    (typeof block.params?.operation === 'string' ? block.params.operation : undefined)
+  const userProvidedParams = omitConditionHiddenParams(
+    blockDef.subBlocks,
+    block.params || {},
+    operation
+  )
 
   const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
     ? // canonical-index-unscoped: an agent tool resolves against `block.params`, which only ever
@@ -899,9 +907,7 @@ export async function transformBlockTool(
   }
 
   const { paramsTransform, jsonShapedParamKeys } = buildBlockToolParamsTransform({
-    operation:
-      selectedOperation ??
-      (typeof userProvidedParams.operation === 'string' ? userProvidedParams.operation : undefined),
+    operation,
     blockSubBlocks: blockDef?.subBlocks,
     blockParamsFn: blockDef?.tools?.config?.params as BlockToolParamsFn | undefined,
     blockInputDefs: blockDef?.inputs as Record<string, unknown> | undefined,

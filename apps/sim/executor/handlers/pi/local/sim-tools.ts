@@ -167,8 +167,15 @@ function buildSimToolSpec(
         if (!inputProjection.complete || !projectedTool) {
           return unavailableToolResult()
         }
+        // Only the stored keys the transform kept: a value the selected operation hides was
+        // dropped from `preseededParams`, so its projected copy must be dropped too.
+        const projectedPreseededParams = Object.fromEntries(
+          Object.entries(projectedTool.params || {}).filter(([key]) =>
+            Object.hasOwn(preseededParams, key)
+          )
+        )
         const mergedProjectedParams = mergeToolParameters(
-          projectedTool.params || {},
+          projectedPreseededParams,
           args as Record<string, unknown>
         )
 
