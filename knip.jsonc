@@ -182,6 +182,11 @@
       "includeEntryExports": false,
       "ignoreDependencies": ["@babel/parser"]
     },
+    // The SDK's codegen is consumed by the catalog route and `sim types` in Wave 3.
+    "packages/workflow-sdk": {
+      "includeEntryExports": false,
+      "entry": ["src/runtime.ts", "src/codegen/index.ts", "scripts/*.ts"]
+    },
     // This shared config is consumed by apps that own the Next dependency.
     "packages/tsconfig": { "ignoreUnresolved": ["next"] }
   }
