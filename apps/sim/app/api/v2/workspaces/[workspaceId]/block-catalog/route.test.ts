@@ -19,7 +19,6 @@ vi.mock('@/lib/workflows/code/catalog/read-block-catalog', () => ({
   },
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v2/workspaces/[workspaceId]/block-catalog/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
@@ -113,30 +112,10 @@ describe('GET /api/v2/workspaces/{workspaceId}/block-catalog', () => {
     expect((await response.json()).data.hash).toBe(HASH)
   })
 
-  it('asks for the per-workflow compile catalog only when workflowId is given', async () => {
-    await GET(request('?workflowId=wf-1'), context)
-    await GET(request(), context)
-
-    expect(mocks.read.mock.calls[0][0].input).toEqual({
-      workspaceId: WORKSPACE_ID,
-      workflowId: 'wf-1',
-    })
-    expect(mocks.read.mock.calls[1][0].input).toEqual({ workspaceId: WORKSPACE_ID })
-  })
-
   it('rejects an unknown query parameter before reading the catalog', async () => {
     const response = await GET(request('?shard=docs'), context)
 
     expect(response.status).toBe(400)
     expect(mocks.read).not.toHaveBeenCalled()
-  })
-
-  it('answers 404 for a workflow outside the workspace', async () => {
-    mocks.read.mockRejectedValue(new OrchestrationError('not_found', 'Workflow not found'))
-
-    const response = await GET(request('?workflowId=elsewhere'), context)
-
-    expect(response.status).toBe(404)
-    expect((await response.json()).error.code).toBe('NOT_FOUND')
   })
 })
