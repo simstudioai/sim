@@ -188,44 +188,22 @@ export function outputSchemasFor(
   return schemas
 }
 
-/** A field's catalog default: the editor's `defaultValue`, else a constant `value()` thunk. */
-function catalogDefault(sub: CatalogSubBlock): Value | undefined {
-  if (sub.defaultValue !== undefined) return sub.defaultValue
-  return sub.valueDefault && 'constant' in sub.valueDefault ? sub.valueDefault.constant : undefined
-}
-
-/**
- * The values a block runs with: what the source wrote, plus each unwritten field's catalog default
- * (an omitted param means the default the canvas writes on creation, such as Slack's
- * `destinationType: 'channel'` or the agent's default model).
- */
-function effectiveValues(
-  index: FieldIndex,
-  written: ReadonlyMap<string, Value>
-): Map<string, Value> {
-  const values = new Map(written)
-  for (const sub of index.subBlocks.values()) {
-    if (values.has(sub.id)) continue
-    const fallback = catalogDefault(sub)
-    if (fallback !== undefined) values.set(sub.id, fallback)
-  }
-  return values
-}
-
 /**
  * The fields a block leaves empty although they are required under the values it runs with
- * (`W_REQUIRED_MISSING`). A field counts when no member holds a value and some member is
- * certainly visible and certainly required, evaluated against the written values plus catalog
- * defaults: a provider's credential fields never count for a model of another provider, and the
- * half of a channel/DM switch the block does not use never counts. The server's lint, which runs
- * the registry's own conditions, still reports what this static check cannot decide.
+ * (`W_REQUIRED_MISSING`). `values` are the block's compiled params, which already hold each
+ * omitted field's editor default (`catalog/defaults.ts` `editorDefaults`, the one source of what
+ * an omitted param means), so an omitted Slack `destinationType` reads as the `'channel'` the
+ * canvas writes. A field counts when no member holds a value and some member is certainly visible
+ * and certainly required under those values: a provider's credential fields never count for a
+ * model of another provider, and the half of a channel/DM switch the block does not use never
+ * counts. The server's lint, which runs the registry's own conditions, still reports what this
+ * static check cannot decide.
  */
 export function missingRequiredFields(
   index: FieldIndex,
-  written: ReadonlyMap<string, Value>,
+  values: ReadonlyMap<string, Value>,
   isWritten: (subBlockId: SubBlockId) => boolean
 ): CatalogField[] {
-  const values = effectiveValues(index, written)
   const missing: CatalogField[] = []
   for (const field of index.fields.values()) {
     const members = field.kind === 'single' ? [field.sub] : field.members

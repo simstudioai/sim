@@ -17,7 +17,7 @@ import { setOwn } from '../records'
 import { type Difference, findDifferences, firstTextDifference } from './diff'
 
 /** The property or oracle a verdict belongs to (s3 §5 P1–P5, s1 §6 O1–O3). */
-export type OracleName = 'P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'O1' | 'O2' | 'O3'
+export type OracleName = 'P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'O1' | 'O2' | 'O3'
 
 export type OracleResult =
   | { ok: true; oracle: OracleName }
@@ -34,8 +34,10 @@ function verdict(oracle: OracleName, differences: Difference[]): OracleResult {
 export function assertNoopIdentity(input: {
   original: WorkflowState
   materialized: WorkflowState
+  /** `P6` when the candidate was compiled from the lean print. Default `O1`. */
+  oracle?: 'O1' | 'P6'
 }): OracleResult {
-  return verdict('O1', findDifferences(input.original, input.materialized))
+  return verdict(input.oracle ?? 'O1', findDifferences(input.original, input.materialized))
 }
 
 /**
@@ -88,6 +90,7 @@ export interface SerializedWorkflowLike {
     config: { tool?: string; params: Record<string, unknown> }
     canonicalModes?: Record<string, string>
     retry?: unknown
+    metadata?: { id?: string }
   }>
   connections: Array<{
     source: string
@@ -150,15 +153,24 @@ export function assertNoErrors(
   )
 }
 
+/** Container blocks the serializer emits with their raw `block.data` as params. */
+const CONTAINER_TYPES: ReadonlySet<string> = new Set(['loop', 'parallel'])
+
+/**
+ * What runs. A loop or parallel block's params are its raw `block.data`, echoed by the serializer
+ * and read by no handler; the executor runs the container from the `loops` / `parallels` maps it
+ * rebuilds from that data (`generateLoopBlocks`), so the container config is compared there.
+ */
 function executionView(serialized: SerializedWorkflowLike) {
   const blocks: Record<string, unknown> = {}
   for (const block of serialized.blocks) {
+    const isContainer = CONTAINER_TYPES.has(block.metadata?.id ?? '')
     setOwn(blocks, block.id, {
       tool: block.config.tool ?? null,
       enabled: block.enabled ?? true,
       canonicalModes: block.canonicalModes ?? {},
       retry: block.retry ?? null,
-      params: decodeStructured(block.config.params),
+      params: isContainer ? {} : decodeStructured(block.config.params),
     })
   }
   const connections = serialized.connections

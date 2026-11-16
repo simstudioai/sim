@@ -90,6 +90,12 @@ const CATALOG: BlockCatalog = {
         condition: { field: 'operation', value: SEND_OPERATIONS },
       }),
       sb({ id: 'threadTs', type: 'short-input', mode: 'advanced' }),
+      sb({
+        id: 'pageLimit',
+        type: 'short-input',
+        condition: { opaque: true },
+        visibleFor: { read: true, send: false },
+      }),
       sb({ id: 'botToken', type: 'short-input', mode: 'trigger', surface: 'trigger' }),
       sb({ id: 'signingSecret', type: 'short-input', mode: 'trigger', surface: 'trigger' }),
       sb({
@@ -675,6 +681,17 @@ describe('canonicalize: inactive annotation (step 9, quirks 1, 10, 14)', () => {
     expect(result.workflow.annotations.inactive.slack).toEqual(['channel'])
   })
 
+  it('reads an opaque condition the catalog expanded per operation from visibleFor', () => {
+    const send = run(
+      workflow([blockState('b1', 'slack', 'Slack', { operation: 'send', pageLimit: '5' })])
+    )
+    expect(send.workflow.annotations.inactive.slack).toEqual(['pageLimit'])
+    const read = run(
+      workflow([blockState('b1', 'slack', 'Slack', { operation: 'read', pageLimit: '5' })])
+    )
+    expect(read.workflow.annotations.inactive.slack).toBeUndefined()
+  })
+
   it('marks trigger fields inactive outside trigger mode and active inside it (quirk 10)', () => {
     const action = run(
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'send', botToken: 't' })])
@@ -1117,6 +1134,21 @@ describe('canonicalize: subflows (step 2, quirk 19)', () => {
       whileCondition: 'w',
     })
     expect(codes(result)).toContain('W_CANON_SUBFLOW_REPAIRED')
+  })
+
+  it('takes the count that runs, not a count only the loops map holds', () => {
+    const result = run(
+      workflow([blockState('l1', 'loop', 'Each', {}, { data: { loopType: 'for' } })], {
+        loops: {
+          l1: { id: 'l1', nodes: [], iterations: 9, loopType: 'for', enabled: true },
+        },
+      })
+    )
+    expect(onlyBlock(result, 'each').subflow).toEqual({
+      kind: 'loop',
+      loopType: 'for',
+      iterations: 5,
+    })
   })
 
   it('keeps an unknown parallel type under opaque data and reports it', () => {

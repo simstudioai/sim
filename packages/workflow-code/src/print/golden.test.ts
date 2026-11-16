@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { type CodeFileCodec, type CodeFileLanguage, codeFileCodec } from '../code-files'
 import { cases } from './__fixtures__/cases'
-import { catalog } from './__fixtures__/catalog'
+import { realCatalog as catalog } from './__fixtures__/real-catalog'
 import { createPrintWorkflow, printWorkflow } from './printer'
 
 const GOLDEN_DIR = './__golden__'
@@ -23,6 +23,28 @@ describe('printWorkflow golden files', () => {
       })
       expect(result.files).toHaveLength(1)
       await expect(result.files[0].text).toMatchFileSnapshot(`${GOLDEN_DIR}/${testCase.name}.txt`)
+    })
+  }
+
+  /** `source get --verbose`: the preserved UI state a lean print leaves to apply. */
+  const VERBOSE_CASES = [
+    'support-triage',
+    'pair-modes',
+    'inactive-values',
+    'loop-foreach',
+    'nested-subflows',
+  ]
+  for (const name of VERBOSE_CASES) {
+    it(`prints ${name} verbosely`, async () => {
+      const testCase = cases.find((candidate) => candidate.name === name)
+      if (!testCase) throw new Error(`missing case ${name}`)
+      const result = printWorkflow({
+        workflow: testCase.workflow,
+        catalog,
+        hints: testCase.hints,
+        options: { functionCode: 'inline', verbose: true },
+      })
+      await expect(result.files[0].text).toMatchFileSnapshot(`${GOLDEN_DIR}/${name}.verbose.txt`)
     })
   }
 

@@ -20,7 +20,10 @@ import {
 import { isRecordLike, omit } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { type BlockCatalog, canonicalize, catalogBlock } from '@sim/workflow-code'
+import { workflowStateArbitrary } from '@sim/workflow-code/proof'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
+import fc from 'fast-check'
+import { type CorpusCase, generateRegistryCorpus } from '@/lib/workflows/code/corpus'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export interface FixtureState {
@@ -88,6 +91,120 @@ export function buildTestingFactoryStates(): FixtureState[] {
     ['builder-parallel', WorkflowBuilder.withParallel(3).build()],
   ]
   return fixtures.map(([name, state]) => ({ id: `testing:${name}`, state: stored(state) }))
+}
+
+/** One workflow a corpus property runs against. */
+export interface ProofSubject {
+  id: string
+  blockTypes: string[]
+  state: WorkflowState
+  /** Set on corpus cases whose types the registry does not know; the serializer rejects them. */
+  unknownTypes?: true
+}
+
+/**
+ * A state as the normalized tables hold it. Every write path recomputes the loops and parallels
+ * maps from the container blocks (`prepareWorkflowStateForPersistence`, and `saveWorkflowToNormalizedTables`
+ * writes `workflow_subflows` rows from `generateLoopBlocks(blocks)`), so a map entry whose id has
+ * no container block (the pre-container shape the `@sim/testing` loop factory still builds) is
+ * never stored and never loaded. Entries of existing containers are kept as written.
+ */
+function persistedShape(state: WorkflowState): WorkflowState {
+  const containers = (type: string) =>
+    new Set(
+      Object.values(state.blocks)
+        .filter((block) => block.type === type)
+        .map((block) => block.id)
+    )
+  const loopIds = containers('loop')
+  const parallelIds = containers('parallel')
+  return {
+    ...state,
+    loops: Object.fromEntries(Object.entries(state.loops ?? {}).filter(([id]) => loopIds.has(id))),
+    parallels: Object.fromEntries(
+      Object.entries(state.parallels ?? {}).filter(([id]) => parallelIds.has(id))
+    ),
+  }
+}
+
+function fixtureSubject(fixture: FixtureState): ProofSubject {
+  const blockTypes = [...new Set(Object.values(fixture.state.blocks).map((b) => b.type))].sort(
+    compareStrings
+  )
+  return { id: fixture.id, blockTypes, state: persistedShape(fixture.state) }
+}
+
+/** Every structural case, plus up to `perType` per-block cases for each type (all when `full`). */
+function budgetedCorpus(corpus: CorpusCase[], perTypeLimit: number, full: boolean): CorpusCase[] {
+  if (full) return corpus
+  const perType = new Map<string, number>()
+  return corpus.filter((corpusCase) => {
+    const [, type = ''] = corpusCase.id.split(':')
+    const isPerBlock = ['operation', 'trigger', 'standalone-advanced', 'error-edge'].includes(
+      corpusCase.kind
+    )
+    if (!isPerBlock) return true
+    const count = perType.get(type) ?? 0
+    if (count >= perTypeLimit) return false
+    perType.set(type, count + 1)
+    return true
+  })
+}
+
+export interface SubjectOptions {
+  /** Per-block corpus cases kept for each block type unless `full`. */
+  casesPerBlockType: number
+  /** `ROUNDTRIP_CORPUS_FULL=1`: the whole generated corpus. */
+  full: boolean
+  fuzzRuns: number
+  /** `ROUNDTRIP_CORPUS_EXTRA_DIR`: redacted production states written outside the repo. */
+  extraDir?: string
+}
+
+/**
+ * Every workflow the round-trip properties run against: the generated registry corpus, the
+ * landing templates, the `@sim/testing` states, redacted production states from `extraDir`, and
+ * fast-check workflows, each in the shape the normalized tables store.
+ */
+export function roundTripSubjects(options: SubjectOptions): ProofSubject[] {
+  const corpus: ProofSubject[] = budgetedCorpus(
+    generateRegistryCorpus(),
+    options.casesPerBlockType,
+    options.full
+  ).map((corpusCase) => ({
+    id: corpusCase.id,
+    blockTypes: corpusCase.blockTypes,
+    state: persistedShape(corpusCase.state),
+    ...(corpusCase.unknownTypes && { unknownTypes: true as const }),
+  }))
+  return [
+    ...corpus,
+    ...loadLandingTemplateStates().map(fixtureSubject),
+    ...buildTestingFactoryStates().map(fixtureSubject),
+    ...(options.extraDir
+      ? loadWorkflowStatesFromDirectory(options.extraDir, 'redacted').map(fixtureSubject)
+      : []),
+    ...fc
+      .sample(workflowStateArbitrary({ maxBlocks: 8, maxDepth: 2 }), {
+        numRuns: options.fuzzRuns,
+        seed: 20261115,
+      })
+      .map((state, i) => fixtureSubject({ id: `fuzz:${i}`, state })),
+  ]
+}
+
+/**
+ * Wall time one corpus property may take, by corpus size. Measured on the full corpus (EC2,
+ * 17,043 workflows): the slowest properties (P0, which pays for the shared print and compile, then
+ * P1, P2, P3 and P5) took 164–184 s, about 11 ms per workflow, so each workflow is allowed
+ * `PER_CASE_MS`, roughly twice that. The reduced default corpus stays under `floorMs`, its CI
+ * budget, and `CAP_MS` bounds a runaway full run.
+ */
+const PER_CASE_MS = 20
+const CAP_MS = 900_000
+
+export function corpusBudgetMs(caseCount: number, floorMs: number): number {
+  return Math.min(CAP_MS, Math.max(floorMs, caseCount * PER_CASE_MS))
 }
 
 /** Item keys canonicalize drops by design, by structured kind (s1 §4 "Items", quirk 24). */

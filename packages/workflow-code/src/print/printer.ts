@@ -12,6 +12,9 @@ import {
 } from '@sim/workflow-types/workflow'
 import { portKey } from '../anchors'
 import type { LockHintBlock, LockHints, PrintInput, PrintResult, PrintWorkflowFn } from '../api'
+import { canonicalActivityInputs, isInactive } from '../canonicalize/activity'
+import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import { type EditorDefault, editorDefaults } from '../catalog/defaults'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder, CatalogSubBlock } from '../catalog/types'
 import {
   catalogBlock as catalogBlockOf,
@@ -21,6 +24,7 @@ import {
 import { type CodeFileCodec, type CodeFileLanguage, codeFileCodec } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
+import { executableInactiveParams } from '../equivalence/executable'
 import { isJson } from '../lock'
 import type {
   AnchorKey,
@@ -76,15 +80,31 @@ function stringParam(block: CanonicalBlock, id: string): string | undefined {
   return param?.kind === 'value' && typeof param.value === 'string' ? param.value : undefined
 }
 
+/**
+ * Whether compiling the effective member's value into `other` would store it differently. A
+ * value the source writes as a list or object literal is stored as JSON text by a code member and
+ * reshaped by an input-format member (`compile/blocks.ts` `compileField`); everything else lands
+ * the same in either member, so which member holds it is UI state and a lean print leaves the mode
+ * to the stored workflow.
+ */
+function storesDifferently(
+  block: CanonicalBlock,
+  effective: CatalogSubBlock | undefined,
+  other: CatalogSubBlock | undefined
+): boolean {
+  const param = effective ? getOwn(block.params, effective.id) : undefined
+  if (param?.kind !== 'value' || !other) return false
+  const { value } = param
+  const literal =
+    Array.isArray(value) ||
+    (value !== null && typeof value === 'object' && !Object.hasOwn(value, '$sim'))
+  return literal && (other.type === 'code' || other.structured === 'inputFormat')
+}
+
 function hasValue(block: CanonicalBlock, id: string): boolean {
   return getOwn(block.params, id) !== undefined
 }
 
-/**
- * The catalog builder for a block, most specific first (operation, then pinned fields). A builder
- * whose trigger mode differs is used only when none matches, and the caller then prints
- * `triggerMode` in the meta.
- */
 function catalogBuilderEntries(catalog: BlockCatalog): Array<[string, CatalogBuilder]> {
   const entries: Array<[string, CatalogBuilder]> = []
   for (const path of catalogBuilderPaths(catalog)) {
@@ -94,15 +114,24 @@ function catalogBuilderEntries(catalog: BlockCatalog): Array<[string, CatalogBui
   return entries
 }
 
+/**
+ * The catalog builder for a block, most specific first (operation, then pinned fields). A
+ * builder's params type one surface, so a trigger-mode builder never prints an action block and an
+ * action builder never prints a block in trigger mode; such a block prints through `block()`. A
+ * trigger block (`category: 'triggers'`) serializes both surfaces, so its builders fit either
+ * stored mode.
+ */
 function findBuilder(
   catalog: BlockCatalog,
   type: string,
   triggerMode: boolean,
   read: (id: string) => string | undefined
 ): { path: string; builder: CatalogBuilder } | null {
+  const triggerBlock = catalogBlockOf(catalog, type)?.category === 'triggers'
   const candidates = catalogBuilderEntries(catalog)
     .filter(([, builder]) => {
       if (builder.type !== type) return false
+      if (!triggerBlock && (builder.triggerMode === true) !== triggerMode) return false
       if (builder.operation !== undefined && read('operation') !== builder.operation) return false
       return Object.entries(builder.fixed ?? {}).every(([id, value]) => read(id) === value)
     })
@@ -192,6 +221,8 @@ class WorkflowPrinter {
   private readonly hints: LockHints
   private readonly width: number
   private readonly options: PrintInput['options']
+  /** `PrintOptions.verbose`: also print the preserved UI state source never needs. */
+  private readonly verbose: boolean
   private readonly diagnostics: Diag[] = []
   private readonly imports = new Set<string>(['workflow'])
   private usesVars = false
@@ -218,6 +249,7 @@ class WorkflowPrinter {
     this.hints = input.hints ?? { blocks: {} }
     this.width = input.options.lineWidth ?? DEFAULT_WIDTH
     this.options = input.options
+    this.verbose = input.options.verbose === true
     this.blocks = new Map(Object.entries(this.workflow.blocks))
     for (const [key, block] of this.blocks) {
       const parent = block.parent === null ? undefined : this.blocks.get(block.parent)
@@ -241,7 +273,8 @@ class WorkflowPrinter {
       (name) => this.imports.add(name),
       () => {
         this.usesVars = true
-      }
+      },
+      input.options.verbose === true
     )
     this.comments = new CommentPlacer(this.workflow.annotations.comments)
   }
@@ -433,9 +466,13 @@ class WorkflowPrinter {
     if (!param) return null
     if (param.kind === 'tools') return this.printTools(block, param.tools)
     const context = this.context(block, catalogBlock, sb)
-    if (sb?.structured === 'inputFormat') {
+    if (sb?.structured === 'inputFormat' && Array.isArray(param.value)) {
       const sugar = inputFormatSugar(param.value)
       if (sugar) return this.printInputFormat(block, sugar)
+      // The record form is the only one the SDK types: an empty list is `{}`, and a list the
+      // record cannot carry (an integer-like or repeated name, an unknown key) is kept verbatim.
+      if (param.value.length === 0) return objectExpr([])
+      if (isJson(param.value)) return this.values.call('raw', [this.values.json(param.value)])
     }
     if (
       this.options.functionCode === 'files' &&
@@ -594,9 +631,41 @@ class WorkflowPrinter {
   }
 
   /**
-   * Params in catalog registry order, one per canonical pair (build-spec decision 7). Values the
-   * annotation marks inactive, non-effective pair members and ids the catalog does not know go
-   * under `inactive` so nothing is lost (build-spec decision 2).
+   * The ids of a block that never reach execution. A lean print uses the executable view's rule
+   * (`executableInactiveParams`, shared with materialize); a verbose print lists the stored
+   * annotation, so it shows exactly what canonicalize kept.
+   */
+  private inactiveIds(block: CanonicalBlock, catalogBlock: CatalogBlock | undefined): Set<string> {
+    if (this.verbose) return new Set(getOwn(this.workflow.annotations.inactive, block.key) ?? [])
+    return catalogBlock ? new Set(executableInactiveParams(block, this.catalog)) : new Set()
+  }
+
+  /**
+   * Whether a field with no stored value would reach execution holding `value`, the editor
+   * default compile fills in when the field is omitted. An absent field prints `null` only then:
+   * an inactive one is restored from the stored workflow either way. The value matters for a
+   * standalone advanced field, which is sent only when it holds one.
+   */
+  private activeIfSet(
+    block: CanonicalBlock,
+    catalogBlock: CatalogBlock,
+    sb: CatalogSubBlock,
+    value: Value
+  ): boolean {
+    const filled: CanonicalBlock = {
+      ...block,
+      params: { ...block.params, [sb.id]: { kind: 'value', value } },
+    }
+    return !isInactive(sb.id, canonicalActivityInputs(filled, catalogBlock, this.catalog))
+  }
+
+  /**
+   * Params in catalog registry order, one per canonical pair (build-spec decision 7), under the
+   * defaults rule: a value equal to the editor default (`editorDefaults`) is omitted, and an
+   * active field with no stored value prints `null` when a default exists. A lean print leaves out
+   * what never executes (inactive values, the pair member the mode hides, undeclared ids that do
+   * not run); a verbose print lists them under `inactive` so nothing is lost (build-spec decision
+   * 2), with the modes derivation would get wrong.
    */
   private collectParams(
     block: CanonicalBlock,
@@ -609,11 +678,26 @@ class WorkflowPrinter {
     const handled = new Set<string>(pinned)
     const branchId = catalogBlock?.graph.branches?.subBlockId
     if (branchId) handled.add(branchId)
-    const inactiveIds = new Set(getOwn(this.workflow.annotations.inactive, block.key) ?? [])
+    const inactiveIds = this.inactiveIds(block, catalogBlock)
+    const defaults: ReadonlyMap<string, EditorDefault> = catalogBlock
+      ? editorDefaults(catalogBlock)
+      : new Map()
     const pushInactive = (id: string, sb: CatalogSubBlock | undefined) => {
+      if (!this.verbose) return
       const value = this.printParamValue(block, catalogBlock, id, sb)
       if (value)
         inactive.push({ key: printKey(id), anchor: anchors.inactive(block.key, id), value })
+    }
+    const pushNull = (key: string) => {
+      params.push({
+        key: printKey(key),
+        anchor: anchors.param(block.key, key),
+        value: { doc: 'null', shape: 'literal' },
+      })
+    }
+    const isDefault = (id: string) => {
+      const param = getOwn(block.params, id)
+      return param?.kind === 'value' && defaults.has(id) && defaults.get(id) === param.value
     }
 
     if (catalogBlock) {
@@ -631,11 +715,16 @@ class WorkflowPrinter {
           const advanced = members.find(isAdvancedMember)
           const effective = (mode === 'advanced' ? advanced : basic) ?? members[0]
           let printed: PrintedValue | null = null
+          let elided = false
           for (const member of members) {
             if (handled.has(member.id)) continue
             handled.add(member.id)
             if (!hasValue(block, member.id)) continue
             if (member === effective && !inactiveIds.has(member.id)) {
+              if (mode === 'basic' && member === basic && isDefault(member.id)) {
+                elided = true
+                continue
+              }
               printed = this.printParamValue(block, catalogBlock, member.id, member)
               if (printed) {
                 params.push({
@@ -648,8 +737,26 @@ class WorkflowPrinter {
               pushInactive(member.id, member)
             }
           }
+          if (
+            !printed &&
+            !elided &&
+            effective &&
+            !hasValue(block, effective.id) &&
+            members.some((member) => defaults.has(member.id)) &&
+            this.activeIfSet(block, catalogBlock, effective, defaults.get(effective.id) ?? '')
+          ) {
+            pushNull(cid)
+          }
           const implied: ParamMode = printed ? (printed.selector ? 'basic' : 'advanced') : 'basic'
-          if (basic && advanced && implied !== mode) setOwn(modes, cid, mode)
+          if (
+            basic &&
+            advanced &&
+            implied !== mode &&
+            (this.verbose ||
+              storesDifferently(block, effective, implied === 'basic' ? basic : advanced))
+          ) {
+            setOwn(modes, cid, mode)
+          }
           continue
         }
         handled.add(sb.id)
@@ -660,6 +767,11 @@ class WorkflowPrinter {
               anchor: anchors.param(block.key, sb.id),
               value: this.values.call('todo', []),
             })
+          } else {
+            const fallback = defaults.get(sb.id)
+            if (fallback !== undefined && this.activeIfSet(block, catalogBlock, sb, fallback)) {
+              pushNull(sb.id)
+            }
           }
           continue
         }
@@ -667,6 +779,7 @@ class WorkflowPrinter {
           pushInactive(sb.id, sb)
           continue
         }
+        if (isDefault(sb.id)) continue
         const printed = this.printParamValue(block, catalogBlock, sb.id, sb)
         if (printed) {
           params.push({
@@ -682,18 +795,28 @@ class WorkflowPrinter {
       .filter((id) => !handled.has(id))
       .sort(compareStrings)
     for (const id of rest) {
-      if (catalogBlock) {
-        pushInactive(id, undefined)
-      } else {
+      if (!catalogBlock) {
         const printed = this.printParamValue(block, undefined, id, undefined)
         if (printed) {
           params.push({ key: printKey(id), anchor: anchors.param(block.key, id), value: printed })
         }
+        continue
+      }
+      // `inactive` is the only place source takes an id the catalog does not declare on this
+      // surface. A lean print keeps only the ones that still run: a schema-agnostic custom
+      // block's inputs and the agent's legacy prompt fields.
+      if (!this.verbose && inactiveIds.has(id)) continue
+      const value = this.printParamValue(block, catalogBlock, id, undefined)
+      if (value) {
+        inactive.push({ key: printKey(id), anchor: anchors.inactive(block.key, id), value })
       }
     }
-    for (const cid of Object.keys(block.modes).sort(compareStrings)) {
-      const handledCid = catalogBlock?.subBlocks.some((sb) => sb.canonicalParamId === cid) ?? false
-      if (!handledCid) setOwn(modes, cid, getOwn(block.modes, cid) ?? 'basic')
+    if (this.verbose) {
+      for (const cid of Object.keys(block.modes).sort(compareStrings)) {
+        const handledCid =
+          catalogBlock?.subBlocks.some((sb) => sb.canonicalParamId === cid) ?? false
+        if (!handledCid) setOwn(modes, cid, getOwn(block.modes, cid) ?? 'basic')
+      }
     }
     return { params, inactive, modes }
   }
@@ -752,11 +875,27 @@ class WorkflowPrinter {
       meta.push({ key: 'branches', value: objectExpr(extra.branches) })
     }
     if (extra.inactive.length > 0) meta.push({ key: 'inactive', value: objectExpr(extra.inactive) })
-    const opaque = block.opaque?.data
+    const opaque = this.printedOpaque(block)
     if (opaque && Object.keys(opaque).length > 0) {
       meta.push({ key: '$unknown', value: this.values.json(opaque) })
     }
     return meta
+  }
+
+  /**
+   * The unknown `block.data` a print carries as `$unknown`. Nothing executes it, so a lean print
+   * keeps only a container's subflow keys canonicalize could not read as config, which the
+   * serializer passes through with the container's data; a verbose print keeps all of it.
+   */
+  private printedOpaque(block: CanonicalBlock): Record<string, Json> | undefined {
+    const opaque = block.opaque?.data
+    if (!opaque || this.verbose) return opaque
+    if (!block.subflow) return undefined
+    const kept: Record<string, Json> = {}
+    for (const [key, value] of Object.entries(opaque)) {
+      if (SUBFLOW_DATA_KEYS.has(key)) setOwn(kept, key, value)
+    }
+    return kept
   }
 
   /** Branch rows as named keys, plus per-row title overrides and extra keys for the meta. */
@@ -871,6 +1010,7 @@ class WorkflowPrinter {
       tag: Tag
     ) => {
       if (value === undefined) return
+      if (!active && !this.verbose) return
       const printed = this.values.value(value, { tag, from: block.key })
       if (active) {
         config.push({ key, value: printed })
@@ -882,7 +1022,9 @@ class WorkflowPrinter {
     let callee: string
     if (spec.kind === 'loop') {
       callee = `loop.${spec.loopType}`
-      field('iterations', 'count', spec.iterations, spec.loopType === 'for', 't')
+      const countRuns =
+        spec.loopType === 'for' || (spec.loopType === 'doWhile' && !spec.doWhileCondition)
+      field('iterations', 'count', spec.iterations, countRuns, 't')
       field('forEachItems', 'collection', spec.forEachItems, spec.loopType === 'forEach', 't')
       field('whileCondition', 'condition', spec.whileCondition, spec.loopType === 'while', 'js')
       field(

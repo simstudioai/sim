@@ -1,9 +1,23 @@
 # Workflow source syntax the compiler accepts
 
-The compiler (`compileWorkflow`) accepts exactly what the Wave 2C printer emits, plus a few
-hand-written conveniences listed under "Also accepted". `printer-goldens.test.ts` compiles every
-printer golden with zero errors back to its canonical workflow. Where s2 and s3 disagreed, the
-printer's choice (build-spec first, then s2) was taken.
+The compiler (`compileWorkflow`) accepts exactly what the printer emits, lean or verbose, plus a
+few hand-written conveniences listed under "Also accepted". `printer-goldens.test.ts` compiles
+every printer golden, over the real catalog, with zero errors to a workflow that runs as the one it
+was printed from. Where s2 and s3 disagreed, the printer's choice (build-spec first, then s2) was
+taken.
+
+**Source holds what executes** (DESIGN.md A18). A file states every value the serializer sends or
+deploy reads, wiring, branches and the config of the loop or parallel type in effect. What only
+the canvas cares about is never required: which member of a basic/advanced pair shows a value,
+whether a selector or a typed value produced an id, inactive values, the other loop or parallel
+types' fields, layout and unknown residue. Apply keeps it from the stored workflow. The default
+print leaves it out; `sim workflows source get --verbose` prints it, and the compiler still
+accepts it.
+
+**Defaults rule.** An omitted param is the editor default canvas creation writes (the catalog's
+`valueDefault` for a visible field, `defaultValue` for a hidden one), so a block written with no
+params is stored as a canvas-created one. `null` is stored-absent. The printer omits a value equal
+to the default and writes `null` for an active field that has a default but no stored value.
 
 ## File
 
@@ -28,12 +42,21 @@ printer's choice (build-spec first, then s2) was taken.
   id (`operation`, a builder's `fixed`) is `E_FIXED_PARAM`; the compiler adds pinned values.
 - Pair mode: a selector call (`binding`, `table`, `kb`, `workflow`, `skill`, `customTool`, `mcp`,
   `sandbox`, `folder`, `upload`, `picked`) or a non-empty array of them is basic, anything else
-  advanced. `meta.modes` always wins (it is printed exactly when derivation would be wrong), so
-  the compiler never emits `E_MODE_CONFLICT`. Every group on the block gets a mode; an unwritten
-  group without `meta.modes` is `basic`.
+  advanced. `meta.modes` always wins, so the compiler never emits `E_MODE_CONFLICT`. Every group
+  on the block gets a mode; an unwritten group without `meta.modes` is `basic`. On apply the mode
+  is canvas state: when the pair's value is unchanged the stored member and mode stay, and a plain
+  id written where the stored block shows the selector member stays in that member. The lean
+  printer writes `meta.modes` only where the value kind would pick a member that stores the value
+  differently (a list or object literal into a JSON code or input-format member); the verbose
+  printer writes it wherever derivation would be wrong.
 - `meta`: `key`, `disabled`, `locked`, `advancedMode`, `triggerMode` (any builder), `errorPort`,
   `retry: { enabled, maxTries, waitBetweenTriesMs }`, `modes`, `branches`, `inactive`,
-  `$unknown` (opaque `block.data`, plain JSON).
+  `$unknown` (opaque `block.data`, plain JSON). The lean printer writes `$unknown` only for a
+  container's unreadable subflow keys, which the serializer passes through; apply keeps the rest
+  from the stored workflow.
+- A builder prints only blocks on its own surface: a trigger-mode builder never prints an action
+  block, nor an action builder a block in trigger mode (a trigger block's builders fit either);
+  such a block prints through `block()`.
 - `meta.key: '<key>'` (a string literal) keeps a legacy key that the display name cannot carry.
   The printer writes it only for such a block, and the compiler accepts it only when the key is in
   `CompileInput.knownKeys` (the stored workflow's keys, from the lock or `code_meta`) and is one of
@@ -49,15 +72,22 @@ printer's choice (build-spec first, then s2) was taken.
 - `errorPort` in the CWM is `meta.errorPort || the block has an error edge`.
 - `inactive: { <subBlockId>: value }` accepts any id (annotated stale values, the non-effective
   pair member, ids the catalog does not know). Each id becomes a param and is listed in
-  `annotations.inactive`.
+  `annotations.inactive`. Source never needs it: apply restores every value that does not run
+  from the stored workflow, whatever `inactive` says. The lean printer writes it only for a stored
+  id the catalog does not declare that still runs (a schema-agnostic custom block's input, the
+  agent's legacy prompt fields); the verbose printer lists every inactive value.
 
 ## Values
 
-- Literals, objects, arrays, `-number`. `null` as a whole param means absent; nested `null` is
-  kept. A plain object with a `$sim` key is data and compiles to `{ $sim: 'literal', value }`.
+- Literals, objects, arrays, `-number`. `null` as a whole param means absent (no editor default
+  fills it); nested `null` is kept. An omitted param is its editor default. A plain object with a
+  `$sim` key is data and compiles to `{ $sim: 'literal', value }`.
 - `raw(v)`: the CWM value verbatim (literals only). `$sim` objects inside are canonical nodes,
   shape-checked; a `literal` node's `value` is not inspected.
-- `todo()`: absent, with `W_REQUIRED_MISSING` when the field is required.
+- `todo()`: absent (no editor default fills it), with `W_REQUIRED_MISSING` when the field is
+  required.
+- A plain string is fine where a selector is expected (`channel: 'C0123'`); `picked('C0123')` is
+  only what the verbose printer writes for a selector-picked id.
 - Strings: `'...'`, untagged templates without `${}`, and `t`/`js`/`py`/`sh`/`json`/`md` tagged
   templates (cooked text). Interpolations: refs, `env.X`, `vars.x`, loop params, `ref('raw')`,
   string and number literals.
@@ -73,8 +103,9 @@ printer's choice (build-spec first, then s2) was taken.
 - A JSON code field (subBlock type `code`) written as an object or array literal compiles to
   `JSON.stringify(value, null, 2)`.
 - inputFormat (`structured: 'inputFormat'`) as a record: `name: 'string'` →
-  `{ name, type: 'string', value: '' }`; `name: { type, ... }` → `{ name, type, ... }`. Arrays
-  pass through.
+  `{ name, type: 'string', value: '' }`; `name: { type, ... }` → `{ name, type, ... }`; `{}` is the
+  empty list. Arrays pass through; the printer writes a list the record cannot carry (an
+  integer-like or repeated name, an unknown key) as `raw([...])`.
 - Function code: `code: file('./functions/x.js')`, relative to the entry file, extension matching
   `language` (default `javascript`). JavaScript files have `$ref`/`$env` chains rewritten back
   (`src/code-files`); Python and shell are verbatim.
@@ -96,13 +127,15 @@ printer's choice (build-spec first, then s2) was taken.
 ## Containers
 
 - `loop.for('N', { count })`, `loop.forEach('N', { collection })`,
-  `loop.while('N', { condition })`, `loop.doWhile('N', { condition })`,
+  `loop.while('N', { condition })`, `loop.doWhile('N', { condition, count })` (a `doWhile` with no
+  condition runs `count` iterations),
   `parallel.count('N', { count, batchSize })`, `parallel.collection('N', { collection, batchSize })`,
   and bare `parallel('N', { count, collection, batchSize })` (no `parallelType`).
 - Third argument: `(p) => { ... }`, or `(p) => block(...)` which implies `p.to(block)`.
 - The type's other stored fields go under `meta.inactive` by CWM name (`iterations`,
   `forEachItems`, `whileCondition`, `doWhileCondition`, `count`, `distribution`); other inactive
-  keys are container params. A loop with no `iterations` anywhere gets 5.
+  keys are container params. Only the verbose printer writes them, and apply keeps them from the
+  stored workflow either way. A loop with no `iterations` anywhere gets 5, the count that runs.
 - `p.x` is `<loop.x>` / `<parallel.x>` when `p`'s container is the innermost of its kind around
   the block, else the named `<containerkey.x>`. `container.results` / `container.index` are named
   refs.

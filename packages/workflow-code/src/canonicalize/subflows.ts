@@ -60,9 +60,11 @@ function repaired(context: CanonContext, blockKey: BlockKey, message: string) {
 /**
  * A loop's config (s1 canonicalize step 2, quirk 19). `block.data` is read first: the serializer
  * rebuilds loops from it (`generateLoopBlocks`, serializer/index.ts:175) and the loader syncs the
- * subflow row into it (load.ts:186-245), so it is what executes. The loops map fills fields `data`
- * omits. Stored values are kept raw, including a `0` count the runtime replaces with 5
- * (`count || 5`), which is reported instead of repaired. Fields storage omits stay absent.
+ * subflow row's collection and conditions into it (load.ts:186-245), so it is what executes. The
+ * loops map fills those fields when `data` omits them, but never the count: the loader does not
+ * sync it, so a count only the map holds never runs, and the spec holds the 5 that does. Stored
+ * values are otherwise kept raw, including a `0` count the runtime replaces with 5 (`count || 5`),
+ * which is reported instead of repaired. Optional fields storage omits stay absent.
  */
 export function loopSpec(
   block: BlockState,
@@ -71,8 +73,9 @@ export function loopSpec(
   context: CanonContext
 ): SubflowResult<LoopSpec> {
   const data: Record<string, unknown> = { ...block.data }
-  // `loopType` and `iterations` are required: the loader always writes both into the loops map
-  // (load.ts:186-245), so the fallbacks below apply only to a state with no loops map at all.
+  // `loopType` and `iterations` are required. The type falls back to `for` only for a state with
+  // no loops map (the loader always writes one); the count falls back to the 5 that runs whenever
+  // `data.count` is absent.
   const spec: LoopSpec = { kind: 'loop', loopType: 'for', iterations: DEFAULT_LOOP_ITERATIONS }
   const rejected: string[] = []
 
@@ -87,14 +90,17 @@ export function loopSpec(
     repaired(context, blockKey, `Unknown loop type "${String(loopType)}"; the runtime runs "for"`)
   }
 
-  const iterations = firstDefined(data.count, loop?.iterations)
-  if (typeof iterations === 'number') {
-    spec.iterations = iterations
-    if (iterations === 0) {
+  // The count that runs is `block.data.count || 5` (`convertLoopBlockToLoop`): the serializer
+  // rebuilds loops from the blocks and every write recomputes the loops map from them, so a map
+  // count with no `data.count` never runs. The loader repairs a non-numeric `data.count` from the
+  // map (load.ts:206-209), the only time the map's count is read.
+  if (typeof data.count === 'number') {
+    spec.iterations = data.count
+    if (data.count === 0) {
       repaired(context, blockKey, 'Loop count is 0; the runtime runs 5 iterations')
     }
-  } else if (iterations !== undefined) {
-    rejectIfFromData(rejected, data, 'count')
+  } else if (data.count !== undefined) {
+    rejected.push('count')
     if (typeof loop?.iterations === 'number') spec.iterations = loop.iterations
     repaired(context, blockKey, 'Loop count is not a number; the loader repairs it')
   }

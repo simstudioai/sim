@@ -30304,6 +30304,9 @@
                                         "type": "boolean",
                                         "const": true,
                                         "description": "Always true."
+                                      },
+                                      "initial": {
+                                        "description": "What the thunk returns for a new block with no values (any JSON), when stable."
                                       }
                                     },
                                     "required": ["computed"],
@@ -31318,6 +31321,9 @@
                                         "type": "boolean",
                                         "const": true,
                                         "description": "Always true."
+                                      },
+                                      "initial": {
+                                        "description": "What the thunk returns for a new block with no values (any JSON), when stable."
                                       }
                                     },
                                     "required": ["computed"],
@@ -32138,6 +32144,9 @@
                               "type": "boolean",
                               "const": true,
                               "description": "Always true."
+                            },
+                            "initial": {
+                              "description": "What the thunk returns for a new block with no values (any JSON), when stable."
                             }
                           },
                           "required": ["computed"],

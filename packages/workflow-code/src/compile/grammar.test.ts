@@ -966,3 +966,29 @@ describe('meta.key: legacy keys the display name cannot carry', () => {
     expect(errorsOf(withKeys(computed, ['loop'])).map((d) => d.code)).toContain('E_KEY_OVERRIDE')
   })
 })
+
+describe('defaults rule: an omitted param is the editor default', () => {
+  it('fills an omitted param with the editor default canvas creation writes', () => {
+    const wf = ok(source("const call = api('Call', { url: 'https://x' })"))
+    expect(paramValue(wf, 'call', 'method')).toBe('GET')
+  })
+
+  it('keeps a param written as null stored-absent', () => {
+    const wf = ok(source("const call = api('Call', { url: 'https://x', method: null })"))
+    expect(blockOf(wf, 'call').params).not.toHaveProperty('method')
+  })
+
+  it('keeps a param written as todo() stored-absent', () => {
+    const wf = ok(source("const call = api('Call', { url: 'https://x', method: todo() })"))
+    expect(blockOf(wf, 'call').params).not.toHaveProperty('method')
+  })
+
+  it("compiles a doWhile loop's count, which runs when it has no condition", () => {
+    const wf = ok(source("const again = loop.doWhile('Again', { count: 3 }, (p) => {})"))
+    expect(blockOf(wf, 'again').subflow).toEqual({
+      kind: 'loop',
+      loopType: 'doWhile',
+      iterations: 3,
+    })
+  })
+})

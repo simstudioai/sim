@@ -128,6 +128,13 @@ export {
 } from './diagnostics/frame'
 export { diffCanonical, renamesBetween } from './diff'
 export { canonicalEquals, canonicalHash, sourceFingerprint } from './equivalence'
+export {
+  type ExecutableBlock,
+  type ExecutableSubflow,
+  type ExecutableWorkflow,
+  executableInactiveParams,
+  executableView,
+} from './equivalence/executable'
 export { sha256Hex, stableStringify } from './hash'
 export {
   type LockBase,

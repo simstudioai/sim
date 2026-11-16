@@ -9,14 +9,17 @@ import {
 } from '@sim/workflow-types/workflow'
 import type { CanonicalizeResult, MaterializeFn, MaterializeHooks } from '../api'
 import { canonicalize } from '../canonicalize'
+import type { BlockCatalog } from '../catalog/types'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { LockIdentity, WorkflowLockBlock, WorkflowLockV1 } from '../lock'
-import type { BlockKey, CanonicalWorkflow, VarKey } from '../model'
+import type { BlockKey, CanonicalBlock, CanonicalWorkflow, VarKey } from '../model'
+import { setOwn } from '../records'
 import { type BuiltBlock, buildBlock } from './block'
 import { catalogBlock, type MaterializeContext, report } from './context'
 import { type BranchHandles, writeEdges } from './edges'
 import { resolveIdentity } from './identity'
+import { restorePreserved } from './preserve'
 import { subflowEntry } from './subflows'
 import { deepEqual, rewriteRenamedReferences } from './values'
 
@@ -75,6 +78,23 @@ function writeVariables(
   return { variables, idByKey }
 }
 
+/**
+ * Each matched block with the preserved UI state of the stored block it continues
+ * (`restorePreserved`): source holds what executes, and the rest comes from prev.
+ */
+function withPreservedState(
+  workflow: CanonicalWorkflow,
+  prevBlock: (key: BlockKey) => CanonicalBlock | undefined,
+  catalog: BlockCatalog
+): CanonicalWorkflow {
+  const blocks: Record<BlockKey, CanonicalBlock> = {}
+  for (const [key, block] of Object.entries(workflow.blocks)) {
+    const prev = prevBlock(key)
+    setOwn(blocks, key, prev ? restorePreserved(block, prev, catalog) : block)
+  }
+  return { ...workflow, blocks }
+}
+
 function childIds(blocks: Record<string, BlockState>, containerId: string): string[] {
   return Object.entries(blocks)
     .filter(([, block]) => block.data?.parentId === containerId)
@@ -105,7 +125,14 @@ export const materialize: MaterializeFn = (input, lock, options) => {
     inferRenames: options.inferRenames !== false,
     diagnostics,
   })
-  const workflow = rewriteRenamedReferences(input, resolution.renames)
+  const workflow = withPreservedState(
+    rewriteRenamedReferences(input, resolution.renames),
+    (key) => {
+      const prevKey = resolution.blocks.get(key)?.prevKey ?? null
+      return prevKey !== null ? prevCanonical?.workflow.blocks[prevKey] : undefined
+    },
+    catalog
+  )
   const idByKey = new Map([...resolution.blocks].map(([key, block]) => [key, block.id]))
 
   const { variables, idByKey: variableIdByKey } = writeVariables(

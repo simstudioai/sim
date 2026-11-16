@@ -212,18 +212,30 @@ describe('materialize: params keep prev bytes unless they changed', () => {
     expect(codes(result)).toEqual(['E_MAT_UNKNOWN_RESOURCE'])
   })
 
-  it('recomputes stored outputs only for blocks that changed', () => {
+  it('keeps stored outputs through an edit their derivation does not read', () => {
     const state = workflowState([
       blockState('f1', 'function', 'One', { code: 'a' }),
-      blockState('f2', 'function', 'Two', { code: 'b' }),
+      blockState('f2', 'function', 'Two', { code: 'b' }, { outputs: {} }),
     ])
     const target = edit(canonical(state).workflow, (draft) => {
       draft.blocks.two.params.code = { kind: 'value', value: 'c' }
     })
     const result = run(target, null, { prev: state })
     expect(result.state.blocks.f1.outputs).toBe(state.blocks.f1.outputs)
-    expect(result.state.blocks.f2.outputs).toEqual({
-      computed: { type: 'string', description: 'function:false' },
+    expect(subBlockValue(result.state, 'f2', 'code')).toBe('c')
+    expect(result.state.blocks.f2.outputs).toBe(state.blocks.f2.outputs)
+  })
+
+  it('recomputes stored outputs when an edit changes what they derive from', () => {
+    const state = workflowState([
+      blockState('g1', 'gmail', 'Mail', { operation: 'send' }, { outputs: {} }),
+    ])
+    const target = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.mail.triggerMode = true
+    })
+    const result = run(target, null, { prev: state })
+    expect(result.state.blocks.g1.outputs).toEqual({
+      computed: { type: 'string', description: 'gmail:true' },
     })
   })
 
@@ -241,7 +253,7 @@ describe('materialize: params keep prev bytes unless they changed', () => {
       blockState('s2', 'slack', 'Bare', { operation: 'send', channel: 'C1' }),
     ])
     const target = edit(canonical(state).workflow, (draft) => {
-      draft.blocks.explicit.params.manualChannel = { kind: 'value', value: 'C2' }
+      draft.blocks.explicit.params.manualChannel = { kind: 'value', value: '<start.channel>' }
       draft.blocks.explicit.modes.channel = 'advanced'
       draft.blocks.bare.params.manualChannel = { kind: 'value', value: 'C2' }
       draft.blocks.bare.params.threadTs = { kind: 'value', value: '1' }
@@ -251,7 +263,7 @@ describe('materialize: params keep prev bytes unless they changed', () => {
     expect(result.state.blocks.s2.data?.canonicalModes).toBeUndefined()
   })
 
-  it('pins a mode explicitly when the written values would infer the other one', () => {
+  it('pins a mode on a new block when the written values would infer the other one', () => {
     const state = workflowState([
       blockState('s2', 'slack', 'Bare', { operation: 'send', channel: 'C1' }),
     ])
@@ -260,8 +272,10 @@ describe('materialize: params keep prev bytes unless they changed', () => {
       draft.blocks.bare.params.manualChannel = { kind: 'value', value: 'C2' }
       draft.blocks.bare.modes.channel = 'basic'
     })
-    const result = run(target, null, { prev: state })
-    expect(result.state.blocks.s2.data?.canonicalModes).toEqual({ channel: 'basic' })
+    const result = run(target, null)
+    const written = Object.values(result.state.blocks)[0]
+    expect(written.subBlocks.manualChannel?.value).toBe('C2')
+    expect(written.data?.canonicalModes).toEqual({ channel: 'basic' })
   })
 
   it('re-indexes tool modes by position and drops the legacy type key when a tool list changes', () => {
@@ -725,5 +739,93 @@ describe('materialize: positions and server-owned fields', () => {
       draft.blocks.one.errorPort = true
     })
     expect(run(target, null, { prev }).state.blocks.f1.errorEnabled).toBe(true)
+  })
+})
+
+describe('materialize: preserved UI state comes from prev (wave 4 governing principle)', () => {
+  /** What compile makes of a lean print: a plain id lands in the advanced member. */
+  function leanPair(draft: CanonicalWorkflow, key: string, id: string) {
+    const block = draft.blocks[key]
+    block.params = omit(block.params, ['channel', 'manualChannel'])
+    block.params.manualChannel = { kind: 'value', value: id }
+    block.modes.channel = 'advanced'
+  }
+
+  it('keeps the selector member when source changes a plain id', () => {
+    const state = workflowState([
+      blockState('s1', 'slack', 'Post', { operation: 'send', channel: 'C1', manualChannel: 'M' }),
+    ])
+    const target = edit(canonical(state).workflow, (draft) => leanPair(draft, 'post', 'C2'))
+    const result = run(target, null, { prev: state })
+    expect(subBlockValue(result.state, 's1', 'channel')).toBe('C2')
+    expect(subBlockValue(result.state, 's1', 'manualChannel')).toBe('M')
+    expect(result.state.blocks.s1.data?.canonicalModes).toBeUndefined()
+  })
+
+  it('writes prev back untouched when lean source runs the same as it', () => {
+    const state = workflowState([
+      blockState('s1', 'slack', 'Post', {
+        operation: 'read',
+        channel: 'C1',
+        manualChannel: 'M',
+        text: 'stale message',
+      }),
+    ])
+    const target = edit(canonical(state).workflow, (draft) => {
+      leanPair(draft, 'post', 'C1')
+      draft.blocks.post.params = omit(draft.blocks.post.params, ['text'])
+    })
+    expect(run(target, null, { prev: state }).state.blocks.s1).toBe(state.blocks.s1)
+  })
+
+  it('keeps an inactive value through an edit to an active one', () => {
+    const state = workflowState([
+      blockState('s1', 'slack', 'Post', {
+        operation: 'read',
+        channel: 'C1',
+        text: 'stale message',
+        notify: true,
+      }),
+    ])
+    const target = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.post.params = omit(draft.blocks.post.params, ['text'])
+      draft.blocks.post.params.notify = { kind: 'value', value: false }
+    })
+    const result = run(target, null, { prev: state })
+    expect(subBlockValue(result.state, 's1', 'notify')).toBe(false)
+    expect(subBlockValue(result.state, 's1', 'text')).toBe('stale message')
+  })
+
+  it("keeps a forEach loop's stored count through a collection edit", () => {
+    const state = workflowState([
+      blockState(
+        'l1',
+        'loop',
+        'Each',
+        {},
+        { data: { loopType: 'forEach', count: 7, collection: '<start.items>' } }
+      ),
+    ])
+    const target = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.each.subflow = {
+        kind: 'loop',
+        loopType: 'forEach',
+        iterations: 5,
+        forEachItems: '<start.rows>',
+      }
+    })
+    const data = run(target, null, { prev: state }).state.blocks.l1.data
+    expect(data?.count).toBe(7)
+    expect(data?.collection).toBe('<start.rows>')
+  })
+
+  it('keeps the stored spelling of a loop count that runs the same', () => {
+    const state = workflowState([
+      blockState('l1', 'loop', 'Count', {}, { data: { loopType: 'for', count: 0 } }),
+    ])
+    const target = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.count.subflow = { kind: 'loop', loopType: 'for', iterations: 5 }
+    })
+    expect(run(target, null, { prev: state }).state.blocks.l1).toBe(state.blocks.l1)
   })
 })

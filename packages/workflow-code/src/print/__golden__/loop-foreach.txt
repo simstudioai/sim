@@ -3,27 +3,19 @@ import { agent, api, fn, js, loop, t, trigger, workflow } from '@sim/workflow-sd
 
 export default workflow('Fixture', {}, () => {
   const start = trigger.start('Start', { inputFormat: { leads: 'array' } })
-  const eachLead = loop.forEach(
-    'Each lead',
-    { collection: start.leads },
-    (p) => {
-      const lookup = api('Lookup', {
-        url: t`https://crm.example.com/c/${p.currentItem.email}?i=${p.index}`,
-        method: 'GET',
-      })
-      const score = fn('Score', {
-        language: 'javascript',
-        code: js`return ${lookup.data}.score * 2`,
-      })
+  const eachLead = loop.forEach('Each lead', { collection: start.leads }, (p) => {
+    const lookup = api('Lookup', {
+      url: t`https://crm.example.com/c/${p.currentItem.email}?i=${p.index}`,
+      method: 'GET',
+    })
+    const score = fn('Score', { code: js`return ${lookup.data}.score * 2` })
 
-      p.to(lookup)
-      lookup.to(score)
-    },
-    { inactive: { iterations: 5 } }
-  )
+    p.to(lookup)
+    lookup.to(score)
+  })
   const summary = agent('Summary', {
+    messages: [{ role: 'system', content: t`Results: ${eachLead.results} and <score.result>` }],
     model: 'm',
-    systemPrompt: t`Results: ${eachLead.results} and <score.result>`,
   })
 
   start.to(eachLead)

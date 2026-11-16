@@ -6510,6 +6510,7 @@ export type GetBlockCatalogResponse = {
               valueDefault?:
                 | {
                     computed: true
+                    initial?: unknown
                   }
                 | {
                     constant: unknown
@@ -6731,6 +6732,7 @@ export type GetBlockCatalogResponse = {
               valueDefault?:
                 | {
                     computed: true
+                    initial?: unknown
                   }
                 | {
                     constant: unknown
@@ -6909,6 +6911,7 @@ export type GetBlockCatalogResponse = {
       valueDefault?:
         | {
             computed: true
+            initial?: unknown
           }
         | {
             constant: unknown

@@ -6,6 +6,8 @@
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../../anchors'
 import type { LockHints } from '../../api'
+import { editorDefaults } from '../../catalog/defaults'
+import { catalogBlock } from '../../catalog/view'
 import type {
   AnchorKey,
   CanonicalBlock,
@@ -18,6 +20,7 @@ import type {
   Port,
   Value,
 } from '../../model'
+import { realCatalog } from './real-catalog'
 
 export interface PrintCase {
   name: string
@@ -30,10 +33,22 @@ type BlockInit = Partial<Omit<CanonicalBlock, 'params' | 'name' | 'type' | 'key'
   tools?: Record<string, CanonicalTool[]>
 }
 
+/**
+ * A block as canvas creation leaves it, then edited: every editor default of its real catalog type
+ * (`editorDefaults`) is seeded first, as `createBlockFromParams` seeds them, and `params` override.
+ * A case that needs a field stored-absent writes it as `null`.
+ */
 function blk(name: string, type: string, init: BlockInit = {}): CanonicalBlock {
   const { params = {}, tools = {}, ...rest } = init
   const canonicalParams: Record<string, CanonicalParam> = {}
-  for (const [id, value] of Object.entries(params)) canonicalParams[id] = { kind: 'value', value }
+  const declared = catalogBlock(realCatalog, type)
+  for (const [id, value] of declared ? editorDefaults(declared) : []) {
+    canonicalParams[id] = { kind: 'value', value }
+  }
+  for (const [id, value] of Object.entries(params)) {
+    if (value === null) delete canonicalParams[id]
+    else canonicalParams[id] = { kind: 'value', value }
+  }
   for (const [id, list] of Object.entries(tools))
     canonicalParams[id] = { kind: 'tools', tools: list }
   return {
@@ -104,7 +119,7 @@ export const cases: PrintCase[] = [
       description: 'Classifies inbound tickets and routes them.',
       variables: [{ key: 'escalations', name: 'escalations', type: 'number', value: 0 }],
       blocks: [
-        blk('Ticket in', 'webhook', {
+        blk('Ticket in', 'generic_webhook', {
           params: {
             requireAuth: true,
             token: '{{TICKETS_WEBHOOK_TOKEN}}',
@@ -137,7 +152,7 @@ export const cases: PrintCase[] = [
             ],
           },
         }),
-        blk('Log ticket', 'table', {
+        blk('Log ticket', 'table_v2', {
           params: {
             operation: 'insert_row',
             tableSelector: { $sim: 'resource', kind: 'table', key: 'tickets' },
@@ -147,15 +162,14 @@ export const cases: PrintCase[] = [
 
           errorPort: true,
         }),
-        blk('Notify', 'slack', {
+        blk('Notify', 'slack_v2', {
           params: {
             operation: 'send',
-            authMethod: 'oauth',
             credential: { $sim: 'resource', kind: 'credential', key: 'support-slack' },
             channel: 'C0SUPPORT',
             text: 'New <classify.content> ticket: <ticketin.subject>',
           },
-          modes: { channel: 'basic' },
+          modes: { channel: 'basic', oauthCredential: 'basic' },
           errorPort: true,
         }),
         blk('Reply', 'response', {
@@ -194,7 +208,11 @@ export const cases: PrintCase[] = [
     name: 'templates-and-paths',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [
+          { name: 'items', type: 'array', value: '' },
+          { name: 'some-field', type: 'string', value: '' },
+          { name: 'a', type: 'object', value: '' },
+        ]),
         blk('Writer', 'agent', {
           params: {
             model: 'gpt-5.5',
@@ -234,9 +252,15 @@ export const cases: PrintCase[] = [
     workflow: wf({
       blocks: [
         start(),
-        blk('Alpha', 'agent', { params: { model: 'm', systemPrompt: 'See <beta.content>' } }),
-        blk('Beta', 'agent', { params: { model: 'm', systemPrompt: 'See <alpha.content>' } }),
-        blk('Self', 'agent', { params: { model: 'm', systemPrompt: 'Me: <self.content>' } }),
+        blk('Alpha', 'agent', {
+          params: { model: 'm', messages: [{ role: 'system', content: 'See <beta.content>' }] },
+        }),
+        blk('Beta', 'agent', {
+          params: { model: 'm', messages: [{ role: 'system', content: 'See <alpha.content>' }] },
+        }),
+        blk('Self', 'agent', {
+          params: { model: 'm', messages: [{ role: 'system', content: 'Me: <self.content>' }] },
+        }),
       ],
       edges: [edge('start', 'alpha'), edge('alpha', 'beta')],
     }),
@@ -266,7 +290,12 @@ export const cases: PrintCase[] = [
           params: { language: 'javascript', code: 'return <lookup.data>.score * 2' },
         }),
         blk('Summary', 'agent', {
-          params: { model: 'm', systemPrompt: 'Results: <eachlead.results> and <score.result>' },
+          params: {
+            model: 'm',
+            messages: [
+              { role: 'system', content: 'Results: <eachlead.results> and <score.result>' },
+            ],
+          },
         }),
       ],
       edges: [
@@ -281,7 +310,7 @@ export const cases: PrintCase[] = [
     name: 'nested-subflows',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'rows', type: 'array', value: '' }]),
         blk('Outer', 'loop', {
           subflow: { kind: 'loop', loopType: 'for', iterations: 3 },
         }),
@@ -298,8 +327,13 @@ export const cases: PrintCase[] = [
           parent: 'fan',
           params: {
             model: 'm',
-            systemPrompt:
-              'loop <loop.index> parallel <parallel.currentItem> named <outer.index> fan <fan.index>',
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'loop <loop.index> parallel <parallel.currentItem> named <outer.index> fan <fan.index>',
+              },
+            ],
           },
         }),
         blk('Sibling', 'loop', {
@@ -313,7 +347,10 @@ export const cases: PrintCase[] = [
         }),
         blk('Inside sibling', 'agent', {
           parent: 'sibling',
-          params: { model: 'm', systemPrompt: 'cannot see <work.content>' },
+          params: {
+            model: 'm',
+            messages: [{ role: 'system', content: 'cannot see <work.content>' }],
+          },
         }),
       ],
       edges: [
@@ -342,7 +379,7 @@ export const cases: PrintCase[] = [
       blocks: [
         start(),
         blk('Gate', 'condition', { branches: { kind: 'condition', rows: null } }),
-        blk('Pick', 'router', {
+        blk('Pick', 'router_v2', {
           params: { context: 'ctx', model: 'm' },
           branches: { kind: 'router', rows: null },
         }),
@@ -359,7 +396,7 @@ export const cases: PrintCase[] = [
     name: 'branch-titles-and-extra',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'amount', type: 'number', value: '' }]),
         blk('Check', 'condition', {
           branches: {
             kind: 'condition',
@@ -388,7 +425,7 @@ export const cases: PrintCase[] = [
           { name: 'amount', type: 'number', value: '' },
           { name: 'reason', type: 'string', value: '' },
         ]),
-        blk('Triage', 'router', {
+        blk('Triage', 'router_v2', {
           params: { context: '<start.amount> for <start.reason>', model: 'claude-sonnet-5-5' },
           branches: {
             kind: 'router',
@@ -412,24 +449,24 @@ export const cases: PrintCase[] = [
     name: 'pair-modes',
     workflow: wf({
       blocks: [
-        start(),
-        blk('Picked basic', 'slack', {
+        start('Start', [{ name: 'channel', type: 'string', value: '' }]),
+        blk('Picked basic', 'slack_v2', {
           params: { operation: 'send', channel: 'C0ONE', text: 'a' },
           modes: { channel: 'basic' },
         }),
-        blk('Manual advanced', 'slack', {
+        blk('Manual advanced', 'slack_v2', {
           params: { operation: 'send', manualChannel: '<start.channel>', text: 'b' },
           modes: { channel: 'advanced' },
         }),
-        blk('Basic holding text', 'slack', {
+        blk('Basic holding text', 'slack_v2', {
           params: { operation: 'send', channel: '<start.channel>', text: 'c' },
           modes: { channel: 'basic' },
         }),
-        blk('Advanced empty', 'slack', {
+        blk('Advanced empty', 'slack_v2', {
           params: { operation: 'send', text: 'd' },
           modes: { channel: 'advanced' },
         }),
-        blk('Both members', 'slack', {
+        blk('Both members', 'slack_v2', {
           params: { operation: 'send', channel: 'C0OLD', manualChannel: 'C0NEW', text: 'e' },
           modes: { channel: 'advanced' },
         }),
@@ -445,7 +482,7 @@ export const cases: PrintCase[] = [
       ],
       blocks: [
         start(),
-        blk('Query', 'table', {
+        blk('Query', 'table_v2', {
           params: {
             operation: 'query_rows',
             tableSelector: { $sim: 'unresolved', kind: 'table', id: 'tbl_deleted' },
@@ -467,8 +504,8 @@ export const cases: PrintCase[] = [
         blk('Set vars', 'variables', {
           params: {
             variables: [
-              { variable: { $sim: 'var', key: 'retries' }, value: '<variable.retries>' },
-              { variable: { $sim: 'var', key: 'lastrun' }, value: '<query.rows>' },
+              { variableId: { $sim: 'var', key: 'retries' }, value: '<variable.retries>' },
+              { variableId: { $sim: 'var', key: 'lastrun' }, value: '<query.rows>' },
             ],
           },
         }),
@@ -526,7 +563,7 @@ export const cases: PrintCase[] = [
     name: 'generic-block-unknown-type',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'input', type: 'string', value: '' }]),
         blk('Mystery', 'custom_block_acme', {
           params: { zeta: 1, alpha: 'a <start.input>' },
           triggerMode: true,
@@ -540,7 +577,7 @@ export const cases: PrintCase[] = [
     workflow: wf({
       blocks: [
         start(),
-        blk('Old table op', 'table', {
+        blk('Old table op', 'table_v2', {
           params: { operation: 'delete_everything', limit: '10' },
           modes: { tableId: 'basic' },
         }),
@@ -578,13 +615,13 @@ export const cases: PrintCase[] = [
     name: 'agent-tools',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'input', type: 'string', value: '' }]),
         blk('Assistant', 'agent', {
           params: { model: 'claude-sonnet-5-5' },
           tools: {
             tools: [
               {
-                type: 'slack',
+                type: 'slack_v2',
                 operation: 'send',
                 params: { channel: 'C0OPS', text: 'Approve: <start.input>' },
                 modes: { channel: 'basic' },
@@ -615,7 +652,7 @@ export const cases: PrintCase[] = [
           { name: 'limit', type: 'number', value: 10, description: 'Max results', required: true },
           { name: 'tags', type: 'array' },
         ]),
-        blk('Hook', 'webhook', {
+        blk('Hook', 'generic_webhook', {
           params: {
             inputFormat: [
               { name: '1', type: 'string', value: '' },
@@ -630,7 +667,7 @@ export const cases: PrintCase[] = [
     name: 'json-code-fields',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'input', type: 'string', value: '' }]),
         blk('Sugared', 'agent', {
           params: { model: 'm', responseFormat: '{\n  "name": "ticket",\n  "strict": true\n}' },
         }),
@@ -648,7 +685,7 @@ export const cases: PrintCase[] = [
     name: 'function-languages',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'total', type: 'number', value: '' }]),
         blk('Js code', 'function', {
           params: {
             language: 'javascript',
@@ -800,13 +837,13 @@ export const cases: PrintCase[] = [
           params: {
             url: 'https://example.com/a/very/long/path/that/keeps/going/and/going/until/it/overflows/the/line',
             headers: [
-              { key: 'Authorization', value: 'Bearer {{API_TOKEN}}' },
-              { key: 'Accept', value: 'application/json' },
+              { cells: { Key: 'Authorization', Value: 'Bearer {{API_TOKEN}}' } },
+              { cells: { Key: 'Accept', Value: 'application/json' } },
             ],
             method: 'GET',
           },
         }),
-        blk('Numbers', 'agent', {
+        blk('Numbers', 'custom_block_metrics', {
           params: {
             model: 'm',
             temperature: 1e21,
@@ -816,7 +853,7 @@ export const cases: PrintCase[] = [
             ],
           },
         }),
-        blk('Short key', 'slack', {
+        blk('Short key', 'slack_v2', {
           params: {
             operation: 'send',
             text: 'a very long message body that will never fit on the same line as its very short key',
@@ -830,27 +867,31 @@ export const cases: PrintCase[] = [
     name: 'trigger-mode-builders',
     workflow: wf({
       blocks: [
-        blk('Invoice email', 'gmail', {
+        blk('Invoice email', 'gmail_v2', {
           triggerMode: true,
           params: {
             selectedTriggerId: 'gmail_poller',
-            credential: { $sim: 'resource', kind: 'credential', key: 'finance-gmail' },
+            triggerCredentials: { $sim: 'resource', kind: 'credential', key: 'finance-gmail' },
             labelIds: ['INBOX'],
             markAsRead: true,
           },
         }),
-        blk('Send summary', 'gmail', {
+        blk('Send summary', 'gmail_v2', {
           params: {
             operation: 'send_gmail',
             credential: { $sim: 'resource', kind: 'credential', key: 'finance-gmail' },
             to: 'cfo@acme.test',
             subject: 'Invoices',
-            body: '<invoiceemail.email.body_text>',
+            body: '<invoiceemail.email.subject>',
           },
         }),
-        blk('Odd trigger', 'gmail', {
+        blk('Odd trigger', 'gmail_v2', {
           triggerMode: true,
-          params: { selectedTriggerId: 'gmail_other', markAsRead: false },
+          params: {
+            selectedTriggerId: 'gmail_other',
+            triggerCredentials: { $sim: 'resource', kind: 'credential', key: 'finance-gmail' },
+            markAsRead: false,
+          },
         }),
       ],
       edges: [edge('invoiceemail', 'sendsummary')],
