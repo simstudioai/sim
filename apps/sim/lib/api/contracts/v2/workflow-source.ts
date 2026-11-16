@@ -80,7 +80,7 @@ const applyWorkflowSourceBodySchema = z
     files: sourceFilesSchema,
     lock: workflowLockSchema,
     base: sourceBaseSchema.describe(
-      'Where and when the source was read (`.sim/base.json`). The apply answers `409` when the saved draft no longer matches `base.fingerprint`.'
+      'Where and when the source was read (`.sim/base.json`). The apply answers `409` when the saved draft no longer matches `base.fingerprint`, and `400` when `base.workflowId` names another workflow.'
     ),
     provenance: provenanceSchema,
   })

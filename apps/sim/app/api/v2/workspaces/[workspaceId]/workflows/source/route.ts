@@ -1,7 +1,6 @@
 import { v2CreateWorkflowFromSourceContract } from '@/lib/api/contracts/v2/workflow-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { sourceWriteActor, v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { createWorkflowFromSource } from '@/lib/workflows/application/apply-workflow-source'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { MAX_IMPORT_BODY_BYTES } from '@/lib/workflows/operations/import-workflow'
@@ -49,22 +48,4 @@ export const POST = defineV2JsonRoute({
       needsRedeployment: result.needsRedeployment,
     },
   }),
-  /** Telemetry only, for a create that wrote a workflow; same attribution as an apply. */
-  onSuccess: ({ principal, input, result }) => {
-    if (!result.applied) return
-    const actor = sourceWriteActor(principal, input.provenance?.client)
-    if (!actor) return
-    captureServerEvent(
-      actor.userId,
-      'workflow_source_applied',
-      {
-        workflow_id: result.workflowId,
-        workspace_id: result.workspaceId,
-        source: actor.source,
-        operation: 'create',
-        changes: result.diff.blocks.added.length + result.diff.edges.added,
-      },
-      { groups: { workspace: result.workspaceId } }
-    )
-  },
 })

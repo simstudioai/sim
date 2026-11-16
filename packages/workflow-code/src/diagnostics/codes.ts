@@ -239,6 +239,8 @@ export type MaterializeDiagnosticCode =
 export type ApplyDiagnosticCode =
   /** The base fingerprint no longer matches the stored graph (HTTP 409; s4 D3). */
   | 'E_APPLY_STALE'
+  /** `base.workflowId` names another workflow: the source was read from a different one (HTTP 400). */
+  | 'E_APPLY_WORKFLOW_MISMATCH'
   /** The diff touches a locked block or a child of a locked container (s4 D2). */
   | 'E_APPLY_LOCKED_BLOCK'
   /** A new block of a catalog type marked `addable: false`; existing blocks keep applying. */
@@ -274,6 +276,13 @@ export type ApplyDiagnosticCode =
   | 'W_APPLY_VALUE_NORMALIZED'
   /** A block's type changed; its id, webhook URL and schedules are replaced. */
   | 'W_APPLY_TYPE_CHANGED'
+  /**
+   * The draft drops or retypes a block with a live webhook, schedule, chat output or MCP tool.
+   * The deployment keeps them until the next deploy, which removes them.
+   */
+  | 'W_APPLY_TRIGGER_REMOVED'
+  /** Compile failed and the catalog changed since the source was read: get the source again. */
+  | 'W_APPLY_CATALOG_MOVED'
   /** A blocking workflow lint finding, mapped to a source line. */
   | 'E_APPLY_LINT'
   /** A non-blocking workflow lint finding, mapped to a source line. */

@@ -97,6 +97,10 @@ export const workflowLockSchema = withExtensions({
 
 export const sourceBaseSchema = z
   .object({
+    workflowId: z
+      .string()
+      .min(1, 'base.workflowId cannot be empty')
+      .describe('Workflow the source was read from; an apply to another workflow is refused.'),
     workspaceId: z.string().describe('Workspace the workflow belongs to.'),
     fingerprint: z
       .string()

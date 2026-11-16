@@ -4,8 +4,8 @@
  * s1 §2, s3 D10/D11). Edge ids are never in the lock (s1 D5).
  *
  * The lock holds only environment-independent facts: logical ids, idents, print order, code
- * files and layout. Everything tied to one environment's stored state (workspace, freshness
- * fingerprint, catalog hash) is the separate {@link SourceBase}: single-workflow `source get/apply`
+ * files and layout. Everything tied to one environment's stored state (workflow, workspace,
+ * freshness fingerprint, catalog hash) is the separate {@link SourceBase}: single-workflow `source get/apply`
  * returns and takes it beside the lock, and the CLI keeps it in `.sim/base.json`.
  * Logical ids equal physical ids in the home environment; elsewhere
  * `workspace_repo_block_binding` maps them (build-spec decision 4).
@@ -99,6 +99,8 @@ export interface WorkflowLockV1 {
 
 /** One environment's freshness facts for a lock, `.sim/base.json` (see the module comment). */
 export interface SourceBase {
+  /** The workflow the source was read from; apply refuses a base read from another workflow. */
+  workflowId: string
   workspaceId: string
   /** The DB freshness token at pull; apply answers 409 when it no longer matches. */
   fingerprint: string

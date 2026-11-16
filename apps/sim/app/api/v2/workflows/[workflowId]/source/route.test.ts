@@ -5,8 +5,6 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
-import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,7 +26,6 @@ vi.mock('@/lib/workflows/application/apply-workflow-source', () => ({
     execute: mocks.apply,
   },
 }))
-vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -62,7 +59,12 @@ const source = {
     blocks: { start: { id: 'b-1', parent: null, ident: 'start', order: 0 } },
     variables: {},
   },
-  base: { workspaceId: WORKSPACE_ID, fingerprint: FINGERPRINT, catalogHash: 'h' },
+  base: {
+    workflowId: WORKFLOW_ID,
+    workspaceId: WORKSPACE_ID,
+    fingerprint: FINGERPRINT,
+    catalogHash: 'h',
+  },
   fingerprint: FINGERPRINT,
   canonicalHash: 'd'.repeat(64),
   catalogHash: 'h',
@@ -150,12 +152,6 @@ function applyRequest(body: unknown, query = '') {
     headers: { 'x-api-key': 'key', 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
-}
-
-const personalKeyAuth = {
-  ...auth,
-  principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-2' },
-  keyType: 'personal' as const,
 }
 
 const applyBody = {
@@ -287,8 +283,7 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
     expect(mocks.apply).not.toHaveBeenCalled()
   })
 
-  it('passes dryRun as a boolean and keeps the result out of analytics', async () => {
-    v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
+  it('passes dryRun through as a boolean', async () => {
     mocks.apply.mockResolvedValue({ ...applied, dryRun: true, applied: false })
 
     const response = await POST(applyRequest(applyBody, '?dryRun=true'), context)
@@ -299,47 +294,13 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
       dryRun: true,
     })
     expect((await response.json()).data.applied).toBe(false)
-    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 
-  it('records workflow_source_applied for a personal key that changed the draft', async () => {
-    v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
+  it('rejects a base without workflowId with 400 before applying', async () => {
+    const { workflowId: _omitted, ...base } = source.base
+    const response = await POST(applyRequest({ ...applyBody, base }), context)
 
-    await POST(applyRequest({ ...applyBody, provenance: { client: 'cli' } }), context)
-
-    expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
-      'user-1',
-      'workflow_source_applied',
-      {
-        workflow_id: WORKFLOW_ID,
-        workspace_id: WORKSPACE_ID,
-        source: 'cli',
-        operation: 'apply',
-        changes: 1,
-      },
-      { groups: { workspace: WORKSPACE_ID } }
-    )
-  })
-
-  it('records a Copilot-delegated apply as its subject user with source copilot', async () => {
-    v2RouteMocks.authenticate.mockResolvedValue({
-      ...auth,
-      principal: createDelegatedPrincipal({ subjectUserId: 'user-9', workspaceId: WORKSPACE_ID }),
-    })
-
-    await POST(applyRequest({ ...applyBody, provenance: { client: 'cli' } }), context)
-
-    expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
-      'user-9',
-      'workflow_source_applied',
-      {
-        workflow_id: WORKFLOW_ID,
-        workspace_id: WORKSPACE_ID,
-        source: 'copilot',
-        operation: 'apply',
-        changes: 1,
-      },
-      { groups: { workspace: WORKSPACE_ID } }
-    )
+    expect(response.status).toBe(400)
+    expect(mocks.apply).not.toHaveBeenCalled()
   })
 })

@@ -108,9 +108,10 @@ export const workflowOperations = {
   }),
   /**
    * The workspace resources workflow source can name, by key. A read: any member may list them,
-   * as any member may read the source that names them; a workspace API key may too, like
-   * `workflows.source.read`. Listing allocates keys for resources that have none, which changes
-   * no resource (see `readSourceResources`).
+   * as any member may read the source that names them; a workspace API key and Copilot may too,
+   * like `workflows.source.catalog.read`. Listing allocates keys for resources that have none,
+   * which changes no resource (see `readSourceResources`). The result is names, ids, keys, table
+   * column schemas and env names, never stored content, so `contentDelivery` is `none`.
    */
   // permission-group-exempt: lists resource names and their keys, already visible to every workspace member; no group capability withholds them
   readSourceResources: defineWorkspaceOperation({
@@ -119,7 +120,15 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+    contentDelivery: 'none',
+    principalKinds: [
+      'session',
+      'personal_api_key',
+      'oauth_access_token',
+      'workspace_api_key',
+      'delegated',
+    ],
+    delegatedServices: ['copilot'],
   }),
   /** Full diagnostics retain the caller's subject for protected reference and secret reads. */
   // permission-group-exempt: lint reads workflow content under the existing workflow and secret authorization policies

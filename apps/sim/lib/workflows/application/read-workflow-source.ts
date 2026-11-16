@@ -129,6 +129,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
       files: printed.files,
       lock: printed.lock,
       base: {
+        workflowId: context.workflowId,
         workspaceId: context.workspaceId,
         fingerprint: printed.fingerprint,
         catalogHash: catalog.hash,

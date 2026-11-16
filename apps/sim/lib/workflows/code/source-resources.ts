@@ -11,7 +11,12 @@ import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import type { ResourceKind } from '@sim/workflow-code'
 import { and, asc, eq, inArray, isNull, notInArray, or } from 'drizzle-orm'
-import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
+import {
+  defineAuthorizedWorkspaceUseCase,
+  type WorkspaceAuthorizationContext,
+  type WorkspaceDelegationPolicy,
+} from '@/lib/core/application'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
@@ -71,6 +76,15 @@ export interface SourceResources {
 interface ReadSourceResourcesInput {
   workspaceId: string
 }
+
+/**
+ * Copilot reads the manifest with the source catalog's audience, but only for the workspace its
+ * delegation is bound to: the manifest names that workspace's credentials and env variables.
+ */
+const sourceResourcesDelegationPolicy = {
+  audience: catalogDelegationPolicy.audience,
+  isWithinScope: (principal, context) => principal.workspaceId === context.workspaceId,
+} as const satisfies WorkspaceDelegationPolicy<WorkspaceAuthorizationContext>
 
 /** One more row than the cap, so a full page tells a capped list from an exact one. */
 const PAGE = MAX_MANIFEST_RESOURCES_PER_KIND + 1
@@ -151,12 +165,13 @@ function capped<T>(rows: T[]): { rows: T[]; truncated: boolean } {
  * Every listed resource gets its key here (`resolveKeys` allocates one for a resource no source
  * has named yet), so a key an agent reads from the manifest resolves on apply. That allocation is
  * idempotent identity bookkeeping, not a change to any resource, which is why a read-role caller
- * may cause it. Not audited, like the other catalog reads.
+ * (Copilot included) may cause it. Not audited, like the other catalog reads.
  */
 export const readSourceResources = defineAuthorizedWorkspaceUseCase({
   operation: workflowOperations.readSourceResources,
   resolveContext: ({ input }: { input: ReadSourceResourcesInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
+  authorizationOptions: { delegation: sourceResourcesDelegationPolicy },
   execute: async ({ principal, context }): Promise<SourceResources> => {
     await requireWorkflowCodeEnabled()
     const workspaceId = context.workspaceId

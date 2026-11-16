@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { omit } from '@sim/utils/object'
 import type { BlockCatalog, SourceFingerprint } from '@sim/workflow-code'
 import {
@@ -64,8 +65,13 @@ export async function previewSourceCommit(
   return prepared
 }
 
-/** The stored draft re-read under the row lock: blocks, edges and the row's variables and meta. */
-async function loadStoredSourceIn(tx: DbOrTx, workflowId: string): Promise<StoredSource> {
+/**
+ * The stored draft re-read under the row lock: blocks, edges and the row's variables and meta.
+ * Refuses (423) a workflow locked, directly or by a folder above it, after the use case's
+ * `requireMutableWorkflow` ran: locking a workflow updates this row, so it waits for the lock this
+ * transaction holds and cannot slip in between the check and the write.
+ */
+async function loadMutableStoredSourceIn(tx: DbOrTx, workflowId: string): Promise<StoredSource> {
   const [normalized, [row]] = await Promise.all([
     loadWorkflowFromNormalizedTables(workflowId, tx),
     tx
@@ -73,12 +79,23 @@ async function loadStoredSourceIn(tx: DbOrTx, workflowId: string): Promise<Store
         name: workflowTable.name,
         description: workflowTable.description,
         variables: workflowTable.variables,
+        locked: workflowTable.locked,
+        folderId: workflowTable.folderId,
       })
       .from(workflowTable)
       .where(and(eq(workflowTable.id, workflowId), isNull(workflowTable.archivedAt)))
       .limit(1),
   ])
   if (!row) throw new OrchestrationError('not_found', 'Workflow not found')
+  if (row.locked) throw new OrchestrationError('locked', 'Workflow is locked')
+  try {
+    await assertFolderMutable(row.folderId, tx)
+  } catch (error) {
+    if (error instanceof FolderLockedError) {
+      throw new OrchestrationError('locked', 'Workflow is locked by its containing folder')
+    }
+    throw error
+  }
   return {
     state: {
       blocks: (normalized?.blocks ?? {}) as Record<string, BlockState>,
@@ -89,6 +106,44 @@ async function loadStoredSourceIn(tx: DbOrTx, workflowId: string): Promise<Store
     },
     meta: { name: row.name, description: row.description ?? null },
   }
+}
+
+/** What a commit over an existing draft re-checks under the row lock. */
+interface ExistingDraftCommit {
+  scope: CommitScope
+  plan: SourcePlan
+  /** The draft the plan was evaluated against, and its fingerprint. */
+  stored: StoredSource
+  storedFingerprint: SourceFingerprint
+  expectedFingerprint: string
+  catalog: BlockCatalog
+}
+
+/**
+ * Re-reads the draft under the row lock and refuses the write when the workflow was locked
+ * (423) or its fingerprint moved off `expectedFingerprint` (409), then stores the submission's
+ * source meta merged onto the one stored now. Returns the current draft.
+ */
+async function recheckAndWriteSourceMeta(
+  tx: DbOrTx,
+  args: ExistingDraftCommit
+): Promise<StoredSource> {
+  const { scope, plan, stored, catalog } = args
+  const current = await loadMutableStoredSourceIn(tx, scope.workflowId)
+  const fingerprint = isEqual(current, stored)
+    ? args.storedFingerprint
+    : fingerprintOf(current, catalog, plan.resources)
+  if (fingerprint !== args.expectedFingerprint) throw new WorkflowSourceStaleError(fingerprint)
+  await writeWorkflowSourceMeta(
+    tx,
+    scope.workflowId,
+    mergeSourceMetaFromLock(
+      await readWorkflowSourceMeta(tx, scope.workflowId),
+      plan.lock,
+      plan.compiled
+    )
+  )
+  return current
 }
 
 /**
@@ -126,21 +181,12 @@ function mergeCurrentLayout(
 
 /**
  * Writes the plan over an existing draft in one `replaceWorkflowNormalizedState` under the
- * workflow row lock. Inside the lock it re-reads the draft and answers 409 when its fingerprint
- * moved off `expectedFingerprint`, keeps current canvas positions for existing blocks, asserts the
- * locked-block merge is the identity, and stores the submission's source meta in the same
- * transaction.
+ * workflow row lock. Inside the lock it re-checks the workflow lock and the fingerprint, keeps
+ * current canvas positions for existing blocks, asserts the locked-block merge is the identity,
+ * and stores the submission's source meta in the same transaction.
  */
-export async function commitSourceReplace(args: {
-  scope: CommitScope
-  plan: SourcePlan
-  /** The draft the plan was evaluated against, and its fingerprint. */
-  stored: StoredSource
-  storedFingerprint: SourceFingerprint
-  expectedFingerprint: string
-  catalog: BlockCatalog
-}): Promise<CommittedGraph> {
-  const { scope, plan, stored, catalog } = args
+export async function commitSourceReplace(args: ExistingDraftCommit): Promise<CommittedGraph> {
+  const { scope, plan } = args
   await assertNoWithheldBlockType(
     { workspaceId: scope.workspaceId, subjectUserId: scope.subjectUserId },
     Object.values(plan.blocks)
@@ -151,11 +197,7 @@ export async function commitSourceReplace(args: {
     attributedUserId: scope.subjectUserId,
     subjectUserId: scope.subjectUserId,
     state: async (tx) => {
-      const current = await loadStoredSourceIn(tx, scope.workflowId)
-      const fingerprint = isEqual(current, stored)
-        ? args.storedFingerprint
-        : fingerprintOf(current, catalog, plan.resources)
-      if (fingerprint !== args.expectedFingerprint) throw new WorkflowSourceStaleError(fingerprint)
+      const current = await recheckAndWriteSourceMeta(tx, args)
       const next = {
         blocks: mergeCurrentLayout(plan.blocks, current.state.blocks),
         edges: plan.edges,
@@ -164,17 +206,33 @@ export async function commitSourceReplace(args: {
         { blocks: current.state.blocks, edges: current.state.edges },
         next
       )
-      await writeWorkflowSourceMeta(
-        tx,
-        scope.workflowId,
-        mergeSourceMetaFromLock(
-          await readWorkflowSourceMeta(tx, scope.workflowId),
-          plan.lock,
-          plan.compiled
-        )
-      )
       return plan.variables === undefined ? next : { ...next, variables: plan.variables }
     },
+  })
+}
+
+/**
+ * Stores only the source meta of a graph no-op (new idents, order or comments), under the same
+ * row lock and re-checks as {@link commitSourceReplace}, so it never lands on a draft that moved
+ * or was locked meanwhile, and merges onto the source meta stored at write time.
+ */
+export async function commitSourceMeta(args: ExistingDraftCommit): Promise<void> {
+  const { workflowId, workspaceId } = args.scope
+  await db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ id: workflowTable.id })
+      .from(workflowTable)
+      .where(
+        and(
+          eq(workflowTable.id, workflowId),
+          eq(workflowTable.workspaceId, workspaceId),
+          isNull(workflowTable.archivedAt)
+        )
+      )
+      .limit(1)
+      .for('update')
+    if (!locked) throw new OrchestrationError('not_found', 'Workflow not found')
+    await recheckAndWriteSourceMeta(tx, args)
   })
 }
 

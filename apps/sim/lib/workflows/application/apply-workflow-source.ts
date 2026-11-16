@@ -15,10 +15,7 @@ import {
   type WorkflowLockV1,
   type WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
-import {
-  readWorkflowSourceMeta,
-  writeWorkflowSourceMeta,
-} from '@sim/workflow-persistence/source-meta'
+import { readWorkflowSourceMeta } from '@sim/workflow-persistence/source-meta'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { resolveCatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
@@ -33,7 +30,12 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { loadWorkflowGraph } from '@/lib/workflows/application/read-workflow-graph'
 import {
+  recordSourceRefused,
+  recordSourceWritten,
+} from '@/lib/workflows/application/source-analytics'
+import {
   commitSourceCreate,
+  commitSourceMeta,
   commitSourceReplace,
   previewSourceCommit,
 } from '@/lib/workflows/application/source-commit'
@@ -98,6 +100,8 @@ interface ApplyWorkflowSourceResult {
   dryRun: boolean
   /** True only when a graph was written. */
   applied: boolean
+  /** True when source meta was stored: with a graph write, or alone for a graph no-op. */
+  wroteSourceMeta: boolean
   diff: SourceDiffSummary
   /** Warnings on success; on a dry run, every finding including the errors a commit would refuse. */
   diagnostics: WorkflowSourceDiagnostic[]
@@ -142,12 +146,18 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
   resolveContext: resolvePrincipalWorkflowContext<ApplyWorkflowSourceInput>,
   async execute({ principal, input, context }): Promise<ApplyWorkflowSourceResult> {
     await requireWorkflowCodeEnabled()
-    await requireMutableWorkflow(context.workflowId)
-    return runSourceApply(principal, input, {
-      kind: 'existing',
-      context,
-      base: input.base,
-    })
+    const facts = analyticsFacts(principal, input, 'apply', context.workspaceId)
+    try {
+      await requireMutableWorkflow(context.workflowId)
+      return await runSourceApply(principal, input, {
+        kind: 'existing',
+        context,
+        base: input.base,
+      })
+    } catch (error) {
+      if (!input.dryRun) recordSourceRefused({ ...facts, workflowId: context.workflowId }, error)
+      throw error
+    }
   },
   /** Only a committed, non-empty apply is a change worth auditing. */
   projectAudit: ({ principal, input, context, result }) =>
@@ -161,8 +171,12 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
           metadata: sourceAuditMetadata(principal, input, result),
         } as const)
       : [],
-  afterSuccess: ({ context, result }) => {
-    if (!result.applied) return
+  /** Source meta alone changes what an open Code tab prints, so it notifies too. */
+  afterSuccess: ({ principal, input, context, result }) => {
+    if (result.applied) {
+      recordSourceWritten(analyticsFacts(principal, input, 'apply', context.workspaceId), result)
+    }
+    if (!result.applied && !result.wroteSourceMeta) return
     return notifyWorkflowUpdated(context.workflowId)
   },
 })
@@ -183,26 +197,34 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
       context.workspaceId,
       input.folderPath ?? '/'
     )
+    const facts = analyticsFacts(principal, input, 'create', context.workspaceId)
     try {
-      await assertFolderMutable(folderId)
+      try {
+        await assertFolderMutable(folderId)
+      } catch (error) {
+        if (error instanceof FolderLockedError) {
+          throw new OrchestrationError('locked', error.message)
+        }
+        throw error
+      }
+      return await runSourceApply(
+        principal,
+        { ...input, lock: { version: 1, blocks: {}, variables: {} } },
+        {
+          kind: 'new',
+          workspace: context,
+          workflowId: generateId(),
+          create: {
+            ...(input.name !== undefined ? { name: input.name } : {}),
+            ...(input.description !== undefined ? { description: input.description } : {}),
+          },
+          folderId,
+        }
+      )
     } catch (error) {
-      if (error instanceof FolderLockedError) throw new OrchestrationError('locked', error.message)
+      if (!input.dryRun) recordSourceRefused({ ...facts, workflowId: '' }, error)
       throw error
     }
-    return runSourceApply(
-      principal,
-      { ...input, lock: { version: 1, blocks: {}, variables: {} } },
-      {
-        kind: 'new',
-        workspace: context,
-        workflowId: generateId(),
-        create: {
-          ...(input.name !== undefined ? { name: input.name } : {}),
-          ...(input.description !== undefined ? { description: input.description } : {}),
-        },
-        folderId,
-      }
-    )
   },
   projectAudit: ({ principal, input, result }) =>
     result.applied
@@ -215,14 +237,24 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
           metadata: sourceAuditMetadata(principal, input, result),
         } as const)
       : [],
-  afterSuccess: async ({ result }) => {
+  afterSuccess: async ({ principal, input, result }) => {
     if (!result.applied) return
+    recordSourceWritten(analyticsFacts(principal, input, 'create', result.workspaceId), result)
     await Promise.all([
       notifyWorkflowUpdated(result.workflowId),
       notifyWorkspaceWorkflowsChanged(result.workspaceId),
     ])
   },
 })
+
+function analyticsFacts(
+  principal: Principal,
+  input: SourceSubmission,
+  operation: 'apply' | 'create',
+  workspaceId: string
+) {
+  return { principal, client: input.provenance?.client, operation, workspaceId }
+}
 
 /** The audit metadata a committed source write records, for update and create alike. */
 function sourceAuditMetadata(
@@ -316,7 +348,12 @@ async function runSourceApply(
     const result = async (
       printed: Pick<PrintedSource, 'files' | 'lock' | 'fingerprint'>,
       outcome: Pick<ApplyWorkflowSourceResult, 'applied' | 'diff' | 'diagnostics'> &
-        Partial<Pick<ApplyWorkflowSourceResult, 'workflowName' | 'mintedIds' | 'notes'>>
+        Partial<
+          Pick<
+            ApplyWorkflowSourceResult,
+            'workflowName' | 'mintedIds' | 'notes' | 'wroteSourceMeta'
+          >
+        >
     ): Promise<ApplyWorkflowSourceResult> => ({
       workflowId: context.workflowId,
       workflowName: stored.meta.name,
@@ -324,11 +361,13 @@ async function runSourceApply(
       dryRun,
       mintedIds: {},
       notes: [],
+      wroteSourceMeta: false,
       ...outcome,
       fingerprint: printed.fingerprint,
       files: printed.files,
       lock: printed.lock,
       base: {
+        workflowId: context.workflowId,
         workspaceId: context.workspaceId,
         fingerprint: printed.fingerprint,
         catalogHash: catalog.hash,
@@ -346,6 +385,17 @@ async function runSourceApply(
       )
     }
 
+    if (target.kind === 'existing' && target.base.workflowId !== context.workflowId) {
+      return refuse([
+        {
+          code: 'E_APPLY_WORKFLOW_MISMATCH',
+          severity: 'error',
+          message: `This source was read from workflow ${target.base.workflowId}, not ${context.workflowId}; applying it here would overwrite a different workflow.`,
+          hint: 'Apply it to the workflow it was read from, or get this workflow’s source into its own directory.',
+          path: '/base/workflowId',
+        },
+      ])
+    }
     if (target.kind === 'existing' && storedFingerprint !== target.base.fingerprint) {
       if (!dryRun) throw new WorkflowSourceStaleError(storedFingerprint)
       return refuse([
@@ -404,22 +454,37 @@ async function runSourceApply(
       principalKind: principal.kind,
     }
 
-    if (plan.noop) {
-      const printed = print(stored.state, plan.sourceMeta, storedCanonical.canonical)
-      if (!dryRun) {
-        const before = print(stored.state, storedSourceMeta, storedCanonical.canonical)
-        if (!isEqual(printed.files, before.files) || !isEqual(printed.lock, before.lock)) {
-          await writeWorkflowSourceMeta(db, context.workflowId, plan.sourceMeta)
-        }
-      }
-      return result(printed, { applied: false, diff, diagnostics, notes: plan.notes })
-    }
-
     const scope = {
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
       subjectUserId,
     }
+    if (plan.noop) {
+      const printed = print(stored.state, plan.sourceMeta, storedCanonical.canonical)
+      const before = dryRun
+        ? printed
+        : print(stored.state, storedSourceMeta, storedCanonical.canonical)
+      const wroteSourceMeta =
+        !isEqual(printed.files, before.files) || !isEqual(printed.lock, before.lock)
+      if (wroteSourceMeta && target.kind === 'existing') {
+        await commitSourceMeta({
+          scope,
+          plan,
+          stored,
+          storedFingerprint,
+          expectedFingerprint: target.base.fingerprint,
+          catalog,
+        })
+      }
+      return result(printed, {
+        applied: false,
+        diff,
+        diagnostics,
+        notes: plan.notes,
+        wroteSourceMeta,
+      })
+    }
+
     if (dryRun) {
       const preview = await previewSourceCommit(context.workflowId, plan)
       logger.info('Evaluated workflow source without persisting', logContext)
@@ -446,6 +511,7 @@ async function runSourceApply(
     logger.info(isNew ? 'Created workflow from source' : 'Applied workflow source', logContext)
     return result(printWritten(committed.state), {
       applied: true,
+      wroteSourceMeta: true,
       diff,
       diagnostics,
       mintedIds,

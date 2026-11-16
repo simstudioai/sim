@@ -5,7 +5,6 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,7 +18,6 @@ vi.mock('@/lib/workflows/application/apply-workflow-source', () => ({
     execute: mocks.create,
   },
 }))
-vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
@@ -61,7 +59,12 @@ const created = {
     blocks: { start: { id: 'b-1', parent: null, ident: 'start', order: 0 } },
     variables: {},
   },
-  base: { workspaceId: WORKSPACE_ID, fingerprint: FINGERPRINT, catalogHash: 'h' },
+  base: {
+    workflowId: WORKFLOW_ID,
+    workspaceId: WORKSPACE_ID,
+    fingerprint: FINGERPRINT,
+    catalogHash: 'h',
+  },
   mintedIds: { start: 'b-1' },
   notes: [],
   needsRedeployment: false,
@@ -150,30 +153,12 @@ describe('POST /api/v2/workspaces/{workspaceId}/workflows/source', () => {
     expect(mocks.create).not.toHaveBeenCalled()
   })
 
-  it('passes dryRun through and keeps an uncommitted create out of analytics', async () => {
+  it('passes dryRun through', async () => {
     mocks.create.mockResolvedValue({ ...created, dryRun: true, applied: false })
 
     const response = await POST(createRequest({ files }, '?dryRun=true'), context)
 
     expect(response.status).toBe(200)
     expect(mocks.create.mock.calls[0][0].input).toMatchObject({ dryRun: true })
-    expect(posthogServerMockFns.mockCaptureServerEvent).not.toHaveBeenCalled()
-  })
-
-  it('records workflow_source_applied for a create the CLI committed', async () => {
-    await POST(createRequest({ files, provenance: { client: 'cli' } }), context)
-
-    expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
-      'user-1',
-      'workflow_source_applied',
-      {
-        workflow_id: WORKFLOW_ID,
-        workspace_id: WORKSPACE_ID,
-        source: 'cli',
-        operation: 'create',
-        changes: 1,
-      },
-      { groups: { workspace: WORKSPACE_ID } }
-    )
   })
 })
