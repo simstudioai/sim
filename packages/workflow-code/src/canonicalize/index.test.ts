@@ -153,13 +153,14 @@ const CATALOG: BlockCatalog = {
         mode: 'advanced',
       }),
       sb({ id: 'limit', type: 'short-input' }),
-      sb({ id: 'includeMeta', type: 'switch', valueKind: 'boolean' }),
+      sb({ id: 'includeMeta', type: 'switch', valueKind: 'boolean', valueShape: 'boolean' }),
     ]),
     knowledge: block('knowledge', [
       sb({
         id: 'knowledgeBaseIds',
         type: 'knowledge-base-selector',
         multiple: true,
+        valueShape: 'json',
         valueKind: 'resource',
         resourceKind: 'knowledge-base',
       }),
@@ -227,6 +228,7 @@ const CATALOG: BlockCatalog = {
         type: 'table',
         valueKind: 'array',
         structured: 'tableRows',
+        valueShape: 'json',
         columns: ['Key', 'Value'],
       }),
     ]),
@@ -270,7 +272,13 @@ const CATALOG: BlockCatalog = {
     generic_webhook: block(
       'generic_webhook',
       [
-        sb({ id: 'requireAuth', type: 'switch', mode: 'trigger', surface: 'trigger' }),
+        sb({
+          id: 'requireAuth',
+          type: 'switch',
+          mode: 'trigger',
+          surface: 'trigger',
+          valueShape: 'boolean',
+        }),
         sb({ id: 'token', type: 'short-input', mode: 'trigger', surface: 'trigger' }),
       ],
       { category: 'triggers' }

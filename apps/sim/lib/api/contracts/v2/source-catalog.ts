@@ -205,6 +205,10 @@ const catalogSubBlockSchema = z
       .enum(['tools', 'branches', 'tableRows', 'inputFormat', 'variables'])
       .optional()
       .describe('Structured value the canonical model decodes.'),
+    valueShape: z
+      .enum(['number', 'boolean', 'json'])
+      .optional()
+      .describe('Shape of the value in an agent tool entry; absent means string.'),
   })
   .describe('One configuration field, in declared order; duplicate ids are kept with `surface`.')
 

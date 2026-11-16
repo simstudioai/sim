@@ -162,6 +162,11 @@ export interface CatalogSubBlock {
   /** Encoding for a value with no prev raw value; prev's encoding wins when it exists. */
   storage: ParamStorage
   structured?: CatalogStructuredKind
+  /**
+   * The shape the subBlock's value takes in a tool entry's `params` (`getSubBlockValueShape`,
+   * tools/param-shape.ts), which canonicalize decodes a stored tool param by. Absent is `string`.
+   */
+  valueShape?: 'number' | 'boolean' | 'json'
 }
 
 /** One output field (`OutputFieldDefinition`, recursively expanded). */

@@ -30482,6 +30482,11 @@
                                   "inputFormat",
                                   "variables"
                                 ]
+                              },
+                              "valueShape": {
+                                "description": "Shape of the value in an agent tool entry; absent means string.",
+                                "type": "string",
+                                "enum": ["number", "boolean", "json"]
                               }
                             },
                             "required": ["id", "type", "valueKind", "storage"],
@@ -31526,6 +31531,11 @@
                                   "inputFormat",
                                   "variables"
                                 ]
+                              },
+                              "valueShape": {
+                                "description": "Shape of the value in an agent tool entry; absent means string.",
+                                "type": "string",
+                                "enum": ["number", "boolean", "json"]
                               }
                             },
                             "required": ["id", "type", "valueKind", "storage"],
@@ -32343,6 +32353,11 @@
                       "description": "Structured value the canonical model decodes.",
                       "type": "string",
                       "enum": ["tools", "branches", "tableRows", "inputFormat", "variables"]
+                    },
+                    "valueShape": {
+                      "description": "Shape of the value in an agent tool entry; absent means string.",
+                      "type": "string",
+                      "enum": ["number", "boolean", "json"]
                     }
                   },
                   "required": ["id", "type", "valueKind", "storage"],

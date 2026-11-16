@@ -11,12 +11,6 @@ import { liftResourceId, liftResourceValue, toJson, toValue } from './values'
 
 export type ToolParamShape = 'string' | 'number' | 'boolean' | 'json'
 
-const OBJECT_VALUED_TYPES = new Set([
-  'checkbox-list',
-  'file-upload',
-  'grouped-checkbox-list',
-  'table',
-])
 const USAGE_CONTROLS = new Set(['auto', 'force', 'none'])
 
 /** Stored tool keys with a typed model field; anything else is kept under `extra`. */
@@ -34,15 +28,6 @@ const MODELED_KEYS = new Set([
   'operationPolicy',
   'isExpanded',
 ])
-
-/** `getSubBlockValueShape` (tools/param-shape.ts): the shape a sub-block wrote. */
-function subBlockShape(subBlock: CatalogSubBlock): ToolParamShape {
-  if (subBlock.type === 'switch') return 'boolean'
-  if (subBlock.type === 'slider') return 'number'
-  if (OBJECT_VALUED_TYPES.has(subBlock.type)) return 'json'
-  if (subBlock.multiple) return 'json'
-  return 'string'
-}
 
 /** `getToolParamValueShape` (tools/param-shape.ts): the shape a tool declaration implies. */
 function declaredShape(type: string | undefined): ToolParamShape {
@@ -74,7 +59,7 @@ export function toolParamDeclaration(
   const subBlock = catalogBlock(catalog, tool.type)?.subBlocks.find(
     (candidate) => candidate.id === key || candidate.canonicalParamId === key
   )
-  if (subBlock) return { subBlock, shape: subBlockShape(subBlock) }
+  if (subBlock) return { subBlock, shape: subBlock.valueShape ?? 'string' }
   const declaration = tool.toolId ? catalogTool(catalog, tool.toolId) : undefined
   return {
     subBlock: undefined,

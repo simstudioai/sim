@@ -82,6 +82,39 @@ describe('canonicalize and codegen over the real block catalog', () => {
     expect(missing).toEqual([])
   })
 
+  it("decodes an agent tool's stored params by the registry sub-block's value shape", () => {
+    const shaped = registryBlocks.flatMap((block) =>
+      block.subBlocks
+        .filter((subBlock) => subBlock.type === 'switch' && !subBlock.mode?.startsWith('trigger'))
+        .map((subBlock) => ({ type: block.type, id: subBlock.id }))
+    )
+    expect(shaped.length).toBeGreaterThan(0)
+    const tools = shaped.map(({ type, id }) => ({ type, params: { [id]: 'true' } }))
+    const result = canonicalize(
+      {
+        blocks: {
+          a1: {
+            id: 'a1',
+            type: 'agent',
+            name: 'Agent',
+            position: { x: 0, y: 0 },
+            enabled: true,
+            outputs: {},
+            subBlocks: { tools: { id: 'tools', type: 'tool-input', value: tools } },
+          },
+        },
+        edges: [],
+        loops: {},
+        parallels: {},
+      },
+      { catalog, meta: { name: 'Shapes', description: null } }
+    )
+    const param = result.workflow.blocks.agent.params.tools
+    expect(param?.kind).toBe('tools')
+    const decoded = param?.kind === 'tools' ? param.tools.map((tool) => tool.params) : []
+    expect(decoded).toEqual(shaped.map(({ id }) => ({ [id]: true })))
+  })
+
   it('generates SDK types the example workflows type-check against', () => {
     const files = generateSdkTypes(catalog)
     for (const file of files) {

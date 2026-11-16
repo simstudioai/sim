@@ -30,6 +30,7 @@ import {
   isSentinelBlockType,
 } from '@/executor/constants'
 import type { ToolMetadata } from '@/tools/metadata'
+import { getSubBlockValueShape } from '@/tools/param-shape'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -396,6 +397,8 @@ function projectSubBlock(subBlock: SubBlockConfig, ctx: SubBlockContext): Catalo
   assign(projected, 'emptyIsValid', subBlock.emptyIsValid)
   assign(projected, 'language', subBlock.language)
   if (subBlock.multiple === true || subBlock.multiSelect === true) projected.multiple = true
+  const valueShape = getSubBlockValueShape({ type: subBlock.type, multiSelect: projected.multiple })
+  if (valueShape !== 'string') projected.valueShape = valueShape
   assign(projected, 'min', subBlock.min)
   assign(projected, 'max', subBlock.max)
   assign(projected, 'step', subBlock.step)

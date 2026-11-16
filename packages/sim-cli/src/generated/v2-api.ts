@@ -7879,6 +7879,7 @@ export type GetSourceCatalogResponse = {
               resourceKind?: string
               storage: 'native' | 'json-string'
               structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+              valueShape?: 'number' | 'boolean' | 'json'
             }
           | {
               shared: number
@@ -8105,6 +8106,7 @@ export type GetSourceCatalogResponse = {
               resourceKind?: string
               storage: 'native' | 'json-string'
               structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+              valueShape?: 'number' | 'boolean' | 'json'
             }
           | {
               shared: number
@@ -8284,6 +8286,7 @@ export type GetSourceCatalogResponse = {
       resourceKind?: string
       storage: 'native' | 'json-string'
       structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+      valueShape?: 'number' | 'boolean' | 'json'
     }>
     lists?: Array<Array<string | number | boolean>>
     outputs?: Array<
