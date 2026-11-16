@@ -102,7 +102,9 @@ function residualAfterOperation(
   const and = clause.and
   if (clause.field === 'operation') {
     if (!and || and.field === 'operation') return true
-    const rest: SubBlockConditionClause = { field: and.field, value: and.value ?? null }
+    /** A head clause cannot ask for "unset", so that residual keeps the operation part, which holds. */
+    if (and.value === undefined) return clause
+    const rest: SubBlockConditionClause = { field: and.field, value: and.value }
     if (and.not !== undefined) rest.not = and.not
     return rest
   }

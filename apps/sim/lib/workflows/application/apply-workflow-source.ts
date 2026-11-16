@@ -483,7 +483,10 @@ async function runSourceApply(
     const committed =
       target.kind === 'new'
         ? await commitSourceCreate({ scope, plan, folderId: target.folderId })
-        : await commitSourceReplace({ scope, plan, stored, storedFingerprint, catalog })
+        : {
+            ...(await commitSourceReplace({ scope, plan, stored, storedFingerprint, catalog })),
+            name: stored.meta.name,
+          }
     logger.info(isNew ? 'Created workflow from source' : 'Applied workflow source', logContext)
     return result(printWritten(committed.state), {
       applied: true,
@@ -491,7 +494,7 @@ async function runSourceApply(
       diff,
       diagnostics,
       mintedIds,
-      ...('name' in committed ? { workflowName: committed.name } : {}),
+      workflowName: committed.name,
       notes: [...plan.notes, ...committed.warnings],
     })
   })
