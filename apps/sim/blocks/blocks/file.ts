@@ -1962,12 +1962,9 @@ export const FileV5Block: BlockConfig = {
         const operation = mapperOperation(params, context) || 'file_read'
         /**
          * A tool call's `folderPath` arg shares its name with the basic half of the `folderRef`
-         * pair, so the canonical pass may have republished it there. Read on tool calls only.
+         * pair, so the canonical pass republishes it as `folderRef`. Read on tool calls only.
          */
-        const modelFolderPath = toolCallArg(
-          context,
-          optionalText(params.folderPath) ?? optionalText(params.folderRef)
-        )
+        const modelFolderPath = toolCallArg(context, optionalText(params.folderRef))
 
         if (operation === 'file_search') {
           const maxResultsInput =

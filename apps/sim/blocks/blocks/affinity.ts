@@ -6,6 +6,7 @@ import {
   mapperOperation,
   parseOptionalBooleanInput,
   parseOptionalNumberInput,
+  toolCallArg,
   withSavedCredential,
 } from '@/blocks/utils'
 
@@ -1435,16 +1436,24 @@ export const AffinityBlock: BlockConfig = {
           isPublic: isCreateList ? parseOptionalBooleanInput(params.isPublic) : undefined,
           text: isDropdownWrite ? params.optionText : undefined,
           rank: isDropdownWrite
-            ? parseOptionalNumberInput(params.optionRank, 'Option Rank', { integer: true, min: 0 })
+            ? parseOptionalNumberInput(
+                params.optionRank ?? toolCallArg(context, params.rank),
+                'Option Rank',
+                { integer: true, min: 0 }
+              )
             : undefined,
           color: isDropdownWrite ? params.optionColor : undefined,
           statusCategory: isDropdownWrite ? params.optionStatusCategory : undefined,
           winRate: isDropdownWrite
-            ? parseOptionalNumberInput(params.optionWinRate, 'Win Rate', {
-                integer: true,
-                min: 0,
-                max: 100,
-              })
+            ? parseOptionalNumberInput(
+                params.optionWinRate ?? toolCallArg(context, params.winRate),
+                'Win Rate',
+                {
+                  integer: true,
+                  min: 0,
+                  max: 100,
+                }
+              )
             : undefined,
           value: isIn(FIELD_VALUE_WRITE_OPERATIONS) ? params.fieldValue : undefined,
           updates: isIn(FIELD_BATCH_WRITE_OPERATIONS) ? params.fieldUpdates : undefined,

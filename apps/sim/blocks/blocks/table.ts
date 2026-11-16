@@ -10,6 +10,7 @@ import {
   resolveTableColumnSelection,
   TABLE_OUTPUT_COLUMNS_INPUT,
   TABLE_OUTPUT_COLUMNS_SUBBLOCK,
+  toolCallArg,
 } from '@/blocks/utils'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
 import { getTrigger } from '@/triggers'
@@ -70,6 +71,8 @@ interface TableBlockParams {
   bulkFilterMode?: string
   bulkFilterBuilder?: unknown
   conflictColumn?: string
+  /** The tool's own `conflictTarget` param, set in an Agent tool row. */
+  conflictTarget?: string
 }
 
 /** Normalized params after parsing, ready for tool request body */
@@ -131,10 +134,11 @@ const paramTransformers: Record<
     data: parseJSON(params.data, 'Row Data'),
   }),
 
-  upsert_row: (params) => ({
+  upsert_row: (params, context) => ({
     tableId: params.tableId,
     data: parseJSON(params.data, 'Row Data'),
-    conflictTarget: params.conflictColumn || undefined,
+    conflictTarget:
+      params.conflictColumn || toolCallArg(context, params.conflictTarget) || undefined,
   }),
 
   batch_insert_rows: (params) => ({

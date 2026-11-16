@@ -8,7 +8,7 @@ const mapToolParams = mapper
 describe('BufferBlock tool calls', () => {
   it('turns the default share mode into addToQueue when creating a post', () => {
     const merged = { apiKey: 'key', channelId: 'ch_1', text: 'Hello', mode: 'default' }
-    const params = {
+    const params: Record<string, unknown> = {
       ...merged,
       ...mapToolParams(merged, { operation: 'create_post' }),
     }

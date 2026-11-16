@@ -1433,7 +1433,9 @@ function mapInterestValueParam(
   toolCall: boolean
 ): number | null | undefined {
   if (operation !== 'update_lead_interest_status') return undefined
-  const blockValueEmpty = params.interestValue === undefined || params.interestValue === ''
+  const blockValueEmpty =
+    params.interestValue === undefined ||
+    (typeof params.interestValue === 'string' && params.interestValue.trim() === '')
   if (toolCall && blockValueEmpty) return toNullableNumberParam(params.interest_value)
   return toNullableNumberParam(params.interestValue, true)
 }
