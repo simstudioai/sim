@@ -63,16 +63,25 @@ describe('native search network boundary', () => {
     await expect(client.json('https://evil.test')).rejects.toThrow('Invalid provider path')
     expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
   })
-  it('cannot move a non-Google token to the Sheets API', async () => {
-    const client = createNativeClient({
-      origin: 'https://api.github.com',
-      accessToken: 'private',
-      signal: new AbortController().signal,
-    })
-    await expect(client.json('/v4/spreadsheets/id', { googleService: 'sheets' })).rejects.toThrow(
-      'Invalid Google service'
-    )
+  it('only moves a token to the sibling host of its own provider', async () => {
+    const clientFor = (origin: string) =>
+      createNativeClient({ origin, accessToken: 'private', signal: new AbortController().signal })
+    await expect(
+      clientFor('https://api.github.com').json('/v4/spreadsheets/id', { service: 'sheets' })
+    ).rejects.toThrow('Invalid provider service')
+    await expect(
+      clientFor('https://www.googleapis.com').text('/files-pri/T1-F1/plan', undefined, {
+        service: 'slackFiles',
+      })
+    ).rejects.toThrow('Invalid provider service')
     expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
+    await clientFor('https://slack.com').text('/files-pri/T1-F1/plan', undefined, {
+      service: 'slackFiles',
+    })
+    expect(inputValidationMockFns.mockSecureFetchWithValidation).toHaveBeenCalledWith(
+      'https://files.slack.com/files-pri/T1-F1/plan',
+      expect.objectContaining({ maxRedirects: 0 })
+    )
   })
   it('keeps the HTTP status of a provider failure so callers can tell a missing item apart', async () => {
     const client = createNativeClient({

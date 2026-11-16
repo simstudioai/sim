@@ -177,8 +177,15 @@ export const LIVE_SEARCH_PROVIDERS = {
         'joining alternatives with OR or spaces in one query, which keyword retrieval treats as all required; send them as separate native queries.',
     },
     search: searchSlack,
-    read: (client, reference) =>
-      readSlack(client, reference.id, reference.container, reference.kind, reference.threadId),
+    read: (client, reference, options) =>
+      readSlack(
+        client,
+        reference.id,
+        reference.container,
+        reference.kind,
+        reference.threadId,
+        options.signal
+      ),
   },
   jira: {
     guide: {
