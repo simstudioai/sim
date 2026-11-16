@@ -12,6 +12,7 @@ import type {
   SubBlockConditionClause,
 } from '@sim/workflow-code'
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
+import { isTriggerSurface } from '@sim/workflow-code/catalog/surface'
 import type { OutputCondition, PrimitiveValueType } from '@sim/workflow-types/blocks'
 import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
 import { resolveSubBlockOptions } from '@/lib/catalog/projection/subblock'
@@ -319,7 +320,7 @@ function projectValueDefault(
 }
 
 function subBlockSurface(subBlock: SubBlockConfig): 'action' | 'trigger' {
-  return subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced' ? 'trigger' : 'action'
+  return isTriggerSurface(subBlock) ? 'trigger' : 'action'
 }
 
 interface SubBlockContext extends ConditionInputs {

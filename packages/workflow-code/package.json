@@ -22,9 +22,17 @@
       "types": "./src/catalog/canonical-index/index.ts",
       "default": "./src/catalog/canonical-index/index.ts"
     },
+    "./catalog/conditions": {
+      "types": "./src/catalog/conditions.ts",
+      "default": "./src/catalog/conditions.ts"
+    },
     "./catalog/defaults": {
       "types": "./src/catalog/defaults.ts",
       "default": "./src/catalog/defaults.ts"
+    },
+    "./catalog/surface": {
+      "types": "./src/catalog/surface.ts",
+      "default": "./src/catalog/surface.ts"
     },
     "./catalog/view": {
       "types": "./src/catalog/view.ts",

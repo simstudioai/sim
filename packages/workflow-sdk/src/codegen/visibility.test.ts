@@ -30,7 +30,7 @@ describe('classifyParam', () => {
       subBlock({ id: 'cursor', condition: { field: 'operation', value: 'list' } }),
       subBlock({ id: 'botToken', condition: { field: 'authMethod', value: 'bot_token' } }),
     ]
-    const context = buildVisibilityContext(candidates, { operation: 'send' }, 'send')
+    const context = buildVisibilityContext(candidates, { operation: 'send' })
     const [, text, cursor, botToken] = candidates.map((candidate) =>
       classifyParam([candidate], context)
     )
@@ -61,8 +61,8 @@ describe('classifyParam', () => {
       condition: { opaque: true },
       visibleFor: { send: true, list_users: false },
     })
-    const sendContext = buildVisibilityContext([channel], { operation: 'send' }, 'send')
-    const listContext = buildVisibilityContext([channel], { operation: 'list_users' }, 'list_users')
+    const sendContext = buildVisibilityContext([channel], { operation: 'send' })
+    const listContext = buildVisibilityContext([channel], { operation: 'list_users' })
     expect(classifyParam([channel], sendContext)).toMatchObject({
       kind: 'sometimes',
       required: false,

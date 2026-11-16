@@ -7,11 +7,18 @@
  * are capped at {@link MAX_COMBINATIONS}; the widest siblings stop being enumerated first. A field
  * nobody enumerates is unknown, so a condition on it is "sometimes".
  *
- * Evaluation mirrors `evaluateSubBlockCondition` (apps/sim/lib/workflows/subblocks/visibility.ts):
- * strict equality, array values mean "one of", `not` negates, `and` must also hold.
+ * Conditions are evaluated by the catalog's one evaluator (`@sim/workflow-code/catalog/conditions`),
+ * which leaves a condition on a field nobody enumerates undecided: "sometimes" here.
  */
 
 import type { CatalogSubBlock } from '@sim/workflow-code'
+import {
+  type ConditionClause,
+  type ConditionLookup,
+  type ConditionResult,
+  evaluateClause as evaluateCatalogClause,
+  evaluateCondition,
+} from '@sim/workflow-code/catalog/conditions'
 import { isConditionClause, isOpaque } from './catalog'
 
 export const MAX_COMBINATIONS = 64
@@ -32,8 +39,6 @@ interface SiblingDomain {
 export interface VisibilityContext {
   /** Values the builder pins: its `operation` and `fixed` entries. */
   pinned: Readonly<Record<string, Scalar>>
-  /** The pinned operation, for `visibleFor` on function conditions. */
-  operation?: string
   /** Enumerated siblings, sorted by field. */
   siblings: SiblingDomain[]
   /** Every combination of sibling values (one empty combination when there are none). */
@@ -52,20 +57,7 @@ export interface ParamVisibility {
   when?: string
 }
 
-type ClauseValue = Scalar | null | undefined | ReadonlyArray<Scalar | null | undefined>
-
-interface ClausePart {
-  field: string
-  value: ClauseValue
-  not?: boolean
-}
-
-/** The shape shared by subBlock conditions and output conditions. */
-interface ConditionLike extends ClausePart {
-  and?: ClausePart
-}
-
-function clauseFields(clause: ConditionLike): string[] {
+function clauseFields(clause: ConditionClause): string[] {
   return clause.and ? [clause.field, clause.and.field] : [clause.field]
 }
 
@@ -110,8 +102,7 @@ function byField(a: SiblingDomain, b: SiblingDomain): number {
  */
 export function buildVisibilityContext(
   candidates: readonly CatalogSubBlock[],
-  pinned: Readonly<Record<string, Scalar>>,
-  operation?: string
+  pinned: Readonly<Record<string, Scalar>>
 ): VisibilityContext {
   const fields = new Set<string>()
   for (const subBlock of candidates) {
@@ -137,64 +128,45 @@ export function buildVisibilityContext(
       sibling.values.map((value) => ({ ...combo, [sibling.field]: value }))
     )
   }
-  return { pinned, operation, siblings, combos }
+  return { pinned, siblings, combos }
 }
 
-function lookup(
-  context: VisibilityContext,
-  combo: Readonly<Record<string, Scalar>>,
-  field: string
-): { known: true; value: Scalar } | { known: false } {
-  if (field in context.pinned) return { known: true, value: context.pinned[field] }
-  if (field in combo) return { known: true, value: combo[field] }
-  return { known: false }
-}
-
-function evalSingle(
-  clause: ClausePart,
+function comboLookup(
   context: VisibilityContext,
   combo: Readonly<Record<string, Scalar>>
-): Tri {
-  const actual = lookup(context, combo, clause.field)
-  if (!actual.known) return null
-  const expected = clause.value
-  if (Array.isArray(expected)) {
-    const included = expected.includes(actual.value)
-    return clause.not ? !included : included
+): ConditionLookup {
+  return (field) => {
+    if (field in context.pinned) return { value: context.pinned[field] }
+    if (field in combo) return { value: combo[field] }
+    return undefined
   }
-  return clause.not ? actual.value !== expected : actual.value === expected
 }
 
-function and(a: Tri, b: Tri): Tri {
-  if (a === false || b === false) return false
-  if (a === null || b === null) return null
-  return true
+function toTri(result: ConditionResult): Tri {
+  return result === 'undecided' ? null : result
 }
 
 /** Evaluates a condition clause; `null` when it reads a field that is not known. */
 export function evaluateClause(
-  clause: ConditionLike,
+  clause: ConditionClause,
   context: VisibilityContext,
   combo: Readonly<Record<string, Scalar>>
 ): Tri {
-  const head = evalSingle(clause, context, combo)
-  return clause.and ? and(head, evalSingle(clause.and, context, combo)) : head
+  return toTri(evaluateCatalogClause(clause, comboLookup(context, combo)))
 }
 
+/**
+ * Visibility in one combination. A function condition the catalog could only mark opaque is never
+ * certain here, even where its precomputed data shows the field: the types stay as permissive as
+ * the registry function, and only a field that data hides is left out.
+ */
 function visibleIn(
   subBlock: CatalogSubBlock,
   context: VisibilityContext,
   combo: Readonly<Record<string, Scalar>>
 ): Tri {
-  const { condition } = subBlock
-  if (condition === undefined) return true
-  if (isConditionClause(condition)) return evaluateClause(condition, context, combo)
-  if (isOpaque(condition) && context.operation !== undefined && subBlock.visibleFor) {
-    const visible = subBlock.visibleFor[context.operation]
-    // A function condition visible for the operation may still read other fields.
-    if (visible === false) return false
-  }
-  return null
+  const visible = toTri(evaluateCondition(subBlock, comboLookup(context, combo)))
+  return visible === true && isOpaque(subBlock.condition) ? null : visible
 }
 
 function requiredIn(

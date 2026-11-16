@@ -16,6 +16,8 @@ import {
   formatStoredPath,
   isIndexSegment,
   isNameSegment,
+  LOOP_PROPERTIES,
+  PARALLEL_PROPERTIES,
   type RefSegment,
 } from '../code-files/ref-path'
 import type { Json, ResourceKind, Value, VarNode } from '../model'
@@ -103,9 +105,6 @@ const RESOURCE_KINDS: ReadonlySet<string> = new Set<string>([
   'workflow',
 ])
 
-/** Loop and parallel params (executor/variables/resolvers/loop.ts:44, parallel.ts:45). */
-const LOOP_PROPERTIES = ['index', 'currentItem', 'items', 'iteration', 'item']
-const PARALLEL_PROPERTIES = ['index', 'currentItem', 'items']
 /** Named-form container outputs (loop.ts:43, parallel.ts:44). */
 const CONTAINER_OUTPUTS = ['results', 'result']
 

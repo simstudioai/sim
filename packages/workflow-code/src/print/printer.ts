@@ -12,9 +12,10 @@ import {
 } from '@sim/workflow-types/workflow'
 import { portKey } from '../anchors'
 import type { LockHintBlock, LockHints, PrintInput, PrintResult, PrintWorkflowFn } from '../api'
-import { canonicalActivityInputs, isInactive } from '../canonicalize/activity'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import { canonicalActivityInputs, executableInactiveParams, isInactive } from '../catalog/activity'
 import { type EditorDefault, editorDefaults } from '../catalog/defaults'
+import { isAdvancedMember, onSurface } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder, CatalogSubBlock } from '../catalog/types'
 import {
   catalogBlock as catalogBlockOf,
@@ -24,7 +25,6 @@ import {
 import { type CodeFileCodec, type CodeFileLanguage, codeFileCodec } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
-import { executableInactiveParams } from '../equivalence/executable'
 import { isJson } from '../lock'
 import type {
   AnchorKey,
@@ -68,11 +68,6 @@ function toLanguage(value: unknown): CodeFileLanguage | null {
   if (value === 'python' || value === 'py') return 'python'
   if (value === 'shell' || value === 'bash' || value === 'sh') return 'shell'
   return null
-}
-
-/** The advanced member of a basic/advanced pair, on either surface. */
-function isAdvancedMember(sb: CatalogSubBlock): boolean {
-  return sb.mode === 'advanced' || sb.mode === 'trigger-advanced'
 }
 
 function stringParam(block: CanonicalBlock, id: string): string | undefined {
@@ -422,11 +417,8 @@ class WorkflowPrinter {
     return heads
   }
 
-  /** A trigger block (`category: 'triggers'`) serializes both surfaces (`shouldSerializeSubBlock`). */
   private surfaceSubBlocks(block: CanonicalBlock, catalogBlock: CatalogBlock): CatalogSubBlock[] {
-    if (catalogBlock.category === 'triggers') return catalogBlock.subBlocks
-    const surface = block.triggerMode ? 'trigger' : 'action'
-    return catalogBlock.subBlocks.filter((sb) => sb.surface === undefined || sb.surface === surface)
+    return catalogBlock.subBlocks.filter((sb) => onSurface(catalogBlock, sb, block.triggerMode))
   }
 
   private tagFor(

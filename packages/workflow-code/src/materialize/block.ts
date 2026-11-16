@@ -6,13 +6,13 @@ import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { mintsFreshValue } from '../catalog/defaults'
 import type { LockItem, LockLayout, WorkflowLockBlock } from '../lock'
 import type { BlockKey, BranchKey, CanonicalBlock, SubBlockId } from '../model'
+import { deepEqual } from '../records'
 import { writeBranches } from './branches'
 import { catalogBlock, type MaterializeContext } from './context'
 import type { ResolvedBlock } from './identity'
 import { storedModes, writeBlockModes, writeToolModes } from './modes'
 import { encodeParam, matchPrevTools, parseStoredList } from './params'
 import { writeSubflowData } from './subflows'
-import { deepEqual } from './values'
 
 /** `block.data` keys the model or the layout owns on any block; everything else is `opaque`. */
 const MODEL_DATA_KEYS = new Set(['parentId', 'extent', 'width', 'height', 'canonicalModes'])

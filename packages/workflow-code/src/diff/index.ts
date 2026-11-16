@@ -13,8 +13,8 @@ import type {
   DiffCanonicalFn,
 } from '../api'
 import type { LockIdentity } from '../lock'
-import { deepEqual } from '../materialize/values'
 import type { BlockKey, CanonicalBlock, CanonicalEdge, CanonicalWorkflowMeta } from '../model'
+import { deepEqual } from '../records'
 
 const META_FIELDS: Array<keyof CanonicalWorkflowMeta> = ['name', 'description']
 

@@ -22,6 +22,7 @@ import {
   codeMetaExtensions,
   decodeAnchor,
   encodeAnchor,
+  isIdentifierName,
   type LockHints,
   mapAnchorIds,
   SDK_RESERVED_IDENTIFIERS,
@@ -30,10 +31,10 @@ import {
   type WorkflowLockV1,
 } from '@sim/workflow-code'
 
-const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
-
 function isUsableBinding(binding: string | undefined): binding is string {
-  return binding !== undefined && IDENTIFIER.test(binding) && !SDK_RESERVED_IDENTIFIERS.has(binding)
+  return (
+    binding !== undefined && isIdentifierName(binding) && !SDK_RESERVED_IDENTIFIERS.has(binding)
+  )
 }
 
 /** Re-maps the block and variable segments of comment anchors; an anchor mapped to `null` is dropped. */

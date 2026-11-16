@@ -17,6 +17,7 @@
 
 import { isRecordLike } from '@sim/utils/object'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
+import { isIdentifierName } from './code-files/ref-path'
 import type { Diagnostic } from './diagnostics/frame'
 import type { BlockKey, BranchKey, Json, SubBlockId, VarKey } from './model'
 import { SDK_RESERVED_IDENTIFIERS } from './sdk'
@@ -123,7 +124,6 @@ export type ParseWorkflowLockResult =
   | { lock: WorkflowLockV1; diagnostics?: undefined }
   | { lock?: undefined; diagnostics: LockDiagnostic[] }
 
-const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 const DRIVE_PATH = /^[A-Za-z]:/
 
 const LOCK_FIELDS = ['lockVersion', 'blocks', 'variables']
@@ -141,8 +141,53 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
-function isExtensionKey(key: string): key is LockExtensionKey {
+/** A print-order tie-break, in the lock and in `code_meta`: a non-negative integer. */
+export function isPrintOrder(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+}
+
+/** A block's `const` binding, in the lock or in `code_meta`, or why `value` cannot be one. */
+export function readBinding(value: unknown): { binding: string } | { problem: string } {
+  if (typeof value !== 'string' || !isIdentifierName(value)) {
+    return { problem: 'A binding must be a JS identifier.' }
+  }
+  if (SDK_RESERVED_IDENTIFIERS.has(value)) {
+    return { problem: `"${value}" is a reserved word or an SDK export.` }
+  }
+  return { binding: value }
+}
+
+export function isExtensionKey(key: string): key is LockExtensionKey {
   return key.startsWith('x-')
+}
+
+/**
+ * The `x-` extension fields of `value` outside `known` (JSON values only), which every validator
+ * preserves. `onProblem` hears each other unknown field and each extension that is not JSON.
+ */
+export function readExtensions(
+  value: Record<string, unknown>,
+  known: readonly string[],
+  onProblem: (field: string, problem: 'unknown' | 'not-json') => void
+): Record<LockExtensionKey, Json> {
+  const extensions: Record<LockExtensionKey, Json> = {}
+  for (const [field, raw] of Object.entries(value)) {
+    if (known.includes(field)) continue
+    if (!isExtensionKey(field)) onProblem(field, 'unknown')
+    else if (isJson(raw)) extensions[field] = raw
+    else onProblem(field, 'not-json')
+  }
+  return extensions
+}
+
+/** A validator's input as JSON: parsed when given as text, `undefined` when that text is not JSON. */
+export function jsonInput(input: unknown): { json: unknown } | undefined {
+  if (typeof input !== 'string') return { json: input }
+  try {
+    return { json: JSON.parse(input) }
+  } catch {
+    return undefined
+  }
 }
 
 /** Whether `value` is plain JSON with finite numbers only. */
@@ -179,18 +224,11 @@ class LockReader {
     known: readonly string[],
     at: readonly string[]
   ): Record<LockExtensionKey, Json> {
-    const extensions: Record<LockExtensionKey, Json> = {}
-    for (const [field, raw] of Object.entries(value)) {
-      if (known.includes(field)) continue
-      if (!isExtensionKey(field)) {
-        this.report('E_LOCK_UNKNOWN_FIELD', [...at, field], `Unknown lock field "${field}".`)
-      } else if (isJson(raw)) {
-        extensions[field] = raw
-      } else {
-        this.report('E_LOCK_SHAPE', [...at, field], 'An extension field must hold JSON.')
-      }
-    }
-    return extensions
+    return readExtensions(value, known, (field, problem) =>
+      problem === 'unknown'
+        ? this.report('E_LOCK_UNKNOWN_FIELD', [...at, field], `Unknown lock field "${field}".`)
+        : this.report('E_LOCK_SHAPE', [...at, field], 'An extension field must hold JSON.')
+    )
   }
 
   /** A string → non-empty-string record whose values are unique within it. */
@@ -300,21 +338,12 @@ class LockReader {
       this.report('E_LOCK_SHAPE', [...at, 'parent'], '"parent" must be a block key or null.')
     }
 
-    let binding = ''
-    if (typeof raw.binding !== 'string' || !IDENTIFIER.test(raw.binding)) {
-      this.report('E_LOCK_BINDING', [...at, 'binding'], '"binding" must be a JS identifier.')
-    } else if (SDK_RESERVED_IDENTIFIERS.has(raw.binding)) {
-      this.report(
-        'E_LOCK_BINDING',
-        [...at, 'binding'],
-        `"${raw.binding}" is a reserved word or an SDK export.`
-      )
-    } else {
-      binding = raw.binding
-    }
+    const read = readBinding(raw.binding)
+    if ('problem' in read) this.report('E_LOCK_BINDING', [...at, 'binding'], read.problem)
+    const binding = 'binding' in read ? read.binding : ''
 
     let order = 0
-    if (typeof raw.order === 'number' && Number.isSafeInteger(raw.order) && raw.order >= 0) {
+    if (isPrintOrder(raw.order)) {
       order = raw.order
     } else {
       this.report('E_LOCK_SHAPE', [...at, 'order'], '"order" must be a non-negative integer.')
@@ -325,7 +354,7 @@ class LockReader {
     if (raw.branches !== undefined) {
       const branches = this.idRecord(raw.branches, [...at, 'branches'])
       for (const branchKey of Object.keys(branches)) {
-        if (!IDENTIFIER.test(branchKey)) {
+        if (!isIdentifierName(branchKey)) {
           this.report(
             'E_LOCK_BRANCH',
             [...at, 'branches', branchKey],
@@ -442,15 +471,12 @@ class LockReader {
  */
 export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
   const reader = new LockReader()
-  let json = input
-  if (typeof input === 'string') {
-    try {
-      json = JSON.parse(input)
-    } catch {
-      reader.report('E_LOCK_JSON', [], 'The lock is not valid JSON.')
-      return { diagnostics: reader.diagnostics }
-    }
+  const parsed = jsonInput(input)
+  if (!parsed) {
+    reader.report('E_LOCK_JSON', [], 'The lock is not valid JSON.')
+    return { diagnostics: reader.diagnostics }
   }
+  const { json } = parsed
   if (!isRecordLike(json)) {
     reader.report('E_LOCK_SHAPE', [], 'The lock must be a JSON object.')
     return { diagnostics: reader.diagnostics }

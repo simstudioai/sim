@@ -1,10 +1,9 @@
 import { isRecordLike } from '@sim/utils/object'
+import { isIdentifierName } from '../code-files/ref-path'
 import type { BlockKey, BranchKey, CanonicalBranches, CanonicalBranchRow, Json } from '../model'
-import { setOwn } from '../records'
+import { parseJsonContainer, setOwn } from '../records'
 import { type CanonContext, report } from './context'
 import { toJson, toValue } from './values'
-
-const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 
 /** Editor state the condition/router input writes into each row (condition-input.tsx:292-300). */
 const UI_ROW_KEYS = new Set([
@@ -39,13 +38,8 @@ function isStoredRow(item: unknown): item is StoredRow {
 
 function parseRows(value: unknown): { rows: unknown[] | null; parsed: boolean } {
   if (Array.isArray(value)) return { rows: value, parsed: true }
-  if (typeof value !== 'string' || value.trim() === '') return { rows: null, parsed: false }
-  try {
-    const decoded: unknown = JSON.parse(value)
-    return Array.isArray(decoded) ? { rows: decoded, parsed: true } : { rows: null, parsed: false }
-  } catch {
-    return { rows: null, parsed: false }
-  }
+  const decoded = typeof value === 'string' ? parseJsonContainer(value) : undefined
+  return Array.isArray(decoded) ? { rows: decoded, parsed: true } : { rows: null, parsed: false }
 }
 
 /** Positional default keys mirror the copilot handles (validation.ts:1091-1130), quirk 8. */
@@ -169,7 +163,7 @@ export function liftBranches(
 
   rowIds.forEach((rowId, index) => {
     const key = lockKeyByRowId.get(rowId)
-    if (key !== undefined && IDENTIFIER.test(key) && !taken.has(key)) {
+    if (key !== undefined && isIdentifierName(key) && !taken.has(key)) {
       keys[index] = key
       taken.add(key)
     }
@@ -177,7 +171,7 @@ export function liftBranches(
   storedRows.forEach((row, index) => {
     if (keys[index] !== undefined) return
     const key = row.key
-    if (typeof key === 'string' && IDENTIFIER.test(key) && !taken.has(key)) {
+    if (typeof key === 'string' && isIdentifierName(key) && !taken.has(key)) {
       keys[index] = key
       taken.add(key)
     }

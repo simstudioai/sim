@@ -354,7 +354,7 @@ export interface CodeComment {
 export interface WorkflowAnnotations {
   /**
    * Per block, the param ids whose value is stored but not serialized under the current values
-   * and not read by deploy (`canonicalize/activity.ts`; opaque catalog conditions count as
+   * and not read by deploy (`catalog/activity.ts`; opaque catalog conditions count as
    * active unless expanded per operation). Source leaves them out and apply restores them from the
    * stored workflow; a verbose print lists them under the block's `inactive: {...}` meta
    * (DESIGN.md A18).

@@ -1,6 +1,7 @@
 import { compareStrings, stripVersionSuffix } from '@sim/utils/string'
+import { isTriggerSurface } from '@sim/workflow-code/catalog/surface'
 import { SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from '@sim/workflow-code/sdk'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig } from '@/blocks/types'
 
 /**
  * The frozen SDK names (`apps/sim/blocks/sdk-names.json`, build-spec decision 7, s2 D3/D4).
@@ -390,10 +391,6 @@ export function validateSdkNames(names: SdkNamesFile, sources: readonly SdkNameS
   }
 
   return issues.sort(compareStrings)
-}
-
-function isTriggerSurface(subBlock: SubBlockConfig): boolean {
-  return subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
 }
 
 /** The `operation` dropdown's static options across every declaration, in declared order. */

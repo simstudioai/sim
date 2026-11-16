@@ -1,6 +1,6 @@
+import { isIdentifierName } from '../code-files/ref-path'
 import type { BlockKey } from '../model'
 import { SDK_RESERVED_IDENTIFIERS } from '../sdk'
-import { isIdentifierName } from './strings'
 
 /** `'Classify ticket'` → `classifyTicket`; non-ASCII and punctuation split words. */
 function deriveIdentifier(name: string): string {

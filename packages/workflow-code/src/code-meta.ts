@@ -20,9 +20,17 @@ import { decodeAnchor, encodeAnchor } from './anchors'
 import type { CodeMetaDiagnosticCode } from './diagnostics/codes'
 import type { Diagnostic } from './diagnostics/frame'
 import { stableStringify } from './hash'
-import { isJson, type LockExtensionKey, pointer } from './lock'
+import {
+  isExtensionKey,
+  isJson,
+  isPrintOrder,
+  jsonInput,
+  type LockExtensionKey,
+  pointer,
+  readBinding,
+  readExtensions,
+} from './lock'
 import type { Anchor, AnchorKey, CodeComment, Json } from './model'
-import { SDK_RESERVED_IDENTIFIERS } from './sdk'
 
 export interface WorkflowCodeMetaV1 {
   [extension: LockExtensionKey]: Json
@@ -41,13 +49,8 @@ export type ParseCodeMetaResult =
   | { meta: WorkflowCodeMetaV1; diagnostics?: undefined }
   | { meta?: undefined; diagnostics: CodeMetaDiagnostic[] }
 
-const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 const META_FIELDS = ['v', 'bindings', 'order', 'comments']
 const COMMENT_FIELDS = ['text', 'kind', 'placement']
-
-function isExtensionKey(key: string): key is LockExtensionKey {
-  return key.startsWith('x-')
-}
 
 class CodeMetaReader {
   readonly diagnostics: CodeMetaDiagnostic[] = []
@@ -57,18 +60,11 @@ class CodeMetaReader {
   }
 
   extensions(value: Record<string, unknown>): Record<LockExtensionKey, Json> {
-    const extensions: Record<LockExtensionKey, Json> = {}
-    for (const [field, raw] of Object.entries(value)) {
-      if (META_FIELDS.includes(field)) continue
-      if (!isExtensionKey(field)) {
-        this.report('E_CODE_META_UNKNOWN_FIELD', [field], `Unknown code_meta field "${field}".`)
-      } else if (isJson(raw)) {
-        extensions[field] = raw
-      } else {
-        this.report('E_CODE_META_SHAPE', [field], 'An extension field must hold JSON.')
-      }
-    }
-    return extensions
+    return readExtensions(value, META_FIELDS, (field, problem) =>
+      problem === 'unknown'
+        ? this.report('E_CODE_META_UNKNOWN_FIELD', [field], `Unknown code_meta field "${field}".`)
+        : this.report('E_CODE_META_SHAPE', [field], 'An extension field must hold JSON.')
+    )
   }
 
   bindings(raw: unknown): Record<string, string> {
@@ -78,16 +74,14 @@ class CodeMetaReader {
     }
     const holders = new Map<string, string>()
     const entries: Array<[string, string]> = []
-    for (const [blockId, binding] of Object.entries(raw)) {
+    for (const [blockId, value] of Object.entries(raw)) {
       const at = ['bindings', blockId]
-      if (typeof binding !== 'string' || !IDENTIFIER.test(binding)) {
-        this.report('E_CODE_META_BINDING', at, 'A binding must be a JS identifier.')
+      const read = readBinding(value)
+      if ('problem' in read) {
+        this.report('E_CODE_META_BINDING', at, read.problem)
         continue
       }
-      if (SDK_RESERVED_IDENTIFIERS.has(binding)) {
-        this.report('E_CODE_META_BINDING', at, `"${binding}" is a reserved word or an SDK export.`)
-        continue
-      }
+      const { binding } = read
       const holder = holders.get(binding)
       if (holder !== undefined) {
         this.report(
@@ -110,7 +104,7 @@ class CodeMetaReader {
     }
     const entries: Array<[string, number]> = []
     for (const [blockId, order] of Object.entries(raw)) {
-      if (typeof order === 'number' && Number.isSafeInteger(order) && order >= 0) {
+      if (isPrintOrder(order)) {
         entries.push([blockId, order])
       } else {
         this.report('E_CODE_META_SHAPE', ['order', blockId], 'An order is a non-negative integer.')
@@ -189,15 +183,12 @@ class CodeMetaReader {
  */
 export function parseCodeMeta(input: unknown): ParseCodeMetaResult {
   const reader = new CodeMetaReader()
-  let json = input
-  if (typeof input === 'string') {
-    try {
-      json = JSON.parse(input)
-    } catch {
-      reader.report('E_CODE_META_JSON', [], 'code_meta is not valid JSON.')
-      return { diagnostics: reader.diagnostics }
-    }
+  const parsed = jsonInput(input)
+  if (!parsed) {
+    reader.report('E_CODE_META_JSON', [], 'code_meta is not valid JSON.')
+    return { diagnostics: reader.diagnostics }
   }
+  const { json } = parsed
   if (!isRecordLike(json)) {
     reader.report('E_CODE_META_SHAPE', [], 'code_meta must be a JSON object.')
     return { diagnostics: reader.diagnostics }

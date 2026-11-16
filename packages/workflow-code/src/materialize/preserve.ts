@@ -15,10 +15,10 @@
  * onto one changes nothing and the no-op round trip stays byte-identical.
  */
 
-import { canonicalActivityInputs, isInactive } from '../canonicalize/activity'
-import { buildCanonicalIndexForSurface } from '../canonicalize/modes'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import { canonicalActivityInputs, isInactive } from '../catalog/activity'
 import { type CanonicalGroup, isCanonicalPair } from '../catalog/canonical-index'
+import { buildCanonicalIndexForSurface } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import { executableSubflow } from '../equivalence/executable'
@@ -31,8 +31,7 @@ import type {
   ParamMode,
   SubBlockId,
 } from '../model'
-import { getOwn, setOwn } from '../records'
-import { deepEqual } from './values'
+import { deepEqual, getOwn, setOwn } from '../records'
 
 /** Inactive restoration can flip another field's visibility; it settles within a few passes. */
 const MAX_RESTORE_PASSES = 4

@@ -20,10 +20,26 @@ export type RefSegment = { kind: 'name'; name: string } | { kind: 'index'; index
  */
 const NAME_SEGMENT = /^[^.[\]<>\s'"`\\+*/=!&|{}]+$/
 const CANONICAL_INDEX = /^(0|[1-9][0-9]{0,14})$/
-const JS_IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
+const IDENTIFIER_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 
 /** `PATTERNS.ENV_VAR_NAME` (apps/sim/executor/constants.ts). */
 export const ENV_VAR_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+/** The params a loop exposes to its children (executor/variables/resolvers/loop.ts). */
+export const LOOP_PROPERTIES: readonly string[] = [
+  'index',
+  'currentItem',
+  'items',
+  'iteration',
+  'item',
+]
+/** The params a parallel exposes to its children (executor/variables/resolvers/parallel.ts). */
+export const PARALLEL_PROPERTIES: readonly string[] = ['index', 'currentItem', 'items']
+
+/** An ASCII identifier name: usable as a bare object key or after `.` (reserved words included). */
+export function isIdentifierName(text: string): boolean {
+  return IDENTIFIER_NAME.test(text)
+}
 
 export function isNameSegment(value: string): boolean {
   return NAME_SEGMENT.test(value)
@@ -87,7 +103,7 @@ export function formatMemberPath(root: string, segments: readonly RefSegment[]):
   for (const segment of segments) {
     if (segment.kind === 'index') {
       text += `[${segment.index}]`
-    } else if (JS_IDENTIFIER.test(segment.name)) {
+    } else if (isIdentifierName(segment.name)) {
       text += `.${segment.name}`
     } else {
       text += `['${segment.name}']`

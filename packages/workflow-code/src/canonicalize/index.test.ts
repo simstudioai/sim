@@ -96,6 +96,14 @@ const CATALOG: BlockCatalog = {
         condition: { opaque: true },
         visibleFor: { read: true, send: false },
       }),
+      sb({ id: 'destinationType', type: 'dropdown' }),
+      sb({
+        id: 'dmUserId',
+        type: 'short-input',
+        condition: { opaque: true },
+        visibleFor: { read: false, send: true },
+        visibleWhen: { send: { field: 'destinationType', value: 'dm' } },
+      }),
       sb({ id: 'botToken', type: 'short-input', mode: 'trigger', surface: 'trigger' }),
       sb({ id: 'signingSecret', type: 'short-input', mode: 'trigger', surface: 'trigger' }),
       sb({
@@ -109,6 +117,12 @@ const CATALOG: BlockCatalog = {
     agent: block('agent', [
       sb({ id: 'messages', type: 'messages-input', valueKind: 'json' }),
       sb({ id: 'model', type: 'combobox' }),
+      sb({
+        id: 'vertexProject',
+        type: 'short-input',
+        condition: { opaque: true },
+        visibleForModel: { 'gpt-5.5': false, 'vertex/gemini': true },
+      }),
       sb({
         id: 'tools',
         type: 'tool-input',
@@ -690,6 +704,20 @@ describe('canonicalize: inactive annotation (step 9, quirks 1, 10, 14)', () => {
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'read', pageLimit: '5' })])
     )
     expect(read.workflow.annotations.inactive.slack).toBeUndefined()
+  })
+
+  it('reads the clause an operation still asks (visibleWhen) and the per-model data', () => {
+    const inactive = (type: string, values: Record<string, unknown>) =>
+      run(workflow([blockState('b1', type, 'B', values)])).workflow.annotations.inactive.b
+    expect(
+      inactive('slack', { operation: 'send', destinationType: 'channel', dmUserId: 'U1' })
+    ).toEqual(['dmUserId'])
+    expect(
+      inactive('slack', { operation: 'send', destinationType: 'dm', dmUserId: 'U1' })
+    ).toBeUndefined()
+    expect(inactive('agent', { model: 'gpt-5.5', vertexProject: 'p' })).toEqual(['vertexProject'])
+    expect(inactive('agent', { model: 'vertex/gemini', vertexProject: 'p' })).toBeUndefined()
+    expect(inactive('agent', { model: '<start.model>', vertexProject: 'p' })).toBeUndefined()
   })
 
   it('marks trigger fields inactive outside trigger mode and active inside it (quirk 10)', () => {
