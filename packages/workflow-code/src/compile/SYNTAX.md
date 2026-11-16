@@ -333,7 +333,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_SDK_MAJOR_OLD` | The header's major is older than the oldest the server reads. |
 | `E_UNSUPPORTED_SYNTAX` | A construct outside this grammar; the hint names the supported form. |
 | `E_WORKFLOW_EXPORT` | Not exactly one `export default workflow(…)`. |
-| `E_LIMIT_EXCEEDED` | Over the byte, syntax-node, depth or code-file cap. |
+| `E_LIMIT_EXCEEDED` | Over the block, total-byte, depth or `codeFile()` reference cap (`SOURCE_LIMITS`). Apply answers 413. |
 | `E_DUPLICATE_NAME` | Two blocks normalize to one key. |
 | `E_RESERVED_NAME` | A block name normalizes to `loop`, `parallel` or `variable`. |
 | `E_KEY_OVERRIDE` | A `meta.key` that is not a legacy key the stored workflow already has. |

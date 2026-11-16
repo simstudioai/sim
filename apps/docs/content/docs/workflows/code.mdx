@@ -181,6 +181,6 @@ Commit the directory to your repository and run `--dry-run` in CI to catch a bro
 - Function code is one file per block, with no imports between files.
 - A change anyone makes while you edit means reading the workflow again; there is no automatic merge.
 - Workflows run in Sim, not locally. `--dry-run` checks everything a save checks, without running the workflow.
-- A file can be up to 1 MB, with up to 5 MB of function code across up to 500 files.
+- A workflow can have up to 2,000 blocks, and its source up to 4 MB across `workflow.ts` and its function files together. A larger workflow is refused when you read or save it, and the CLI exits with code `7`.
 
 See [CLI workflow commands](/cli/workflows) for every flag.

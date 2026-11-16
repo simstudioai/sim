@@ -444,12 +444,27 @@ with `buildLockFromState`, and return files, lock, base, catalog hash and diagno
 
 ## Limits
 
-- Compile (`compile/parse.ts` `DEFAULT_LIMITS`): entry file and each code file 1,000,000 bytes,
-  500,000 syntax nodes, nesting depth 200 (checked on raw brackets before Babel parses),
-  5,000,000 bytes summed over distinct code files, 2,000 `codeFile()` references.
-  `E_LIMIT_EXCEEDED`.
-- The apply and create routes: at most 500 files, paths up to 512 characters, a 10 MiB body.
-- The CLI exits 7 on a 413, 5 on a 409 and 6 on a 423.
+`SOURCE_LIMITS` (`limits.ts`) is the one set of limits for get, compile and apply, so a get's output
+can always be applied back unchanged:
+
+- 2,000 blocks (the v2 graph cap, `MAX_WORKFLOW_GRAPH_BLOCKS`);
+- 2,001 files: `workflow.ts` plus one code file per block, so files mode never overflows into inline
+  code;
+- 4,000,000 UTF-8 bytes across every file together, the entry included. No cap applies to a single
+  file: function code moves between the entry (inline mode, which the Code tab reads) and code
+  files, and a per-file cap would refuse one printing of a workflow and accept the other;
+- nesting depth 200: the entry's brackets (checked before Babel parses) and syntax tree, and each
+  JavaScript code file's brackets. A 200-block workflow nests under 20 levels.
+
+Compile (`DEFAULT_LIMITS` in `compile/parse.ts`) enforces them with `E_LIMIT_EXCEEDED`, plus one
+`codeFile()` reference per block. Syntax nodes need no cap: every node but an empty template element
+spans at least one byte, so the byte cap bounds them. Apply answers a source compile refused for a
+limit with 413 `PAYLOAD_TOO_LARGE` (`details.code` `SOURCE_REJECTED` with the diagnostics); any other
+refusal is 400. The routes cap the body at `SOURCE_REQUEST_MAX_BYTES` (every file at its limit,
+doubled for JSON escaping, plus room for the lock). A get checks the block count before printing and
+the printed files after (`sourceLimitExcesses`, `sourceDepthOverflow`), and answers 413 naming each
+measured size or the file nested too deeply. The CLI exits 7 on a 413 (and on a dry run refused for
+a limit), 5 on a 409 and 6 on a 423.
 
 ## Proof
 
@@ -499,7 +514,6 @@ Beside it:
   compiler accepts only the printed grammar.
 - Nothing runs locally. Checks happen on apply (or `--dry-run`); `tsc -p .` checks types only.
 - A comment inside an expression is hoisted to its enclosing anchor (`W_COMMENT_MOVED`).
-- The per-graph block cap (`MAX_WORKFLOW_GRAPH_BLOCKS`) is not yet enforced on get and apply.
 - Chat in the product does not write through source yet.
 
 ## Package wiring
