@@ -829,7 +829,7 @@ describe('rejected constructs', () => {
     'Only blocks can be named. Inline the value, or declare a workflow variable and use vars.x.'
   const DESTRUCTURE = 'Bind the block and use blk.field.'
   const HELPERS =
-    "Helpers aren't supported in workflow files; put logic in a function block with code: codeFile('./fns/x.js')."
+    "Helpers aren't supported in workflow files; put logic in a function block with code: codeFile('./functions/x.js')."
   const CONTROL =
     "Control flow can't create blocks. Use condition()/router() for branching and loop()/parallel() for iteration."
   const SPREAD = 'Write each field explicitly.'
@@ -844,7 +844,7 @@ describe('rejected constructs', () => {
     "Regex and BigInt literals aren't values; write the pattern or number as a string."
   const ELEMENT = "Use a literal key: blk['key'] or blk[0]."
   const IMPORT =
-    "Only '@sim/workflow-sdk' is importable; reference function files with codeFile('./fns/x.js')."
+    "Only '@sim/workflow-sdk' is importable; reference function files with codeFile('./functions/x.js')."
   const EXTRA =
     'A workflow file holds imports and one export default workflow(...); move this inside the workflow body or delete it.'
   const NAMED_EXPORT = 'Only export default workflow(...) is allowed; remove this export.'
