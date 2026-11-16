@@ -5,9 +5,11 @@
  * this compares the block `MaterializeHooks.initBlock` creates with the block materialize writes
  * for `block(type, name, {})`.
  *
- * Two values differ by design and are left out:
+ * Two values differ by design and are left out of the equality:
  * - a field whose `value()` thunk mints a fresh value per call (a webhook token): two canvas
- *   creations differ too, and source cannot name the value it will get;
+ *   creations differ too, and source cannot name the value it will get. The block written from
+ *   code must still get a minted value wherever canvas creation mints one (a code-created generic
+ *   webhook needs its auth token), of the same type;
  * - condition and router rows: canvas creation mints placeholder rows with fresh ids, while source
  *   `{}` is the never-persisted `rows: null` form (contract amendment 7), which canvas reads the
  *   same way until the first edit.
@@ -114,6 +116,17 @@ describe(`a code-created block matches a canvas-created one (${cases.length} cas
       const created = hooks.initBlock({ id: written.id, type, name: NAME, triggerMode })
       const again = hooks.initBlock({ id: written.id, type, name: NAME, triggerMode })
       const excluded = excludedIds(type, created, again)
+      for (const id of excluded) {
+        if (id === catalogBlock(catalog, type)?.graph.branches?.subBlockId) continue
+        const minted = created.subBlocks[id]?.value
+        const fromSource = written.subBlocks[id]?.value
+        const present = (value: unknown) => value !== null && value !== undefined
+        if (present(minted) !== present(fromSource) || typeof minted !== typeof fromSource) {
+          mismatches.push(
+            `${label}: ${id} minted ${typeof minted}, from source ${typeof fromSource}`
+          )
+        }
+      }
       const fromCode = stored(written, excluded)
       const fromCanvas = stored(created, excluded)
       if (JSON.stringify(fromCode) !== JSON.stringify(fromCanvas)) {

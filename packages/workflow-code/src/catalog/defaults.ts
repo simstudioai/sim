@@ -7,8 +7,8 @@
  * Creation seeds each subBlock id once, from its first declaration: a visible, editable field
  * gets its `value()` thunk's result for a block with no values (`valueDefault.constant`, or a
  * computed thunk's `initial`); a hidden field gets its `defaultValue`; a read-only field gets
- * nothing. A thunk that mints a fresh value per call (a webhook token) has no static default, so
- * creation from source leaves it unset. Every registry default is a string, number or boolean;
+ * nothing. A thunk that mints a fresh value per call (a webhook token) has no static default;
+ * a block created from source keeps the value `initBlock` minted (`mintsFreshValue`). Every registry default is a string, number or boolean;
  * anything else is not treated as a default, so it always prints.
  */
 
@@ -32,6 +32,18 @@ export function subBlockEditorDefault(subBlock: CatalogSubBlock): EditorDefault 
   const thunk = subBlock.valueDefault
   if (!thunk) return undefined
   return scalar('constant' in thunk ? thunk.constant : thunk.initial)
+}
+
+/**
+ * Whether creation seeds this declaration with a value computed per creation (a `value()` thunk
+ * with no stable `initial`, such as a webhook token): it has no editor default, so source cannot
+ * state it, and a block created from source keeps the value `MaterializeHooks.initBlock` computed,
+ * exactly as a canvas-created block does.
+ */
+export function mintsFreshValue(subBlock: CatalogSubBlock): boolean {
+  if (subBlock.hidden || subBlock.readOnly) return false
+  const thunk = subBlock.valueDefault
+  return thunk !== undefined && 'computed' in thunk && thunk.initial === undefined
 }
 
 /** Every subBlock id of `block` that creation seeds, with the value it seeds. */

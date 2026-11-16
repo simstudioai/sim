@@ -3,6 +3,7 @@ import type { BlockData, BlockState, SubBlockState } from '@sim/workflow-types/w
 import { implicitIds } from '../canonicalize/branches'
 import { declarationFor, isExcludedSubBlockId } from '../canonicalize/params'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import { mintsFreshValue } from '../catalog/defaults'
 import type { LockItem, LockLayout, WorkflowLockBlock } from '../lock'
 import type { BlockKey, BranchKey, CanonicalBlock, SubBlockId } from '../model'
 import { writeBranches } from './branches'
@@ -212,6 +213,8 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
       ) {
         continue
       }
+      const declaration = declarationFor(catalog, subBlockId, target.triggerMode)
+      if (declaration && mintsFreshValue(declaration)) continue
       subBlocks[subBlockId] = { ...subBlock, value: null }
     }
   }

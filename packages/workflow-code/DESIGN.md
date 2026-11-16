@@ -309,6 +309,9 @@ instead of failing at run time.
     new block from `initBlock` and nulls only what the CWM leaves absent, so a code-created block
     with no params is stored exactly as a canvas-created one (`default-parity.test.ts`, every
     registry type and trigger mode; minted values and condition/router placeholder rows aside).
+    A field whose thunk mints a fresh value per creation (`mintsFreshValue`, such as the generic
+    webhook's auth token) keeps the value `initBlock` minted on a new block, as canvas creation
+    does; the parity test asserts such a value is present wherever canvas creation mints one.
   - **Materialize restores preserved state** (`materialize/preserve.ts`) for each matched block of
     the same type, before writing: when a pair's executable value is unchanged, prev's members and
     mode; when a plain id changed and prev showed the basic selector member of a `picked` pair,
