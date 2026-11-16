@@ -5907,6 +5907,140 @@
         }
       }
     },
+    "/api/v2/workflows/{workflowId}/source": {
+      "get": {
+        "operationId": "getWorkflowSource",
+        "summary": "Get workflow source",
+        "description": "Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `lockBase` records the fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workflows.source.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          },
+          {
+            "name": "annotateIds",
+            "in": "query",
+            "required": false,
+            "description": "Print each block's id as a trailing `// id:` comment on its declaration.",
+            "schema": {
+              "description": "Print each block's id as a trailing `// id:` comment on its declaration.",
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "functionCode",
+            "in": "query",
+            "required": false,
+            "description": "Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `file()`; `inline` prints it in tagged templates.",
+            "schema": {
+              "description": "Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `file()`; `inline` prints it in tagged templates.",
+              "type": "string",
+              "enum": ["inline", "files"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow draft as source.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWorkflowSourceResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "workflowId": "3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8",
+                        "workspaceId": "7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28",
+                        "files": {
+                          "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
+                        },
+                        "lock": {
+                          "lockVersion": 1,
+                          "blocks": {
+                            "start": {
+                              "id": "5b0c2f7e-91d4-4a63-8e2b-0f6d3c9a1e47",
+                              "parent": null,
+                              "binding": "start",
+                              "order": 0
+                            }
+                          },
+                          "variables": {}
+                        },
+                        "lockBase": {
+                          "workspaceId": "7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28",
+                          "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                          "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
+                        },
+                        "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                        "canonicalHash": "0d6e2b8a4c1f7e3d9b5a2c8f4e1d7b3a9c6f2e8d4b1a7c3e9f5d2b8a4c1e7f3d",
+                        "catalogVersion": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a",
+                        "sdkMajor": 1,
+                        "blockTypes": ["start_trigger"],
+                        "warnings": []
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/workspaces/{workspaceId}/fork/preview": {
       "post": {
         "operationId": "previewWorkspaceFork",
@@ -17275,6 +17409,304 @@
                 "folders": 1,
                 "workflows": 0
               }
+            }
+          }
+        ]
+      },
+      "GetWorkflowSourceResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "workflowId": {
+                "type": "string",
+                "description": "Workflow id."
+              },
+              "workspaceId": {
+                "type": "string",
+                "description": "Workspace id."
+              },
+              "files": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Relative path → file text: `workflow.ts`, then any `functions/*` files."
+              },
+              "lock": {
+                "type": "object",
+                "properties": {
+                  "lockVersion": {
+                    "type": "number",
+                    "const": 1,
+                    "description": "Lock format version."
+                  },
+                  "blocks": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Block id."
+                        },
+                        "parent": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Key of the enclosing loop or parallel, or null."
+                        },
+                        "branches": {
+                          "description": "Condition or router branch key → stored branch id.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "items": {
+                          "description": "Per field, its id-bearing items (input format fields) in stored order.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Item name."
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "description": "Item id."
+                                }
+                              },
+                              "required": ["name", "id"],
+                              "additionalProperties": false,
+                              "description": "One id-bearing list item."
+                            }
+                          }
+                        },
+                        "binding": {
+                          "type": "string",
+                          "description": "The `const` name the block is printed as."
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "description": "Declaration-order tie-break."
+                        },
+                        "layout": {
+                          "type": "object",
+                          "properties": {
+                            "x": {
+                              "type": "number",
+                              "description": "Canvas x position."
+                            },
+                            "y": {
+                              "type": "number",
+                              "description": "Canvas y position."
+                            },
+                            "w": {
+                              "description": "Container width.",
+                              "type": "number"
+                            },
+                            "h": {
+                              "description": "Container height.",
+                              "type": "number"
+                            },
+                            "height": {
+                              "description": "Stored block height.",
+                              "type": "number"
+                            },
+                            "horizontalHandles": {
+                              "description": "Handles on the left and right.",
+                              "type": "boolean"
+                            }
+                          },
+                          "required": ["x", "y"],
+                          "additionalProperties": false,
+                          "description": "Stored canvas geometry; applied only to new blocks."
+                        },
+                        "codeFile": {
+                          "description": "Path of the block’s function-code file.",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["id", "parent", "binding", "order"],
+                      "additionalProperties": false,
+                      "description": "One block’s identity."
+                    },
+                    "description": "Block key → identity."
+                  },
+                  "variables": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Variable key → variable id."
+                  }
+                },
+                "required": ["lockVersion", "blocks", "variables"],
+                "additionalProperties": false,
+                "description": "Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids."
+              },
+              "lockBase": {
+                "type": "object",
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "Workspace the workflow belongs to."
+                  },
+                  "baseFingerprint": {
+                    "type": "string",
+                    "description": "The `fingerprint` this source was read at."
+                  },
+                  "catalogHash": {
+                    "type": "string",
+                    "description": "Hash of the block catalog the source was printed against."
+                  }
+                },
+                "required": ["workspaceId", "baseFingerprint", "catalogHash"],
+                "additionalProperties": false,
+                "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
+              },
+              "fingerprint": {
+                "type": "string",
+                "description": "Freshness token of the stored draft. It ignores canvas positions, so moving blocks does not change it."
+              },
+              "canonicalHash": {
+                "type": "string",
+                "description": "Hash of the canonical workflow the files compile to; comments do not affect it."
+              },
+              "catalogVersion": {
+                "type": "string",
+                "description": "Hash of the block catalog the source was printed against."
+              },
+              "sdkMajor": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Workflow SDK major version of the source."
+              },
+              "blockTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Block types the source uses, as blocks or as agent tools, sorted."
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Diagnostic code, e.g. `W_CANON_UNRESOLVED_ID`."
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": ["error", "warning", "info"],
+                      "description": "Diagnostic severity."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "What was found."
+                    },
+                    "hint": {
+                      "description": "How to address it.",
+                      "type": "string"
+                    },
+                    "blockKey": {
+                      "description": "Block the finding is about.",
+                      "type": "string"
+                    },
+                    "param": {
+                      "description": "Field the finding is about.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["code", "severity", "message"],
+                  "additionalProperties": false,
+                  "description": "A finding from reading the stored graph as source."
+                },
+                "description": "Findings from reading the stored graph."
+              }
+            },
+            "required": [
+              "workflowId",
+              "workspaceId",
+              "files",
+              "lock",
+              "lockBase",
+              "fingerprint",
+              "canonicalHash",
+              "catalogVersion",
+              "sdkMajor",
+              "blockTypes",
+              "warnings"
+            ],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get workflow source response",
+        "description": "The workflow draft as TypeScript source.",
+        "examples": [
+          {
+            "data": {
+              "workflowId": "3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8",
+              "workspaceId": "7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28",
+              "files": {
+                "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
+              },
+              "lock": {
+                "lockVersion": 1,
+                "blocks": {
+                  "start": {
+                    "id": "5b0c2f7e-91d4-4a63-8e2b-0f6d3c9a1e47",
+                    "parent": null,
+                    "binding": "start",
+                    "order": 0
+                  }
+                },
+                "variables": {}
+              },
+              "lockBase": {
+                "workspaceId": "7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28",
+                "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
+              },
+              "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+              "canonicalHash": "0d6e2b8a4c1f7e3d9b5a2c8f4e1d7b3a9c6f2e8d4b1a7c3e9f5d2b8a4c1e7f3d",
+              "catalogVersion": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a",
+              "sdkMajor": 1,
+              "blockTypes": ["start_trigger"],
+              "warnings": []
             }
           }
         ]

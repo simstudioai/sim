@@ -639,6 +639,10 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows outline',
     describe: 'Show a workflow’s draft as a compact read-only outline',
   },
+  getWorkflowSource: {
+    command: 'workflows source get',
+    describe: 'Show a workflow’s draft as TypeScript source with its identity lock',
+  },
   replaceWorkflowState: {
     command: 'workflows state replace',
     confirm: 'This replaces the entire draft graph and cannot be undone.',

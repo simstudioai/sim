@@ -768,6 +768,8 @@
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
         "@sim/utils": "workspace:*",
+        "@sim/workflow-code": "workspace:*",
+        "@sim/workflow-sdk": "workspace:*",
         "@types/js-yaml": "4.0.9",
         "@types/node": "24.19.2",
         "@types/proper-lockfile": "4.1.4",

@@ -163,6 +163,7 @@ case "$group" in
     export DB_TX_TRIPWIRE=throw
     export NEXT_PUBLIC_CHAT_DISABLED=true
     export SIM_LINKS=true
+    export WORKFLOW_CODE=true
     export PEOPLE=true
     export CRON_SECRET=people-directory-sync-local-e2e-secret
     start_browser_install people chromium
@@ -179,6 +180,11 @@ case "$group" in
     VERSION_COMPARE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     VERSION_COMPARE_E2E_REPORT_PATH="$report_dir/version-compare-http-report.json" \
       bun run test:workflow-version-compare:e2e
+    WORKFLOW_SOURCE_E2E_BASE_URL="$local_app_url" \
+    WORKFLOW_SOURCE_E2E_DATABASE_URL="$DATABASE_URL" \
+    WORKFLOW_SOURCE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    WORKFLOW_SOURCE_E2E_REPORT_PATH="$report_dir/workflow-source-e2e-report.json" \
+      bun run test:workflow-source:e2e
     SIM_LINKS_E2E_BASE_URL="$local_app_url" \
     SIM_LINKS_E2E_DATABASE_URL="$DATABASE_URL" \
     SIM_LINKS_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \

@@ -194,6 +194,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     if (activeTab === 'copilot' && !${isChatEnabled}) {
                       activeTab = 'toolbar';
                     }
+                    // The Code tab is flag-gated per workspace, which this script cannot
+                    // know; the toolbar paints first and React switches to Code if enabled.
+                    if (activeTab === 'code') {
+                      activeTab = 'toolbar';
+                    }
                     if (activeTab) {
                       document.documentElement.setAttribute('data-panel-active-tab', activeTab);
                     }
