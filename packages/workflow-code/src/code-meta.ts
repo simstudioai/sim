@@ -15,8 +15,14 @@
  * reader knows a field, data goes under an `x-` key, which the validator tolerates and preserves.
  */
 
-import type { LockExtensionKey } from './lock'
-import type { AnchorKey, CodeComment, Json } from './model'
+import { isRecordLike } from '@sim/utils/object'
+import { decodeAnchor, encodeAnchor } from './anchors'
+import type { CodeMetaDiagnosticCode } from './diagnostics/codes'
+import type { Diagnostic } from './diagnostics/frame'
+import { stableStringify } from './hash'
+import { isJson, type LockExtensionKey, pointer } from './lock'
+import type { Anchor, AnchorKey, CodeComment, Json } from './model'
+import { SDK_RESERVED_IDENTIFIERS } from './sdk'
 
 export interface WorkflowCodeMetaV1 {
   [extension: LockExtensionKey]: Json
@@ -27,4 +33,306 @@ export interface WorkflowCodeMetaV1 {
   order: Record<string, number>
   /** Comments by id-anchored `AnchorKey`, in source order. */
   comments: Partial<Record<AnchorKey, CodeComment[]>>
+}
+
+export type CodeMetaDiagnostic = Diagnostic<CodeMetaDiagnosticCode>
+
+export type ParseCodeMetaResult =
+  | { meta: WorkflowCodeMetaV1; diagnostics?: undefined }
+  | { meta?: undefined; diagnostics: CodeMetaDiagnostic[] }
+
+const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
+const META_FIELDS = ['v', 'bindings', 'order', 'comments']
+const COMMENT_FIELDS = ['text', 'kind', 'placement']
+
+function isExtensionKey(key: string): key is LockExtensionKey {
+  return key.startsWith('x-')
+}
+
+class CodeMetaReader {
+  readonly diagnostics: CodeMetaDiagnostic[] = []
+
+  report(code: CodeMetaDiagnosticCode, segments: readonly string[], message: string): void {
+    this.diagnostics.push({ code, severity: 'error', message, path: pointer(segments) })
+  }
+
+  extensions(value: Record<string, unknown>): Record<LockExtensionKey, Json> {
+    const extensions: Record<LockExtensionKey, Json> = {}
+    for (const [field, raw] of Object.entries(value)) {
+      if (META_FIELDS.includes(field)) continue
+      if (!isExtensionKey(field)) {
+        this.report('E_CODE_META_UNKNOWN_FIELD', [field], `Unknown code_meta field "${field}".`)
+      } else if (isJson(raw)) {
+        extensions[field] = raw
+      } else {
+        this.report('E_CODE_META_SHAPE', [field], 'An extension field must hold JSON.')
+      }
+    }
+    return extensions
+  }
+
+  bindings(raw: unknown): Record<string, string> {
+    if (!isRecordLike(raw)) {
+      this.report('E_CODE_META_SHAPE', ['bindings'], '"bindings" must be an object.')
+      return {}
+    }
+    const holders = new Map<string, string>()
+    const entries: Array<[string, string]> = []
+    for (const [blockId, binding] of Object.entries(raw)) {
+      const at = ['bindings', blockId]
+      if (typeof binding !== 'string' || !IDENTIFIER.test(binding)) {
+        this.report('E_CODE_META_BINDING', at, 'A binding must be a JS identifier.')
+        continue
+      }
+      if (SDK_RESERVED_IDENTIFIERS.has(binding)) {
+        this.report('E_CODE_META_BINDING', at, `"${binding}" is a reserved word or an SDK export.`)
+        continue
+      }
+      const holder = holders.get(binding)
+      if (holder !== undefined) {
+        this.report(
+          'E_CODE_META_DUPLICATE_BINDING',
+          at,
+          `Binding "${binding}" is already used by block "${holder}".`
+        )
+        continue
+      }
+      holders.set(binding, blockId)
+      entries.push([blockId, binding])
+    }
+    return Object.fromEntries(entries)
+  }
+
+  order(raw: unknown): Record<string, number> {
+    if (!isRecordLike(raw)) {
+      this.report('E_CODE_META_SHAPE', ['order'], '"order" must be an object.')
+      return {}
+    }
+    const entries: Array<[string, number]> = []
+    for (const [blockId, order] of Object.entries(raw)) {
+      if (typeof order === 'number' && Number.isSafeInteger(order) && order >= 0) {
+        entries.push([blockId, order])
+      } else {
+        this.report('E_CODE_META_SHAPE', ['order', blockId], 'An order is a non-negative integer.')
+      }
+    }
+    return Object.fromEntries(entries)
+  }
+
+  comment(raw: unknown, at: readonly string[]): CodeComment | null {
+    if (!isRecordLike(raw)) {
+      this.report('E_CODE_META_SHAPE', at, 'A comment must be an object.')
+      return null
+    }
+    for (const field of Object.keys(raw)) {
+      if (!COMMENT_FIELDS.includes(field)) {
+        this.report(
+          'E_CODE_META_UNKNOWN_FIELD',
+          [...at, field],
+          `Unknown comment field "${field}".`
+        )
+      }
+    }
+    const { text, kind, placement } = raw
+    if (typeof text !== 'string') {
+      this.report('E_CODE_META_SHAPE', [...at, 'text'], '"text" must be a string.')
+      return null
+    }
+    if (kind !== 'line' && kind !== 'block') {
+      this.report('E_CODE_META_SHAPE', [...at, 'kind'], '"kind" is "line" or "block".')
+      return null
+    }
+    if (placement !== 'leading' && placement !== 'trailing') {
+      this.report(
+        'E_CODE_META_SHAPE',
+        [...at, 'placement'],
+        '"placement" is "leading" or "trailing".'
+      )
+      return null
+    }
+    return { text, kind, placement }
+  }
+
+  comments(raw: unknown): Partial<Record<AnchorKey, CodeComment[]>> {
+    if (!isRecordLike(raw)) {
+      this.report('E_CODE_META_SHAPE', ['comments'], '"comments" must be an object.')
+      return {}
+    }
+    const result: Partial<Record<AnchorKey, CodeComment[]>> = {}
+    for (const [key, list] of Object.entries(raw)) {
+      const at = ['comments', key]
+      const anchor = decodeAnchor(key)
+      if (!anchor || encodeAnchor(anchor) !== key) {
+        this.report('E_CODE_META_ANCHOR', at, `"${key}" is not a comment anchor.`)
+        continue
+      }
+      if (!Array.isArray(list)) {
+        this.report('E_CODE_META_SHAPE', at, 'Comments must be an array.')
+        continue
+      }
+      const comments: CodeComment[] = []
+      list.forEach((entry: unknown, index) => {
+        const comment = this.comment(entry, [...at, String(index)])
+        if (comment) comments.push(comment)
+      })
+      if (comments.length > 0) result[encodeAnchor(anchor)] = comments
+    }
+    return result
+  }
+}
+
+/**
+ * Validates a stored `code_meta` value, given as parsed JSON or as JSON text. Mirrors
+ * `parseWorkflowLock`: every problem is reported at once with an RFC 6901 `path`, any problem
+ * rejects the whole value, unknown fields are errors except `x-` extensions (preserved), and a
+ * version other than 1 stops validation there.
+ */
+export function parseCodeMeta(input: unknown): ParseCodeMetaResult {
+  const reader = new CodeMetaReader()
+  let json = input
+  if (typeof input === 'string') {
+    try {
+      json = JSON.parse(input)
+    } catch {
+      reader.report('E_CODE_META_JSON', [], 'code_meta is not valid JSON.')
+      return { diagnostics: reader.diagnostics }
+    }
+  }
+  if (!isRecordLike(json)) {
+    reader.report('E_CODE_META_SHAPE', [], 'code_meta must be a JSON object.')
+    return { diagnostics: reader.diagnostics }
+  }
+  if (json.v !== 1) {
+    reader.report('E_CODE_META_VERSION', ['v'], 'Unsupported code_meta version; expected 1.')
+    return { diagnostics: reader.diagnostics }
+  }
+  const extensions = reader.extensions(json)
+  const bindings = reader.bindings(json.bindings)
+  const order = reader.order(json.order)
+  const comments = reader.comments(json.comments)
+  if (reader.diagnostics.length > 0) return { diagnostics: reader.diagnostics }
+  return { meta: { ...extensions, v: 1, bindings, order, comments } }
+}
+
+/** An empty `code_meta`. */
+export function emptyCodeMeta(): WorkflowCodeMetaV1 {
+  return { v: 1, bindings: {}, order: {}, comments: {} }
+}
+
+/**
+ * Rewrites the ids an anchor carries: the block segment of `block`, `param`, `inactive` and
+ * `edges` anchors through `block`, the `var` segment through `variable`. A callback returning
+ * `null` drops the anchor; `header`, `wiring` and `footer` pass unchanged.
+ */
+export function mapAnchorIds(
+  anchor: Anchor,
+  block: (id: string) => string | null,
+  variable: (id: string) => string | null
+): Anchor | null {
+  switch (anchor.kind) {
+    case 'header':
+    case 'wiring':
+    case 'footer':
+      return anchor
+    case 'var': {
+      const id = variable(anchor.variable)
+      return id === null ? null : { ...anchor, variable: id }
+    }
+    default: {
+      const id = block(anchor.block)
+      return id === null ? null : { ...anchor, block: id }
+    }
+  }
+}
+
+/** The `x-` extension fields of a `code_meta`, which every rewrite preserves. */
+export function codeMetaExtensions(meta: WorkflowCodeMetaV1): Record<LockExtensionKey, Json> {
+  const extensions: Record<LockExtensionKey, Json> = {}
+  for (const [field, value] of Object.entries(meta)) {
+    if (isExtensionKey(field) && isJson(value)) extensions[field] = value
+  }
+  return extensions
+}
+
+/**
+ * Maps every block id and variable id in `meta` through the callbacks; an entry whose callback
+ * returns `null` is dropped. When two ids map onto one, the first entry wins, and a binding
+ * already claimed is dropped, so the result always passes {@link parseCodeMeta}.
+ */
+function mapCodeMetaIds(
+  meta: WorkflowCodeMetaV1,
+  block: (id: string) => string | null,
+  variable: (id: string) => string | null
+): WorkflowCodeMetaV1 {
+  const bindings: Record<string, string> = {}
+  const taken = new Set<string>()
+  for (const [id, binding] of Object.entries(meta.bindings)) {
+    const next = block(id)
+    if (next === null || Object.hasOwn(bindings, next) || taken.has(binding)) continue
+    bindings[next] = binding
+    taken.add(binding)
+  }
+  const order: Record<string, number> = {}
+  for (const [id, value] of Object.entries(meta.order)) {
+    const next = block(id)
+    if (next !== null && !Object.hasOwn(order, next)) order[next] = value
+  }
+  const comments: Partial<Record<AnchorKey, CodeComment[]>> = {}
+  for (const [key, list] of Object.entries(meta.comments)) {
+    const anchor = decodeAnchor(key)
+    const mapped = anchor ? mapAnchorIds(anchor, block, variable) : null
+    if (!mapped || !list || list.length === 0) continue
+    const mappedKey = encodeAnchor(mapped)
+    comments[mappedKey] = [...(comments[mappedKey] ?? []), ...list]
+  }
+  return { ...codeMetaExtensions(meta), v: 1, bindings, order, comments }
+}
+
+/**
+ * Drops every entry for a block or variable that no longer exists. `blocks` and `variables`
+ * answer whether an id is still stored; an omitted predicate keeps every id of that kind.
+ * Readers still tolerate stale ids: pruning is hygiene, not the correctness gate.
+ */
+export function pruneCodeMeta(
+  meta: WorkflowCodeMetaV1,
+  live: { blocks?: (id: string) => boolean; variables?: (id: string) => boolean }
+): WorkflowCodeMetaV1 {
+  const { blocks, variables } = live
+  return mapCodeMetaIds(
+    meta,
+    (id) => (!blocks || blocks(id) ? id : null),
+    (id) => (!variables || variables(id) ? id : null)
+  )
+}
+
+/**
+ * Re-keys `meta` onto a copy of its workflow (duplicate, fork, promote): each block id through
+ * `blockIds` and each variable id through `variableIds`. Ids absent from a map are dropped, so a
+ * copy never carries entries for blocks it did not copy.
+ */
+export function remapCodeMeta(
+  meta: WorkflowCodeMetaV1,
+  blockIds: ReadonlyMap<string, string>,
+  variableIds: ReadonlyMap<string, string>
+): WorkflowCodeMetaV1 {
+  return mapCodeMetaIds(
+    meta,
+    (id) => blockIds.get(id) ?? null,
+    (id) => variableIds.get(id) ?? null
+  )
+}
+
+/** Whether two values hold the same entries, extensions included, in any key order. */
+export function codeMetaEquals(a: WorkflowCodeMetaV1, b: WorkflowCodeMetaV1): boolean {
+  return stableStringify(a) === stableStringify(b)
+}
+
+/** Whether `meta` holds nothing worth storing (no entries and no extensions). */
+export function isEmptyCodeMeta(meta: WorkflowCodeMetaV1): boolean {
+  return (
+    Object.keys(meta.bindings).length === 0 &&
+    Object.keys(meta.order).length === 0 &&
+    Object.keys(meta.comments).length === 0 &&
+    Object.keys(codeMetaExtensions(meta)).length === 0
+  )
 }

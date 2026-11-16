@@ -14,6 +14,10 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./code-meta": {
+      "types": "./src/code-meta.ts",
+      "default": "./src/code-meta.ts"
+    },
     "./catalog/canonical-index": {
       "types": "./src/catalog/canonical-index/index.ts",
       "default": "./src/catalog/canonical-index/index.ts"

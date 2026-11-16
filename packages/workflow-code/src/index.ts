@@ -62,7 +62,19 @@ export {
   fromCodeFile,
   toCodeFile,
 } from './code-files'
-export type { WorkflowCodeMetaV1 } from './code-meta'
+export {
+  type CodeMetaDiagnostic,
+  codeMetaEquals,
+  codeMetaExtensions,
+  emptyCodeMeta,
+  isEmptyCodeMeta,
+  mapAnchorIds,
+  type ParseCodeMetaResult,
+  parseCodeMeta,
+  pruneCodeMeta,
+  remapCodeMeta,
+  type WorkflowCodeMetaV1,
+} from './code-meta'
 export { compileWorkflow } from './compile'
 export type {
   ApplyDiagnosticCode,

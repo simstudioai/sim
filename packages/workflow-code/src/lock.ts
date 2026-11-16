@@ -145,7 +145,8 @@ function isExtensionKey(key: string): key is LockExtensionKey {
   return key.startsWith('x-')
 }
 
-function isJson(value: unknown): value is Json {
+/** Whether `value` is plain JSON with finite numbers only. */
+export function isJson(value: unknown): value is Json {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
   if (typeof value === 'number') return Number.isFinite(value)
   if (Array.isArray(value)) return value.every(isJson)
@@ -153,7 +154,7 @@ function isJson(value: unknown): value is Json {
 }
 
 /** RFC 6901: `~` → `~0`, `/` → `~1`. */
-function pointer(segments: readonly string[]): string {
+export function pointer(segments: readonly string[]): string {
   return segments.map((s) => `/${s.replace(/~/g, '~0').replace(/\//g, '~1')}`).join('')
 }
 
