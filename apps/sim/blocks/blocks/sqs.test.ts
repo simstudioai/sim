@@ -32,3 +32,25 @@ describe('SQS block integer parsing', () => {
     ).toThrow('maxNumberOfMessages must be a whole number')
   })
 })
+
+/**
+ * On an agent tool call the operation arrives only on `context`, and the merged row and model
+ * values are keyed by the tool's param names (row fields hold strings).
+ */
+describe('SQS block agent tool calls', () => {
+  it('coerces the delay typed in the tool row when sending a message', () => {
+    const merged = { ...CONNECTION, queueUrl: QUEUE_URL, data: '{"a":1}', delaySeconds: '5' }
+    expect({ ...merged, ...mapParams(merged, { operation: 'send' }) }).toMatchObject({
+      delaySeconds: 5,
+      data: { a: 1 },
+    })
+  })
+
+  it('keeps the batch entries the model supplied', () => {
+    const entries = [{ id: '1', data: { a: 1 } }]
+    const merged = { ...CONNECTION, queueUrl: QUEUE_URL, entries }
+    expect({ ...merged, ...mapParams(merged, { operation: 'send_message_batch' }) }).toMatchObject({
+      entries,
+    })
+  })
+})

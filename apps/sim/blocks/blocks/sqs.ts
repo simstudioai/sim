@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { SQSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 export const SQSBlock: BlockConfig = {
   type: 'sqs',
@@ -603,8 +603,9 @@ export const SQSBlock: BlockConfig = {
             throw new Error(`Invalid SQS operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const rest = params
 
         const parseJson = (value: unknown, fieldName: string) => {
           if (value === undefined || value === null || value === '') return undefined

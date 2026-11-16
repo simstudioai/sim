@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CrowdStrikeBlock } from '@/blocks/blocks/crowdstrike'
+import type { BlockToolParamsContext } from '@/blocks/types'
 
 const mapParams = CrowdStrikeBlock.tools.config?.params
 if (!mapParams) {
@@ -18,8 +19,8 @@ const credentials = {
  * subBlock value. Every assertion here runs against the merged result, because a
  * mapper-only assertion passes even when the raw value survives onto the wire.
  */
-function merge(inputs: Record<string, unknown>) {
-  return { ...inputs, ...mapParams(inputs) }
+function merge(inputs: Record<string, unknown>, context?: BlockToolParamsContext) {
+  return { ...inputs, ...mapParams(inputs, context) }
 }
 
 describe('CrowdStrike block params', () => {
@@ -145,5 +146,15 @@ describe('CrowdStrike block params', () => {
     })
 
     expect(merged.includeHidden).toBe(false)
+  })
+
+  it('keeps the model host action and hosts on a tool call, where the operation is only in the context', () => {
+    const merged = merge(
+      { ...credentials, actionName: 'lift_containment', deviceIds: ['aid-1'] },
+      { operation: 'crowdstrike_perform_host_action' }
+    )
+
+    expect(merged.actionName).toBe('lift_containment')
+    expect(merged.deviceIds).toEqual(['aid-1'])
   })
 })

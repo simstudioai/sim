@@ -2,7 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { IAMIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /**
  * Converts the Tags table, a `[{ key, value }]` list (or its JSON string), a plain
@@ -632,9 +632,8 @@ export const IAMBlock: BlockConfig = {
             throw new Error(`Invalid IAM operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
-          operation,
           maxItems,
           maxSessionDuration,
           onlyAttached,
@@ -651,7 +650,7 @@ export const IAMBlock: BlockConfig = {
 
         const result: Record<string, unknown> = { ...connectionConfig }
 
-        switch (operation) {
+        switch (mapperOperation(params, context)) {
           case 'list_users':
           case 'list_roles':
           case 'list_groups':
@@ -737,7 +736,7 @@ export const IAMBlock: BlockConfig = {
             break
           case 'update_access_key':
             result.accessKeyIdToUpdate = rest.accessKeyIdToUpdate
-            result.status = rest.accessKeyStatus
+            result.status = rest.accessKeyStatus ?? toolCallArg(context, rest.status)
             if (rest.userName) result.userName = rest.userName
             break
           case 'add_user_to_group':

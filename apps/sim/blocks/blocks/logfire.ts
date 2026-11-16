@@ -2,7 +2,7 @@ import { Bug, ClipboardList, Clock, Database, File, Search, Server } from '@sim/
 import { LogfireIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 const toBoolean = (value: unknown): boolean | undefined => {
   if (value === true || value === 'true') return true
@@ -311,7 +311,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
     ],
     config: {
       tool: (params) => String(params.operation || 'logfire_search_records'),
-      params: (params) => {
+      params: (params, context) => {
         const baseParams = {
           apiKey: params.apiKey,
           region: params.region || 'auto',
@@ -324,7 +324,7 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
           limit: toNumber(params.limit),
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'logfire_query':
             return {
               ...baseParams,

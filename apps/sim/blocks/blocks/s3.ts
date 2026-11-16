@@ -1,7 +1,17 @@
 import { S3Icon } from '@/components/icons'
-import type { BlockConfig, BlockMeta, BlockToolParams } from '@/blocks/types'
+import type {
+  BlockConfig,
+  BlockMeta,
+  BlockToolParams,
+  BlockToolParamsContext,
+} from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
+import {
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 /**
  * Normalize the batch-delete keys input into a string array. Accepts an array,
@@ -33,9 +43,11 @@ function parseObjectKeys(value: unknown): string[] {
 const UPLOAD_SOURCE_FIELD = ['uploadFile', 'fileReference', 'content'] as const
 
 /** Tool params for an S3 operation; credentials are validated by the caller. */
-function s3ToolParams(params: BlockToolParams) {
+function s3ToolParams(params: BlockToolParams, context?: BlockToolParamsContext) {
   // Default to get_object for backward compatibility with existing workflows
-  const operation = params.operation || 'get_object'
+  const operation = mapperOperation(params, context) || 'get_object'
+  /** The block field, else (on a tool call) the model's arg for the tool param `key`. */
+  const field = (value: unknown, key: string) => value ?? toolCallArg(context, params[key]) ?? value
 
   // Operation-specific parameters
   switch (operation) {
@@ -63,7 +75,7 @@ function s3ToolParams(params: BlockToolParams) {
         content: params.content,
         contentType: params.contentType,
         acl: params.acl,
-        metadata: params.objectMetadata,
+        metadata: field(params.objectMetadata, 'metadata'),
         storageClass: params.storageClass,
         serverSideEncryption: params.serverSideEncryption,
         sseKmsKeyId:
@@ -155,11 +167,11 @@ function s3ToolParams(params: BlockToolParams) {
         accessKeyId: params.accessKeyId,
         secretAccessKey: params.secretAccessKey,
         region: params.region,
-        prefix: params.bucketPrefix,
+        prefix: field(params.bucketPrefix, 'prefix'),
         maxBuckets: params.maxBuckets
           ? Number.parseInt(params.maxBuckets as string, 10)
           : undefined,
-        continuationToken: params.bucketsContinuationToken,
+        continuationToken: field(params.bucketsContinuationToken, 'continuationToken'),
       }
 
     case 'head_object':
@@ -178,7 +190,7 @@ function s3ToolParams(params: BlockToolParams) {
         region: params.region,
         bucketName: params.bucketName,
         objectKey: params.objectKey,
-        versionId: params.headVersionId,
+        versionId: field(params.headVersionId, 'versionId'),
       }
 
     case 'create_bucket':
@@ -193,7 +205,7 @@ function s3ToolParams(params: BlockToolParams) {
         secretAccessKey: params.secretAccessKey,
         region: params.region,
         bucketName: params.bucketName,
-        acl: params.createBucketAcl,
+        acl: field(params.createBucketAcl, 'acl'),
       }
 
     case 'delete_bucket':
@@ -220,7 +232,8 @@ function s3ToolParams(params: BlockToolParams) {
       if (!params.objectKey) {
         throw new Error('Object Key is required')
       }
-      if (!params.presignedMethod) {
+      const method = params.presignedMethod || toolCallArg(context, params.method)
+      if (!method) {
         throw new Error('URL Type (get or put) is required')
       }
       return {
@@ -229,9 +242,9 @@ function s3ToolParams(params: BlockToolParams) {
         region: params.region,
         bucketName: params.bucketName,
         objectKey: params.objectKey,
-        method: params.presignedMethod,
+        method,
         expiresIn: params.expiresIn ? Number.parseInt(params.expiresIn as string, 10) : undefined,
-        contentType: params.presignedContentType,
+        contentType: field(params.presignedContentType, 'contentType'),
       }
     }
 
@@ -242,7 +255,7 @@ function s3ToolParams(params: BlockToolParams) {
       if (!params.bucketName) {
         throw new Error('Bucket Name is required')
       }
-      const keys = parseObjectKeys(params.objectKeys)
+      const keys = parseObjectKeys(field(params.objectKeys, 'keys'))
       if (keys.length === 0) {
         throw new Error('At least one object key is required')
       }
@@ -783,7 +796,7 @@ export const S3Block: BlockConfig = {
             throw new Error(`Invalid S3 operation: ${operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         // Validate required fields (common to all operations)
         if (!params.accessKeyId) {
           throw new Error('Access Key ID is required')
@@ -792,7 +805,7 @@ export const S3Block: BlockConfig = {
           throw new Error('Secret Access Key is required')
         }
 
-        return s3ToolParams(params)
+        return s3ToolParams(params, context)
       },
     },
   },

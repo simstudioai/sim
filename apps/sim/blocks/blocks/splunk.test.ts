@@ -4,13 +4,14 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/triggers', () => triggersMock)
 
 import { SplunkBlock } from '@/blocks/blocks/splunk'
+import type { BlockToolParamsContext } from '@/blocks/types'
 import { buildSplunkFormBody, buildSplunkUrl } from '@/tools/splunk/utils'
 
 const toParams = SplunkBlock.tools.config?.params
 
-function mapParams(params: Record<string, unknown>) {
+function mapParams(params: Record<string, unknown>, context?: BlockToolParamsContext) {
   if (!toParams) throw new Error('SplunkBlock is missing tools.config.params')
-  return toParams(params as Parameters<typeof toParams>[0])
+  return toParams(params as Parameters<typeof toParams>[0], context)
 }
 
 /**
@@ -139,5 +140,29 @@ describe('SplunkBlock numeric coercion', () => {
     ).toBe('https://splunk.example.com:8089/services/data/indexes?offset=10&output_mode=json')
 
     expect(buildSplunkFormBody({ max_count: merged.count as number | undefined })).toBe('')
+  })
+})
+
+/**
+ * On an agent tool call the operation arrives only on `context`, and the merged row and model
+ * values are keyed by the tool's param names (row switches hold strings). The handler forwards
+ * `{ ...merged, ...mapped }`.
+ */
+describe('SplunkBlock agent tool calls', () => {
+  const agentCall = (operation: string, merged: Record<string, unknown>) => ({
+    ...merged,
+    ...mapParams(merged, { operation }),
+  })
+
+  it('coerces the switches typed in the tool row when dispatching a saved search', () => {
+    expect(
+      agentCall('splunk_dispatch_saved_search', { name: 'Errors', forceDispatch: 'false' })
+    ).toMatchObject({ name: 'Errors', forceDispatch: false })
+  })
+
+  it('keeps the name the model supplied for fired alerts', () => {
+    expect(agentCall('splunk_get_fired_alerts', { name: 'Disk full' })).toMatchObject({
+      name: 'Disk full',
+    })
   })
 })

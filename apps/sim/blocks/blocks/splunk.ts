@@ -1,7 +1,7 @@
 import { SplunkIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { isToolCall, mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 /**
  * Normalize a Splunk toggle. A dropdown supplies the strings `'true'`/`'false'`,
@@ -38,6 +38,18 @@ function toSplunkToggle(value: unknown): boolean | undefined {
 function assignSplunkNumber(target: Record<string, unknown>, key: string, value: unknown): void {
   const parsed = value == null || value === '' ? Number.NaN : Number(value)
   target[key] = Number.isFinite(parsed) ? parsed : undefined
+}
+
+/**
+ * A dedicated block field, or on a tool call the model's arg under the tool's own param name
+ * when that field is blank: the model fills `name`/`search`, never the block-only field.
+ */
+function blockFieldOrToolArg(
+  dedicated: unknown,
+  toolArg: unknown,
+  context: BlockToolParamsContext | undefined
+): unknown {
+  return isToolCall(context) && (dedicated == null || dedicated === '') ? toolArg : dedicated
 }
 
 export const SplunkBlock: BlockConfig = {
@@ -492,13 +504,13 @@ Examples:
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
 
         assignSplunkNumber(result, 'count', params.count)
         assignSplunkNumber(result, 'offset', params.offset)
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'splunk_run_search':
             assignSplunkNumber(result, 'autoCancel', params.autoCancel)
             assignSplunkNumber(result, 'maxCount', params.maxCount)
@@ -513,11 +525,12 @@ Examples:
             result.addSummaryToMetadata = toSplunkToggle(params.addSummaryToMetadata)
             break
           case 'splunk_list_saved_searches':
-            result.search = params.savedSearchFilter ?? ''
+            result.search =
+              blockFieldOrToolArg(params.savedSearchFilter, params.search, context) ?? ''
             break
           case 'splunk_get_saved_search':
           case 'splunk_dispatch_saved_search':
-            result.name = params.savedSearchName
+            result.name = blockFieldOrToolArg(params.savedSearchName, params.name, context)
             result.triggerActions = toSplunkToggle(params.triggerActions)
             result.forceDispatch = toSplunkToggle(params.forceDispatch)
             assignSplunkNumber(result, 'dispatchMaxCount', params.dispatchMaxCount)
@@ -525,7 +538,7 @@ Examples:
             assignSplunkNumber(result, 'dispatchTtl', params.dispatchTtl)
             break
           case 'splunk_get_fired_alerts':
-            result.name = params.alertName
+            result.name = blockFieldOrToolArg(params.alertName, params.name, context)
             break
         }
 

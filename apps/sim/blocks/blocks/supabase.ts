@@ -1,7 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { SupabaseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
 /** Canonical basic/advanced pair for the storage upload payload. */
 const FILE_DATA_FIELD = ['file', 'fileContent'] as const
@@ -1178,9 +1178,9 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
             throw new Error(`Invalid Supabase operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           data,
           filter,
           queryEmbedding,

@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { RDSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 export const RDSBlock: BlockConfig = {
   type: 'rds',
@@ -451,8 +451,9 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
             throw new Error(`Invalid RDS operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, data, conditions, schema, engine, parameters, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const { data, conditions, schema, engine, parameters, ...rest } = params
 
         // Parse JSON fields
         const parseJson = (value: unknown, fieldName: string) => {

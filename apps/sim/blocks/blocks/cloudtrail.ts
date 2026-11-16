@@ -1,7 +1,7 @@
 import { CloudTrailIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /** Operations that accept an opaque AWS pagination token. */
 const PAGINATED_OPERATIONS = [
@@ -427,8 +427,9 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
             throw new Error(`Invalid CloudTrail operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, ...rest } = params
+      params: (params, context) => {
+        const rest = params
+        const operation = mapperOperation(params, context)
 
         const awsRegion = rest.awsRegion
         const awsAccessKeyId = rest.awsAccessKeyId
@@ -466,11 +467,13 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
             }
 
           case 'get_trail':
-          case 'get_trail_status':
-            if (!rest.trailName) {
+          case 'get_trail_status': {
+            const name = rest.trailName || toolCallArg(context, rest.name)
+            if (!name) {
               throw new Error('Trail name or ARN is required')
             }
-            return { ...credentials, name: rest.trailName }
+            return { ...credentials, name }
+          }
 
           case 'list_trails':
             return {

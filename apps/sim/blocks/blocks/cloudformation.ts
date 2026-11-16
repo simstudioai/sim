@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { CloudFormationIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { isToolCall, mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const CloudFormationBlock: BlockConfig = {
   type: 'cloudformation',
@@ -420,16 +420,9 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
             throw new Error(`Invalid CloudFormation operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const {
-          operation,
-          limit,
-          usePreviousTemplate,
-          parameters,
-          tags,
-          timeoutInMinutes,
-          ...rest
-        } = params
+      params: (params, context) => {
+        const { limit, usePreviousTemplate, parameters, tags, timeoutInMinutes, ...rest } = params
+        const operation = mapperOperation(params, context)
 
         const awsRegion = rest.awsRegion
         const awsAccessKeyId = rest.awsAccessKeyId
@@ -530,6 +523,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
           }
 
           case 'create_change_set': {
+            const description = rest.changeSetDescription || toolCallArg(context, rest.description)
             if (!rest.stackName) throw new Error('Stack name is required')
             if (!rest.changeSetName) throw new Error('Change set name is required')
             if (!rest.templateBody && !parsedUsePreviousTemplate) {
@@ -548,8 +542,12 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
               ...(parameters && { parameters: parseJson(parameters, 'parameters') }),
               ...(rest.capabilities && { capabilities: rest.capabilities }),
               ...(rest.changeSetType && { changeSetType: rest.changeSetType }),
-              ...(rest.changeSetDescription && { description: rest.changeSetDescription }),
-              tags: rest.changeSetTags ? parseJson(rest.changeSetTags, 'tags') : undefined,
+              ...(description && { description }),
+              tags: rest.changeSetTags
+                ? parseJson(rest.changeSetTags, 'tags')
+                : isToolCall(context)
+                  ? parseJson(tags, 'tags')
+                  : undefined,
               ...(rest.roleArn && { roleArn: rest.roleArn }),
             }
           }

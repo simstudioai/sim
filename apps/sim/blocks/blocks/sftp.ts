@@ -1,9 +1,9 @@
 import { ClipboardList, Download, File, Search, Server, Trash, Upload } from '@sim/emcn/icons'
 import { omit } from '@sim/utils/object'
 import { SftpIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import { createVersionedToolSelector, mapperOperation, normalizeFileInput } from '@/blocks/utils'
 
 export const SftpBlock = {
   type: 'sftp',
@@ -227,7 +227,7 @@ export const SftpBlock = {
         if (operation === 'sftp_create') return 'sftp_upload'
         return operation
       },
-      params: (params) => {
+      params: (params, context?: BlockToolParamsContext) => {
         const connectionConfig: Record<string, unknown> = {
           host: params.host,
           port:
@@ -244,7 +244,7 @@ export const SftpBlock = {
           connectionConfig.password = params.password
         }
 
-        const operation = params.operation || 'sftp_upload'
+        const operation = mapperOperation(params, context) || 'sftp_upload'
 
         switch (operation) {
           case 'sftp_upload':
@@ -360,8 +360,8 @@ export const SftpV2Block: BlockConfig = {
         params.operation === 'sftp_download'
           ? selectSftpV2Tool(params)
           : SftpBlock.tools.config.tool(params),
-      params: (params) => {
-        const input: Record<string, unknown> = SftpBlock.tools.config.params(params)
+      params: (params, context) => {
+        const input: Record<string, unknown> = SftpBlock.tools.config.params(params, context)
         return omit(input, ['encoding'])
       },
     },

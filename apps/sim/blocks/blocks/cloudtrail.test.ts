@@ -50,3 +50,22 @@ describe('CloudTrail block defaults', () => {
     expect(() => CloudTrailBlock.tools.config?.params?.(params)).toThrow(/filter/i)
   })
 })
+
+/**
+ * An agent tool call sends model args under the tool's param names (`name` for a trail) with the
+ * operation only on `context`; the handler forwards `{ ...args, ...mapped }`.
+ */
+describe('CloudTrail agent tool calls', () => {
+  it('keeps the model trail name for get_trail', () => {
+    const args = {
+      awsRegion: 'us-east-1',
+      awsAccessKeyId: 'AKIA',
+      awsSecretAccessKey: 'secret',
+      name: 'org-trail',
+    }
+    expect({
+      ...args,
+      ...CloudTrailBlock.tools.config?.params?.(args, { operation: 'get_trail' }),
+    }).toMatchObject({ name: 'org-trail' })
+  })
+})

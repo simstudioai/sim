@@ -3,7 +3,7 @@ import { omit } from '@sim/utils/object'
 import { SshIcon, SshTerminalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, mapperOperation, toolCallArg } from '@/blocks/utils'
 
 export const SSHBlock = {
   type: 'ssh',
@@ -524,7 +524,7 @@ Examples:
       tool: (params) => {
         return params.operation || 'ssh_execute_command'
       },
-      params: (params) => {
+      params: (params, context) => {
         // Build connection config
         const connectionConfig: Record<string, unknown> = {
           host: params.host,
@@ -544,7 +544,7 @@ Examples:
         }
 
         // Build operation-specific parameters based on the selected operation
-        const operation = params.operation || 'ssh_execute_command'
+        const operation = mapperOperation(params, context) || 'ssh_execute_command'
 
         switch (operation) {
           case 'ssh_execute_command':
@@ -558,7 +558,8 @@ Examples:
               ...connectionConfig,
               script: params.script,
               interpreter: params.interpreter || '/bin/bash',
-              workingDirectory: params.scriptWorkingDirectory,
+              workingDirectory:
+                params.scriptWorkingDirectory ?? toolCallArg(context, params.workingDirectory),
             }
           case 'ssh_check_command_exists':
             return {
@@ -576,31 +577,31 @@ Examples:
           case 'ssh_download_file':
             return {
               ...connectionConfig,
-              remotePath: params.downloadRemotePath,
+              remotePath: params.downloadRemotePath ?? toolCallArg(context, params.remotePath),
             }
           case 'ssh_list_directory':
             return {
               ...connectionConfig,
-              path: params.listPath,
+              path: params.listPath ?? toolCallArg(context, params.path),
               detailed: params.detailed,
             }
           case 'ssh_check_file_exists':
             return {
               ...connectionConfig,
-              path: params.checkPath,
-              type: params.checkType || 'any',
+              path: params.checkPath ?? toolCallArg(context, params.path),
+              type: params.checkType || toolCallArg(context, params.type) || 'any',
             }
           case 'ssh_create_directory':
             return {
               ...connectionConfig,
-              path: params.createPath,
+              path: params.createPath ?? toolCallArg(context, params.path),
               recursive: params.recursive !== false,
             }
           case 'ssh_delete_file':
             return {
               ...connectionConfig,
-              path: params.deletePath,
-              recursive: params.deleteRecursive,
+              path: params.deletePath ?? toolCallArg(context, params.path),
+              recursive: params.deleteRecursive ?? toolCallArg(context, params.recursive),
               force: params.force,
             }
           case 'ssh_move_rename':
@@ -615,17 +616,17 @@ Examples:
           case 'ssh_read_file_content':
             return {
               ...connectionConfig,
-              path: params.readPath,
+              path: params.readPath ?? toolCallArg(context, params.path),
               encoding: params.encoding || 'utf-8',
               maxSize: params.maxSize ? Number.parseInt(params.maxSize, 10) : 10,
             }
           case 'ssh_write_file_content':
             return {
               ...connectionConfig,
-              path: params.writePath,
+              path: params.writePath ?? toolCallArg(context, params.path),
               content: params.content,
-              mode: params.writeMode || 'overwrite',
-              permissions: params.writePermissions,
+              mode: params.writeMode || toolCallArg(context, params.mode) || 'overwrite',
+              permissions: params.writePermissions ?? toolCallArg(context, params.permissions),
             }
           default:
             return connectionConfig

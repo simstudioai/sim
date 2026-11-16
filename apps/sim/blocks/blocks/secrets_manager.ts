@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { SecretsManagerIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /** Parses a JSON field typed into the block, naming the field when it is invalid. */
 function parseJsonField(value: unknown, fieldName: string): unknown {
@@ -412,9 +412,9 @@ Return ONLY the JSON array - no explanations, no markdown code blocks.`,
             throw new Error(`Invalid Secrets Manager operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           forceDelete,
           recoveryWindowInDays,
           maxResults,
@@ -457,7 +457,9 @@ Return ONLY the JSON array - no explanations, no markdown code blocks.`,
             result.secretValue = rest.secretValue
             if (rest.description) result.description = rest.description
             result.kmsKeyId = rest.kmsKeyId || undefined
-            result.tags = rest.createTags ? parseJsonField(rest.createTags, 'Tags') : undefined
+            result.tags = rest.createTags
+              ? parseJsonField(rest.createTags, 'Tags')
+              : toolCallArg(context, rest.tags)
             break
           case 'update_secret':
             result.secretId = rest.secretId

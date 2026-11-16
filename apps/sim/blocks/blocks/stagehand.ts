@@ -1,5 +1,6 @@
 import { StagehandIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 import type { StagehandAgentResponse, StagehandExtractResponse } from '@/tools/stagehand/types'
 
 export type StagehandResponse = StagehandExtractResponse | StagehandAgentResponse
@@ -375,14 +376,13 @@ Example 3 (Data Collection):
       tool: (params) => {
         return params.operation === 'agent' ? 'stagehand_agent' : 'stagehand_extract'
       },
-      params: (params) => {
+      params: (params, context) => {
         const baseParams = {
-          operation: params.operation,
           provider: params.provider,
           apiKey: params.apiKey,
         }
 
-        if (params.operation !== 'agent') {
+        if (mapperOperation(params, context) !== 'agent') {
           return {
             ...baseParams,
             url: params.url,

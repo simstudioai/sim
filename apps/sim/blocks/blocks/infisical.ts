@@ -1,7 +1,7 @@
 import { InfisicalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 export const InfisicalBlock: BlockConfig = {
   type: 'infisical',
@@ -192,7 +192,7 @@ export const InfisicalBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `infisical_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {
           apiKey: params.apiKey,
           projectId: params.projectId,
@@ -202,7 +202,7 @@ export const InfisicalBlock: BlockConfig = {
         if (params.baseUrl) result.baseUrl = params.baseUrl
         if (params.secretPath) result.secretPath = params.secretPath
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'list_secrets':
             if (params.recursive != null) result.recursive = params.recursive
             if (params.includeImports != null) result.includeImports = params.includeImports

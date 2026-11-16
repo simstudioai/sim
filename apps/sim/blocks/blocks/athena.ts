@@ -1,7 +1,7 @@
 import { AthenaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /**
  * Normalizes a switch value that may arrive as a boolean or as the strings 'true' / 'false'.
@@ -681,8 +681,9 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
             throw new Error(`Invalid Athena operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, maxResults, ...rest } = params
+      params: (params, context) => {
+        const { maxResults, ...rest } = params
+        const operation = mapperOperation(params, context)
 
         const awsRegion = rest.awsRegion
         const awsAccessKeyId = rest.awsAccessKeyId
@@ -696,6 +697,9 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
           rest.resultReuseMaxAgeInMinutes !== ''
             ? Number.parseInt(String(rest.resultReuseMaxAgeInMinutes), 10)
             : undefined
+        const queryName = rest.queryName || toolCallArg(context, rest.name)
+        const queryDescription = rest.queryDescription || toolCallArg(context, rest.description)
+        const workGroupName = rest.workGroupName || toolCallArg(context, rest.workGroup)
 
         switch (operation) {
           case 'start_query':
@@ -766,7 +770,7 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
             }
 
           case 'create_named_query': {
-            if (!rest.queryName) {
+            if (!queryName) {
               throw new Error('Query name is required')
             }
             if (!rest.database) {
@@ -779,10 +783,10 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
               awsRegion,
               awsAccessKeyId,
               awsSecretAccessKey,
-              name: rest.queryName,
+              name: queryName,
               database: rest.database,
               queryString: rest.queryString,
-              ...(rest.queryDescription && { description: rest.queryDescription }),
+              ...(queryDescription && { description: queryDescription }),
               ...(rest.workGroup && { workGroup: rest.workGroup }),
             }
           }
@@ -879,7 +883,7 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
             if (!rest.namedQueryId) {
               throw new Error('Named query ID is required')
             }
-            if (!rest.queryName) {
+            if (!queryName) {
               throw new Error('Query name is required')
             }
             if (!rest.queryString) {
@@ -888,64 +892,66 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
             return {
               ...connection,
               namedQueryId: rest.namedQueryId,
-              name: rest.queryName,
+              name: queryName,
               queryString: rest.queryString,
-              ...(rest.queryDescription && { description: rest.queryDescription }),
+              ...(queryDescription && { description: queryDescription }),
             }
 
           case 'create_prepared_statement':
-          case 'update_prepared_statement':
+          case 'update_prepared_statement': {
+            const queryStatement = rest.queryString || toolCallArg(context, rest.queryStatement)
             if (!rest.statementName) {
               throw new Error('Statement name is required')
             }
-            if (!rest.workGroupName) {
+            if (!workGroupName) {
               throw new Error('Workgroup is required')
             }
-            if (!rest.queryString) {
+            if (!queryStatement) {
               throw new Error('SQL query statement is required')
             }
             return {
               ...connection,
               statementName: rest.statementName,
-              workGroup: rest.workGroupName,
-              queryStatement: rest.queryString,
-              ...(rest.queryDescription && { description: rest.queryDescription }),
+              workGroup: workGroupName,
+              queryStatement,
+              ...(queryDescription && { description: queryDescription }),
             }
+          }
 
           case 'get_prepared_statement':
           case 'delete_prepared_statement':
             if (!rest.statementName) {
               throw new Error('Statement name is required')
             }
-            if (!rest.workGroupName) {
+            if (!workGroupName) {
               throw new Error('Workgroup is required')
             }
             return {
               ...connection,
               statementName: rest.statementName,
-              workGroup: rest.workGroupName,
+              workGroup: workGroupName,
             }
 
           case 'batch_get_prepared_statement':
             if (!rest.preparedStatementNames) {
               throw new Error('Statement names are required')
             }
-            if (!rest.workGroupName) {
+            if (!workGroupName) {
               throw new Error('Workgroup is required')
             }
             return {
               ...connection,
               preparedStatementNames: rest.preparedStatementNames,
-              workGroup: rest.workGroupName,
+              workGroup: workGroupName,
             }
 
           case 'list_prepared_statements':
-            if (!rest.workGroupName) {
+            if (!workGroupName) {
               throw new Error('Workgroup is required')
             }
             return {
               ...connection,
-              workGroup: rest.workGroupName,
+              workGroup: workGroupName,
               ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
               ...(rest.nextToken && { nextToken: rest.nextToken }),
             }
@@ -958,15 +964,17 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
               ...(rest.nextToken && { nextToken: rest.nextToken }),
             }
 
-          case 'get_data_catalog':
-            if (!rest.catalogName) {
+          case 'get_data_catalog': {
+            const catalogName = rest.catalogName || toolCallArg(context, rest.name)
+            if (!catalogName) {
               throw new Error('Data catalog name is required')
             }
             return {
               ...connection,
-              name: rest.catalogName,
+              name: catalogName,
               ...(rest.workGroup && { workGroup: rest.workGroup }),
             }
+          }
 
           case 'get_database':
             if (!rest.catalogName) {
@@ -1008,10 +1016,10 @@ Return ONLY a JSON array of strings — no explanations, no markdown code blocks
             }
 
           case 'get_work_group':
-            if (!rest.workGroupName) {
+            if (!workGroupName) {
               throw new Error('Workgroup is required')
             }
-            return { ...connection, workGroup: rest.workGroupName }
+            return { ...connection, workGroup: workGroupName }
 
           default:
             throw new Error(`Invalid Athena operation: ${operation}`)
