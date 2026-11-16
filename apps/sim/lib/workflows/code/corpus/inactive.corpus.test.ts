@@ -22,7 +22,10 @@ vi.unmock('@/tools/registry')
 import { buildProviderConfig } from '@/lib/webhooks/deploy'
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
-import { roundTripSubjects } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
+import {
+  corpusBudgetMs,
+  roundTripSubjects,
+} from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import { getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 import { extractBlockParams } from '@/serializer'
@@ -148,6 +151,6 @@ describe(`inactive params are never serialized (${subjects.length} workflows)`, 
       expect(checked).toBeGreaterThan(0)
       expect(leaks).toEqual([])
     },
-    BUDGET_MS
+    corpusBudgetMs(subjects.length, BUDGET_MS)
   )
 })

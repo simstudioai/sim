@@ -193,6 +193,20 @@ export function roundTripSubjects(options: SubjectOptions): ProofSubject[] {
   ]
 }
 
+/**
+ * Wall time one corpus property may take, by corpus size. Measured on the full corpus (EC2,
+ * 17,043 workflows): the slowest properties (P0, which pays for the shared print and compile, then
+ * P1, P2, P3 and P5) took 164–184 s, about 11 ms per workflow, so each workflow is allowed
+ * `PER_CASE_MS`, roughly twice that. The reduced default corpus stays under `floorMs`, its CI
+ * budget, and `CAP_MS` bounds a runaway full run.
+ */
+const PER_CASE_MS = 20
+const CAP_MS = 900_000
+
+export function corpusBudgetMs(caseCount: number, floorMs: number): number {
+  return Math.min(CAP_MS, Math.max(floorMs, caseCount * PER_CASE_MS))
+}
+
 /** Item keys canonicalize drops by design, by structured kind (s1 §4 "Items", quirk 24). */
 const DROPPED_ITEM_KEYS: Record<string, string[]> = {
   inputFormat: ['id', 'collapsed'],

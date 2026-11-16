@@ -44,6 +44,7 @@ import {
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import {
+  corpusBudgetMs,
   type ProofSubject,
   roundTripSubjects,
   withoutLockHeldState,
@@ -59,8 +60,10 @@ const SUITE = 'roundtrip-corpus'
 const CASES_PER_BLOCK_TYPE = 3
 const FUZZ_RUNS = 50
 /**
- * One property over the default corpus. The first property to run pays for the shared source run
- * (canonicalize, print, compile per workflow); the whole file stays inside the 60 s CI budget.
+ * One property over the reduced default corpus. The first property to run pays for the shared
+ * source run (canonicalize, print, compile per workflow); the whole file stays inside the 60 s CI
+ * budget. This is the floor of `corpusBudgetMs`, which scales the timeout with the corpus size,
+ * so `ROUNDTRIP_CORPUS_FULL=1` gets a per-workflow allowance instead of this constant.
  */
 const PROPERTY_BUDGET_MS = 30_000
 
@@ -333,7 +336,7 @@ describe(`round-trip corpus (${subjects.length} workflows)`, () => {
         }
         expect(failed.sort(compareStrings)).toEqual(expectedFailures(property))
       },
-      PROPERTY_BUDGET_MS
+      corpusBudgetMs(subjects.length, PROPERTY_BUDGET_MS)
     )
   }
 

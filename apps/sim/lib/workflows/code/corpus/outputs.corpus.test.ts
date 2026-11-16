@@ -22,7 +22,10 @@ vi.unmock('@/tools/registry')
 
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
-import { roundTripSubjects } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
+import {
+  corpusBudgetMs,
+  roundTripSubjects,
+} from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import { getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
@@ -133,6 +136,6 @@ describe(`stored outputs survive edits they do not derive from (${subjects.lengt
       expect(edited).toBeGreaterThan(0)
       expect(drift).toEqual([])
     },
-    BUDGET_MS
+    corpusBudgetMs(subjects.length, BUDGET_MS)
   )
 })
