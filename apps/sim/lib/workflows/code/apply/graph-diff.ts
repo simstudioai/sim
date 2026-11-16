@@ -1,5 +1,9 @@
 import { compareStrings } from '@sim/utils/string'
-import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
+import {
+  type BlockState,
+  normalizeWorkflowBlockName,
+  type WorkflowState,
+} from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 
 /** The two parts of a stored graph the source gates compare. */
@@ -38,6 +42,11 @@ export interface GraphDiff {
   modified: ModifiedBlock[]
   edgesAdded: GraphEdge[]
   edgesRemoved: GraphEdge[]
+}
+
+/** The source key a block is named by: its normalized name. */
+export function blockKeyOf(block: BlockState): string {
+  return normalizeWorkflowBlockName(block.name ?? '')
 }
 
 export function parentIdOf(block: BlockState | undefined): string | undefined {

@@ -2,12 +2,12 @@ import type { Diagnostic } from '@sim/workflow-code'
 import {
   type BlockState,
   isWorkflowBlockProtected,
-  normalizeWorkflowBlockName,
   preserveProtectedWorkflowBlocks,
 } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  blockKeyOf,
   type GraphDiff,
   isLocked,
   parentIdOf,
@@ -30,7 +30,7 @@ function refusal(block: BlockState, message: string): LockedBlockDiagnostic {
     severity: 'error',
     message,
     blockId: block.id,
-    blockKey: normalizeWorkflowBlockName(block.name ?? ''),
+    blockKey: blockKeyOf(block),
     hint: 'Unlock the block on the canvas first, or leave it exactly as it is stored.',
   }
 }

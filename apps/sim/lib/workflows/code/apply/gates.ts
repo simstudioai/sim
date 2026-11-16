@@ -1,12 +1,12 @@
 import { compareStrings } from '@sim/utils/string'
 import type { ApplyDiagnosticCode, Diagnostic } from '@sim/workflow-code'
 import { isNonEmptyValue } from '@sim/workflow-code/catalog/canonical-index'
-import { type BlockState, normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import type { GraphDiff, SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
+import { blockKeyOf, type GraphDiff, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import { hasDisabledAncestor } from '@/lib/workflows/editing/block-enablement'
 import {
   createSubBlockInputGate,
@@ -99,10 +99,6 @@ interface GatedBlock {
   added: boolean
   typeChanged: boolean
   enabledChanged: boolean
-}
-
-function blockKeyOf(block: BlockState): string {
-  return normalizeWorkflowBlockName(block.name ?? '')
 }
 
 function subBlockValue(block: BlockState | undefined, field: string): unknown {
