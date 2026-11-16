@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
 import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
@@ -12,15 +13,20 @@ import {
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
 import type { Command } from 'commander'
+import { printError } from '#sim-cli/output/io'
 import { readJsonFile, writeJsonFile } from '../../config/json-file'
 import { configDir } from '../../config/paths'
 import { embedStore } from '../../embed-context'
+import { SOURCE_TOO_LARGE_EXIT_CODE } from '../../exit-codes'
 import type { GetSourceResourcesResponse, GetWorkflowSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { callsOperations, type OperationClient } from '../../runtime/called-operations'
 import { buildRequest } from '../../runtime/request'
+import { cliVersion } from '../../version'
 import { printProtocolResult } from './result'
 import {
+  assertPrintedSourcePaths,
+  locallyEditedFiles,
   mergedGitattributes,
   readPreviousLock,
   readSourceText,
@@ -29,11 +35,14 @@ import {
   SOURCE_BASE_FILE,
   SOURCE_GITATTRIBUTES_FILE,
   SOURCE_LOCK_FILE,
-  sourceRelativePath,
   writeBack,
 } from './workflow-source-layout'
 
 const DIR_FLAG = 'dir'
+const FORCE_FLAG = 'force'
+const TSCONFIG_FILE = 'tsconfig.json'
+/** The public guide to workflow source, which AGENTS.md points an agent at. */
+const SOURCE_DOCS_URL = 'https://docs.sim.ai/workflows/code'
 /** The SDK file whose first line names the catalog the declarations were generated from. */
 const SDK_INDEX_FILE = `${SDK_DIR}/index.d.ts`
 const WORKSPACE_TYPES_FILE = `${SDK_DIR}/workspace.d.ts`
@@ -59,15 +68,6 @@ function isBlockCatalog(value: unknown): value is BlockCatalog {
 
 /** Workspace ids are uuids; anything else is never used to name a cache file. */
 const CACHE_KEY = /^[\w-]+$/
-
-/** Refuses a response file path outside the directory before anything is fetched or written. */
-function assertSafePaths(source: WorkflowSource): void {
-  for (const path of Object.keys(source.files)) {
-    if (sourceRelativePath(path) !== path) {
-      throw new SimApiError(`The workflow source named an unsafe file path: ${path}`, 0)
-    }
-  }
-}
 
 /**
  * Where the workspace's catalog is cached: one file per workspace in the CLI's config directory,
@@ -110,7 +110,7 @@ function writeCachedCatalog(workspaceId: string, catalog: BlockCatalog): void {
  */
 async function loadCatalog(
   client: OperationClient<'getSourceCatalog'>,
-  source: WorkflowSource
+  source: Pick<WorkflowSource, 'workspaceId' | 'workflowId' | 'blockTypes'>
 ): Promise<BlockCatalog> {
   const cached = readCachedCatalog(source.workspaceId)
   let catalog: BlockCatalog
@@ -199,8 +199,14 @@ function assertSdkMajor(catalog: BlockCatalog): void {
   )
 }
 
+/**
+ * The first line of every `tsconfig.json` the CLI writes. A `tsconfig.json` without it is the
+ * person's own (an existing TypeScript project), and a get never replaces it.
+ */
+const TSCONFIG_MARKER = `// Written by \`sim workflows source get\`; remove this line to keep your own edits.`
+
 /** Lets an editor or `tsc -p` resolve `@sim/workflow-sdk` to the written declarations. */
-const TSCONFIG = `${JSON.stringify(
+const TSCONFIG = `${TSCONFIG_MARKER}\n${JSON.stringify(
   {
     compilerOptions: {
       target: 'ES2022',
@@ -220,7 +226,7 @@ const TSCONFIG = `${JSON.stringify(
   2
 )}\n`
 
-/** The guide an agent working in the directory reads first; the SDK README has the rest. */
+/** The guide an agent working in the directory reads first; the docs page has the rest. */
 const AGENTS_GUIDE = `# Sim workflow source
 
 This directory is a Sim workflow written as TypeScript. The server compiles \`${SOURCE_ENTRY_FILE}\` statically; nothing in it runs. The workflow id is \`workflowId\` in \`${SOURCE_BASE_FILE}\`.
@@ -230,9 +236,27 @@ This directory is a Sim workflow written as TypeScript. The server compiles \`${
 1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`tsc -p .\` type-checks locally.
 2. \`sim workflows source apply <workflowId> --dir . --dry-run\`: fix every error it prints, rerun until it exits 0.
 3. \`sim workflows source apply <workflowId> --dir . --yes\`: saves the draft (never deploys) and rewrites this directory from what was stored.
-4. Exit 5 (\`SOURCE_STALE\`, HTTP 409): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply.
+4. Exit 5 (\`SOURCE_STALE\`, HTTP 409, or \`E_APPLY_STALE\` on a dry run): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply. A get into this directory refuses to overwrite your unapplied edits unless you pass \`--force\`.
 
-A new workflow: write \`${SOURCE_ENTRY_FILE}\` in an empty directory and run \`sim workflows source create --dir <dir> --yes\`.
+Lines starting \`note:\` explain something the write did differently than the source says (a renamed workflow keeps its stored name, for example); read them.
+
+A new workflow: write \`${SOURCE_ENTRY_FILE}\` in an empty directory and run \`sim workflows source create --dir <dir> --yes\`. It prints the new workflow id and writes these types, \`tsconfig.json\` and this guide beside the file. Exit 1 with \`SOURCE_NAME_TAKEN\` means another workflow has that name: pass \`--name\`.
+
+## File shape
+
+\`\`\`ts
+// @sim-sdk 1
+import { response, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Workflow name', {}, () => {
+  const start = trigger.start('Start', {})
+  const done = response('Done', { body: { ok: true } })
+
+  start.to(done)
+})
+\`\`\`
+
+The \`// @sim-sdk 1\` header must be the first line, and the file has exactly one \`export default workflow(name, options, () => { ... })\`; \`options\` holds \`description\` and \`variables\` and may be \`{}\`.
 
 ## Types
 
@@ -242,56 +266,172 @@ A new workflow: write \`${SOURCE_ENTRY_FILE}\` in an empty directory and run \`s
 
 ## Diagnostics and exit codes
 
-Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. Exit 0 applied, 1 source errors, 5 stale, 6 workflow locked, 7 source too large.
+Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. Exit 0 applied, 1 source errors (or a name another workflow holds), 5 stale, 6 workflow locked, 7 source too large (on a get too).
 
 ## Rules
 
-- The file holds imports from \`@sim/workflow-sdk\`, block declarations (\`const x = builder('Name', params)\`) and wiring (\`x.to(y)\`). Helpers, loops, conditionals and other imports have no stored form, so the compiler refuses them: use \`loop.forEach\`, \`condition\` and \`runWorkflow\` blocks instead.
+- Beside the header and the imports from \`@sim/workflow-sdk\`, the file holds only the default-exported workflow. Its callback holds block declarations (\`const x = builder('Name', params)\`) and wiring (\`x.to(y)\`). Helpers, loops, conditionals and other imports have no stored form, so the compiler refuses them: use \`loop.forEach\`, \`condition\` and \`runWorkflow\` blocks instead.
 - Logic that does not fit a block goes in a function block with \`code: codeFile('./functions/name.js')\`; in JavaScript read outputs as \`$ref.block.path\` and env vars as \`$env.NAME\`.
 - Keep \`${SOURCE_LOCK_FILE}\` and \`${SOURCE_BASE_FILE}\` as written: they bind each block to its stored id and make the next apply safe.
 
-The full guide is the \`@sim/workflow-sdk\` README.
+The full guide: ${SOURCE_DOCS_URL}
 `
+
+/**
+ * The second line of the generated `index.d.ts`: the CLI release and the `core.d.ts` it bundles.
+ * The catalog header alone cannot tell declarations a new CLI generates differently (a codegen or
+ * `core.d.ts` change within the same SDK major) from the old ones, so both lines key the cache.
+ */
+function sdkGeneratorLine(): string {
+  const core = createHash('sha256').update(CORE_DTS, 'utf8').digest('hex').slice(0, 16)
+  return `// generated by sim ${cliVersion()} · core.d.ts ${core}`
+}
+
+/** The generated declarations, with the generator line under the index's catalog header. */
+function sdkTypeFiles(catalog: BlockCatalog): Array<readonly [string, string]> {
+  const generator = sdkGeneratorLine()
+  return generateSdkTypes(catalog).map((file) => {
+    if (file.path !== 'index.d.ts') return [`${SDK_DIR}/${file.path}`, file.text] as const
+    const [header, ...rest] = file.text.split('\n')
+    return [`${SDK_DIR}/${file.path}`, [header, generator, ...rest].join('\n')] as const
+  })
+}
+
+/** The printed source a tree write saves: a get's answer, or an applied create's. */
+type PrintedSource = Pick<WorkflowSource, 'workflowId' | 'workspaceId' | 'files' | 'lock' | 'base'>
 
 interface SourceTree {
   written: number
   /** Whether `workspace.d.ts` was written. */
   workspaceTypes: boolean
+  /** Whether `tsconfig.json` is the CLI's; `false` when the directory's own was left alone. */
+  tsconfig: boolean
 }
 
 /**
  * Writes the source tree in one staged update. Declarations are regenerated only when the index
- * on disk names another catalog, and replaced whole so a block the catalog dropped loses its file.
- * A refused manifest removes the `workspace.d.ts` an earlier get wrote, function files the new lock
- * no longer names are pruned, and `.gitattributes` gains the LF lines it lacks.
+ * on disk names another catalog or another generator, and replaced whole so a block the catalog
+ * dropped loses its file. A refused manifest removes the `workspace.d.ts` an earlier get wrote,
+ * function files the new lock no longer names are pruned, `.gitattributes` gains the LF lines it
+ * lacks, and a `tsconfig.json` the CLI did not write is left as it is.
  */
 async function writeSourceTree(
   dir: string,
-  source: WorkflowSource,
+  source: PrintedSource,
   catalog: BlockCatalog,
   workspaceTypes: string | null
 ): Promise<SourceTree> {
   const write: Array<readonly [string, string]> = [
-    ['tsconfig.json', TSCONFIG],
     [SOURCE_AGENTS_FILE, AGENTS_GUIDE],
     [`${SDK_DIR}/core.d.ts`, CORE_DTS],
   ]
   const remove: string[] = []
-  const [previousLock, gitattributes, index] = await Promise.all([
+  const [previousLock, gitattributes, index, tsconfig] = await Promise.all([
     readPreviousLock(dir),
     readSourceText(dir, SOURCE_GITATTRIBUTES_FILE),
     readSourceText(dir, SDK_INDEX_FILE),
+    readSourceText(dir, TSCONFIG_FILE),
   ])
+  const ownsTsconfig = tsconfig === null || tsconfig.startsWith(TSCONFIG_MARKER)
+  if (ownsTsconfig) write.push([TSCONFIG_FILE, TSCONFIG])
   const mergedAttributes = mergedGitattributes(gitattributes)
   if (mergedAttributes !== null) write.push([SOURCE_GITATTRIBUTES_FILE, mergedAttributes])
-  if (index?.split('\n', 1)[0] !== sdkIndexHeader(catalog)) {
+  const indexHead = index?.split('\n', 2).join('\n')
+  if (indexHead !== `${sdkIndexHeader(catalog)}\n${sdkGeneratorLine()}`) {
     remove.push(SDK_DIR)
-    for (const file of generateSdkTypes(catalog)) write.push([`${SDK_DIR}/${file.path}`, file.text])
+    write.push(...sdkTypeFiles(catalog))
   }
   if (workspaceTypes === null) remove.push(WORKSPACE_TYPES_FILE)
   else write.push([WORKSPACE_TYPES_FILE, workspaceTypes])
   const written = await writeBack(dir, source, previousLock, { write, remove })
-  return { written, workspaceTypes: workspaceTypes !== null }
+  if (!ownsTsconfig) {
+    printError(
+      `note: ${TSCONFIG_FILE} in ${dir} is not the CLI's, so it was left as it is. To type-check the source, map "@sim/workflow-sdk" to ["./${SDK_DIR}/core.d.ts"] in its compilerOptions.paths.`
+    )
+  }
+  return { written, workspaceTypes: workspaceTypes !== null, tsconfig: ownsTsconfig }
+}
+
+/**
+ * Writes a printed source with everything that makes the directory editable: the declarations
+ * for the workspace catalog and its resources, `tsconfig.json`, the agent guide and the LF lines.
+ * Shared by `get --dir` and `create --dir`, so a created workflow's directory is the one a get
+ * would have written.
+ */
+export async function writeSourceDirectory(
+  client: OperationClient<'getSourceCatalog' | 'getSourceResources'>,
+  dir: string,
+  source: PrintedSource,
+  blockTypes: readonly string[]
+): Promise<SourceTree> {
+  const [catalog, workspaceTypes] = await Promise.all([
+    loadCatalog(client, {
+      workspaceId: source.workspaceId,
+      workflowId: source.workflowId,
+      blockTypes: [...blockTypes],
+    }),
+    loadWorkspaceTypes(client, source.workspaceId),
+  ])
+  assertSdkMajor(catalog)
+  return writeSourceTree(dir, source, catalog, workspaceTypes)
+}
+
+/** The workflow `.sim/base.json` says the directory holds, or `null` when it names none. */
+async function heldWorkflowId(dir: string): Promise<string | null> {
+  const text = await readSourceText(dir, SOURCE_BASE_FILE)
+  if (text === null) return null
+  try {
+    const held = toRecord(JSON.parse(text)).workflowId
+    return typeof held === 'string' ? held : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Refuses, unless `--force`, a get into a directory holding another workflow's source: it would
+ * replace that source and prune its function files.
+ */
+async function assertSameWorkflow(dir: string, workflowId: string): Promise<void> {
+  const held = await heldWorkflowId(dir)
+  if (held === null || held === workflowId) return
+  throw new SimApiError(
+    `${dir} holds the source of workflow ${held}, not ${workflowId}. Get it into another directory, or pass --force to replace it.`,
+    0,
+    'SOURCE_WORKFLOW_MISMATCH'
+  )
+}
+
+/**
+ * Refuses, unless `--force`, a get that would replace or prune a source file with edits no apply
+ * has saved, such as the edit a stale apply refused.
+ */
+async function assertNoLocalEdits(dir: string, source: PrintedSource): Promise<void> {
+  const edited = await locallyEditedFiles(dir, source, await readPreviousLock(dir))
+  if (edited.length === 0) return
+  throw new SimApiError(
+    `${dir} has edits no apply has saved (${edited.join(', ')}). Apply them, get into another directory, or pass --force to discard them.`,
+    0,
+    'SOURCE_LOCAL_EDITS'
+  )
+}
+
+const GET_EXIT_CODES_HELP = `
+Exit codes with --dir: 0 written; 1 the command failed, or the directory holds another workflow's
+source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them,
+get into another directory, or pass --force); 7 the workflow is too large to print as source.`
+
+/** A read the server refused as over the source size limits exits 7, as a refused apply does. */
+function withSourceExitCode(error: unknown): unknown {
+  if (!(error instanceof SimApiError) || error.status !== 413) return error
+  return new SimApiError(
+    error.message,
+    error.status,
+    error.code,
+    error.details,
+    SOURCE_TOO_LARGE_EXIT_CODE,
+    error.requestId
+  )
 }
 
 /**
@@ -321,13 +461,24 @@ export function attachWorkflowSourceGet(source: Command): void {
     `--${DIR_FLAG} <dir>`,
     'Write the source, its lock and SDK type declarations into this directory instead of printing them'
   )
+  get.option(
+    `--${FORCE_FLAG}`,
+    "With --dir: replace another workflow's source or edits no apply has saved"
+  )
+  get.addHelpText('after', GET_EXIT_CODES_HELP)
   get.action(async (workflowId: string, _options: unknown, command: Command): Promise<void> => {
     const flags = command.optsWithGlobals() as Record<string, unknown>
     const dir = flags[DIR_FLAG]
     if (typeof dir !== 'string') {
-      await previous(command.processedArgs)
+      try {
+        await previous(command.processedArgs)
+      } catch (error) {
+        throw withSourceExitCode(error)
+      }
       return
     }
+    const force = flags[FORCE_FLAG] === true
+    if (!force) await assertSameWorkflow(dir, workflowId)
     const { client, profile } = connectGet()
     const request = await buildRequest(
       'getWorkflowSource',
@@ -335,17 +486,20 @@ export function attachWorkflowSourceGet(source: Command): void {
       flags,
       profile.workspaceId
     )
-    const { data: workflowSource } = await client.request<GetWorkflowSourceResponse>(
-      'getWorkflowSource',
-      { params: request.params, query: request.query }
-    )
-    assertSafePaths(workflowSource)
-    const [catalog, workspaceTypes] = await Promise.all([
-      loadCatalog(client, workflowSource),
-      loadWorkspaceTypes(client, workflowSource.workspaceId),
-    ])
-    assertSdkMajor(catalog)
-    const tree = await writeSourceTree(dir, workflowSource, catalog, workspaceTypes)
+    const workflowSource = await client
+      .request<GetWorkflowSourceResponse>('getWorkflowSource', {
+        params: request.params,
+        query: request.query,
+      })
+      .then(
+        (response) => response.data,
+        (error: unknown) => {
+          throw withSourceExitCode(error)
+        }
+      )
+    assertPrintedSourcePaths(workflowSource.files)
+    if (!force) await assertNoLocalEdits(dir, workflowSource)
+    const tree = await writeSourceDirectory(client, dir, workflowSource, workflowSource.blockTypes)
     printProtocolResult(profile.output, {
       workflowId: workflowSource.workflowId,
       dir,

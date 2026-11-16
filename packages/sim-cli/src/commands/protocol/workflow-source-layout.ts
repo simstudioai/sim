@@ -9,6 +9,7 @@
  * files it did not reach as they were. An embedded run reads and writes through its host instead.
  */
 
+import { createHash } from 'node:crypto'
 import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, posix } from 'node:path'
 import { chunkArray } from '@sim/utils/helpers'
@@ -31,6 +32,32 @@ export const SOURCE_SDK_DIR = '.sim/sdk'
 export const SOURCE_AGENTS_FILE = '.sim/AGENTS.md'
 /** Pins the source files to LF, merged into whatever the directory already holds. */
 export const SOURCE_GITATTRIBUTES_FILE = '.gitattributes'
+/**
+ * A digest of each source file as the CLI last wrote it, so a later get can tell an unapplied
+ * edit from a file it may replace. The CLI's own record: never sent to the server.
+ */
+const SOURCE_WRITTEN_FILE = '.sim/written.json'
+
+/**
+ * The only files a server answer may name: the entry file and function code under `functions/`,
+ * named as the printer names them (`functions/<kebab ident>[-n].<js|py|sh>`). Anything else
+ * (`.git/hooks/*`, `conftest.py`, a dotfile) is refused, whatever base URL answered.
+ */
+const FUNCTION_FILE = /^functions\/[a-z0-9$-]+\.(?:js|py|sh)$/
+
+/** Whether a server answer may write `path` into the source directory. */
+function isPrintedSourcePath(path: string): boolean {
+  return path === SOURCE_ENTRY_FILE || FUNCTION_FILE.test(path)
+}
+
+/** Refuses a server answer naming a file the printer never writes, before anything is written. */
+export function assertPrintedSourcePaths(files: Record<string, string>): void {
+  for (const path of Object.keys(files)) {
+    if (!isPrintedSourcePath(path)) {
+      throw new SimApiError(`The workflow source named an unsafe file path: ${path}`, 0)
+    }
+  }
+}
 
 const GITATTRIBUTES_LINES = [
   `${SOURCE_ENTRY_FILE} text eol=lf`,
@@ -155,8 +182,9 @@ async function realRoot(dir: string): Promise<string | null> {
 }
 
 /**
- * The text of `path` in the source directory with CRLF line endings turned into LF (a Windows
- * checkout must not turn an unchanged source into an edit), or `null` when it does not exist.
+ * The text of `path` in the source directory without a leading byte-order mark and with CRLF line
+ * endings turned into LF (a Windows editor or checkout must not turn an unchanged source into an
+ * edit, or hide its `// @sim-sdk` header), or `null` when it does not exist.
  * A symbolic link anywhere below the directory is refused rather than followed.
  */
 export async function readSourceText(dir: string, path: string): Promise<string | null> {
@@ -180,7 +208,7 @@ export async function readSourceText(dir: string, path: string): Promise<string 
       throw new SimApiError(`Cannot read ${join(dir, path)}: ${(error as Error).message}`, 0)
     }
   }
-  return text.replace(/\r\n/g, '\n')
+  return text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
 }
 
 /** What one write does to the source directory: files to remove first, then files to write. */
@@ -248,6 +276,57 @@ async function updateSourceDir(dir: string, change: SourceDirChange): Promise<vo
   }
 }
 
+/** `.sim/written.json`: each source file's digest as the CLI last wrote it. */
+interface WrittenRecord {
+  version: 1
+  files: Record<string, string>
+}
+
+function digest(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex')
+}
+
+/** The digests the CLI recorded for its last write, empty when it recorded none. */
+async function readWrittenDigests(dir: string): Promise<Record<string, string>> {
+  const text = await readSourceText(dir, SOURCE_WRITTEN_FILE)
+  if (text === null) return {}
+  try {
+    const files = toRecord(toRecord(JSON.parse(text)).files)
+    return Object.fromEntries(
+      Object.entries(files).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string'
+      )
+    )
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * The source files a write of `answer` would destroy edits in: a file it replaces or prunes whose
+ * text on disk is neither what the CLI last wrote there nor what it is about to write. A file the
+ * CLI has no record of counts as edited, so a hand-written `workflow.ts` is never replaced
+ * silently either.
+ */
+export async function locallyEditedFiles(
+  dir: string,
+  answer: Pick<PrintedSourceAnswer, 'files' | 'lock'>,
+  previousLock: unknown
+): Promise<string[]> {
+  const written = await readWrittenDigests(dir)
+  const touched = new Map<string, string | null>(Object.entries(answer.files))
+  for (const path of orphanedCodeFiles(previousLock, answer.lock, touched.keys())) {
+    touched.set(path, null)
+  }
+  const edited: string[] = []
+  for (const [path, next] of touched) {
+    const current = await readSourceText(dir, path)
+    if (current === null || current === next) continue
+    if (written[path] !== digest(current)) edited.push(path)
+  }
+  return edited
+}
+
 /** What the server answers a get, apply or create with: the printed files, lock and base. */
 interface PrintedSourceAnswer {
   files: Record<string, string>
@@ -266,10 +345,18 @@ export async function writeBack(
   previousLock: unknown,
   extra: SourceDirChange = { write: [] }
 ): Promise<number> {
+  assertPrintedSourcePaths(answer.files)
+  const record: WrittenRecord = {
+    version: 1,
+    files: Object.fromEntries(
+      Object.entries(answer.files).map(([path, text]) => [path, digest(text)])
+    ),
+  }
   const write = [
     ...Object.entries(answer.files),
     [SOURCE_LOCK_FILE, `${JSON.stringify(answer.lock, null, 2)}\n`] as const,
     [SOURCE_BASE_FILE, `${JSON.stringify(answer.base, null, 2)}\n`] as const,
+    [SOURCE_WRITTEN_FILE, `${JSON.stringify(record, null, 2)}\n`] as const,
     ...extra.write,
   ]
   await updateSourceDir(dir, {

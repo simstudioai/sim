@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline/promises'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { SOURCE_ENTRY_FILE as ENTRY_FILE } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
@@ -17,6 +17,7 @@ import type {
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import { printProtocolResult } from './result'
+import { writeSourceDirectory } from './workflow-source-get'
 import {
   SOURCE_BASE_FILE as BASE_FILE,
   SOURCE_LOCK_FILE as LOCK_FILE,
@@ -48,7 +49,7 @@ const REFUSAL_EXIT_CODES: Readonly<Record<number, number>> = {
 
 const EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
-file:line:column with its frame and hint), a workflow with that name already exists
+file:line:column with its frame and hint), a create whose workflow name is taken
 (SOURCE_NAME_TAKEN: pass --name), or the command failed; 5 the workflow changed since the
 directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry);
 6 the workflow is locked; 7 the source is too large.`
@@ -225,7 +226,7 @@ function refusalExitCode(error: SimApiError, detailCode: unknown): number {
  */
 function printRefusal(error: unknown): never {
   if (!(error instanceof SimApiError)) throw error
-  const details = isRecordLike(error.details) ? error.details : {}
+  const details = toRecord(error.details)
   const diagnostics = details.diagnostics
   const printed = isDiagnosticList(diagnostics)
   if (printed) for (const diagnostic of diagnostics) printError(formatDiagnostic(diagnostic))
@@ -262,6 +263,8 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   params: Record<string, string>
   body: ApplyWorkflowSourceBody | CreateWorkflowFromSourceBody
   output: Parameters<typeof printProtocolResult>[0]
+  /** Saves a successful write into the directory; by default the files, lock and base. */
+  save?: (data: SourceApplyData) => Promise<void>
 }): Promise<void> {
   const { directory, options, creating } = args
   /** Sends the write (or its dry run); a refusal prints its diagnostics and rethrows. */
@@ -299,7 +302,8 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
 
   if (!data.dryRun && !refused && (data.applied || !creating)) {
-    await writeBack(directory, data, args.previousLock)
+    if (args.save) await args.save(data)
+    else await writeBack(directory, data, args.previousLock)
   }
 
   printProtocolResult(args.output, summarize(data, creating))
@@ -361,11 +365,16 @@ export function attachWorkflowSourceApply(source: Command): void {
 
 /**
  * `sim workflows source create --dir <dir>`: creates a workflow from the directory's
- * `workflow.ts`, then writes the new workflow's re-printed files and lock files into the
- * directory. Same consent rule as `apply`.
+ * `workflow.ts`, then writes what `get --dir` would have: the new workflow's re-printed files, its
+ * lock files, the SDK declarations, `tsconfig.json` and the agent guide, so the directory is ready
+ * for the edit loop. Same consent rule as `apply`.
  */
 export function attachWorkflowSourceCreate(source: Command): void {
-  const [command, connectCreate] = apiCommand(source, 'create', ['createWorkflowFromSource'])
+  const [command, connectCreate] = apiCommand(source, 'create', [
+    'createWorkflowFromSource',
+    'getSourceCatalog',
+    'getSourceResources',
+  ])
   command
     .requiredOption('--dir <dir>', 'Source directory: workflow.ts and functions/*')
     .option('--dry-run', 'Check the source and show the outcome without creating anything')
@@ -381,7 +390,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
       const workspaceId = client.requireWorkspace()
       const files = await readSourceFiles(options.dir, null)
       const previousLock = await readPreviousLock(options.dir)
-      await runSourceWrite({
+      await runSourceWrite<'createWorkflowFromSource'>({
         directory: options.dir,
         options,
         creating: true,
@@ -391,6 +400,9 @@ export function attachWorkflowSourceCreate(source: Command): void {
         client,
         operation: 'createWorkflowFromSource',
         params: { workspaceId },
+        save: async (data) => {
+          await writeSourceDirectory(client, options.dir, data, [])
+        },
         body: {
           files,
           ...(options.name !== undefined ? { name: options.name } : {}),
