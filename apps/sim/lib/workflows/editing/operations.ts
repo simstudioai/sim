@@ -37,7 +37,7 @@ const logger = createLogger('EditWorkflowServerTool')
  *
  * @returns whether the placement was refused
  */
-function refuseSunsetPlacement(
+export function refuseSunsetPlacement(
   skippedItems: SkippedItem[],
   placement: {
     blockType: string | undefined
