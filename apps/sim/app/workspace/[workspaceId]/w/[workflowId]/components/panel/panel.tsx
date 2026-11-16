@@ -588,7 +588,7 @@ export const Panel = memo(function Panel() {
    */
   const handleTabClick = (tab: PanelTab) => {
     if (tab === 'code' && activeTab !== 'code' && scopedWorkflowId) {
-      captureEvent(posthogRef.current, 'code_view_opened', {
+      captureEvent(posthogRef.current, 'code_tab_opened', {
         workflow_id: scopedWorkflowId,
         workspace_id: workspaceId,
         entry: 'toolbar',

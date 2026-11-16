@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({ read: vi.fn(), authorizeRead: vi.fn(), apply: 
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/workflows/application/get-workflow-source', () => ({
-  getWorkflowSource: {
+vi.mock('@/lib/workflows/application/read-workflow-source', () => ({
+  readWorkflowSource: {
     operation: { id: 'workflows.source.read' },
     authorize: mocks.authorizeRead,
     execute: mocks.read,
@@ -58,17 +58,17 @@ const source = {
   workspaceId: WORKSPACE_ID,
   files: { 'workflow.ts': "// @sim-sdk 1\nexport default workflow('W', () => {})\n" },
   lock: {
-    lockVersion: 1 as const,
-    blocks: { start: { id: 'b-1', parent: null, binding: 'start', order: 0 } },
+    version: 1 as const,
+    blocks: { start: { id: 'b-1', parent: null, ident: 'start', order: 0 } },
     variables: {},
   },
-  lockBase: { workspaceId: WORKSPACE_ID, baseFingerprint: FINGERPRINT, catalogHash: 'h' },
+  base: { workspaceId: WORKSPACE_ID, fingerprint: FINGERPRINT, catalogHash: 'h' },
   fingerprint: FINGERPRINT,
   canonicalHash: 'd'.repeat(64),
-  catalogVersion: 'h',
+  catalogHash: 'h',
   sdkMajor: 1,
   blockTypes: ['start_trigger'],
-  warnings: [],
+  diagnostics: [],
 }
 
 function request(query = '') {
@@ -161,8 +161,7 @@ const personalKeyAuth = {
 const applyBody = {
   files: source.files,
   lock: source.lock,
-  lockBase: source.lockBase,
-  baseFingerprint: FINGERPRINT,
+  base: source.base,
 }
 
 const applied = {
@@ -183,15 +182,15 @@ const applied = {
     variables: { added: [], removed: [], modified: [] },
   },
   diagnostics: [],
-  newFingerprint: `sf1:${'e'.repeat(64)}`,
+  fingerprint: `sf1:${'e'.repeat(64)}`,
   files: source.files,
   lock: source.lock,
-  lockBase: source.lockBase,
+  base: source.base,
   mintedIds: {},
-  warnings: [],
+  notes: [],
   needsRedeployment: true,
   sdkMajor: 1,
-  catalogVersion: 'h',
+  catalogHash: 'h',
 }
 
 describe('POST /api/v2/workflows/{workflowId}/source', () => {
@@ -204,7 +203,7 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
 
   it('answers 400 with the line-pinned diagnostics of refused source', async () => {
     const diagnostic = {
-      code: 'E_APPLY_PROTECTED_BLOCK' as const,
+      code: 'E_APPLY_LOCKED_BLOCK' as const,
       severity: 'error' as const,
       message: 'Block "Start" is locked',
       file: 'workflow.ts',
@@ -311,7 +310,13 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
     expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
       'user-1',
       'workflow_source_applied',
-      { workflow_id: WORKFLOW_ID, workspace_id: WORKSPACE_ID, source: 'cli', ok: true, ops: 1 },
+      {
+        workflow_id: WORKFLOW_ID,
+        workspace_id: WORKSPACE_ID,
+        source: 'cli',
+        operation: 'apply',
+        changes: 1,
+      },
       { groups: { workspace: WORKSPACE_ID } }
     )
   })
@@ -327,7 +332,13 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
     expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
       'user-9',
       'workflow_source_applied',
-      { workflow_id: WORKFLOW_ID, workspace_id: WORKSPACE_ID, source: 'copilot', ok: true, ops: 1 },
+      {
+        workflow_id: WORKFLOW_ID,
+        workspace_id: WORKSPACE_ID,
+        source: 'copilot',
+        operation: 'apply',
+        changes: 1,
+      },
       { groups: { workspace: WORKSPACE_ID } }
     )
   })

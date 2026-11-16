@@ -930,21 +930,21 @@ export interface PostHogEventMap {
     to_entity: 'user' | 'organization'
   }
 
-  /** Defined ahead of the code view; captured client-side when it ships. */
-  code_view_opened: {
+  /** The Code tab opened in the workflow panel. */
+  code_tab_opened: {
     workflow_id: string
     workspace_id: string
-    entry: 'toolbar' | 'shortcut' | 'link'
+    entry: 'toolbar'
   }
 
-  /** Defined ahead of workflow source apply; captured when it ships. */
+  /** Workflow source wrote a draft: an apply to an existing workflow, or a create. */
   workflow_source_applied: {
     workflow_id: string
     workspace_id: string
     source: WorkflowWriteSource
-    ok: boolean
-    ops: number
-    error_kind?: string
+    operation: 'apply' | 'create'
+    /** How many blocks, connections and variables the write added, removed or changed. */
+    changes: number
   }
 }
 

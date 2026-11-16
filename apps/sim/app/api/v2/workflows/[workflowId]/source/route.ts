@@ -6,8 +6,8 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { captureServerEvent } from '@/lib/posthog/server'
 import { sourceWriteActor, v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
-import { getWorkflowSource } from '@/lib/workflows/application/get-workflow-source'
 import { workflowOperations } from '@/lib/workflows/application/operations'
+import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { MAX_IMPORT_BODY_BYTES } from '@/lib/workflows/operations/import-workflow'
 
 export const dynamic = 'force-dynamic'
@@ -19,7 +19,7 @@ export const revalidate = 0
  * while the `workflow-code` flag is off.
  *
  * `headSafe: false` because the first read that references a resource with no key allocates one
- * (`workspace_resource_binding`), so a `HEAD` probe must not run it.
+ * (`workspace_resource_key`), so a `HEAD` probe must not run it.
  */
 export const GET = defineV2JsonRoute({
   contract: v2GetWorkflowSourceContract,
@@ -32,7 +32,7 @@ export const GET = defineV2JsonRoute({
     workflowId: params.workflowId,
     ...(query.functionCode ? { functionCode: query.functionCode } : {}),
   }),
-  useCase: getWorkflowSource,
+  useCase: readWorkflowSource,
   present: (source) => ({ data: source }),
 })
 
@@ -53,8 +53,7 @@ export const POST = defineV2JsonRoute({
     workflowId: params.workflowId,
     files: body.files,
     lock: body.lock,
-    baseFingerprint: body.baseFingerprint,
-    ...(body.lockBase ? { lockBase: body.lockBase } : {}),
+    base: body.base,
     ...(body.provenance ? { provenance: body.provenance } : {}),
     ...(query.dryRun !== undefined ? { dryRun: query.dryRun } : {}),
   }),
@@ -67,12 +66,12 @@ export const POST = defineV2JsonRoute({
       applied: result.applied,
       diff: result.diff,
       diagnostics: result.diagnostics,
-      newFingerprint: result.newFingerprint,
+      fingerprint: result.fingerprint,
       files: result.files,
       lock: result.lock,
-      lockBase: result.lockBase,
+      base: result.base,
       mintedIds: result.mintedIds,
-      warnings: result.warnings,
+      notes: result.notes,
       needsRedeployment: result.needsRedeployment,
     },
   }),
@@ -94,8 +93,8 @@ export const POST = defineV2JsonRoute({
         workflow_id: result.workflowId,
         workspace_id: result.workspaceId,
         source: actor.source,
-        ok: true,
-        ops:
+        operation: 'apply',
+        changes:
           blocks.added.length +
           blocks.removed.length +
           blocks.renamed.length +

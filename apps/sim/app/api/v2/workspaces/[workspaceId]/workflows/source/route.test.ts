@@ -54,19 +54,19 @@ const created = {
     variables: { added: [], removed: [], modified: [] },
   },
   diagnostics: [],
-  newFingerprint: FINGERPRINT,
+  fingerprint: FINGERPRINT,
   files,
   lock: {
-    lockVersion: 1 as const,
-    blocks: { start: { id: 'b-1', parent: null, binding: 'start', order: 0 } },
+    version: 1 as const,
+    blocks: { start: { id: 'b-1', parent: null, ident: 'start', order: 0 } },
     variables: {},
   },
-  lockBase: { workspaceId: WORKSPACE_ID, baseFingerprint: FINGERPRINT, catalogHash: 'h' },
+  base: { workspaceId: WORKSPACE_ID, fingerprint: FINGERPRINT, catalogHash: 'h' },
   mintedIds: { start: 'b-1' },
-  warnings: [],
+  notes: [],
   needsRedeployment: false,
   sdkMajor: 1,
-  catalogVersion: 'h',
+  catalogHash: 'h',
 }
 
 function createRequest(body: unknown, query = '') {
@@ -166,7 +166,13 @@ describe('POST /api/v2/workspaces/{workspaceId}/workflows/source', () => {
     expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
       'user-1',
       'workflow_source_applied',
-      { workflow_id: WORKFLOW_ID, workspace_id: WORKSPACE_ID, source: 'cli', ok: true, ops: 1 },
+      {
+        workflow_id: WORKFLOW_ID,
+        workspace_id: WORKSPACE_ID,
+        source: 'cli',
+        operation: 'create',
+        changes: 1,
+      },
       { groups: { workspace: WORKSPACE_ID } }
     )
   })

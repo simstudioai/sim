@@ -82,12 +82,12 @@ export function Code({ isActive }: CodeProps) {
   if (error) {
     return (
       <div className='px-3 py-2 text-[var(--text-tertiary)] text-small'>
-        Could not load source: {error.message}
+        Couldn't load code: {error.message}
       </div>
     )
   }
   if (isPending) {
-    return <div className='px-3 py-2 text-[var(--text-tertiary)] text-small'>Loading source…</div>
+    return <div className='px-3 py-2 text-[var(--text-tertiary)] text-small'>Loading code…</div>
   }
 
   return (
