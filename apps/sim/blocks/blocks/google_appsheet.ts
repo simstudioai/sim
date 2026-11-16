@@ -1,6 +1,8 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { GoogleAppsheetIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 export const GoogleAppsheetBlock: BlockConfig = {
   type: 'google_appsheet',
@@ -163,15 +165,15 @@ Return ONLY the valid JSON array - no explanations, no markdown.`,
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context) => {
         const { rows, ...rest } = params
         const result: Record<string, unknown> = { ...rest }
-        if (params.operation !== 'google_appsheet_find_rows' && rows) {
+        if (mapperOperation(params, context) !== 'google_appsheet_find_rows' && rows) {
           let parsedRows: unknown
           try {
             parsedRows = typeof rows === 'string' ? JSON.parse(rows) : rows
-          } catch (error: any) {
-            throw new Error(`Invalid JSON in Rows field: ${error.message}`)
+          } catch (error) {
+            throw new Error(`Invalid JSON in Rows field: ${getErrorMessage(error)}`)
           }
           if (!Array.isArray(parsedRows)) {
             throw new Error('Rows must be a JSON array of row objects, e.g. [{ "RowID": "123" }]')

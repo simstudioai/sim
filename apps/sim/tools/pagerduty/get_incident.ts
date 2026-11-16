@@ -4,6 +4,7 @@ import type {
 } from '@/tools/pagerduty/types'
 import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getIncidentTool: ToolConfig<PagerDutyGetIncidentParams, PagerDutyGetIncidentResponse> =
   {
@@ -30,7 +31,7 @@ export const getIncidentTool: ToolConfig<PagerDutyGetIncidentParams, PagerDutyGe
 
     request: {
       url: (params) =>
-        `https://api.pagerduty.com/incidents/${params.incidentId.trim()}?include[]=services`,
+        `https://api.pagerduty.com/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}?include[]=services`,
       method: 'GET',
       headers: (params) => ({
         Authorization: `Token token=${params.apiKey}`,

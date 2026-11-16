@@ -5,6 +5,7 @@ import type {
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabDeleteUserIdentityTool: ToolConfig<
   GitLabDeleteUserIdentityParams,
@@ -47,8 +48,10 @@ export const gitlabDeleteUserIdentityTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedProvider = encodeURIComponent(String(params.provider).trim())
-      return `${getGitLabApiBase(params.host)}/users/${params.userId}/identities/${encodedProvider}`
+      const encodedProvider = safeUrlPathSegment(params.provider, 'provider', {
+        allowSeparators: true,
+      })
+      return `${getGitLabApiBase(params.host)}/users/${safeUrlPathSegment(params.userId, 'userId')}/identities/${encodedProvider}`
     },
     method: 'DELETE',
     headers: (params) => ({

@@ -5,6 +5,7 @@ import type {
 import { getGitLabApiBase, getGitLabResourcePath } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabDenyAccessRequestTool: ToolConfig<
   GitLabDenyAccessRequestParams,
@@ -53,7 +54,7 @@ export const gitlabDenyAccessRequestTool: ToolConfig<
   request: {
     url: (params) => {
       const resourcePath = getGitLabResourcePath(params.resourceType, params.resourceId)
-      return `${getGitLabApiBase(params.host)}/${resourcePath}/access_requests/${params.userId}`
+      return `${getGitLabApiBase(params.host)}/${resourcePath}/access_requests/${safeUrlPathSegment(params.userId, 'userId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

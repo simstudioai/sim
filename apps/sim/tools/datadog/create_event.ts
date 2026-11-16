@@ -4,7 +4,7 @@ import type {
   EventAlertType,
   EventPriority,
 } from '@/tools/datadog/types'
-import { datadogErrorMessage, resolveDatadogSite } from '@/tools/datadog/utils'
+import { datadogErrorMessage, resolveDatadogSite, splitCommaList } from '@/tools/datadog/utils'
 import { DATADOG_API_KEY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -12,7 +12,7 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
   id: 'datadog_create_event',
   name: 'Datadog Create Event',
   description:
-    'Post an event to the Datadog event stream. Use for deployment notifications, alerts, or any significant occurrences.',
+    'Post an event to the Datadog event stream. Use for deployment notifications, alerts, or any significant occurrences. Uses the v1 events endpoint, which Datadog has deprecated and serves only to organizations that have used it before.',
   version: '1.0.0',
   oauth: DATADOG_API_KEY_CREDENTIAL_OAUTH,
 
@@ -121,12 +121,8 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
       if (params.sourceTypeName) body.source_type_name = params.sourceTypeName
       if (params.dateHappened) body.date_happened = params.dateHappened
 
-      if (params.tags) {
-        body.tags = params.tags
-          .split(',')
-          .map((t: string) => t.trim())
-          .filter((t: string) => t.length > 0)
-      }
+      const tags = splitCommaList(params.tags)
+      if (tags) body.tags = tags
 
       return body
     },
@@ -150,6 +146,7 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
       output: {
         event: {
           id: data.event?.id,
+          id_str: data.event?.id_str,
           title: data.event?.title,
           text: data.event?.text,
           date_happened: data.event?.date_happened,
@@ -168,7 +165,15 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
       type: 'object',
       description: 'The created event details',
       properties: {
-        id: { type: 'number', description: 'Event ID' },
+        id: {
+          type: 'number',
+          description: 'Event ID. Can lose precision above 2^53; prefer id_str',
+        },
+        id_str: {
+          type: 'string',
+          description: 'Event ID as an exact string',
+          optional: true,
+        },
         title: { type: 'string', description: 'Event title' },
         text: { type: 'string', description: 'Event text' },
         date_happened: { type: 'number', description: 'Unix timestamp when event occurred' },

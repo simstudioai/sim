@@ -33,7 +33,7 @@ export const closeIssueTool: ToolConfig<CloseIssueParams, IssueResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Reason for closing: completed or not_planned',
+      description: 'Reason for closing: completed, not_planned, or duplicate',
     },
     apiKey: {
       type: 'string',

@@ -66,6 +66,7 @@ export const schedulesListTool: ToolConfig<
           ? {
               after: data.pagination_meta.after,
               page_size: data.pagination_meta.page_size,
+              total_record_count: data.pagination_meta.total_record_count,
             }
           : undefined,
       },
@@ -138,6 +139,11 @@ export const schedulesListTool: ToolConfig<
       properties: {
         after: { type: 'string', description: 'Cursor for next page', optional: true },
         page_size: { type: 'number', description: 'Number of results per page' },
+        total_record_count: {
+          type: 'number',
+          description: 'Total number of schedules',
+          optional: true,
+        },
       },
     },
   },

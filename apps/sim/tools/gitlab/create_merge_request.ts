@@ -2,7 +2,7 @@ import type {
   GitLabCreateMergeRequestParams,
   GitLabCreateMergeRequestResponse,
 } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -100,7 +100,7 @@ export const gitlabCreateMergeRequestTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
+      const encodedId = encodeGitLabResourceId(params.projectId)
       return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests`
     },
     method: 'POST',
@@ -115,7 +115,7 @@ export const gitlabCreateMergeRequestTool: ToolConfig<
         params.draft === true && !/^\s*draft:/i.test(params.title)
           ? `Draft: ${params.title}`
           : params.title
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         source_branch: params.sourceBranch,
         target_branch: params.targetBranch,
         title,

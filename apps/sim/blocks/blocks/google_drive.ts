@@ -5,7 +5,9 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
   isToolCall,
+  mapperOperation,
   normalizeFileInput,
+  parseOptionalBooleanInput,
   SERVICE_ACCOUNT_SUBBLOCKS,
   toolCallArg,
 } from '@/blocks/utils'
@@ -1591,13 +1593,17 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           shareExpirationTime,
           shareAllowFileDiscovery,
           shareMoveToNewOwnersRoot,
+          fileId,
+          folderId,
+          destinationFolderId,
           ...rest
         } = params
 
+        const operation = mapperOperation(params, context)
         const normalizedFile = normalizeFileInput(file, { single: true })
 
         let effectiveFolderId: string | undefined
-        switch (params.operation) {
+        switch (operation) {
           case 'create_file':
           case 'upload':
             effectiveFolderId = uploadFolderId?.trim() || undefined
@@ -1611,7 +1617,7 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
         }
 
         let effectiveFileId: string | undefined
-        switch (params.operation) {
+        switch (operation) {
           case 'download':
             effectiveFileId = downloadFileId?.trim() || undefined
             break
@@ -1669,69 +1675,53 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
         }
 
         let effectiveDestinationFolderId: string | undefined
-        if (params.operation === 'copy') {
+        if (operation === 'copy') {
           effectiveDestinationFolderId = copyDestFolderId?.trim() || undefined
-        } else if (params.operation === 'move') {
+        } else if (operation === 'move') {
           effectiveDestinationFolderId = moveDestFolderId?.trim() || undefined
         }
 
-        const starredValue = starred === 'true' ? true : starred === 'false' ? false : undefined
-
-        const sendNotificationValue =
-          sendNotification === 'true' ? true : sendNotification === 'false' ? false : undefined
-
-        const removeFromCurrentValue =
-          removeFromCurrent === 'true' ? true : removeFromCurrent === 'false' ? false : undefined
-
-        const includeRevisionsValue =
-          includeRevisions === 'true' ? true : includeRevisions === 'false' ? false : undefined
-
-        const includeDeletedValue =
-          includeDeleted === 'true' ? true : includeDeleted === 'false' ? false : undefined
+        const starredValue = parseOptionalBooleanInput(starred)
+        const sendNotificationValue = parseOptionalBooleanInput(sendNotification)
+        const removeFromCurrentValue = parseOptionalBooleanInput(removeFromCurrent)
+        const includeRevisionsValue = parseOptionalBooleanInput(includeRevisions)
+        const includeDeletedValue = parseOptionalBooleanInput(includeDeleted)
 
         let effectivePageSize: string | undefined = pageSize
         // `pageSize`, `pageToken` and `query` are List's fields; other operations trust them only from a tool call
         const agentPageSize = toolCallArg(context, pageSize)
-        if (params.operation === 'search') effectivePageSize = searchPageSize || agentPageSize
-        else if (params.operation === 'list_revisions')
+        if (operation === 'search') effectivePageSize = searchPageSize || agentPageSize
+        else if (operation === 'list_revisions')
           effectivePageSize = revisionsPageSize || agentPageSize
-        else if (params.operation === 'list_comments')
+        else if (operation === 'list_comments')
           effectivePageSize = commentsPageSize || agentPageSize
-        else if (params.operation === 'list_permissions')
+        else if (operation === 'list_permissions')
           effectivePageSize = permissionsPageSize || agentPageSize
 
         const agentPageToken = toolCallArg(context, pageToken)
         let effectivePageToken: string | undefined = pageToken
-        if (params.operation === 'search') effectivePageToken = searchPageToken || agentPageToken
-        else if (params.operation === 'list_permissions')
+        if (operation === 'search') effectivePageToken = searchPageToken || agentPageToken
+        else if (operation === 'list_permissions')
           effectivePageToken = permissionsPageToken || agentPageToken
-        else if (params.operation === 'list_revisions')
+        else if (operation === 'list_revisions')
           effectivePageToken = revisionsPageToken || agentPageToken
-        else if (params.operation === 'list_comments')
+        else if (operation === 'list_comments')
           effectivePageToken = commentsPageToken || agentPageToken
-        else if (params.operation !== 'list') effectivePageToken = agentPageToken
+        else if (operation !== 'list') effectivePageToken = agentPageToken
 
         const effectiveQuery =
-          params.operation === 'search'
+          operation === 'search'
             ? isToolCall(context) && !searchQuery
               ? query
               : searchQuery
             : query
 
         const effectiveOrderBy =
-          params.operation === 'list'
-            ? listOrderBy
-            : params.operation === 'search'
-              ? searchOrderBy
-              : undefined
+          operation === 'list' ? listOrderBy : operation === 'search' ? searchOrderBy : undefined
         const effectiveDriveId =
-          params.operation === 'list'
-            ? listDriveId
-            : params.operation === 'search'
-              ? searchDriveId
-              : undefined
+          operation === 'list' ? listDriveId : operation === 'search' ? searchDriveId : undefined
 
-        const isShare = params.operation === 'share'
+        const isShare = operation === 'share'
         const isUserOrGroupShare = isShare && (shareType === 'user' || shareType === 'group')
         const isDomainOrAnyoneShare = isShare && (shareType === 'domain' || shareType === 'anyone')
         const allowFileDiscoveryValue = !isDomainOrAnyoneShare
@@ -1748,17 +1738,17 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
             ? true
             : undefined
         const effectiveMimeType =
-          params.operation === 'get_content'
-            ? getContentExportMimeType
-            : params.operation === 'export'
-              ? exportMimeType
+          operation === 'get_content'
+            ? getContentExportMimeType || toolCallArg(context, mimeType)
+            : operation === 'export'
+              ? exportMimeType || toolCallArg(context, mimeType)
               : mimeType
 
         return {
           oauthCredential,
-          folderId: effectiveFolderId,
-          fileId: effectiveFileId,
-          destinationFolderId: effectiveDestinationFolderId,
+          folderId: effectiveFolderId || folderId,
+          fileId: effectiveFileId || fileId,
+          destinationFolderId: effectiveDestinationFolderId || destinationFolderId,
           file: normalizedFile,
           pageSize: effectivePageSize
             ? Number.parseInt(effectivePageSize as string, 10)
@@ -1776,7 +1766,7 @@ Return ONLY the comment text - no explanations, no quotes, no extra formatting.`
           orderBy: effectiveOrderBy?.trim() || undefined,
           driveId: effectiveDriveId?.trim() || undefined,
           startModifiedTime:
-            params.operation === 'list_comments'
+            operation === 'list_comments'
               ? commentsStartModifiedTime?.trim() || undefined
               : undefined,
           expirationTime: isUserOrGroupShare ? shareExpirationTime?.trim() || undefined : undefined,

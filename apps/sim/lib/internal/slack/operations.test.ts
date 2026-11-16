@@ -19,6 +19,7 @@ vi.mock('@/lib/internal/slack/file-input', () => ({
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { executeSlackDownload } from '@/lib/internal/slack/operations'
+import { executeSlackGetChannelHistoryOperation } from '@/lib/internal/slack/operations/get-channel-history'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 const { mockValidateUrlWithDNS, mockSecureFetchWithPinnedIP, mockSecureFetchWithValidation } =
@@ -89,5 +90,30 @@ describe('Slack operations', () => {
       context: 'execution',
     }
     expect(result.present([storedFile])).toEqual({ success: true, output: { file: storedFile } })
+  })
+
+  it('stops following history cursors at the page ceiling whatever maxPages asks for', async () => {
+    vi.mocked(global.fetch).mockImplementation(async () =>
+      slackResponse({
+        ok: true,
+        messages: [{ ts: '1.0', text: 'hi' }],
+        response_metadata: { next_cursor: 'more' },
+      })
+    )
+
+    const result = await executeSlackGetChannelHistoryOperation(
+      {
+        authMethod: 'oauth',
+        accessToken: 'token',
+        botToken: '',
+        channel: 'C1',
+        limit: 999,
+        maxPages: 10000,
+      },
+      new AbortController().signal
+    )
+
+    expect(global.fetch).toHaveBeenCalledTimes(50)
+    expect(result.output).toMatchObject({ pages: 50, hasMore: true, nextCursor: 'more' })
   })
 })

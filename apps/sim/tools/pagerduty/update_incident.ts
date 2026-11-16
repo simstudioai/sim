@@ -4,6 +4,7 @@ import type {
 } from '@/tools/pagerduty/types'
 import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateIncidentTool: ToolConfig<
   PagerDutyUpdateIncidentParams,
@@ -68,7 +69,8 @@ export const updateIncidentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.pagerduty.com/incidents/${params.incidentId.trim()}`,
+    url: (params) =>
+      `https://api.pagerduty.com/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Token token=${params.apiKey}`,
@@ -88,10 +90,7 @@ export const updateIncidentTool: ToolConfig<
       if (params.escalationLevel) {
         incident.escalation_level = Number(params.escalationLevel)
       }
-      if (params.resolution) {
-        if (params.status !== 'resolved') {
-          throw new Error('resolution can only be set when status is resolved')
-        }
+      if (params.resolution && params.status === 'resolved') {
         incident.resolution = params.resolution
       }
       return { incident }

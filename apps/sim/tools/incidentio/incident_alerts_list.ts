@@ -30,7 +30,7 @@ export const incidentAlertsListTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results per page (e.g., 10, 25, 50). Default: 25',
+      description: 'Number of results per page (e.g., 10, 25, 50; max 50). Default: 25',
     },
     after: {
       type: 'string',

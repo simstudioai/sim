@@ -45,6 +45,13 @@ export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUser
       visibility: 'user-or-llm',
       description: 'Filter users by Slack user ID',
     },
+    include_inactive: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Include deactivated or not-yet-active users, for resolving people who have since been offboarded. Default: false',
+    },
   },
 
   request: {
@@ -67,6 +74,10 @@ export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUser
         url.searchParams.append('slack_user_id', params.slack_user_id.trim())
       }
 
+      if (String(params.include_inactive) === 'true') {
+        url.searchParams.append('include_inactive', 'true')
+      }
+
       return url.toString()
     },
     method: 'GET',
@@ -87,6 +98,8 @@ export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUser
           name: user.name,
           email: user.email,
           role: user.role,
+          slack_user_id: user.slack_user_id,
+          is_active: user.is_active,
         })),
         pagination_meta: data.pagination_meta
           ? {
@@ -110,6 +123,12 @@ export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUser
           name: { type: 'string', description: 'Full name of the user' },
           email: { type: 'string', description: 'Email address of the user' },
           role: { type: 'string', description: 'Role of the user in the workspace' },
+          slack_user_id: { type: 'string', description: 'Slack ID of the user', optional: true },
+          is_active: {
+            type: 'boolean',
+            description: 'Whether the user is active (false once deactivated)',
+            optional: true,
+          },
         },
       },
     },

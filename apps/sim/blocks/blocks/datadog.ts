@@ -1,7 +1,7 @@
 import { DatadogIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { DATADOG_SITE_LABELS, DATADOG_SITES } from '@/tools/datadog/types'
 
 /**
@@ -1961,14 +1961,31 @@ Return ONLY the search query string - no explanations.`,
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context) => {
         const baseParams: { apiKey: string; applicationKey: string; site: string } = {
           apiKey: params.apiKey,
           applicationKey: params.applicationKey,
           site: params.site,
         }
+        /**
+         * A block field, or on a tool call where it is blank, the model's arg under the tool's
+         * param name. On the canvas the field is returned unchanged.
+         */
+        const field = (blockValue: unknown, toolParam: string) =>
+          blockValue != null && blockValue !== ''
+            ? blockValue
+            : (toolCallArg(context, params[toolParam]) ?? blockValue)
+        /** Like {@link field} for numeric fields, coercing both values. */
+        const numberField = (blockValue: unknown, toolParam: string) =>
+          datadogNumber(blockValue) ?? toolCallArg(context, datadogNumber(params[toolParam]))
+        /** Like {@link field} for switches, coercing both values. */
+        const switchField = (blockValue: unknown, toolParam: string) =>
+          toSwitchBoolean(blockValue) ?? toolCallArg(context, toSwitchBoolean(params[toolParam]))
+        /** Like {@link field} for optional fields whose blank value is omitted. */
+        const optionalField = (blockValue: unknown, toolParam: string) =>
+          blockValue || toolCallArg(context, params[toolParam]) || undefined
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'datadog_submit_metrics':
             return { ...baseParams, series: params.series }
 
@@ -1995,10 +2012,10 @@ Return ONLY the search query string - no explanations.`,
               ...baseParams,
               name: params.name,
               type: params.type,
-              query: params.monitorQuery,
+              query: field(params.monitorQuery, 'query'),
               message: params.message,
-              tags: params.monitorTags,
-              priority: datadogNumber(params.monitorPriority),
+              tags: field(params.monitorTags, 'tags'),
+              priority: numberField(params.monitorPriority, 'priority'),
               options: params.options,
             }
 
@@ -2008,22 +2025,23 @@ Return ONLY the search query string - no explanations.`,
           case 'datadog_list_monitors':
             return {
               ...baseParams,
-              name: params.listMonitorName || undefined,
-              tags: params.listMonitorTags || undefined,
+              name: optionalField(params.listMonitorName, 'name'),
+              tags: optionalField(params.listMonitorTags, 'tags'),
               /**
                * `monitorTags` belongs to Create Monitor but serializes for every operation, and
                * the block merges these params over the raw inputs. Without an explicit clear, a
-               * leftover value would filter this list while presenting it as complete.
+               * leftover value would filter this list while presenting it as complete. A tool
+               * call carries only this tool's args, so there it is the model's filter.
                */
-              monitorTags: undefined,
-              pageSize: datadogNumber(params.listMonitorPageSize),
-              page: datadogNumber(params.listMonitorPage),
+              monitorTags: toolCallArg(context, params.monitorTags),
+              pageSize: numberField(params.listMonitorPageSize, 'pageSize'),
+              page: numberField(params.listMonitorPage, 'page'),
             }
 
           case 'datadog_mute_monitor':
             return {
               ...baseParams,
-              monitorId: params.muteMonitorId,
+              monitorId: field(params.muteMonitorId, 'monitorId'),
               scope: params.scope || undefined,
               end: datadogNumber(params.end),
             }
@@ -2031,19 +2049,19 @@ Return ONLY the search query string - no explanations.`,
           case 'datadog_unmute_monitor':
             return {
               ...baseParams,
-              monitorId: params.muteMonitorId,
+              monitorId: field(params.muteMonitorId, 'monitorId'),
               scope: params.scope || undefined,
-              allScopes: toSwitchBoolean(params.unmuteAllScopes),
+              allScopes: switchField(params.unmuteAllScopes, 'allScopes'),
             }
 
           case 'datadog_query_logs':
             return {
               ...baseParams,
-              query: params.logQuery,
-              from: params.logFrom,
-              to: params.logTo,
-              limit: datadogNumber(params.logLimit),
-              cursor: params.logCursor || undefined,
+              query: field(params.logQuery, 'query'),
+              from: field(params.logFrom, 'from'),
+              to: field(params.logTo, 'to'),
+              limit: numberField(params.logLimit, 'limit'),
+              cursor: optionalField(params.logCursor, 'cursor'),
             }
 
           case 'datadog_send_logs':
@@ -2052,22 +2070,25 @@ Return ONLY the search query string - no explanations.`,
           case 'datadog_create_downtime':
             return {
               ...baseParams,
-              scope: params.downtimeScope,
-              message: params.downtimeMessage,
-              start: datadogNumber(params.downtimeStart),
-              end: datadogNumber(params.downtimeEnd),
-              monitorId: params.downtimeMonitorId,
-              monitorTags: params.downtimeMonitorTags || undefined,
-              timezone: params.downtimeTimezone || undefined,
-              muteFirstRecoveryNotification: toSwitchBoolean(params.downtimeMuteFirstRecovery),
+              scope: field(params.downtimeScope, 'scope'),
+              message: field(params.downtimeMessage, 'message'),
+              start: numberField(params.downtimeStart, 'start'),
+              end: numberField(params.downtimeEnd, 'end'),
+              monitorId: field(params.downtimeMonitorId, 'monitorId'),
+              monitorTags: optionalField(params.downtimeMonitorTags, 'monitorTags'),
+              timezone: optionalField(params.downtimeTimezone, 'timezone'),
+              muteFirstRecoveryNotification: switchField(
+                params.downtimeMuteFirstRecovery,
+                'muteFirstRecoveryNotification'
+              ),
             }
 
           case 'datadog_list_downtimes':
             return {
               ...baseParams,
               currentOnly: toSwitchBoolean(params.currentOnly),
-              limit: datadogNumber(params.downtimeLimit),
-              offset: datadogNumber(params.downtimeOffset),
+              limit: numberField(params.downtimeLimit, 'limit'),
+              offset: numberField(params.downtimeOffset, 'offset'),
             }
 
           case 'datadog_cancel_downtime':
@@ -2076,130 +2097,152 @@ Return ONLY the search query string - no explanations.`,
           case 'datadog_list_incidents':
             return {
               ...baseParams,
-              include: params.incidentInclude || undefined,
-              pageSize: datadogNumber(params.incidentPageSize),
-              pageOffset: datadogNumber(params.incidentPageOffset),
+              include: optionalField(params.incidentInclude, 'include'),
+              pageSize: numberField(params.incidentPageSize, 'pageSize'),
+              pageOffset: numberField(params.incidentPageOffset, 'pageOffset'),
             }
 
           case 'datadog_get_incident':
             return {
               ...baseParams,
               incidentId: params.incidentId,
-              include: params.incidentInclude || undefined,
+              include: optionalField(params.incidentInclude, 'include'),
             }
 
           case 'datadog_create_incident':
             return {
               ...baseParams,
-              title: params.incidentTitle,
-              customerImpacted: toSwitchBoolean(params.incidentCustomerImpacted) ?? false,
-              severity: params.incidentSeverity || undefined,
-              customerImpactScope: params.incidentCustomerImpactScope || undefined,
+              title: field(params.incidentTitle, 'title'),
+              customerImpacted:
+                switchField(params.incidentCustomerImpacted, 'customerImpacted') ?? false,
+              severity: optionalField(params.incidentSeverity, 'severity'),
+              customerImpactScope: optionalField(
+                params.incidentCustomerImpactScope,
+                'customerImpactScope'
+              ),
               incidentTypeUuid: params.incidentTypeUuid || undefined,
-              isTest: toSwitchBoolean(params.incidentIsTest),
-              fields: params.incidentFields || undefined,
-              notificationHandles: params.incidentNotificationHandles || undefined,
+              isTest: switchField(params.incidentIsTest, 'isTest'),
+              fields: optionalField(params.incidentFields, 'fields'),
+              notificationHandles: optionalField(
+                params.incidentNotificationHandles,
+                'notificationHandles'
+              ),
             }
 
           case 'datadog_update_incident':
             return {
               ...baseParams,
               incidentId: params.incidentId,
-              title: params.incidentTitle || undefined,
-              severity: params.incidentSeverity || undefined,
-              customerImpacted: toSwitchBoolean(params.incidentCustomerImpacted),
-              customerImpactScope: params.incidentCustomerImpactScope || undefined,
-              customerImpactStart: params.incidentCustomerImpactStart || undefined,
-              customerImpactEnd: params.incidentCustomerImpactEnd || undefined,
-              detected: params.incidentDetected || undefined,
-              fields: params.incidentFields || undefined,
-              notificationHandles: params.incidentNotificationHandles || undefined,
+              title: optionalField(params.incidentTitle, 'title'),
+              severity: optionalField(params.incidentSeverity, 'severity'),
+              customerImpacted: switchField(params.incidentCustomerImpacted, 'customerImpacted'),
+              customerImpactScope: optionalField(
+                params.incidentCustomerImpactScope,
+                'customerImpactScope'
+              ),
+              customerImpactStart: optionalField(
+                params.incidentCustomerImpactStart,
+                'customerImpactStart'
+              ),
+              customerImpactEnd: optionalField(
+                params.incidentCustomerImpactEnd,
+                'customerImpactEnd'
+              ),
+              detected: optionalField(params.incidentDetected, 'detected'),
+              fields: optionalField(params.incidentFields, 'fields'),
+              notificationHandles: optionalField(
+                params.incidentNotificationHandles,
+                'notificationHandles'
+              ),
             }
 
           case 'datadog_add_incident_todo':
             return {
               ...baseParams,
               incidentId: params.incidentId,
-              content: params.todoContent,
-              assignees: params.todoAssignees,
-              dueDate: params.todoDueDate || undefined,
+              content: field(params.todoContent, 'content'),
+              assignees: field(params.todoAssignees, 'assignees'),
+              dueDate: optionalField(params.todoDueDate, 'dueDate'),
             }
 
           case 'datadog_list_slos':
             return {
               ...baseParams,
-              ids: params.sloIds || undefined,
-              query: params.sloQuery || undefined,
-              tagsQuery: params.sloTagsQuery || undefined,
-              metricsQuery: params.sloMetricsQuery || undefined,
-              limit: datadogNumber(params.sloLimit),
-              offset: datadogNumber(params.sloOffset),
+              ids: optionalField(params.sloIds, 'ids'),
+              query: optionalField(params.sloQuery, 'query'),
+              tagsQuery: optionalField(params.sloTagsQuery, 'tagsQuery'),
+              metricsQuery: optionalField(params.sloMetricsQuery, 'metricsQuery'),
+              limit: numberField(params.sloLimit, 'limit'),
+              offset: numberField(params.sloOffset, 'offset'),
             }
 
           case 'datadog_get_slo':
             return {
               ...baseParams,
               sloId: params.sloId,
-              withConfiguredAlertIds: toSwitchBoolean(params.sloWithConfiguredAlertIds),
+              withConfiguredAlertIds: switchField(
+                params.sloWithConfiguredAlertIds,
+                'withConfiguredAlertIds'
+              ),
             }
 
           case 'datadog_create_slo':
             return {
               ...baseParams,
-              name: params.sloName,
-              type: params.sloType,
-              thresholds: params.sloThresholds,
-              description: params.sloDescription || undefined,
-              tags: params.sloTags || undefined,
-              query: params.sloMetricQuery || undefined,
-              monitorIds: params.sloMonitorIds || undefined,
-              groups: params.sloGroups || undefined,
-              targetThreshold: datadogNumber(params.sloTargetThreshold),
-              warningThreshold: datadogNumber(params.sloWarningThreshold),
-              timeframe: params.sloTimeframe || undefined,
+              name: field(params.sloName, 'name'),
+              type: field(params.sloType, 'type'),
+              thresholds: field(params.sloThresholds, 'thresholds'),
+              description: optionalField(params.sloDescription, 'description'),
+              tags: optionalField(params.sloTags, 'tags'),
+              query: optionalField(params.sloMetricQuery, 'query'),
+              monitorIds: optionalField(params.sloMonitorIds, 'monitorIds'),
+              groups: optionalField(params.sloGroups, 'groups'),
+              targetThreshold: numberField(params.sloTargetThreshold, 'targetThreshold'),
+              warningThreshold: numberField(params.sloWarningThreshold, 'warningThreshold'),
+              timeframe: optionalField(params.sloTimeframe, 'timeframe'),
             }
 
           case 'datadog_update_slo':
             return {
               ...baseParams,
               sloId: params.sloId,
-              name: params.sloName || undefined,
-              type: params.sloUpdateType || undefined,
-              thresholds: params.sloThresholds || undefined,
-              description: params.sloDescription || undefined,
-              tags: params.sloTags || undefined,
-              query: params.sloMetricQuery || undefined,
-              monitorIds: params.sloMonitorIds || undefined,
-              groups: params.sloGroups || undefined,
-              targetThreshold: datadogNumber(params.sloTargetThreshold),
-              warningThreshold: datadogNumber(params.sloWarningThreshold),
-              timeframe: params.sloTimeframe || undefined,
+              name: optionalField(params.sloName, 'name'),
+              type: optionalField(params.sloUpdateType, 'type'),
+              thresholds: optionalField(params.sloThresholds, 'thresholds'),
+              description: optionalField(params.sloDescription, 'description'),
+              tags: optionalField(params.sloTags, 'tags'),
+              query: optionalField(params.sloMetricQuery, 'query'),
+              monitorIds: optionalField(params.sloMonitorIds, 'monitorIds'),
+              groups: optionalField(params.sloGroups, 'groups'),
+              targetThreshold: numberField(params.sloTargetThreshold, 'targetThreshold'),
+              warningThreshold: numberField(params.sloWarningThreshold, 'warningThreshold'),
+              timeframe: optionalField(params.sloTimeframe, 'timeframe'),
             }
 
           case 'datadog_delete_slo':
             return {
               ...baseParams,
               sloId: params.sloId,
-              force: toSwitchBoolean(params.sloForce),
+              force: switchField(params.sloForce, 'force'),
             }
 
           case 'datadog_get_slo_history':
             return {
               ...baseParams,
               sloId: params.sloId,
-              fromTs: datadogNumber(params.sloFromTs),
-              toTs: datadogNumber(params.sloToTs),
-              target: datadogNumber(params.sloTarget),
-              applyCorrection: toSwitchBoolean(params.sloApplyCorrection),
+              fromTs: numberField(params.sloFromTs, 'fromTs'),
+              toTs: numberField(params.sloToTs, 'toTs'),
+              target: numberField(params.sloTarget, 'target'),
+              applyCorrection: switchField(params.sloApplyCorrection, 'applyCorrection'),
             }
 
           case 'datadog_list_dashboards':
             return {
               ...baseParams,
-              filterShared: toSwitchBoolean(params.dashboardFilterShared),
-              filterDeleted: toSwitchBoolean(params.dashboardFilterDeleted),
-              count: datadogNumber(params.dashboardCount),
-              start: datadogNumber(params.dashboardStart),
+              filterShared: switchField(params.dashboardFilterShared, 'filterShared'),
+              filterDeleted: switchField(params.dashboardFilterDeleted, 'filterDeleted'),
+              count: numberField(params.dashboardCount, 'count'),
+              start: numberField(params.dashboardStart, 'start'),
             }
 
           case 'datadog_get_dashboard':
@@ -2208,14 +2251,17 @@ Return ONLY the search query string - no explanations.`,
           case 'datadog_create_dashboard':
             return {
               ...baseParams,
-              title: params.dashboardTitle,
-              layoutType: params.dashboardLayoutType,
-              widgets: params.dashboardWidgets,
-              description: params.dashboardDescription || undefined,
-              notifyList: params.dashboardNotifyList || undefined,
-              templateVariables: params.dashboardTemplateVariables || undefined,
-              tags: params.dashboardTags || undefined,
-              reflowType: params.dashboardReflowType || undefined,
+              title: field(params.dashboardTitle, 'title'),
+              layoutType: field(params.dashboardLayoutType, 'layoutType'),
+              widgets: field(params.dashboardWidgets, 'widgets'),
+              description: optionalField(params.dashboardDescription, 'description'),
+              notifyList: optionalField(params.dashboardNotifyList, 'notifyList'),
+              templateVariables: optionalField(
+                params.dashboardTemplateVariables,
+                'templateVariables'
+              ),
+              tags: optionalField(params.dashboardTags, 'tags'),
+              reflowType: optionalField(params.dashboardReflowType, 'reflowType'),
             }
 
           case 'datadog_delete_dashboard':
@@ -2224,42 +2270,42 @@ Return ONLY the search query string - no explanations.`,
           case 'datadog_list_synthetics_tests':
             return {
               ...baseParams,
-              pageSize: datadogNumber(params.syntheticsPageSize),
-              pageNumber: datadogNumber(params.syntheticsPageNumber),
+              pageSize: numberField(params.syntheticsPageSize, 'pageSize'),
+              pageNumber: numberField(params.syntheticsPageNumber, 'pageNumber'),
             }
 
           case 'datadog_get_synthetics_test':
-            return { ...baseParams, publicId: params.syntheticsPublicId }
+            return { ...baseParams, publicId: field(params.syntheticsPublicId, 'publicId') }
 
           case 'datadog_get_synthetics_results':
           case 'datadog_get_browser_synthetics_results':
             return {
               ...baseParams,
-              publicId: params.syntheticsPublicId,
-              fromTs: datadogNumber(params.syntheticsFromTs),
-              toTs: datadogNumber(params.syntheticsToTs),
-              probeDc: params.syntheticsProbeDc || undefined,
+              publicId: field(params.syntheticsPublicId, 'publicId'),
+              fromTs: numberField(params.syntheticsFromTs, 'fromTs'),
+              toTs: numberField(params.syntheticsToTs, 'toTs'),
+              probeDc: optionalField(params.syntheticsProbeDc, 'probeDc'),
             }
 
           case 'datadog_trigger_synthetics_tests':
-            return { ...baseParams, publicIds: params.syntheticsPublicIds }
+            return { ...baseParams, publicIds: field(params.syntheticsPublicIds, 'publicIds') }
 
           case 'datadog_update_synthetics_status':
             return {
               ...baseParams,
-              publicId: params.syntheticsPublicId,
-              newStatus: params.syntheticsNewStatus,
+              publicId: field(params.syntheticsPublicId, 'publicId'),
+              newStatus: field(params.syntheticsNewStatus, 'newStatus'),
             }
 
           case 'datadog_list_security_signals':
             return {
               ...baseParams,
-              query: params.signalQuery || undefined,
-              from: params.signalFrom || undefined,
-              to: params.signalTo || undefined,
-              sort: params.signalSort || undefined,
-              cursor: params.signalCursor || undefined,
-              limit: datadogNumber(params.signalLimit),
+              query: optionalField(params.signalQuery, 'query'),
+              from: optionalField(params.signalFrom, 'from'),
+              to: optionalField(params.signalTo, 'to'),
+              sort: optionalField(params.signalSort, 'sort'),
+              cursor: optionalField(params.signalCursor, 'cursor'),
+              limit: numberField(params.signalLimit, 'limit'),
             }
 
           case 'datadog_get_security_signal':
@@ -2269,44 +2315,44 @@ Return ONLY the search query string - no explanations.`,
             return {
               ...baseParams,
               signalId: params.signalId,
-              state: params.signalState,
-              archiveReason: params.signalArchiveReason || undefined,
-              archiveComment: params.signalArchiveComment || undefined,
+              state: field(params.signalState, 'state'),
+              archiveReason: optionalField(params.signalArchiveReason, 'archiveReason'),
+              archiveComment: optionalField(params.signalArchiveComment, 'archiveComment'),
             }
 
           case 'datadog_update_security_signal_assignee':
             return {
               ...baseParams,
               signalId: params.signalId,
-              assigneeUuid: params.signalAssigneeUuid,
+              assigneeUuid: field(params.signalAssigneeUuid, 'assigneeUuid'),
             }
 
           case 'datadog_list_security_rules':
             return {
               ...baseParams,
-              query: params.ruleQuery || undefined,
-              sort: params.ruleSort || undefined,
-              pageSize: datadogNumber(params.rulePageSize),
-              pageNumber: datadogNumber(params.rulePageNumber),
+              query: optionalField(params.ruleQuery, 'query'),
+              sort: optionalField(params.ruleSort, 'sort'),
+              pageSize: numberField(params.rulePageSize, 'pageSize'),
+              pageNumber: numberField(params.rulePageNumber, 'pageNumber'),
             }
 
           case 'datadog_search_spans':
             return {
               ...baseParams,
-              query: params.spanQuery || undefined,
-              from: params.spanFrom || undefined,
-              to: params.spanTo || undefined,
-              sort: params.spanSort || undefined,
-              cursor: params.spanCursor || undefined,
-              limit: datadogNumber(params.spanLimit),
+              query: optionalField(params.spanQuery, 'query'),
+              from: optionalField(params.spanFrom, 'from'),
+              to: optionalField(params.spanTo, 'to'),
+              sort: optionalField(params.spanSort, 'sort'),
+              cursor: optionalField(params.spanCursor, 'cursor'),
+              limit: numberField(params.spanLimit, 'limit'),
             }
 
           case 'datadog_list_services':
             return {
               ...baseParams,
-              pageSize: datadogNumber(params.servicePageSize),
-              pageNumber: datadogNumber(params.servicePageNumber),
-              schemaVersion: params.serviceSchemaVersion || undefined,
+              pageSize: numberField(params.servicePageSize, 'pageSize'),
+              pageNumber: numberField(params.servicePageNumber, 'pageNumber'),
+              schemaVersion: optionalField(params.serviceSchemaVersion, 'schemaVersion'),
             }
 
           default:
@@ -2473,7 +2519,10 @@ Return ONLY the search query string - no explanations.`,
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
     series: { type: 'json', description: 'Timeseries data' },
     status: { type: 'string', description: 'Query status' },
-    errors: { type: 'json', description: 'Metric series rejected during submission' },
+    errors: {
+      type: 'json',
+      description: 'Metric series rejected during submission, or SLO history query errors',
+    },
     event: { type: 'json', description: 'Event data' },
     monitor: { type: 'json', description: 'Monitor data' },
     monitors: { type: 'json', description: 'List of monitors' },
@@ -2486,6 +2535,7 @@ Return ONLY the search query string - no explanations.`,
     downtimes: { type: 'json', description: 'List of downtimes' },
     totalCount: { type: 'number', description: 'Total downtimes matching the filter' },
     incident: { type: 'json', description: 'Incident data' },
+    included: { type: 'json', description: 'Related incident resources requested via include' },
     incidents: { type: 'json', description: 'List of incidents' },
     nextOffset: { type: 'number', description: 'Offset for the next page of incidents' },
     todo: { type: 'json', description: 'Incident follow-up task' },

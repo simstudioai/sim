@@ -2,7 +2,12 @@ import { GoogleCalendarIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS, toolCallArg } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  mapperOperation,
+  SERVICE_ACCOUNT_SUBBLOCKS,
+  toolCallArg,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const CALENDAR_FIELD = ['calendarId', 'manualCalendarId'] as const
@@ -994,13 +999,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       params: (params, context) => {
         const {
           oauthCredential,
-          operation,
           attendees,
           replaceExisting,
           calendarId,
           destinationCalendarId,
           ...rest
         } = params
+        const operation = mapperOperation(params, context)
 
         const effectiveCalendarId = calendarId ? String(calendarId).trim() : ''
 
@@ -1029,7 +1034,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         }
 
         if (operation === 'invite' && replaceExisting !== undefined) {
-          processedParams.replaceExisting = replaceExisting === 'true'
+          processedParams.replaceExisting = replaceExisting === true || replaceExisting === 'true'
         }
 
         if (processedParams.addGoogleMeet !== undefined) {

@@ -1,5 +1,5 @@
 import type { GitLabListPipelinesParams, GitLabListPipelinesResponse } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -74,7 +74,7 @@ export const gitlabListPipelinesTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
+      const encodedId = encodeGitLabResourceId(params.projectId)
       const queryParams = new URLSearchParams()
 
       if (params.ref) queryParams.append('ref', params.ref)

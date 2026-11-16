@@ -64,16 +64,42 @@ interface GitHubCommitFile {
   blob_url?: string
 }
 
+interface GitHubGitActor {
+  name: string
+  email: string
+  date: string
+}
+
+interface GitHubCommitUser {
+  login: string
+  avatar_url: string
+  html_url: string
+  id?: number
+  node_id?: string
+  type?: string
+  url?: string
+  site_admin?: boolean
+}
+
 interface GitHubCommitResponse {
   sha: string
   html_url: string
   commit: {
+    url?: string
     message: string
-    author: { name: string; email: string; date: string }
-    committer: { name: string; email: string; date: string }
+    comment_count?: number
+    author: GitHubGitActor
+    committer: GitHubGitActor
+    tree?: { sha: string; url: string }
+    verification?: {
+      verified: boolean
+      reason: string
+      signature?: string | null
+      payload?: string | null
+    }
   }
-  author?: { login: string; avatar_url: string; html_url: string }
-  committer?: { login: string; avatar_url: string; html_url: string }
+  author?: GitHubCommitUser | null
+  committer?: GitHubCommitUser | null
   stats?: { additions: number; deletions: number; total: number }
   files?: GitHubCommitFile[]
 }
@@ -348,6 +374,27 @@ async function fetchChangedFileContent(
   }
 }
 
+/**
+ * Merges a commit's git identity with its linked GitHub account. The account
+ * fields keep their `'Unknown'`/`''` fallbacks when the commit has no linked
+ * user, which the v1 output has always returned.
+ */
+function commitActorMetadata(actor: GitHubGitActor, user: GitHubCommitUser | null | undefined) {
+  return {
+    name: actor.name,
+    email: actor.email,
+    date: actor.date,
+    login: user?.login || 'Unknown',
+    avatar_url: user?.avatar_url || '',
+    html_url: user?.html_url || '',
+    id: user?.id,
+    node_id: user?.node_id,
+    type: user?.type,
+    url: user?.url,
+    site_admin: user?.site_admin,
+  }
+}
+
 export async function getGitHubLatestCommit(
   input: LatestCommitParams,
   context: GitHubOperationContext
@@ -410,18 +457,12 @@ export async function getGitHubLatestCommit(
         sha: data.sha,
         html_url: data.html_url,
         commit_message: data.commit.message,
-        author: {
-          name: data.commit.author.name,
-          login: data.author?.login || 'Unknown',
-          avatar_url: data.author?.avatar_url || '',
-          html_url: data.author?.html_url || '',
-        },
-        committer: {
-          name: data.commit.committer.name,
-          login: data.committer?.login || 'Unknown',
-          avatar_url: data.committer?.avatar_url || '',
-          html_url: data.committer?.html_url || '',
-        },
+        commit_url: data.commit.url,
+        comment_count: data.commit.comment_count,
+        tree: data.commit.tree,
+        verification: data.commit.verification,
+        author: commitActorMetadata(data.commit.author, data.author),
+        committer: commitActorMetadata(data.commit.committer, data.committer),
         stats: data.stats,
         files: files.length > 0 ? files : undefined,
       },

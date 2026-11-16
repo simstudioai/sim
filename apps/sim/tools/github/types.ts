@@ -1047,22 +1047,39 @@ interface CommentMetadata {
   commit_id?: string
 }
 
+/**
+ * A commit's author or committer: the git identity (name, email, date) merged
+ * with the linked GitHub account's fields when the commit has one.
+ */
+interface CommitActorMetadata {
+  name: string
+  email?: string
+  date?: string
+  login: string
+  avatar_url: string
+  html_url: string
+  id?: number
+  node_id?: string
+  type?: string
+  url?: string
+  site_admin?: boolean
+}
+
 interface CommitMetadata {
   sha: string
   html_url: string
   commit_message: string
-  author: {
-    name: string
-    login: string
-    avatar_url: string
-    html_url: string
+  commit_url?: string
+  comment_count?: number
+  tree?: { sha: string; url: string }
+  verification?: {
+    verified: boolean
+    reason: string
+    signature?: string | null
+    payload?: string | null
   }
-  committer: {
-    name: string
-    login: string
-    avatar_url: string
-    html_url: string
-  }
+  author: CommitActorMetadata
+  committer: CommitActorMetadata
   stats?: {
     additions: number
     deletions: number
@@ -1781,7 +1798,7 @@ export interface GetIssueParams extends BaseGitHubParams {
 
 export interface CloseIssueParams extends BaseGitHubParams {
   issue_number: number
-  state_reason?: 'completed' | 'not_planned'
+  state_reason?: 'completed' | 'not_planned' | 'duplicate'
 }
 
 export interface AddLabelsParams extends BaseGitHubParams {
