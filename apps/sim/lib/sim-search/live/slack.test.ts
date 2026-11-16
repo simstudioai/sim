@@ -1,14 +1,20 @@
 /**
  * @vitest-environment node
  */
+
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { describe, expect, it, vi } from 'vitest'
+import {
+  withSearchDiagnostics,
+  withSearchProviderDiagnostics,
+} from '@/lib/knowledge/search/diagnostics'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { readSlack } from '@/lib/sim-search/live/slack'
 
 const FILE_URL = 'https://files.slack.com/files-pri/T1-F123/plan'
 
-function fileClient(file: Record<string, unknown>, download?: () => Promise<string>) {
+function fileClient(file: Record<string, unknown>, download?: () => Promise<string | Buffer>) {
   return {
     json: vi.fn(async () => ({
       ok: true,
@@ -21,8 +27,11 @@ function fileClient(file: Record<string, unknown>, download?: () => Promise<stri
         ...file,
       },
     })),
-    text: vi.fn(download ?? (async () => 'Full text')),
-    bytes: vi.fn(),
+    text: vi.fn(),
+    bytes: vi.fn(async () => {
+      const body = await (download ?? (async () => 'Full text'))()
+      return typeof body === 'string' ? Buffer.from(body) : body
+    }),
   }
 }
 
@@ -36,7 +45,7 @@ describe('Slack file reads', () => {
     expect(read.content).toContain('Phase two starts after the audit.')
     expect(read.content).not.toContain('<p>')
     expect(read.content).not.toContain('Short preview')
-    expect(api.text).toHaveBeenCalledWith(
+    expect(api.bytes).toHaveBeenCalledWith(
       '/files-pri/T1-F123/plan',
       {},
       expect.objectContaining({ service: 'slackFiles' })
@@ -71,7 +80,7 @@ describe('Slack file reads', () => {
     ]) {
       const api = fileClient(file)
       expect((await readSlack(api, 'F123', undefined, 'file')).content).toContain('Short preview')
-      expect(api.text).not.toHaveBeenCalled()
+      expect(api.bytes).not.toHaveBeenCalled()
     }
   })
   it('keeps the preview, with the reason Slack gave, when Slack will not serve the file', async () => {
@@ -116,6 +125,44 @@ describe('Slack file reads', () => {
       async () => '<p>Rendered text</p>'
     )
     expect((await readSlack(api, 'F123', undefined, 'file')).content).toBe('Rendered text')
+  })
+  it('decodes text in the charset its bytes declare', async () => {
+    const utf16 = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('Größe: 3', 'utf16le')])
+    const bom = fileClient({ mimetype: 'text/plain' }, async () => utf16)
+    expect((await readSlack(bom, 'F123', undefined, 'file')).content).toBe('Größe: 3')
+    const latin1 = fileClient({ mimetype: 'text/plain; charset=ISO-8859-1' }, async () =>
+      Buffer.from('Größe: 3', 'latin1')
+    )
+    expect((await readSlack(latin1, 'F123', undefined, 'file')).content).toBe('Größe: 3')
+  })
+  it('keeps the preview when text bytes cannot be read in their charset', async () => {
+    for (const bytes of [
+      Buffer.from('Plan: 3', 'utf16le'),
+      Buffer.from([0x47, 0x72, 0xff, 0xfe, 0x21]),
+    ]) {
+      const api = fileClient({ mimetype: 'text/plain' }, async () => bytes)
+      expect((await readSlack(api, 'F123', undefined, 'file')).content).toContain('Short preview')
+    }
+  })
+  it('counts every read that returns the preview instead of the text', async () => {
+    await withSearchDiagnostics({ surface: 'mcp' }, () =>
+      withSearchProviderDiagnostics({ provider: 'slack', accountIndex: 0 }, async () => {
+        await readSlack(fileClient({ mimetype: 'image/png' }), 'F123', undefined, 'file')
+        await readSlack(
+          fileClient({ mimetype: 'text/plain' }, async () => {
+            throw new Error('Too many redirects (max: 0)')
+          }),
+          'F123',
+          undefined,
+          'file'
+        )
+        await readSlack(fileClient({ mimetype: 'text/plain' }), 'F123', undefined, 'file')
+      })
+    )
+    const summary = getMockLogger('KnowledgeSearchDiagnostics').info.mock.calls.find(
+      ([message]) => message === 'Live search provider completed'
+    )?.[1]
+    expect(summary?.signals).toEqual({ 'slack.file_preview': 2 })
   })
   it('skips the download for files it cannot read as text', async () => {
     for (const file of [

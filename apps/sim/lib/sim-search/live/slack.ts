@@ -363,6 +363,27 @@ function slackFileFormat(file: Record<string, unknown>): SlackFileFormat | undef
 }
 
 /**
+ * Decodes downloaded text strictly: a byte-order mark wins, then the declared charset, then UTF-8.
+ * Bytes invalid in that charset, or text holding NULs (UTF-16 without a mark), are unreadable.
+ */
+function decodeFileText(bytes: Buffer, mimetype: string): string | undefined {
+  const charset = /;\s*charset="?([\w.:-]+)"?/i.exec(mimetype)?.[1]
+  const label =
+    bytes[0] === 0xff && bytes[1] === 0xfe
+      ? 'utf-16le'
+      : bytes[0] === 0xfe && bytes[1] === 0xff
+        ? 'utf-16be'
+        : (charset ?? 'utf-8')
+  let text: string
+  try {
+    text = new TextDecoder(label, { fatal: true }).decode(bytes)
+  } catch {
+    return undefined
+  }
+  return text.includes('\u0000') ? undefined : text
+}
+
+/**
  * The full text of a file Slack hosts: canvases as HTML, snippets and text files as text, PDF and
  * DOCX extracted. The token only goes to Slack's file host, never a remote file's own URL. Short of
  * the caller aborting, any failure (denial, redirect, size limit, unreadable bytes, slow download)
@@ -383,18 +404,14 @@ async function slackFileText(
   const request = { service: 'slackFiles', signal: download } as const
   const query = Object.fromEntries(source.searchParams)
   try {
-    const text =
-      format === 'pdf' || format === 'docx'
-        ? await extractDocumentText(
-            await client.bytes(source.pathname, query, request),
-            format,
-            download
-          )
-        : providerText(await client.text(source.pathname, query, request), format)
+    const bytes = await client.bytes(source.pathname, query, request)
+    if (format === 'pdf' || format === 'docx')
+      return { text: await extractDocumentText(bytes, format, download) }
+    const decoded = decodeFileText(bytes, string(file.mimetype))
+    const text = decoded && providerText(decoded, format)
     return text && Buffer.byteLength(text, 'utf8') <= MAX_FILE_TEXT_BYTES ? { text } : {}
   } catch (error) {
     signal?.throwIfAborted()
-    recordSearchProviderSignal('slack.file_preview_fallback')
     return error instanceof NativeSearchError ? { unavailable: error.message } : {}
   }
 }
@@ -413,6 +430,7 @@ export async function readSlack(
     const data = slackResult(await client.json('/api/files.info', { query: { file: id } }))
     const file = object(data.file)
     const full = await slackFileText(client, file, signal)
+    if (!('text' in full)) recordSearchProviderSignal('slack.file_preview')
     return {
       id,
       kind,
