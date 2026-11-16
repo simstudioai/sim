@@ -111,8 +111,13 @@ export interface CatalogSubBlock {
   /** UI clearing and fetch ordering only; never part of types or visibility (s2 §2). */
   dependsOn?: { all: SubBlockId[]; any: SubBlockId[] }
   defaultValue?: Json
-  /** The registry `value()` thunk: a constant when it ignores its params, else `computed`. */
-  valueDefault?: { constant: Json } | { computed: true }
+  /**
+   * The registry `value()` thunk: a constant when it ignores its params, else `computed`. A
+   * computed thunk carries `initial`, what it returns for a new block with no values (the value
+   * canvas creation seeds), when that is the same every time; a thunk that mints a fresh value per
+   * call has none.
+   */
+  valueDefault?: { constant: Json } | { computed: true; initial?: Json }
   /**
    * Static options; `dynamic` when fetched through `selectorKey`/`fetchOptions`; `opaque` for a
    * function the projection could not evaluate (build-spec decision 14).

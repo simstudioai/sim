@@ -183,12 +183,22 @@ function isJson(value: unknown): value is Json {
 /**
  * A `value()` thunk is a constant when it reads no param and returns the same value twice (some
  * thunks mint ids, which must never be frozen into the catalog); anything else is `computed`.
+ * A computed thunk that reads params still has one creation value: canvas creation calls it with
+ * no values (`createBlockFromParams`), so that result is kept as `initial` when it is JSON and
+ * the same twice.
  */
 function projectValueDefault(
   thunk: NonNullable<SubBlockConfig['value']>
 ): CatalogSubBlock['valueDefault'] {
   const first = probeThunk(thunk)
-  if (!first.ok || first.reads.size > 0) return { computed: true }
+  if (!first.ok) return { computed: true }
+  if (first.reads.size > 0) {
+    const initial = first.result
+    if (initial === undefined || initial === null || !isJson(initial)) return { computed: true }
+    const second = probeThunk(thunk)
+    const stable = second.ok && JSON.stringify(second.result) === JSON.stringify(initial)
+    return stable ? { computed: true, initial } : { computed: true }
+  }
   if (first.result === undefined) return undefined
   const second = probeThunk(thunk)
   if (!second.ok || second.result !== first.result || !isJson(first.result)) {

@@ -130,7 +130,15 @@ const catalogSubBlockSchema = z
     valueDefault: z
       .union([
         z
-          .object({ computed: z.literal(true).describe('Always true.') })
+          .object({
+            computed: z.literal(true).describe('Always true.'),
+            initial: z
+              .unknown()
+              .optional()
+              .describe(
+                'What the thunk returns for a new block with no values (any JSON), when stable.'
+              ),
+          })
           .describe('A value thunk derived from other params.'),
         z
           .strictObject({ constant: z.unknown().describe('The constant value (any JSON).') })
