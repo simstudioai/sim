@@ -35,6 +35,8 @@ export type CatalogDocsReader = (type: string) => CatalogBlockDocs | undefined
 interface CatalogMemo {
   blocks: Map<string, CatalogBlock>
   triggers: Map<string, CatalogTrigger>
+  /** Builder `[path, builder]` pairs by block type, in catalog order; built on first use. */
+  buildersByType?: Map<string, Array<[string, CatalogBuilder]>>
 }
 
 const memos = new WeakMap<BlockCatalog, CatalogMemo>()
@@ -230,6 +232,24 @@ export function catalogBuilder(catalog: BlockCatalog, path: string): CatalogBuil
 /** Every builder path, in catalog order. */
 export function catalogBuilderPaths(catalog: BlockCatalog): string[] {
   return Object.keys(catalog.builders)
+}
+
+/** The `[path, builder]` pairs that build blocks of `type`, in catalog order. */
+export function catalogBuildersOfType(
+  catalog: BlockCatalog,
+  type: string
+): ReadonlyArray<[string, CatalogBuilder]> {
+  const memo = memoOf(catalog)
+  if (!memo.buildersByType) {
+    const byType = new Map<string, Array<[string, CatalogBuilder]>>()
+    for (const [path, builder] of Object.entries(catalog.builders)) {
+      const list = byType.get(builder.type) ?? []
+      list.push([path, builder])
+      byType.set(builder.type, list)
+    }
+    memo.buildersByType = byType
+  }
+  return memo.buildersByType.get(type) ?? []
 }
 
 /** The docs-shard tool `id` when the catalog carries tool docs, else `undefined`. */

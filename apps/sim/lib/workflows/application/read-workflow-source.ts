@@ -9,8 +9,10 @@ import {
   type SourceFingerprint,
   type WorkflowLockV1,
 } from '@sim/workflow-code'
+import { type SourceLimitExcess, sourceLimitExcesses } from '@sim/workflow-code/limits'
 import { readWorkflowSourceMeta } from '@sim/workflow-persistence/source-meta'
 import { resolveCatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
@@ -78,6 +80,32 @@ function usedBlockTypes(workflow: CanonicalWorkflow): string[] {
   return [...types].sort(compareStrings)
 }
 
+function describeExcess(excess: SourceLimitExcess): string {
+  switch (excess.limit) {
+    case 'maxBlocks':
+      return `it has ${excess.actual} blocks, over the ${excess.max}-block limit`
+    case 'maxFiles':
+      return `it prints ${excess.actual} files, over the ${excess.max}-file limit`
+    case 'maxFileBytes':
+      return `${excess.file} is ${excess.actual} bytes, over the ${excess.max}-byte file limit`
+    case 'maxTotalBytes':
+      return `its files total ${excess.actual} bytes, over the ${excess.max}-byte limit`
+  }
+}
+
+/**
+ * Refuses (413) a source an apply would reject for its size, so every get can be applied back
+ * unchanged. The message names each measured size against its limit.
+ */
+function assertFitsSourceLimits(files: Record<string, string>, blockCount: number): void {
+  const excesses = sourceLimitExcesses(files, blockCount)
+  if (excesses.length === 0) return
+  throw new OrchestrationError(
+    'payload_too_large',
+    `This workflow is too large to read as source: ${excesses.map(describeExcess).join('; ')}.`
+  )
+}
+
 /**
  * Reads a workflow's stored draft as TypeScript source. Builds the per-workflow source catalog
  * (the blocks this caller may place plus every type already in the workflow), canonicalizes the
@@ -85,6 +113,8 @@ function usedBlockTypes(workflow: CanonicalWorkflow): string[] {
  * idents, order and comments of its source meta through the same printer every apply response
  * uses. No audit. The one write is resource-key allocation: the first get that references a
  * resource with no key binds one. That is idempotent identity metadata, so read access may cause it.
+ * A workflow over `SOURCE_LIMITS` is refused with `payload_too_large` before anything is printed
+ * when its block count alone exceeds them, and after printing when its files do.
  */
 export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
@@ -97,6 +127,8 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
       readWorkflowSourceMeta(db, context.workflowId),
     ])
     const { blocks, edges, loops, parallels, variables } = graph
+    const blockCount = Object.keys(blocks).length
+    assertFitsSourceLimits({}, blockCount)
     const state = { blocks, edges, loops, parallels, variables }
     const meta = { name: context.workflow.name, description: context.workflow.description ?? null }
     const { catalog } = await withCatalogBlockScope(gate, async () =>
@@ -123,6 +155,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
       functionCode: input.functionCode ?? 'files',
       lockless: canonical,
     })
+    assertFitsSourceLimits(printed.files, blockCount)
     return {
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,

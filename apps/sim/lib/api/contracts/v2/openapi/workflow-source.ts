@@ -1,3 +1,4 @@
+import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import {
   documentedSchema,
   RATE_LIMIT_HEADERS,
@@ -50,10 +51,9 @@ export const workflowSourceOpenApiRoutes = [
       applicationOperation: workflowOperations.readSource,
       operationId: 'getWorkflowSource',
       summary: 'Get workflow source',
-      description:
-        'Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `base` records the workflow, workspace, fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.',
+      description: `Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness \`fingerprint\`. The lock binds each block key in the source to its stored id; \`base\` records the workflow, workspace, fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to \`functions/*\` files unless \`functionCode\` is \`inline\`. A workflow too large to apply back as source (more than ${SOURCE_LIMITS.maxBlocks} blocks, a file over ${SOURCE_LIMITS.maxFileBytes} bytes, or over ${SOURCE_LIMITS.maxTotalBytes} bytes of files in all) returns \`413\` naming the measured size. This read records no audit event; \`HEAD\` mirrors \`GET\`. Returns \`403\` while code-first workflows are not enabled.`,
       tags: ['Workflows'],
-      errors: RESOURCE_ERRORS,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The workflow draft as source.', headers: RATE_LIMIT_HEADERS },
     },
     {

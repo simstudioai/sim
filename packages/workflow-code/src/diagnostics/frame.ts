@@ -68,6 +68,11 @@ export interface FrameLocation {
 const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/
 const CONTEXT_LINES = 2
 
+/** `text` split at Babel's line terminators. */
+export function splitLines(text: string): string[] {
+  return text.split(LINE_BREAK)
+}
+
 /** `value` truncated and clamped; NaN or absent becomes `fallback`, ±Infinity a bound. */
 function position(value: number | undefined, fallback: number, min: number, max: number): number {
   const integer = value === undefined || Number.isNaN(value) ? fallback : Math.trunc(value)
@@ -79,10 +84,11 @@ function position(value: number | undefined, fallback: number, min: number, max:
  * side, `>` on every line inside the span, and a caret row under the start line. Carets run to
  * `endColumn` when the span ends on the start line, else to the end of that line, and never
  * fewer than one. Tabs before the caret are kept so it lines up under tabbed source. A location
- * outside the text, NaN or infinite is clamped, never thrown. No ANSI escapes.
+ * outside the text, NaN or infinite is clamped, never thrown. No ANSI escapes. A caller framing
+ * many locations in one file passes its lines (split as {@link splitLines} does) to split once.
  */
-export function codeFrame(text: string, loc: FrameLocation): string {
-  const lines = text.split(LINE_BREAK)
+export function codeFrame(text: string | readonly string[], loc: FrameLocation): string {
+  const lines = typeof text === 'string' ? splitLines(text) : text
   const line = position(loc.line, 1, 1, lines.length)
   const endLine = position(loc.endLine, line, line, lines.length)
   const source = lines[line - 1]

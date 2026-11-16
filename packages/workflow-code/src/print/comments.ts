@@ -53,11 +53,19 @@ export interface AttachedComments {
 /** Hands out each anchor's comments once and reports the ones nobody claimed. */
 export class CommentPlacer {
   private readonly pending = new Map<string, CodeComment[]>()
+  /** Each block's param and wiring anchors, in `pending` order, so orphans are found per block. */
+  private readonly orphanAnchors = new Map<BlockKey, string[]>()
   readonly diagnostics: Diagnostic<PrintDiagnosticCode>[] = []
 
   constructor(comments: Partial<Record<AnchorKey, CodeComment[]>>) {
     for (const [anchor, list] of Object.entries(comments)) {
-      if (list && list.length > 0) this.pending.set(anchor, [...list])
+      if (!list || list.length === 0) continue
+      this.pending.set(anchor, [...list])
+      const decoded = decodeAnchor(anchor)
+      if (!decoded || decoded.kind === 'block' || !('block' in decoded)) continue
+      const anchorsOfBlock = this.orphanAnchors.get(decoded.block) ?? []
+      anchorsOfBlock.push(anchor)
+      this.orphanAnchors.set(decoded.block, anchorsOfBlock)
     }
   }
 
@@ -73,8 +81,9 @@ export class CommentPlacer {
    */
   takeOrphans(block: BlockKey): AttachedComments {
     const moved: CodeComment[] = []
-    for (const [anchor, list] of [...this.pending]) {
-      if (decodeAnchor(anchor)?.kind === 'block' || anchorBlock(anchor) !== block) continue
+    for (const anchor of this.orphanAnchors.get(block) ?? []) {
+      const list = this.pending.get(anchor)
+      if (!list) continue
       this.pending.delete(anchor)
       moved.push(...list)
       this.diagnostics.push({

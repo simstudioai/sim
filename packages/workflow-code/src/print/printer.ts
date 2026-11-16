@@ -21,8 +21,8 @@ import { isAdvancedMember, onSurface, paramAliases } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder, CatalogSubBlock } from '../catalog/types'
 import {
   catalogBlock as catalogBlockOf,
-  catalogBuilder,
   catalogBuilderPaths,
+  catalogBuildersOfType,
 } from '../catalog/view'
 import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
@@ -89,15 +89,6 @@ function hasValue(block: CanonicalBlock, id: string): boolean {
   return getOwn(block.params, id) !== undefined
 }
 
-function catalogBuilderEntries(catalog: BlockCatalog): Array<[string, CatalogBuilder]> {
-  const entries: Array<[string, CatalogBuilder]> = []
-  for (const path of catalogBuilderPaths(catalog)) {
-    const builder = catalogBuilder(catalog, path)
-    if (builder) entries.push([path, builder])
-  }
-  return entries
-}
-
 /**
  * The catalog builder for a block, most specific first (operation, then pinned fields). A
  * builder's params type one surface, so a trigger-mode builder never prints an action block and an
@@ -112,9 +103,8 @@ function findBuilder(
   read: (id: string) => string | undefined
 ): { path: string; builder: CatalogBuilder } | null {
   const triggerBlock = catalogBlockOf(catalog, type)?.category === 'triggers'
-  const candidates = catalogBuilderEntries(catalog)
+  const candidates = catalogBuildersOfType(catalog, type)
     .filter(([, builder]) => {
-      if (builder.type !== type) return false
       if (!triggerBlock && (builder.triggerMode === true) !== triggerMode) return false
       if (builder.operation !== undefined && read('operation') !== builder.operation) return false
       return Object.entries(builder.fixed ?? {}).every(([id, value]) => read(id) === value)
@@ -228,6 +218,9 @@ class WorkflowPrinter {
   private readonly scopes = new Map<BlockKey | null, ScopeInfo>()
   private readonly position = new Map<BlockKey, number>()
   private readonly preorder: BlockKey[] = []
+  private readonly preorderIndex = new Map<BlockKey, number>()
+  /** Edges by source block, in workflow order. */
+  private readonly edgesFrom = new Map<BlockKey, CanonicalEdge[]>()
   private idents = new Map<BlockKey, string>()
   private readonly paramNames = new Map<BlockKey, string>()
   private readonly refs: RefPrinter
@@ -250,6 +243,11 @@ class WorkflowPrinter {
       this.parentOf.set(key, parent?.subflow && block.parent !== null ? block.parent : null)
     }
     this.breakParentCycles()
+    for (const edge of this.workflow.edges) {
+      const list = this.edgesFrom.get(edge.from) ?? []
+      list.push(edge)
+      this.edgesFrom.set(edge.from, list)
+    }
     const scope: RefScope = {
       hasBlock: (key) => this.blocks.has(key),
       hasVariable: (key) => key in this.workflow.variables,
@@ -375,6 +373,7 @@ class WorkflowPrinter {
       this.scopes.set(scope, { members: order })
       order.forEach((key, index) => {
         this.position.set(key, index)
+        this.preorderIndex.set(key, this.preorder.length)
         this.preorder.push(key)
         if (this.blocks.get(key)?.subflow) visit(key)
       })
@@ -930,7 +929,7 @@ class WorkflowPrinter {
   }
 
   private hasErrorEdge(key: BlockKey): boolean {
-    return this.workflow.edges.some((edge) => edge.from === key && edge.port.kind === 'error')
+    return (this.edgesFrom.get(key) ?? []).some((edge) => edge.port.kind === 'error')
   }
 
   private metaProperties(
@@ -1131,7 +1130,7 @@ class WorkflowPrinter {
     const statements: Array<{ doc: Doc; anchor: AnchorKey; source: BlockKey }> = []
     const byTarget = (a: CanonicalEdge, b: CanonicalEdge) =>
       (this.position.get(a.to) ?? 0) - (this.position.get(b.to) ?? 0) ||
-      this.preorder.indexOf(a.to) - this.preorder.indexOf(b.to)
+      (this.preorderIndex.get(a.to) ?? -1) - (this.preorderIndex.get(b.to) ?? -1)
     const call = (head: string, targets: CanonicalEdge[], method: string): Doc =>
       callExpr(
         `${head}.${method}`,
@@ -1153,9 +1152,7 @@ class WorkflowPrinter {
 
     if (scope !== null) {
       const container = this.blocks.get(scope)
-      const starts = this.workflow.edges.filter(
-        (e) => e.from === scope && e.port.kind === 'subflowStart'
-      )
+      const starts = (this.edgesFrom.get(scope) ?? []).filter((e) => e.port.kind === 'subflowStart')
       if (container?.subflow && starts.length > 0) {
         statements.push({
           doc: call(this.paramNames.get(scope) ?? 'p', starts, 'to'),
@@ -1169,9 +1166,7 @@ class WorkflowPrinter {
       const block = this.blocks.get(source)
       if (!block) continue
       const ident = this.idents.get(source) ?? source
-      const edges = this.workflow.edges.filter(
-        (edge) => edge.from === source && this.blocks.has(edge.to)
-      )
+      const edges = (this.edgesFrom.get(source) ?? []).filter((edge) => this.blocks.has(edge.to))
       const isContainer = block.subflow !== undefined
       const hasBranches =
         block.branches !== undefined ||
@@ -1251,11 +1246,12 @@ class WorkflowPrinter {
     })
     const wiring = this.wiring(scope)
     const wiringDocs: Doc[] = []
+    const seenAnchors = new Set<AnchorKey>()
     wiring.forEach((statement, index) => {
-      const seenBefore = wiring.slice(0, index).some((s) => s.anchor === statement.anchor)
-      const attached: AttachedComments = seenBefore
+      const attached: AttachedComments = seenAnchors.has(statement.anchor)
         ? { leading: [], trailing: [] }
         : this.comments.take(statement.anchor)
+      seenAnchors.add(statement.anchor)
       if (index === 0 && scope === null) {
         const wiringComments = this.comments.take(anchors.wiring)
         attached.leading.unshift(...wiringComments.leading)

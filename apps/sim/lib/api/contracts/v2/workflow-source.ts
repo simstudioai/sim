@@ -1,3 +1,4 @@
+import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { z } from 'zod'
 import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -20,7 +21,6 @@ export const v2GetWorkflowSourceContract = defineRouteContract({
 })
 
 const SOURCE_ENTRY_FILE = 'workflow.ts'
-const MAX_SOURCE_FILES = 500
 
 const applyWorkflowSourceQuerySchema = z
   .object({
@@ -44,12 +44,15 @@ const sourceFilesSchema = z
     if (!Object.hasOwn(files, SOURCE_ENTRY_FILE)) {
       ctx.addIssue({ code: 'custom', message: `files must include ${SOURCE_ENTRY_FILE}` })
     }
-    if (Object.keys(files).length > MAX_SOURCE_FILES) {
-      ctx.addIssue({ code: 'custom', message: `files cannot hold more than ${MAX_SOURCE_FILES}` })
+    if (Object.keys(files).length > SOURCE_LIMITS.maxFiles) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `files cannot hold more than ${SOURCE_LIMITS.maxFiles}`,
+      })
     }
   })
   .describe(
-    'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`).'
+    `Relative path → file text: \`workflow.ts\` plus every function-code file it references (for example \`functions/score.js\`). At most ${SOURCE_LIMITS.maxFiles} files of ${SOURCE_LIMITS.maxFileBytes} bytes each and ${SOURCE_LIMITS.maxTotalBytes} bytes together, for a workflow of at most ${SOURCE_LIMITS.maxBlocks} blocks.`
   )
 
 const provenanceSchema = z

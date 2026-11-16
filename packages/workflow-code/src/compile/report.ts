@@ -1,5 +1,10 @@
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
-import { codeFrame, type LocatedDiagnostic, type SourceSpan } from '../diagnostics/frame'
+import {
+  codeFrame,
+  type LocatedDiagnostic,
+  type SourceSpan,
+  splitLines,
+} from '../diagnostics/frame'
 import type { BlockKey, SubBlockId } from '../model'
 
 /** Babel's line terminators (`lineBreak` in @babel/parser), so lines agree with Babel `loc`. */
@@ -8,11 +13,18 @@ const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/g
 /** Line start offsets of one file, for offset → line/column. */
 class LineIndex {
   private readonly starts: number[] = [0]
+  private split: string[] | null = null
 
   constructor(readonly text: string) {
     for (const match of text.matchAll(LINE_BREAK)) {
       this.starts.push(match.index + match[0].length)
     }
+  }
+
+  /** The file's lines, split once on first use. */
+  get lines(): readonly string[] {
+    this.split ??= splitLines(this.text)
+    return this.split
   }
 
   /** 1-based line and UTF-16 column of an offset. */
@@ -84,7 +96,7 @@ export class Reporter {
 
   report(code: CompileDiagnosticCode, message: string, at: Range, extras: ReportExtras = {}): void {
     const span = this.span(at)
-    const text = this.indexes.get(at.file)?.text ?? ''
+    const lines = this.indexes.get(at.file)?.lines ?? ['']
     const severity = severityOf(code)
     if (severity === 'error') this.errorCount++
     const diagnostic = {
@@ -92,7 +104,7 @@ export class Reporter {
       severity,
       message,
       span,
-      frame: codeFrame(text, span),
+      frame: codeFrame(lines, span),
       ...(extras.hint !== undefined && { hint: extras.hint }),
       ...(extras.blockKey !== undefined && { blockKey: extras.blockKey }),
       ...(extras.param !== undefined && { param: extras.param }),

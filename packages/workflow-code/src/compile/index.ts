@@ -5,6 +5,7 @@ import { encodeAnchor, portKey } from '../anchors'
 import type { CompileResult, CompileWorkflowFn, SourceHints } from '../api'
 import type { SourceSpan } from '../diagnostics/frame'
 import { jsonFieldText, type RefTypeScope, refValueKind } from '../json-fields'
+import { utf8Bytes } from '../limits'
 import type {
   AnchorKey,
   BlockKey,
@@ -346,7 +347,7 @@ export const compileWorkflow: CompileWorkflowFn = (input) => {
     catalog: input.catalog,
     files: input.files,
     limits,
-    codeFiles: { reads: new Map(), refs: 0, bytes: 0 },
+    codeFiles: { reads: new Map(), refs: 0, bytes: utf8Bytes(text) },
     comments: new CommentCollector(file, reporter),
     decls: [],
     declsByKey: new Map(),
@@ -434,6 +435,17 @@ export const compileWorkflow: CompileWorkflowFn = (input) => {
         }
       )
     }
+  }
+
+  const overLimit = ctx.decls[limits.maxBlocks]
+  if (overLimit) {
+    reporter.report(
+      'E_LIMIT_EXCEEDED',
+      `The workflow declares ${ctx.decls.length} blocks; the limit is ${limits.maxBlocks}.`,
+      rangeOf(ctx, overLimit.anchorNode),
+      { hint: 'Split the workflow, moving parts into child workflows.' }
+    )
+    return emptyResult(reporter, parsed.sdkMajor)
   }
 
   const compiled = new Map<BlockKey, CanonicalBlock>()

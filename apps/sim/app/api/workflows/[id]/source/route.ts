@@ -18,8 +18,12 @@ export const GET = defineInternalJsonRoute({
   contract: getWorkflowSourceContract,
   auth: internalSessionAuth,
   operation: readWorkflowSource.operation,
-  rateLimit: internalRateLimits.none({
-    reason: 'A session read the Code tab refetches after edits, like GET /api/workflows/[id]',
+  rateLimit: internalRateLimits.user({
+    bucketName: 'workflow-source-read',
+    // Unlike the other canvas reads (a row fetch), each read canonicalizes and prints the whole
+    // workflow and may bind resource keys. The Code tab refetches after every persisted edit, so
+    // the budget allows a steady two reads a second.
+    config: { maxTokens: 120, refillRate: 120, refillIntervalMs: 60_000 },
   }),
   errorPolicy: internalWorkflowErrorPolicies.concealWorkflowAuthorization,
   mapInput: ({ params, query }) => ({

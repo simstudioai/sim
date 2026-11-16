@@ -3633,7 +3633,6 @@
   "apps/sim/lib/api/contracts/v2/workflow-mcp-servers.ts#v2WorkflowMcpToolStatusSchema",
   "apps/sim/lib/api/contracts/v2/workflows.ts#MAX_WORKFLOW_BULK_MOVES",
   "apps/sim/lib/api/contracts/v2/workflows.ts#MAX_WORKFLOW_EDIT_OPERATIONS",
-  "apps/sim/lib/api/contracts/v2/workflows.ts#MAX_WORKFLOW_GRAPH_BLOCKS",
   "apps/sim/lib/api/contracts/v2/workflows.ts#MAX_WORKFLOW_GRAPH_EDGES",
   "apps/sim/lib/api/contracts/v2/workflows.ts#MAX_WORKFLOW_VARIABLE_OPERATIONS",
   "apps/sim/lib/api/contracts/v2/workflows.ts#V2ActivateWorkflowVersionData",

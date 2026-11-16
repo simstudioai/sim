@@ -1,19 +1,22 @@
 import { type ParserOptions, parse } from '@babel/parser'
 import type { File, Node } from '@babel/types'
 import type { CompileLimits } from '../api'
+import { SOURCE_LIMITS, utf8Bytes } from '../limits'
 import type { Reporter } from './report'
 
 /**
- * Default caps on hostile input (s4 D7). A 200-block workflow is about 44 KB, about 25k AST nodes
- * and under 20 levels deep, so each default leaves more than an order of magnitude of headroom.
+ * Default caps on hostile input (s4 D7): the shared source limits, so whatever a get prints
+ * compiles, plus a nesting cap. A 200-block workflow nests under 20 levels. Syntax nodes need no
+ * cap of their own: every node but an empty template element spans at least one byte, so the
+ * byte cap bounds them.
  */
 export const DEFAULT_LIMITS: Required<CompileLimits> = {
-  maxBytes: 1_000_000,
-  maxNodes: 500_000,
+  maxBlocks: SOURCE_LIMITS.maxBlocks,
+  maxFileBytes: SOURCE_LIMITS.maxFileBytes,
+  maxTotalBytes: SOURCE_LIMITS.maxTotalBytes,
   maxDepth: 200,
-  maxCodeFileBytesTotal: 5_000_000,
-  /** One code file per block at the v2 graph block cap (`MAX_WORKFLOW_GRAPH_BLOCKS`). */
-  maxCodeFileRefs: 2_000,
+  /** One code file per block. */
+  maxCodeFileRefs: SOURCE_LIMITS.maxBlocks,
 }
 
 const HEADER = /^\/\/ @sim-sdk ([0-9]{1,6})[ \t]*(?=\r\n|[\n\r\u2028\u2029]|$)/
@@ -55,21 +58,6 @@ function childNodes(node: Node): Node[] {
     }
   }
   return children
-}
-
-/** UTF-8 length of `text`, counting at most `cap + 1` bytes. */
-export function utf8Length(text: string, cap: number): number {
-  let bytes = 0
-  for (let i = 0; i < text.length && bytes <= cap; i++) {
-    const code = text.charCodeAt(i)
-    if (code < 0x80) bytes += 1
-    else if (code < 0x800) bytes += 2
-    else if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
-      bytes += 4
-      i++
-    } else bytes += 3
-  }
-  return bytes
 }
 
 /**
@@ -128,19 +116,13 @@ export function bracketDepthOverflow(text: string, maxDepth: number): number {
   return -1
 }
 
-/** Node count and depth check, iterative so a deep tree cannot overflow the stack. */
-function treeOverflow(
-  root: Node,
-  limits: Required<CompileLimits>
-): { kind: 'nodes' | 'depth'; node: Node } | null {
+/** The first node deeper than `maxDepth`, iterative so a deep tree cannot overflow the stack. */
+function depthOverflow(root: Node, maxDepth: number): Node | null {
   const stack: Array<{ node: Node; depth: number }> = [{ node: root, depth: 1 }]
-  let count = 0
   while (stack.length > 0) {
     const entry = stack.pop()
     if (!entry) break
-    count++
-    if (count > limits.maxNodes) return { kind: 'nodes', node: entry.node }
-    if (entry.depth > limits.maxDepth) return { kind: 'depth', node: entry.node }
+    if (entry.depth > maxDepth) return entry.node
     for (const child of childNodes(entry.node)) stack.push({ node: child, depth: entry.depth + 1 })
   }
   return null
@@ -166,7 +148,7 @@ interface ParsedSource {
 
 /**
  * Parses a workflow file with Babel (typescript, errorRecovery, attachComment; s3 D1) after the
- * byte and bracket-depth caps, then checks the node-count and depth caps. Babel errors are
+ * byte and bracket-depth caps, then checks the AST depth cap. Babel errors are
  * re-coded as `E_SYNTAX`. Nothing is evaluated.
  */
 export function parseWorkflowSource(
@@ -182,10 +164,10 @@ export function parseWorkflowSource(
     headerEnd: header ? header[0].length : 0,
   }
 
-  if (utf8Length(text, limits.maxBytes) > limits.maxBytes) {
+  if (utf8Bytes(text, limits.maxFileBytes) > limits.maxFileBytes) {
     reporter.report(
       'E_LIMIT_EXCEEDED',
-      `The file is larger than ${limits.maxBytes} bytes.`,
+      `The file is larger than ${limits.maxFileBytes} bytes.`,
       { file, start: 0, end: 0 },
       { hint: 'Split the workflow, or move large text into a code file.' }
     )
@@ -227,16 +209,14 @@ export function parseWorkflowSource(
     reporter.report('E_SYNTAX', babelMessage(shape), { file, start: pos, end: pos + 1 })
   }
 
-  const overflow = treeOverflow(ast, limits)
-  if (overflow) {
-    const start = overflow.node.start ?? 0
+  const tooDeep = depthOverflow(ast, limits.maxDepth)
+  if (tooDeep) {
+    const start = tooDeep.start ?? 0
     reporter.report(
       'E_LIMIT_EXCEEDED',
-      overflow.kind === 'nodes'
-        ? `The file has more than ${limits.maxNodes} syntax nodes.`
-        : `Nesting is deeper than ${limits.maxDepth} levels.`,
-      { file, start, end: overflow.node.end ?? start },
-      { hint: 'Split the workflow or flatten deeply nested values.' }
+      `Nesting is deeper than ${limits.maxDepth} levels.`,
+      { file, start, end: tooDeep.end ?? start },
+      { hint: 'Flatten deeply nested values.' }
     )
     return parsed
   }

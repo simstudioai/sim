@@ -98,31 +98,38 @@ export class CommentCollector {
       })
   }
 
-  private innermostList(start: number, end: number): SiblingList | null {
-    let best: SiblingList | null = null
-    for (const list of this.lists) {
-      if (list.start <= start && end <= list.end) {
-        if (!best || list.end - list.start < best.end - best.start) best = list
-      }
-    }
-    return best
-  }
-
   /** Assigns `comments` (in source order) once every list is registered. */
   assign(comments: readonly Comment[]): void {
     const footer = encodeAnchor({ kind: 'footer' })
+    for (const list of this.lists) list.items.sort((a, b) => a.start - b.start)
+    // Lists come from nested AST nodes, so they nest or are disjoint. Sweeping them in start order
+    // (outer first; among equal spans the first registered on top) keeps a stack whose top is the
+    // innermost list around the current comment.
+    const order = this.lists
+      .map((list, index) => ({ list, index }))
+      .sort((a, b) => a.list.start - b.list.start || b.list.end - a.list.end || b.index - a.index)
+    const open: SiblingList[] = []
+    let nextList = 0
     for (const comment of comments) {
       const start = comment.start ?? 0
       const end = comment.end ?? start
-      const list = this.innermostList(start, end)
+      while (nextList < order.length && order[nextList].list.start <= start) {
+        const entering = order[nextList].list
+        while (open.length > 0 && open[open.length - 1].end < entering.start) open.pop()
+        open.push(entering)
+        nextList++
+      }
+      while (open.length > 0 && open[open.length - 1].end < end) open.pop()
+      const list = open.length > 0 ? open[open.length - 1] : null
       if (!list) {
         this.add(footer, comment, 'leading')
         continue
       }
-      const items = [...list.items].sort((a, b) => a.start - b.start)
-      const container = items.find((item) => item.start <= start && end <= item.end)
-      if (container) {
-        this.add(container.anchor ?? list.owner, comment, 'leading')
+      const items = list.items
+      const at = lastStartingAtOrBefore(items, start)
+      const candidate = at === -1 ? undefined : items[at]
+      if (candidate && end <= candidate.end) {
+        this.add(candidate.anchor ?? list.owner, comment, 'leading')
         this.reporter.report(
           'W_COMMENT_MOVED',
           'This comment is inside an expression; it moves to the nearest anchor on the next print.',
@@ -131,10 +138,10 @@ export class CommentCollector {
         )
         continue
       }
+      const previous = candidate
+      const next = items[at + 1]
       const commentLine = this.line(start)
       const commentEndLine = this.line(end)
-      const previous = [...items].reverse().find((item) => item.end <= start)
-      const next = items.find((item) => item.start >= end)
       if (previous && previous.endLine === commentLine) {
         this.add(previous.anchor ?? list.owner, comment, 'trailing')
       } else if (next) {
@@ -150,4 +157,21 @@ export class CommentCollector {
       }
     }
   }
+}
+
+/** Index of the last item (sorted by start) starting at or before `offset`, or -1. */
+function lastStartingAtOrBefore(items: readonly AnchorItem[], offset: number): number {
+  let low = 0
+  let high = items.length - 1
+  let found = -1
+  while (low <= high) {
+    const mid = (low + high) >> 1
+    if (items[mid].start <= offset) {
+      found = mid
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+  return found
 }

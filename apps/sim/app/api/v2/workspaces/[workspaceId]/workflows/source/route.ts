@@ -1,9 +1,9 @@
+import { SOURCE_REQUEST_MAX_BYTES } from '@sim/workflow-code/limits'
 import { v2CreateWorkflowFromSourceContract } from '@/lib/api/contracts/v2/workflow-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { createWorkflowFromSource } from '@/lib/workflows/application/apply-workflow-source'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { MAX_IMPORT_BODY_BYTES } from '@/lib/workflows/operations/import-workflow'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -20,7 +20,7 @@ export const POST = defineV2JsonRoute({
   operation: workflowOperations.createFromSource,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2WorkflowErrorPolicies.concealWorkspaceSourceCreate,
-  parseOptions: { maxBodyBytes: MAX_IMPORT_BODY_BYTES },
+  parseOptions: { maxBodyBytes: SOURCE_REQUEST_MAX_BYTES },
   mapInput: ({ params, query, body }) => ({
     workspaceId: params.workspaceId,
     files: body.files,
