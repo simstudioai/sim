@@ -756,7 +756,6 @@ export const EnrichBlock: BlockConfig = {
     config: {
       tool: (params) => `enrich_${params.operation}`,
       params: (params, context) => {
-        const rest = params
         const operation = mapperOperation(params, context)
         const toolCall = isToolCall(context)
         /** A block-only field; on a tool call a blank one yields to the model's arg under the tool's param name. */
@@ -764,43 +763,43 @@ export const EnrichBlock: BlockConfig = {
           toolCall && (blockValue === undefined || blockValue === null || blockValue === '')
             ? modelArg
             : blockValue
-        const parsedParams: Record<string, any> = { ...rest }
+        const parsedParams: Record<string, any> = { ...params }
 
         try {
-          if (rest.currentJobTitles && typeof rest.currentJobTitles === 'string') {
-            parsedParams.currentJobTitles = JSON.parse(rest.currentJobTitles)
+          if (params.currentJobTitles && typeof params.currentJobTitles === 'string') {
+            parsedParams.currentJobTitles = JSON.parse(params.currentJobTitles)
           }
-          if (rest.skills && typeof rest.skills === 'string') {
-            parsedParams.skills = JSON.parse(rest.skills)
+          if (params.skills && typeof params.skills === 'string') {
+            parsedParams.skills = JSON.parse(params.skills)
           }
-          if (rest.industries && typeof rest.industries === 'string') {
-            parsedParams.industries = JSON.parse(rest.industries)
+          if (params.industries && typeof params.industries === 'string') {
+            parsedParams.industries = JSON.parse(params.industries)
           }
           if (
             operation !== 'search_jobs' &&
-            rest.companyIds &&
-            typeof rest.companyIds === 'string'
+            params.companyIds &&
+            typeof params.companyIds === 'string'
           ) {
-            parsedParams.companyIds = JSON.parse(rest.companyIds)
+            parsedParams.companyIds = JSON.parse(params.companyIds)
           }
-          if (rest.jobTitles && typeof rest.jobTitles === 'string') {
-            parsedParams.jobTitles = JSON.parse(rest.jobTitles)
+          if (params.jobTitles && typeof params.jobTitles === 'string') {
+            parsedParams.jobTitles = JSON.parse(params.jobTitles)
           }
-          if (rest.accountLocation && typeof rest.accountLocation === 'string') {
-            parsedParams.accountLocation = JSON.parse(rest.accountLocation)
+          if (params.accountLocation && typeof params.accountLocation === 'string') {
+            parsedParams.accountLocation = JSON.parse(params.accountLocation)
           }
-          if (rest.employeeSizeRange && typeof rest.employeeSizeRange === 'string') {
-            parsedParams.employeeSizeRange = JSON.parse(rest.employeeSizeRange)
+          if (params.employeeSizeRange && typeof params.employeeSizeRange === 'string') {
+            parsedParams.employeeSizeRange = JSON.parse(params.employeeSizeRange)
           }
-          if (rest.filters && typeof rest.filters === 'string') {
-            parsedParams.filters = JSON.parse(rest.filters)
+          if (params.filters && typeof params.filters === 'string') {
+            parsedParams.filters = JSON.parse(params.filters)
           }
         } catch (error: any) {
           throw new Error(`Invalid JSON input: ${error.message}`)
         }
 
         if (operation === 'linkedin_profile') {
-          parsedParams.url = blockFieldOr(rest.linkedinUrl, rest.url)
+          parsedParams.url = blockFieldOr(params.linkedinUrl, params.url)
           parsedParams.linkedinUrl = undefined
         }
         if (
@@ -808,32 +807,32 @@ export const EnrichBlock: BlockConfig = {
           operation === 'linkedin_to_personal_email' ||
           operation === 'phone_finder'
         ) {
-          parsedParams.linkedinProfile = blockFieldOr(rest.linkedinUrl, rest.linkedinProfile)
+          parsedParams.linkedinProfile = blockFieldOr(params.linkedinUrl, params.linkedinProfile)
           parsedParams.linkedinUrl = undefined
         }
         if (operation === 'company_lookup') {
-          parsedParams.name = blockFieldOr(rest.companyName, rest.name)
+          parsedParams.name = blockFieldOr(params.companyName, params.name)
           parsedParams.companyName = undefined
         }
         if (operation === 'search_company') {
-          parsedParams.name = blockFieldOr(rest.searchCompanyName, rest.name)
+          parsedParams.name = blockFieldOr(params.searchCompanyName, params.name)
           parsedParams.searchCompanyName = undefined
         }
         if (operation === 'search_similar_companies') {
-          parsedParams.url = blockFieldOr(rest.linkedinCompanyUrl, rest.url)
+          parsedParams.url = blockFieldOr(params.linkedinCompanyUrl, params.url)
           parsedParams.linkedinCompanyUrl = undefined
         }
         if (operation === 'get_post_details') {
-          parsedParams.url = blockFieldOr(rest.postUrl, rest.url)
+          parsedParams.url = blockFieldOr(params.postUrl, params.url)
           parsedParams.postUrl = undefined
         }
         if (operation === 'search_logo') {
-          parsedParams.url = blockFieldOr(rest.domain, rest.url)
+          parsedParams.url = blockFieldOr(params.domain, params.url)
         }
         if (operation === 'search_jobs') {
-          parsedParams.location = blockFieldOr(rest.jobLocation, rest.location)
+          parsedParams.location = blockFieldOr(params.jobLocation, params.location)
           parsedParams.jobLocation = undefined
-          parsedParams.companyIds = blockFieldOr(rest.jobCompanyIds, rest.companyIds)
+          parsedParams.companyIds = blockFieldOr(params.jobCompanyIds, params.companyIds)
           parsedParams.jobCompanyIds = undefined
         }
 

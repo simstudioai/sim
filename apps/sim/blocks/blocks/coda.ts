@@ -1620,10 +1620,8 @@ Return ONLY the JSON object.`,
           suppressEmail: trueOrUndefined(params.suppressEmail),
           degradeGracefully: trueOrUndefined(params.degradeGracefully),
         }
-        /* A tool call's model args are keyed by the tool's param names; keep each one this
-           mapping leaves unset instead of wiping it. Self-mapped keys already coerced the
-           model's own value, so restoring them would re-add a sentinel the coercion dropped.
-           The canvas passes no context, so its explicit `undefined` drops stay in place. */
+        /* A tool call keeps each model arg this mapping leaves unset instead of wiping it;
+           {@link SELF_MAPPED_PARAMS} lists the keys whose drop must stand. */
         for (const [key, value] of Object.entries(mapped)) {
           if (value === undefined && !SELF_MAPPED_PARAMS.has(key)) {
             mapped[key] = toolCallArg(context, params[key])
