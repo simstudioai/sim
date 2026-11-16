@@ -2,6 +2,7 @@ import type { RipplingUpdateCustomSettingParams } from '@/tools/rippling/types'
 import { CUSTOM_SETTING_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateCustomSettingTool: ToolConfig<RipplingUpdateCustomSettingParams> = {
   id: 'rippling_update_custom_setting',
@@ -16,7 +17,12 @@ export const ripplingUpdateCustomSettingTool: ToolConfig<RipplingUpdateCustomSet
       visibility: 'user-only',
       description: 'Rippling API key',
     },
-    id: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Setting ID' },
+    id: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Custom setting API name (api_name)',
+    },
     displayName: {
       type: 'string',
       required: false,
@@ -62,7 +68,7 @@ export const ripplingUpdateCustomSettingTool: ToolConfig<RipplingUpdateCustomSet
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-settings/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/custom-settings/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -378,3 +378,109 @@ describe('MicrosoftDynamics365Block', () => {
     ).toBeUndefined()
   })
 })
+
+/**
+ * Agent tool rows, Pi, and Human v2 pass the operation only in the mapper context. Params hold the
+ * stored row values merged with the model's args, which are keyed by the selected tool's param
+ * names. A tool row stores only fields tool-input renders, so block-only dropdowns such as
+ * `recordType` and `ownerType` are absent.
+ */
+describe('MicrosoftDynamics365Block tool-call mapping', () => {
+  const RECORD_ID = '11111111-1111-4111-8111-111111111111'
+  const OWNER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+
+  function mapToolCall(operation: string, params: Record<string, unknown>) {
+    const mapper = MicrosoftDynamics365Block.tools.config?.params
+    if (!mapper) throw new Error('Dynamics 365 CRM block is missing its params mapper')
+    return mapper({ ...BASE_PARAMS, ...params }, { operation })
+  }
+
+  it('applies the stored resolution subject when the model sends only the case ID', () => {
+    expect(
+      mapToolCall('close_case', { caseSubject: 'Resolved by agent', caseId: RECORD_ID })
+    ).toEqual({ ...BASE_PARAMS, caseId: RECORD_ID, subject: 'Resolved by agent' })
+    expect(
+      mapToolCall('close_case', { caseId: RECORD_ID, subject: 'Model subject', timeSpent: 15 })
+    ).toEqual({ ...BASE_PARAMS, caseId: RECORD_ID, subject: 'Model subject', timeSpent: 15 })
+  })
+
+  it('keeps typed model list args over the stored count switch', () => {
+    expect(
+      mapToolCall('list_records', {
+        includeCount: false,
+        entitySetName: 'contacts',
+        select: 'fullname',
+        pageSize: 10,
+        count: true,
+      })
+    ).toEqual({
+      ...BASE_PARAMS,
+      entitySetName: 'contacts',
+      select: 'fullname',
+      pageSize: 10,
+      count: 'true',
+    })
+  })
+
+  it('closes the opportunity the model names with the outcome it chose', () => {
+    expect(
+      mapToolCall('close_opportunity', {
+        opportunityId: RECORD_ID,
+        outcome: 'lost',
+        statusReason: 4,
+      })
+    ).toEqual({ ...BASE_PARAMS, opportunityId: RECORD_ID, outcome: 'lost', statusReason: 4 })
+  })
+
+  it('refuses to close an opportunity when the model omits the outcome', () => {
+    expect(() => mapToolCall('close_opportunity', { opportunityId: RECORD_ID })).toThrow(
+      'Outcome is required'
+    )
+  })
+
+  it('searches the model entities and numeric paging, else every CRM table', () => {
+    const entityList = [{ name: 'contact' }, { name: 'lead' }]
+    const entities = JSON.stringify(entityList)
+    expect(
+      mapToolCall('search_records', { searchTerm: 'Contoso', entities, top: 10, skip: 20 })
+    ).toMatchObject({ entities, top: 10, skip: 20, searchMode: 'any', searchType: 'simple' })
+    expect(
+      mapToolCall('search_records', { searchTerm: 'Contoso', entities: entityList })
+    ).toMatchObject({ entities })
+    const omitted = mapToolCall('search_records', { searchTerm: 'Contoso' })
+    expect(omitted).toMatchObject({ searchTerm: 'Contoso', top: 100 })
+    expect(omitted).not.toHaveProperty('entities')
+  })
+
+  it('leaves qualification switches the model omits for the tool to reject', () => {
+    const mapped = mapToolCall('qualify_lead', { leadId: RECORD_ID })
+    expect(mapped).toEqual({ ...BASE_PARAMS, leadId: RECORD_ID })
+    expect(mapped).not.toHaveProperty('createAccount')
+    expect(mapped).not.toHaveProperty('createContact')
+    expect(mapped).not.toHaveProperty('createOpportunity')
+  })
+
+  it('passes model qualification references when no stored values exist', () => {
+    expect(
+      mapToolCall('qualify_lead', {
+        leadId: RECORD_ID,
+        createAccount: false,
+        createContact: false,
+        createOpportunity: true,
+        statusReason: 3,
+        opportunityCustomerId: OWNER_ID,
+        opportunityCustomerType: 'contact',
+        qualifyOpportunityCustomerType: 'account',
+      })
+    ).toEqual({
+      ...BASE_PARAMS,
+      leadId: RECORD_ID,
+      createAccount: false,
+      createContact: false,
+      createOpportunity: true,
+      statusReason: 3,
+      opportunityCustomerId: OWNER_ID,
+      opportunityCustomerType: 'contact',
+    })
+  })
+})

@@ -482,6 +482,62 @@ describe('Snowflake SQL builders', () => {
     )
   })
 
+  it('never turns an absent or string-false flag from a tool call into a clause', () => {
+    const untyped = (flags: Record<string, unknown>) => flags as Record<string, never>
+    expect(
+      buildAlterWarehouse({
+        ...context,
+        warehouseName: 'ETL_WH',
+        warehouseSize: 'SMALL',
+        ...untyped({ autoResume: null }),
+      }).statement
+    ).toBe('ALTER WAREHOUSE ETL_WH SET WAREHOUSE_SIZE = SMALL')
+    expect(
+      buildUnloadData({
+        ...table,
+        stagePath: '@EXPORTS/daily',
+        ...untyped({ overwrite: 'false', singleFile: 'false', header: 'false' }),
+      }).statement
+    ).toBe(
+      'COPY INTO @EXPORTS/daily FROM ANALYTICS.PUBLIC.EVENTS OVERWRITE = FALSE SINGLE = FALSE HEADER = FALSE'
+    )
+    expect(
+      buildListQueryHistory({ ...context, ...untyped({ errorOnly: 'false' }) }).statement
+    ).not.toContain('WHERE')
+  })
+
+  it('reads string flags from a tool call case-insensitively', () => {
+    const untyped = (flags: Record<string, unknown>) => flags as Record<string, never>
+    expect(
+      buildAlterWarehouse({
+        ...context,
+        warehouseName: 'ETL_WH',
+        ...untyped({ autoResume: 'True' }),
+      }).statement
+    ).toBe('ALTER WAREHOUSE ETL_WH SET AUTO_RESUME = TRUE')
+    expect(
+      buildUnloadData({
+        ...table,
+        stagePath: '@EXPORTS/daily',
+        ...untyped({ overwrite: 'TRUE', singleFile: ' true ', header: 'True' }),
+      }).statement
+    ).toBe(
+      'COPY INTO @EXPORTS/daily FROM ANALYTICS.PUBLIC.EVENTS OVERWRITE = TRUE SINGLE = TRUE HEADER = TRUE'
+    )
+    expect(
+      buildListQueryHistory({ ...context, ...untyped({ errorOnly: 'TRUE' }) }).statement
+    ).toContain('WHERE')
+  })
+
+  it('keeps the double quotes of a case-sensitive query history filter name', () => {
+    expect(
+      buildListQueryHistory({ ...context, warehouseName: '"Analytics WH"' }).statement
+    ).toContain(`WAREHOUSE_NAME => '"Analytics WH"'`)
+    expect(buildListQueryHistory({ ...context, userName: '"jdoe@corp.com"' }).statement).toContain(
+      `USER_NAME => '"jdoe@corp.com"'`
+    )
+  })
+
   /**
    * The source is a table name, never an inline query. An inlined query sits
    * directly before the copy-option slot, so anything escaping its parentheses

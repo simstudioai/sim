@@ -39,6 +39,8 @@ const SNOWFLAKE_SUCCESS_SQL_STATES = ['', '00000']
 /** SQLSTATE/code the Cancel Statement endpoint returns for an actual cancellation. */
 const SNOWFLAKE_CANCELED_SQL_STATE = '57014'
 const SNOWFLAKE_CANCELED_CODE = '000604'
+/** Snowflake SQL API code for a result set too large to return in full. */
+const SNOWFLAKE_RESULT_TOO_LARGE_CODE = '391908'
 
 interface SnowflakeApiColumn {
   name?: string
@@ -323,7 +325,8 @@ function normalizeContextName(value: string, field: string): string {
  * `parameters.rows_per_resultset` caps the result set server-side. Snowflake
  * emits no response field indicating the cap was applied, so a capped `SELECT`
  * is indistinguishable from one that genuinely matched that many rows — the
- * result's `truncated` flag reports remaining partitions only and never this cap.
+ * result's `truncated` flag reports remaining partitions or Snowflake's `391908`
+ * incomplete-result code, never this cap.
  */
 export function buildSnowflakeStatementBody(
   params: SnowflakeStatementParams,
@@ -472,10 +475,12 @@ function statementStatus(pending: boolean, canceled: boolean): SnowflakeStatemen
 }
 
 /**
- * `/api/v2/statements` pages exclusively through the `partition` query parameter
- * and `resultSetMetaData.partitionInfo`. The `Link` response header and the
- * `391908` truncated-result code belong to the retired `/api/statements` API and
- * are never emitted here, so neither is consulted.
+ * Pages are walked exclusively through the `partition` query parameter and
+ * `resultSetMetaData.partitionInfo`. The `Link` response header that
+ * `/api/v2/statements` also sends is not consulted. A response whose `code` is
+ * `391908` is reported as truncated regardless of `partitionInfo`, because
+ * Snowflake documents that code as "the result set is too large" and the
+ * response does not include the entire result set.
  *
  * Snowflake documents that partition responses after the first "do not contain
  * any metadata" and that "metadata for all partitions is provided in the first
@@ -504,7 +509,12 @@ function buildResultOutput(
     currentPartition,
     partitionCount,
     nextPartition,
-    truncated: completenessKnown ? nextPartition !== null : null,
+    truncated:
+      data.code === SNOWFLAKE_RESULT_TOO_LARGE_CODE
+        ? true
+        : completenessKnown
+          ? nextPartition !== null
+          : null,
   }
 }
 

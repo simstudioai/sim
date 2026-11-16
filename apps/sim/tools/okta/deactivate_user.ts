@@ -4,6 +4,7 @@ import type { OktaDeactivateUserParams, OktaDeactivateUserResponse } from '@/too
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaDeactivateUser')
 
@@ -49,7 +50,7 @@ export const oktaDeactivateUserTool: ToolConfig<
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
       const sendEmail = isOktaFlagEnabled(params.sendEmail)
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/deactivate?sendEmail=${sendEmail}`
+      return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/lifecycle/deactivate?sendEmail=${sendEmail}`
     },
     method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),

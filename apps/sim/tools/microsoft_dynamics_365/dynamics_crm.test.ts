@@ -506,6 +506,21 @@ describe('microsoft_dynamics_365_search response validation', () => {
     })
   })
 
+  it('accepts the PascalCase SearchEntity keys from the Dataverse query example', () => {
+    const entities = JSON.stringify([
+      { Name: 'account', SelectColumns: ['name'], Filter: 'statecode eq 0' },
+    ])
+    expect(
+      microsoftDynamics365SearchRecordsTool.request.body!({ ...SEARCH_PARAMS, entities })
+    ).toMatchObject({ entities })
+    expect(() =>
+      microsoftDynamics365SearchRecordsTool.request.body!({
+        ...SEARCH_PARAMS,
+        entities: JSON.stringify([{ Name: 'systemuser' }]),
+      })
+    ).toThrow('entities contains an unsupported Dynamics 365 CRM table')
+  })
+
   it.each([
     [{ ...SEARCH_PARAMS, searchTerm: '   ' }, /searchTerm must be a non-empty string/],
     [{ ...SEARCH_PARAMS, searchTerm: 'x'.repeat(101) }, /at most 100 characters/],
