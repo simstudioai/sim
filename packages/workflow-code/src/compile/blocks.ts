@@ -3,6 +3,7 @@ import { isRecordLike } from '@sim/utils/object'
 import type { BlockRetryConfig, WorkflowBranchKind } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
 import { DEFAULT_LOOP_ITERATIONS, SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import { canonicalActivityInputs, isInactive } from '../catalog/activity'
 import { editorDefaults } from '../catalog/defaults'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import {
@@ -930,11 +931,13 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
       decl.key
     )
   }
+  const defaulted: SubBlockId[] = []
   if (catalogBlock) {
     for (const [id, value] of editorDefaults(catalogBlock)) {
       if (Object.hasOwn(params, id) || state.unset.has(id) || pinned.has(id)) continue
       if (id === branchField?.subBlockId) continue
       setOwn(params, id, { kind: 'value', value })
+      defaulted.push(id)
     }
   }
   if (index) checkFields(ctx, index, state)
@@ -954,7 +957,32 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     modes,
     ...(branches && { branches }),
   }
+  if (catalogBlock) keepStoredInactiveParams(ctx, block, catalogBlock, defaulted)
   return { block, ...(codeFile !== undefined && { codeFile }) }
+}
+
+/**
+ * The printer leaves out a param that never executes, so source omitting one of a stored block's
+ * params means "keep what is stored", not "take the editor default": a default-filled param that
+ * is inactive takes the stored block's value, or none when the stored block has none. A block the
+ * stored workflow does not hold keeps the defaults, as canvas creation seeds them.
+ */
+function keepStoredInactiveParams(
+  ctx: CompileContext,
+  block: CanonicalBlock,
+  catalogBlock: CatalogBlock,
+  defaulted: readonly SubBlockId[]
+): void {
+  if (defaulted.length === 0) return
+  const stored = ctx.stored ? getOwn(ctx.stored.blocks, block.key) : undefined
+  if (!stored || stored.type !== block.type) return
+  const inputs = canonicalActivityInputs(block, catalogBlock, ctx.catalog)
+  for (const id of defaulted) {
+    if (!isInactive(id, inputs)) continue
+    const kept = getOwn(stored.params, id)
+    if (kept) setOwn(block.params, id, kept)
+    else delete block.params[id]
+  }
 }
 
 /**
