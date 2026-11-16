@@ -23,6 +23,7 @@ import {
   rangeOf,
   recordSpan,
   type Scope,
+  unsupported,
 } from './context'
 import { didYouMean, HINTS, hintForNode } from './hints'
 import { calleePath, literalText, SDK_VALUE_FUNCTIONS } from './values'
@@ -36,10 +37,6 @@ type CallClass =
   | { kind: 'value' }
   | { kind: 'wiring' }
   | { kind: 'other' }
-
-function unsupported(ctx: CompileContext, node: Node, message: string, hint: string): void {
-  ctx.reporter.report('E_UNSUPPORTED_SYNTAX', message, rangeOf(ctx, node), { hint })
-}
 
 /** Whether `call` is wiring: `x.to(...)`, `x.onError(...)`, a chain of those, or `edge(...)`. */
 function isWiringCall(scope: Scope, call: CallExpression): boolean {
@@ -107,7 +104,7 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
       `${dotted} is not a block builder.`,
       rangeOf(ctx, call.callee),
       {
-        ...withHint(didYouMean(dotted, candidates)),
+        hint: didYouMean(dotted, candidates),
       }
     )
     return { kind: 'builder', path: dotted, builder: { kind: 'unknown' } }
@@ -123,10 +120,6 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
       block: catalogBlock(ctx.catalog, builder.type),
     },
   }
-}
-
-function withHint(hint: string | undefined): { hint?: string } {
-  return hint === undefined ? {} : { hint }
 }
 
 /** Index of the name argument: `block(type, name, ...)` takes the type first. */

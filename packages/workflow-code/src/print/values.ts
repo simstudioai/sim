@@ -6,11 +6,11 @@
  */
 
 import type { CatalogSubBlock } from '../catalog/types'
-import type { BlockKey, Json, SimNode, Value } from '../model'
+import { type BlockKey, isSimNode, type Json, type SimNode, type Value } from '../model'
 import { parseJsonContainer } from '../records'
 import { type Doc, literalText } from './doc'
 import type { RefPrinter } from './refs'
-import { escapeTemplateText, printKey, printNumber, quoteString } from './strings'
+import { escapeTemplateText, printKey, printMember, printNumber, quoteString } from './strings'
 import { arrayExpr, callExpr, type Expr, objectExpr, type Property } from './syntax'
 
 /** The template tag a string field prints with; `t` prints untagged when it holds no refs. */
@@ -53,17 +53,6 @@ export interface PrintedValue extends Expr {
    * non-empty array of them: the form that stores into the basic member of a pair.
    */
   selector?: boolean
-}
-
-function isSimNode(value: object): value is SimNode {
-  const tag = (value as { $sim?: unknown }).$sim
-  return (
-    tag === 'var' ||
-    tag === 'resource' ||
-    tag === 'unresolved' ||
-    tag === 'csv' ||
-    tag === 'literal'
-  )
 }
 
 /** Prints values, recording SDK imports and reference diagnostics as it goes. */
@@ -142,7 +131,7 @@ export class ValuePrinter {
   private simNode(node: SimNode, context: FieldContext): PrintedValue {
     if (node.$sim === 'var' && context.variablesField === true) {
       this.useVars()
-      return { doc: `vars${memberOf(node.key)}`, shape: 'member' }
+      return { doc: `vars${printMember(node.key)}`, shape: 'member' }
     }
     if (node.$sim === 'resource') {
       const callee = RESOURCE_CALLS[node.kind]
@@ -176,10 +165,6 @@ export class ValuePrinter {
     )
     return { doc: [tag, '`', body, '`'], shape: 'template' }
   }
-}
-
-function memberOf(key: string): string {
-  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? `.${key}` : `[${quoteString(key)}]`
 }
 
 function nestedTag(context: FieldContext): Tag {

@@ -8,18 +8,19 @@ import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
 import { jsonFieldText } from '../json-fields'
 import { utf8Bytes } from '../limits'
-import type {
-  AnchorKey,
-  CanonicalBlock,
-  CanonicalBranches,
-  CanonicalBranchRow,
-  CanonicalParam,
-  Json,
-  LoopSpec,
-  ParallelSpec,
-  ParamMode,
-  SubBlockId,
-  Value,
+import {
+  type AnchorKey,
+  type CanonicalBlock,
+  type CanonicalBranches,
+  type CanonicalBranchRow,
+  type CanonicalParam,
+  isPlainRecord,
+  type Json,
+  type LoopSpec,
+  type ParallelSpec,
+  type ParamMode,
+  type SubBlockId,
+  type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
 import { RESPONSE_BLOCK_TYPE } from '../sdk'
@@ -30,6 +31,7 @@ import {
   type JsonFieldEntry,
   rangeOf,
   recordSpan,
+  unsupported,
 } from './context'
 import { didYouMean } from './hints'
 import { bracketDepthOverflow } from './parse'
@@ -95,23 +97,6 @@ interface CompiledMeta {
   subflowData: { node: Node; data: Record<string, Json> } | null
 }
 
-function unsupported(
-  ctx: CompileContext,
-  node: Node,
-  message: string,
-  hint: string,
-  decl: BlockDecl
-): void {
-  ctx.reporter.report('E_UNSUPPORTED_SYNTAX', message, rangeOf(ctx, node), {
-    hint,
-    blockKey: decl.key,
-  })
-}
-
-function withHint(hint: string | undefined): { hint?: string } {
-  return hint === undefined ? {} : { hint }
-}
-
 function booleanLiteral(ctx: CompileContext, property: ObjectProperty, decl: BlockDecl): boolean {
   if (property.value.type === 'BooleanLiteral') return property.value.value
   unsupported(
@@ -119,7 +104,7 @@ function booleanLiteral(ctx: CompileContext, property: ObjectProperty, decl: Blo
     property.value,
     'Write true or false.',
     'This meta field is a boolean literal.',
-    decl
+    decl.key
   )
   return false
 }
@@ -145,7 +130,7 @@ function compileRetry(ctx: CompileContext, node: Node, site: ValueSite): BlockRe
     node,
     'retry needs enabled, maxTries and waitBetweenTriesMs.',
     'Write retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 1000 }.',
-    site.decl
+    site.decl.key
   )
   return null
 }
@@ -157,7 +142,7 @@ function objectValue(
   example: string
 ): ObjectExpression | null {
   if (property.value.type === 'ObjectExpression') return property.value
-  unsupported(ctx, property.value, 'Write an object literal here.', `Write ${example}.`, decl)
+  unsupported(ctx, property.value, 'Write an object literal here.', `Write ${example}.`, decl.key)
   return null
 }
 
@@ -190,7 +175,13 @@ function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSit
   if (!node) return meta
   const { decl } = site
   if (node.type !== 'ObjectExpression') {
-    unsupported(ctx, node, 'Block meta is an object literal.', 'Write { disabled: true }.', decl)
+    unsupported(
+      ctx,
+      node,
+      'Block meta is an object literal.',
+      'Write { disabled: true }.',
+      decl.key
+    )
     return meta
   }
   for (const [key, property] of objectEntries(ctx, node)) {
@@ -242,7 +233,7 @@ function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSit
             property.value,
             'subflowData holds subflow data keys only.',
             `Keys are ${[...SUBFLOW_DATA_KEYS].join(', ')}.`,
-            decl
+            decl.key
           )
           break
         }
@@ -255,7 +246,7 @@ function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSit
           property,
           `${key} is not a block meta field.`,
           `Meta fields are ${META_KEYS.join(', ')}.`,
-          decl
+          decl.key
         )
     }
   }
@@ -392,11 +383,11 @@ function parseCodeFile(
 
 /** input-format sugar: `{ name: 'string' }` or `{ name: { type, ... } }` → stored item list. */
 function inputFormatItems(value: Value): Value {
-  if (!isRecordLike(value) || '$sim' in value) return value
+  if (!isPlainRecord(value)) return value
   return Object.entries(value).map(([name, entry]) => {
     if (typeof entry === 'string') return { name, type: entry, value: '' }
     const item: Record<string, Value> = { name }
-    if (isRecordLike(entry) && !('$sim' in entry)) {
+    if (isPlainRecord(entry)) {
       for (const [key, field] of Object.entries(entry)) setOwn(item, key, field)
     } else {
       setOwn(item, 'value', entry)
@@ -439,7 +430,7 @@ function compileBranchRows(
         property,
         `${key} is not a valid branch key.`,
         'Branch keys are JS identifiers.',
-        decl
+        decl.key
       )
       continue
     }
@@ -474,7 +465,7 @@ function compileBranchRows(
       property.value,
       'A branch value is text.',
       'Write a string or a js`` template.',
-      decl
+      decl.key
     )
   }
   const last = entries[entries.length - 1]
@@ -519,7 +510,7 @@ function applyBranchMeta(
         property.value,
         'Branch meta is { title?, extra? }.',
         "Write { title: 'Label' } or { extra: { key: value } }.",
-        site.decl
+        site.decl.key
       )
       continue
     }
@@ -556,7 +547,7 @@ interface BlockState {
 const LITERAL_CONTAINER: CompiledValue = { kind: 'value', value: [], form: 'literal' }
 
 function isJsonContainer(value: Value): boolean {
-  return Array.isArray(value) || (isRecordLike(value) && !('$sim' in value))
+  return Array.isArray(value) || isPlainRecord(value)
 }
 
 /**
@@ -679,7 +670,7 @@ function compileField(
         property.value,
         'codeFile() holds a function block code.',
         "Write code: codeFile('./functions/x.js').",
-        decl
+        decl.key
       )
       return
     }
@@ -715,7 +706,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     builder.kind === 'generic' ? 2 : 1
   )
   for (const node of extra) {
-    unsupported(ctx, node, 'Too many arguments.', 'Pass (name, params, meta?).', decl)
+    unsupported(ctx, node, 'Too many arguments.', 'Pass (name, params, meta?).', decl.key)
   }
 
   const catalogBlock = builder.block
@@ -751,7 +742,13 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
   const conditionForm = builder.kind === 'catalog' && branchField?.kind === 'condition'
 
   if (paramsNode && paramsNode.type !== 'ObjectExpression') {
-    unsupported(ctx, paramsNode, 'Params are an object literal.', 'Write { field: value }.', decl)
+    unsupported(
+      ctx,
+      paramsNode,
+      'Params are an object literal.',
+      'Write { field: value }.',
+      decl.key
+    )
   }
   const paramsObject = paramsNode?.type === 'ObjectExpression' ? paramsNode : undefined
   const branchEntries: Array<[string, ObjectProperty]> = []
@@ -790,7 +787,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
             property.value,
             'Branches are an object literal.',
             'Write { if: js`...`, else: true }.',
-            decl
+            decl.key
           )
           continue
         }
@@ -841,7 +838,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
             property.value,
             'codeFile() needs a catalog block type.',
             'Write the code inline.',
-            decl
+            decl.key
           )
           continue
         }
@@ -855,11 +852,9 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
           `${catalogBlock?.name ?? decl.key} has no param ${key}.`,
           rangeOf(ctx, property),
           {
-            ...withHint(
-              alias
-                ? `Write it as ${alias}; the value kind picks the basic or advanced field.`
-                : didYouMean(key, index.fields.keys())
-            ),
+            hint: alias
+              ? `Write it as ${alias}; the value kind picks the basic or advanced field.`
+              : didYouMean(key, index.fields.keys()),
             blockKey: decl.key,
             param: key,
           }
@@ -872,7 +867,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
           property,
           `${key} names the param ${field.name}, which is already written.`,
           `Write ${field.name} once.`,
-          decl
+          decl.key
         )
         continue
       }
@@ -898,7 +893,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
       meta.branches[0][1],
       'This block has no branches.',
       'Remove branches from the meta.',
-      decl
+      decl.key
     )
   }
 
@@ -936,7 +931,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
       meta.subflowData.node,
       'Only a loop or parallel has subflowData.',
       'Remove subflowData; apply keeps the stored block data.',
-      decl
+      decl.key
     )
   }
   if (catalogBlock) {
@@ -986,7 +981,7 @@ function compileExtraParams(
         property,
         `${id} is a param of this block, not an extra field.`,
         'Write it in params.',
-        decl
+        decl.key
       )
       continue
     }
@@ -1076,7 +1071,7 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
   const site: ValueSite = { decl, scope: decl.scope }
   const [, configNode, , metaNode, ...extra] = decl.call.arguments
   for (const node of extra) {
-    unsupported(ctx, node, 'Too many arguments.', 'Pass (name, config, body, meta?).', decl)
+    unsupported(ctx, node, 'Too many arguments.', 'Pass (name, config, body, meta?).', decl.key)
   }
   const meta = compileMeta(ctx, metaNode, site)
   const builderKey =
@@ -1088,21 +1083,27 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
     if (NUMBER_FIELDS.has(field)) {
       const value = numberLiteral(node)
       if (value === null)
-        unsupported(ctx, node, `${field} is a number.`, `Write ${field}: 3.`, decl)
+        unsupported(ctx, node, `${field} is a number.`, `Write ${field}: 3.`, decl.key)
       else fields.set(field, value)
       return
     }
     const compiled = compileValue(ctx, node, site)
     if (!compiled || compiled.kind !== 'value') return
     if (TEXT_FIELDS.has(field) && typeof compiled.value !== 'string') {
-      unsupported(ctx, node, `${field} is text.`, 'Write js`...`.', decl)
+      unsupported(ctx, node, `${field} is text.`, 'Write js`...`.', decl.key)
       return
     }
     fields.set(field, compiled.value)
   }
 
   if (configNode && configNode.type !== 'ObjectExpression') {
-    unsupported(ctx, configNode, 'The config is an object literal.', 'Write { count: 3 }.', decl)
+    unsupported(
+      ctx,
+      configNode,
+      'The config is an object literal.',
+      'Write { count: 3 }.',
+      decl.key
+    )
   } else if (configNode) {
     for (const [key, property] of objectEntries(ctx, configNode)) {
       const field = configKeys[key]
@@ -1111,7 +1112,7 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
           'E_UNKNOWN_PARAM',
           `This ${builder.container} has no config ${key}.`,
           rangeOf(ctx, property),
-          { ...withHint(didYouMean(key, Object.keys(configKeys))), blockKey: decl.key }
+          { hint: didYouMean(key, Object.keys(configKeys)), blockKey: decl.key }
         )
         continue
       }

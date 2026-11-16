@@ -37,6 +37,7 @@ import {
   lookup,
   rangeOf,
   type Scope,
+  unsupported,
   visibleNames,
 } from './context'
 import { didYouMean, HINTS, hintForNode } from './hints'
@@ -116,41 +117,27 @@ const RESOURCE_KINDS: ReadonlySet<string> = new Set<string>([
 /** Named-form container outputs (loop.ts:43, parallel.ts:44). */
 const CONTAINER_OUTPUTS = ['results', 'result']
 
-function report(
-  ctx: CompileContext,
-  node: Node,
-  message: string,
-  hint: string | undefined,
-  site?: ValueSite
-): null {
-  ctx.reporter.report('E_UNSUPPORTED_SYNTAX', message, rangeOf(ctx, node), {
-    ...(hint !== undefined && { hint }),
-    ...(site && { blockKey: site.decl.key }),
-  })
-  return null
-}
-
 function rejectNode(ctx: CompileContext, node: Node, site?: ValueSite): null {
-  return report(
+  return unsupported(
     ctx,
     node,
     `${node.type} is not supported in a workflow file.`,
     hintForNode(node),
-    site
+    site?.decl.key
   )
 }
 
 /** The literal text of a property key, or `null` (after reporting) for a computed key. */
 function propertyKey(ctx: CompileContext, property: ObjectProperty): string | null {
   if (property.computed) {
-    report(ctx, property, 'Computed keys are not supported.', HINTS.computedKey)
+    unsupported(ctx, property, 'Computed keys are not supported.', HINTS.computedKey)
     return null
   }
   const key = property.key
   if (key.type === 'Identifier') return key.name
   if (key.type === 'StringLiteral') return key.value
   if (key.type === 'NumericLiteral') return String(key.value)
-  report(ctx, property, 'Use an identifier or string key.', HINTS.computedKey)
+  unsupported(ctx, property, 'Use an identifier or string key.', HINTS.computedKey)
   return null
 }
 
@@ -174,7 +161,7 @@ export function objectEntries(
     if (key === null) continue
     if (seen.has(key)) {
       if (onDuplicate) onDuplicate(property, key)
-      else report(ctx, property, `The key ${key} is written twice.`, HINTS.duplicateKey)
+      else unsupported(ctx, property, `The key ${key} is written twice.`, HINTS.duplicateKey)
       continue
     }
     seen.add(key)
@@ -301,7 +288,7 @@ function literalTree(ctx: CompileContext, node: Node, site?: ValueSite): Json | 
     case 'TemplateLiteral': {
       const text = literalText(node)
       if (text === null) {
-        report(ctx, node, 'Write literals only here.', HINTS.untaggedTemplate, site)
+        unsupported(ctx, node, 'Write literals only here.', HINTS.untaggedTemplate, site?.decl.key)
         return undefined
       }
       return text
@@ -316,7 +303,13 @@ function literalTree(ctx: CompileContext, node: Node, site?: ValueSite): Json | 
       const items: Json[] = []
       for (const element of node.elements) {
         if (!element || element.type === 'SpreadElement') {
-          report(ctx, element ?? node, 'Write each element explicitly.', HINTS.spread, site)
+          unsupported(
+            ctx,
+            element ?? node,
+            'Write each element explicitly.',
+            HINTS.spread,
+            site?.decl.key
+          )
           return undefined
         }
         const item = literalTree(ctx, element, site)
@@ -337,7 +330,13 @@ function literalTree(ctx: CompileContext, node: Node, site?: ValueSite): Json | 
       return result
     }
     default:
-      report(ctx, node, 'Write literals only here.', 'Write the stored value as a literal.', site)
+      unsupported(
+        ctx,
+        node,
+        'Write literals only here.',
+        'Write the stored value as a literal.',
+        site?.decl.key
+      )
       return undefined
   }
 }
@@ -362,12 +361,12 @@ function rawLiteral(ctx: CompileContext, node: Node, site?: ValueSite): Value | 
   const value = literalTree(ctx, node, site)
   if (value === undefined) return undefined
   if (!canonicalNodesValid(value)) {
-    report(
+    unsupported(
       ctx,
       node,
       'This $sim object is not a canonical node.',
       "Use { $sim: 'resource', kind, key }, { $sim: 'unresolved', kind, id }, { $sim: 'var', key }, { $sim: 'csv', items } or { $sim: 'literal', value }.",
-      site
+      site?.decl.key
     )
     return undefined
   }
@@ -404,7 +403,13 @@ function singleStringArgument(
   const [argument, ...extra] = call.arguments
   const text = argument ? literalText(argument) : null
   if (!argument || text === null || extra.length > 0) {
-    return report(ctx, call, `${name}() takes one string literal.`, `Write ${name}('key').`, site)
+    return unsupported(
+      ctx,
+      call,
+      `${name}() takes one string literal.`,
+      `Write ${name}('key').`,
+      site.decl.key
+    )
   }
   return { text, node: argument }
 }
@@ -434,18 +439,24 @@ function memberSegment(
   }
   if (property.type === 'StringLiteral') {
     if (isNameSegment(property.value)) return { kind: 'name', name: property.value }
-    return report(
+    return unsupported(
       ctx,
       property,
       `The path segment '${property.value}' cannot be written as a reference.`,
       "Use ref('block.path') for this spelling.",
-      site
+      site.decl.key
     )
   }
   if (property.type === 'NumericLiteral' && isIndexSegment(property.value)) {
     return { kind: 'index', index: property.value }
   }
-  return report(ctx, member, 'Element access needs a literal key.', HINTS.elementAccess, site)
+  return unsupported(
+    ctx,
+    member,
+    'Element access needs a literal key.',
+    HINTS.elementAccess,
+    site.decl.key
+  )
 }
 
 function memberName(member: MemberExpression): string | null {
@@ -499,7 +510,7 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
       `${root.name} is not defined.`,
       rangeOf(ctx, root),
       {
-        ...withHint(didYouMean(root.name, visibleNames(site.scope))),
+        hint: didYouMean(root.name, visibleNames(site.scope)),
         blockKey: site.decl.key,
       }
     )
@@ -511,7 +522,13 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
       const first = members[0]
       const name = first ? memberName(first) : null
       if (!first || name === null) {
-        return report(ctx, node, 'Reference one variable: vars.name.', 'Write vars.name.', site)
+        return unsupported(
+          ctx,
+          node,
+          'Reference one variable: vars.name.',
+          'Write vars.name.',
+          site.decl.key
+        )
       }
       if (!ctx.variables.has(name)) {
         ctx.reporter.report(
@@ -519,7 +536,7 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
           `No workflow variable is keyed ${name}.`,
           rangeOf(ctx, first),
           {
-            ...withHint(didYouMean(name, ctx.variables.keys(), (key) => `vars.${key}`)),
+            hint: didYouMean(name, ctx.variables.keys(), (key) => `vars.${key}`),
             blockKey: site.decl.key,
           }
         )
@@ -532,7 +549,13 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
     }
     case 'sdk': {
       if (binding.name !== 'env') {
-        return report(ctx, node, `${root.name} is an SDK function; call it.`, HINTS.calls, site)
+        return unsupported(
+          ctx,
+          node,
+          `${root.name} is an SDK function; call it.`,
+          HINTS.calls,
+          site.decl.key
+        )
       }
       const first = members[0]
       const name = first ? memberName(first) : null
@@ -546,12 +569,12 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
         return null
       }
       if (members.length > 1) {
-        return report(
+        return unsupported(
           ctx,
           members[1],
           'env.NAME is a whole value.',
           'Remove the member access.',
-          site
+          site.decl.key
         )
       }
       return `{{${name}}}`
@@ -574,10 +597,6 @@ function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | 
       return `<${formatStoredPath([{ kind: 'name', name: target.key }, ...segments])}>`
     }
   }
-}
-
-function withHint(hint: string | undefined): { hint?: string } {
-  return hint === undefined ? {} : { hint }
 }
 
 function segmentsOf(
@@ -614,7 +633,7 @@ function checkOutputPath(
         'W_UNKNOWN_OUTPUT_PATH',
         `A ${containerKind} has no output ${first.name}.`,
         rangeOf(ctx, node),
-        { ...withHint(didYouMean(first.name, known)), blockKey: site.decl.key }
+        { hint: didYouMean(first.name, known), blockKey: site.decl.key }
       )
     }
     return
@@ -652,7 +671,7 @@ function subflowScopeRef(
       `A ${kind} has no property ${property ?? '(none)'}.`,
       rangeOf(ctx, node),
       {
-        ...withHint(didYouMean(property ?? '', known, (name) => `${label}.${name}`)),
+        hint: didYouMean(property ?? '', known, (name) => `${label}.${name}`),
         blockKey: site.decl.key,
       }
     )
@@ -677,12 +696,12 @@ function templateText(
   for (const [index, quasi] of quasis.entries()) {
     const cooked = quasi.value.cooked
     if (cooked == null) {
-      return report(
+      return unsupported(
         ctx,
         quasi,
         'This template has an invalid escape sequence.',
         'Escape the backslash: \\\\.',
-        site
+        site.decl.key
       )
     }
     checkLiteralRefs(ctx, quasi, cooked, site)
@@ -736,22 +755,34 @@ function compileCall(
     }
     case 'todo':
       if (call.arguments.length > 0)
-        return report(ctx, call, 'todo() takes no arguments.', 'Write todo().', site)
+        return unsupported(ctx, call, 'todo() takes no arguments.', 'Write todo().', site.decl.key)
       return { kind: 'todo' }
     case 'stored':
       if (call.arguments.length > 0)
-        return report(ctx, call, 'stored() takes no arguments.', 'Write stored().', site)
+        return unsupported(
+          ctx,
+          call,
+          'stored() takes no arguments.',
+          'Write stored().',
+          site.decl.key
+        )
       return { kind: 'stored' }
     case 'raw': {
       const [argument, ...extra] = call.arguments
       if (!argument || extra.length > 0 || argument.type === 'SpreadElement') {
-        return report(ctx, call, 'raw() takes one literal.', 'Write raw(value).', site)
+        return unsupported(
+          ctx,
+          call,
+          'raw() takes one literal.',
+          'Write raw(value).',
+          site.decl.key
+        )
       }
       const value = rawLiteral(ctx, argument, site)
       return value === undefined ? null : { kind: 'value', value, form: 'raw' }
     }
     default:
-      return report(ctx, call, `${path}() is not a value.`, HINTS.bindInline, site)
+      return unsupported(ctx, call, `${path}() is not a value.`, HINTS.bindInline, site.decl.key)
   }
 }
 
@@ -764,12 +795,12 @@ function compileArray(
   let selector = node.elements.length > 0
   for (const element of node.elements) {
     if (!element)
-      return report(
+      return unsupported(
         ctx,
         node,
         'Array holes are not values.',
         'Write each element explicitly.',
-        site
+        site.decl.key
       )
     if (element.type === 'SpreadElement') return rejectNode(ctx, element, site)
     const compiled = compileValue(ctx, element, site)
@@ -803,12 +834,12 @@ function compileObject(ctx: CompileContext, node: ObjectExpression, site: ValueS
       setOwn(stored, key, json)
     }
     if (!plain) {
-      return report(
+      return unsupported(
         ctx,
         node,
         'An object with a $sim key must hold plain data.',
         'Write the canonical value with raw(...).',
-        site
+        site.decl.key
       )
     }
     return { $sim: 'literal', value: stored }
@@ -831,17 +862,23 @@ export function nestedValue(
   if (compiled.kind === 'value') return compiled.value
   if (compiled.kind === 'absent') return null
   if (compiled.kind === 'codeFile') {
-    report(
+    unsupported(
       ctx,
       node,
       'codeFile() holds a whole code param.',
       "Write code: codeFile('./fns/x.js').",
-      site
+      site.decl.key
     )
     return undefined
   }
   const name = compiled.kind === 'todo' ? 'todo()' : 'stored()'
-  report(ctx, node, `${name} stands for a whole param.`, `Write ${name} as the param value.`, site)
+  unsupported(
+    ctx,
+    node,
+    `${name} stands for a whole param.`,
+    `Write ${name} as the param value.`,
+    site.decl.key
+  )
   return undefined
 }
 
@@ -875,12 +912,12 @@ export function compileValue(
       if (text === null) {
         return node.expressions.length > 0
           ? rejectNode(ctx, node, site)
-          : report(
+          : unsupported(
               ctx,
               node,
               'This template has an invalid escape sequence.',
               'Escape the backslash: \\\\.',
-              site
+              site.decl.key
             )
       }
       checkLiteralRefs(ctx, node, text, site)
@@ -940,7 +977,13 @@ export function compileJsonTree(
     const items: JsonTree[] = []
     for (const element of node.elements) {
       if (!element || element.type === 'SpreadElement') {
-        report(ctx, element ?? node, 'Write each element explicitly.', HINTS.spread, site)
+        unsupported(
+          ctx,
+          element ?? node,
+          'Write each element explicitly.',
+          HINTS.spread,
+          site.decl.key
+        )
         return undefined
       }
       const tree = compileJsonTree(ctx, element, site, refs)

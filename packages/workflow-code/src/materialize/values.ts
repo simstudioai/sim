@@ -1,23 +1,18 @@
 import { isRecordLike } from '@sim/utils/object'
 import { escapeRegExp } from '@sim/utils/string'
-import type {
-  BlockKey,
-  CanonicalBlock,
-  CanonicalParam,
-  CanonicalWorkflow,
-  Json,
-  LoopSpec,
-  ParallelSpec,
-  SimNode,
-  Value,
+import {
+  type BlockKey,
+  type CanonicalBlock,
+  type CanonicalParam,
+  type CanonicalWorkflow,
+  isSimNode,
+  type Json,
+  type LoopSpec,
+  type ParallelSpec,
+  type SimNode,
+  type Value,
 } from '../model'
 import { type MaterializeContext, report } from './context'
-
-const SIM_NODE_KINDS = new Set(['var', 'resource', 'unresolved', 'csv', 'literal'])
-
-function isSimNode(value: unknown): value is SimNode {
-  return isRecordLike(value) && typeof value.$sim === 'string' && SIM_NODE_KINDS.has(value.$sim)
-}
 
 /** Where a value sits, for diagnostics. */
 export interface ValueLocation {

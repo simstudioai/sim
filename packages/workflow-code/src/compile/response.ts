@@ -3,22 +3,9 @@ import { jsonFieldText } from '../json-fields'
 import type { CanonicalParam, SubBlockId, Value } from '../model'
 import { setOwn } from '../records'
 import { RESPONSE_BODY_KEYS } from '../sdk'
-import { type CompileContext, type JsonFieldEntry, rangeOf } from './context'
+import { type CompileContext, type JsonFieldEntry, rangeOf, unsupported } from './context'
 import { didYouMean } from './hints'
 import { compileJsonTree, compileValue, objectEntries, type ValueSite } from './values'
-
-function unsupported(
-  ctx: CompileContext,
-  node: Node,
-  message: string,
-  hint: string,
-  site: ValueSite
-) {
-  ctx.reporter.report('E_UNSUPPORTED_SYNTAX', message, rangeOf(ctx, node), {
-    hint,
-    blockKey: site.decl.key,
-  })
-}
 
 /** A value that must compile to text (a string, template, reference or env var). */
 function textValue(ctx: CompileContext, node: Node, site: ValueSite, what: string): string | null {
@@ -30,7 +17,7 @@ function textValue(ctx: CompileContext, node: Node, site: ValueSite, what: strin
     node,
     `${what} is text.`,
     `Write ${what} as a string, template or reference.`,
-    site
+    site.decl.key
   )
   return null
 }
@@ -75,7 +62,7 @@ export function compileResponseParam(
           node,
           'headers is an object literal.',
           "Write headers: { 'X-Id': id }.",
-          site
+          site.decl.key
         )
         return
       }

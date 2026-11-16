@@ -20,7 +20,7 @@ import { setOwn } from '../records'
 import { OLDEST_SDK_MAJOR } from '../sdk'
 import { compileBlock } from './blocks'
 import { CommentCollector } from './comments'
-import { type CompileContext, rangeOf, recordSpan, type Scope } from './context'
+import { type CompileContext, rangeOf, recordSpan, type Scope, unsupported } from './context'
 import { EdgeCollector } from './edges'
 import { didYouMean, HINTS, hintForNode } from './hints'
 import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource } from './parse'
@@ -73,10 +73,6 @@ const VARIABLE_TYPES: ReadonlySet<string> = new Set([
   'plain',
 ])
 const WORKFLOW_OPTIONS = ['description', 'variables']
-
-function unsupported(ctx: CompileContext, node: Node, message: string, hint: string): void {
-  ctx.reporter.report('E_UNSUPPORTED_SYNTAX', message, rangeOf(ctx, node), { hint })
-}
 
 /** Module scope: the SDK's named imports. */
 function collectImports(ctx: CompileContext, node: Node, scope: Scope): void {

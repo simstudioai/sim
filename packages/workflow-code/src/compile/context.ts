@@ -153,6 +153,21 @@ export function rangeOf(ctx: CompileContext, node: Located): Range {
   return { file: ctx.file, start, end: node.end ?? start }
 }
 
+/**
+ * Reports `E_UNSUPPORTED_SYNTAX` at `node`. Returns `null` so a step that gives up can
+ * `return unsupported(...)`.
+ */
+export function unsupported(
+  ctx: CompileContext,
+  node: Located,
+  message: string,
+  hint?: string,
+  blockKey?: BlockKey
+): null {
+  ctx.reporter.report('E_UNSUPPORTED_SYNTAX', message, rangeOf(ctx, node), { hint, blockKey })
+  return null
+}
+
 /** Records an anchor's span the first time it is seen. */
 export function recordSpan(ctx: CompileContext, anchor: Anchor, node: Located): AnchorKey {
   const key = encodeAnchor(anchor)

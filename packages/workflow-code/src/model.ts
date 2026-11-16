@@ -8,6 +8,7 @@
  * `annotations` never take part in equality, hashing or the source fingerprint.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import type { PortableResourceKind } from '@sim/workflow-types/resources'
 import type { BlockRetryConfig, Variable } from '@sim/workflow-types/workflow'
 
@@ -121,6 +122,28 @@ export type SimNode = VarNode | ResourceNode | UnresolvedNode | CsvNode | Litera
  * prefixes to normalized form and `<variable.<id>>` to `<variable.<key>>`.
  */
 export type Value = Json | SimNode | Value[] | { [key: string]: Value }
+
+const SIM_NODE_KINDS: Record<SimNode['$sim'], true> = {
+  var: true,
+  resource: true,
+  unresolved: true,
+  csv: true,
+  literal: true,
+}
+
+/** Whether a value is one of the {@link SimNode} kinds. */
+export function isSimNode(value: unknown): value is SimNode {
+  return (
+    isRecordLike(value) &&
+    typeof value.$sim === 'string' &&
+    Object.hasOwn(SIM_NODE_KINDS, value.$sim)
+  )
+}
+
+/** Whether a value is an object literal: a record with no `$sim` key. */
+export function isPlainRecord(value: Value): value is { [key: string]: Value } {
+  return isRecordLike(value) && !('$sim' in value)
+}
 
 /**
  * One stored subBlock value, decoded. The CWM is encoding-free: whether the subBlock held native

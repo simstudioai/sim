@@ -41,17 +41,18 @@ import {
   refValueKind,
 } from '../json-fields'
 import { isJson, type SourceHintBlock, type SourceHints } from '../lock'
-import type {
-  AnchorKey,
-  BlockKey,
-  CanonicalBlock,
-  CanonicalEdge,
-  CanonicalTool,
-  CanonicalWorkflow,
-  Json,
-  ParamMode,
-  PortKey,
-  Value,
+import {
+  type AnchorKey,
+  type BlockKey,
+  type CanonicalBlock,
+  type CanonicalEdge,
+  type CanonicalTool,
+  type CanonicalWorkflow,
+  isPlainRecord,
+  type Json,
+  type ParamMode,
+  type PortKey,
+  type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
 import { CUSTOM_TOOL_TYPE, GENERIC_BUILDER, RESPONSE_BLOCK_TYPE } from '../sdk'
@@ -188,10 +189,8 @@ function inputFormatSugar(
   const seen = new Set<string>()
   const items: Array<{ name: string; item: Record<string, Value> }> = []
   for (const entry of value) {
-    if (entry === null || typeof entry !== 'object' || Array.isArray(entry) || '$sim' in entry) {
-      return null
-    }
-    const record = entry as Record<string, Value>
+    if (!isPlainRecord(entry)) return null
+    const record = entry
     const name = record.name
     if (typeof name !== 'string' || typeof record.type !== 'string') return null
     if (seen.has(name) || INTEGER_LIKE.test(name) || name === '__proto__') return null
