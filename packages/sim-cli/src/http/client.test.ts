@@ -554,6 +554,7 @@ describe('destructive operations are gated', () => {
     'createTableView',
     'createWorkflow',
     'createWorkflowFolder',
+    'createWorkflowFromSource',
     'createWorkflowMcpServer',
     'deployWorkflow',
     'deployWorkflowMcpTool',
