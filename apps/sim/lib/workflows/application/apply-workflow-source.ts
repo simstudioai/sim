@@ -8,7 +8,6 @@ import {
   type AnchorKey,
   type BlockCatalog,
   type CanonicalDiff,
-  type CanonicalWorkflow,
   type CanonicalWorkflowMeta,
   type CompileResult,
   canonicalize,
@@ -28,11 +27,13 @@ import {
   renamesBetween,
   type SourceSpan,
   sourceFingerprint,
+  type WorkflowCodeMetaV1,
   type WorkflowLockBlock,
   type WorkflowLockV1,
 } from '@sim/workflow-code'
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
+import { readCodeMetaValue } from '@sim/workflow-persistence/code-meta'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit'
@@ -44,7 +45,6 @@ import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-sco
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
-import { assembleLock } from '@/lib/workflows/application/get-workflow-source'
 import { layoutChangedBlocks } from '@/lib/workflows/application/graph-write'
 import { snapshotMcpToolOutputSchemas } from '@/lib/workflows/application/mcp-output-schemas'
 import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
@@ -61,6 +61,11 @@ import { buildCodeCatalog } from '@/lib/workflows/code/catalog/workspace-catalog
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import { createRecordingResolver, loadResourceKeyResolver } from '@/lib/workflows/code/resources'
+import {
+  buildLockFromState,
+  codeMetaPrintInputs,
+  mergeCodeMetaFromLock,
+} from '@/lib/workflows/code/source-lock'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
@@ -600,45 +605,58 @@ interface Reprinted {
 }
 
 /**
- * Prints `state` back as source with the submission's bindings, order, code files and comments,
- * so the response shows exactly what is (or would be) stored. The fingerprint is computed the way
- * `source get` computes it, so it is the next apply's base.
+ * Prints `state` back as source with the bindings, order and comments of `codeMeta` (the
+ * submission's, merged onto the ids it now binds), so the response shows exactly what is (or
+ * would be) stored and what the next `source get` prints. The lock is assembled the way `source
+ * get` assembles it, and the fingerprint is computed the way it computes it, so it is the next
+ * apply's base.
  */
 function reprint(args: {
   state: WorkflowState
   meta: CanonicalWorkflowMeta
   identity: LockIdentity
-  compiled: CompileResult & { workflow: CanonicalWorkflow }
+  codeMeta: WorkflowCodeMetaV1
+  usesCodeFiles: boolean
   catalog: BlockCatalog
   resources: ResourceKeyResolver
 }): Reprinted {
-  const { state, meta, identity, compiled, catalog, resources } = args
+  const { state, meta, identity, codeMeta, usesCodeFiles, catalog, resources } = args
   const canonical = canonicalize(state, {
     catalog,
     meta,
     lock: identityLock(identity),
     resources,
   })
-  const usesCodeFiles = Object.values(compiled.hints.blocks).some((hint) => hint.codeFile)
+  const metaInputs = codeMetaPrintInputs(codeMeta, canonical)
   const printed = printWorkflow({
     workflow: {
       ...canonical.workflow,
-      annotations: {
-        ...canonical.workflow.annotations,
-        comments: compiled.workflow.annotations.comments,
-      },
+      annotations: { ...canonical.workflow.annotations, comments: metaInputs.comments },
     },
     catalog,
-    hints: compiled.hints,
+    hints: metaInputs.hints,
     options: usesCodeFiles
       ? { functionCode: 'files', codeDir: FUNCTION_CODE_DIR }
       : { functionCode: 'inline' },
   })
   return {
     files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),
-    lock: assembleLock(canonical.identity, printed.hints.blocks, canonical.layout),
+    lock: buildLockFromState(codeMeta, canonical, printed.hints),
     fingerprint: fingerprintOf({ state, meta }, catalog, resources),
   }
+}
+
+/**
+ * The post-materialize lock `mergeCodeMetaFromLock` re-keys onto: every bound key with its id,
+ * and the submitted lock's binding and order for a block the file does not state them for.
+ */
+function boundLock(identity: LockIdentity, submitted: WorkflowLockV1): WorkflowLockV1 {
+  const blocks: Record<string, WorkflowLockBlock> = {}
+  for (const [key, block] of Object.entries(identity.blocks)) {
+    const previous = Object.hasOwn(submitted.blocks, key) ? submitted.blocks[key] : undefined
+    blocks[key] = { ...block, binding: previous?.binding ?? key, order: previous?.order ?? 0 }
+  }
+  return { lockVersion: 1, blocks, variables: identity.variables }
 }
 
 function emptySummary(): SourceDiffSummary {
@@ -678,6 +696,7 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
       const isCopilot = principal.kind === 'delegated' && principal.serviceId === 'copilot'
 
       const stored = await loadStoredSource(context)
+      const storedCodeMeta = readCodeMetaValue(context.workflowId, context.workflow.codeMeta)
       const storedTypes = [...new Set(Object.values(stored.state.blocks).map((b) => b.type))]
       const { catalog } = buildCodeCatalog({
         gate,
@@ -961,12 +980,16 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
       const storedVariables =
         variables === undefined ? stored.state.variables : (parseWorkflowVariables(variables) ?? {})
 
+      const lockAfter = boundLock(materialized.identity, lock)
+      const nextCodeMeta = mergeCodeMetaFromLock(storedCodeMeta, lockAfter, compiledModel)
+      const usesCodeFiles = Object.values(compiled.hints.blocks).some((hint) => hint.codeFile)
       const reprintFrom = (state: WorkflowState) =>
         reprint({
           state,
           meta: stored.meta,
           identity: materialized.identity,
-          compiled: compiledModel,
+          codeMeta: nextCodeMeta,
+          usesCodeFiles,
           catalog,
           resources,
         })

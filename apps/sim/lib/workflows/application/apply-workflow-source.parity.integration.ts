@@ -27,11 +27,12 @@ import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
-import { assembleLock, getWorkflowSource } from '@/lib/workflows/application/get-workflow-source'
+import { getWorkflowSource } from '@/lib/workflows/application/get-workflow-source'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
+import { buildLockFromState } from '@/lib/workflows/code/source-lock'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { gateSourceDiff, SKIP_TYPE_APPLY_CODES } from '@/lib/workflows/source/gates'
 import type { SourceGraph } from '@/lib/workflows/source/graph-diff'
@@ -256,7 +257,7 @@ function printTarget(target: WorkflowState, name: string) {
   })
   return {
     files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),
-    lock: assembleLock(canonical.identity, printed.hints.blocks, canonical.layout),
+    lock: buildLockFromState(null, canonical, printed.hints),
   }
 }
 

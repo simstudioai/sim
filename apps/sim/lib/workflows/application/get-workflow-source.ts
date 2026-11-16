@@ -8,13 +8,12 @@ import {
   encodeAnchor,
   type LockBase,
   type LockIdentity,
-  type LockLayout,
   printWorkflow,
   type SourceFingerprint,
   sourceFingerprint,
-  type WorkflowLockBlock,
   type WorkflowLockV1,
 } from '@sim/workflow-code'
+import { readCodeMetaValue } from '@sim/workflow-persistence/code-meta'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { resolveCatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
@@ -24,6 +23,7 @@ import { loadWorkflowGraph } from '@/lib/workflows/application/read-workflow-gra
 import { buildCodeCatalog } from '@/lib/workflows/code/catalog/workspace-catalog'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { createRecordingResolver, loadResourceKeyResolver } from '@/lib/workflows/code/resources'
+import { buildLockFromState, codeMetaPrintInputs } from '@/lib/workflows/code/source-lock'
 
 /** Directory function-code files are printed into when `functionCode` is `files`. */
 const FUNCTION_CODE_DIR = 'functions'
@@ -102,35 +102,13 @@ function usedBlockTypes(workflow: CanonicalWorkflow): string[] {
   return [...types].sort(compareStrings)
 }
 
-/** The full lock: canonicalize's identity, the printer's bindings/order/code files, and layout. */
-export function assembleLock(
-  identity: LockIdentity,
-  hints: Record<string, { binding?: string; order?: number; codeFile?: string }>,
-  layout: Record<string, LockLayout>
-): WorkflowLockV1 {
-  const blocks: Record<string, WorkflowLockBlock> = {}
-  for (const [key, block] of Object.entries(identity.blocks)) {
-    const hint = hints[key]
-    if (hint?.binding === undefined || hint.order === undefined) {
-      throw new Error(`The printer returned no binding or order for block "${key}"`)
-    }
-    blocks[key] = {
-      ...block,
-      binding: hint.binding,
-      order: hint.order,
-      ...(hint.codeFile !== undefined ? { codeFile: hint.codeFile } : {}),
-      ...(layout[key] ? { layout: layout[key] } : {}),
-    }
-  }
-  return { lockVersion: 1, blocks, variables: identity.variables }
-}
-
 /**
  * Reads a workflow's stored draft as TypeScript source (build-spec decisions 11–13, s4 §2).
  *
  * Loads the stored, migrated graph; builds the per-workflow compile catalog (the blocks this
  * caller may place plus every type already in the workflow); projects the graph to the canonical
- * model with resource ids lifted to provisional keys; and prints it. Pure read: no audit, so it
+ * model with resource ids lifted to provisional keys; and prints it with the bindings, order and
+ * comments `workflow.code_meta` keeps, so the lock comes from the same place. Pure read: no audit, so it
  * stays head-safe and pollable like `GET /state`.
  */
 export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
@@ -169,11 +147,19 @@ export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
     const resources = await loadResourceKeyResolver(context.workspaceId, recording.requestedKinds)
     const canonical = canonicalize(state, { catalog, meta, resources })
 
+    const codeMeta = readCodeMetaValue(context.workflowId, context.workflow.codeMeta)
+    const metaInputs = codeMetaPrintInputs(codeMeta, canonical)
+    const withComments: CanonicalWorkflow = {
+      ...canonical.workflow,
+      annotations: {
+        ...canonical.workflow.annotations,
+        comments: { ...canonical.workflow.annotations.comments, ...metaInputs.comments },
+      },
+    }
     const printed = printWorkflow({
-      workflow: input.annotateIds
-        ? withIdComments(canonical.workflow, canonical.identity)
-        : canonical.workflow,
+      workflow: input.annotateIds ? withIdComments(withComments, canonical.identity) : withComments,
       catalog,
+      hints: metaInputs.hints,
       options:
         (input.functionCode ?? 'files') === 'files'
           ? { functionCode: 'files', codeDir: FUNCTION_CODE_DIR }
@@ -185,7 +171,7 @@ export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
       files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),
-      lock: assembleLock(canonical.identity, printed.hints.blocks, canonical.layout),
+      lock: buildLockFromState(codeMeta, canonical, printed.hints),
       lockBase: {
         workspaceId: context.workspaceId,
         baseFingerprint: fingerprint,
