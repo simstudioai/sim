@@ -1,0 +1,27 @@
+import { type SdkNameSource, sdkNameSource } from '@/lib/workflows/code/catalog/sdk-names'
+import { getBlockRegistry } from '@/blocks/registry'
+import { getTrigger, isTriggerValid } from '@/triggers'
+import type { TriggerConfig } from '@/triggers/types'
+
+/**
+ * `getTrigger()` builds a fresh namespaced config on every call. The registry is static for the
+ * life of the process, so each id is resolved once and its identity stays stable, which is what
+ * lets the catalog builder memoize the projection.
+ */
+const resolvedTriggers = new Map<string, TriggerConfig | null>()
+
+export function registryTrigger(triggerId: string): TriggerConfig | undefined {
+  let resolved = resolvedTriggers.get(triggerId)
+  if (resolved === undefined) {
+    resolved = isTriggerValid(triggerId) ? getTrigger(triggerId) : null
+    resolvedTriggers.set(triggerId, resolved)
+  }
+  return resolved ?? undefined
+}
+
+/** Name sources for every built-in block, the input of the sdk-names generator and check. */
+export function registrySdkNameSources(): SdkNameSource[] {
+  return Object.values(getBlockRegistry()).map((block) =>
+    sdkNameSource(block, (id) => registryTrigger(id)?.provider)
+  )
+}

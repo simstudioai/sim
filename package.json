@@ -99,6 +99,8 @@
     "billing-protocol-contract:check": "bun run scripts/sync-billing-protocol-contract.ts --check",
     "generate:tool-metadata": "bun run scripts/sync-tool-metadata.ts",
     "check:tool-metadata": "bun run scripts/sync-tool-metadata.ts --check",
+    "generate:sdk-names": "bun run apps/sim/scripts/generate-sdk-names.ts",
+    "check:sdk-names": "bun run apps/sim/scripts/generate-sdk-names.ts --check",
     "generate:deployment-config": "bun run scripts/generate-deployment-config.ts",
     "check:deployment-config": "bun run scripts/generate-deployment-config.ts --check",
     "images:generate": "bun run scripts/generate-image-manifest.ts",
