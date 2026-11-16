@@ -409,11 +409,18 @@ export interface WorkflowRef<Key extends string = string> extends ResourceRef<'w
   asTool(options?: ToolUsage): Tool
 }
 
-/** Declares a workflow. The body wires blocks; it never runs. */
+/**
+ * Declares a workflow. The body wires blocks; it never runs. With no description or variables the
+ * options may be left out: `workflow('Name', () => { ... })`.
+ */
 export declare function workflow<const V extends VariableDeclarations = Record<never, never>>(
   name: string,
   options: { description?: string; variables?: V },
   body: (scope: { vars: VarRefs<V> }) => void
+): WorkflowDef
+export declare function workflow(
+  name: string,
+  body: (scope: { vars: VarRefs<Record<never, never>> }) => void
 ): WorkflowDef
 /** A child workflow by key: `childWorkflow('enrich-lead')`. */
 export declare function childWorkflow<K extends WorkflowKey>(key: K): WorkflowRef<K>
