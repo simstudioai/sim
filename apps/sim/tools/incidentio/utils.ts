@@ -71,7 +71,7 @@ export function parseRequiredIncidentioJsonParam(value: unknown, paramName: stri
  * list/show tools have always declared: `id`/`name`/`email` come from whichever actor is set, and
  * the raw actor keys are passed through alongside them.
  */
-export function mapIncidentioCreator(value: unknown): IncidentioLegacyCreator | undefined {
+function mapIncidentioCreator(value: unknown): IncidentioLegacyCreator | undefined {
   const creator = asRecord(value)
   if (!creator) return undefined
   const user = asRecord(creator.user)
