@@ -164,6 +164,7 @@
     "@sim/security": "workspace:*",
     "@sim/terminal-protocol": "workspace:*",
     "@sim/utils": "workspace:*",
+    "@sim/workflow-code": "workspace:*",
     "@sim/workflow-persistence": "workspace:*",
     "@sim/workflow-renderer": "workspace:*",
     "@sim/workflow-types": "workspace:*",
