@@ -8439,6 +8439,7 @@ export type GetWorkflowSourceResponse = {
     canonicalHash: string
     catalogVersion: string
     sdkMajor: number
+    blockTypes: Array<string>
     warnings: Array<{
       code: string
       severity: 'error' | 'warning' | 'info'

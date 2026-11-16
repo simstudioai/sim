@@ -52,6 +52,7 @@ const source = {
   canonicalHash: 'd'.repeat(64),
   catalogVersion: 'h',
   sdkMajor: 1,
+  blockTypes: ['start_trigger'],
   warnings: [],
 }
 

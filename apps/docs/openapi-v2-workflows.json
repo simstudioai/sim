@@ -6008,6 +6008,7 @@
                         "canonicalHash": "0d6e2b8a4c1f7e3d9b5a2c8f4e1d7b3a9c6f2e8d4b1a7c3e9f5d2b8a4c1e7f3d",
                         "catalogVersion": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a",
                         "sdkMajor": 1,
+                        "blockTypes": ["start_trigger"],
                         "warnings": []
                       }
                     }
@@ -17609,6 +17610,13 @@
                 "maximum": 9007199254740991,
                 "description": "Workflow SDK major version of the source."
               },
+              "blockTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Block types the source uses, as blocks or as agent tools, sorted."
+              },
               "warnings": {
                 "type": "array",
                 "items": {
@@ -17657,6 +17665,7 @@
               "canonicalHash",
               "catalogVersion",
               "sdkMajor",
+              "blockTypes",
               "warnings"
             ],
             "additionalProperties": false,
@@ -17696,6 +17705,7 @@
               "canonicalHash": "0d6e2b8a4c1f7e3d9b5a2c8f4e1d7b3a9c6f2e8d4b1a7c3e9f5d2b8a4c1e7f3d",
               "catalogVersion": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a",
               "sdkMajor": 1,
+              "blockTypes": ["start_trigger"],
               "warnings": []
             }
           }

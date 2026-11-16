@@ -32,6 +32,7 @@ const WORKFLOW_SOURCE_EXAMPLE = {
   canonicalHash: '0d6e2b8a4c1f7e3d9b5a2c8f4e1d7b3a9c6f2e8d4b1a7c3e9f5d2b8a4c1e7f3d',
   catalogVersion: CATALOG_HASH,
   sdkMajor: 1,
+  blockTypes: ['start_trigger'],
   warnings: [],
 }
 

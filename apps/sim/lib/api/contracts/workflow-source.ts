@@ -114,6 +114,9 @@ export const workflowSourceSchema = z
       .string()
       .describe('Hash of the block catalog the source was printed against.'),
     sdkMajor: z.number().int().describe('Workflow SDK major version of the source.'),
+    blockTypes: z
+      .array(z.string())
+      .describe('Block types the source uses, as blocks or as agent tools, sorted.'),
     warnings: z.array(sourceWarningSchema).describe('Findings from reading the stored graph.'),
   })
   .describe('A workflow draft as TypeScript source.')

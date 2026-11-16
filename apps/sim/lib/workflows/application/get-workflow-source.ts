@@ -1,3 +1,4 @@
+import { compareStrings } from '@sim/utils/string'
 import {
   type CanonicalWorkflow,
   type CodeComment,
@@ -60,6 +61,8 @@ export interface GetWorkflowSourceResult {
   /** The compile catalog's content hash the files were printed against. */
   catalogVersion: string
   sdkMajor: number
+  /** Block types the source uses, as blocks or as agent tools, sorted; for SDK type generation. */
+  blockTypes: string[]
   warnings: WorkflowSourceWarning[]
 }
 
@@ -86,6 +89,17 @@ function withIdComments(workflow: CanonicalWorkflow, identity: LockIdentity): Ca
     comments[anchor] = [...(comments[anchor] ?? []), idComment]
   }
   return { ...workflow, annotations: { ...workflow.annotations, comments } }
+}
+
+function usedBlockTypes(workflow: CanonicalWorkflow): string[] {
+  const types = new Set<string>()
+  for (const block of Object.values(workflow.blocks)) {
+    types.add(block.type)
+    for (const param of Object.values(block.params)) {
+      if (param.kind === 'tools') for (const tool of param.tools) types.add(tool.type)
+    }
+  }
+  return [...types].sort(compareStrings)
 }
 
 /** The full lock: canonicalize's identity, the printer's bindings/order/code files, and layout. */
@@ -181,6 +195,7 @@ export const getWorkflowSource = defineAuthorizedWorkflowUseCase({
       canonicalHash: canonicalHash(canonical.workflow),
       catalogVersion: catalog.hash,
       sdkMajor: catalog.sdkMajor,
+      blockTypes: usedBlockTypes(canonical.workflow),
       warnings: [...canonical.diagnostics, ...printed.diagnostics].map(toWarning),
     }
   },
