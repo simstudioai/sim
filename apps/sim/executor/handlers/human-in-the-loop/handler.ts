@@ -7,6 +7,7 @@ import {
   isCanonicalPair,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
+import { omitConditionHiddenParams } from '@/lib/workflows/tool-input/hidden-params'
 import { getBlock } from '@/blocks/registry'
 import type { BlockOutput } from '@/blocks/types'
 import {
@@ -422,10 +423,13 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
       Object.values(buildCanonicalIndex(subBlocks).groupsById) as CanonicalGroup[]
     ).filter(isCanonicalPair)
 
+    const operation =
+      toolConfig.operation ??
+      (typeof storedParams.operation === 'string' ? storedParams.operation : undefined)
+    const visibleParams = omitConditionHiddenParams(subBlocks, storedParams, operation)
+
     const { paramsTransform } = buildBlockToolParamsTransform({
-      operation:
-        toolConfig.operation ??
-        (typeof storedParams.operation === 'string' ? storedParams.operation : undefined),
+      operation,
       blockSubBlocks: subBlocks,
       blockParamsFn: notificationBlock?.tools?.config?.params,
       blockInputDefs: notificationBlock?.inputs,
@@ -438,10 +442,10 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
       ),
     })
 
-    if (!paramsTransform) return storedParams
+    if (!paramsTransform) return visibleParams
 
     try {
-      return paramsTransform(storedParams)
+      return paramsTransform(visibleParams)
     } catch (error) {
       // Mirrors `prepareToolExecution`: a transform that throws must not take the
       // notification down with it, so the raw params still go out.
@@ -449,7 +453,7 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
         toolId,
         error,
       })
-      return storedParams
+      return visibleParams
     }
   }
 
