@@ -126,6 +126,32 @@ function formatDiagnostic(diagnostic: Diagnostic): string {
   return lines.join('\n')
 }
 
+/**
+ * Prints a write's findings: every error and warning with its location, frame and hint, and each
+ * info code folded into one line (a new workflow places every block by autolayout, which is no
+ * reason to print a frame per block and bury the warnings).
+ */
+function printDiagnostics(diagnostics: Diagnostic[]): void {
+  const infos = new Map<string, Diagnostic[]>()
+  for (const diagnostic of diagnostics) {
+    if (diagnostic.severity !== 'info') {
+      printError(formatDiagnostic(diagnostic))
+      continue
+    }
+    const group = infos.get(diagnostic.code)
+    if (group) group.push(diagnostic)
+    else infos.set(diagnostic.code, [diagnostic])
+  }
+  for (const [code, group] of infos) {
+    const [first] = group
+    printError(
+      group.length === 1
+        ? formatDiagnostic({ ...first, frame: undefined })
+        : `info ${code} on ${group.length} blocks: ${first.message} (and ${group.length - 1} more like it)`
+    )
+  }
+}
+
 /** Prints the notes a write carries (a name the source changed but the apply kept, a dropped tool). */
 function printNotes(data: SourceApplyData): void {
   for (const note of data.notes) printError(`note: ${note}`)
@@ -230,7 +256,7 @@ function printRefusal(error: unknown): never {
   const details = toRecord(error.details)
   const diagnostics = details.diagnostics
   const printed = isDiagnosticList(diagnostics)
-  if (printed) for (const diagnostic of diagnostics) printError(formatDiagnostic(diagnostic))
+  if (printed) printDiagnostics(diagnostics)
   const nameTaken = error.status === 409 && details.code === 'SOURCE_NAME_TAKEN'
   throw new SimApiError(
     nameTaken
@@ -283,7 +309,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   }
   if (!options.dryRun && !options.yes) {
     const preview = await send(true)
-    for (const diagnostic of preview.diagnostics) printError(formatDiagnostic(diagnostic))
+    printDiagnostics(preview.diagnostics)
     printNotes(preview)
     if (preview.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
       setSoftExitCode(refusedExitCode(preview.diagnostics))
@@ -297,7 +323,7 @@ async function runSourceWrite<Operation extends SourceWriteOperation>(args: {
   }
 
   const data = await send(options.dryRun === true)
-  for (const diagnostic of data.diagnostics) printError(formatDiagnostic(diagnostic))
+  printDiagnostics(data.diagnostics)
   printNotes(data)
   const refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
   if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))

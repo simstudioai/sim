@@ -242,6 +242,45 @@ describe('sim workflows source apply', () => {
     })
   })
 
+  it('folds info findings into one line per code and keeps frames on warnings', async () => {
+    setTerminal(false)
+    const layout = (key: string, line: number) => ({
+      code: 'I_MAT_NEEDS_LAYOUT',
+      severity: 'info',
+      message: `Block "${key}" has no stored or lock position; it is placed by autolayout`,
+      file: 'workflow.ts',
+      line,
+      column: 3,
+      frame: `> ${line} |   const ${key} = agent(...)`,
+    })
+    const warning = {
+      code: 'W_REQUIRED_MISSING',
+      severity: 'warning',
+      message: 'apiKey is required.',
+      file: 'workflow.ts',
+      line: 9,
+      column: 5,
+      frame: '> 9 |   apiKey: undefined',
+    }
+    request.mockResolvedValue(
+      outcome({
+        dryRun: true,
+        diagnostics: [layout('a', 4), layout('b', 6), layout('c', 8), warning],
+      })
+    )
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    const lines = stderrLines()
+    const layoutLines = lines.filter((line) => line.includes('I_MAT_NEEDS_LAYOUT'))
+    expect(layoutLines).toHaveLength(1)
+    expect(layoutLines[0]).toContain('3 blocks')
+    expect(layoutLines[0]).not.toContain('> 4 |')
+    expect(
+      lines.some((line) => line.includes('W_REQUIRED_MISSING') && line.includes('> 9 |'))
+    ).toBe(true)
+  })
+
   it('prints every note on a dry run, so a kept name or a dropped tool is never silent', async () => {
     setTerminal(false)
     const note = "The workflow name 'New' differs from the stored one and was not changed."
