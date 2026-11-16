@@ -6,6 +6,15 @@ import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
+/**
+ * Splits the bulk-delete IDs, which the canvas stores as a comma-separated string and a model
+ * sends as an array.
+ */
+export function parseMessageIds(value: unknown): string[] {
+  const ids = Array.isArray(value) ? value : String(value ?? '').split(',')
+  return ids.map((id) => String(id).trim()).filter(Boolean)
+}
+
 export const discordBulkDeleteMessagesTool: ToolConfig<
   DiscordBulkDeleteMessagesParams,
   DiscordBulkDeleteMessagesResponse
@@ -54,10 +63,7 @@ export const discordBulkDeleteMessagesTool: ToolConfig<
       Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordBulkDeleteMessagesParams) => {
-      const ids = params.messageIds
-      const messages = (Array.isArray(ids) ? ids : String(ids ?? '').split(','))
-        .map((id) => String(id).trim())
-        .filter(Boolean)
+      const messages = parseMessageIds(params.messageIds)
       if (messages.length < 2 || messages.length > 100) {
         throw new Error(
           `Discord requires 2-100 message IDs for bulk delete, got ${messages.length}`

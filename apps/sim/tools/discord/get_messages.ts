@@ -60,10 +60,8 @@ export const discordGetMessagesTool: ToolConfig<
       const limit = requested && Number.isFinite(requested) ? requested : 10
       const query = new URLSearchParams({ limit: String(Math.min(Math.max(1, limit), 100)) })
       for (const cursor of ['before', 'after', 'around'] as const) {
-        const value = params[cursor]
-        if (value !== undefined && value !== null && String(value).trim()) {
-          query.set(cursor, String(value).trim())
-        }
+        const value = String(params[cursor] ?? '').trim()
+        if (value) query.set(cursor, value)
       }
       return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages?${query.toString()}`
     },

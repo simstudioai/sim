@@ -13,6 +13,7 @@ import {
   toolCallArg,
   withSavedCredential,
 } from '@/blocks/utils'
+import { parseMessageIds } from '@/tools/discord/bulk_delete_messages'
 
 /**
  * Canonical basic/advanced pair, shared by the card sentences below. Listing
@@ -48,15 +49,6 @@ const HOIST_YES = { label: 'Yes - Display role members separately', id: 'true' }
 const HOIST_NO = { label: "No - Don't display separately", id: 'false' }
 const MENTIONABLE_YES = { label: 'Yes - Role can be mentioned', id: 'true' }
 const MENTIONABLE_NO = { label: 'No - Role cannot be mentioned', id: 'false' }
-
-/**
- * Splits the bulk-delete IDs, which the canvas stores as a comma-separated string and a model
- * sends as an array.
- */
-function parseMessageIds(value: unknown): string[] {
-  const ids = Array.isArray(value) ? value : String(value ?? '').split(',')
-  return ids.map((id) => String(id).trim()).filter(Boolean)
-}
 
 function discordToolParams(
   params: BlockToolParams,

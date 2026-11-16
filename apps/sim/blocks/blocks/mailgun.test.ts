@@ -59,25 +59,16 @@ describe('Mailgun block add_list_member mapping', () => {
     expect(formFields(params)).toMatchObject({ address: 'bob@example.com', name: 'Bob' })
   })
 
-  it('honors an unsubscribed choice on a tool call, whether a stored string or a model boolean', () => {
-    const stored = mapParams(
-      { apiKey: 'key', listAddress: 'l@mg.example.com', address: 'a@x.com', subscribed: 'false' },
-      { operation: 'add_list_member' }
-    )
-    const model = mapParams(
-      { apiKey: 'key', listAddress: 'l@mg.example.com', address: 'a@x.com', subscribed: false },
-      { operation: 'add_list_member' }
-    )
-    expect(formFields(stored).subscribed).toBe('no')
-    expect(formFields(model).subscribed).toBe('no')
-  })
-
-  it('keeps a model boolean true subscribed on a tool call', () => {
+  it.each([
+    ['a stored string', 'false', 'no'],
+    ['a model boolean', false, 'no'],
+    ['a model boolean', true, 'yes'],
+  ])('honors subscribed given as %s (%j) on a tool call', (_label, subscribed, expected) => {
     const params = mapParams(
-      { apiKey: 'key', listAddress: 'l@mg.example.com', address: 'a@x.com', subscribed: true },
+      { apiKey: 'key', listAddress: 'l@mg.example.com', address: 'a@x.com', subscribed },
       { operation: 'add_list_member' }
     )
-    expect(formFields(params).subscribed).toBe('yes')
+    expect(formFields(params).subscribed).toBe(expected)
   })
 
   it('maps the canvas List Address and Member Email as before', () => {
