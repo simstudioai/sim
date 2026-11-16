@@ -17,6 +17,10 @@
     "./catalog/canonical-index": {
       "types": "./src/catalog/canonical-index/index.ts",
       "default": "./src/catalog/canonical-index/index.ts"
+    },
+    "./proof": {
+      "types": "./src/proof/index.ts",
+      "default": "./src/proof/index.ts"
     }
   },
   "scripts": {
