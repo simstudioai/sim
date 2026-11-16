@@ -107,6 +107,19 @@ export interface CatalogSubBlock {
    * consumers evaluate themselves. An operation missing from the map counts as visible.
    */
   visibleFor?: Record<string, boolean>
+  /**
+   * Per operation id that `visibleFor` shows, the data clause on other fields the condition still
+   * asks under that operation (Slack's `send` keeps the channel behind `destinationType`). An
+   * operation missing here asks nothing more. Read by compile's field checks only.
+   */
+  visibleWhen?: Record<string, SubBlockConditionClause>
+  /**
+   * Per model id of the block's own `model` options, whether this subBlock is visible, precomputed
+   * when `condition` is a function of the selected model (the Vertex, Bedrock and API key fields of
+   * model blocks). A model the condition cannot decide alone is left out. Read by compile's field
+   * checks only.
+   */
+  visibleForModel?: Record<string, boolean>
   required?: boolean | CatalogCondition
   /** UI clearing and fetch ordering only; never part of types or visibility (s2 §2). */
   dependsOn?: { all: SubBlockId[]; any: SubBlockId[] }

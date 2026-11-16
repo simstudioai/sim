@@ -115,6 +115,16 @@ const catalogSubBlockSchema = z
       .record(z.string(), z.boolean())
       .optional()
       .describe('Per operation id: whether an opaque condition can show this field.'),
+    visibleWhen: z
+      .record(z.string(), conditionClauseSchema)
+      .optional()
+      .describe(
+        'Per operation id: the clause on other fields an opaque condition still asks to show this field.'
+      ),
+    visibleForModel: z
+      .record(z.string(), z.boolean())
+      .optional()
+      .describe('Per model id: whether an opaque condition shows this field.'),
     required: z
       .union([z.boolean(), catalogConditionSchema])
       .optional()
