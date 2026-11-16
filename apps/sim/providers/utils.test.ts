@@ -12,12 +12,15 @@ vi.mock('@/lib/internal/workflows/read-tool-enrichment', () => ({
 }))
 
 import { getParamsForToolOperation } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
+import { CbInsightsV2Block } from '@/blocks/blocks/cbinsights'
+import { CheckrV2Block } from '@/blocks/blocks/checkr'
 import { GaugeBlock } from '@/blocks/blocks/gauge'
 import { GreenhouseV2Block } from '@/blocks/blocks/greenhouse'
 import { IntuneBlock } from '@/blocks/blocks/intune'
 import { MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
 import { RampBlock } from '@/blocks/blocks/ramp'
 import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
+import { TrelloBlock } from '@/blocks/blocks/trello'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import * as blockRegistry from '@/blocks/registry'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -47,6 +50,9 @@ import {
   transformBlockTool,
 } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
+import { cbinsightsSearchFirmographicsTool } from '@/tools/cbinsights/search_firmographics'
+import { checkrCreateReportTool } from '@/tools/checkr/create_report'
+import { checkrListCandidatesTool } from '@/tools/checkr/list_candidates'
 import { gaugeGetQueryMetadataTool } from '@/tools/gauge/get_query_metadata'
 import { gaugeListAnswersTool } from '@/tools/gauge/list_answers'
 import { gaugeListCitationsTool } from '@/tools/gauge/list_citations'
@@ -86,6 +92,8 @@ import { getSubBlocksForToolInput } from '@/tools/params'
 import { rampListReimbursementsTool } from '@/tools/ramp/list-reimbursements'
 import { rampListTransactionsTool } from '@/tools/ramp/list-transactions'
 import { revenuecatGetCustomerTool } from '@/tools/revenuecat/get_customer'
+import { trelloListListsTool } from '@/tools/trello/list_lists'
+import { trelloUpdateListTool } from '@/tools/trello/update_list'
 import { falaiVideoTool } from '@/tools/video/falai'
 import { runwayVideoTool } from '@/tools/video/runway'
 
@@ -149,7 +157,8 @@ describe('integration filters through agent execution', () => {
     vi.spyOn(blockRegistry, 'getBlock').mockReturnValue(GaugeBlock)
     const params = getParamsForToolOperation(
       { type: 'gauge', params: { org: 'example', category: 'example', topic: '["top_stale"]' } },
-      tool
+      tool,
+      tool.id
     )
     const providerTool = await transformBlockTool(
       { type: 'gauge', params },
@@ -338,7 +347,8 @@ describe('integration filters through agent execution', () => {
       }
       const params = getParamsForToolOperation(
         { type: 'greenhouse_v2', params: previousParams },
-        tool
+        tool,
+        operation
       )
       const providerTool = await transformBlockTool(
         { type: 'greenhouse_v2', params },
@@ -373,7 +383,8 @@ describe('integration filters through agent execution', () => {
           source_id: '81',
         },
       },
-      tool
+      tool,
+      'update_application'
     )
     const providerTool = await transformBlockTool(
       { type: 'greenhouse_v2', params },
@@ -406,7 +417,8 @@ describe('integration filters through agent execution', () => {
           candidate_id: '42',
         },
       },
-      tool
+      tool,
+      'create_application'
     )
     const providerTool = await transformBlockTool(
       { type: 'greenhouse_v2', params },
@@ -436,7 +448,8 @@ describe('integration filters through agent execution', () => {
     vi.spyOn(blockRegistry, 'getBlock').mockReturnValue(GreenhouseV2Block)
     const params = getParamsForToolOperation(
       { type: 'greenhouse_v2', params: { opening_id: 'external-opening' } },
-      tool
+      tool,
+      'hire_application'
     )
     const providerTool = await transformBlockTool(
       { type: 'greenhouse_v2', params },
@@ -473,7 +486,8 @@ describe('integration filters through agent execution', () => {
             accessToken: 'expired-resolved-token',
           },
         },
-        greenhouseListJobsV2Tool
+        greenhouseListJobsV2Tool,
+        'list_jobs'
       )
       expect(params[credentialId]).toBe('fixture-credential')
       expect(params).not.toHaveProperty('accessToken')
@@ -720,6 +734,114 @@ describe('integration filters through agent execution', () => {
         : intuneListDetectedAppsTool.request.url
 
     expect(new URL(url).searchParams.has('$filter')).toBe(false)
+  })
+})
+
+describe('tool-row values hidden by the selected operation', () => {
+  it.each([
+    {
+      name: 'Trello archive status left by Update Card',
+      block: TrelloBlock,
+      operation: 'trello_update_list',
+      tool: trelloUpdateListTool,
+      stored: { listId: 'list-1', closed: 'true' },
+      hiddenParam: 'closed',
+    },
+    {
+      name: 'CB Insights websites left by Look Up Organizations',
+      block: CbInsightsV2Block,
+      operation: 'search_firmographics',
+      tool: cbinsightsSearchFirmographicsTool,
+      stored: { keyword: 'payments', urls: 'stripe.com' },
+      hiddenParam: 'urls',
+    },
+    {
+      name: 'Checkr geo left by Get Geo',
+      block: CheckrV2Block,
+      operation: 'list_candidates',
+      tool: checkrListCandidatesTool,
+      stored: { geoId: 'geo-stale' },
+      hiddenParam: 'geoId',
+    },
+    {
+      name: 'Checkr tags left by Set Report Tags',
+      block: CheckrV2Block,
+      operation: 'create_report',
+      tool: checkrCreateReportTool,
+      stored: { candidateId: 'cand-1', package: 'basic', tags: 'stale-tag' },
+      hiddenParam: 'tags',
+    },
+  ])('neither runs nor hides from the model the $name', async (testCase) => {
+    const providerTool = await transformBlockTool(
+      { type: testCase.block.type, operation: testCase.operation, params: testCase.stored },
+      {
+        selectedOperation: testCase.operation,
+        getAllBlocks: () => [testCase.block],
+        getTool: () => testCase.tool,
+      }
+    )
+    if (!providerTool) throw new Error('Agent tool was not created')
+    expect(providerTool.parameters.properties).toHaveProperty(testCase.hiddenParam)
+    const { toolParams } = prepareToolExecution(providerTool, {}, {}, undefined)
+    expect(toolParams[testCase.hiddenParam]).toBeUndefined()
+  })
+
+  it.each([
+    { stored: { manualBoardId: 'board-advanced' }, member: 'advanced member' },
+    { stored: { boardSelector: 'board-basic' }, member: 'basic member' },
+    { stored: { boardId: 'board-canonical' }, member: 'canonical id' },
+  ])('keeps a board stored under the $member when the operation shows it', async ({ stored }) => {
+    const providerTool = await transformBlockTool(
+      { type: 'trello', operation: 'trello_list_lists', params: stored },
+      {
+        selectedOperation: 'trello_list_lists',
+        getAllBlocks: () => [TrelloBlock],
+        getTool: () => trelloListListsTool,
+      }
+    )
+    if (!providerTool) throw new Error('Trello agent tool was not created')
+    const { toolParams } = prepareToolExecution(providerTool, {}, {}, undefined)
+    expect(toolParams.boardId).toBe(Object.values(stored)[0])
+  })
+
+  it('keeps a stored tool param no sub-block writes', async () => {
+    const providerTool = await transformBlockTool(
+      { type: 'trello', operation: 'trello_update_list', params: { listId: 'l', idBoard: 'b' } },
+      {
+        selectedOperation: 'trello_update_list',
+        getAllBlocks: () => [TrelloBlock],
+        getTool: () => trelloUpdateListTool,
+      }
+    )
+    if (!providerTool) throw new Error('Trello agent tool was not created')
+    expect(providerTool.params).toEqual({ listId: 'l', idBoard: 'b' })
+    expect(providerTool.parameters.properties).not.toHaveProperty('idBoard')
+  })
+
+  it('keeps operation-gated values when the stored operation is not one the block lists', async () => {
+    const providerTool = await transformBlockTool(
+      { type: 'checkr_v2', params: { geoId: 'geo-1' } },
+      {
+        selectedOperation: undefined,
+        getAllBlocks: () => [CheckrV2Block],
+        getTool: () => checkrListCandidatesTool,
+      }
+    )
+    if (!providerTool) throw new Error('Checkr agent tool was not created')
+    expect(providerTool.params).toEqual({ geoId: 'geo-1' })
+  })
+
+  it('drops a value the new operation hides when the row switches operations', () => {
+    vi.spyOn(blockRegistry, 'getBlock').mockReturnValue(CheckrV2Block)
+    const params = getParamsForToolOperation(
+      {
+        type: 'checkr_v2',
+        params: { candidateId: 'cand-1', tags: 'stale-tag', credential: 'fixture-credential' },
+      },
+      checkrCreateReportTool,
+      'create_report'
+    )
+    expect(params).toEqual({ candidateId: 'cand-1', credential: 'fixture-credential' })
   })
 })
 
