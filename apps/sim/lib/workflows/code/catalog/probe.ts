@@ -7,7 +7,7 @@
  * temperature gates read the model registry), so its result is the same for every workflow and is
  * evaluated once. A thunk that reads values is opaque, and when it reads nothing but `operation`
  * it can still be expanded per operation, which is the visibility pre-expansion the SDK codegen
- * needs (s2 §2).
+ * needs.
  */
 
 type ProbeOutcome<T> =

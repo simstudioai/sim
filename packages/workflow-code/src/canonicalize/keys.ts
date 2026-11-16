@@ -24,7 +24,7 @@ function smallestFreeSuffix(base: string, taken: ReadonlySet<string>): string {
 }
 
 /**
- * Block keys (s1 canonicalize step 1, quirk 21). The key is the normalized name. When two stored
+ * Block keys. The key is the normalized name. When two stored
  * names normalize alike, the block the resolver binds the name to keeps the key: blocks are walked
  * in stored order and a newcomer takes over only from an incumbent whose name contains a dot
  * (executor/variables/resolvers/block.ts:49-60). Every other block in the group becomes

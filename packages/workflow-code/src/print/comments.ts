@@ -1,5 +1,5 @@
 /**
- * Comments at anchors (build-spec decision 10, s3 §4 "Comments"). Comments live in
+ * Comments at anchors. Comments live in
  * `annotations.comments` keyed by anchor; the printer places each one at its anchor, moves one
  * whose param or wiring statement no longer prints to its block, and drops one whose block is gone.
  */

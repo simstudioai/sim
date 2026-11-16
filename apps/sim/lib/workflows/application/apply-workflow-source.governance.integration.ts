@@ -247,7 +247,7 @@ afterAll(async () => {
 })
 
 check(
-  'LK-14: a block type the permission group withholds refuses the write even when untouched',
+  'a block type the permission group withholds refuses the write even when untouched',
   async () => {
     const start = seedBlock('start_trigger', 'Start')
     const score = seedBlock('function', 'Score', { code: ['code', 'return 1'] })
@@ -270,7 +270,7 @@ check(
 )
 
 check(
-  'RS-07: a user API key set on a hosted model is dropped with a warning and stored as null',
+  'a user API key set on a hosted model is dropped with a warning and stored as null',
   async () => {
     const start = seedBlock('start_trigger', 'Start')
     const writer = seedBlock('agent', 'Writer', {

@@ -1,5 +1,5 @@
 /**
- * fast-check arbitraries for round-trip fuzzing (s3 §5 corpus 4): random DAGs with nested
+ * fast-check arbitraries for round-trip fuzzing: random DAGs with nested
  * subflows, adversarial block names and strings, and JS code bodies with references in every quote
  * context. Every generated state is structurally valid (unique normalized names, edges only within
  * one scope and only forward, containers listed in `loops`/`parallels`), so a failing property

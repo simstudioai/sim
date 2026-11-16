@@ -8,7 +8,7 @@ import type { CatalogBlock } from '../catalog/types'
 import type { CanonicalParamId, ParamMode } from '../model'
 
 /**
- * The effective mode of every canonical pair on the block's surface (s1 canonicalize step 4, quirk
+ * The effective mode of every canonical pair on the block's surface (quirk
  * 2), as the serializer resolves it (serializer/index.ts:637-650): an explicit override wins;
  * otherwise the legacy block-level `advancedMode` makes a pair advanced; otherwise the mode is
  * inferred from which member holds a value (`resolveCanonicalMode`).

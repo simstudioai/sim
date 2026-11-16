@@ -4,7 +4,7 @@ import type { CompileLimits } from '../api'
 import type { Reporter } from './report'
 
 /**
- * Default caps on hostile input (s4 D7). A 200-block workflow is about 44 KB, about 25k AST nodes
+ * Default caps on hostile input. A 200-block workflow is about 44 KB, about 25k AST nodes
  * and under 20 levels deep, so each default leaves more than an order of magnitude of headroom.
  */
 export const DEFAULT_LIMITS: Required<CompileLimits> = {
@@ -165,7 +165,7 @@ interface ParsedSource {
 }
 
 /**
- * Parses a workflow file with Babel (typescript, errorRecovery, attachComment; s3 D1) after the
+ * Parses a workflow file with Babel (typescript, errorRecovery, attachComment) after the
  * byte and bracket-depth caps, then checks the node-count and depth caps. Babel errors are
  * re-coded as `E_SYNTAX`. Nothing is evaluated.
  */

@@ -91,7 +91,7 @@ function layoutOf(block: BlockState): LockLayout {
   return layout
 }
 
-/** Lock branch keys by block id, then row id → key (build-spec decision 5). */
+/** Lock branch keys by block id, then row id → key. */
 function lockBranchKeysById(
   lock: Parameters<CanonicalizeFn>[1]['lock']
 ): Map<string, Map<string, BranchKey>> {
@@ -106,8 +106,7 @@ function lockBranchKeysById(
 }
 
 /**
- * Projects a stored, already-migrated graph to the CWM (s1 §2 canonicalize steps 1–9; quirk
- * numbers refer to s1 §5). Pure and total: problems become diagnostics.
+ * Projects a stored, already-migrated graph to the CWM. Pure and total: problems become diagnostics.
  */
 export const canonicalize: CanonicalizeFn = (state, options) => {
   const diagnostics: Diagnostic<CanonicalizeDiagnosticCode>[] = []

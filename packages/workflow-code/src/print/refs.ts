@@ -1,5 +1,5 @@
 /**
- * Reference printing (build-spec decision 8, s3 D3/D4). A stored string is literal text plus
+ * Reference printing. A stored string is literal text plus
  * tokens; each token that resolves to something in lexical scope becomes an interpolation, and
  * everything else stays literal text, which compiles back to the same bytes. Path segments map
  * exactly: `.seg` ↔ `.seg`, a non-identifier `.seg` ↔ `['seg']`, `[n]` ↔ `[n]`.

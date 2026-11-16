@@ -4,14 +4,14 @@
  *
  * The first letter fixes the severity (`E_` error, `W_` warning, `I_` info; see
  * {@link SeverityOf}). The segment after it names the stage that owns the code:
- * - no stage segment: compile (s3 §4) and print, which share one vocabulary;
+ * - no stage segment: compile and print, which share one vocabulary;
  * - `LOCK_`: `parseWorkflowLock`;
- * - `CANON_`: canonicalize (s1 §2, §5);
- * - `MAT_`: materialize and identity resolution (s1 §4);
- * - `APPLY_`: the server apply pipeline and its gates (s4 §2, build-spec decision 11).
+ * - `CANON_`: canonicalize;
+ * - `MAT_`: materialize and identity resolution;
+ * - `APPLY_`: the server apply pipeline and its gates.
  */
 
-/** Syntax, header and file-shape errors from compile (s3 §4 "Accepted grammar"). */
+/** Syntax, header and file-shape errors from compile. */
 export type CompileSyntaxCode =
   /** A Babel parse error, re-coded. */
   | 'E_SYNTAX'
@@ -21,14 +21,14 @@ export type CompileSyntaxCode =
   | 'E_SDK_MAJOR'
   /** The header's major is below the oldest major the server reads (`OLDEST_SDK_MAJOR`). */
   | 'E_SDK_MAJOR_OLD'
-  /** A construct outside the accepted grammar; `hint` names the supported form (s3 §4 table). */
+  /** A construct outside the accepted grammar; `hint` names the supported form. */
   | 'E_UNSUPPORTED_SYNTAX'
   /** Not exactly one `export default workflow(...)`. */
   | 'E_WORKFLOW_EXPORT'
-  /** Source exceeds the byte, AST node or depth cap (s4 D7). */
+  /** Source exceeds the byte, AST node or depth cap. */
   | 'E_LIMIT_EXCEEDED'
 
-/** Names, identifiers and scope (s3 §4 "Names and scopes"). */
+/** Names, identifiers and scope. */
 export type CompileScopeCode =
   | 'E_DUPLICATE_NAME'
   | 'E_RESERVED_NAME'
@@ -61,7 +61,7 @@ export type CompileScopeCode =
    */
   | 'W_REF_NOT_NORMALIZED'
 
-/** Wiring (s3 §4 "Edges", build-spec decision 5). */
+/** Wiring. */
 export type CompileEdgeCode =
   /** Reuses `getWorkflowEdgeScopeDropReason` (workflow.ts:595). */
   | 'E_EDGE_SCOPE'
@@ -82,7 +82,7 @@ export type CompileEdgeCode =
   /** `edge(a, 'raw', b)`: an unknown handle kept verbatim. */
   | 'W_RAW_HANDLE'
 
-/** Checks against the block catalog (s3 §4 "Catalog checks", build-spec decision 2). */
+/** Checks against the block catalog. */
 export type CompileCatalogCode =
   | 'E_UNKNOWN_BUILDER'
   /** `hint` carries a did-you-mean over the params visible for the chosen operation. */
@@ -91,7 +91,7 @@ export type CompileCatalogCode =
   | 'E_FIXED_PARAM'
   /**
    * A param not visible under the block's current values. A warning, not an error, because stale
-   * hidden values are preserved (build-spec decision 2); s3 called it `E_FIELD_NOT_APPLICABLE`.
+   * hidden values are preserved.
    */
   | 'W_FIELD_NOT_APPLICABLE'
   /** Includes `todo()` placeholders. */
@@ -111,7 +111,7 @@ export type CompileCatalogCode =
    */
   | 'W_JSON_REF_UNTYPED'
 
-/** Function-code files (build-spec decision 9, s3 D6/D7). */
+/** Function-code files. */
 export type CodeFileCode =
   /** `fn('./x.js')` names a file absent from `CompileInput.files`. */
   | 'E_CODE_FILE_MISSING'
@@ -120,11 +120,11 @@ export type CodeFileCode =
   /** The printer's bijection self-check failed; the code was printed inline as `js```. */
   | 'W_CODE_FILE_INLINED'
 
-/** References and comments, shared by compile and print (build-spec decision 8, s3 §4). */
+/** References and comments, shared by compile and print. */
 export type ReferenceCode =
   /** A `<x.y>` token that resolves to nothing; kept as literal text. */
   | 'W_UNRESOLVED_REF'
-  /** A ref that would point forward (a ref cycle), printed as literal text (s3 D10). */
+  /** A ref that would point forward (a ref cycle), printed as literal text. */
   | 'W_FORWARD_REF_LITERALIZED'
   /** A comment outside an anchor position, hoisted to the nearest anchor. */
   | 'W_COMMENT_MOVED'
@@ -139,7 +139,7 @@ export type CompileDiagnosticCode =
   | CodeFileCode
   | ReferenceCode
 
-/** Print emits only reference, comment and code-file fallbacks; every print compiles (s3 D12). */
+/** Print emits only reference, comment and code-file fallbacks; every print compiles. */
 export type PrintDiagnosticCode = ReferenceCode | 'W_CODE_FILE_INLINED' | 'W_RAW_HANDLE'
 
 /** `parseWorkflowLock` (lock.ts). */
@@ -157,7 +157,7 @@ export type LockDiagnosticCode =
   /** A `ident` that is not a JS identifier, or is in `SDK_RESERVED_IDENTIFIERS`. */
   | 'E_LOCK_IDENT'
   | 'E_LOCK_DUPLICATE_IDENT'
-  /** The same block, variable or branch id under two keys (s1 §4 "Stale lock"). */
+  /** The same block, variable or branch id under two keys. */
   | 'E_LOCK_DUPLICATE_ID'
   /** A `parent` naming no lock block, itself, or forming a cycle. */
   | 'E_LOCK_PARENT'
@@ -170,7 +170,7 @@ export type LockDiagnosticCode =
 export type SourceMetaDiagnosticCode =
   /** The text is not valid JSON. */
   | 'E_SOURCE_META_JSON'
-  /** `v` is missing or not `1`. */
+  /** `version` is missing or not `1`. */
   | 'E_SOURCE_META_VERSION'
   /** A required field is missing or has the wrong type or format. */
   | 'E_SOURCE_META_SHAPE'
@@ -182,11 +182,11 @@ export type SourceMetaDiagnosticCode =
   /** A `comments` key that `decodeAnchor` does not accept. */
   | 'E_SOURCE_META_ANCHOR'
 
-/** canonicalize (s1 §2 algorithm, §5 quirks). */
+/** canonicalize. */
 export type CanonicalizeDiagnosticCode =
-  /** Two stored names normalize to one key; the loser is keyed `key~n` (s1 step 1). */
+  /** Two stored names normalize to one key; the loser is keyed `key~n`. */
   | 'E_CANON_LEGACY_NAME_COLLISION'
-  /** A stored edge crosses subflow scopes (s1 quirk 20, workflow.ts:594-622). */
+  /** A stored edge crosses subflow scopes (workflow.ts:594-622). */
   | 'E_CANON_EDGE_SCOPE'
   /** A stored block name normalizes to a reserved prefix (`loop`, `parallel`, `variable`). */
   | 'W_CANON_RESERVED_NAME'
@@ -203,22 +203,22 @@ export type CanonicalizeDiagnosticCode =
   | 'W_CANON_UNKNOWN_BLOCK_TYPE'
   /** An internal id the resolver could not map to a key (`UnresolvedNode`). */
   | 'W_CANON_UNRESOLVED_ID'
-  /** A stored branch title that disagrees with its positional title (s1 quirk 4). */
+  /** A stored branch title that disagrees with its positional title. */
   | 'W_CANON_TITLE_OVERRIDE'
-  /** A loop/parallel config the loader would repair (count 0, type fallback; s1 quirk 19). */
+  /** A loop/parallel config the loader would repair (count 0, type fallback). */
   | 'W_CANON_SUBFLOW_REPAIRED'
-  /** Stored `subBlock.type` differs from the catalog's, or map key ≠ `subBlock.id` (s1 quirk 29). */
+  /** Stored `subBlock.type` differs from the catalog's, or map key ≠ `subBlock.id`. */
   | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
   /** A stored JSON-string field that does not parse; kept as a native string. */
   | 'W_CANON_UNDECODABLE_JSON'
 
-/** materialize and identity resolution (s1 §4). */
+/** materialize and identity resolution. */
 export type MaterializeDiagnosticCode =
   /** Two lock keys carry the same block id. */
   | 'E_MAT_DUPLICATE_LOCK_ID'
   /** A resource key the resolver cannot map to an id in this workspace. */
   | 'E_MAT_UNKNOWN_RESOURCE'
-  /** A lock entry whose id has left prev; the block is re-created (s1 §4 "Stale lock"). */
+  /** A lock entry whose id has left prev; the block is re-created. */
   | 'W_MAT_DELETED_SINCE_PULL'
   /** Identity rule 4: a lockless rename inferred from type, parent and edge neighbourhood. */
   | 'W_MAT_INFERRED_RENAME'
@@ -233,15 +233,14 @@ export type MaterializeDiagnosticCode =
  * The server apply pipeline. Gate codes mirror the editing engine's `SkippedItemType`
  * (apps/sim/lib/workflows/editing/types.ts `WORKFLOW_SKIPPED_ITEM_TYPES`) minus
  * `invalid_edge_target`, as `E_APPLY_<UPPER_SNAKE>` (`block_locked` shares `E_APPLY_LOCKED_BLOCK`);
- * the rest are s4 §2 additions. The engine
- * skips such an item silently, while source apply refuses the whole write (s4 D1, D5).
+ * the rest are apply-only checks. The engine skips such an item silently, while source apply refuses the whole write.
  */
 export type ApplyDiagnosticCode =
-  /** The base fingerprint no longer matches the stored graph (HTTP 409; s4 D3). */
+  /** The base fingerprint no longer matches the stored graph (HTTP 409). */
   | 'E_APPLY_STALE'
   /** `base.workflowId` names another workflow: the source was read from a different one (HTTP 400). */
   | 'E_APPLY_WORKFLOW_MISMATCH'
-  /** The diff touches a locked block or a child of a locked container (s4 D2). */
+  /** The diff touches a locked block or a child of a locked container. */
   | 'E_APPLY_LOCKED_BLOCK'
   /** A new block of a catalog type marked `addable: false`; existing blocks keep applying. */
   | 'E_APPLY_TYPE_NOT_ADDABLE'

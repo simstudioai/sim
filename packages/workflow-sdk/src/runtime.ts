@@ -1,6 +1,6 @@
 /**
- * The runtime entry of `@sim/workflow-sdk`. A workflow file is compiled statically and never runs
- * (s2 D1), so every export here throws `SimSdkNotExecutable`. The entry exists only so imports
+ * The runtime entry of `@sim/workflow-sdk`. A workflow file is compiled statically and never
+ * runs, so every export here throws `SimSdkNotExecutable`. The entry exists only so imports
  * resolve; the types come from `core.d.ts` and the generated block declarations.
  */
 

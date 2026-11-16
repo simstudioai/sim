@@ -27,7 +27,7 @@ export interface ValueLocation {
 
 /**
  * The stored form of a model value: the inverse of canonicalize's `toValue` plus its id-site
- * lifting (s1 canonicalize step 8). A `var` node becomes the variable's id, a `resource` node the
+ * lifting. A `var` node becomes the variable's id, a `resource` node the
  * resolver's id, an `unresolved` node its verbatim id, a `csv` node its items joined with `,`, and
  * a `literal` node its wrapped JSON. A resource key the resolver cannot map is written as the key
  * itself with `E_MAT_UNKNOWN_RESOURCE`, which fails the apply.
@@ -137,7 +137,7 @@ function rewriteBlock(block: CanonicalBlock, rewrite: (text: string) => string):
 }
 
 /**
- * Rewrites `<oldkey.` reference tokens to `<newkey.` after a rename (s1 §4). Case-insensitive,
+ * Rewrites `<oldkey.` reference tokens to `<newkey.` after a rename. Case-insensitive,
  * because the block resolver lowercases names (executor/variables/resolvers/block.ts:46-61). A
  * rename whose old key is still a key of `workflow` is skipped: the token still names that block.
  */

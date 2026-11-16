@@ -79,7 +79,7 @@ interface SanitizedCondition {
   id: string
   title: string
   value: string
-  /** The persisted branch key (s1 D2b); kept so an edit that echoes the rows keeps it. */
+  /** The persisted branch key; kept so an edit that echoes the rows keeps it. */
   key?: string
 }
 

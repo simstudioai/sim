@@ -2,14 +2,14 @@
  * Collects round-trip outcomes into the JSON report a corpus run writes to `<SUITE>_REPORT_PATH`
  * (the E2E-artifact rule in .claude/rules/sim-testing.md). The headline number is parity per block
  * type: the share of cases containing that type that pass each property, which is the plan's 100%
- * kill-criterion gate (s3 §5). Pure: the caller owns the clock and the file write.
+ * kill-criterion gate. Pure: the caller owns the clock and the file write.
  */
 
 import { compareStrings } from '@sim/utils/string'
 import type { Difference } from '@/lib/workflows/code/corpus/proof/diff'
 
 /**
- * The round-trip properties (s3 §5) and oracles (s1 §6) a corpus run checks. `P0` is P1's source
+ * The round-trip properties and oracles a corpus run checks. `P0` is P1's source
  * half, `compile(print(c))` equals `c`, which needs no materialize.
  */
 const PROOF_PROPERTIES = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'O1', 'O2', 'O3'] as const
@@ -48,7 +48,7 @@ interface ProofReport {
   generatedAt: string
   caseCount: number
   totals: Record<ProofProperty, Tally>
-  /** Properties skipped wholesale, with the reason (a missing engine before Wave 3). */
+  /** Properties skipped wholesale, with the reason. */
   skippedProperties: Array<{ property: ProofProperty; reason: string }>
   /** Block type → property → tally; the per-block-type parity gate. */
   parity: Record<string, Partial<Record<ProofProperty, BlockTypeParity>>>

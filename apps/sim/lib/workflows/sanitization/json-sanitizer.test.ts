@@ -127,7 +127,7 @@ describe('sanitizeForCopilot knowledge tag subblocks', () => {
 
 describe('sanitizeForCopilot condition rows', () => {
   // A row key the agent never sees is a key its next edit cannot echo back, so every copilot
-  // edit of a condition would silently drop the named branches (s1 D2b).
+  // edit of a condition would silently drop the named branches.
   it('keeps the persisted branch key and strips UI state', () => {
     const rows = [
       { id: 'c-if', title: 'if', value: 'a', key: 'isVip', showTags: true, searchTerm: 'x' },

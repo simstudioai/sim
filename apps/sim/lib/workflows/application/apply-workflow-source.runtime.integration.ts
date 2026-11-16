@@ -222,7 +222,7 @@ afterAll(async () => {
 })
 
 check(
-  'RS-11: a run paused at a human block resumes from its snapshot after source renames that block',
+  'a run paused at a human block resumes from its snapshot after source renames that block',
   async () => {
     const runId = await pausedRun()
     const before = await pausedRow(runId)

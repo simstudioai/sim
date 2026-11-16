@@ -6,7 +6,7 @@
  * into `globalThis[...]` reads (resolver.ts `formatContextVariableReference`).
  *
  * One difference is deliberate: the runtime reports comments as code-position, since a value
- * spliced into a comment is inert there. The rewrite must leave comment text verbatim (s3 D6),
+ * spliced into a comment is inert there. The rewrite must leave comment text verbatim,
  * so comments are reported as their own context.
  */
 

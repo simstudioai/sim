@@ -10,8 +10,7 @@ export type CodeFileBijection =
     }
 
 /**
- * The printer's self-check before it writes function code to a file (build-spec decision 9,
- * s3 D6): the file form is usable only when reading it back yields the stored code exactly.
+ * The printer's self-check before it writes function code to a file: the file form is usable only when reading it back yields the stored code exactly.
  * Code that already names `$ref`/`$env` in code position, or a reference followed by a member
  * access (`<a.b>.length`), reads back differently and fails here, so the printer falls back to an
  * inline `js` template with `W_CODE_FILE_INLINED`.

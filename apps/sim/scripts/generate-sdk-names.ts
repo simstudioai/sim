@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Maintains `apps/sim/blocks/sdk-names.json`, the frozen SDK builder names (build-spec decision 7),
+ * Maintains `apps/sim/blocks/sdk-names.json`, the frozen SDK builder names,
  * and its runtime form `apps/sim/blocks/sdk-names.generated.ts`.
  *
  * A method name is public API the moment a workflow file uses it, so this generator only ever

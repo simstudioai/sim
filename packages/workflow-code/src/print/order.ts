@@ -28,7 +28,7 @@ function compareNodes(a: OrderNode, b: OrderNode): number {
 
 /**
  * Declaration order for one scope: Kahn's algorithm whose ready queue is keyed by
- * (trigger first, lock order, key) (s3 D10). When every remaining node waits on another (a cycle),
+ * (trigger first, lock order, key). When every remaining node waits on another (a cycle),
  * the smallest node with no unmet hard dependency goes next, else the smallest node outright; the
  * caller literalizes the refs that end up pointing forward.
  */

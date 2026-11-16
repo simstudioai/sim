@@ -1,5 +1,5 @@
 /**
- * The real-state corpora (s3 §5 corpus 2) that live in this public repo: the landing-page
+ * The real-state corpora that live in this public repo: the landing-page
  * templates and the states `@sim/testing` builds. Agent-authored states from the private copilot
  * repo and anything exported from production stay out of the repo; `scripts/export-redacted-
  * workflows.ts` writes redacted production states to a directory outside it, and a caller points
@@ -207,7 +207,7 @@ export function corpusBudgetMs(caseCount: number, floorMs: number): number {
   return Math.min(CAP_MS, Math.max(floorMs, caseCount * PER_CASE_MS))
 }
 
-/** Item keys canonicalize drops by design, by structured kind (s1 §4 "Items", quirk 24). */
+/** Item keys canonicalize drops by design, by structured kind. */
 const DROPPED_ITEM_KEYS: Record<string, string[]> = {
   inputFormat: ['id', 'collapsed'],
   tableRows: ['id'],
@@ -221,7 +221,7 @@ function stripItems(value: unknown, keys: string[]): unknown {
 
 /**
  * A structured value decoded from JSON text. Whether a list is stored as text or natively is
- * storage encoding, which the CWM does not carry (contract amendment 1): a write with no prev uses
+ * storage encoding, which the CWM does not carry: a write with no prev uses
  * the catalog `storage`, and branch lists are always repaired to text.
  */
 function decodedStructured(value: unknown): unknown {

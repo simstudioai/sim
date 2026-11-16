@@ -58,7 +58,7 @@ function repaired(context: CanonContext, blockKey: BlockKey, message: string) {
 }
 
 /**
- * A loop's config (s1 canonicalize step 2, quirk 19). `block.data` is read first: the serializer
+ * A loop's config. `block.data` is read first: the serializer
  * rebuilds loops from it (`generateLoopBlocks`, serializer/index.ts:175) and the loader syncs the
  * subflow row's collection and conditions into it (load.ts:186-245), so it is what executes. The
  * loops map fills those fields when `data` omits them, but never the count: the loader does not
@@ -124,7 +124,7 @@ export function loopSpec(
 }
 
 /**
- * A parallel's config (quirk 19), `block.data` first for the same reason as loops. An unknown
+ * A parallel's config, `block.data` first for the same reason as loops. An unknown
  * `parallelType` is reported: the loader reads it as `count` while the serializer's helper reads
  * it as `collection` (load.ts:226-230 vs subflow-helpers.ts:73-77). `batchSize` is kept raw and
  * reported outside the 1–20 clamp.

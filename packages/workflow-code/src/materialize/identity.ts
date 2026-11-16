@@ -51,7 +51,7 @@ interface IdentityInputs {
 
 type TypeRelation = 'same' | 'replaced' | 'different'
 
-/** A key match across types keeps the id only for a catalog `sunset.replacedBy` pair (s1 §4). */
+/** A key match across types keeps the id only for a catalog `sunset.replacedBy` pair. */
 function typeRelation(catalog: BlockCatalog, prevType: string, nextType: string): TypeRelation {
   if (prevType === nextType) return 'same'
   return catalogBlock(catalog, prevType)?.lifecycle?.sunset?.replacedBy === nextType
@@ -86,7 +86,7 @@ function duplicateLockKeys(
 }
 
 /**
- * Binds every compiled block to an id (s1 §4, build-spec decision 3), in rule order:
+ * Binds every compiled block to an id, in rule order:
  * 1. the lock entry under the same key, when its id is in prev;
  * 2. a lock entry whose key the file dropped but whose ident the file still uses;
  * 3. the prev block with the same canonical key (the lockless and stale-lock path);
@@ -289,7 +289,7 @@ function sameSet(left: Set<string>, right: Set<string>): boolean {
 }
 
 /**
- * Identity rule 4 (s1 §4), repeated until it binds nothing new so a renamed container lets its
+ * Identity rule 4, repeated until it binds nothing new so a renamed container lets its
  * renamed children pair next. A group is `(type, parent id)`; only a group with exactly one
  * unmatched block on each side pairs, and only when both blocks have the same already-bound
  * neighbours in the same directions. Each pairing is flagged with `W_MAT_INFERRED_RENAME`.

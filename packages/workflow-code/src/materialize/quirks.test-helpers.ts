@@ -1,5 +1,5 @@
 /**
- * One stored workflow per s1 §5 quirk class (numbers in the names), each a shape real stored
+ * One stored workflow per storage quirk, each a shape real stored
  * graphs hold. The O1/O3 tests run every one of them through canonicalize and materialize.
  */
 
@@ -12,7 +12,7 @@ const START = blockState('start', 'start_trigger', 'Start', {
 
 export const QUIRK_STATES: Array<[string, WorkflowState]> = [
   [
-    '1: stale hidden values and a standalone advanced field with advanced off',
+    'stale hidden values and a standalone advanced field with advanced off',
     workflowState([
       blockState('s1', 'slack', 'Slack', {
         operation: 'read',
@@ -22,7 +22,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ]),
   ],
   [
-    '2: explicit, inferred and legacy advancedMode pair modes',
+    'explicit, inferred and legacy advancedMode pair modes',
     workflowState([
       blockState(
         's1',
@@ -42,7 +42,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ]),
   ],
   [
-    '3, 9, 17, 24: tool lists with index and legacy modes, stored as text, isExpanded, custom tools',
+    'tool lists with index and legacy modes, stored as text, isExpanded, custom tools',
     workflowState([
       blockState(
         'a1',
@@ -85,7 +85,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ]),
   ],
   [
-    '4, 5, 6: condition titles, every row id format, UI junk and whitespace in the JSON',
+    'condition titles, every row id format, UI junk and whitespace in the JSON',
     workflowState(
       [
         blockState('c1', 'condition', 'Gate', {
@@ -115,14 +115,14 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ),
   ],
   [
-    '7: never-persisted conditions with an edge on the implicit if handle',
+    'never-persisted conditions with an edge on the implicit if handle',
     workflowState(
       [blockState('c1', 'condition', 'Gate'), blockState('f1', 'function', 'Next', { code: '' })],
       { edges: [edge('e1', 'c1', 'f1', 'condition-c1-if')] }
     ),
   ],
   [
-    '9: JSON text with whitespace in structured fields and resource ids, code left as text',
+    'JSON text with whitespace in structured fields and resource ids, code left as text',
     workflowState([
       blockState('k1', 'knowledge', 'KB', {
         knowledgeBaseIds: 'kb-1, missing-kb',
@@ -132,7 +132,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ]),
   ],
   [
-    '10, 11, 12, 26: trigger runtime ids, triggerConfig, and stored outputs',
+    'trigger runtime ids, triggerConfig, and stored outputs',
     workflowState([
       blockState(
         't1',
@@ -150,7 +150,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ]),
   ],
   [
-    '19: loop and parallel configs duplicated in data and the maps, count 0, nesting',
+    'loop and parallel configs duplicated in data and the maps, count 0, nesting',
     workflowState(
       [
         blockState(
@@ -210,7 +210,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ),
   ],
   [
-    '20: side-anchored and empty handles, an error edge with errorEnabled off, duplicates, dangling',
+    'side-anchored and empty handles, an error edge with errorEnabled off, duplicates, dangling',
     workflowState(
       [
         START,
@@ -229,7 +229,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ),
   ],
   [
-    '21: legacy normalized-name collisions and dotted names',
+    'legacy normalized-name collisions and dotted names',
     workflowState([
       blockState('b1', 'function', 'Agent.1', { code: '<agent1.result>' }),
       blockState('b2', 'function', 'Agent 1', { code: 'a' }),
@@ -237,7 +237,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ]),
   ],
   [
-    '22, retry: a locked block, raw retry kept while disabled, enabled off',
+    'a locked block, raw retry kept while disabled, enabled off',
     workflowState([
       blockState(
         'f1',
@@ -254,7 +254,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ]),
   ],
   [
-    '23, 29: synthetic tool mirrors, parked keys, type drift and a map key that differs from id',
+    'synthetic tool mirrors, parked keys, type drift and a map key that differs from id',
     workflowState([
       blockState(
         'a1',
@@ -277,7 +277,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ]),
   ],
   [
-    '24, 27: table row ids and a blank starter row, inputFormat duplicate and empty names',
+    'table row ids and a blank starter row, inputFormat duplicate and empty names',
     workflowState([
       blockState('h1', 'api', 'Call', {
         url: 'https://example.com',
@@ -297,7 +297,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ]),
   ],
   [
-    '25: empty string kept apart from null',
+    'empty string kept apart from null',
     workflowState([
       blockState('s1', 'slack', 'Slack', { operation: '', text: null, threadTs: '' }),
     ]),
@@ -324,7 +324,7 @@ export const QUIRK_STATES: Array<[string, WorkflowState]> = [
     ),
   ],
   [
-    '15, 16, 18: unknown and legacy block types and extra data',
+    'unknown and legacy block types and extra data',
     workflowState([
       blockState(
         'u1',

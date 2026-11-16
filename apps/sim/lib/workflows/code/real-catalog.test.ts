@@ -1,8 +1,8 @@
 /**
- * The Wave 2 engines against the REAL block catalog: canonicalize (2B) and the SDK codegen (2E)
- * were built on hand-made fixture catalogs, so this checks them against what the catalog builder
- * (2A) projects from the live registry. It type-checks the s2 example workflows against the types
- * generated from the whole registry with the workspace's TypeScript 7 compiler.
+ * Canonicalize and the SDK codegen against the REAL block catalog the catalog builder projects
+ * from the live registry, not a hand-made fixture catalog. It type-checks the SDK example
+ * workflows against the types generated from the whole registry with the workspace's TypeScript 7
+ * compiler.
  */
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -33,7 +33,7 @@ const workDir = mkdtempSync(path.join(tmpdir(), 'workflow-sdk-real-catalog-'))
 
 afterAll(() => rmSync(workDir, { recursive: true, force: true }))
 
-describe('wave 2 engines over the real block catalog', () => {
+describe('canonicalize and codegen over the real block catalog', () => {
   it('canonicalizes every case of the registry corpus without throwing', () => {
     const failures: string[] = []
     const corpus = generateRegistryCorpus()

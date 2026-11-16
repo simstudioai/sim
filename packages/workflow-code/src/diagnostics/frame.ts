@@ -35,7 +35,7 @@ interface DiagnosticFields {
   /** Other locations that explain this one, such as the first declaration for a duplicate name. */
   related?: Array<{ span: SourceSpan; message: string }>
   blockKey?: BlockKey
-  /** Set by the apply path once identity is resolved (s4 `SourceDiagnostic.blockId`). */
+  /** Set by the apply path once identity is resolved. */
   blockId?: string
   param?: SubBlockId
   /** RFC 6901 JSON Pointer into a non-source input, such as the lock (`/blocks/agent/ident`). */

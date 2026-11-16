@@ -354,7 +354,7 @@ describe('createBlockFromParams', () => {
     expect(parsed[1].id).toBe('condition-1-else')
   })
 
-  it('keeps each row key when it renumbers condition and router branch ids (s1 D2b)', () => {
+  it('keeps each row key when it renumbers condition and router branch ids', () => {
     const condition = createBlockFromParams('cond-1', {
       type: 'condition',
       name: 'Condition 1',

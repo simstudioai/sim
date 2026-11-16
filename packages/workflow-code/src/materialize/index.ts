@@ -28,7 +28,7 @@ function invert(record: Record<string, string>): Map<string, string> {
 }
 
 /**
- * Variables keep their ids by key: the lock's id, then prev's, else a new one (s1 §4). A variable
+ * Variables keep their ids by key: the lock's id, then prev's, else a new one. A variable
  * canonical-equal to the prev variable with that id is prev's stored object unchanged.
  */
 function writeVariables(
@@ -102,8 +102,7 @@ function childIds(blocks: Record<string, BlockState>, containerId: string): stri
 }
 
 /**
- * Writes a CWM back to a stored graph (s1 §2 materialize algorithm, §4 identity; build-spec
- * decisions 1 and 3; contract amendments 1, 2 and 9). With `prev`, every block, param, edge,
+ * Writes a CWM back to a stored graph (DESIGN.md "Materialize"). With `prev`, every block, param, edge,
  * subflow and variable whose canonical form is unchanged keeps prev's stored bytes, so
  * `materialize(canonicalize(x), lock, { prev: x })` deep-equals `x` (O1).
  */

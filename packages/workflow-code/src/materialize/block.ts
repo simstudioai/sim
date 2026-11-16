@@ -99,10 +99,10 @@ function rawValues(subBlocks: Record<string, SubBlockState>): Record<string, unk
 }
 
 /**
- * One block of the materialized graph (s1 materialize steps 2–7). A block canonical-equal to the
+ * One block of the materialized graph. A block canonical-equal to the
  * prev block it continues, under the same parent id, is prev's stored object unchanged. Otherwise
  * it starts from prev (or `hooks.initBlock` for a new block), keeps every server-owned field
- * prev had (runtime trigger subBlocks, stored outputs, subBlock type metadata; s1 D6), and writes
+ * prev had (runtime trigger subBlocks, stored outputs, subBlock type metadata), and writes
  * only what changed. Stored outputs are recomputed only when something they derive from changed.
  */
 export function buildBlock(inputs: BlockInputs, context: MaterializeContext): BuiltBlock {

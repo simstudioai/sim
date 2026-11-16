@@ -14,7 +14,7 @@ import type { CanonicalParamId, SubBlockId, Value } from '../model'
 
 /**
  * One source param: a single subBlock, or every subBlock sharing a `canonicalParamId`, written
- * once under that id (build-spec decision 7). A group may lack either member. `param` is the
+ * once under that id. A group may lack either member. `param` is the
  * subBlock id or canonical id (what `modes` is keyed by); `name` is what source writes, the
  * param's alias when the catalog gives one (`paramAliases`), else `param`.
  */
@@ -186,7 +186,7 @@ function isPlainObject(value: Value): boolean {
 
 /**
  * Whether a literal value has the JSON type its field's `valueKind` expects. Never coerced: a
- * mismatch is `W_VALUE_KIND` and the exact value is kept (s3 §4 "Catalog checks").
+ * mismatch is `W_VALUE_KIND` and the exact value is kept.
  */
 export function valueKindMatches(kind: CatalogValueKind, value: Value): boolean {
   switch (kind) {

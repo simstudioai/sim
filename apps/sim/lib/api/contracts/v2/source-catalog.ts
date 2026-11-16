@@ -5,8 +5,7 @@ import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 
 /**
  * The source catalog, the workflow-SDK block catalog: one content-hashed JSON document the
- * compiler, printer, and type generator read instead of the block, trigger, and tool registries
- * (build-spec decision 14).
+ * compiler, printer, and type generator read instead of the block, trigger, and tool registries.
  *
  * The response is the catalog's core shard (`BlockCatalog` in `@sim/workflow-code`, which owns
  * the shape; this schema mirrors it field for field, and the registry-wide catalog test parses

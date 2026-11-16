@@ -16,7 +16,7 @@ import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 
 interface ReadBlockCatalogInput {
   workspaceId: string
-  /** Adds this workflow's stored block types (the per-workflow source catalog, s4 §2). */
+  /** Adds this workflow's stored block types (the per-workflow source catalog). */
   workflowId?: string
 }
 

@@ -1,10 +1,10 @@
 /**
- * SubBlock type → TS param type (s2 §2 "Mapping each subBlock type"). Every one of the 48
+ * SubBlock type → TS param type. Every one of the 48
  * `SubBlockType`s has an arm; the `never` check makes a new type a compile error here.
  *
  * Types reference names exported by `core.d.ts` (`Value`, `CredentialRef`, `TableRef`, ...). A basic/advanced
  * pair is the union of its members' types, so the mode follows from the kind of value written
- * (build-spec decision 7): a selector-kind constructor is basic, a plain value or reference is
+ *: a selector-kind constructor is basic, a plain value or reference is
  * advanced.
  */
 

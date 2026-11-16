@@ -33,12 +33,12 @@ import type { ToolMetadata } from '@/tools/metadata'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
- * Projects registry definitions into the catalog's pure-data shape (s1 §2, build-spec decision 14).
+ * Projects registry definitions into the catalog's pure-data shape.
  *
  * Every thunk is classified with {@link probeThunk}: one that reads no block value depends only on
  * the deployment and is evaluated here; one that reads values becomes `{ opaque: true }`. A
  * condition that reads only `operation` is additionally pre-expanded into `visibleFor`, which is
- * what the SDK codegen's visibility evaluator runs on (s2 §2).
+ * what the SDK codegen's visibility evaluator runs on.
  */
 
 /** Where a thunk could not be turned into data; the registry-wide sweep counts these. */

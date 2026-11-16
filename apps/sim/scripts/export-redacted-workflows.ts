@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 
 /**
- * Exports a redacted, block-type-stratified sample of stored workflows for the round-trip corpus
- * (s1 §6 "golden set exported from prod and redacted"). The output never belongs in this public
- * repo: the script refuses any output directory inside the repository.
+ * Exports a redacted, block-type-stratified sample of stored workflows for the round-trip corpus.
+ * The output never belongs in this public repo: the script refuses any output directory inside the
+ * repository.
  *
  * Sampling: for every `(block type, trigger mode)` pair the database holds, up to `--per-type`
  * workflows are drawn (ordered by a hash of the id, so a re-run picks the same ones), then the

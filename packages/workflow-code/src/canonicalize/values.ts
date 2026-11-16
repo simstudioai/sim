@@ -32,7 +32,7 @@ export function toJson(value: unknown): Json {
 }
 
 /**
- * Rewrites reference prefixes to the form the resolvers already match (s3 §2 requirements a, b):
+ * Rewrites reference prefixes to the form the resolvers already match:
  * `<Agent 1.content>` → `<agent1.content>` when `agent1` is a block, and `<variable.<id>>` or
  * `<variable.My Var>` → `<variable.myvar>`. Both are semantics-preserving because the block
  * resolver looks names up normalized (block.ts:46-61, 388) and the workflow resolver matches a
@@ -72,7 +72,7 @@ function rewriteVariableReference(match: string, rest: string, context: CanonCon
 /**
  * Converts stored JSON to a model `Value`: strings get their references rewritten, and an object
  * that already carries a `$sim` key is wrapped as a `literal` node so the encoding stays a
- * bijection (DESIGN.md decision 5). A literal's content is kept verbatim.
+ * bijection. A literal's content is kept verbatim.
  */
 export function toValue(value: unknown, context: CanonContext): Value {
   if (typeof value === 'string') return rewriteReferences(value, context)
@@ -95,7 +95,7 @@ function containsReferenceToken(text: string): boolean {
 }
 
 /**
- * Lifts a stored resource id to its key through the resolver (s1 canonicalize step 8). An id the
+ * Lifts a stored resource id to its key through the resolver. An id the
  * resolver cannot map, or any id when no resolver is supplied, stays verbatim as an `unresolved`
  * node; only a resolver miss is reported (`W_CANON_UNRESOLVED_ID`).
  */
@@ -120,7 +120,7 @@ export function liftResourceId(
 }
 
 /**
- * The resource-site form of a selector value (contract amendment A4): a non-empty id string, or
+ * The resource-site form of a selector value: a non-empty id string, or
  * a list of them, becomes resource nodes. A multi-select selector that stored several ids as one
  * comma-joined string becomes a `csv` node. A value holding a reference or env token is not an id
  * and stays a value (`undefined` here).

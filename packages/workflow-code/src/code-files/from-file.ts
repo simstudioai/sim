@@ -26,7 +26,7 @@ export type FromCodeFileResult =
 
 /**
  * Stored function code runs as a module-or-script body with top-level `return`, `await` and
- * `import` (s3 D7), so the parse allows all three.
+ * `import`, so the parse allows all three.
  */
 const FUNCTION_BODY_OPTIONS: ParserOptions = {
   sourceType: 'unambiguous',

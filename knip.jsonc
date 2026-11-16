@@ -175,11 +175,9 @@
       "entry": ["src/index.ts", "src/runtime.ts", "scripts/*.ts"]
     },
     "packages/sim-setup": { "includeEntryExports": false },
-    // The workflow-code contract is built ahead of its consumers (the catalog projection, the
-    // source use cases and @sim/workflow-sdk codegen). Wave 3 of the workflow-code build removes
-    // this setting once those import it.
+    // The workflow-code entry exports are a public API that apps/sim, the CLI and the SDK import.
     "packages/workflow-code": { "includeEntryExports": false },
-    // The SDK's codegen is consumed by the catalog route and `sim types` in Wave 3.
+    // The SDK's codegen entry is imported by apps/sim and the CLI.
     // `test/examples` and `test/negative` are type-check fixtures: nothing imports them, because
     // `test/typecheck-project.ts` globs them into a tsconfig that a test runs tsgo against.
     "packages/workflow-sdk": {

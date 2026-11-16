@@ -9,7 +9,7 @@ type GraphEdge = WorkflowState['edges'][number]
 
 /**
  * Block keys that only place a block on the canvas. Source apply keeps stored positions for
- * existing blocks (s4 D3), so a difference here is never a semantic change.
+ * existing blocks, so a difference here is never a semantic change.
  */
 const LAYOUT_BLOCK_KEYS: ReadonlySet<string> = new Set(['position', 'height', 'layout'])
 const LAYOUT_DATA_KEYS: ReadonlySet<string> = new Set(['width', 'height'])
@@ -30,7 +30,7 @@ interface ModifiedBlock {
 /**
  * A block- and field-level diff of two graphs, keyed by block id. Edges are keyed by their
  * endpoints and handles, never their id: materialize reuses a stored edge's id whenever its
- * tuple survives (build-spec decision 3), so the tuple is the edge's identity.
+ * tuple survives, so the tuple is the edge's identity.
  */
 export interface GraphDiff {
   added: string[]

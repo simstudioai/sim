@@ -1,5 +1,5 @@
 /**
- * The three-way visibility evaluator (s2 §2 "How visibility conditions become types").
+ * The three-way visibility evaluator.
  *
  * For one builder (an operation, or a trigger mode), every candidate subBlock is evaluated against
  * the builder's pinned values (`operation` and `fixed`) and every combination of the static

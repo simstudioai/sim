@@ -40,7 +40,7 @@ function unsupported(ctx: CompileContext, node: Node, message: string, hint: str
   ctx.reporter.report('E_UNSUPPORTED_SYNTAX', message, rangeOf(ctx, node), { hint })
 }
 
-/** Module scope: the SDK's named imports (s3 §4 "Accepted grammar"). */
+/** Module scope: the SDK's named imports. */
 function collectImports(ctx: CompileContext, node: Node, scope: Scope): void {
   if (node.type !== 'ImportDeclaration') return
   if (node.source.value !== SDK_MODULE || node.importKind === 'type') {
@@ -297,7 +297,7 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
 }
 
 /**
- * Statically interprets a workflow source file into the canonical model (s3 D2). Pass 1 collects
+ * Statically interprets a workflow source file into the canonical model. Pass 1 collects
  * imports and every block declaration, nested bodies included; pass 2 evaluates values,
  * references, branches and wiring against the catalog. Nothing in the file is executed: values are
  * read from literal syntax only, and anything else is a located diagnostic.

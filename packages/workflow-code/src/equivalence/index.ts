@@ -1,6 +1,6 @@
 /**
- * Equality and digests over the CWM. All three ignore `annotations` (DESIGN.md decision 3), the
- * key order of every object (jsonb does not keep it, s1 quirk 28) and the order of `edges`.
+ * Equality and digests over the CWM. All three ignore `annotations`, the
+ * key order of every object (jsonb does not keep it) and the order of `edges`.
  */
 
 import type { CanonicalEqualsFn, CanonicalHashFn, SourceFingerprintFn } from '../api'
@@ -28,7 +28,7 @@ export const canonicalHash: CanonicalHashFn = (workflow) =>
   sha256Hex(stableStringify(semantic(workflow)))
 
 /**
- * `sf1:` + `sha256Hex(stableStringify({ workflow, identity }))` (build-spec decision 11). The CWM
+ * `sf1:` + `sha256Hex(stableStringify({ workflow, identity }))`. The CWM
  * part already carries variables and locked flags and has no layout, and the identity adds the
  * ids, so a canvas drag never changes it while any rename, re-id or edit does.
  */

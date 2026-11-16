@@ -53,7 +53,7 @@ function serialize(value: unknown, ancestors: Set<object>): string {
 /**
  * Deterministic JSON: object keys sorted by UTF-16 code unit (`compareStrings`), array order kept,
  * `undefined` object fields dropped, no whitespace. Key order of the input never changes the
- * output, which matters because jsonb does not keep it (s1 quirk 28). Throws `TypeError` on
+ * output, which matters because jsonb does not keep it. Throws `TypeError` on
  * anything JSON cannot represent exactly (NaN, ±Infinity, `undefined` in arrays, functions,
  * bigint, class instances) and on cycles. `JSON.stringify` escapes lone surrogates, so the output
  * is well-formed and distinct strings never collide after UTF-8 encoding.

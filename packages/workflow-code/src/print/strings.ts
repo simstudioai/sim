@@ -1,6 +1,6 @@
 /**
  * Literal escaping for printed source. Every function returns text whose cooked JS value is
- * exactly the input (s3 D5): the compiler reads cooked values, so `\`, quotes, `${`, CR,
+ * exactly the input: the compiler reads cooked values, so `\`, quotes, `${`, CR,
  * U+2028/2029, other control characters, lone surrogates and the characters that reorder or hide
  * text in review ({@link isSuspiciousCharacter}) are escaped, while LF stays raw inside templates
  * so multi-line text reads naturally. Template content is never re-indented.

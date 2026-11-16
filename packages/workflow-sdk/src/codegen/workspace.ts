@@ -1,6 +1,6 @@
 /**
  * `generateWorkspaceTypes(manifest)`: one `workspace.d.ts` that narrows the SDK to a workspace's
- * resources (s2 D6). It fills the `Workspace*` interfaces `core.d.ts` declares, so `table('leads')`
+ * resources. It fills the `Workspace*` interfaces `core.d.ts` declares, so `table('leads')`
  * types its rows, a misspelled `knowledgeBase('dosc')` or `env.STRIPE_KYE` is an error, and so on. Written by
  * `sim workflows source get --dir` from the workspace source resources; without it every key is a
  * plain string.

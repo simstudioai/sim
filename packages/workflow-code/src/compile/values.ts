@@ -56,8 +56,8 @@ export interface ValueSite {
 }
 
 /**
- * How a value was written, which picks the member of a basic/advanced pair (build-spec
- * decision 7) and decides whether `W_VALUE_KIND` applies (only to literals).
+ * How a value was written, which picks the member of a basic/advanced pair and
+ * decides whether `W_VALUE_KIND` applies (only to literals).
  */
 type ValueForm = 'literal' | 'ref' | 'template' | 'resource' | 'file' | 'raw'
 
@@ -78,7 +78,7 @@ export function isSelectorForm(form: ValueForm): boolean {
   return SELECTOR_FORMS.has(form)
 }
 
-/** Call-form resource constructors (s2 D6) and the kind each produces. */
+/** Call-form resource constructors and the kind each produces. */
 const RESOURCE_CALLS: Record<string, ResourceKind> = {
   credential: 'credential',
   table: 'table',
@@ -471,9 +471,8 @@ function outputKnown(outputs: Record<string, CatalogOutput>, segments: RefSegmen
 }
 
 /**
- * Compiles an identifier or member chain to its stored token text (build-spec decision 8, s3 §4
- * "Ref mapping"): a block chain to `<key.path>`, `vars.x` to `<variable.x>`, `env.X` to `{{X}}`,
- * a loop param to `<loop.prop>` (innermost loop of its kind) or `<key.prop>` (named form).
+ * Compiles an identifier or member chain to its stored token text: a block chain to
+ * `<key.path>`, `vars.x` to `<variable.x>`, `env.X` to `{{X}}`, a loop param to `<loop.prop>` (innermost loop of its kind) or `<key.prop>` (named form).
  */
 function compileRef(ctx: CompileContext, node: Node, site: ValueSite): string | VarNode | null {
   const { root, members } =
@@ -847,7 +846,7 @@ export function nestedValue(
 }
 
 /**
- * Statically evaluates one value expression (s3 §4 "Values may be"). Nothing runs: only literal
+ * Statically evaluates one value expression. Nothing runs: only literal
  * syntax, SDK value calls and references are understood; anything else is reported with the hint
  * from the s3 rejection table and yields `null`.
  */

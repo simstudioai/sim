@@ -35,7 +35,7 @@ function base(): CanonicalWorkflow {
   }
 }
 
-/** The same CWM with every object's keys reversed, as jsonb may hand them back (quirk 28). */
+/** The same CWM with every object's keys reversed, as jsonb may hand them back. */
 function reverseKeys<T>(value: T): T {
   if (Array.isArray(value)) return value.map(reverseKeys) as T
   if (value === null || typeof value !== 'object') return value
@@ -52,7 +52,7 @@ const IDENTITY: LockIdentity = {
 }
 
 describe('canonicalEquals and canonicalHash', () => {
-  it('ignore key order at every depth (quirk 28)', () => {
+  it('ignore key order at every depth', () => {
     const reordered = reverseKeys(base())
     expect(JSON.stringify(reordered)).not.toBe(JSON.stringify(base()))
     expect(canonicalEquals(base(), reordered)).toBe(true)

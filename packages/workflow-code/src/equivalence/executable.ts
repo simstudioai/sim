@@ -1,5 +1,5 @@
 /**
- * The executable projection of a CWM (wave 4 governing principle: source holds what executes).
+ * The executable projection of a CWM (DESIGN.md "The executable view").
  * Everything the canvas keeps only for itself is stripped, so two workflows that run the same are
  * equal here even when their preserved UI state differs:
  * - inactive values (stored, never sent: `isInactive` over the CWM, the same rule the printer and

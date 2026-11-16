@@ -1,5 +1,5 @@
 /**
- * Stored outputs are server-owned and derived (s1 D6). A source edit must change exactly the field
+ * Stored outputs are server-owned and derived. A source edit must change exactly the field
  * it edits: when the edited param is not one the outputs derive from, the stored outputs stay as
  * they are, even when they differ from what the registry would compute today (older blocks, or the
  * `outputs: {}` an API-built block can hold). The canvas never rewrites them on such an edit.

@@ -55,7 +55,7 @@ interface CatalogDocsShard extends CatalogBlockDocs {
 interface CatalogBuildInput {
   /** Every block the catalog serves, in any order. */
   blocks: readonly BlockConfig[]
-  /** Types placed in the workflow but not addable by this caller (s4: per-workflow catalog). */
+  /** Types placed in the workflow but not addable by this caller. */
   notAddable?: ReadonlySet<string>
   /** `getTrigger()`-shaped lookup; `undefined` for an unknown id. */
   trigger: (triggerId: string) => TriggerConfig | undefined

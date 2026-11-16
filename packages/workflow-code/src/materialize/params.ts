@@ -31,7 +31,7 @@ export function parseStoredList(raw: unknown): unknown[] {
 }
 
 /**
- * The encoding a decoded value is written in (contract amendment 1): JSON text when the field is
+ * The encoding a decoded value is written in: JSON text when the field is
  * one canonicalize decodes and prev stored text (or, with no prev value, the catalog `storage` is
  * `json-string`); native otherwise. Scalars are always native, and a field canonicalize never
  * decodes keeps a structured value native so it reads back unchanged.
@@ -48,7 +48,7 @@ function encodeStorage(json: unknown, site: ParamSite): unknown {
 }
 
 /**
- * Puts inputFormat field ids back (s1 §4 "Items", quirk 27): canonicalize moved the id of every
+ * Puts inputFormat field ids back: canonicalize moved the id of every
  * field with a unique name to the lock, so each such field takes the lock's id for its name, then
  * prev's, else a new one. Fields that kept their id inline are untouched. The editor's `collapsed`
  * flag is carried over from the prev field with the same id.
@@ -80,7 +80,7 @@ function restoreInputFormatIds(list: unknown[], site: ParamSite, context: Materi
 }
 
 /**
- * Puts table row ids back (quirk 24): canonicalize dropped each `{ id, cells }` row's id, so a row
+ * Puts table row ids back: canonicalize dropped each `{ id, cells }` row's id, so a row
  * takes the id of the first unused prev row with the same cells, else a new one.
  */
 function restoreRowIds(list: unknown[], site: ParamSite, context: MaterializeContext) {
@@ -180,7 +180,7 @@ export function matchPrevTools(
 }
 
 /**
- * A tool-input list (s1 materialize step 3). A tool canonical-equal to the prev tool it continues
+ * A tool-input list. A tool canonical-equal to the prev tool it continues
  * keeps prev's stored object; others are re-encoded, keeping prev's raw text for each param whose
  * decoded value is unchanged. The list is text when prev stored text (or, with no prev, when the
  * catalog says `json-string`).
@@ -204,7 +204,7 @@ function encodeTools(tools: CanonicalTool[], site: ParamSite, context: Materiali
   return asText ? JSON.stringify(list) : list
 }
 
-/** The stored value of one changed param (s1 materialize step 3). */
+/** The stored value of one changed param. */
 export function encodeParam(
   param: CanonicalParam,
   site: ParamSite,

@@ -1,13 +1,13 @@
 /**
  * The exact, two-way mapping between a stored reference path (`a.items[0].some-field`) and a JS
- * member chain (`a.items[0]['some-field']`), shared by workflow sources (s3 §4 "Ref mapping") and
- * function code files (s3 D6).
+ * member chain (`a.items[0]['some-field']`), shared by workflow sources and
+ * function code files.
  *
  * A stored path is `name ( '.' name | '[' index ']' )*`. A dot segment that is a JS identifier
  * maps to `.seg`, any other dot segment to `['seg']`, and a bracket index to `[n]`, so
  * `<a.items.0>` ↔ `a.items['0']` and `<a.items[0]>` ↔ `a.items[0]` stay distinct
  * (`splitLeadingBracketPath`, executor/variables/resolvers/reference.ts). Paths outside this
- * grammar are not mapped at all: callers keep them as literal text, which is exact (s3 D3).
+ * grammar are not mapped at all: callers keep them as literal text, which is exact.
  */
 
 export type RefSegment = { kind: 'name'; name: string } | { kind: 'index'; index: number }

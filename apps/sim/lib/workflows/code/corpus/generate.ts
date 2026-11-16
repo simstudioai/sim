@@ -1,5 +1,5 @@
 /**
- * The generated round-trip corpus over the real block registry (s3 §5 corpus 1, s1 §6). Each case
+ * The generated round-trip corpus over the real block registry. Each case
  * is one stored `WorkflowState` with an upstream `start` trigger. Coverage is pairwise, not
  * cartesian:
  *
@@ -15,7 +15,7 @@
  *   disabled containers, an empty workflow and a notes-only one, inputFormat fields with duplicate
  *   and empty names, workflow variables of every type, emoji/RTL/CJK block names, CRLF inside
  *   stored text, agent MCP and workflow-as-tool entries, and stored types the registry does not
- *   know (retired and custom blocks), which must still print and compile (contract amendment 6).
+ *   know (retired and custom blocks), which must still print and compile.
  *
  * {@link generateRejectedCorpus} holds the stored shapes source cannot express: each must fail to
  * compile with its named diagnostic instead of round-tripping.
@@ -76,7 +76,7 @@ export interface CorpusCase {
   /**
    * A stored shape the editor's write-time validators refuse but real workflows hold:
    * `implicit-branch-handle` is an edge on `condition-<blockId>-if` while the rows were never
-   * persisted (s1 quirk 7, contract amendment 7).
+   * persisted.
    */
   storedQuirk?: 'implicit-branch-handle'
 }

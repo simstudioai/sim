@@ -475,7 +475,7 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.routes).toEqual(routes)
   })
 
-  it('accepts a persisted branch key on condition and router rows (s1 D2b)', () => {
+  it('accepts a persisted branch key on condition and router rows', () => {
     const conditions = [
       { id: 'c-if', title: 'if', value: 'true', key: 'isVip' },
       { id: 'c-else', title: 'else', value: '', key: 'otherwise' },

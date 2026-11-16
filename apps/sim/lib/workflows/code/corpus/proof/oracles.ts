@@ -1,10 +1,10 @@
 /**
- * The round-trip oracles (s1 §6, s3 §5), as pure functions over values the caller produces. Each
+ * The round-trip oracles, as pure functions over values the caller produces. Each
  * returns its verdict instead of throwing, so a corpus run reports every failing case rather than
  * stopping at the first. Server-side collaborators (the serializer, change detection) are
  * injected, so each oracle is a pure comparison.
  *
- * Per the Wave 1 audit the CWM carries no encodings, so no oracle compares one: O1 compares raw
+ * The CWM carries no encodings, so no oracle compares one: O1 compares raw
  * stored states, O2 compares what execution sees, and O3 compares CWMs through the caller's
  * equality.
  */
@@ -19,7 +19,7 @@ import {
   firstTextDifference,
 } from '@/lib/workflows/code/corpus/proof/diff'
 
-/** The property or oracle a verdict belongs to (s3 §5 P1–P5, s1 §6 O1–O3). */
+/** The property or oracle a verdict belongs to (DESIGN.md "Proof"). */
 type OracleName = 'P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'O1' | 'O2' | 'O3'
 
 export type OracleResult =
@@ -128,7 +128,7 @@ export function executionParity(input: ExecutionParityInput): OracleResult {
 }
 
 /**
- * P4: printed code compiles with zero errors (s3 D12). Warnings and info do not count; each error
+ * P4: printed code compiles with zero errors. Warnings and info do not count; each error
  * is reported by code and message.
  */
 export function assertNoErrors(

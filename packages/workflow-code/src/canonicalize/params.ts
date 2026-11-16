@@ -9,15 +9,15 @@ import { liftTools } from './tools'
 import { liftResourceValue, toValue } from './values'
 
 /**
- * Server-owned trigger runtime ids (s1 D6, quirks 11 and 12; triggers/constants.ts
+ * Server-owned trigger runtime ids (triggers/constants.ts
  * `TRIGGER_RUNTIME_SUBBLOCK_IDS`). Materialize copies them from prev by id.
  */
 const RUNTIME_SUBBLOCK_IDS = new Set(['webhookId', 'triggerPath', 'triggerConfig', 'triggerId'])
-/** `{subBlockId}-tool-{index}-{paramId}` editor mirrors (synthetic-subblocks.ts:23-25), quirk 23. */
+/** `{subBlockId}-tool-{index}-{paramId}` editor mirrors (synthetic-subblocks.ts:23-25). */
 const SYNTHETIC_TOOL_SUBBLOCK = /-tool-\d+-/
 /** Retired fields an earlier migration parked instead of deleting (subblock-migrations.ts:555-575). */
 const PARKED_PREFIX = '_removed_'
-/** Text types whose JSON-looking content is user text, never decoded (s1 step 3). */
+/** Text types whose JSON-looking content is user text, never decoded. */
 const NEVER_DECODED_TYPES = new Set(['code', 'long-input'])
 
 /** Whether a stored subBlock id is excluded from params before any catalog lookup. */
@@ -38,7 +38,7 @@ export interface ParamInputs {
 
 export interface ParamsResult {
   params: Record<SubBlockId, CanonicalParam>
-  /** inputFormat ids by subBlock: field name → id (lock `items`, quirk 27). */
+  /** inputFormat ids by subBlock: field name → id (lock `items`). */
   items: Record<SubBlockId, Array<{ name: string; id: string }>>
 }
 
@@ -60,11 +60,11 @@ export function shouldDecode(declaration: CatalogSubBlock | undefined): boolean 
 }
 
 /**
- * JSON text of a structured field, decoded (s1 step 3, quirk 9). Only an object or array counts
+ * JSON text of a structured field, decoded. Only an object or array counts
  * as decoded, so a scalar-looking string stays the string it is. Blank text is the untouched
  * sentinel and stays as is; other text that does not parse is kept with
  * `W_CANON_UNDECODABLE_JSON`. The encoding is not recorded: the CWM is encoding-free and
- * materialize keeps prev's (contract amendment 1).
+ * materialize keeps prev's.
  */
 function decodeStructured(
   raw: unknown,
@@ -86,7 +86,7 @@ function decodeStructured(
 }
 
 /**
- * inputFormat fields (quirks 24, 27): the editor's `collapsed` flag is dropped and each field's
+ * inputFormat fields: the editor's `collapsed` flag is dropped and each field's
  * `id` moves to the lock's `items`, keyed by field name. A field whose name is missing or shared
  * keeps its id inline, so nothing is lost.
  */
@@ -118,7 +118,7 @@ function liftInputFormat(
 }
 
 /**
- * Table rows (quirk 24, normalize.ts `sanitizeTableRows`): a `{ id, cells }` row loses its
+ * Table rows (normalize.ts `sanitizeTableRows`): a `{ id, cells }` row loses its
  * client-generated `id`, and a row whose cells are all blank (the editor's starter row) is
  * dropped. Rows of any other shape carry data and pass through verbatim.
  */
@@ -140,7 +140,7 @@ function liftTableRows(list: unknown[], context: CanonContext): Value {
 
 /**
  * Variable assignments (`variables-input`): each `variableId` becomes a `var` node keyed by the
- * variable's key (s1 step 8; sites as remap-internal-ids.ts:58-80 walks them). An id naming no
+ * variable's key (sites as remap-internal-ids.ts:58-80 walks them). An id naming no
  * variable stays an `unresolved` node with `W_CANON_UNRESOLVED_ID`.
  */
 function liftVariableAssignments(
@@ -178,11 +178,11 @@ function liftVariableAssignments(
 }
 
 /**
- * A block's params (s1 canonicalize step 3): every stored subBlock except runtime ids, synthetic
- * tool mirrors, parked keys, the lifted branch list, and a `null` value (DESIGN.md decision 4;
- * `''` is kept, quirk 25). Structured fields are decoded; selector values become resource nodes;
+ * A block's params: every stored subBlock except runtime ids, synthetic
+ * tool mirrors, parked keys, the lifted branch list, and a `null` value
+ * (`''` is kept). Structured fields are decoded; selector values become resource nodes;
  * strings keep their text with reference prefixes normalized. The catalog's subBlock type wins
- * over the stored one, and a drift is reported (quirk 29).
+ * over the stored one, and a drift is reported.
  */
 export function canonicalParams(inputs: ParamInputs, context: CanonContext): ParamsResult {
   const { blockKey, block, catalog, overrides } = inputs

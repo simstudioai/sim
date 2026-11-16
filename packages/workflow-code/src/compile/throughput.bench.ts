@@ -3,7 +3,7 @@ import { compileWorkflow } from './index'
 import { TEST_CATALOG } from './test-catalog'
 
 /**
- * Compile latency on a 200-block workflow of about 44 KB (s3 §5 "Performance": p95 under 50 ms
+ * Compile latency on a 200-block workflow of about 44 KB (target: p95 under 50 ms
  * warm). Not part of `bun run test` (the package runs `*.test.ts` only) and not a CI gate. Run:
  * `bun run --cwd packages/workflow-code vitest bench --run src/compile/throughput.bench.ts`.
  * With `--reporter=verbose` it prints mean, p75 and p99 latency; p99 bounds the p95 target.
