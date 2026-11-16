@@ -21,6 +21,7 @@ import {
 import { type CodeFileCodec, type CodeFileLanguage, codeFileCodec } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
+import { isJson } from '../lock'
 import type {
   AnchorKey,
   BlockKey,
@@ -173,6 +174,16 @@ interface ParamEntry {
   key: string
   anchor: AnchorKey
   value: Expr
+}
+
+/**
+ * A tool entry as JSON for `raw(...)`. The CWM is JSON by contract (`canonicalHash` stringifies
+ * it with `stableStringify`, which throws otherwise), so a non-JSON tool is a canonicalize bug.
+ */
+function toolJson(tool: CanonicalTool): Json {
+  const value: unknown = tool
+  if (!isJson(value)) throw new Error(`Tool entry of type "${tool.type}" is not plain JSON`)
+  return value
 }
 
 class WorkflowPrinter {
@@ -514,7 +525,7 @@ class WorkflowPrinter {
         const value = getOwn(tool.params, id)
         return typeof value === 'string' ? value : undefined
       })
-      if (!found) return this.values.call('raw', [this.values.json(tool as unknown as Json)])
+      if (!found) return this.values.call('raw', [this.values.json(toolJson(tool))])
       const pinned = pinnedIds(found.builder)
       const nested: FieldContext = { tag: 't', from: block.key }
       const params: Property[] = Object.entries(tool.params)
@@ -734,8 +745,7 @@ class WorkflowPrinter {
     }
     if (block.errorPort && !this.hasErrorEdge(block.key))
       meta.push({ key: 'errorPort', value: yes })
-    if (block.retry)
-      meta.push({ key: 'retry', value: this.values.json(block.retry as unknown as Json) })
+    if (block.retry) meta.push({ key: 'retry', value: this.values.json({ ...block.retry }) })
     if (Object.keys(extra.modes).length > 0)
       meta.push({ key: 'modes', value: this.modesExpr(extra.modes) })
     if (extra.branches && extra.branches.length > 0) {

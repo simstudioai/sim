@@ -35,7 +35,7 @@ const BOUNDARY_POLICY_BASELINE = {
   clientHookLocalSchemaConstructors: 0,
   clientHookRawFetches: 0,
   clientSameOriginApiFetches: 0,
-  doubleCasts: 6,
+  doubleCasts: 5,
   rawJsonReads: 5,
   untypedResponses: 0,
   annotationsMissingReason: 0,
