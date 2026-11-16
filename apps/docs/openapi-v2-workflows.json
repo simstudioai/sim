@@ -5911,7 +5911,7 @@
       "get": {
         "operationId": "getWorkflowSource",
         "summary": "Get workflow source",
-        "description": "Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `base` records the workflow, workspace, fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.",
+        "description": "Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `base` records the workflow, workspace, fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. A workflow too large to apply back as source (more than 2000 blocks, a file over 2000000 bytes, or over 4000000 bytes of files in all) returns `413` naming the measured size. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.source.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -6019,6 +6019,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -18775,7 +18778,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`)."
+            "description": "Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files of 2000000 bytes each and 4000000 bytes together, for a workflow of at most 2000 blocks."
           },
           "lock": {
             "type": "object",
@@ -19565,7 +19568,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`)."
+            "description": "Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files of 2000000 bytes each and 4000000 bytes together, for a workflow of at most 2000 blocks."
           },
           "name": {
             "description": "Workflow name. Defaults to the name in the source's `workflow('…')` call.",

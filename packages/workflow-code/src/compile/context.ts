@@ -102,7 +102,7 @@ interface CodeFileBudget {
   reads: Map<string, string | null>
   /** `codeFile()` references seen so far. */
   refs: number
-  /** Bytes of the distinct files read so far. */
+  /** Bytes of the entry plus the distinct code files read so far. */
   bytes: number
 }
 

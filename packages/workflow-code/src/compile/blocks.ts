@@ -7,6 +7,7 @@ import { editorDefaults } from '../catalog/defaults'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
 import { jsonFieldText } from '../json-fields'
+import { utf8Bytes } from '../limits'
 import type {
   AnchorKey,
   CanonicalBlock,
@@ -31,7 +32,7 @@ import {
   recordSpan,
 } from './context'
 import { didYouMean } from './hints'
-import { bracketDepthOverflow, utf8Length } from './parse'
+import { bracketDepthOverflow } from './parse'
 import type { Range } from './report'
 import { compileResponseParam } from './response'
 import { compileToolList } from './tools'
@@ -351,11 +352,11 @@ function parseCodeFile(
   decl: BlockDecl
 ): string | null {
   const { limits } = ctx
-  const bytes = utf8Length(text, limits.maxBytes)
-  if (bytes > limits.maxBytes) {
+  const bytes = utf8Bytes(text, limits.maxFileBytes)
+  if (bytes > limits.maxFileBytes) {
     ctx.reporter.report(
       'E_LIMIT_EXCEEDED',
-      `${path} is larger than ${limits.maxBytes} bytes.`,
+      `${path} is larger than ${limits.maxFileBytes} bytes.`,
       at,
       {
         blockKey: decl.key,
@@ -364,10 +365,10 @@ function parseCodeFile(
     return null
   }
   ctx.codeFiles.bytes += bytes
-  if (ctx.codeFiles.bytes > limits.maxCodeFileBytesTotal) {
+  if (ctx.codeFiles.bytes > limits.maxTotalBytes) {
     ctx.reporter.report(
       'E_LIMIT_EXCEEDED',
-      `Code files total more than ${limits.maxCodeFileBytesTotal} bytes.`,
+      `The workflow and its code files total more than ${limits.maxTotalBytes} bytes.`,
       at,
       { hint: 'Share one code file between blocks, or shorten the code.', blockKey: decl.key }
     )

@@ -141,17 +141,9 @@ describe('hostile sources produce diagnostics only', () => {
     ).toBe(true)
   })
 
-  it('enforces the node-count cap', () => {
-    const elements = Array.from({ length: 5_000 }, () => '0').join(',')
-    const result = run(wrap(`const a = api('A', { url: 'x', headers: { list: [${elements}] } })`), {
-      maxNodes: 1_000,
-    })
-    expect(codes(result)).toEqual(['E_LIMIT_EXCEEDED'])
-  })
-
   it('never reads a code file outside the repository or past the size cap', () => {
     const text = `// @sim-sdk 1\nimport { codeFile, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('X', {}, () => {\n  const a = fn('A', { code: codeFile('../../etc/passwd.js') })\n  const b = fn('B', { code: codeFile('./big.js') })\n})\n`
-    const result = run(text, { maxBytes: 1_000 }, { 'workflows/big.js': 'x'.repeat(5_000) })
+    const result = run(text, { maxFileBytes: 1_000 }, { 'workflows/big.js': 'x'.repeat(5_000) })
     expect(codes(result)).toEqual(expect.arrayContaining(['E_CODE_FILE_PATH', 'E_LIMIT_EXCEEDED']))
   })
 
@@ -183,11 +175,31 @@ describe('hostile sources produce diagnostics only', () => {
       )
       const result = run(
         fnFile(4, (i) => `./f${i}.js`),
-        { maxBytes: 1_000, maxCodeFileBytesTotal: 2_000 },
+        { maxFileBytes: 1_000, maxTotalBytes: 2_000 },
         files
       )
       expect(codes(result)).toContain('E_LIMIT_EXCEEDED')
       expect(result.workflow).toBeNull()
+    })
+
+    it('caps the number of blocks with one diagnostic', () => {
+      const result = run(
+        fnFile(4, () => './a.js'),
+        { maxBlocks: 3 },
+        { 'workflows/a.js': 'return 1\n' }
+      )
+      expect(errorCodes(result)).toEqual(['E_LIMIT_EXCEEDED'])
+      expect(result.workflow).toBeNull()
+    })
+
+    it('counts the entry file toward the total bytes', () => {
+      const entry = fnFile(1, () => './a.js')
+      const result = run(
+        entry,
+        { maxTotalBytes: entry.length + 4 },
+        { 'workflows/a.js': 'return 1\n' }
+      )
+      expect(errorCodes(result)).toEqual(['E_LIMIT_EXCEEDED'])
     })
 
     it('caps the number of codeFile() references with one diagnostic', () => {
