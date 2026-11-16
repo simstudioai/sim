@@ -6,21 +6,7 @@ import {
   USER_FULL_OUTPUT,
 } from '@/tools/github/types'
 import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
-import type { InternalToolConfig, OutputProperty } from '@/tools/types'
-
-/** The V2 commit object, whose fields are `null` when the latest-commit lookup did not return them. */
-const LATEST_COMMIT_V2_COMMIT_OUTPUT = {
-  ...COMMIT_DATA_OUTPUT,
-  properties: {
-    ...COMMIT_DATA_OUTPUT_PROPERTIES,
-    url: { ...COMMIT_DATA_OUTPUT_PROPERTIES.url, nullable: true },
-    comment_count: { ...COMMIT_DATA_OUTPUT_PROPERTIES.comment_count, nullable: true },
-    author: { ...COMMIT_DATA_OUTPUT_PROPERTIES.author, nullable: true },
-    committer: { ...COMMIT_DATA_OUTPUT_PROPERTIES.committer, nullable: true },
-    tree: { ...COMMIT_DATA_OUTPUT_PROPERTIES.tree, nullable: true },
-    verification: { ...COMMIT_DATA_OUTPUT_PROPERTIES.verification, nullable: true },
-  },
-} satisfies OutputProperty
+import type { InternalToolConfig } from '@/tools/types'
 
 export const latestCommitTool: InternalToolConfig<LatestCommitParams, LatestCommitResponse> = {
   id: 'github_latest_commit',
@@ -110,7 +96,18 @@ export const latestCommitV2Tool: InternalToolConfig = {
   outputs: {
     sha: { type: 'string', description: 'Commit SHA' },
     html_url: { type: 'string', description: 'GitHub web URL' },
-    commit: LATEST_COMMIT_V2_COMMIT_OUTPUT,
+    commit: {
+      ...COMMIT_DATA_OUTPUT,
+      properties: {
+        ...COMMIT_DATA_OUTPUT_PROPERTIES,
+        url: { ...COMMIT_DATA_OUTPUT_PROPERTIES.url, nullable: true },
+        comment_count: { ...COMMIT_DATA_OUTPUT_PROPERTIES.comment_count, nullable: true },
+        author: { ...COMMIT_DATA_OUTPUT_PROPERTIES.author, nullable: true },
+        committer: { ...COMMIT_DATA_OUTPUT_PROPERTIES.committer, nullable: true },
+        tree: { ...COMMIT_DATA_OUTPUT_PROPERTIES.tree, nullable: true },
+        verification: { ...COMMIT_DATA_OUTPUT_PROPERTIES.verification, nullable: true },
+      },
+    },
     author: { ...USER_FULL_OUTPUT, nullable: true },
     committer: { ...USER_FULL_OUTPUT, nullable: true },
   },

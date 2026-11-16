@@ -215,9 +215,9 @@ export const PROJECT_FULL_OUTPUT_PROPERTIES = {
  */
 export const PROJECT_DETAIL_OUTPUT_PROPERTIES = {
   ...PROJECT_FULL_OUTPUT_PROPERTIES,
-  completedAt: { type: 'string', description: 'Completion timestamp (ISO 8601)' },
-  canceledAt: { type: 'string', description: 'Cancellation timestamp (ISO 8601)' },
-  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
+  completedAt: { type: 'string', description: 'Completion timestamp (ISO 8601)', nullable: true },
+  canceledAt: { type: 'string', description: 'Cancellation timestamp (ISO 8601)', nullable: true },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 /**

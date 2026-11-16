@@ -212,6 +212,26 @@ Retrieve the latest commit from a GitHub repository
 | --------- | ---- | ----------- |
 | `sha` | string | Commit SHA |
 | `html_url` | string | GitHub web URL |
+| `commit` | object | Core commit data |
+|   ↳ `url` | string | Commit API URL |
+|   ↳ `message` | string | Commit message |
+|   ↳ `comment_count` | number | Number of comments |
+|   ↳ `author` | object | Git actor \(author/committer\) |
+|     ↳ `name` | string | Name |
+|     ↳ `email` | string | Email address |
+|     ↳ `date` | string | Timestamp \(ISO 8601\) |
+|   ↳ `committer` | object | Git actor \(author/committer\) |
+|     ↳ `name` | string | Name |
+|     ↳ `email` | string | Email address |
+|     ↳ `date` | string | Timestamp \(ISO 8601\) |
+|   ↳ `tree` | object | Tree object |
+|     ↳ `sha` | string | Tree SHA |
+|     ↳ `url` | string | Tree API URL |
+|   ↳ `verification` | object | Signature verification |
+|     ↳ `verified` | boolean | Whether signature is verified |
+|     ↳ `reason` | string | Verification reason |
+|     ↳ `signature` | string | GPG signature |
+|     ↳ `payload` | string | Signed payload |
 | `author` | object | GitHub user object |
 |   ↳ `login` | string | GitHub username |
 |   ↳ `id` | number | User ID |
