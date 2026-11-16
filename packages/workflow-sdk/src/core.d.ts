@@ -569,12 +569,20 @@ export declare function runWorkflow(
   meta?: BlockMeta
 ): Block<SpecialOutput<'runWorkflow'>>
 
-/** Pauses for a person; the form in `inputFormat` types `submission`. */
+/**
+ * Pauses for a person; the form in `inputFormat` types `submission`. A resumed block also holds
+ * each form field at its top level (the runtime copies the submission up, over any output of the
+ * same name), so `approval.approved` and `approval.submission.approved` both read it.
+ */
 export declare function human<const F extends InputFields = Record<never, never>>(
   name: string,
   params: SpecialParams<'human'> & { inputFormat?: F },
   meta?: BlockMeta
-): Block<Omit<SpecialOutput<'human'>, 'submission'> & { submission: InputFieldsOutput<F> }>
+): Block<
+  Omit<SpecialOutput<'human'>, 'submission' | keyof F> & {
+    submission: InputFieldsOutput<F>
+  } & InputFieldsOutput<F>
+>
 
 /**
  * A response's body, status and headers: the editor's JSON mode. An object or array `body` is

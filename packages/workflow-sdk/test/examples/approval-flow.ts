@@ -33,7 +33,8 @@ export default workflow('Approval flow', {}, () => {
     inputFormat: { approved: 'boolean', note: 'string' },
   })
   const decide = condition('Approved?', { yes: js`${approve.submission.approved}`, else: true })
-  const done = response('Done', { body: { approved: true, amount: req.amount } })
+  // The resumed block also carries each form field at its top level, as the runtime copies them.
+  const done = response('Done', { body: { approved: approve.approved, note: approve.note } })
   const notConfigured = condition('Not configured yet', {})
 
   req.to(triage)
