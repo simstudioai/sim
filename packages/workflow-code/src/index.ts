@@ -50,6 +50,18 @@ export type {
   ParamStorage,
   SubBlockConditionClause,
 } from './catalog/types'
+export {
+  type CodeFileBijection,
+  type CodeFileLanguage,
+  type CodeFileSyntaxError,
+  checkCodeFileBijection,
+  codeFileCodec,
+  codeFileLanguage,
+  type FromCodeFileResult,
+  fromCodeFile,
+  toCodeFile,
+} from './code-files'
+export { compileWorkflow } from './compile'
 export type {
   ApplyDiagnosticCode,
   CanonicalizeDiagnosticCode,
