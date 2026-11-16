@@ -95,15 +95,21 @@ interface ParsedParams {
  * list) falls back to the model's `filter`/`sort` arg instead of discarding it; the canvas keeps
  * the builder's result.
  */
-function resolveBuilderOrJson(
+function resolveBuilderOrJson<TRule>(
   builderActive: boolean,
-  fromBuilder: () => unknown,
+  builderValue: unknown,
+  fromBuilder: (rules: TRule[]) => unknown,
   json: unknown,
   fieldName: string,
   context: BlockToolParamsContext | undefined
 ): unknown {
   if (builderActive) {
-    const built = fromBuilder() || undefined
+    // A tool row's rules that did not decode to an array are corrupt, not empty: falling back
+    // would run the operation on the model's filter instead of the one the user pinned.
+    if (isToolCall(context) && !Array.isArray(builderValue)) {
+      throw new Error(`Invalid ${fieldName} builder rules: expected a list of conditions.`)
+    }
+    const built = fromBuilder(builderValue as TRule[]) || undefined
     if (built !== undefined || !isToolCall(context) || !json) return built
   } else if (!json) {
     return undefined
@@ -117,8 +123,8 @@ function resolveBulkFilter(
 ): unknown {
   return resolveBuilderOrJson(
     params.bulkFilterMode === 'builder' && Boolean(params.bulkFilterBuilder),
-    () =>
-      filterRulesToFilter(params.bulkFilterBuilder as Parameters<typeof filterRulesToFilter>[0]),
+    params.bulkFilterBuilder,
+    filterRulesToFilter,
     params.filter,
     'Filter',
     context
@@ -196,14 +202,16 @@ const paramTransformers: Record<
     const builderMode = params.builderMode === 'builder'
     const filter = resolveBuilderOrJson(
       builderMode && Boolean(params.filterBuilder),
-      () => filterRulesToFilter(params.filterBuilder as Parameters<typeof filterRulesToFilter>[0]),
+      params.filterBuilder,
+      filterRulesToFilter,
       params.filter,
       'Filter',
       context
     )
     const sort = resolveBuilderOrJson(
       builderMode && Boolean(params.sortBuilder),
-      () => sortRulesToSort(params.sortBuilder as Parameters<typeof sortRulesToSort>[0]),
+      params.sortBuilder,
+      sortRulesToSort,
       params.sort,
       'Sort',
       context

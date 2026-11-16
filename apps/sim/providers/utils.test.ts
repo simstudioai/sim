@@ -18,7 +18,7 @@ import {
   sortRulesToSort,
 } from '@/lib/table/query-builder/converters'
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
-import type { FilterRule, SortRule } from '@/lib/table/types'
+import type { FilterRule, Predicate, SortRule } from '@/lib/table/types'
 import { getParamsForToolOperation } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
 import { CbInsightsV2Block } from '@/blocks/blocks/cbinsights'
 import { CheckrV2Block } from '@/blocks/blocks/checkr'
@@ -942,12 +942,12 @@ describe('Table builder rules pinned on an agent tool row', () => {
   const pinnedRules: FilterRule[] = [
     { id: 'r1', logicalOperator: 'and', column: 'status', operator: 'eq', value: 'active' },
   ]
-  const modelFilter = { field: 'status', op: 'eq', value: 'archived' }
+  const modelFilter: Predicate = { field: 'status', op: 'eq', value: 'archived' }
 
   async function runTableTool(
     block: typeof TableBlock,
     operation: string,
-    tool: typeof tableUpdateRowsByFilterTool | typeof tableQueryRowsV2Tool,
+    tool: { toolEnrichment?: unknown },
     stored: Record<string, string>,
     modelArgs: Record<string, unknown>
   ) {
@@ -1029,6 +1029,18 @@ describe('Table builder rules pinned on an agent tool row', () => {
       { filter: { status: 'archived' } }
     )
     expect(params.filter).toEqual(filterRulesToFilter(pinnedRules))
+  })
+
+  it('fails the call instead of running a v1 bulk delete on the model filter', async () => {
+    await expect(
+      runTableTool(
+        TableBlock,
+        'delete_rows_by_filter',
+        tableDeleteRowsByFilterTool,
+        { bulkFilterMode: 'builder', bulkFilterBuilder: '[{"column":"status","value":"a"b"}]' },
+        { filter: { status: 'archived' } }
+      )
+    ).rejects.toThrow('Invalid Filter builder rules')
   })
 
   it('applies the pinned v1 query filter and sort builders', async () => {
