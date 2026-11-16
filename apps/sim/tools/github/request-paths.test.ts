@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { executeGitHubTool } from '@/lib/internal/github/execute-tool'
 import { getGitHubLatestCommit } from '@/lib/internal/github/operations'
 import { compareCommitsTool } from '@/tools/github/compare_commits'
 import { deleteBranchTool } from '@/tools/github/delete_branch'
@@ -125,6 +126,22 @@ describe('GitHub request paths', () => {
     ).rejects.toMatchObject({
       status: 400,
       message: 'owner cannot be ".." (path traversal is not allowed)',
+    })
+  })
+
+  it('answers a traversal owner in the PR comment operation with a 400', async () => {
+    const response = await executeGitHubTool({
+      toolId: 'github_comment',
+      input: { owner: 'octo', repo: '..', body: 'hi', pullNumber: 1, apiKey: 'ghp_test' },
+      headers: new Headers(),
+      context: { workflowId: 'workflow-1' },
+      requestId: 'test-request',
+    })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      success: false,
+      error: 'repo cannot be ".." (path traversal is not allowed)',
     })
   })
 })
