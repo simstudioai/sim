@@ -334,14 +334,14 @@ describe('MicrosoftDynamics365Block', () => {
     ).toThrow('Time spent must be at most 2147483647')
   })
 
-  it('falls back to won when the canvas Outcome dropdown is blank', () => {
-    expect(
+  it('refuses to close an opportunity whose canvas Outcome is blank instead of assuming won', () => {
+    expect(() =>
       mapParams({
         operation: 'close_opportunity',
         closeOpportunityId: '11111111-1111-4111-8111-111111111111',
         opportunityOutcome: '',
       })
-    ).toMatchObject({ outcome: 'won' })
+    ).toThrow('Outcome')
   })
 
   it('supports an optional opportunity subject and enforces close-description limits', () => {
