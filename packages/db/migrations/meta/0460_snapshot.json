@@ -26609,8 +26609,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.workflow_code_meta": {
-      "name": "workflow_code_meta",
+    "public.workflow_source_meta": {
+      "name": "workflow_source_meta",
       "schema": "",
       "columns": {
         "workflow_id": {
@@ -26635,9 +26635,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "workflow_code_meta_workflow_id_workflow_id_fk": {
-          "name": "workflow_code_meta_workflow_id_workflow_id_fk",
-          "tableFrom": "workflow_code_meta",
+        "workflow_source_meta_workflow_id_workflow_id_fk": {
+          "name": "workflow_source_meta_workflow_id_workflow_id_fk",
+          "tableFrom": "workflow_source_meta",
           "tableTo": "workflow",
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],

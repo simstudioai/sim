@@ -3,8 +3,11 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
-import { remapCodeMeta } from '@sim/workflow-code/code-meta'
-import { readWorkflowCodeMeta, writeWorkflowCodeMeta } from '@sim/workflow-persistence/code-meta'
+import { remapSourceMeta } from '@sim/workflow-code/source-meta'
+import {
+  readWorkflowSourceMeta,
+  writeWorkflowSourceMeta,
+} from '@sim/workflow-persistence/source-meta'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -427,7 +430,7 @@ export interface CopyWorkflowStateParams {
    * the target, re-keyed to the copied block and variable ids. A source without any clears the
    * target's. Omitted leaves the target's own value untouched.
    */
-  codeMetaSourceWorkflowId?: string
+  sourceMetaFromWorkflowId?: string
   /** source workflow id -> target workflow id, for `workflow-selector` references */
   workflowIdMap: Map<string, string>
   /** source folder id -> target folder id */
@@ -499,7 +502,7 @@ export async function copyWorkflowStateIntoTarget(
     now,
     sourceState,
     sourceMeta,
-    codeMetaSourceWorkflowId,
+    sourceMetaFromWorkflowId,
     workflowIdMap,
     folderIdMap,
     transformSubBlocks,
@@ -756,12 +759,12 @@ export async function copyWorkflowStateIntoTarget(
       .where(eq(workflow.id, targetWorkflowId))
   }
 
-  if (codeMetaSourceWorkflowId !== undefined) {
-    const sourceCodeMeta = await readWorkflowCodeMeta(tx, codeMetaSourceWorkflowId)
-    await writeWorkflowCodeMeta(
+  if (sourceMetaFromWorkflowId !== undefined) {
+    const copiedSourceMeta = await readWorkflowSourceMeta(tx, sourceMetaFromWorkflowId)
+    await writeWorkflowSourceMeta(
       tx,
       targetWorkflowId,
-      sourceCodeMeta ? remapCodeMeta(sourceCodeMeta, blockIdMapping, varIdMapping) : null
+      copiedSourceMeta ? remapSourceMeta(copiedSourceMeta, blockIdMapping, varIdMapping) : null
     )
   }
 

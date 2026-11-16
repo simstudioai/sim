@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextFreeKey, resourceKeyBase } from '@/lib/workspaces/resource-bindings'
+import { nextFreeKey, resourceKeyBase } from '@/lib/workspaces/resource-keys'
 
 const KEY_FORMAT = /^[a-z][a-z0-9_-]{0,63}$/
 

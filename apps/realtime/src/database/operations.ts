@@ -24,8 +24,8 @@ import {
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
 import { randomFloat } from '@sim/utils/random'
-import { pruneWorkflowCodeMeta } from '@sim/workflow-persistence/code-meta'
 import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
+import { pruneWorkflowSourceMeta } from '@sim/workflow-persistence/source-meta'
 import { mergeSubBlockValues } from '@sim/workflow-persistence/subblocks'
 import type { DbOrTx } from '@sim/workflow-persistence/types'
 import {
@@ -1272,7 +1272,7 @@ async function handleBlocksOperationTx(
         await updateSubflowNodeList(tx, workflowId, parentId)
       }
 
-      await pruneWorkflowCodeMeta(tx, workflowId, {
+      await pruneWorkflowSourceMeta(tx, workflowId, {
         blocks: (id) => !allBlocksToDelete.has(id),
       })
 
@@ -2157,7 +2157,7 @@ async function handleVariableOperationTx(
           updatedAt: new Date(),
         })
         .where(eq(workflow.id, workflowId))
-      await pruneWorkflowCodeMeta(tx, workflowId, {
+      await pruneWorkflowSourceMeta(tx, workflowId, {
         variables: (id) => id !== payload.variableId,
       })
 
@@ -2251,7 +2251,7 @@ async function handleWorkflowOperationTx(
       if (blockValues.length > 0) {
         await tx.insert(workflowBlocks).values(blockValues)
       }
-      await pruneWorkflowCodeMeta(tx, workflowId, {
+      await pruneWorkflowSourceMeta(tx, workflowId, {
         blocks: (id) => Object.hasOwn(merged.blocks, id),
       })
 

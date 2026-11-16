@@ -13,8 +13,11 @@ import {
 } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { remapCodeMeta } from '@sim/workflow-code/code-meta'
-import { readWorkflowCodeMeta, writeWorkflowCodeMeta } from '@sim/workflow-persistence/code-meta'
+import { remapSourceMeta } from '@sim/workflow-code/source-meta'
+import {
+  readWorkflowSourceMeta,
+  writeWorkflowSourceMeta,
+} from '@sim/workflow-persistence/source-meta'
 import {
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
@@ -459,12 +462,12 @@ export async function duplicateWorkflow(
     }
 
     // The copy keeps the source's bindings, order and comments under its new block ids.
-    const sourceCodeMeta = await readWorkflowCodeMeta(tx, sourceWorkflowId)
-    if (sourceCodeMeta) {
-      await writeWorkflowCodeMeta(
+    const copiedSourceMeta = await readWorkflowSourceMeta(tx, sourceWorkflowId)
+    if (copiedSourceMeta) {
+      await writeWorkflowSourceMeta(
         tx,
         newWorkflowId,
-        remapCodeMeta(sourceCodeMeta, blockIdMapping, varIdMapping)
+        remapSourceMeta(copiedSourceMeta, blockIdMapping, varIdMapping)
       )
     }
 

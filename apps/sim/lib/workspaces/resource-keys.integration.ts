@@ -9,7 +9,7 @@ import {
   userTableDefinitions,
   workflow,
   workspace,
-  workspaceResourceBinding,
+  workspaceResourceKey,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
@@ -17,7 +17,7 @@ import type { ResourceKind } from '@sim/workflow-code'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { loadResourceKeyResolver } from '@/lib/workflows/code/resources'
-import { resolveIds, resolveKeys } from '@/lib/workspaces/resource-bindings'
+import { resolveIds, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 const userId = generateId()
 const workspaceId = generateId()
@@ -46,25 +46,25 @@ async function idOf(kind: ResourceKind, key: string, wsId = workspaceId) {
   return (await resolveIds(wsId, [{ kind, key }])).get(kind)?.get(key)
 }
 
-async function bindingRows(wsId: string, kind: ResourceKind, resourceId: string) {
+async function keyRows(wsId: string, kind: ResourceKind, resourceId: string) {
   return db
-    .select({ key: workspaceResourceBinding.key, origin: workspaceResourceBinding.origin })
-    .from(workspaceResourceBinding)
+    .select({ key: workspaceResourceKey.key, origin: workspaceResourceKey.origin })
+    .from(workspaceResourceKey)
     .where(
       and(
-        eq(workspaceResourceBinding.workspaceId, wsId),
-        eq(workspaceResourceBinding.kind, kind),
-        eq(workspaceResourceBinding.resourceId, resourceId)
+        eq(workspaceResourceKey.workspaceId, wsId),
+        eq(workspaceResourceKey.kind, kind),
+        eq(workspaceResourceKey.resourceId, resourceId)
       )
     )
 }
 
-describe('workspace resource bindings against PostgreSQL', () => {
+describe('workspace resource keys against PostgreSQL', () => {
   beforeAll(async () => {
     const now = new Date()
     await db.insert(user).values({
       id: userId,
-      name: 'Resource binding fixture',
+      name: 'Resource key fixture',
       email: `${userId}@fixture.test`,
       emailVerified: true,
       createdAt: now,
@@ -74,7 +74,7 @@ describe('workspace resource bindings against PostgreSQL', () => {
       db,
       [workspaceId, otherWorkspaceId].map((id) => ({
         id,
-        name: 'Resource binding fixture',
+        name: 'Resource key fixture',
         ownerId: userId,
         billedAccountUserId: userId,
       }))
@@ -105,7 +105,7 @@ describe('workspace resource bindings against PostgreSQL', () => {
     expect(first.get('table')?.get(newer)).toBe('leads-2')
 
     expect(await keyOf('table', older)).toBe('leads')
-    expect(await bindingRows(workspaceId, 'table', older)).toEqual([
+    expect(await keyRows(workspaceId, 'table', older)).toEqual([
       { key: 'leads', origin: 'allocated' },
     ])
     expect(await idOf('table', 'leads-2')).toBe(newer)
@@ -118,7 +118,7 @@ describe('workspace resource bindings against PostgreSQL', () => {
     const keys = await Promise.all(Array.from({ length: 6 }, () => keyOf('table', id)))
 
     expect(new Set(keys)).toEqual(new Set(['orders']))
-    expect(await bindingRows(workspaceId, 'table', id)).toHaveLength(1)
+    expect(await keyRows(workspaceId, 'table', id)).toHaveLength(1)
   })
 
   it('gives distinct keys to same-named resources allocated concurrently', async () => {
@@ -278,7 +278,7 @@ describe('workspace resource bindings against PostgreSQL', () => {
     expect(await idOf('table', 'docs')).toBeUndefined()
     expect(await keyOf('table', older)).toBeUndefined()
     expect(await keyOf('table', newer)).toBe('docs-2')
-    expect(await bindingRows(workspaceId, 'table', older)).toEqual([
+    expect(await keyRows(workspaceId, 'table', older)).toEqual([
       { key: 'docs', origin: 'allocated' },
     ])
 
@@ -297,7 +297,7 @@ describe('workspace resource bindings against PostgreSQL', () => {
 
     expect(await idOf('table', 'payroll')).toBeUndefined()
     expect(await keyOf('table', foreign)).toBeUndefined()
-    expect(await bindingRows(workspaceId, 'table', foreign)).toEqual([])
+    expect(await keyRows(workspaceId, 'table', foreign)).toEqual([])
   })
 
   it('allocates inside the caller’s transaction and rolls back with it', async () => {
@@ -312,6 +312,6 @@ describe('workspace resource bindings against PostgreSQL', () => {
       })
     ).rejects.toThrow('roll back')
 
-    expect(await bindingRows(workspaceId, 'table', id)).toEqual([])
+    expect(await keyRows(workspaceId, 'table', id)).toEqual([])
   })
 })

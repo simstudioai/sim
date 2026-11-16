@@ -26609,8 +26609,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.workflow_code_meta": {
-      "name": "workflow_code_meta",
+    "public.workflow_source_meta": {
+      "name": "workflow_source_meta",
       "schema": "",
       "columns": {
         "workflow_id": {
@@ -26635,9 +26635,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "workflow_code_meta_workflow_id_workflow_id_fk": {
-          "name": "workflow_code_meta_workflow_id_workflow_id_fk",
-          "tableFrom": "workflow_code_meta",
+        "workflow_source_meta_workflow_id_workflow_id_fk": {
+          "name": "workflow_source_meta_workflow_id_workflow_id_fk",
+          "tableFrom": "workflow_source_meta",
           "tableTo": "workflow",
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
@@ -32721,8 +32721,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.workspace_resource_binding": {
-      "name": "workspace_resource_binding",
+    "public.workspace_resource_key": {
+      "name": "workspace_resource_key",
       "schema": "",
       "columns": {
         "id": {
@@ -32784,8 +32784,8 @@
         }
       },
       "indexes": {
-        "workspace_resource_binding_ws_kind_key_unique": {
-          "name": "workspace_resource_binding_ws_kind_key_unique",
+        "workspace_resource_key_ws_kind_key_unique": {
+          "name": "workspace_resource_key_ws_kind_key_unique",
           "columns": [
             {
               "expression": "workspace_id",
@@ -32811,8 +32811,8 @@
           "method": "btree",
           "with": {}
         },
-        "workspace_resource_binding_ws_kind_resource_unique": {
-          "name": "workspace_resource_binding_ws_kind_resource_unique",
+        "workspace_resource_key_ws_kind_resource_unique": {
+          "name": "workspace_resource_key_ws_kind_resource_unique",
           "columns": [
             {
               "expression": "workspace_id",
@@ -32840,18 +32840,18 @@
         }
       },
       "foreignKeys": {
-        "workspace_resource_binding_workspace_id_workspace_id_fk": {
-          "name": "workspace_resource_binding_workspace_id_workspace_id_fk",
-          "tableFrom": "workspace_resource_binding",
+        "workspace_resource_key_workspace_id_workspace_id_fk": {
+          "name": "workspace_resource_key_workspace_id_workspace_id_fk",
+          "tableFrom": "workspace_resource_key",
           "tableTo": "workspace",
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "workspace_resource_binding_created_by_user_id_fk": {
-          "name": "workspace_resource_binding_created_by_user_id_fk",
-          "tableFrom": "workspace_resource_binding",
+        "workspace_resource_key_created_by_user_id_fk": {
+          "name": "workspace_resource_key_created_by_user_id_fk",
+          "tableFrom": "workspace_resource_key",
           "tableTo": "user",
           "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
@@ -32863,13 +32863,13 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "workspace_resource_binding_key_format": {
-          "name": "workspace_resource_binding_key_format",
-          "value": "\"workspace_resource_binding\".\"key\" ~ '^[a-z][a-z0-9_-]{0,63}$'"
+        "workspace_resource_key_key_format": {
+          "name": "workspace_resource_key_key_format",
+          "value": "\"workspace_resource_key\".\"key\" ~ '^[a-z][a-z0-9_-]{0,63}$'"
         },
-        "workspace_resource_binding_origin_check": {
-          "name": "workspace_resource_binding_origin_check",
-          "value": "\"workspace_resource_binding\".\"origin\" IN ('allocated', 'adopted', 'created')"
+        "workspace_resource_key_origin_check": {
+          "name": "workspace_resource_key_origin_check",
+          "value": "\"workspace_resource_key\".\"origin\" IN ('allocated', 'adopted', 'created')"
         }
       },
       "isRLSEnabled": false

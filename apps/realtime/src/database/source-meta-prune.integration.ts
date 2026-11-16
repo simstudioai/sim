@@ -1,12 +1,12 @@
 /**
  * Real PostgreSQL coverage: canvas deletes through the realtime server prune the deleted blocks'
- * and variables' entries from the `workflow_code_meta` side table, and delete its row once nothing
+ * and variables' entries from the `workflow_source_meta` side table, and delete its row once nothing
  * is left, so source bindings and comments never outlive what they describe.
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { db } from '@sim/db'
-import { user, workflow, workflowBlocks, workflowCodeMeta, workspace } from '@sim/db/schema'
+import { user, workflow, workflowBlocks, workflowSourceMeta, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import {
   BLOCKS_OPERATIONS,
@@ -15,7 +15,7 @@ import {
 } from '@sim/realtime-protocol/constants'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { writeWorkflowCodeMeta } from '@sim/workflow-persistence/code-meta'
+import { writeWorkflowSourceMeta } from '@sim/workflow-persistence/source-meta'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { persistWorkflowOperation } from '@/database/operations'
@@ -29,7 +29,7 @@ const variableId = generateId()
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
 
-type StoredCodeMeta = NonNullable<Parameters<typeof writeWorkflowCodeMeta>[2]>
+type StoredSourceMeta = NonNullable<Parameters<typeof writeWorkflowSourceMeta>[2]>
 
 /** Registers a test and records its status and duration in the suite report. */
 function check(name: string, run: () => Promise<void>) {
@@ -62,19 +62,19 @@ function persist(target: string, operation: string, payload: unknown) {
 
 async function storedMeta(): Promise<unknown> {
   const [row] = await db
-    .select({ meta: workflowCodeMeta.meta })
-    .from(workflowCodeMeta)
-    .where(eq(workflowCodeMeta.workflowId, workflowId))
+    .select({ meta: workflowSourceMeta.meta })
+    .from(workflowSourceMeta)
+    .where(eq(workflowSourceMeta.workflowId, workflowId))
   return row?.meta
 }
 
-describe('workflow_code_meta pruning on realtime canvas deletes', () => {
+describe('workflow_source_meta pruning on realtime canvas deletes', () => {
   beforeAll(async () => {
     const now = new Date()
     await db.insert(user).values({
       id: userId,
       name: 'Code meta prune fixture',
-      email: `${userId}@code-meta-prune.test`,
+      email: `${userId}@source-meta-prune.test`,
       emailVerified: true,
       createdAt: now,
       updatedAt: now,
@@ -111,8 +111,8 @@ describe('workflow_code_meta pruning on realtime canvas deletes', () => {
 
   afterAll(async () => {
     const reportPath =
-      process.env.REALTIME_CODE_META_PRUNE_REPORT_PATH ??
-      resolve('test-results/realtime-code-meta-prune.json')
+      process.env.REALTIME_SOURCE_META_PRUNE_REPORT_PATH ??
+      resolve('test-results/realtime-source-meta-prune.json')
     await mkdir(dirname(reportPath), { recursive: true })
     await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
     await deleteWorkspaceFixture(db, eq(workspace.ownerId, userId))
@@ -120,20 +120,20 @@ describe('workflow_code_meta pruning on realtime canvas deletes', () => {
   })
 
   check('a block delete drops its entries and keeps the rest', async () => {
-    const meta: StoredCodeMeta = {
-      v: 1,
+    const meta: StoredSourceMeta = {
+      version: 1,
       bindings: { [keptId]: 'kept', [deletedId]: 'doomed' },
       order: { [keptId]: 0, [deletedId]: 1 },
       comments: {},
     }
-    await writeWorkflowCodeMeta(db, workflowId, meta)
+    await writeWorkflowSourceMeta(db, workflowId, meta)
 
     await persist(OPERATION_TARGETS.BLOCKS, BLOCKS_OPERATIONS.BATCH_REMOVE_BLOCKS, {
       ids: [deletedId],
     })
 
     expect(await storedMeta()).toEqual({
-      v: 1,
+      version: 1,
       bindings: { [keptId]: 'kept' },
       order: { [keptId]: 0 },
       comments: {},
@@ -141,15 +141,15 @@ describe('workflow_code_meta pruning on realtime canvas deletes', () => {
   })
 
   check('a variable delete that leaves nothing removes the row', async () => {
-    const meta: StoredCodeMeta = {
-      v: 1,
+    const meta: StoredSourceMeta = {
+      version: 1,
       bindings: {},
       order: {},
       comments: {
         [`var:${variableId}`]: [{ text: ' retry budget', kind: 'line', placement: 'trailing' }],
       },
     }
-    await writeWorkflowCodeMeta(db, workflowId, meta)
+    await writeWorkflowSourceMeta(db, workflowId, meta)
     expect(await storedMeta()).toBeDefined()
 
     await persist(OPERATION_TARGETS.VARIABLE, VARIABLE_OPERATIONS.REMOVE, { variableId })

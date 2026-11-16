@@ -91,7 +91,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'variables',
     'archivedAt',
   ],
-  workflowCodeMeta: ['workflowId', 'meta', 'updatedAt'],
+  workflowSourceMeta: ['workflowId', 'meta', 'updatedAt'],
   workflowBlocks: [
     'id',
     'workflowId',
@@ -663,7 +663,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'createdAt',
     'updatedAt',
   ],
-  workspaceResourceBinding: [
+  workspaceResourceKey: [
     'id',
     'workspaceId',
     'kind',

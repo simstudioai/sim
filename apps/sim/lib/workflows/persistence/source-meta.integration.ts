@@ -1,5 +1,5 @@
 /**
- * Workflow code metadata (the `workflow_code_meta` side table) against real Postgres: it survives
+ * Workflow code metadata (the `workflow_source_meta` side table) against real Postgres: it survives
  * a canvas rename (keyed by block id), is pruned when blocks or variables are deleted (and its row
  * removed once nothing is left), follows duplicate and fork onto the copied ids, goes with its
  * workflow on delete, stays off the workflow row, and never counts as a deploy change.
@@ -9,8 +9,8 @@ import {
   user,
   workflow,
   workflowBlocks,
-  workflowCodeMeta,
   workflowDeploymentVersion,
+  workflowSourceMeta,
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
@@ -19,13 +19,13 @@ import {
   type BlockCatalog,
   canonicalize,
   encodeAnchor,
-  type WorkflowCodeMetaV1,
+  type WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
 import {
-  pruneWorkflowCodeMeta,
-  readWorkflowCodeMeta,
-  writeWorkflowCodeMeta,
-} from '@sim/workflow-persistence/code-meta'
+  pruneWorkflowSourceMeta,
+  readWorkflowSourceMeta,
+  writeWorkflowSourceMeta,
+} from '@sim/workflow-persistence/source-meta'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildLockFromState } from '@/lib/workflows/code/source-lock'
@@ -93,9 +93,9 @@ const anchorCleanup = encodeAnchor({ kind: 'param', block: cleanupId, param: 'co
 const anchorVariable = encodeAnchor({ kind: 'var', variable: variableId })
 const anchorHeader = encodeAnchor({ kind: 'header' })
 
-const storedMeta: WorkflowCodeMetaV1 = {
-  v: 1,
-  bindings: { [fetchId]: 'fetchUser', [sendId]: 'notify', [cleanupId]: 'tidy' },
+const storedMeta: WorkflowSourceMetaV1 = {
+  version: 1,
+  idents: { [fetchId]: 'fetchUser', [sendId]: 'notify', [cleanupId]: 'tidy' },
   order: { [fetchId]: 0, [sendId]: 1, [cleanupId]: 2 },
   comments: {
     [anchorHeader]: [{ text: ' onboarding flow', kind: 'line', placement: 'leading' }],
@@ -105,17 +105,17 @@ const storedMeta: WorkflowCodeMetaV1 = {
   },
 }
 
-async function storedCodeMeta(id: string): Promise<WorkflowCodeMetaV1> {
-  const meta = await readWorkflowCodeMeta(db, id)
-  if (!meta) throw new Error(`workflow ${id} has no code_meta`)
+async function storedSourceMeta(id: string): Promise<WorkflowSourceMetaV1> {
+  const meta = await readWorkflowSourceMeta(db, id)
+  if (!meta) throw new Error(`workflow ${id} has no source meta`)
   return meta
 }
 
-async function codeMetaRowCount(id: string): Promise<number> {
+async function sourceMetaRowCount(id: string): Promise<number> {
   const rows = await db
-    .select({ workflowId: workflowCodeMeta.workflowId })
-    .from(workflowCodeMeta)
-    .where(eq(workflowCodeMeta.workflowId, id))
+    .select({ workflowId: workflowSourceMeta.workflowId })
+    .from(workflowSourceMeta)
+    .where(eq(workflowSourceMeta.workflowId, id))
   return rows.length
 }
 
@@ -137,7 +137,7 @@ beforeAll(async () => {
   await db.insert(user).values({
     id: ownerId,
     name: 'Code meta fixture',
-    email: `${ownerId}@code-meta.test`,
+    email: `${ownerId}@source-meta.test`,
     emailVerified: true,
     createdAt: now,
     updatedAt: now,
@@ -177,15 +177,15 @@ afterAll(async () => {
   await db.$client.end()
 })
 
-describe('workflow_code_meta against real Postgres', () => {
-  it('stores code_meta in the side table without making the draft differ from its deployment', async () => {
+describe('workflow_source_meta against real Postgres', () => {
+  it('stores source meta in the side table without making the draft differ from its deployment', async () => {
     expect(await checkNeedsRedeployment(workflowId)).toBe(false)
-    expect(await codeMetaRowCount(workflowId)).toBe(0)
+    expect(await sourceMetaRowCount(workflowId)).toBe(0)
 
-    await writeWorkflowCodeMeta(db, workflowId, storedMeta)
+    await writeWorkflowSourceMeta(db, workflowId, storedMeta)
 
-    expect(await storedCodeMeta(workflowId)).toEqual(storedMeta)
-    expect(await codeMetaRowCount(workflowId)).toBe(1)
+    expect(await storedSourceMeta(workflowId)).toEqual(storedMeta)
+    expect(await sourceMetaRowCount(workflowId)).toBe(1)
     expect(await checkNeedsRedeployment(workflowId)).toBe(false)
     const snapshot = await loadWorkflowDeploymentSnapshot(workflowId)
     expect(JSON.stringify(snapshot)).not.toContain('fetchUser')
@@ -205,28 +205,33 @@ describe('workflow_code_meta against real Postgres', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await writeWorkflowCodeMeta(db, scratchId, storedMeta)
-    const rewritten = { ...storedMeta, bindings: { [fetchId]: 'loadUser' } }
-    await writeWorkflowCodeMeta(db, scratchId, rewritten)
-    expect(await storedCodeMeta(scratchId)).toEqual(rewritten)
-    expect(await codeMetaRowCount(scratchId)).toBe(1)
+    await writeWorkflowSourceMeta(db, scratchId, storedMeta)
+    const rewritten = { ...storedMeta, idents: { [fetchId]: 'loadUser' } }
+    await writeWorkflowSourceMeta(db, scratchId, rewritten)
+    expect(await storedSourceMeta(scratchId)).toEqual(rewritten)
+    expect(await sourceMetaRowCount(scratchId)).toBe(1)
 
-    await writeWorkflowCodeMeta(db, scratchId, { v: 1, bindings: {}, order: {}, comments: {} })
-    expect(await codeMetaRowCount(scratchId)).toBe(0)
-    expect(await readWorkflowCodeMeta(db, scratchId)).toBeNull()
+    await writeWorkflowSourceMeta(db, scratchId, {
+      version: 1,
+      idents: {},
+      order: {},
+      comments: {},
+    })
+    expect(await sourceMetaRowCount(scratchId)).toBe(0)
+    expect(await readWorkflowSourceMeta(db, scratchId)).toBeNull()
 
-    await writeWorkflowCodeMeta(db, scratchId, storedMeta)
+    await writeWorkflowSourceMeta(db, scratchId, storedMeta)
     await db.delete(workflow).where(eq(workflow.id, scratchId))
-    expect(await codeMetaRowCount(scratchId)).toBe(0)
+    expect(await sourceMetaRowCount(scratchId)).toBe(0)
   })
 
-  it('keeps every entry across a canvas rename, so the lock keeps the binding', async () => {
+  it('keeps every entry across a canvas rename, so the lock keeps the ident', async () => {
     await db
       .update(workflowBlocks)
       .set({ name: 'Load profile' })
       .where(eq(workflowBlocks.id, fetchId))
 
-    const meta = await storedCodeMeta(workflowId)
+    const meta = await storedSourceMeta(workflowId)
     expect(meta).toEqual(storedMeta)
 
     const state = await loadWorkflowDeploymentSnapshot(workflowId)
@@ -236,7 +241,7 @@ describe('workflow_code_meta against real Postgres', () => {
       meta: { name: 'Code meta fixture', description: null },
     })
     const lock = buildLockFromState(meta, canonical)
-    expect(lock.blocks.loadprofile).toMatchObject({ id: fetchId, binding: 'fetchUser', order: 0 })
+    expect(lock.blocks.loadprofile).toMatchObject({ id: fetchId, ident: 'fetchUser', order: 0 })
     expect(lock.variables).toEqual({ retries: variableId })
   })
 
@@ -248,17 +253,17 @@ describe('workflow_code_meta against real Postgres', () => {
       success: true,
     })
 
-    const afterDelete = await storedCodeMeta(workflowId)
-    expect(afterDelete.bindings).toEqual({ [fetchId]: 'fetchUser', [sendId]: 'notify' })
+    const afterDelete = await storedSourceMeta(workflowId)
+    expect(afterDelete.idents).toEqual({ [fetchId]: 'fetchUser', [sendId]: 'notify' })
     expect(afterDelete.order).toEqual({ [fetchId]: 0, [sendId]: 1 })
     expect(Object.keys(afterDelete.comments).sort()).toEqual(
       [anchorFetch, anchorVariable, anchorHeader].sort()
     )
 
     await db.transaction((tx) =>
-      pruneWorkflowCodeMeta(tx, workflowId, { variables: (id) => id !== variableId })
+      pruneWorkflowSourceMeta(tx, workflowId, { variables: (id) => id !== variableId })
     )
-    expect(Object.keys((await storedCodeMeta(workflowId)).comments).sort()).toEqual(
+    expect(Object.keys((await storedSourceMeta(workflowId)).comments).sort()).toEqual(
       [anchorFetch, anchorHeader].sort()
     )
   })
@@ -275,21 +280,21 @@ describe('workflow_code_meta against real Postgres', () => {
       createdAt: now,
       updatedAt: now,
     })
-    const onlyFetch: WorkflowCodeMetaV1 = {
-      v: 1,
-      bindings: { [fetchId]: 'fetchUser' },
+    const onlyFetch: WorkflowSourceMetaV1 = {
+      version: 1,
+      idents: { [fetchId]: 'fetchUser' },
       order: { [fetchId]: 0 },
       comments: {},
     }
-    await writeWorkflowCodeMeta(db, scratchId, onlyFetch)
+    await writeWorkflowSourceMeta(db, scratchId, onlyFetch)
     await db.transaction((tx) =>
-      pruneWorkflowCodeMeta(tx, scratchId, { blocks: (id) => id !== fetchId })
+      pruneWorkflowSourceMeta(tx, scratchId, { blocks: (id) => id !== fetchId })
     )
-    expect(await codeMetaRowCount(scratchId)).toBe(0)
+    expect(await sourceMetaRowCount(scratchId)).toBe(0)
     await db.delete(workflow).where(eq(workflow.id, scratchId))
   })
 
-  it('re-keys code_meta onto the copy when the workflow is duplicated', async () => {
+  it('re-keys source meta onto the copy when the workflow is duplicated', async () => {
     const copy = await db.transaction((tx) =>
       duplicateWorkflow({
         sourceWorkflowId: workflowId,
@@ -310,8 +315,8 @@ describe('workflow_code_meta against real Postgres', () => {
     expect(copiedFetch).toBeDefined()
     expect(copiedFetch).not.toBe(fetchId)
 
-    const meta = await storedCodeMeta(copy.id)
-    expect(meta.bindings).toEqual({
+    const meta = await storedSourceMeta(copy.id)
+    expect(meta.idents).toEqual({
       [copiedFetch ?? '']: 'fetchUser',
       [copiedSend ?? '']: 'notify',
     })
@@ -319,10 +324,10 @@ describe('workflow_code_meta against real Postgres', () => {
       [encodeAnchor({ kind: 'block', block: copiedFetch ?? '' }), anchorHeader].sort()
     )
     expect(JSON.stringify(meta)).not.toContain(fetchId)
-    expect(await storedCodeMeta(workflowId)).toMatchObject({ bindings: { [fetchId]: 'fetchUser' } })
+    expect(await storedSourceMeta(workflowId)).toMatchObject({ idents: { [fetchId]: 'fetchUser' } })
   })
 
-  it('re-keys code_meta onto the derived block ids when the workflow is forked', async () => {
+  it('re-keys source meta onto the derived block ids when the workflow is forked', async () => {
     const sourceState = await loadWorkflowDeploymentSnapshot(workflowId)
     if (!sourceState) throw new Error('missing draft')
     const targetWorkflowId = generateId()
@@ -342,15 +347,15 @@ describe('workflow_code_meta against real Postgres', () => {
           folderId: null,
           sortOrder: 0,
         },
-        codeMetaSourceWorkflowId: workflowId,
+        sourceMetaFromWorkflowId: workflowId,
         workflowIdMap: new Map([[workflowId, targetWorkflowId]]),
         folderIdMap: new Map(),
         nameRegistry: await loadWorkflowNameRegistry(tx, forkWorkspaceId),
       })
     })
 
-    const meta = await storedCodeMeta(targetWorkflowId)
-    expect(meta.bindings).toEqual({
+    const meta = await storedSourceMeta(targetWorkflowId)
+    expect(meta.idents).toEqual({
       [deriveForkBlockId(targetWorkflowId, fetchId)]: 'fetchUser',
       [deriveForkBlockId(targetWorkflowId, sendId)]: 'notify',
     })

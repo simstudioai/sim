@@ -8,7 +8,7 @@ import {
   skill,
   userTableDefinitions,
   workflow,
-  workspaceResourceBinding,
+  workspaceResourceKey,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -18,12 +18,12 @@ import { and, eq, inArray, isNull, like, or } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 
 /**
- * Persisted resource keys (`workspace_resource_binding`): the only mapping between a workflow
+ * Persisted resource keys (`workspace_resource_key`): the only mapping between a workflow
  * source key such as `table('leads')` and a resource id.
  *
  * A key is allocated the first time something needs one for a resource, derived from the
  * resource's name at that moment, and never changes afterwards. Renaming the resource keeps its
- * key; deleting it leaves the binding on the dead id, so the key stops resolving instead of
+ * key; deleting it leaves the key on the dead id, so the key stops resolving instead of
  * moving to another resource with the same name. Only resources that are live in the given
  * workspace resolve in either direction, so an id or key from another workspace never does.
  *
@@ -31,7 +31,7 @@ import type { DbOrTx } from '@/lib/db/types'
  * after each insert, so the caller's transaction must run at READ COMMITTED (the default).
  */
 
-const logger = createLogger('ResourceBindings')
+const logger = createLogger('ResourceKeys')
 
 const MAX_KEY_LENGTH = 64
 
@@ -155,12 +155,12 @@ export interface ResourceKeyRef {
 /** kind → (id → key), or kind → (key → id); only live, bound resources appear. */
 export type ResourceKeyMap = Map<ResourceKind, Map<string, string>>
 
-interface BindingOptions {
+interface ResourceKeyOptions {
   /** The caller's transaction, when the lookup must see or join its writes. */
   executor?: DbOrTx
 }
 
-interface ResolveKeysOptions extends BindingOptions {
+interface ResolveKeysOptions extends ResourceKeyOptions {
   /** The human the allocation is attributed to; `null` for an actorless caller. */
   createdBy?: string | null
 }
@@ -214,7 +214,7 @@ async function loadLiveResources(
   return load(executor, workspaceId, ids)
 }
 
-async function readBindingsByResource(
+async function readKeysByResource(
   executor: DbOrTx,
   workspaceId: string,
   kind: ResourceKind,
@@ -222,13 +222,13 @@ async function readBindingsByResource(
 ): Promise<Map<string, string>> {
   if (resourceIds.length === 0) return new Map()
   const rows = await executor
-    .select({ resourceId: workspaceResourceBinding.resourceId, key: workspaceResourceBinding.key })
-    .from(workspaceResourceBinding)
+    .select({ resourceId: workspaceResourceKey.resourceId, key: workspaceResourceKey.key })
+    .from(workspaceResourceKey)
     .where(
       and(
-        eq(workspaceResourceBinding.workspaceId, workspaceId),
-        eq(workspaceResourceBinding.kind, kind),
-        inArray(workspaceResourceBinding.resourceId, resourceIds)
+        eq(workspaceResourceKey.workspaceId, workspaceId),
+        eq(workspaceResourceKey.kind, kind),
+        inArray(workspaceResourceKey.resourceId, resourceIds)
       )
     )
   return new Map(rows.map((row) => [row.resourceId, row.key]))
@@ -242,13 +242,13 @@ async function readTakenKeys(
 ): Promise<Set<string>> {
   const prefixes = [...new Set(bases.map((base) => base.slice(0, TAKEN_PREFIX_LENGTH)))]
   const rows = await executor
-    .select({ key: workspaceResourceBinding.key })
-    .from(workspaceResourceBinding)
+    .select({ key: workspaceResourceKey.key })
+    .from(workspaceResourceKey)
     .where(
       and(
-        eq(workspaceResourceBinding.workspaceId, workspaceId),
-        eq(workspaceResourceBinding.kind, kind),
-        or(...prefixes.map((prefix) => like(workspaceResourceBinding.key, `${prefix}%`)))
+        eq(workspaceResourceKey.workspaceId, workspaceId),
+        eq(workspaceResourceKey.kind, kind),
+        or(...prefixes.map((prefix) => like(workspaceResourceKey.key, `${prefix}%`)))
       )
     )
   return new Set(rows.map((row) => row.key))
@@ -290,8 +290,8 @@ async function allocateKeys(
         updatedAt: now,
       }
     })
-    await executor.insert(workspaceResourceBinding).values(values).onConflictDoNothing()
-    const bound = await readBindingsByResource(
+    await executor.insert(workspaceResourceKey).values(values).onConflictDoNothing()
+    const bound = await readKeysByResource(
       executor,
       workspaceId,
       kind,
@@ -331,7 +331,7 @@ export async function resolveKeys(
   for (const [kind, ids] of groupByKind(refs, (ref) => ref.id)) {
     const live = await loadLiveResources(executor, workspaceId, kind, ids)
     if (live.length === 0) continue
-    const keys = await readBindingsByResource(
+    const keys = await readKeysByResource(
       executor,
       workspaceId,
       kind,
@@ -355,13 +355,13 @@ export async function resolveKeys(
 
 /**
  * The resource each key is bound to in `workspaceId`, when that resource is still live. A key
- * with no binding, or bound to a deleted or archived resource, is left out: it is never re-pointed
+ * with no key, or keyed to a deleted or archived resource, is left out: it is never re-pointed
  * at another resource. Never allocates.
  */
 export async function resolveIds(
   workspaceId: string,
   refs: Iterable<ResourceKeyRef>,
-  options: BindingOptions = {}
+  options: ResourceKeyOptions = {}
 ): Promise<ResourceKeyMap> {
   const executor = options.executor ?? db
   const resolved: ResourceKeyMap = new Map()
@@ -369,15 +369,15 @@ export async function resolveIds(
     if (!LIVE_RESOURCE_LOADERS[kind]) continue
     const rows = await executor
       .select({
-        key: workspaceResourceBinding.key,
-        resourceId: workspaceResourceBinding.resourceId,
+        key: workspaceResourceKey.key,
+        resourceId: workspaceResourceKey.resourceId,
       })
-      .from(workspaceResourceBinding)
+      .from(workspaceResourceKey)
       .where(
         and(
-          eq(workspaceResourceBinding.workspaceId, workspaceId),
-          eq(workspaceResourceBinding.kind, kind),
-          inArray(workspaceResourceBinding.key, keys)
+          eq(workspaceResourceKey.workspaceId, workspaceId),
+          eq(workspaceResourceKey.kind, kind),
+          inArray(workspaceResourceKey.key, keys)
         )
       )
     if (rows.length === 0) continue

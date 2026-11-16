@@ -475,12 +475,12 @@ export const workflow = pgTable(
 /**
  * Source-form facts a workflow's graph does not hold (each block's TS binding, declaration order,
  * and comments), keyed by block id so canvas edits never orphan them. Shape and validator:
- * `WorkflowCodeMetaV1` / `parseCodeMeta` in `@sim/workflow-code/code-meta`. A side table rather
+ * `WorkflowSourceMetaV1` / `parseSourceMeta` in `@sim/workflow-code/source-meta`. A side table rather
  * than a `workflow` column, so the hot workflow row (and every `select()` of it) never carries it;
  * only the source get/apply, copy and prune paths read it. Not part of the workflow state, so it
  * never counts as a deploy change. No row until a source is applied; an empty value deletes it.
  */
-export const workflowCodeMeta = pgTable('workflow_code_meta', {
+export const workflowSourceMeta = pgTable('workflow_source_meta', {
   workflowId: text('workflow_id')
     .primaryKey()
     .references(() => workflow.id, { onDelete: 'cascade' }),
@@ -2746,8 +2746,8 @@ export const workspaceResourceKindEnum = pgEnum('workspace_resource_kind', [
  * the first time source referenced the resource), `adopted` (a later sync bound an existing
  * resource to a key), or `created` (a sync created the resource for the key).
  */
-export const workspaceResourceBinding = pgTable(
-  'workspace_resource_binding',
+export const workspaceResourceKey = pgTable(
+  'workspace_resource_key',
   {
     id: text('id').primaryKey(),
     workspaceId: text('workspace_id')
@@ -2763,22 +2763,22 @@ export const workspaceResourceBinding = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    keyUnique: uniqueIndex('workspace_resource_binding_ws_kind_key_unique').on(
+    keyUnique: uniqueIndex('workspace_resource_key_ws_kind_key_unique').on(
       table.workspaceId,
       table.kind,
       table.key
     ),
-    resourceUnique: uniqueIndex('workspace_resource_binding_ws_kind_resource_unique').on(
+    resourceUnique: uniqueIndex('workspace_resource_key_ws_kind_resource_unique').on(
       table.workspaceId,
       table.kind,
       table.resourceId
     ),
     keyFormat: check(
-      'workspace_resource_binding_key_format',
+      'workspace_resource_key_key_format',
       sql`${table.key} ~ '^[a-z][a-z0-9_-]{0,63}$'`
     ),
     originCheck: check(
-      'workspace_resource_binding_origin_check',
+      'workspace_resource_key_origin_check',
       sql`${table.origin} IN ('allocated', 'adopted', 'created')`
     ),
   })
