@@ -233,3 +233,40 @@ describe('Cloudflare migration convergence', () => {
     expect(second.blocks['block-1'].subBlocks.recordProxied?.value).toBe('true')
   })
 })
+
+/**
+ * An agent tool call sends model args under the tool's param names (`type`, `files`) with the
+ * operation only on `context`; the handler forwards `{ ...args, ...mapped }`.
+ */
+describe('Cloudflare agent tool calls', () => {
+  const agentCall = (
+    operation: string,
+    args: Record<string, unknown>
+  ): Record<string, unknown> => ({
+    ...args,
+    ...CloudflareBlock.tools.config?.params?.(args, { operation }),
+  })
+
+  it('keeps the model record type that the canvas reads from an alias subBlock', () => {
+    expect(
+      agentCall('create_dns_record', {
+        ...CREDENTIALS,
+        zoneId: 'zone-1',
+        type: 'CNAME',
+        name: 'app.example.com',
+        content: 'origin.example.com',
+      })
+    ).toMatchObject({ type: 'CNAME' })
+  })
+
+  it('drops file targets when the model purges everything', () => {
+    expect(
+      agentCall('purge_cache', {
+        ...CREDENTIALS,
+        zoneId: 'zone-1',
+        purge_everything: true,
+        files: 'https://example.com/a.css',
+      }).files
+    ).toBeUndefined()
+  })
+})

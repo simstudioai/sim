@@ -1,7 +1,7 @@
 import { CloudWatchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /*
  * Canonical basic/advanced pairs, shared by the card sentences below. Listing
@@ -761,8 +761,9 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             throw new Error(`Invalid CloudWatch operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, startTime, endTime, limit, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const { startTime, endTime, limit, ...rest } = params
 
         const awsRegion = rest.awsRegion
         const awsAccessKeyId = rest.awsAccessKeyId
@@ -903,7 +904,8 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             }
 
           case 'get_metric_statistics': {
-            if (!rest.metricNamespace) {
+            const namespace = rest.metricNamespace || toolCallArg(context, rest.namespace)
+            if (!namespace) {
               throw new Error('Namespace is required')
             }
             if (!rest.metricName) {
@@ -915,12 +917,15 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             if (!endTime) {
               throw new Error('End time is required')
             }
-            if (!rest.metricPeriod) {
+            const period = rest.metricPeriod || toolCallArg(context, rest.period)
+            if (!period) {
               throw new Error('Period is required')
             }
 
-            const stat = rest.metricStatistics
-            if (!stat) {
+            const stat = rest.metricStatistics || toolCallArg(context, rest.statistics)
+            const extendedStat =
+              rest.metricExtendedStatistics || toolCallArg(context, rest.extendedStatistics)
+            if (!stat && !extendedStat) {
               throw new Error('Statistics is required')
             }
 
@@ -928,16 +933,16 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               awsRegion,
               awsAccessKeyId,
               awsSecretAccessKey,
-              namespace: rest.metricNamespace,
+              namespace,
               metricName: rest.metricName,
               startTime: Number(startTime),
               endTime: Number(endTime),
-              period: Number(rest.metricPeriod),
-              statistics: Array.isArray(stat) ? stat : [stat],
-              ...(rest.metricExtendedStatistics && {
-                extendedStatistics: Array.isArray(rest.metricExtendedStatistics)
-                  ? rest.metricExtendedStatistics
-                  : String(rest.metricExtendedStatistics)
+              period: Number(period),
+              ...(stat && { statistics: Array.isArray(stat) ? stat : [stat] }),
+              ...(extendedStat && {
+                extendedStatistics: Array.isArray(extendedStat)
+                  ? extendedStat
+                  : String(extendedStat)
                       .split(',')
                       .map((s: string) => s.trim())
                       .filter(Boolean),
@@ -963,16 +968,21 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
           }
 
           case 'put_metric_data': {
-            if (!rest.metricNamespace) {
+            const namespace = rest.metricNamespace || toolCallArg(context, rest.namespace)
+            if (!namespace) {
               throw new Error('Namespace is required')
             }
             if (!rest.metricName) {
               throw new Error('Metric name is required')
             }
-            if (rest.metricValue === undefined || rest.metricValue === '') {
+            const metricValue =
+              rest.metricValue === undefined || rest.metricValue === ''
+                ? toolCallArg(context, rest.value)
+                : rest.metricValue
+            if (metricValue === undefined || metricValue === '') {
               throw new Error('Metric value is required')
             }
-            const numericValue = Number(rest.metricValue)
+            const numericValue = Number(metricValue)
             if (!Number.isFinite(numericValue)) {
               throw new Error('Metric value must be a finite number')
             }
@@ -981,7 +991,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               awsRegion,
               awsAccessKeyId,
               awsSecretAccessKey,
-              namespace: rest.metricNamespace,
+              namespace,
               metricName: rest.metricName,
               value: numericValue,
               ...(rest.metricUnit && rest.metricUnit !== 'None' && { unit: rest.metricUnit }),

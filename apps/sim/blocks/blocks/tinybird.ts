@@ -1,7 +1,7 @@
 import { TinybirdIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const TinybirdBlock: BlockConfig = {
   type: 'tinybird',
@@ -247,8 +247,8 @@ export const TinybirdBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation || 'tinybird_events',
-      params: (params) => {
-        const operation = params.operation || 'tinybird_events'
+      params: (params, context) => {
+        const operation = mapperOperation(params, context) || 'tinybird_events'
         const result: Record<string, any> = {
           base_url: params.base_url,
           token: params.token,
@@ -302,13 +302,14 @@ export const TinybirdBlock: BlockConfig = {
           if (!params.datasource) {
             throw new Error('Data Source is required for Append Data Source operation')
           }
-          if (!params.source_url) {
+          const sourceUrl = params.source_url || toolCallArg(context, params.url)
+          if (!sourceUrl) {
             throw new Error('Source File URL is required for Append Data Source operation')
           }
 
           result.datasource = params.datasource
-          result.url = params.source_url
-          result.format = params.source_format || 'csv'
+          result.url = sourceUrl
+          result.format = params.source_format || toolCallArg(context, params.format) || 'csv'
         } else if (operation === 'tinybird_truncate_datasource') {
           // Truncate Data Source operation
           if (!params.datasource) {

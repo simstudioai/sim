@@ -1,7 +1,7 @@
 import { AzureDataExplorerIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /** Every operation except the cluster-level database listing runs in a database. */
 const DATABASE_SCOPED_OPERATIONS = [
@@ -423,7 +423,7 @@ export const AzureDataExplorerBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context) => {
         const auth = {
           clusterUri: params.clusterUri,
           tenantId: params.tenantId,
@@ -432,7 +432,7 @@ export const AzureDataExplorerBlock: BlockConfig = {
           resource: params.resource || undefined,
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'azure_data_explorer_query':
             return {
               ...auth,
@@ -467,9 +467,13 @@ export const AzureDataExplorerBlock: BlockConfig = {
               ...auth,
               database: params.database,
               table: params.table,
-              mode: params.ingestMode || undefined,
+              mode: params.ingestMode || toolCallArg(context, params.mode) || undefined,
               sourceQuery: params.sourceQuery,
-              async: toBoolean(params.ingestAsync),
+              async:
+                params.ingestAsync === false || params.ingestAsync === 'false'
+                  ? undefined
+                  : (toBoolean(params.ingestAsync) ??
+                    toBoolean(toolCallArg(context, params.async))),
               ingestionProperties: params.ingestionProperties || undefined,
             }
           case 'azure_data_explorer_create_table':

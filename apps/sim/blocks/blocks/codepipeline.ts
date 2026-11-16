@@ -2,9 +2,11 @@ import { CodePipelineIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  mapperOperation,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  toolCallArg,
   withSavedCredential,
 } from '@/blocks/utils'
 
@@ -397,8 +399,14 @@ export const CodePipelineBlock: BlockConfig = {
             throw new Error(`Invalid CodePipeline operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, maxResults, getPipelineVersion, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const { maxResults, getPipelineVersion, ...rest } = params
+        /** A blank block-only field yields, on a tool call, the model's arg under the tool's name. */
+        const orToolArg = (blockValue: unknown, toolValue: unknown) =>
+          blockValue === undefined || blockValue === ''
+            ? (toolCallArg(context, toolValue) ?? blockValue)
+            : blockValue
 
         const awsRegion = rest.awsRegion
         const awsAccessKeyId = rest.awsAccessKeyId
@@ -530,9 +538,9 @@ export const CodePipelineBlock: BlockConfig = {
               pipelineName: rest.pipelineName,
               stageName: rest.stageName,
               actionName: rest.actionName,
-              token: rest.approvalToken,
-              status: rest.approvalStatus,
-              summary: rest.approvalSummary,
+              token: orToolArg(rest.approvalToken, rest.token),
+              status: orToolArg(rest.approvalStatus, rest.status),
+              summary: orToolArg(rest.approvalSummary, rest.summary),
             }
 
           case 'disable_stage_transition':
@@ -543,7 +551,7 @@ export const CodePipelineBlock: BlockConfig = {
               pipelineName: rest.pipelineName,
               stageName: rest.stageName,
               transitionType: rest.transitionType,
-              reason: rest.transitionReason,
+              reason: orToolArg(rest.transitionReason, rest.reason),
             }
 
           case 'enable_stage_transition':

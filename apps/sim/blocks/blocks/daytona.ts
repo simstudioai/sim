@@ -1,7 +1,12 @@
 import { DaytonaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
+import {
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 const SANDBOX_SCOPED_OPERATIONS = [
   'execute_command',
@@ -452,8 +457,9 @@ export const DaytonaBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `daytona_${params.operation}`,
-      params: (params) => {
-        const { operation, apiKey, ...rest } = params
+      params: (params, context) => {
+        const { apiKey, ...rest } = params
+        const operation = mapperOperation(params, context)
 
         const baseParams: Record<string, unknown> = { apiKey }
 
@@ -515,8 +521,8 @@ export const DaytonaBlock: BlockConfig = {
             if (rest.directoryPath) baseParams.path = rest.directoryPath
             break
           case 'git_clone':
-            baseParams.url = rest.repoUrl
-            baseParams.path = rest.clonePath
+            baseParams.url = rest.repoUrl || toolCallArg(context, rest.url) || rest.repoUrl
+            baseParams.path = rest.clonePath || toolCallArg(context, rest.path) || rest.clonePath
             if (rest.gitBranch) baseParams.branch = rest.gitBranch
             if (rest.gitCommitId) baseParams.commitId = rest.gitCommitId
             if (rest.gitUsername) baseParams.username = rest.gitUsername

@@ -2,7 +2,7 @@ import { toError } from '@sim/utils/errors'
 import { DynamoDBIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const DynamoDBBlock: BlockConfig = {
   type: 'dynamodb',
@@ -731,7 +731,7 @@ Return ONLY the expression - no explanations.`,
             throw new Error(`Invalid DynamoDB operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const parseJson = (value: unknown, fieldName: string) => {
           if (!value) return undefined
           if (typeof value === 'object') return value
@@ -745,7 +745,7 @@ Return ONLY the expression - no explanations.`,
           return undefined
         }
 
-        const op = params.operation as string
+        const op = mapperOperation(params, context)
         const result: Record<string, unknown> = {
           region: params.region,
           accessKeyId: params.accessKeyId,
@@ -772,7 +772,10 @@ Return ONLY the expression - no explanations.`,
           if (params.consistentRead === 'true' || params.consistentRead === true) {
             result.consistentRead = true
           }
-          result.projectionExpression = params.getProjectionExpression || undefined
+          result.projectionExpression =
+            params.getProjectionExpression ||
+            toolCallArg(context, params.projectionExpression) ||
+            undefined
           const getNames = parseJson(params.getExpressionAttributeNames, 'expressionAttributeNames')
           if (getNames !== undefined) result.expressionAttributeNames = getNames
         }
@@ -817,11 +820,14 @@ Return ONLY the expression - no explanations.`,
             params.scanIndexForward === 'false' || params.scanIndexForward === false
               ? false
               : undefined
-          result.projectionExpression = params.queryProjectionExpression || undefined
+          result.projectionExpression =
+            params.queryProjectionExpression ||
+            toolCallArg(context, params.projectionExpression) ||
+            undefined
           result.consistentRead =
             params.queryConsistentRead === 'true' || params.queryConsistentRead === true
               ? true
-              : undefined
+              : toolCallArg(context, params.consistentRead)
         }
 
         if (op === 'scan') {
@@ -846,11 +852,12 @@ Return ONLY the expression - no explanations.`,
           if (lim) result.limit = Number.parseInt(String(lim), 10)
           const esk = parseJson(params.scanExclusiveStartKey, 'exclusiveStartKey')
           if (esk !== undefined) result.exclusiveStartKey = esk
-          result.indexName = params.scanIndexName || undefined
+          result.indexName =
+            params.scanIndexName || toolCallArg(context, params.indexName) || undefined
           result.consistentRead =
             params.scanConsistentRead === 'true' || params.scanConsistentRead === true
               ? true
-              : undefined
+              : toolCallArg(context, params.consistentRead)
           if (
             params.scanSegment !== undefined &&
             params.scanSegment !== null &&
@@ -882,7 +889,9 @@ Return ONLY the expression - no explanations.`,
           if (values !== undefined) result.expressionAttributeValues = values
           if (params.updateConditionExpression)
             result.conditionExpression = params.updateConditionExpression
-          if (params.updateReturnValues) result.returnValues = params.updateReturnValues
+          const returnValues =
+            toolCallArg(context, params.returnValues) || params.updateReturnValues
+          if (returnValues) result.returnValues = returnValues
         }
 
         if (op === 'delete') {

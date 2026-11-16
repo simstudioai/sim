@@ -1,7 +1,15 @@
 import { RailwayIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
+
+/**
+ * Reads a Railway yes/no dropdown (`'true'`/`'false'`, blank for unset) or a boolean a model sent.
+ */
+function dropdownBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  return value ? value === 'true' : undefined
+}
 
 export const RailwayBlock: BlockConfig = {
   type: 'railway',
@@ -690,114 +698,110 @@ export const RailwayBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `railway_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const arg = (key: string) => toolCallArg(context, params[key])
+        /** The block field, else (on a tool call) the model's arg for the tool param `key`. */
+        const field = (value: unknown, key: string) => value ?? arg(key) ?? value
         const baseParams = {
           apiKey: params.apiKey,
           tokenType: params.tokenType,
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'list_projects':
             return {
               ...baseParams,
-              workspaceId: params.listProjectsWorkspaceId,
+              workspaceId: field(params.listProjectsWorkspaceId, 'workspaceId'),
               first: params.first ? Number(params.first) : undefined,
               after: params.after,
             }
           case 'create_project':
             return {
               ...baseParams,
-              name: params.createProjectName,
-              description: params.createProjectDescription,
-              workspaceId: params.createProjectWorkspaceId,
-              isPublic: params.createProjectIsPublic
-                ? params.createProjectIsPublic === 'true'
-                : undefined,
+              name: field(params.createProjectName, 'name'),
+              description: field(params.createProjectDescription, 'description'),
+              workspaceId: field(params.createProjectWorkspaceId, 'workspaceId'),
+              isPublic:
+                dropdownBoolean(params.createProjectIsPublic) ?? dropdownBoolean(arg('isPublic')),
               defaultEnvironmentName: params.defaultEnvironmentName,
-              prDeploys: params.prDeploys ? params.prDeploys === 'true' : undefined,
+              prDeploys: dropdownBoolean(params.prDeploys),
             }
           case 'update_project':
             return {
               ...baseParams,
-              projectId: params.updateProjectId,
-              name: params.updateProjectName,
-              description: params.updateProjectDescription,
-              isPublic: params.updateProjectIsPublic
-                ? params.updateProjectIsPublic === 'true'
-                : undefined,
-              prDeploys: params.updateProjectPrDeploys
-                ? params.updateProjectPrDeploys === 'true'
-                : undefined,
+              projectId: field(params.updateProjectId, 'projectId'),
+              name: field(params.updateProjectName, 'name'),
+              description: field(params.updateProjectDescription, 'description'),
+              isPublic:
+                dropdownBoolean(params.updateProjectIsPublic) ?? dropdownBoolean(arg('isPublic')),
+              prDeploys:
+                dropdownBoolean(params.updateProjectPrDeploys) ?? dropdownBoolean(arg('prDeploys')),
             }
           case 'delete_project':
             return {
               ...baseParams,
-              projectId: params.deleteProjectId,
+              projectId: field(params.deleteProjectId, 'projectId'),
             }
           case 'transfer_project':
             return {
               ...baseParams,
-              projectId: params.transferProjectId,
+              projectId: field(params.transferProjectId, 'projectId'),
               workspaceId: params.workspaceId,
             }
           case 'list_project_members':
             return {
               ...baseParams,
-              projectId: params.membersProjectId,
+              projectId: field(params.membersProjectId, 'projectId'),
             }
           case 'create_environment':
             return {
               ...baseParams,
-              projectId: params.createEnvironmentProjectId,
-              name: params.environmentName,
+              projectId: field(params.createEnvironmentProjectId, 'projectId'),
+              name: field(params.environmentName, 'name'),
               sourceEnvironmentId: params.sourceEnvironmentId,
-              ephemeral: params.ephemeral ? params.ephemeral === 'true' : undefined,
-              skipInitialDeploys: params.skipInitialDeploys
-                ? params.skipInitialDeploys === 'true'
-                : undefined,
-              stageInitialChanges: params.stageInitialChanges
-                ? params.stageInitialChanges === 'true'
-                : undefined,
+              ephemeral: dropdownBoolean(params.ephemeral),
+              skipInitialDeploys: dropdownBoolean(params.skipInitialDeploys),
+              stageInitialChanges: dropdownBoolean(params.stageInitialChanges),
             }
           case 'delete_environment':
             return {
               ...baseParams,
-              environmentId: params.deleteEnvironmentId,
+              environmentId: field(params.deleteEnvironmentId, 'environmentId'),
             }
           case 'get_project':
             return {
               ...baseParams,
-              projectId: params.detailProjectId,
+              projectId: field(params.detailProjectId, 'projectId'),
             }
           case 'list_deployments':
             return {
               ...baseParams,
-              projectId: params.deploymentProjectId,
-              serviceId: params.deploymentServiceId,
-              environmentId: params.deploymentEnvironmentId,
-              first: params.deploymentFirst ? Number(params.deploymentFirst) : undefined,
-              after: params.deploymentAfter,
+              projectId: field(params.deploymentProjectId, 'projectId'),
+              serviceId: field(params.deploymentServiceId, 'serviceId'),
+              environmentId: field(params.deploymentEnvironmentId, 'environmentId'),
+              first: params.deploymentFirst ? Number(params.deploymentFirst) : arg('first'),
+              after: field(params.deploymentAfter, 'after'),
             }
           case 'deploy_service':
             return {
               ...baseParams,
-              serviceId: params.deployServiceId,
-              environmentId: params.deployEnvironmentId,
-              commitSha: params.deployCommitSha,
+              serviceId: field(params.deployServiceId, 'serviceId'),
+              environmentId: field(params.deployEnvironmentId, 'environmentId'),
+              commitSha: field(params.deployCommitSha, 'commitSha'),
             }
           case 'create_service':
             return {
               ...baseParams,
-              projectId: params.createServiceProjectId,
-              name: params.createServiceName,
-              repo: params.createServiceRepo,
-              image: params.createServiceImage,
-              branch: params.createServiceBranch,
+              projectId: field(params.createServiceProjectId, 'projectId'),
+              name: field(params.createServiceName, 'name'),
+              repo: field(params.createServiceRepo, 'repo'),
+              image: field(params.createServiceImage, 'image'),
+              branch: field(params.createServiceBranch, 'branch'),
             }
           case 'delete_service':
             return {
               ...baseParams,
-              serviceId: params.deleteServiceId,
+              serviceId: field(params.deleteServiceId, 'serviceId'),
             }
           case 'get_deployment':
             return {
@@ -818,32 +822,32 @@ export const RailwayBlock: BlockConfig = {
             return {
               ...baseParams,
               deploymentId: params.deploymentId,
-              limit: params.logsLimit ? Number(params.logsLimit) : undefined,
+              limit: params.logsLimit ? Number(params.logsLimit) : arg('limit'),
             }
           case 'list_variables':
             return {
               ...baseParams,
-              projectId: params.variablesProjectId,
-              environmentId: params.variablesEnvironmentId,
-              serviceId: params.variablesServiceId,
+              projectId: field(params.variablesProjectId, 'projectId'),
+              environmentId: field(params.variablesEnvironmentId, 'environmentId'),
+              serviceId: field(params.variablesServiceId, 'serviceId'),
             }
           case 'upsert_variable':
             return {
               ...baseParams,
-              projectId: params.upsertProjectId,
-              environmentId: params.upsertEnvironmentId,
-              serviceId: params.upsertServiceId,
-              name: params.variableName,
-              value: params.variableValue,
-              skipDeploys: params.skipDeploys ? params.skipDeploys === 'true' : undefined,
+              projectId: field(params.upsertProjectId, 'projectId'),
+              environmentId: field(params.upsertEnvironmentId, 'environmentId'),
+              serviceId: field(params.upsertServiceId, 'serviceId'),
+              name: field(params.variableName, 'name'),
+              value: field(params.variableValue, 'value'),
+              skipDeploys: dropdownBoolean(params.skipDeploys),
             }
           case 'delete_variable':
             return {
               ...baseParams,
-              projectId: params.deleteVariableProjectId,
-              environmentId: params.deleteVariableEnvironmentId,
-              serviceId: params.deleteVariableServiceId,
-              name: params.deleteVariableName,
+              projectId: field(params.deleteVariableProjectId, 'projectId'),
+              environmentId: field(params.deleteVariableEnvironmentId, 'environmentId'),
+              serviceId: field(params.deleteVariableServiceId, 'serviceId'),
+              name: field(params.deleteVariableName, 'name'),
             }
           default:
             return baseParams
