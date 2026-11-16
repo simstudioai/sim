@@ -11,6 +11,7 @@ import {
   type ExpandedBlockCatalog,
   stableStringify,
 } from '@sim/workflow-code'
+import { SDK_MAJOR } from '@sim/workflow-sdk/codegen'
 import {
   containerBlock,
   type OpaqueSite,
@@ -29,9 +30,6 @@ import { CUSTOM_BLOCK_TYPE_PREFIX } from '@/blocks/custom/build-config'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolMetadata } from '@/tools/metadata'
 import type { TriggerConfig } from '@/triggers/types'
-
-/** The SDK major this catalog serves (`// @sim-sdk 1`). */
-const CATALOG_SDK_MAJOR = 1
 
 /**
  * SHA-256 over the package's `stableStringify` (sorted keys, and a throw on anything that is not
@@ -231,7 +229,7 @@ export function projectBlockCatalog(input: CatalogBuildInput): CatalogProjection
 
   const catalog: Omit<ExpandedBlockCatalog, 'hash'> = {
     catalogVersion: 1,
-    sdkMajor: CATALOG_SDK_MAJOR,
+    sdkMajor: SDK_MAJOR,
     blocks: sortedRecord(blocks),
     triggers: sortedRecord(triggers),
     builders: sortedRecord(Object.entries(builders)),
