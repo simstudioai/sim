@@ -1,5 +1,5 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { dirname, join, posix } from 'node:path'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
@@ -7,6 +7,7 @@ import {
   CORE_DTS,
   generateSdkTypes,
   generateWorkspaceTypes,
+  SDK_MAJOR,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
 import type { Command } from 'commander'
@@ -15,22 +16,26 @@ import { embedStore } from '../../embed-context'
 import { SimApiError } from '../../http/client'
 import { callsOperations, type OperationClient } from '../../runtime/called-operations'
 import { buildRequest } from '../../runtime/request'
-import { saveToFile } from './files-get'
 import { printProtocolResult } from './result'
 import {
+  mergedGitattributes,
+  orphanedCodeFiles,
+  readPreviousLock,
+  readSourceText,
   SOURCE_SDK_DIR as SDK_DIR,
   SOURCE_AGENTS_FILE,
   SOURCE_BASE_FILE,
   SOURCE_ENTRY_FILE,
+  SOURCE_GITATTRIBUTES_FILE,
   SOURCE_LOCK_FILE,
+  sourceRelativePath,
+  updateSourceDir,
 } from './workflow-source-layout'
 
 const DIR_FLAG = 'dir'
 /** The SDK file that names the catalog hash; unchanged text means unchanged declarations. */
 const SDK_INDEX_FILE = `${SDK_DIR}/index.d.ts`
 const WORKSPACE_TYPES_FILE = `${SDK_DIR}/workspace.d.ts`
-/** Files written at once on a local disk; the declarations run to thousands of small files. */
-const WRITE_CONCURRENCY = 32
 
 /** The part of the source response the writer reads; the contract owns the full shape. */
 interface WorkflowSource {
@@ -60,11 +65,8 @@ function isBlockCatalog(value: unknown): value is BlockCatalog {
   )
 }
 
-/** A server-supplied relative path that stays inside the source directory. */
-function isSafeRelativePath(path: string): boolean {
-  if (!path || path.includes('\\') || path.startsWith('/') || /^[A-Za-z]:/.test(path)) return false
-  return path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..')
-}
+/** Workspace ids are uuids; anything else is never used to name a cache file. */
+const CACHE_KEY = /^[\w-]+$/
 
 function readSource(raw: unknown): WorkflowSource {
   const data = isRecordLike(raw) && isRecordLike(raw.data) ? raw.data : raw
@@ -80,7 +82,7 @@ function readSource(raw: unknown): WorkflowSource {
   }
   const files: Record<string, string> = {}
   for (const [path, text] of Object.entries(data.files)) {
-    if (typeof text !== 'string' || !isSafeRelativePath(path)) {
+    if (typeof text !== 'string' || sourceRelativePath(path) !== path) {
       throw new SimApiError(`The workflow source named an unsafe file path: ${path}`, 0)
     }
     files[path] = text
@@ -107,7 +109,7 @@ function catalogCachePath(workspaceId: string): string {
 
 /** Standalone runs only: an embedded run has no local disk of its own to cache on. */
 async function readCachedCatalog(workspaceId: string): Promise<CachedCatalog | null> {
-  if (embedStore.getStore() || !isSafeRelativePath(workspaceId)) return null
+  if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return null
   try {
     const parsed: unknown = JSON.parse(await readFile(catalogCachePath(workspaceId), 'utf8'))
     if (isRecordLike(parsed) && typeof parsed.hash === 'string' && isBlockCatalog(parsed.catalog)) {
@@ -118,7 +120,7 @@ async function readCachedCatalog(workspaceId: string): Promise<CachedCatalog | n
 }
 
 async function writeCachedCatalog(workspaceId: string, catalog: BlockCatalog): Promise<void> {
-  if (embedStore.getStore() || !isSafeRelativePath(workspaceId)) return
+  if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return
   const path = catalogCachePath(workspaceId)
   const cache: CachedCatalog = { hash: catalog.hash, catalog }
   await mkdir(dirname(path), { recursive: true })
@@ -254,37 +256,19 @@ async function loadWorkspaceTypes(
   }
 }
 
-function localPath(dir: string, relativePath: string): string {
-  return join(dir, ...relativePath.split('/'))
-}
-
-/** Writes files under `dir`: straight to a local disk, through the host's writer when embedded. */
-async function writeTreeFiles(dir: string, files: ReadonlyArray<[string, string]>): Promise<void> {
-  if (embedStore.getStore()) {
-    for (const [path, text] of files) {
-      await saveToFile(new Blob([text]).stream(), posix.join(dir, path), true)
-    }
-    return
-  }
-  for (let start = 0; start < files.length; start += WRITE_CONCURRENCY) {
-    await Promise.all(
-      files.slice(start, start + WRITE_CONCURRENCY).map(async ([path, text]) => {
-        const target = localPath(dir, path)
-        await mkdir(dirname(target), { recursive: true })
-        await writeFile(target, text)
-      })
-    )
-  }
-}
-
-/** The index the directory already holds, so an unchanged catalog is not rewritten. */
-async function writtenSdkIndex(dir: string): Promise<string | null> {
-  if (embedStore.getStore()) return null
-  try {
-    return await readFile(localPath(dir, SDK_INDEX_FILE), 'utf8')
-  } catch {
-    return null
-  }
+/**
+ * Refuses a catalog for another SDK major than the bundled `core.d.ts`: its builders would be
+ * written beside declarations that cannot type them.
+ */
+function assertSdkMajor(catalog: BlockCatalog): void {
+  if (catalog.sdkMajor === SDK_MAJOR) return
+  throw new SimApiError(
+    catalog.sdkMajor > SDK_MAJOR
+      ? `This workspace uses workflow SDK ${catalog.sdkMajor}, but this CLI writes SDK ${SDK_MAJOR} declarations. Upgrade the CLI (npm install -g sim@latest) and run the command again.`
+      : `This workspace uses workflow SDK ${catalog.sdkMajor}, but this CLI writes SDK ${SDK_MAJOR} declarations. Install a CLI release for SDK ${catalog.sdkMajor} to work with this server.`,
+    0,
+    'SDK_MAJOR_MISMATCH'
+  )
 }
 
 /** Lets an editor or `tsc -p` resolve `@sim/workflow-sdk` to the written declarations. */
@@ -311,7 +295,7 @@ const TSCONFIG = `${JSON.stringify(
 /** Points an agent working in the directory at the SDK's own guide. */
 const AGENTS_GUIDE = `# Sim workflow source
 
-This directory is a Sim workflow written as TypeScript. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`), then:
+The directory holding this \`.sim\` folder is a Sim workflow written as TypeScript. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`), then, from that directory:
 
 \`\`\`bash
 sim workflows source apply <workflowId> --dir . --dry-run   # check; prints file:line diagnostics
@@ -319,7 +303,7 @@ sim workflows source apply <workflowId> --dir . --yes       # save the draft
 \`\`\`
 
 - Types: \`${SDK_DIR}/core.d.ts\` (SDK), \`${SDK_DIR}/blocks/*.d.ts\` and \`${SDK_DIR}/operations/<block>/<operation>.d.ts\` (every block's builders, params and outputs), \`${WORKSPACE_TYPES_FILE}\` (this workspace's tables, knowledge bases, credentials, workflows and env names). \`tsc -p .\` checks the file locally.
-- Keep \`${SOURCE_LOCK_FILE}\` and \`${SOURCE_BASE_FILE}\`. A \`409\` (\`SOURCE_STALE\`) means the workflow changed: run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there and retry.
+- Keep \`${SOURCE_LOCK_FILE}\` and \`${SOURCE_BASE_FILE}\`. A \`409\` (\`SOURCE_STALE\`, exit 5) means the workflow changed: run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there and retry.
 - The full guide is the \`@sim/workflow-sdk\` README: the edit loop, the diagnostics format and the rebase loop.
 `
 
@@ -329,13 +313,19 @@ interface SourceTree {
   workspaceTypes: boolean
 }
 
+/**
+ * Writes the source tree in one staged update. Declarations are replaced only when the catalog
+ * index changed, and replaced whole so a block the catalog dropped loses its file. A refused
+ * manifest removes the `workspace.d.ts` an earlier get wrote, function files the new lock no
+ * longer names are pruned, and `.gitattributes` gains the LF lines it lacks.
+ */
 async function writeSourceTree(
   dir: string,
   source: WorkflowSource,
   catalog: BlockCatalog,
   workspaceTypes: string | null
 ): Promise<SourceTree> {
-  const files: Array<[string, string]> = [
+  const write: Array<[string, string]> = [
     ...Object.entries(source.files),
     [SOURCE_LOCK_FILE, `${JSON.stringify(source.lock, null, 2)}\n`],
     [SOURCE_BASE_FILE, `${JSON.stringify(source.base, null, 2)}\n`],
@@ -343,20 +333,27 @@ async function writeSourceTree(
     [SOURCE_AGENTS_FILE, AGENTS_GUIDE],
     [`${SDK_DIR}/core.d.ts`, CORE_DTS],
   ]
+  const remove = orphanedCodeFiles(
+    await readPreviousLock(dir),
+    source.lock,
+    Object.keys(source.files)
+  )
+  const gitattributes = mergedGitattributes(await readSourceText(dir, SOURCE_GITATTRIBUTES_FILE))
+  if (gitattributes !== null) write.push([SOURCE_GITATTRIBUTES_FILE, gitattributes])
+
   const sdkFiles = generateSdkTypes(catalog).map((file): [string, string] => [
     `${SDK_DIR}/${file.path}`,
     file.text,
   ])
   const index = sdkFiles.find(([path]) => path === SDK_INDEX_FILE)?.[1]
-  if (index === undefined || index !== (await writtenSdkIndex(dir))) {
-    if (!embedStore.getStore()) {
-      await rm(localPath(dir, SDK_DIR), { recursive: true, force: true })
-    }
-    files.push(...sdkFiles)
+  if (index === undefined || index !== (await readSourceText(dir, SDK_INDEX_FILE))) {
+    remove.push(SDK_DIR)
+    write.push(...sdkFiles)
   }
-  if (workspaceTypes !== null) files.push([WORKSPACE_TYPES_FILE, workspaceTypes])
-  await writeTreeFiles(dir, files)
-  return { written: files.length, workspaceTypes: workspaceTypes !== null }
+  if (workspaceTypes === null) remove.push(WORKSPACE_TYPES_FILE)
+  else write.push([WORKSPACE_TYPES_FILE, workspaceTypes])
+  await updateSourceDir(dir, { write, remove })
+  return { written: write.length, workspaceTypes: workspaceTypes !== null }
 }
 
 /**
@@ -364,9 +361,10 @@ async function writeSourceTree(
  * response, it writes `workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`, SDK
  * declarations for every block in the workspace's catalog (`.sim/sdk/**`, so a block an agent
  * adds resolves too; the catalog is ETag-cached per workspace in the CLI's config directory),
- * `.sim/sdk/workspace.d.ts` from the resource manifest, a `tsconfig.json` that resolves them and
- * a short `AGENTS.md`. Without `--dir` the generated handler runs unchanged. Commander offers no
- * way to read the action it holds, so it is captured and delegated to, as `runs get` does.
+ * `.sim/sdk/workspace.d.ts` from the resource manifest, a `tsconfig.json` that resolves them, a
+ * short `.sim/AGENTS.md` and the `.gitattributes` lines that keep the source LF. Without `--dir`
+ * the generated handler runs unchanged. Commander offers no way to read the action it holds, so
+ * it is captured and delegated to, as `runs get` does.
  */
 export function attachWorkflowSourceGet(source: Command): void {
   const get = source.commands.find((command) => command.name() === 'get')
@@ -409,6 +407,7 @@ export function attachWorkflowSourceGet(source: Command): void {
       loadCatalog(client, workflowSource),
       loadWorkspaceTypes(client, workflowSource.workspaceId),
     ])
+    assertSdkMajor(catalog)
     const tree = await writeSourceTree(dir, workflowSource, catalog, workspaceTypes)
     printProtocolResult(profile.output, {
       workflowId: workflowSource.workflowId,
