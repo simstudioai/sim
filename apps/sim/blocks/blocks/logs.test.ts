@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LogsV2Block } from '@/blocks/blocks/logs'
+import { LogsBlock, LogsV2Block } from '@/blocks/blocks/logs'
 
 function buildQueryParams(params: Record<string, unknown>) {
   return LogsV2Block.tools.config!.params!({ operation: 'query', ...params })
@@ -75,5 +75,27 @@ describe('LogsV2Block backwards compatibility', () => {
     expect(params.triggers).toBeUndefined()
     // Undefined values are dropped on serialization, so nothing reaches the query.
     expect(JSON.stringify(params)).not.toContain('triggers')
+  })
+})
+
+describe('LogsBlock agent tool calls', () => {
+  const mapParams = LogsBlock.tools.config?.params
+  if (!mapParams) throw new Error('LogsBlock has no params mapper')
+
+  it('sends the log id typed into the tool row instead of query filters', () => {
+    expect(mapParams({ logId: 'log-1' }, { operation: 'get_log' })).toEqual({ id: 'log-1' })
+  })
+
+  it('sends the execution id typed into the tool row instead of query filters', () => {
+    expect(mapParams({ executionIdLookup: 'exec-1' }, { operation: 'get_execution' })).toEqual({
+      executionId: 'exec-1',
+    })
+  })
+
+  it('keeps the model-supplied id when the tool row leaves the block field blank', () => {
+    expect(mapParams({ id: 'log-2' }, { operation: 'get_log' })).toEqual({ id: 'log-2' })
+    expect(mapParams({ executionId: 'exec-2' }, { operation: 'get_execution' })).toEqual({
+      executionId: 'exec-2',
+    })
   })
 })

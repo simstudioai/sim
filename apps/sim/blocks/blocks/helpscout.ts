@@ -2,6 +2,7 @@ import { HelpScoutIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const CONVERSATION_OPERATIONS = [
@@ -71,8 +72,8 @@ const TIMESTAMP_WAND = {
 } as const
 
 /** The status dropdown the active operation shows, collapsed onto the tools' shared `status` param. */
-function resolveStatus(params: Record<string, unknown>): unknown {
-  switch (params.operation) {
+function resolveStatus(params: Record<string, unknown>, operation: string): unknown {
+  switch (operation) {
     case 'list_conversations':
       return params.listStatus
     case 'update_conversation_status':
@@ -934,21 +935,29 @@ export const HelpScoutBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `helpscout_${params.operation || 'list_conversations'}`,
-      params: (params) => ({
-        status: optionalString(resolveStatus(params)),
-        type: optionalString(params.conversationType),
-        sortField: optionalString(
-          params.operation === 'list_customers'
-            ? params.customerSortField
-            : params.conversationSortField
-        ),
-        sortOrder: optionalString(params.sortOrder),
-        gender: optionalString(params.gender),
-        workflowType: optionalString(params.workflowType),
-        organizationSort: optionalString(params.organizationSort),
-        page: optionalNumber(params.page),
-        number: optionalNumber(params.number),
-      }),
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        return {
+          status:
+            optionalString(resolveStatus(params, operation)) ??
+            optionalString(toolCallArg(context, params.status)),
+          type:
+            optionalString(params.conversationType) ??
+            optionalString(toolCallArg(context, params.type)),
+          sortField:
+            optionalString(
+              operation === 'list_customers'
+                ? params.customerSortField
+                : params.conversationSortField
+            ) ?? optionalString(toolCallArg(context, params.sortField)),
+          sortOrder: optionalString(params.sortOrder),
+          gender: optionalString(params.gender),
+          workflowType: optionalString(params.workflowType),
+          organizationSort: optionalString(params.organizationSort),
+          page: optionalNumber(params.page),
+          number: optionalNumber(params.number),
+        }
+      },
     },
   },
   inputs: {

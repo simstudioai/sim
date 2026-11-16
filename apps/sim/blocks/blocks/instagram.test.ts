@@ -76,4 +76,26 @@ describe('InstagramBlock', () => {
       buildParams({ operation: 'instagram_get_account_insights', period: 'week' })
     ).toThrow('Instagram account insights period must be day or lifetime')
   })
+
+  it('forwards the media and metrics an agent passes under the tool param names', () => {
+    const file = {
+      id: 'file-1',
+      key: 'execution/workflow/execution/photo.jpg',
+      name: 'photo.jpg',
+      size: 1024,
+      type: 'image/jpeg',
+    }
+    const carousel = buildParams(
+      { oauthCredential: 'credential-1', media: [file, { ...file, id: 'file-2' }], caption: 'hi' },
+      { operation: 'instagram_publish_carousel' }
+    )
+    expect(carousel).toMatchObject({ caption: 'hi' })
+    expect(carousel.media).toHaveLength(2)
+
+    const insights = buildParams(
+      { oauthCredential: 'credential-1', mediaId: 'media-1', metrics: 'reach,views' },
+      { operation: 'instagram_get_media_insights' }
+    )
+    expect(insights).toMatchObject({ mediaId: 'media-1', metrics: 'reach,views' })
+  })
 })

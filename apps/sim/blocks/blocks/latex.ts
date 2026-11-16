@@ -1,6 +1,7 @@
 import { LatexIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
 export const LatexBlock: BlockConfig = {
   type: 'latex',
@@ -158,9 +159,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             return 'latex_compile'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           compiler,
           fileName,
           resources,
@@ -179,13 +180,14 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
 
         if (operation === 'latex_search_packages') {
           return {
-            query: packageQuery,
+            query: toolCallArg(context, packageQuery || params.query) ?? packageQuery,
             ...maxResultsParam,
           }
         }
 
         if (operation === 'latex_get_package') {
-          const effectivePackageName = typeof packageName === 'string' ? packageName.trim() : ''
+          const requestedName = toolCallArg(context, packageName || params.name) ?? packageName
+          const effectivePackageName = typeof requestedName === 'string' ? requestedName.trim() : ''
           if (!effectivePackageName) {
             throw new Error('Package name is required.')
           }

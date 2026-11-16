@@ -28,3 +28,17 @@ describe('DocuSign List Envelopes status filter', () => {
     expect(merged.envelopeStatus).toBe('completed')
   })
 })
+
+describe('DocuSign agent tool calls', () => {
+  it('sends the tool row Status setting for Send Envelope', () => {
+    const mapper = DocuSignBlock.tools.config?.params
+    if (!mapper) throw new Error('DocuSign block has no params mapper')
+
+    const result = mapper(
+      { envelopeStatus: 'created', emailSubject: 'Sign', signerEmail: 'a@b.co', signerName: 'A' },
+      { operation: 'send_envelope' }
+    )
+
+    expect(result.status).toBe('created')
+  })
+})
