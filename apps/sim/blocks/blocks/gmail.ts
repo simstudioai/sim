@@ -6,6 +6,7 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
   createVersionedToolSelector,
   isToolCall,
+  mapperOperation,
   normalizeFileInput,
   SERVICE_ACCOUNT_SUBBLOCKS,
   toolCallArg,
@@ -543,7 +544,8 @@ Return ONLY the search query - no explanations, no extra text.`,
     ],
     config: {
       tool: selectGmailToolId,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           oauthCredential,
           folder,
@@ -560,12 +562,12 @@ Return ONLY the search query - no explanations, no extra text.`,
         // Use canonical 'folder' param directly
         const effectiveFolder = folder ? String(folder).trim() : ''
 
-        if (rest.operation === 'read_gmail') {
+        if (operation === 'read_gmail') {
           rest.folder = effectiveFolder || 'INBOX'
         }
 
         // Handle move operation - use canonical params addLabelIds and removeLabelIds
-        if (rest.operation === 'move_gmail') {
+        if (operation === 'move_gmail') {
           if (moveMessageId) {
             rest.messageId = moveMessageId
           }
@@ -585,14 +587,14 @@ Return ONLY the search query - no explanations, no extra text.`,
             'archive_gmail',
             'unarchive_gmail',
             'delete_gmail',
-          ].includes(rest.operation)
+          ].includes(operation)
         ) {
           if (actionMessageId) {
             rest.messageId = actionMessageId
           }
         }
 
-        if (['add_label_gmail', 'remove_label_gmail'].includes(rest.operation)) {
+        if (['add_label_gmail', 'remove_label_gmail'].includes(operation)) {
           if (labelActionMessageId) {
             rest.messageId = labelActionMessageId
           }
@@ -972,6 +974,7 @@ export const GmailV2Block: BlockConfig = {
         fallbackToolId: 'gmail_send_v2',
       }),
       params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const mapped = GmailBlock.tools?.config?.params?.(params, context) ?? params
         const {
           labelName,
@@ -983,16 +986,16 @@ export const GmailV2Block: BlockConfig = {
           labelListVisibility,
           ...rest
         } = mapped
-        if (LABEL_WRITE_OPERATIONS.includes(rest.operation)) {
+        if (LABEL_WRITE_OPERATIONS.includes(operation)) {
           rest.name = labelName || toolCallArg(context, rest.name) || undefined
           rest.messageListVisibility = messageListVisibility || undefined
           rest.labelListVisibility = labelListVisibility || undefined
         }
-        if (THREAD_TARGET_OPERATIONS.includes(rest.operation)) {
+        if (THREAD_TARGET_OPERATIONS.includes(operation)) {
           rest.threadId = isToolCall(context) ? targetThreadId || rest.threadId : targetThreadId
           rest.format = threadFormat || toolCallArg(context, rest.format) || undefined
         }
-        if (LIST_OPERATIONS.includes(rest.operation)) {
+        if (LIST_OPERATIONS.includes(operation)) {
           rest.query = listQuery || toolCallArg(context, rest.query) || undefined
           const labelIds = threadLabelIds || toolCallArg(context, rest.labelIds)
           rest.labelIds = labelIds ? String(labelIds).trim() : undefined

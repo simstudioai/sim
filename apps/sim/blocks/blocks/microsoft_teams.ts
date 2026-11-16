@@ -2,7 +2,7 @@ import { MicrosoftTeamsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -514,10 +514,10 @@ export const MicrosoftTeamsBlock: BlockConfig = {
             return 'microsoft_teams_read_chat'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           oauthCredential,
-          operation,
           teamId, // Canonical param from teamSelector (basic) or manualTeamId (advanced)
           chatId, // Canonical param from chatSelector (basic) or manualChatId (advanced)
           channelId, // Canonical param from channelSelector (basic) or manualChannelId (advanced)

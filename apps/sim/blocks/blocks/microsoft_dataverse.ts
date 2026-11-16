@@ -3,7 +3,7 @@ import { MicrosoftDataverseIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 
 /** Canonical upload pair for the file column payload, basic then advanced. */
 const FILE_FIELD = ['uploadFile', 'fileReference'] as const
@@ -642,8 +642,9 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
     ],
     config: {
       tool: (params) => `microsoft_dataverse_${params.operation}`,
-      params: (params) => {
-        const { credential, operation, file, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const { credential, file, ...rest } = params
 
         const cleanParams: Record<string, unknown> = {
           credential,
@@ -667,11 +668,10 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
           rest.parameters = undefined
         }
         if (operation === 'get_entity_metadata') {
-          if (rest.metadataSelect) {
-            cleanParams.select = rest.metadataSelect
-          }
-          // The shared `select` subBlock belongs to list/get record operations - clear it so a
-          // stale record-column $select can't override or fight the mapped metadataSelect value
+          // The shared `select` subBlock belongs to list/get record operations, so a stale
+          // record-column $select must not reach the metadata request; only a tool call's own
+          // `select` arg stands in for an empty metadataSelect.
+          cleanParams.select = rest.metadataSelect || toolCallArg(context, rest.select) || undefined
           rest.select = undefined
         }
         // Always clean up mapped subBlock IDs so they don't leak through the loop below

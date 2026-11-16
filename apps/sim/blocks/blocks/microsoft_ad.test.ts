@@ -84,10 +84,14 @@ describe('MicrosoftAdBlock', () => {
  * the per-operation fields (`signInFilter`, `deviceSearch`, `membershipScope`) are never rendered.
  */
 describe('MicrosoftAdBlock agent tool calls', () => {
-  const agentCall = (operation: string, args: Record<string, unknown>): Record<string, unknown> => {
-    const inputs = { ...args, operation }
-    return { ...inputs, ...buildParams(inputs, { operation }) }
-  }
+  /** A tool call carries the operation only in `context`, never in the merged params. */
+  const agentCall = (
+    operation: string,
+    args: Record<string, unknown>
+  ): Record<string, unknown> => ({
+    ...args,
+    ...buildParams(args, { operation }),
+  })
 
   it('keeps the model filter on an operation with a dedicated filter field', () => {
     const mapped = agentCall('list_sign_ins', { filter: 'status/errorCode eq 0' })
@@ -103,6 +107,21 @@ describe('MicrosoftAdBlock agent tool calls', () => {
     expect(agentCall('list_user_memberships', { userId: 'u-1', transitive: true }).transitive).toBe(
       true
     )
+  })
+
+  it('forwards a dedicated filter saved on the tool row', () => {
+    const mapped = agentCall('list_sign_ins', { signInFilter: 'status/errorCode ne 0' })
+    expect(mapped.filter).toBe('status/errorCode ne 0')
+  })
+
+  it('keeps boolean group flags the model sends', () => {
+    const mapped = agentCall('create_group', {
+      displayName: 'Eng',
+      mailEnabled: true,
+      securityEnabled: false,
+    })
+    expect(mapped.mailEnabled).toBe(true)
+    expect(mapped.securityEnabled).toBe(false)
   })
 
   it('drops a shared filter left over on the canvas for an operation with its own field', () => {
