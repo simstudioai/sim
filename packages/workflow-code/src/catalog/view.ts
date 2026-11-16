@@ -8,6 +8,7 @@
  * blocks it names, and a catalog is immutable once served, so a memo never goes stale.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import type {
   BlockCatalog,
   CatalogBlock,
@@ -48,7 +49,7 @@ function memoOf(catalog: BlockCatalog): CatalogMemo {
 }
 
 function isListRef(value: unknown): value is CatalogListRef {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) && 'list' in value
+  return isRecordLike(value) && 'list' in value
 }
 
 function listAt(catalog: BlockCatalog, ref: CatalogListRef): Array<string | number | boolean> {
