@@ -28,7 +28,7 @@ export const HINTS = {
     'A workflow file holds imports and one export default workflow(...); move this inside the workflow body or delete it.',
   namedExport: 'Only export default workflow(...) is allowed; remove this export.',
   duplicateKey: 'Write each key once.',
-  bindInline: 'Declare the block with const and pass its binding.',
+  bindInline: 'Declare the block with const and pass its name.',
 } as const
 
 /** The hint for an expression or statement outside the accepted grammar. */

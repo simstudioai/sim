@@ -8,13 +8,14 @@ import {
 } from '@/lib/workspaces/resource-keys'
 
 /**
- * Resource keys for workflow source: `table('leads')`, `knowledgeBase('docs')`, `credential('support-slack')`.
+ * Resource keys for workflow source: `table('leads')`, `knowledgeBase('docs')`,
+ * `credential('support-slack')`.
  *
- * Keys come only from the workspace's persisted bindings (`@/lib/workspaces/resource-keys`),
+ * Keys come only from the workspace's persisted resource keys (`@/lib/workspaces/resource-keys`),
  * never from a resource's current name: a rename keeps the key, and deleting a resource leaves its
  * key bound to the dead id, so the key is unresolved rather than re-pointed. A stored id that is
  * deleted, archived, of a kind with no workspace table, or from another workspace resolves to
- * `null`, which canonicalize keeps verbatim as `$sim: 'unresolved'`; a key with no live binding
+ * `null`, which canonicalize keeps verbatim as `$sim: 'unresolved'`; a key with no live resource
  * resolves to `null`, which materialize reports as `E_MAT_UNKNOWN_RESOURCE`.
  */
 
@@ -30,7 +31,7 @@ interface LoadResourceKeyResolverOptions {
 }
 
 /**
- * Resolves `references` in one workspace through its bindings and returns a resolver over the
+ * Resolves `references` in one workspace through its resource keys and returns a resolver over the
  * result: each referenced live resource's key (allocated on first reference, see `resolveKeys`)
  * and each referenced key's live resource, in both directions (so a fingerprint taken after
  * writing a key's id prints that key). Nothing outside `references` resolves.
