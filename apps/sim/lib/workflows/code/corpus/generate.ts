@@ -19,7 +19,6 @@
  * same on every machine and adding a block does not reshuffle the others.
  */
 
-import { createSeededRandom, type SeededRandom } from '@sim/workflow-code/proof/random'
 import {
   type BlockFixture,
   buildBlockFixture,
@@ -28,6 +27,7 @@ import {
   isVisible,
   type PairMode,
 } from '@/lib/workflows/code/corpus/blocks'
+import { createSeededRandom, type SeededRandom } from '@/lib/workflows/code/corpus/random'
 import {
   CORPUS_START_NAME,
   CORPUS_TEXT,

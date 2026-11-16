@@ -32,6 +32,14 @@ import {
   type PrintWorkflowFn,
   printWorkflow,
 } from '@sim/workflow-code'
+import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
+import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
+import {
+  corpusBudgetMs,
+  type ProofSubject,
+  roundTripSubjects,
+  withoutLockHeldState,
+} from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import {
   assertNoErrors,
   assertNoopIdentity,
@@ -41,15 +49,7 @@ import {
   type OracleResult,
   type ProofProperty,
   reportPathVariable,
-} from '@sim/workflow-code/proof'
-import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
-import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
-import {
-  corpusBudgetMs,
-  type ProofSubject,
-  roundTripSubjects,
-  withoutLockHeldState,
-} from '@/lib/workflows/code/corpus/fixtures.test-helpers'
+} from '@/lib/workflows/code/corpus/proof'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison/compare'
 import { getBlockRegistry } from '@/blocks/registry'

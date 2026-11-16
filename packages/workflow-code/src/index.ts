@@ -186,4 +186,5 @@ export type {
   WorkflowAnnotations,
 } from './model'
 export { assignIdentifiers, createPrintWorkflow, printWorkflow } from './print'
+export { setOwn } from './records'
 export { GENERIC_BUILDER, SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from './sdk'

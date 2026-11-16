@@ -9,7 +9,7 @@ import {
   evaluateSubBlockCondition,
   isCanonicalPair,
 } from '@sim/workflow-code/catalog/canonical-index'
-import type { SeededRandom } from '@sim/workflow-code/proof/random'
+import type { SeededRandom } from '@/lib/workflows/code/corpus/random'
 import {
   type FillContext,
   fillSubBlockValue,

@@ -6,29 +6,18 @@
  */
 
 import { compareStrings } from '@sim/utils/string'
-import type { Difference } from './diff'
+import type { Difference } from '@/lib/workflows/code/corpus/proof/diff'
 
 /**
  * The round-trip properties (s3 §5) and oracles (s1 §6) a corpus run checks. `P0` is P1's source
  * half, `compile(print(c))` equals `c`, which needs no materialize.
  */
-export const PROOF_PROPERTIES = [
-  'P0',
-  'P1',
-  'P2',
-  'P3',
-  'P4',
-  'P5',
-  'P6',
-  'O1',
-  'O2',
-  'O3',
-] as const
+const PROOF_PROPERTIES = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'O1', 'O2', 'O3'] as const
 export type ProofProperty = (typeof PROOF_PROPERTIES)[number]
 
-export type ProofStatus = 'passed' | 'failed' | 'skipped' | 'errored'
+type ProofStatus = 'passed' | 'failed' | 'skipped' | 'errored'
 
-export interface ProofOutcome {
+interface ProofOutcome {
   caseId: string
   /** Every block type in the case's workflow; each one's parity counts this outcome. */
   blockTypes: string[]
@@ -47,12 +36,12 @@ interface Tally {
   errored: number
 }
 
-export interface BlockTypeParity extends Tally {
+interface BlockTypeParity extends Tally {
   /** `passed / (passed + failed + errored)`; `null` when every outcome was skipped. */
   rate: number | null
 }
 
-export interface ProofReport {
+interface ProofReport {
   suite: string
   /** `incomplete` when nothing failed but some property was skipped wholesale. */
   status: 'passed' | 'failed' | 'incomplete'
@@ -68,7 +57,7 @@ export interface ProofReport {
   truncatedFailures: number
 }
 
-export interface ProofReportCollector {
+interface ProofReportCollector {
   record(outcome: ProofOutcome): void
   skipProperty(property: ProofProperty, reason: string): void
   build(options: { generatedAt: string }): ProofReport

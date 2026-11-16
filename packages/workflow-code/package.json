@@ -33,14 +33,6 @@
     "./sdk": {
       "types": "./src/sdk.ts",
       "default": "./src/sdk.ts"
-    },
-    "./proof": {
-      "types": "./src/proof/index.ts",
-      "default": "./src/proof/index.ts"
-    },
-    "./proof/random": {
-      "types": "./src/proof/random.ts",
-      "default": "./src/proof/random.ts"
     }
   },
   "scripts": {

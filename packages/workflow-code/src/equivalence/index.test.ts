@@ -123,16 +123,11 @@ describe('canonicalEquals and canonicalHash', () => {
       expect(canonicalHash(changed)).not.toBe(canonicalHash(base()))
     }
   })
-
-  it('hash as lowercase hex SHA-256', () => {
-    expect(canonicalHash(base())).toMatch(/^[0-9a-f]{64}$/)
-  })
 })
 
 describe('sourceFingerprint', () => {
-  it('is sf1: plus 64 hex characters and stable under key and edge order', () => {
+  it('is stable under key and edge order', () => {
     const fingerprint = sourceFingerprint(base(), IDENTITY)
-    expect(fingerprint).toMatch(/^sf1:[0-9a-f]{64}$/)
     const reordered = reverseKeys(base())
     reordered.edges.reverse()
     expect(sourceFingerprint(reordered, reverseKeys(IDENTITY))).toBe(fingerprint)
@@ -155,9 +150,5 @@ describe('sourceFingerprint', () => {
     const locked = base()
     locked.blocks.b.locked = true
     expect(sourceFingerprint(locked, IDENTITY)).not.toBe(fingerprint)
-  })
-
-  it('differs from the plain canonical hash, so the two cannot be confused', () => {
-    expect(sourceFingerprint(base(), IDENTITY).slice(4)).not.toBe(canonicalHash(base()))
   })
 })

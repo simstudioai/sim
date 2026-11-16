@@ -20,10 +20,10 @@ import {
 import { isRecordLike, omit } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { type BlockCatalog, canonicalize, catalogBlock } from '@sim/workflow-code'
-import { workflowStateArbitrary } from '@sim/workflow-code/proof'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import fc from 'fast-check'
 import { type CorpusCase, generateRegistryCorpus } from '@/lib/workflows/code/corpus'
+import { workflowStateArbitrary } from '@/lib/workflows/code/corpus/proof'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export interface FixtureState {
