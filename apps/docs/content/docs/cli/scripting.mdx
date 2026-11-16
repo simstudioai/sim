@@ -135,6 +135,14 @@ Most successful actions exit 0; API, configuration, or argument failures exit 1.
 | `3` | Committed operation requires configuration |
 | `4` | Wait timed out |
 
+| Code | `sim workflows source apply` or `create` |
+| --- | --- |
+| `0` | Applied or created, or a dry run with no errors |
+| `1` | The source has errors (each printed as `file:line:column` with its frame and hint), or command/request failure |
+| `5` | The workflow changed since the directory was read (`409 SOURCE_STALE`): get it again, reapply the edit, and retry |
+| `6` | The workflow is locked (`423`) |
+| `7` | The source is over the size limits (`413`) |
+
 Both waits default to 3600 seconds; `--wait-timeout 0` waits indefinitely. `SIM_TIMEOUT_SECONDS` independently bounds one API request. A timeout does not cancel the underlying run or operation.
 
 A synchronous or followed workflow run prints its result before exiting 1 for failure/cancellation. A paused run is not failed and can return 0; use `runs wait` or inspect status if your script requires completion. Fetching a failed run or listing runs only reports their state.
