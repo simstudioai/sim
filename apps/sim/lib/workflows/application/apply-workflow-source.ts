@@ -469,7 +469,13 @@ async function runSourceApply(
     }
 
     if (dryRun) {
-      const preview = await previewSourceCommit(context.workflowId, plan)
+      const preview = await previewSourceCommit(
+        context.workflowId,
+        plan,
+        target.kind === 'new'
+          ? { workspaceId: context.workspaceId, folderId: target.folderId }
+          : undefined
+      )
       logger.info('Evaluated workflow source without persisting', logContext)
       return result(printWritten(preview.state), {
         applied: false,

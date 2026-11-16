@@ -13,13 +13,19 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
-import { WorkflowSourceStaleError } from '@/lib/workflows/application/source-error'
+import {
+  WorkflowSourceNameTakenError,
+  WorkflowSourceStaleError,
+} from '@/lib/workflows/application/source-error'
 import type { SourcePlan } from '@/lib/workflows/application/source-evaluate'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import { assertLockedBlocksPreserved } from '@/lib/workflows/code/apply/locked'
 import { fingerprintOf, type StoredSource } from '@/lib/workflows/code/apply/print'
 import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
-import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration'
+import {
+  performCreateWorkflowTransition,
+  workflowNameExistsInFolder,
+} from '@/lib/workflows/orchestration'
 import { assertNoWithheldBlockType } from '@/lib/workflows/persistence/block-access-guard'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
@@ -54,12 +60,18 @@ interface CommitScope {
 
 /**
  * What a dry run would store: the plan's graph prepared for persistence, refused when another
- * workflow already stores one of its ids, exactly as the write would refuse it.
+ * workflow already stores one of its ids, exactly as the write would refuse it. For a create
+ * (`newWorkflow`), a name already taken in the target folder is refused as the create would
+ * refuse it ({@link WorkflowSourceNameTakenError}).
  */
 export async function previewSourceCommit(
   workflowId: string,
-  plan: SourcePlan
+  plan: SourcePlan,
+  newWorkflow?: { workspaceId: string; folderId: string | null }
 ): Promise<CommittedGraph> {
+  if (newWorkflow && (await workflowNameExistsInFolder({ ...newWorkflow, name: plan.meta.name }))) {
+    throw new WorkflowSourceNameTakenError(plan.meta.name)
+  }
   const prepared = prepareWorkflowStateForPersistence({ blocks: plan.blocks, edges: plan.edges })
   await assertWorkflowGraphIdsUnclaimed(db, workflowId, collectWorkflowGraphIds(prepared.state))
   return prepared
@@ -281,8 +293,8 @@ export async function commitSourceMeta(args: ExistingDraftCommit): Promise<void>
 /**
  * Inserts a workflow created from source and its graph in one transaction: the row (with the
  * create path's folder, name-conflict and sort rules), the prepared graph under the caller's block
- * access, its variables and its source meta. A name taken in the folder is a 409; any failure rolls
- * the whole create back.
+ * access, its variables and its source meta. A name taken in the folder is a 409
+ * ({@link WorkflowSourceNameTakenError}); any failure rolls the whole create back.
  */
 export async function commitSourceCreate(args: {
   scope: CommitScope
@@ -320,6 +332,9 @@ export async function commitSourceCreate(args: {
       await writeWorkflowSourceMeta(tx, workflowId, plan.sourceMeta)
     },
   })
+  if (!transition.success && transition.conflict === 'name') {
+    throw new WorkflowSourceNameTakenError(plan.meta.name)
+  }
   requireWorkflowTransition(transition, 'Failed to create workflow')
   if (!transition.workflow) throw new Error('Successful workflow create returned no workflow')
 

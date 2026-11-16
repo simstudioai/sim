@@ -18,4 +18,5 @@ export {
   performDeleteWorkflow,
   performRestoreWorkflow,
   updateWorkflowRecord,
+  workflowNameExistsInFolder,
 } from './workflow-lifecycle'

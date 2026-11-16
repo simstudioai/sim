@@ -56,6 +56,8 @@ export interface PerformCreateWorkflowResult {
   success: boolean
   error?: string
   errorCode?: OrchestrationErrorCode
+  /** On a `conflict`, what was taken: the name in the folder, or the caller-supplied id. */
+  conflict?: 'name' | 'id'
   workflow?: {
     id: string
     name: string
@@ -146,7 +148,8 @@ export interface PerformRestoreWorkflowResult {
   workflow?: Awaited<ReturnType<typeof restoreWorkflow>>['workflow']
 }
 
-async function workflowNameExistsInFolder(params: {
+/** Whether a live workflow in the folder (the workspace root for none) already has `name`. */
+export async function workflowNameExistsInFolder(params: {
   workspaceId: string
   name: string
   folderId?: string | null
@@ -306,6 +309,7 @@ export async function performCreateWorkflowTransition(
         success: false,
         error: `A workflow named "${name}" already exists in this folder`,
         errorCode: 'conflict',
+        conflict: 'name',
       }
     }
   }
@@ -374,6 +378,7 @@ export async function performCreateWorkflowTransition(
           success: false,
           error: 'A workflow with this ID already exists',
           errorCode: 'conflict',
+          conflict: 'id',
         }
       }
       if (conflictingConstraint !== WORKFLOW_NAME_UNIQUE_INDEX) {
@@ -385,6 +390,7 @@ export async function performCreateWorkflowTransition(
           success: false,
           error: `A workflow named "${name}" already exists in this folder`,
           errorCode: 'conflict',
+          conflict: 'name',
         }
       }
 

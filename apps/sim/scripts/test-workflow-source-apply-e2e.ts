@@ -15,8 +15,8 @@ import postgres from 'postgres'
  * (`POST .../source`), and check the stored graph through `GET .../state`. Also drives the dry
  * run, the stale-fingerprint 409 and the line-pinned 400. Then reads the resource manifest
  * (`GET /api/v2/workspaces/{id}/workflows/source/resources`), creates a workflow from source
- * (`POST /api/v2/workspaces/{id}/workflows/source`: dry run, create, name conflict, refusal) and
- * applies to the new workflow with the lock the create returned. The app must have the `workflow-code`
+ * (`POST /api/v2/workspaces/{id}/workflows/source`: dry run, create, name conflict on a create and
+ * on its dry run, refusal) and applies to the new workflow with the lock the create returned. The app must have the `workflow-code`
  * flag on. The script seeds its own owner, workspace and personal API key (graph writes refuse
  * workspace keys) in the app's disposable database and removes them when it finishes.
  *
@@ -403,9 +403,25 @@ async function main() {
       }
     )
 
-    await check('creating under a name the folder already holds answers 409', async () => {
+    await check(
+      'creating under a name the folder already holds answers 409 SOURCE_NAME_TAKEN',
+      async () => {
+        const source = await readSource(workflowId)
+        const body = await request('POST', createPath, { files: source.files, name: copyName }, 409)
+        assert.deepEqual(record(body.error).details, { code: 'SOURCE_NAME_TAKEN', name: copyName })
+      }
+    )
+
+    await check('a dry-run create under a taken name answers the same 409', async () => {
       const source = await readSource(workflowId)
-      await request('POST', createPath, { files: source.files, name: copyName }, 409)
+      const body = await request(
+        'POST',
+        `${createPath}?dryRun=true`,
+        { files: source.files, name: copyName },
+        409
+      )
+      assert.equal(record(record(body.error).details).code, 'SOURCE_NAME_TAKEN')
+      assert.equal(await workflowCountNamed(copyName), 1)
     })
 
     await check('broken source creates nothing and answers a line-pinned 400', async () => {
