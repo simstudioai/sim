@@ -82,7 +82,7 @@ describe('classifyParam', () => {
   it('evaluates `not` and `and` like evaluateSubBlockCondition', () => {
     const field = subBlock({
       id: 'rerankerModel',
-      condition: { field: 'mode', value: 'x', not: true, and: { field: 'enabled', value: true } },
+      condition: { field: 'mode', value: ['x'], not: true, and: { field: 'enabled', value: true } },
     })
     const context = buildVisibilityContext(
       [dropdown('mode', ['x', 'y']), subBlock({ id: 'enabled', type: 'switch' }), field],
