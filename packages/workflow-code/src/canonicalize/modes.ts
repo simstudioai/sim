@@ -1,5 +1,6 @@
 import {
   buildCanonicalIndex,
+  type CanonicalIndex,
   type CanonicalModeOverrides,
   isCanonicalPair,
   resolveCanonicalMode,
@@ -24,9 +25,7 @@ export function effectiveModes(
   overrides: CanonicalModeOverrides | undefined,
   legacyAdvancedMode: boolean
 ): Record<CanonicalParamId, ParamMode> {
-  const index = buildCanonicalIndex(
-    block.subBlocks.filter((subBlock) => onBlockSurface(block, subBlock, triggerMode))
-  )
+  const index = buildCanonicalIndexForSurface(block, triggerMode)
   const modes: Record<CanonicalParamId, ParamMode> = {}
   for (const group of Object.values(index.groupsById)) {
     if (!isCanonicalPair(group)) continue
@@ -35,6 +34,25 @@ export function effectiveModes(
       legacyAdvancedMode && !explicit ? 'advanced' : resolveCanonicalMode(group, values, overrides)
   }
   return modes
+}
+
+/**
+ * The canonical groups of the surface the block serializes: the trigger surface in trigger mode,
+ * the action surface otherwise, and both for a trigger block.
+ *
+ * A block that is both an action and a trigger declares both surfaces in one `subBlocks` list, and
+ * they share `canonicalParamId`s under different ids (Gmail's `credential`/`manualCredential` and
+ * `triggerCredentials` are all `oauthCredential`). Indexed together, the trigger member joins the
+ * action pair without being either of its members, so it reads as the pair's dormant side.
+ */
+export function buildCanonicalIndexForSurface(
+  block: Pick<CatalogBlock, 'category' | 'subBlocks'>,
+  triggerMode: boolean
+): CanonicalIndex {
+  const onSurface = block.subBlocks.filter((subBlock) =>
+    onBlockSurface(block, subBlock, triggerMode)
+  )
+  return buildCanonicalIndex(onSurface)
 }
 
 function onBlockSurface(

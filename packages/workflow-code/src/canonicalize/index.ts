@@ -7,7 +7,7 @@ import {
   resolveEffectiveErrorEnabled,
 } from '@sim/workflow-types/workflow'
 import type { CanonicalizeFn } from '../api'
-import { buildCanonicalIndex, type CanonicalModeOverrides } from '../catalog/canonical-index'
+import type { CanonicalModeOverrides } from '../catalog/canonical-index'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { LockIdentity, LockIdentityBlock, LockLayout } from '../lock'
@@ -27,7 +27,7 @@ import { type LiftedBranches, liftBranches } from './branches'
 import { type CanonContext, catalogBlock, report } from './context'
 import { canonicalEdges } from './edges'
 import { assignBlockKeys, assignVariableKeys } from './keys'
-import { effectiveModes } from './modes'
+import { buildCanonicalIndexForSurface, effectiveModes } from './modes'
 import { canonicalParams } from './params'
 import { loopSpec, parallelSpec, SUBFLOW_DATA_KEYS } from './subflows'
 import { toJson, toValue } from './values'
@@ -264,7 +264,7 @@ export const canonicalize: CanonicalizeFn = (state, options) => {
         advancedMode,
         values: activityValues,
         overrides,
-        index: buildCanonicalIndex(catalog.subBlocks),
+        index: buildCanonicalIndexForSurface(catalog, triggerMode),
       }
       const inactiveIds = Object.keys(params).filter((paramId) =>
         isInactive(paramId, activityInputs)

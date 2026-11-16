@@ -9,7 +9,8 @@ import { canonicalize } from '.'
 /*
  * The catalog below is hand-projected from real registry configs (apps/sim/blocks/blocks:
  * slack.ts, agent.ts, condition.ts, router_v2.ts, function.ts, variables.ts, api.ts,
- * start_trigger.ts, table.ts) down to the fields canonicalize reads. Quirk numbers refer to
+ * start_trigger.ts, table.ts, gmail.ts with triggers/gmail/poller.ts, generic_webhook.ts with
+ * triggers/generic/webhook.ts) down to the fields canonicalize reads. Quirk numbers refer to
  * s1 §5.
  */
 
@@ -213,6 +214,39 @@ const CATALOG: BlockCatalog = {
           valueKind: 'array',
           structured: 'inputFormat',
         }),
+      ],
+      { category: 'triggers' }
+    ),
+    gmail: block('gmail', [
+      sb({ id: 'operation', type: 'dropdown', surface: 'action' }),
+      sb({
+        id: 'credential',
+        type: 'oauth-input',
+        canonicalParamId: 'oauthCredential',
+        mode: 'basic',
+        surface: 'action',
+      }),
+      sb({
+        id: 'manualCredential',
+        type: 'short-input',
+        canonicalParamId: 'oauthCredential',
+        mode: 'advanced',
+        surface: 'action',
+      }),
+      sb({
+        id: 'triggerCredentials',
+        type: 'oauth-input',
+        canonicalParamId: 'oauthCredential',
+        mode: 'trigger',
+        surface: 'trigger',
+      }),
+      sb({ id: 'labelIds', type: 'dropdown', mode: 'trigger', surface: 'trigger' }),
+    ]),
+    generic_webhook: block(
+      'generic_webhook',
+      [
+        sb({ id: 'requireAuth', type: 'switch', mode: 'trigger', surface: 'trigger' }),
+        sb({ id: 'token', type: 'short-input', mode: 'trigger', surface: 'trigger' }),
       ],
       { category: 'triggers' }
     ),
@@ -680,6 +714,48 @@ describe('canonicalize: inactive annotation (step 9, quirks 1, 10, 14)', () => {
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'send', signingSecret: 's' })])
     )
     expect(action.workflow.annotations.inactive.slack).toEqual(['signingSecret'])
+  })
+
+  it('keeps a trigger field active in trigger mode when it shares a canonical id with an action pair', () => {
+    const trigger = run(
+      workflow([
+        blockState(
+          'b1',
+          'gmail',
+          'Gmail',
+          { triggerCredentials: 'cred-1', labelIds: 'INBOX' },
+          { triggerMode: true }
+        ),
+      ])
+    )
+    expect(trigger.workflow.annotations.inactive.gmail).toBeUndefined()
+    const action = run(
+      workflow([
+        blockState('b1', 'gmail', 'Gmail', {
+          operation: 'send_gmail',
+          credential: 'cred-1',
+          triggerCredentials: 'cred-1',
+        }),
+      ])
+    )
+    expect(action.workflow.annotations.inactive.gmail).toEqual(['triggerCredentials'])
+  })
+
+  it('keeps every field of a trigger-category block active in and out of trigger mode', () => {
+    for (const triggerMode of [false, true]) {
+      const result = run(
+        workflow([
+          blockState(
+            'b1',
+            'generic_webhook',
+            'Webhook',
+            { requireAuth: true, token: 't' },
+            { triggerMode }
+          ),
+        ])
+      )
+      expect(result.workflow.annotations.inactive.webhook).toBeUndefined()
+    }
   })
 
   it('marks tool-input-only and undeclared fields inactive, except on custom blocks (quirk 18)', () => {
