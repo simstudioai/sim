@@ -126,14 +126,13 @@ function compileRetry(ctx: CompileContext, node: Node, site: ValueSite): BlockRe
       waitBetweenTriesMs: json.waitBetweenTriesMs,
     }
   }
-  unsupported(
+  return unsupported(
     ctx,
     node,
     'retry needs enabled, maxTries and waitBetweenTriesMs.',
     'Write retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 1000 }.',
     site.decl.key
   )
-  return null
 }
 
 function objectValue(
@@ -143,8 +142,13 @@ function objectValue(
   example: string
 ): ObjectExpression | null {
   if (property.value.type === 'ObjectExpression') return property.value
-  unsupported(ctx, property.value, 'Write an object literal here.', `Write ${example}.`, decl.key)
-  return null
+  return unsupported(
+    ctx,
+    property.value,
+    'Write an object literal here.',
+    `Write ${example}.`,
+    decl.key
+  )
 }
 
 /** Registers a properties object as a comment list with one anchor per property. */

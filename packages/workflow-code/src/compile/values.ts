@@ -125,15 +125,13 @@ function rejectNode(ctx: CompileContext, node: Node, site?: ValueSite): null {
 /** The literal text of a property key, or `null` (after reporting) for a computed key. */
 function propertyKey(ctx: CompileContext, property: ObjectProperty): string | null {
   if (property.computed) {
-    unsupported(ctx, property, 'Computed keys are not supported.', HINTS.computedKey)
-    return null
+    return unsupported(ctx, property, 'Computed keys are not supported.', HINTS.computedKey)
   }
   const key = property.key
   if (key.type === 'Identifier') return key.name
   if (key.type === 'StringLiteral') return key.value
   if (key.type === 'NumericLiteral') return String(key.value)
-  unsupported(ctx, property, 'Use an identifier or string key.', HINTS.computedKey)
-  return null
+  return unsupported(ctx, property, 'Use an identifier or string key.', HINTS.computedKey)
 }
 
 /**

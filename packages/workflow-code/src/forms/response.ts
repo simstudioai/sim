@@ -75,14 +75,13 @@ function textValue(ctx: CompileContext, node: Node, site: ValueSite, what: strin
   const compiled = compileValue(ctx, node, site)
   if (!compiled) return null
   if (compiled.kind === 'value' && typeof compiled.value === 'string') return compiled.value
-  unsupported(
+  return unsupported(
     ctx,
     node,
     `${what} is text.`,
     `Write ${what} as a string, template or reference.`,
     site.decl.key
   )
-  return null
 }
 
 /**
