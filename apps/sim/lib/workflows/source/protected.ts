@@ -1,0 +1,171 @@
+import type { Diagnostic } from '@sim/workflow-code'
+import {
+  type BlockState,
+  isWorkflowBlockProtected,
+  normalizeWorkflowBlockName,
+  preserveProtectedWorkflowBlocks,
+} from '@sim/workflow-types/workflow'
+import { isEqual } from 'es-toolkit'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  diffGraphs,
+  type GraphDiff,
+  isLocked,
+  parentIdOf,
+  type SourceGraph,
+} from '@/lib/workflows/source/graph-diff'
+
+/**
+ * The source apply path refuses, and never silently preserves, any change to a protected block:
+ * one that is locked or sits inside a locked container (s4 D2). The persistence door keeps
+ * protected blocks as stored whatever the incoming graph says, so a source write that changed one
+ * would report success while storing something else. This applies to admins too, as the
+ * operations engine does; unlocking stays the canvas toggle.
+ */
+
+export type ProtectedBlockDiagnostic = Diagnostic<'E_APPLY_PROTECTED_BLOCK'>
+
+function refusal(block: BlockState, message: string): ProtectedBlockDiagnostic {
+  return {
+    code: 'E_APPLY_PROTECTED_BLOCK',
+    severity: 'error',
+    message,
+    blockId: block.id,
+    blockKey: normalizeWorkflowBlockName(block.name ?? ''),
+    hint: 'Unlock the block on the canvas first, or leave it exactly as it is stored.',
+  }
+}
+
+function describe(block: BlockState, blocks: Record<string, BlockState>): string {
+  const parentId = parentIdOf(block)
+  if (!isLocked(block) && parentId && isWorkflowBlockProtected(parentId, blocks)) {
+    return `Block "${block.name}" is inside a locked container`
+  }
+  return `Block "${block.name}" is locked`
+}
+
+/**
+ * Whether a protected block leaves only because an unprotected container above it was deleted,
+ * which the engine and the persistence door both allow (the child goes with its container).
+ */
+function leavesWithRemovedContainer(id: string, base: SourceGraph, target: SourceGraph): boolean {
+  const visited = new Set<string>()
+  let parentId = parentIdOf(base.blocks[id])
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    if (!target.blocks[parentId] && !isWorkflowBlockProtected(parentId, base.blocks)) return true
+    parentId = parentIdOf(base.blocks[parentId])
+  }
+  return false
+}
+
+/**
+ * Returns one refusal per protected block the diff from `base` to `target` touches, plus one per
+ * attempt to lock a block or to put a new child into a locked container. Edges into or out of a
+ * protected block may not be added or removed, except when the edge goes because its other end
+ * was deleted.
+ */
+export function findProtectedBlockRefusals(
+  base: SourceGraph,
+  target: SourceGraph,
+  diff: GraphDiff = diffGraphs(base, target)
+): ProtectedBlockDiagnostic[] {
+  const isProtected = (id: string) => isWorkflowBlockProtected(id, base.blocks)
+  const refusals = new Map<string, ProtectedBlockDiagnostic>()
+  const refuse = (block: BlockState, message: string) => {
+    if (!refusals.has(block.id)) refusals.set(block.id, refusal(block, message))
+  }
+
+  for (const id of diff.removed) {
+    if (isProtected(id) && !leavesWithRemovedContainer(id, base, target)) {
+      const block = base.blocks[id]
+      refuse(block, `${describe(block, base.blocks)} and cannot be deleted`)
+    }
+  }
+
+  for (const change of diff.modified) {
+    const block = base.blocks[change.id]
+    if (isProtected(change.id)) {
+      const what = change.lockedChanged
+        ? 'its lock cannot be changed from source'
+        : change.parentChanged
+          ? 'it cannot be moved'
+          : `it cannot be edited (${[...change.attributes, ...change.subBlocks.map((id) => `subBlocks.${id}`)].join(', ')})`
+      refuse(block, `${describe(block, base.blocks)}; ${what}`)
+      continue
+    }
+    if (change.lockedChanged) {
+      refuse(block, `Block "${block.name}" cannot be locked from source; lock it on the canvas`)
+      continue
+    }
+    const parentId = parentIdOf(target.blocks[change.id])
+    if (change.parentChanged && parentId && isProtected(parentId)) {
+      refuse(block, `Block "${block.name}" cannot be moved into locked container "${parentId}"`)
+    }
+  }
+
+  for (const id of diff.added) {
+    const block = target.blocks[id]
+    if (isLocked(block)) {
+      refuse(block, `Block "${block.name}" cannot be created locked; lock it on the canvas`)
+      continue
+    }
+    const parentId = parentIdOf(block)
+    if (parentId && isProtected(parentId)) {
+      refuse(block, `Block "${block.name}" cannot be added to locked container "${parentId}"`)
+    }
+  }
+
+  const refuseEdge = (endpointId: string, verb: string) => {
+    const block = base.blocks[endpointId]
+    refuse(block, `${describe(block, base.blocks)}; its connections cannot be ${verb}`)
+  }
+  for (const edge of diff.edgesAdded) {
+    for (const endpoint of [edge.source, edge.target]) {
+      if (isProtected(endpoint)) refuseEdge(endpoint, 'added to')
+    }
+  }
+  for (const edge of diff.edgesRemoved) {
+    if (!target.blocks[edge.source] || !target.blocks[edge.target]) continue
+    for (const endpoint of [edge.source, edge.target]) {
+      if (isProtected(endpoint)) refuseEdge(endpoint, 'removed from')
+    }
+  }
+
+  return [...refusals.values()]
+}
+
+function withLockOff(block: BlockState): BlockState {
+  return { ...block, locked: isLocked(block) }
+}
+
+/**
+ * Asserts that the persistence door's protected-block merge leaves `target` unchanged. The
+ * source gate refuses every diff that merge would undo, so a difference here means the gate and
+ * the merge disagree: an invariant breach, reported as an internal error (HTTP 500) rather than
+ * written as a silently merged graph (s4 D2). `current` is the graph re-read under the row lock.
+ */
+export function assertProtectedBlocksPreserved(current: SourceGraph, target: SourceGraph): void {
+  const merged = preserveProtectedWorkflowBlocks(current, target)
+
+  const expectedBlocks = new Map(Object.values(target.blocks).map((b) => [b.id, withLockOff(b)]))
+  const mergedBlocks = new Map(Object.values(merged.blocks).map((b) => [b.id, withLockOff(b)]))
+  const blockMismatch = [...new Set([...expectedBlocks.keys(), ...mergedBlocks.keys()])].find(
+    (id) => !isEqual(expectedBlocks.get(id), mergedBlocks.get(id))
+  )
+
+  const expectedEdges = new Map(target.edges.map((edge) => [edge.id, edge]))
+  const mergedEdges = new Map(merged.edges.map((edge) => [edge.id, edge]))
+  const edgeMismatch = [...new Set([...expectedEdges.keys(), ...mergedEdges.keys()])].find(
+    (id) => !isEqual(expectedEdges.get(id), mergedEdges.get(id))
+  )
+
+  if (blockMismatch !== undefined || edgeMismatch !== undefined) {
+    throw new OrchestrationError(
+      'internal',
+      blockMismatch !== undefined
+        ? `Protected-block merge would change block ${blockMismatch}; the source gate let through a change it must refuse`
+        : `Protected-block merge would change edge ${edgeMismatch}; the source gate let through a change it must refuse`
+    )
+  }
+}
