@@ -48,10 +48,10 @@ List items from a Webflow CMS collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Yes | ID of the Webflow site \(e.g., "580e63e98c9a982ac9b8b741"\) |
+| `siteId` | string | No | ID of the Webflow site \(e.g., "580e63e98c9a982ac9b8b741"\). Not sent to Webflow; item requests are scoped by collection. |
 | `collectionId` | string | Yes | ID of the collection \(e.g., "580e63fc8c9a982ac9b8b745"\) |
 | `offset` | number | No | Offset for pagination \(e.g., 0, 100, 200\) |
-| `limit` | number | No | Maximum number of items to return \(e.g., 10, 50, 100; default: 100\) |
+| `limit` | number | No | Maximum number of items to return, max 100 \(e.g., 10, 50, 100; default: 100\) |
 
 #### Output
 
@@ -84,7 +84,7 @@ Get a single item from a Webflow CMS collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Yes | ID of the Webflow site \(e.g., "580e63e98c9a982ac9b8b741"\) |
+| `siteId` | string | No | ID of the Webflow site \(e.g., "580e63e98c9a982ac9b8b741"\). Not sent to Webflow; item requests are scoped by collection. |
 | `collectionId` | string | Yes | ID of the collection \(e.g., "580e63fc8c9a982ac9b8b745"\) |
 | `itemId` | string | Yes | ID of the item to retrieve \(e.g., "580e64008c9a982ac9b8b754"\) |
 
@@ -92,8 +92,17 @@ Get a single item from a Webflow CMS collection
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `item` | json | The retrieved item object |
-| `metadata` | json | Metadata about the retrieved item |
+| `item` | object | The retrieved item object |
+|   ↳ `id` | string | Unique item ID |
+|   ↳ `cmsLocaleId` | string | CMS locale ID |
+|   ↳ `lastPublished` | string | Last published date \(ISO 8601\) |
+|   ↳ `lastUpdated` | string | Last updated date \(ISO 8601\) |
+|   ↳ `createdOn` | string | Creation date \(ISO 8601\) |
+|   ↳ `isArchived` | boolean | Whether the item is archived |
+|   ↳ `isDraft` | boolean | Whether the item is a draft |
+|   ↳ `fieldData` | object | Collection-specific field data \(varies by collection schema\) |
+| `metadata` | object | Metadata about the retrieved item |
+|   ↳ `itemId` | string | ID of the retrieved item |
 
 </ReferenceDetails>
 
@@ -107,7 +116,7 @@ Create a new item in a Webflow CMS collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Yes | ID of the Webflow site \(e.g., "580e63e98c9a982ac9b8b741"\) |
+| `siteId` | string | No | ID of the Webflow site \(e.g., "580e63e98c9a982ac9b8b741"\). Not sent to Webflow; item requests are scoped by collection. |
 | `collectionId` | string | Yes | ID of the collection \(e.g., "580e63fc8c9a982ac9b8b745"\) |
 | `fieldData` | json | Yes | Field data for the new item as a JSON object. Keys should match collection field names. |
 
@@ -115,8 +124,17 @@ Create a new item in a Webflow CMS collection
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `item` | json | The created item object |
-| `metadata` | json | Metadata about the created item |
+| `item` | object | The created item object |
+|   ↳ `id` | string | Unique item ID |
+|   ↳ `cmsLocaleId` | string | CMS locale ID |
+|   ↳ `lastPublished` | string | Last published date \(ISO 8601\) |
+|   ↳ `lastUpdated` | string | Last updated date \(ISO 8601\) |
+|   ↳ `createdOn` | string | Creation date \(ISO 8601\) |
+|   ↳ `isArchived` | boolean | Whether the item is archived |
+|   ↳ `isDraft` | boolean | Whether the item is a draft |
+|   ↳ `fieldData` | object | Collection-specific field data \(varies by collection schema\) |
+| `metadata` | object | Metadata about the created item |
+|   ↳ `itemId` | string | ID of the created item |
 
 </ReferenceDetails>
 
@@ -130,7 +148,7 @@ Update an existing item in a Webflow CMS collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Yes | ID of the Webflow site \(e.g., "580e63e98c9a982ac9b8b741"\) |
+| `siteId` | string | No | ID of the Webflow site \(e.g., "580e63e98c9a982ac9b8b741"\). Not sent to Webflow; item requests are scoped by collection. |
 | `collectionId` | string | Yes | ID of the collection \(e.g., "580e63fc8c9a982ac9b8b745"\) |
 | `itemId` | string | Yes | ID of the item to update \(e.g., "580e64008c9a982ac9b8b754"\) |
 | `fieldData` | json | Yes | Field data to update as a JSON object. Only include fields you want to change. |
@@ -139,8 +157,17 @@ Update an existing item in a Webflow CMS collection
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `item` | json | The updated item object |
-| `metadata` | json | Metadata about the updated item |
+| `item` | object | The updated item object |
+|   ↳ `id` | string | Unique item ID |
+|   ↳ `cmsLocaleId` | string | CMS locale ID |
+|   ↳ `lastPublished` | string | Last published date \(ISO 8601\) |
+|   ↳ `lastUpdated` | string | Last updated date \(ISO 8601\) |
+|   ↳ `createdOn` | string | Creation date \(ISO 8601\) |
+|   ↳ `isArchived` | boolean | Whether the item is archived |
+|   ↳ `isDraft` | boolean | Whether the item is a draft |
+|   ↳ `fieldData` | object | Collection-specific field data \(varies by collection schema\) |
+| `metadata` | object | Metadata about the updated item |
+|   ↳ `itemId` | string | ID of the updated item |
 
 </ReferenceDetails>
 
@@ -154,7 +181,7 @@ Delete an item from a Webflow CMS collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Yes | ID of the Webflow site \(e.g., "580e63e98c9a982ac9b8b741"\) |
+| `siteId` | string | No | ID of the Webflow site \(e.g., "580e63e98c9a982ac9b8b741"\). Not sent to Webflow; item requests are scoped by collection. |
 | `collectionId` | string | Yes | ID of the collection \(e.g., "580e63fc8c9a982ac9b8b745"\) |
 | `itemId` | string | Yes | ID of the item to delete \(e.g., "580e64008c9a982ac9b8b754"\) |
 
@@ -163,7 +190,8 @@ Delete an item from a Webflow CMS collection
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the deletion was successful |
-| `metadata` | json | Metadata about the deletion |
+| `metadata` | object | Metadata about the deletion |
+|   ↳ `deleted` | boolean | Whether the item was deleted |
 
 </ReferenceDetails>
 

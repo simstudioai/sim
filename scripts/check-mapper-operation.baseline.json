@@ -10,10 +10,8 @@
   "apps/sim/blocks/blocks/azure_data_explorer.ts": 1,
   "apps/sim/blocks/blocks/azure_devops.ts": 1,
   "apps/sim/blocks/blocks/bitbucket.ts": 3,
-  "apps/sim/blocks/blocks/brex.ts": 1,
   "apps/sim/blocks/blocks/brightdata.ts": 1,
   "apps/sim/blocks/blocks/buffer.ts": 2,
-  "apps/sim/blocks/blocks/calcom.ts": 1,
   "apps/sim/blocks/blocks/cbinsights.ts": 1,
   "apps/sim/blocks/blocks/checkr.ts": 6,
   "apps/sim/blocks/blocks/circleback.ts": 2,
@@ -137,7 +135,6 @@
   "apps/sim/blocks/blocks/ses.ts": 1,
   "apps/sim/blocks/blocks/sftp.ts": 1,
   "apps/sim/blocks/blocks/sharepoint.ts": 6,
-  "apps/sim/blocks/blocks/shopify.ts": 1,
   "apps/sim/blocks/blocks/sixtyfour.ts": 4,
   "apps/sim/blocks/blocks/slack.ts": 6,
   "apps/sim/blocks/blocks/smartlead.ts": 5,
@@ -165,11 +162,8 @@
   "apps/sim/blocks/blocks/vanta.ts": 1,
   "apps/sim/blocks/blocks/vercel.ts": 1,
   "apps/sim/blocks/blocks/wealthbox.ts": 1,
-  "apps/sim/blocks/blocks/webflow.ts": 4,
   "apps/sim/blocks/blocks/whatsapp.ts": 1,
-  "apps/sim/blocks/blocks/wordpress.ts": 1,
   "apps/sim/blocks/blocks/zendesk.ts": 1,
   "apps/sim/blocks/blocks/zep.ts": 1,
-  "apps/sim/blocks/blocks/zoho-desk.ts": 38,
-  "apps/sim/blocks/blocks/zoom.ts": 1
+  "apps/sim/blocks/blocks/zoho-desk.ts": 38
 }

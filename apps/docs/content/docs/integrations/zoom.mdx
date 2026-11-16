@@ -267,7 +267,7 @@ Update an existing Zoom meeting
 | `joinBeforeHost` | boolean | No | Allow participants to join before host |
 | `muteUponEntry` | boolean | No | Mute participants upon entry |
 | `waitingRoom` | boolean | No | Enable waiting room |
-| `autoRecording` | string | No | Auto recording setting: local, cloud, or none |
+| `autoRecording` | string | No | Auto recording setting: local or cloud. Omit to leave unchanged; turning auto recording off is not supported on update. |
 
 #### Output
 
@@ -289,8 +289,8 @@ Delete or cancel a Zoom meeting
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | Yes | The meeting ID to delete \(e.g., "1234567890" or "85746065432"\) |
 | `occurrenceId` | string | No | Occurrence ID for deleting a specific occurrence of a recurring meeting |
-| `scheduleForReminder` | boolean | No | Send cancellation reminder email to registrants |
-| `cancelMeetingReminder` | boolean | No | Send cancellation email to registrants and alternative hosts |
+| `scheduleForReminder` | boolean | No | Email the host and alternative hosts about the cancellation |
+| `cancelMeetingReminder` | boolean | No | Email the meeting registrants about the cancellation |
 
 #### Output
 
@@ -331,8 +331,8 @@ List all cloud recordings for a Zoom user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `userId` | string | Yes | The user ID or email address \(e.g., "me", "user@example.com", or "AbcDefGHi"\). Use "me" for the authenticated user with OAuth credentials. With a Zoom server-to-server service account, "me" is not supported — provide the target user ID or email address. |
-| `from` | string | No | Start date in yyyy-mm-dd format \(within last 6 months\) |
-| `to` | string | No | End date in yyyy-mm-dd format |
+| `from` | string | No | Start date in yyyy-mm-dd format \(UTC\). Zoom allows at most a one-month range and defaults to today when omitted |
+| `to` | string | No | End date in yyyy-mm-dd format \(UTC\) |
 | `pageSize` | number | No | Number of records per page, 1-300 \(e.g., 30, 50, 100\) |
 | `nextPageToken` | string | No | Token for pagination to get next page of results |
 | `trash` | boolean | No | Set to true to list recordings from trash |
@@ -432,7 +432,7 @@ Delete cloud recordings for a Zoom meeting
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `meetingId` | string | Yes | The meeting ID or meeting UUID \(e.g., "1234567890" or "4444AAABBBccccc12345=="\) |
-| `recordingId` | string | No | Specific recording file ID to delete. If not provided, deletes all recordings. |
+| `recordingId` | string | No | Specific recording file ID to delete. If not provided, deletes all recordings of the meeting, which needs the cloud_recording:delete:meeting_recording scope. |
 | `action` | string | No | Delete action: "trash" \(move to trash\) or "delete" \(permanently delete\) |
 
 #### Output

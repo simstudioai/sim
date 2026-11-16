@@ -39,7 +39,7 @@ List expenses in the Brex account with optional filters for user, status, paymen
 | --------- | ---- | -------- | ----------- |
 | `userIds` | string | No | Comma-separated user IDs to filter expenses by owner |
 | `statuses` | string | No | Comma-separated expense statuses to filter by: DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED |
-| `paymentStatuses` | string | No | Comma-separated payment statuses to filter by: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED |
+| `paymentStatuses` | string | No | Comma-separated payment statuses to filter by: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED, HELD |
 | `purchasedAtStart` | string | No | Only include expenses purchased at or after this ISO 8601 timestamp |
 | `purchasedAtEnd` | string | No | Only include expenses purchased at or before this ISO 8601 timestamp |
 | `cursor` | string | No | Pagination cursor from a previous response |
@@ -53,7 +53,7 @@ List expenses in the Brex account with optional filters for user, status, paymen
 |   ↳ `id` | string | Unique expense ID |
 |   ↳ `memo` | string | Memo on the expense |
 |   ↳ `status` | string | Expense status \(DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED\) |
-|   ↳ `payment_status` | string | Payment status \(NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED\) |
+|   ↳ `payment_status` | string | Payment status \(NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED, HELD\) |
 |   ↳ `expense_type` | string | Expense type \(CARD, BILLPAY, REIMBURSEMENT, CLAWBACK, UNSET\) |
 |   ↳ `category` | string | Expense category \(e.g., RESTAURANTS, RECURRING_SOFTWARE_AND_SAAS, AIRLINE_EXPENSES\) |
 |   ↳ `merchant` | json | Merchant details |
@@ -111,7 +111,7 @@ Get a single Brex expense by its ID, including merchant, user, and receipt detai
 | `id` | string | Unique expense ID |
 | `memo` | string | Memo on the expense |
 | `status` | string | Expense status \(DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED\) |
-| `paymentStatus` | string | Payment status \(NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED\) |
+| `paymentStatus` | string | Payment status \(NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED, HELD\) |
 | `expenseType` | string | Expense type \(CARD, BILLPAY, REIMBURSEMENT, CLAWBACK, UNSET\) |
 | `category` | string | Expense category \(e.g., RESTAURANTS, RECURRING_SOFTWARE_AND_SAAS, AIRLINE_EXPENSES\) |
 | `merchantId` | string | Merchant ID |
@@ -178,7 +178,7 @@ Update the memo of a Brex card expense
 | `id` | string | Unique expense ID |
 | `memo` | string | Updated memo on the expense |
 | `status` | string | Expense status \(DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED\) |
-| `paymentStatus` | string | Payment status \(NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED\) |
+| `paymentStatus` | string | Payment status \(NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED, HELD\) |
 | `category` | string | Expense category \(e.g., RESTAURANTS, RECURRING_SOFTWARE_AND_SAAS, AIRLINE_EXPENSES\) |
 | `merchantId` | string | Merchant ID |
 | `budgetId` | string | Budget ID |
@@ -491,7 +491,7 @@ List users in the Brex account, optionally filtered by email
 |   ↳ `first_name` | string | First name |
 |   ↳ `last_name` | string | Last name |
 |   ↳ `email` | string | Email address |
-|   ↳ `status` | string | User status \(INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED\) |
+|   ↳ `status` | string | User status \(INVITED, ACTIVE, DISABLED, PENDING_ACTIVATION, INACTIVE, ARCHIVED\) |
 |   ↳ `manager_id` | string | ID of the manager |
 |   ↳ `department_id` | string | Department ID |
 |   ↳ `location_id` | string | Location ID |
@@ -520,7 +520,7 @@ Get a Brex user by their ID
 | `firstName` | string | First name |
 | `lastName` | string | Last name |
 | `email` | string | Email address |
-| `status` | string | User status \(INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED\) |
+| `status` | string | User status \(INVITED, ACTIVE, DISABLED, PENDING_ACTIVATION, INACTIVE, ARCHIVED\) |
 | `managerId` | string | ID of the manager |
 | `departmentId` | string | Department ID |
 | `locationId` | string | Location ID |
@@ -547,7 +547,7 @@ Get the Brex user associated with the API token
 | `firstName` | string | First name |
 | `lastName` | string | Last name |
 | `email` | string | Email address |
-| `status` | string | User status \(INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED\) |
+| `status` | string | User status \(INVITED, ACTIVE, DISABLED, PENDING_ACTIVATION, INACTIVE, ARCHIVED\) |
 | `managerId` | string | ID of the manager |
 | `departmentId` | string | Department ID |
 | `locationId` | string | Location ID |
@@ -656,6 +656,7 @@ List cards in the Brex account, optionally filtered by card owner
 |   ↳ `status` | string | Card status |
 |   ↳ `last_four` | string | Last four digits of the card number |
 |   ↳ `card_name` | string | Card name |
+|   ↳ `created_at` | string | Card creation timestamp |
 |   ↳ `card_type` | string | Card type \(VIRTUAL or PHYSICAL\) |
 |   ↳ `limit_type` | string | Limit type \(CARD or USER\) |
 |   ↳ `spend_controls` | json | Spend controls on the card |
@@ -752,7 +753,7 @@ Get a Brex budget by its ID
 | `amount` | json | Budget amount |
 |   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
 |   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
-| `spendBudgetStatus` | string | Budget status \(ACTIVE, ARCHIVED, DELETED\) |
+| `spendBudgetStatus` | string | Budget status \(ACTIVE, ARCHIVED, DELETED, EXPIRED\) |
 | `limitType` | string | Budget limit type \(HARD or SOFT\) |
 
 </ReferenceDetails>
@@ -887,7 +888,7 @@ Get a Brex spend limit by its ID
 | `name` | string | Spend limit name |
 | `description` | string | Spend limit description |
 | `parentBudgetId` | string | Parent budget ID |
-| `status` | string | Spend limit status \(ACTIVE, EXPIRED, ARCHIVED\) |
+| `status` | string | Spend limit status \(ACTIVE, EXPIRED, ARCHIVED, DELETED\) |
 | `periodRecurrenceType` | string | Period recurrence \(PER_WEEK, PER_MONTH, PER_QUARTER, PER_YEAR, ONE_TIME\) |
 | `spendType` | string | Spend type of the limit |
 | `startDate` | string | Spend limit start date |
@@ -932,7 +933,7 @@ Create a new spend limit (hard-authorization card program) in the Brex account
 | `currency` | string | No | ISO 4217 currency code for the base limit \(defaults to USD\) |
 | `authorizationType` | string | Yes | Whether authorizations decline based on available balance \(HARD, SOFT\) |
 | `rolloverRefreshRate` | string | Yes | Recurrence at which rolled-over unused funds stop rolling over \(OFF, NEVER, PER_MONTH, PER_QUARTER, PER_YEAR\) |
-| `limitBufferPercentage` | number | No | Flexible buffer on the limit as a 0-100 percentage |
+| `limitBufferPercentage` | number | No | Flexible buffer on the limit as a whole-number percentage from 0 to 100 |
 | `description` | string | No | Description of what the spend limit is used for |
 | `parentBudgetId` | string | No | ID of the parent budget |
 | `startDate` | string | No | Date the spend limit should start counting \(YYYY-MM-DD\) |
