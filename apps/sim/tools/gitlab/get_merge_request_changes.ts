@@ -2,9 +2,10 @@ import type {
   GitLabGetMergeRequestChangesParams,
   GitLabGetMergeRequestChangesResponse,
 } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabGetMergeRequestChangesTool: ToolConfig<
   GitLabGetMergeRequestChangesParams,
@@ -53,8 +54,8 @@ export const gitlabGetMergeRequestChangesTool: ToolConfig<
      * in a single call, which covers the vast majority of merge requests.
      */
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${params.mergeRequestIid}/diffs?per_page=100`
+      const encodedId = encodeGitLabResourceId(params.projectId)
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/merge_requests/${safeUrlPathSegment(params.mergeRequestIid, 'mergeRequestIid')}/diffs?per_page=100`
     },
     method: 'GET',
     headers: (params) => ({

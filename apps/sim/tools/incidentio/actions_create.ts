@@ -45,7 +45,7 @@ export const actionsCreateTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.incident.io/v2/actions',
+    url: 'https://api.incident.io/v3/actions',
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

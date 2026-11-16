@@ -85,7 +85,7 @@ export const updateIssueTool: ToolConfig<UpdateIssueParams, IssueResponse> = {
       const body: any = {}
       if (params.title !== undefined) body.title = params.title
       if (params.body !== undefined) body.body = params.body
-      if (params.state !== undefined) body.state = params.state
+      if (params.state) body.state = params.state
       if (params.labels !== undefined) body.labels = params.labels
       if (params.assignees !== undefined) body.assignees = params.assignees
       return body

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { createSlackWebApiTool, slackId, slackJson } from '@/tools/slack/web-api'
+import { createSlackWebApiTool, slackId, slackIdList } from '@/tools/slack/web-api'
 import { usergroupOutput, usergroupSchema } from '@/tools/slack/web-api-responses'
 
 /** https://docs.slack.dev/reference/methods/usergroups.update/ */
@@ -40,13 +40,15 @@ export const slackUpdateUserGroupTool = createSlackWebApiTool({
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Default Channel IDs',
+      description:
+        'Default channel IDs for the group, as a JSON array (["C123"]) or a comma-separated string (C123,C456)',
     },
     additional_channels: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Additional Channel IDs',
+      description:
+        'Channel IDs where members can add group members, as a JSON array or a comma-separated string',
     },
     enable_section: {
       type: 'boolean',
@@ -73,10 +75,10 @@ export const slackUpdateUserGroupTool = createSlackWebApiTool({
       name: z.string().trim().min(1).optional(),
       handle: z.string().trim().min(1).optional(),
       description: z.string().optional(),
-      channels: slackJson(z.array(slackId))
+      channels: slackIdList(z.array(slackId))
         .transform((ids) => ids.join(','))
         .optional(),
-      additional_channels: slackJson(z.array(slackId))
+      additional_channels: slackIdList(z.array(slackId))
         .transform((ids) => ids.join(','))
         .optional(),
       enable_section: z.boolean().optional(),

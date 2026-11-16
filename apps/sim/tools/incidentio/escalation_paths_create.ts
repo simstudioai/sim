@@ -1,6 +1,7 @@
-import type {
-  IncidentioEscalationPathsCreateParams,
-  IncidentioEscalationPathsCreateResponse,
+import {
+  INCIDENTIO_ESCALATION_PATH_OUTPUT_PROPERTIES,
+  type IncidentioEscalationPathsCreateParams,
+  type IncidentioEscalationPathsCreateResponse,
 } from '@/tools/incidentio/types'
 import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
@@ -33,13 +34,14 @@ export const escalationPathsCreateTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Array of escalation levels with targets and time to acknowledge in seconds. Each level should have: targets (array of {id, type, schedule_id?, user_id?, urgency}) and time_to_ack_seconds (number)',
+        'Array of escalation path nodes. Each node needs a unique "id" and a "type" (level, notify_channel, delay, if_else, repeat, voicemail, escalation_path); a level node nests its targets under "level", e.g. [{"id":"lvl1","type":"level","level":{"targets":[{"id":"<schedule id>","type":"schedule","schedule_mode":"currently_on_call","urgency":"high"}],"time_to_ack_seconds":300}}]. Target type is schedule, user, slack_channel, or msteams_channel; urgency is high or low.',
     },
     working_hours: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional working hours configuration. Array of {weekday, start_time, end_time}',
+      description:
+        'Optional. Array of working-hours windows, each {id, name, timezone, weekday_intervals: [{weekday, start_time, end_time}]}, e.g. [{"id":"wh","name":"Business hours","timezone":"Europe/London","weekday_intervals":[{"weekday":"monday","start_time":"09:00","end_time":"17:00"}]}]',
     },
   },
 
@@ -79,58 +81,7 @@ export const escalationPathsCreateTool: ToolConfig<
     escalation_path: {
       type: 'object',
       description: 'The created escalation path',
-      properties: {
-        id: { type: 'string', description: 'The escalation path ID' },
-        name: { type: 'string', description: 'The escalation path name' },
-        path: {
-          type: 'array',
-          description: 'Array of escalation levels',
-          items: {
-            type: 'object',
-            properties: {
-              targets: {
-                type: 'array',
-                description: 'Targets for this level',
-                items: {
-                  type: 'object',
-                  properties: {
-                    id: { type: 'string', description: 'Target ID' },
-                    type: { type: 'string', description: 'Target type' },
-                    schedule_id: {
-                      type: 'string',
-                      description: 'Schedule ID if type is schedule',
-                      optional: true,
-                    },
-                    user_id: {
-                      type: 'string',
-                      description: 'User ID if type is user',
-                      optional: true,
-                    },
-                    urgency: { type: 'string', description: 'Urgency level' },
-                  },
-                },
-              },
-              time_to_ack_seconds: {
-                type: 'number',
-                description: 'Time to acknowledge in seconds',
-              },
-            },
-          },
-        },
-        working_hours: {
-          type: 'array',
-          description: 'Working hours configuration',
-          optional: true,
-          items: {
-            type: 'object',
-            properties: {
-              weekday: { type: 'string', description: 'Day of week' },
-              start_time: { type: 'string', description: 'Start time' },
-              end_time: { type: 'string', description: 'End time' },
-            },
-          },
-        },
-      },
+      properties: INCIDENTIO_ESCALATION_PATH_OUTPUT_PROPERTIES,
     },
   },
 }

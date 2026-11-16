@@ -41,15 +41,17 @@ export const linearCreateCustomerRequestTool: ToolConfig<
     },
     issueId: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Issue ID to link this request to',
+      description:
+        'Issue to link this request to (UUID or identifier such as ENG-123). Linear requires it for API calls.',
     },
     projectId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Project ID to link this request to',
+      description:
+        'Deprecated and ignored: Linear no longer accepts a project on customer requests.',
     },
   },
 
@@ -77,9 +79,6 @@ export const linearCreateCustomerRequestTool: ToolConfig<
       }
       if (params.issueId != null && params.issueId !== '') {
         input.issueId = params.issueId
-      }
-      if (params.projectId != null && params.projectId !== '') {
-        input.projectId = params.projectId
       }
 
       return {

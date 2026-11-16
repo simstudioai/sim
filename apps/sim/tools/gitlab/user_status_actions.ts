@@ -2,6 +2,7 @@ import type { GitLabUserActionParams, GitLabUserActionResponse } from '@/tools/g
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * The GitLab admin user-state endpoints (`POST /users/:id/{block,unblock,...}`)
@@ -44,7 +45,8 @@ function createUserStatusActionTool(
     },
 
     request: {
-      url: (params) => `${getGitLabApiBase(params.host)}/users/${params.userId}/${action}`,
+      url: (params) =>
+        `${getGitLabApiBase(params.host)}/users/${safeUrlPathSegment(params.userId, 'userId')}/${action}`,
       method: 'POST',
       headers: (params) => ({
         'PRIVATE-TOKEN': params.accessToken,

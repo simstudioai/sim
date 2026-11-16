@@ -1,5 +1,10 @@
 import type { CreateMonitorParams, CreateMonitorResponse, MonitorType } from '@/tools/datadog/types'
-import { datadogErrorMessage, parseJsonParam, resolveDatadogSite } from '@/tools/datadog/utils'
+import {
+  datadogErrorMessage,
+  parseJsonParam,
+  resolveDatadogSite,
+  splitCommaList,
+} from '@/tools/datadog/utils'
 import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -106,12 +111,8 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
       if (params.message) body.message = params.message
       if (params.priority) body.priority = params.priority
 
-      if (params.tags) {
-        body.tags = params.tags
-          .split(',')
-          .map((t: string) => t.trim())
-          .filter((t: string) => t.length > 0)
-      }
+      const tags = splitCommaList(params.tags)
+      if (tags) body.tags = tags
 
       const options = parseJsonParam<Record<string, unknown>>(params.options, 'options parameter')
       if (options) body.options = options

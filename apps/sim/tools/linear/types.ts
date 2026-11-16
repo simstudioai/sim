@@ -178,7 +178,21 @@ export const PROJECT_FULL_OUTPUT_PROPERTIES = {
   description: { type: 'string', description: 'Project description' },
   state: {
     type: 'string',
-    description: 'Project state (planned, started, paused, completed, canceled)',
+    description:
+      'Deprecated project state (planned, started, paused, completed, canceled); prefer status',
+  },
+  status: {
+    type: 'object',
+    description: 'Current project status',
+    optional: true,
+    properties: {
+      id: { type: 'string', description: 'Project status ID' },
+      name: { type: 'string', description: 'Project status name' },
+      type: {
+        type: 'string',
+        description: 'Status type (backlog, planned, started, paused, completed, canceled)',
+      },
+    },
   },
   priority: { type: 'number', description: 'Project priority (0-4)' },
   startDate: { type: 'string', description: 'Start date (YYYY-MM-DD)' },
@@ -193,6 +207,16 @@ export const PROJECT_FULL_OUTPUT_PROPERTIES = {
       properties: TEAM_OUTPUT_PROPERTIES,
     },
   },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for project objects that also carry lifecycle timestamps (get project, list projects)
+ */
+export const PROJECT_DETAIL_OUTPUT_PROPERTIES = {
+  ...PROJECT_FULL_OUTPUT_PROPERTIES,
+  completedAt: { type: 'string', description: 'Completion timestamp (ISO 8601)' },
+  canceledAt: { type: 'string', description: 'Cancellation timestamp (ISO 8601)' },
+  archivedAt: { type: 'string', description: 'Archive timestamp (ISO 8601)' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -723,6 +747,7 @@ export interface LinearUpdateProjectParams {
   name?: string
   description?: string
   state?: string
+  statusId?: string
   leadId?: string
   startDate?: string
   targetDate?: string

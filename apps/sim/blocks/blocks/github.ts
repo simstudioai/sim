@@ -2,7 +2,7 @@ import { Calendar } from '@sim/emcn/icons'
 import { GithubIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, withSavedCredential } from '@/blocks/utils'
+import { createVersionedToolSelector, mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** Reviewers can be named individually or by team slug; either identifies the request. */
@@ -16,7 +16,9 @@ const REVIEWER_FIELD = ['reviewers', 'team_reviewers'] as const
  *
  * `toBoolean` marks a dropdown feeding a boolean tool param: a dropdown stores
  * its option id, so the value arrives as the string 'true'/'false' and the
- * generic handler only JSON-parses `json`/`array` inputs.
+ * generic handler only JSON-parses `json`/`array` inputs. An entry whose
+ * `from` equals `to` only coerces; scoping it to the operation whose subBlock
+ * owns the field keeps a stale value left from another operation raw.
  */
 const GITHUB_PARAM_ALIASES: ReadonlyArray<{
   from: string
@@ -44,6 +46,44 @@ const GITHUB_PARAM_ALIASES: ReadonlyArray<{
   { from: 'fork_name', to: 'name', operations: ['github_fork_repo'] },
   { from: 'fork_sort', to: 'sort', operations: ['github_list_forks'] },
   { from: 'gist_public', to: 'public', operations: ['github_create_gist'], toBoolean: true },
+  {
+    from: 'draft',
+    to: 'draft',
+    operations: ['github_create_pr', 'github_create_release'],
+    toBoolean: true,
+  },
+  { from: 'prerelease', to: 'prerelease', operations: ['github_create_release'], toBoolean: true },
+  {
+    from: 'default_branch_only',
+    to: 'default_branch_only',
+    operations: ['github_fork_repo'],
+    toBoolean: true,
+  },
+]
+
+/**
+ * Operations whose tools take no `owner`/`repo`: projects are addressed by owner
+ * login or node ID, gists by gist ID, and searches by query alone.
+ */
+const OPERATIONS_WITHOUT_REPOSITORY = [
+  'github_list_projects',
+  'github_get_project',
+  'github_create_project',
+  'github_update_project',
+  'github_delete_project',
+  'github_search_code',
+  'github_search_commits',
+  'github_search_issues',
+  'github_search_repos',
+  'github_search_users',
+  'github_create_gist',
+  'github_get_gist',
+  'github_list_gists',
+  'github_update_gist',
+  'github_delete_gist',
+  'github_fork_gist',
+  'github_star_gist',
+  'github_unstar_gist',
 ]
 
 export const GitHubBlock: BlockConfig = {
@@ -472,6 +512,7 @@ export const GitHubBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'e.g., microsoft',
       required: true,
+      condition: { field: 'operation', value: OPERATIONS_WITHOUT_REPOSITORY, not: true },
     },
     {
       id: 'repo',
@@ -479,6 +520,7 @@ export const GitHubBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'e.g., vscode',
       required: true,
+      condition: { field: 'operation', value: OPERATIONS_WITHOUT_REPOSITORY, not: true },
     },
     {
       id: 'pullNumber',
@@ -656,6 +698,7 @@ export const GitHubBlock: BlockConfig = {
       title: 'State',
       type: 'dropdown',
       options: [
+        { label: 'No change', id: '' },
         { label: 'Open', id: 'open' },
         { label: 'Closed', id: 'closed' },
       ],
@@ -740,7 +783,6 @@ export const GitHubBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Comma-separated: user1,user2',
       condition: { field: 'operation', value: 'github_request_reviewers' },
-      mode: 'advanced',
     },
     {
       id: 'team_reviewers',
@@ -1042,6 +1084,7 @@ export const GitHubBlock: BlockConfig = {
       title: 'State',
       type: 'dropdown',
       options: [
+        { label: 'No change', id: '' },
         { label: 'Open', id: 'open' },
         { label: 'Closed', id: 'closed' },
       ],
@@ -1410,6 +1453,7 @@ export const GitHubBlock: BlockConfig = {
       title: 'Public',
       type: 'dropdown',
       options: [
+        { label: 'No change', id: '' },
         { label: 'Private', id: 'false' },
         { label: 'Public', id: 'true' },
       ],
@@ -1867,6 +1911,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           'github_list_forks',
           'github_list_milestones',
           'github_list_stargazers',
+          'github_list_branches',
+          'github_get_pr_files',
         ],
       },
       mode: 'advanced',
@@ -1987,7 +2033,31 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Page Number',
       type: 'short-input',
       placeholder: 'e.g., 1',
-      condition: { field: 'operation', value: 'github_list_tags' },
+      condition: {
+        field: 'operation',
+        value: [
+          'github_list_tags',
+          'github_list_branches',
+          'github_list_commits',
+          'github_list_forks',
+          'github_list_gists',
+          'github_list_issue_comments',
+          'github_list_issues',
+          'github_list_milestones',
+          'github_list_pr_comments',
+          'github_list_prs',
+          'github_list_releases',
+          'github_list_stargazers',
+          'github_list_workflow_runs',
+          'github_list_workflows',
+          'github_get_pr_files',
+          'github_search_code',
+          'github_search_commits',
+          'github_search_issues',
+          'github_search_repos',
+          'github_search_users',
+        ],
+      },
       mode: 'advanced',
     },
   ],
@@ -2289,19 +2359,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
        * block did not supply would clobber a model-supplied value on the agent
        * path.
        *
-       * On the agent tool-calling path `operation` is not part of the params
-       * this receives: `providers/utils.ts` spreads it in for the tool-selection
-       * call (`:736-739`) but builds the transform's input from `block.params`
-       * alone (`:776`). Every alias therefore skips there, which is the same
-       * behaviour as before this mapper existed - the agent path already works
-       * because a model supplies `content`/`title`/`sort` by their real names.
-       * That gap is shared by every block whose mapper branches on
-       * `params.operation`, so closing it belongs in the provider layer rather
-       * than here.
+       * On a tool call (Agent tool row, Pi, Human-in-the-loop) the operation
+       * arrives only in `context`, so it is read through `mapperOperation`. A
+       * value the user stored under a block-only id then reaches its tool param,
+       * and an unset one emits nothing, leaving the model's own argument intact.
        */
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
-        const operation = typeof params.operation === 'string' ? params.operation : ''
+        const operation = mapperOperation(params, context)
 
         const isSet = (value: unknown) => value !== undefined && value !== null && value !== ''
 

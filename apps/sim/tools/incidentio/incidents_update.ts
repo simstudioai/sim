@@ -4,6 +4,7 @@ import type {
 } from '@/tools/incidentio/types'
 import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const incidentsUpdateTool: ToolConfig<
   IncidentioIncidentsUpdateParams,
@@ -12,7 +13,7 @@ export const incidentsUpdateTool: ToolConfig<
   id: 'incidentio_incidents_update',
   name: 'incident.io Incidents Update',
   description:
-    'Update an existing incident in incident.io. Can update name, summary, severity, status, or type.',
+    'Update an existing incident in incident.io. Can update name, summary, severity, or status.',
   version: '1.0.0',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
@@ -58,7 +59,8 @@ export const incidentsUpdateTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Updated incident type ID',
+      description:
+        "Not applied: incident.io does not support changing an incident's type after creation, so this value is ignored.",
     },
     notify_incident_channel: {
       type: 'boolean',
@@ -69,23 +71,21 @@ export const incidentsUpdateTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incidents/${params.id.trim()}/actions/edit`,
+    url: (params) =>
+      `https://api.incident.io/v2/incidents/${safeUrlPathSegment(params.id, 'id')}/actions/edit`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      // Create incident object
-      const incident: Record<string, any> = {}
+      const incident: Record<string, unknown> = {}
 
       if (params.name) incident.name = params.name
       if (params.summary) incident.summary = params.summary
       if (params.severity_id) incident.severity_id = params.severity_id
       if (params.incident_status_id) incident.incident_status_id = params.incident_status_id
-      if (params.incident_type_id) incident.incident_type_id = params.incident_type_id
 
-      // Wrap in incident object with required notify_incident_channel
       return {
         incident,
         notify_incident_channel: params.notify_incident_channel,

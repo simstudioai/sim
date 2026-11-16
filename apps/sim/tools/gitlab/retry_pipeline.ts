@@ -1,7 +1,8 @@
 import type { GitLabRetryPipelineParams, GitLabRetryPipelineResponse } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabRetryPipelineTool: ToolConfig<
   GitLabRetryPipelineParams,
@@ -43,8 +44,8 @@ export const gitlabRetryPipelineTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipelines/${params.pipelineId}/retry`
+      const encodedId = encodeGitLabResourceId(params.projectId)
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/pipelines/${safeUrlPathSegment(params.pipelineId, 'pipelineId')}/retry`
     },
     method: 'POST',
     headers: (params) => ({

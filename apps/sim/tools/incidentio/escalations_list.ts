@@ -11,7 +11,8 @@ export const escalationsListTool: ToolConfig<
 > = {
   id: 'incidentio_escalations_list',
   name: 'List Escalations',
-  description: 'List all escalation policies in incident.io',
+  description:
+    'List escalations (pages sent to people) in incident.io. For escalation policies, use List Escalation Paths.',
   version: '1.0.0',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
@@ -26,7 +27,7 @@ export const escalationsListTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of escalations to return per page',
+      description: 'Number of escalations to return per page (max 50)',
     },
     after: {
       type: 'string',

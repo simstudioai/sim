@@ -84,15 +84,15 @@ export const compareCommitsTool: ToolConfig<CompareCommitsParams, CompareCommits
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Results per page for files (max 100, default: 30)',
-      default: 30,
+      description:
+        'Commits per page (max 100). Setting per_page or page paginates the commit list, and changed files are returned only on page 1. Leave both unset to get up to 250 commits and every changed file in one response.',
     },
     page: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number for files (default: 1)',
-      default: 1,
+      description:
+        'Page of the commit list. Changed files are returned only on page 1. Leave unset (with per_page) for a single unpaginated comparison.',
     },
     apiKey: {
       type: 'string',
@@ -128,7 +128,7 @@ export const compareCommitsTool: ToolConfig<CompareCommitsParams, CompareCommits
       message: c.commit.message,
       author: {
         login: c.author?.login,
-        name: c.commit.author.name,
+        name: c.commit.author?.name ?? null,
       },
     }))
 

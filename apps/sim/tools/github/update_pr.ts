@@ -73,7 +73,7 @@ export const updatePRTool: ToolConfig<UpdatePRParams, PRResponse> = {
       const body: Record<string, any> = {}
       if (params.title !== undefined) body.title = params.title
       if (params.body !== undefined) body.body = params.body
-      if (params.state !== undefined) body.state = params.state
+      if (params.state) body.state = params.state
       if (params.base !== undefined) body.base = params.base
       return body
     },

@@ -79,9 +79,13 @@ export const latestCommitV2Tool: InternalToolConfig = {
         sha: metadata.sha ?? '',
         html_url: metadata.html_url ?? '',
         commit: {
+          url: metadata.commit_url ?? null,
           message: metadata.commit_message ?? '',
+          comment_count: metadata.comment_count ?? null,
           author: metadata.author ?? null,
           committer: metadata.committer ?? null,
+          tree: metadata.tree ?? null,
+          verification: metadata.verification ?? null,
         },
         author: metadata.author ?? null,
         committer: metadata.committer ?? null,

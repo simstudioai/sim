@@ -45,6 +45,7 @@ export const linearGetIssueTool: ToolConfig<LinearGetIssueParams, LinearGetIssue
             priority
             estimate
             url
+            dueDate
             createdAt
             updatedAt
             completedAt
@@ -106,6 +107,7 @@ export const linearGetIssueTool: ToolConfig<LinearGetIssueParams, LinearGetIssue
           priority: issue.priority,
           estimate: issue.estimate,
           url: issue.url,
+          dueDate: issue.dueDate ?? null,
           createdAt: issue.createdAt,
           updatedAt: issue.updatedAt,
           completedAt: issue.completedAt,

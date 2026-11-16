@@ -1,9 +1,10 @@
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockToolParamsContext, SubBlockConfig } from '@/blocks/types'
 import {
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  toolCallArg,
 } from '@/blocks/utils'
 
 interface SlackWorkflowField {
@@ -1420,17 +1421,26 @@ export function getSlackWorkflowSubBlocks(): SubBlockConfig[] {
   return result
 }
 
+/**
+ * Maps a workflow operation's `slack_<op>_<param>` block fields to its tool params. On a tool call
+ * those fields are absent and the model's args arrive under the tool's param names; an empty field
+ * then leaves the model's value in place instead of writing the field's default over it.
+ */
 export function mapSlackWorkflowParams(
   operation: SlackWorkflowOperation,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  context?: BlockToolParamsContext
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {
-    credential: params[operation.auth === 'bot' ? 'apiBotCredentialId' : 'apiOAuthCredentialId'],
+    credential:
+      params[operation.auth === 'bot' ? 'apiBotCredentialId' : 'apiOAuthCredentialId'] ??
+      toolCallArg(context, params.credential),
   }
   for (const field of operation.fields) {
     const raw = params[field.id]
-    const value =
-      raw === undefined || raw === null || (raw === '' && !field.allowEmpty) ? field.default : raw
+    const isEmpty = raw === undefined || raw === null || (raw === '' && !field.allowEmpty)
+    if (isEmpty && toolCallArg(context, params[field.param]) !== undefined) continue
+    const value = isEmpty ? field.default : raw
     if (value === undefined) continue
     if (field.type === 'json') result[field.param] = parseOptionalJsonInput(value, field.title)
     else if (field.type === 'number')

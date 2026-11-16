@@ -4,6 +4,7 @@ import type {
 } from '@/tools/incidentio/types'
 import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const incidentRolesUpdateTool: ToolConfig<
   IncidentioIncidentRolesUpdateParams,
@@ -55,7 +56,8 @@ export const incidentRolesUpdateTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incident_roles/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/incident_roles/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -101,7 +103,11 @@ export const incidentRolesUpdateTool: ToolConfig<
           description: 'Short form abbreviation of the role',
         },
         role_type: { type: 'string', description: 'The type of role' },
-        required: { type: 'boolean', description: 'Whether the role is required' },
+        required: {
+          type: 'boolean',
+          description: 'Not returned by the incident.io API; always empty',
+          optional: true,
+        },
         created_at: { type: 'string', description: 'When the role was created' },
         updated_at: { type: 'string', description: 'When the role was last updated' },
       },
