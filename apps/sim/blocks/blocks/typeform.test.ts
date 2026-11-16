@@ -3,6 +3,7 @@ import { TypeformV2Block } from '@/blocks/blocks/typeform'
 import type { BlockToolParamsContext } from '@/blocks/types'
 import { createFormTool } from '@/tools/typeform/create_form'
 import { updateFormTool } from '@/tools/typeform/update_form'
+import type { ToolConfig } from '@/tools/types'
 
 /**
  * Assertions run against `{ ...inputs, ...mapper(inputs, context) }`, the shape both the canvas
@@ -18,15 +19,17 @@ describe('TypeformV2Block params mapper', () => {
   })
 
   const patchBody = (params: Record<string, unknown>) => {
-    const body = updateFormTool.request.body
+    const tool: ToolConfig = updateFormTool
+    const body = tool.request.body
     if (!body) throw new Error('Expected a body builder')
-    return body(params as Parameters<typeof body>[0])
+    return body(params)
   }
 
   const createBody = (params: Record<string, unknown>) => {
-    const body = createFormTool.request.body
+    const tool: ToolConfig = createFormTool
+    const body = tool.request.body
     if (!body) throw new Error('Expected a body builder')
-    return body(params as Parameters<typeof body>[0])
+    return body(params)
   }
 
   it('sends patch operations a model passed as an array on a tool call', () => {

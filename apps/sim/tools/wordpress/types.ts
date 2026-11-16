@@ -586,7 +586,8 @@ export interface WordPressSearchContentParams extends WordPressBaseParams {
 }
 
 interface WordPressSearchResult {
-  id: number
+  /** Numeric for post and term results; post-format results are identified by their slug. */
+  id: number | string
   title: string
   url: string
   type: string

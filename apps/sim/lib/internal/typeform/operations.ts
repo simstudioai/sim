@@ -24,7 +24,10 @@ export interface TypeformOperationContext {
   signal?: AbortSignal
 }
 
-/** Rejects dot segments (which `new URL` would resolve away) before they reach the authenticated request. */
+/**
+ * Rejects dot segments (which `new URL` would resolve away) before they reach the authenticated request.
+ * Returns the trimmed, encoded segment; a filename keeps its own whitespace, so it is encoded raw after this check.
+ */
 function typeformPathSegment(
   value: string,
   paramName: string,
@@ -41,7 +44,8 @@ function buildTypeformFileUrl(input: TypeformFilesParams): string {
   const formId = typeformPathSegment(input.formId, 'formId')
   const responseId = typeformPathSegment(input.responseId, 'responseId')
   const fieldId = typeformPathSegment(input.fieldId, 'fieldId')
-  const filename = typeformPathSegment(input.filename, 'filename', { allowSeparators: true })
+  typeformPathSegment(input.filename, 'filename', { allowSeparators: true })
+  const filename = encodeURIComponent(input.filename)
   const url = new URL(
     `https://api.typeform.com/forms/${formId}/responses/${responseId}/fields/${fieldId}/files/${filename}`
   )

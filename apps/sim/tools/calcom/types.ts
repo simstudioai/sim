@@ -300,6 +300,9 @@ interface CalcomEventType {
   disableGuests: boolean
   createdAt: string
   updatedAt: string
+  bookingUrl?: string
+  hidden?: boolean
+  ownerId?: number
 }
 
 export interface CalcomCreateEventTypeResponse extends ToolResponse {
