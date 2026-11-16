@@ -18,6 +18,7 @@ import { paramAliases } from '@sim/workflow-code/catalog/surface'
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { type CorpusCase, generateRegistryCorpus } from '@/lib/workflows/code/corpus'
+import { corpusBudgetMs } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import { getBlock, getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
@@ -87,46 +88,56 @@ describe('catalog field checks on the SDK examples and the registry corpus', () 
     }
   )
 
-  it('never reports a required field the editor hides under the stored values, even with every free-text field empty', () => {
-    const violations: string[] = []
-    let reported = 0
-    for (const corpusCase of sampledCorpus(generateRegistryCorpus())) {
-      const state = withoutFreeText(corpusCase.state)
-      const meta = { name: corpusCase.id, description: null }
-      const canonical = canonicalize(state, { catalog, meta })
-      const [entry] = printWorkflow({
-        workflow: canonical.workflow,
-        catalog,
-        options: { functionCode: 'inline' },
-      }).files
-      const compiled = compileWorkflow({
-        entry: { path: entry.path, text: entry.text },
-        files: new Map(),
-        catalog,
-        sdkMajor: catalog.sdkMajor,
-        stored: canonical.workflow,
-      })
-      for (const diagnostic of compiled.diagnostics) {
-        if (diagnostic.code !== 'W_REQUIRED_MISSING' || !diagnostic.blockKey) continue
-        reported += 1
-        const blockId = canonical.identity.blocks[diagnostic.blockKey]?.id
-        const block = blockId ? state.blocks[blockId] : undefined
-        const config = block ? getBlock(block.type) : undefined
-        if (!block || !config) continue
-        const values = buildSubBlockValues(block.subBlocks ?? {})
-        const declared = catalogBlock(catalog, block.type)
-        const aliased = declared ? paramAliases(declared, block.triggerMode === true) : new Map()
-        const param =
-          [...aliased].find(([, alias]) => alias === diagnostic.param)?.[0] ?? diagnostic.param
-        const members = config.subBlocks.filter(
-          (sub) => sub.id === param || sub.canonicalParamId === param
-        )
-        if (!members.some((sub) => evaluateSubBlockCondition(sub.condition, values))) {
-          violations.push(`${corpusCase.id} ${diagnostic.blockKey}.${diagnostic.param}`)
+  const sampled = sampledCorpus(generateRegistryCorpus())
+
+  /**
+   * A corpus pass, so it takes the corpus budget like its siblings: 5.3 s alone, 16.5 s beside the
+   * other workflow-code suites, against Vitest's 10 s default.
+   */
+  it(
+    'never reports a required field the editor hides under the stored values, even with every free-text field empty',
+    () => {
+      const violations: string[] = []
+      let reported = 0
+      for (const corpusCase of sampled) {
+        const state = withoutFreeText(corpusCase.state)
+        const meta = { name: corpusCase.id, description: null }
+        const canonical = canonicalize(state, { catalog, meta })
+        const [entry] = printWorkflow({
+          workflow: canonical.workflow,
+          catalog,
+          options: { functionCode: 'inline' },
+        }).files
+        const compiled = compileWorkflow({
+          entry: { path: entry.path, text: entry.text },
+          files: new Map(),
+          catalog,
+          sdkMajor: catalog.sdkMajor,
+          stored: canonical.workflow,
+        })
+        for (const diagnostic of compiled.diagnostics) {
+          if (diagnostic.code !== 'W_REQUIRED_MISSING' || !diagnostic.blockKey) continue
+          reported += 1
+          const blockId = canonical.identity.blocks[diagnostic.blockKey]?.id
+          const block = blockId ? state.blocks[blockId] : undefined
+          const config = block ? getBlock(block.type) : undefined
+          if (!block || !config) continue
+          const values = buildSubBlockValues(block.subBlocks ?? {})
+          const declared = catalogBlock(catalog, block.type)
+          const aliased = declared ? paramAliases(declared, block.triggerMode === true) : new Map()
+          const param =
+            [...aliased].find(([, alias]) => alias === diagnostic.param)?.[0] ?? diagnostic.param
+          const members = config.subBlocks.filter(
+            (sub) => sub.id === param || sub.canonicalParamId === param
+          )
+          if (!members.some((sub) => evaluateSubBlockCondition(sub.condition, values))) {
+            violations.push(`${corpusCase.id} ${diagnostic.blockKey}.${diagnostic.param}`)
+          }
         }
       }
-    }
-    expect(reported).toBeGreaterThan(0)
-    expect(violations).toEqual([])
-  })
+      expect(reported).toBeGreaterThan(0)
+      expect(violations).toEqual([])
+    },
+    corpusBudgetMs(sampled.length, 60_000)
+  )
 })
