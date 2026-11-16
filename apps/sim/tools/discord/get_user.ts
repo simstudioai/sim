@@ -70,16 +70,16 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
         global_name: {
           type: 'string',
           description: 'User display name, if set',
-          optional: true,
           nullable: true,
         },
-        avatar: { type: 'string', description: 'User avatar hash', optional: true, nullable: true },
+        avatar: { type: 'string', description: 'User avatar hash', nullable: true },
         bot: { type: 'boolean', description: 'Whether user is a bot' },
         system: { type: 'boolean', description: 'Whether user is a system user' },
         email: {
           type: 'string',
           description: 'User email. Not returned for a user looked up by ID',
           optional: true,
+          nullable: true,
         },
         verified: {
           type: 'boolean',
