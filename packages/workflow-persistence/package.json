@@ -10,6 +10,10 @@
     "node": ">=20.0.0"
   },
   "exports": {
+    "./code-meta": {
+      "types": "./src/code-meta.ts",
+      "default": "./src/code-meta.ts"
+    },
     "./load": {
       "types": "./src/load.ts",
       "default": "./src/load.ts"
@@ -44,6 +48,7 @@
     "@sim/db": "workspace:*",
     "@sim/logger": "workspace:*",
     "@sim/utils": "workspace:*",
+    "@sim/workflow-code": "workspace:*",
     "@sim/workflow-types": "workspace:*",
     "drizzle-orm": "^0.45.4"
   },

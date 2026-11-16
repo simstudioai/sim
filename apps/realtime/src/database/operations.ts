@@ -24,6 +24,7 @@ import {
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
 import { randomFloat } from '@sim/utils/random'
+import { pruneWorkflowCodeMeta } from '@sim/workflow-persistence/code-meta'
 import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
 import { mergeSubBlockValues } from '@sim/workflow-persistence/subblocks'
 import type { DbOrTx } from '@sim/workflow-persistence/types'
@@ -1271,6 +1272,10 @@ async function handleBlocksOperationTx(
         await updateSubflowNodeList(tx, workflowId, parentId)
       }
 
+      await pruneWorkflowCodeMeta(tx, workflowId, {
+        blocks: (id) => !allBlocksToDelete.has(id),
+      })
+
       logger.info(
         `Successfully batch removed ${blockIdsArray.length} blocks from workflow ${workflowId}`
       )
@@ -2152,6 +2157,9 @@ async function handleVariableOperationTx(
           updatedAt: new Date(),
         })
         .where(eq(workflow.id, workflowId))
+      await pruneWorkflowCodeMeta(tx, workflowId, {
+        variables: (id) => id !== payload.variableId,
+      })
 
       logger.debug(`Removed variable ${payload.variableId} from workflow ${workflowId}`)
       break
@@ -2243,6 +2251,9 @@ async function handleWorkflowOperationTx(
       if (blockValues.length > 0) {
         await tx.insert(workflowBlocks).values(blockValues)
       }
+      await pruneWorkflowCodeMeta(tx, workflowId, {
+        blocks: (id) => Object.hasOwn(merged.blocks, id),
+      })
 
       if (merged.edges.length > 0) {
         const canonicalEdges = merged.edges.map(canonicalizeEdgeAddCandidate)
