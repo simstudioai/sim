@@ -87,12 +87,14 @@ export interface GateSourceDiffArgs {
   isCopilot: boolean
 }
 
-const TOOLS_SUBBLOCK_ID = 'tools'
 const SANDBOX_SUBBLOCK_ID = 'sandboxId'
 
 interface GatedBlock {
   block: BlockState
-  /** Subblock ids whose value the diff sets: every non-empty one for an added block. */
+  /**
+   * Subblock ids whose value the diff sets: every non-empty one for an added or retyped block,
+   * since a value kept across a type change is judged against the new type's gates.
+   */
   changedFields: string[]
   baseBlock?: BlockState
   added: boolean
@@ -104,15 +106,19 @@ function subBlockValue(block: BlockState | undefined, field: string): unknown {
   return block?.subBlocks?.[field]?.value
 }
 
+function nonEmptyFields(block: BlockState): string[] {
+  return Object.keys(block.subBlocks ?? {})
+    .filter((field) => isNonEmptyValue(subBlockValue(block, field)))
+    .sort(compareStrings)
+}
+
 function collectGatedBlocks(base: SourceGraph, target: SourceGraph, diff: GraphDiff): GatedBlock[] {
   const gated: GatedBlock[] = []
   for (const id of diff.added) {
     const block = target.blocks[id]
     gated.push({
       block,
-      changedFields: Object.keys(block.subBlocks ?? {})
-        .filter((field) => isNonEmptyValue(subBlockValue(block, field)))
-        .sort(compareStrings),
+      changedFields: nonEmptyFields(block),
       added: true,
       typeChanged: false,
       enabledChanged: false,
@@ -124,9 +130,11 @@ function collectGatedBlocks(base: SourceGraph, target: SourceGraph, diff: GraphD
     gated.push({
       block,
       baseBlock,
-      changedFields: change.subBlocks.filter(
-        (field) => !isEqual(subBlockValue(baseBlock, field), subBlockValue(block, field))
-      ),
+      changedFields: change.typeChanged
+        ? nonEmptyFields(block)
+        : change.subBlocks.filter(
+            (field) => !isEqual(subBlockValue(baseBlock, field), subBlockValue(block, field))
+          ),
       added: false,
       typeChanged: change.typeChanged,
       enabledChanged: change.enabledChanged,
@@ -233,7 +241,11 @@ function gateTriggerUniqueness(
   }
 }
 
-/** The model/operation allowlist and the tool denylist, on the values the diff sets. */
+/**
+ * The model/operation allowlist and the tool denylist, on the values the diff sets. The denylist
+ * covers every field the block type declares as `tool-input` (an agent's `tools`, a human in the
+ * loop's `notification`), and judges only the entries the stored value did not already hold.
+ */
 function gateFieldValues(
   entry: GatedBlock,
   permissionConfig: PermissionGroupConfig | null,
@@ -241,6 +253,11 @@ function gateFieldValues(
 ): void {
   const { block, baseBlock } = entry
   const operationType = entry.added ? 'add' : 'edit'
+  const toolInputFields = new Set(
+    getBlock(block.type)
+      ?.subBlocks.filter((subBlock) => subBlock.type === 'tool-input')
+      .map((subBlock) => subBlock.id) ?? []
+  )
   for (const field of entry.changedFields) {
     const skipped: SkippedItem[] = []
     const isInputAllowed = createSubBlockInputGate({
@@ -252,8 +269,8 @@ function gateFieldValues(
     })
     const value = subBlockValue(block, field)
     isInputAllowed(field, value)
-    if (field === TOOLS_SUBBLOCK_ID && Array.isArray(value)) {
-      const before = subBlockValue(baseBlock, field)
+    if (toolInputFields.has(field) && Array.isArray(value)) {
+      const before = entry.typeChanged ? undefined : subBlockValue(baseBlock, field)
       const previous = Array.isArray(before) ? before : []
       const newEntries = value.filter((tool) => !previous.some((old) => isEqual(old, tool)))
       if (newEntries.length > 0) {
