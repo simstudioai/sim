@@ -1,197 +1,435 @@
-# Workflow source syntax the compiler accepts
+# Workflow source syntax
 
-The compiler (`compileWorkflow`) accepts exactly what the printer emits, plus a few hand-written
-conveniences listed under "Also accepted". `apps/sim/lib/workflows/code/goldens.test.ts` compiles
-every printer golden, over the real catalog, with zero errors to a workflow that runs as the one it
-was printed from. Where s2 and s3 disagreed, the printer's choice (build-spec first, then s2) was
-taken.
+The surface `compileWorkflow` accepts: exactly what the printer emits, plus the hand-written
+conveniences under "Also accepted". `apps/sim/lib/workflows/code/goldens.test.ts` compiles every
+printer golden in `print/__golden__/`, over the real catalog, with zero errors. The authoring types
+are `@sim/workflow-sdk`'s `core.d.ts` plus the per-block declarations generated from the catalog.
 
-**Source holds what executes** (DESIGN.md A18). A file states every value the serializer sends or
-deploy reads, wiring, branches and the config of the loop or parallel type in effect. What only
-the canvas cares about is never required: which member of a basic/advanced pair shows a value,
-whether a selector or a typed value produced an id, inactive values, the other loop or parallel
-types' fields, layout and unknown extra data. Source has no syntax for it: the printer leaves it out
-and apply keeps it from the stored workflow (`materialize/preserve.ts`).
+**Source holds what executes** (DESIGN.md "Source holds what executes"). A file states every value
+the serializer sends or deploy reads, the wiring, branches and the config of the loop or parallel
+type in effect. Canvas-only state (which member of a basic/advanced pair shows a value, whether a
+selector or typed text produced an id, inactive values, the other subflow types' fields, layout,
+unknown block data) has no syntax: the printer leaves it out and apply keeps it from the stored
+workflow.
 
-**Defaults rule.** An omitted param is the editor default canvas creation writes (the catalog's
-`valueDefault` for a visible field, `defaultValue` for a hidden one), so a block written with no
-params is stored as a canvas-created one. `null` is stored-absent. The printer omits a value equal
-to the default and writes `null` for an active field that has a default but no stored value.
+**Defaults.** An omitted param is the editor default canvas creation writes, so a block written
+with no params is stored as a canvas-created one. `null` as a whole param means stored-absent (no
+default fills it). The printer omits a value equal to the default and writes `null` for an active
+field that has a default but no stored value.
 
 ## File
 
-- Line 1 is `// @sim-sdk N`; a missing header is `E_SDK_HEADER`, `N` above the caller's major is
-  `E_SDK_MAJOR`, and `N` below `OLDEST_SDK_MAJOR` (`sdk.ts`) is `E_SDK_MAJOR_OLD`.
+```ts
+// @sim-sdk 1
+import { agent, t, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Name', { description: '…', variables: { … } }, ({ vars }) => {
+  const start = trigger.start('Start', { inputFormat: { question: 'string' } })
+  const answer = agent('Answer', { model: 'claude-sonnet-5-5', messages: [ … ] })
+  start.to(answer)
+})
+```
+
+- Line 1 is `// @sim-sdk N`. Missing: `E_SDK_HEADER`. `N` above the server's major: `E_SDK_MAJOR`.
+  `N` below `OLDEST_SDK_MAJOR` (`sdk.ts`): `E_SDK_MAJOR_OLD`.
 - Imports: named imports from `'@sim/workflow-sdk'` only (aliases allowed). Anything else is
   `E_UNSUPPORTED_SYNTAX`.
-- Exactly one `export default workflow(name, options?, body)`. `options` is
-  `{ description?, variables? }`. `body` is `() => { ... }` or `({ vars }) => { ... }`.
-- Variables: `variables: { <key>: { name?, type, value } }`. The property key is the variable
-  key; `name` is written only when it differs from the key. `value` is plain JSON.
+- Exactly one `export default workflow(name, options?, body)` (`E_WORKFLOW_EXPORT`). `options` is
+  `{ description?, variables? }`; `body` is `() => { … }` or `({ vars }) => { … }`.
+- Variables: `variables: { <key>: { name?, type, value } }`. The property key is the variable key;
+  `name` is written only when it differs. `type` is `string | number | boolean | object | array |
+  plain`; `value` is plain JSON.
+- The body holds block declarations and wiring statements. No other statements, no helpers, no
+  loops, no conditionals, no imports of your own.
 
 ## Blocks
 
-- `const x = builder('Name', params?, meta?)`, or a bare `builder(...)` statement (no `const`).
-  The builder is the dotted catalog path (`slack.sendMessage`, `trigger.gmail.poller`).
-- `block(type, 'Name', params?, meta?)` for any type: unknown, legacy, or a builder that does not
-  fit. With a catalog type, params are checked against its fields; without one, they are kept
-  verbatim.
-- Params: a subBlock id, or the `canonicalParamId` for every subBlock group sharing one (even a
-  group of one). A param the catalog aliases (`paramAliases`, frozen in `sdk-names.json`:
-  `oauthCredential` → `credential`) prints under its alias; compile accepts the alias and the
-  param name, and both at once is `E_UNSUPPORTED_SYNTAX`. Writing a group member by its own id is
-  `E_UNKNOWN_PARAM` with a hint naming the written name. A pinned id (`operation`, a builder's
-  `fixed`) is `E_FIXED_PARAM`; the compiler adds pinned values.
-- A block name holding a bidi control or zero-width character is `W_SUSPICIOUS_CHARACTER`; the
-  printer escapes such characters (`\u202E`) in every string it writes.
-- Pair mode follows from the value kind alone; there is no `meta.modes`. A selector call
-  (`credential`, `table`, `knowledgeBase`, `childWorkflow`, `skill`, `customTool`, `mcp`,
-  `sandbox`, `folder`, `file`) or a non-empty array of them is basic, anything else advanced, except that a list or
-  object literal never lands in a JSON code member (subBlock type `code`) when the pair's other
-  member is not code: it goes to that other member as written (`table_v2`'s `filterInput`: a list
-  is the filter builder's, JSON text the code editor's). The printer writes a JSON code member's
-  value as the text it stores (the catalog gives such a member value kind `json`), never as the
-  literal it stringifies, so both directions are unambiguous. Every group on the block gets a mode; an unwritten group is `basic`. On apply the
-  mode is canvas state: when the pair's value is unchanged the stored member and mode stay, and a
-  plain id written where the stored block shows the selector member stays in that member.
-- `meta`: `key`, `disabled`, `locked`, `advancedMode`, `triggerMode` (any builder), `errorPort`,
-  `retry: { enabled, maxTries, waitBetweenTriesMs }` (the stored `BlockRetryConfig`), `branches`, `extra`, `subflowData`
-  (containers only).
+- `const x = builder('Name', params?, meta?)`, or a bare `builder(…)` statement. The builder is the
+  dotted catalog path: `agent`, `slack.sendMessage`, `table.insertRow`, `trigger.gmail.poller`,
+  `legacy.<path>` for hidden legacy versions. An unknown path is `E_UNKNOWN_BUILDER` with a
+  did-you-mean.
+- `block(type, 'Name', params?, meta?)` writes any type: unknown, legacy, custom, or a block that
+  does not fit a builder. With a catalog type, params are checked against its fields; without one,
+  they are kept verbatim.
 - A builder prints only blocks on its own surface: a trigger-mode builder never prints an action
-  block, nor an action builder a block in trigger mode (a trigger block's builders fit either);
-  such a block prints through `block()`.
-- `meta.key: '<key>'` (a string literal) keeps a legacy key that the display name cannot carry.
-  The printer writes it only for such a block, and the compiler accepts it only when the key is in
-  `CompileInput.knownKeys` (the stored workflow's keys, from the lock or source meta) and is one of
-  the two legacy shapes canonicalize produces:
-  - the `~n` collision form of the normalized name (`api('agent1', {...}, { key: 'agent1~2' })`
-    next to `api('Agent 1', ...)`), with the plain key declared by another block;
-  - the normalized name itself when it is reserved (`api('Loop', {...}, { key: 'loop' })`).
+  block, nor an action builder a block in trigger mode (a trigger block's builders fit either). Such
+  a block prints through `block()`.
+- Names: a non-empty string literal (`E_NAME_NOT_LITERAL`, `E_EMPTY_NAME`), unique by key
+  (`E_DUPLICATE_NAME`), not a reserved key (`loop`, `parallel`, `variable`: `E_RESERVED_NAME`). A
+  name with a bidi control or zero-width character is `W_SUSPICIOUS_CHARACTER`; the printer escapes
+  such characters (`‮`) in every string.
+- `response(name, { body, status?, headers? })` is the response block in the editor's JSON mode:
+  `body` in `data` (a literal or text), `status` as text (a number literal prints for a canonical
+  integer), `headers` as header-table rows. Any other key is `E_UNKNOWN_PARAM`. The printer uses it
+  only when the block carries exactly those params.
 
-  Anything else is `E_KEY_OVERRIDE`, and the block falls back to its normalized name (so a
-  reserved name then also reports `E_RESERVED_NAME`). Source can therefore round-trip such a block
-  losslessly but never introduce one; renaming the block on the canvas or in source retires the
-  override.
-- `errorPort` in the CWM is `meta.errorPort || the block has an error edge`.
-- `extra: { <subBlockId>: value }` holds stored params that run but have no SDK syntax, and is
-  the only place source takes them: a schema-agnostic custom block's input, the agent's legacy
-  prompt fields, a container's stored params. A key the block's params can name is
-  `E_UNSUPPORTED_SYNTAX`. Values that never run are not written: apply restores them from the
-  stored workflow.
-- `subflowData: { <key>: json }`, on a loop or parallel only, holds the subflow keys of
-  `block.data` (`count`, `collection`, `loopType`, `whileCondition`, `doWhileCondition`,
-  `parallelType`, `batchSize`) canonicalize could not read as config, which the serializer passes
-  on. It is separate from `extra` because containers stored by the canvas often carry params
-  under those same names. Plain JSON; any other key, or `subflowData` on another block, is
+### Params
+
+- A param is a subBlock id, or the `canonicalParamId` of a basic/advanced group (even a group of
+  one). Writing a group member by its own id is `E_UNKNOWN_PARAM`, with a hint naming the right name.
+  A did-you-mean covers the params visible for the chosen operation.
+- A param the catalog aliases (`paramAliases`, frozen in `sdk-names.json`: `oauthCredential` →
+  `credential`) prints under its alias. Compile accepts the alias or the param name; both at once is
   `E_UNSUPPORTED_SYNTAX`.
+- A pinned param (`operation`, or a builder's `fixed` entry) is `E_FIXED_PARAM`; the compiler adds
+  pinned values.
+- A param not visible under the block's values is `W_FIELD_NOT_APPLICABLE`. A required field left
+  empty (or `todo()`) is `W_REQUIRED_MISSING`. A value whose JSON type differs from the field's is
+  `W_VALUE_KIND`; it is never coerced.
+
+### Pair mode
+
+The value kind alone picks the member of a basic/advanced pair; there is no `meta.modes`.
+
+- A selector call (`credential`, `table`, `knowledgeBase`, `childWorkflow`, `skill`, `customTool`,
+  `mcp`, `sandbox`, `folder`, `file`), or a non-empty array of them, is basic. Anything else is
+  advanced.
+- Exception: a list or object literal never lands in a JSON code member (subBlock type `code`) when
+  the other member takes it as written (`table_v2`'s `filterInput`: a list is the filter builder's,
+  JSON text the code editor's). The printer writes a JSON code member's value as the text it stores,
+  so both directions are unambiguous.
+- A plain string where a selector is expected (`channel: 'C0123'`) lands in the advanced member.
+- Every group on the block gets a mode; an unwritten group is basic. On apply the mode is canvas
+  state: when the pair's value is unchanged the stored member and mode stay, and a plain id written
+  where the stored block shows the selector member stays in that member.
+
+### `meta`
+
+| Key | Meaning |
+|---|---|
+| `key: '<key>'` | A legacy key the display name cannot carry (see below). |
+| `disabled: true` | Stored `enabled: false`. |
+| `locked: true` | Apply refuses any change to this block. |
+| `errorPort: boolean` | Exposes the error port. In the model, `errorPort` is `meta.errorPort` or the block has an `onError` edge. |
+| `retry: { enabled, maxTries, waitBetweenTriesMs }` | The stored `BlockRetryConfig`, written whole. |
+| `advancedMode: boolean` | The block-level advanced toggle; it changes what serializes. |
+| `triggerMode: boolean` | Runs the block as its trigger. Trigger builders set it; any other builder writes it only for a block stored in trigger mode. |
+| `branches: { <key>: { title?, extra? } }` | Per condition/router row, the display title and stored row fields with no syntax. |
+| `extra: { <subBlockId>: value }` | Stored params that run but have no SDK syntax (a schema-agnostic custom block's inputs, the agent's legacy prompt fields, a container's stored params). A key the block's params can name is `E_UNSUPPORTED_SYNTAX`. |
+| `subflowData: { <key>: json }` | Loop or parallel only: `block.data` subflow keys (`count`, `collection`, `loopType`, `whileCondition`, `doWhileCondition`, `parallelType`, `batchSize`) canonicalize could not read as config. Any other key, or on another block, is `E_UNSUPPORTED_SYNTAX`. |
+
+`meta.key` must be a string literal. The printer writes it only for a block whose key the name
+cannot produce, and the compiler accepts it only when the key is in `CompileInput.knownKeys` (the
+stored workflow's keys) and has one of the two legacy shapes:
+
+- the `~n` collision form of the normalized name (`api('agent1', {…}, { key: 'agent1~2' })` next to
+  `api('Agent 1', …)`), with the plain key declared by another block;
+- the normalized name itself when it is reserved (`api('Loop', {…}, { key: 'loop' })`).
+
+Anything else is `E_KEY_OVERRIDE`, and the block falls back to its normalized name. Source can
+round-trip such a block but never introduce one; renaming the block retires the override.
 
 ## Values
 
-- Literals, objects, arrays, `-number`. `null` as a whole param means absent (no editor default
-  fills it); nested `null` is kept. An omitted param is its editor default. A plain object with a
-  `$sim` key is data and compiles to `{ $sim: 'literal', value }`.
-- `raw(v)`: the CWM value verbatim (literals only). `$sim` objects inside are canonical nodes,
-  shape-checked; a `literal` node's `value` is not inspected.
-- `todo()`: absent (no editor default fills it), with `W_REQUIRED_MISSING` when the field is
-  required.
-- `stored()`: the value `CompileInput.stored` (the stored workflow the file continues) holds for
-  this block key, type and param, a pair's members and mode included. The printer writes it for
-  literal text in a `password` field (a secret is never printed; `{{ENV}}` and references print as
-  themselves), in params and tool params alike (a tool by its position and type). A block or
-  field with no stored value is `E_STORED_VALUE_MISSING`; inside a value it is
-  `E_UNSUPPORTED_SYNTAX`.
-- A plain string is fine where a selector is expected (`channel: 'C0123'`): it lands in the
-  pair's advanced member, and apply keeps the stored selector member when that showed the id.
-- Strings: `'...'`, untagged templates without `${}`, and `t`/`js`/`py`/`sh`/`json`/`md` tagged
-  templates (cooked text). Interpolations: refs, `env.X`, `vars.x`, loop params, `ref('raw')`,
-  string and number literals.
-- Refs: `blk.a.b` → `<key.a.b>`, `blk['x-y']` → `<key.x-y>`, `blk.items[0]` → `<key.items[0]>`,
-  `blk.items['0']` → `<key.items.0>`. `env.X` / `env['X']` → `{{X}}` (name must match
-  `[A-Za-z_][A-Za-z0-9_]*`). `ref('Raw.path')` → `<Raw.path>`.
-- `vars.x` is decided by field, and the printer and compiler share the rule. Inside a
-  variables-input field (`structured: 'variables'`, at any depth of its value), a bare `vars.x` is
-  the variable node `{ $sim: 'var', key }`. Everywhere else, and inside any template, it is the
-  text `<variable.x>`. So the printer prints a var node bare only in such a field (elsewhere it is
-  `raw({ $sim: 'var', key })`), and prints whole-string `<variable.x>` text there as
-  `` t`${vars.x}` `` (elsewhere bare). Golden: `print/__golden__/vars-by-field.txt`.
-- A JSON code field (subBlock type `code`) written as an object or array literal compiles to
-  `JSON.stringify(value, null, 2)` text (in a pair, see pair mode above), with each bare reference
-  stored by its output type (`json-fields.ts`): quoted (`"<a.b>"`) when the catalog or the
-  workflow types it `string`, bare (`<a.b>`) otherwise, because the executor splices a string raw
-  and any other value as JSON. A reference nothing types is stored bare with
-  `W_JSON_REF_UNTYPED`. A template is a JSON string, which is how a value becomes text on purpose.
-  The printer writes a single (non-pair) JSON field's text back as the literal only when
-  serializing that literal gives the same bytes; otherwise the text prints as a template.
-- `response(name, { body, status?, headers? })` is the response block in the editor's JSON mode:
-  `dataMode: 'json'`, `body` in `data` (a literal as above, or text), `status` as text (a number
-  literal prints for a canonical integer), `headers` as header-table rows. `body` selects the form;
-  any other key beside `status` and `headers` is `E_UNKNOWN_PARAM`. The printer uses it only for a
-  block that carries exactly those params with such rows.
+- Literals, objects, arrays, `-number`. Nested `null` is kept. A plain object with a `$sim` key is
+  data and compiles to `{ $sim: 'literal', value }`.
+- Strings: `'…'`, untagged templates without `${}`, and tagged templates (cooked text):
+
+  | Tag | For |
+  |---|---|
+  | `` t`…` `` | Text with interpolations |
+  | `` js`…` `` | JavaScript (condition expressions, inline function code) |
+  | `` py`…` ``, `` sh`…` `` | Python and shell code |
+  | `` json`…` `` | JSON text kept verbatim |
+  | `` md`…` `` | Markdown (note content) |
+
+  Interpolations: refs, `env.X`, `vars.x`, subflow params, `ref('raw')`, string and number literals.
+
+### Resources and helpers
+
+| Form | Compiles to |
+|---|---|
+| `credential('key')` | A saved credential (`credential`) |
+| `table('key')` | A workspace table (`table`); the table block's operations live on `table.*` |
+| `knowledgeBase('key')` | A knowledge base (`knowledge-base`) |
+| `file('path')` | A workspace file (`file`); the file block's operations live on `file.*` |
+| `folder('key')` | A workspace folder (`file-folder`) |
+| `childWorkflow('key')` | A workflow, for `runWorkflow` and similar (`workflow`) |
+| `customTool('key', { usageControl?, usageControlExpression? })` | A custom tool; in a `tools` list, the picker's reference |
+| `mcp('key')` | An MCP server (`mcp-server`) |
+| `skill('key')` | A workspace skill (`skill`) |
+| `sandbox('key')` | A sandbox image (`sandbox`) |
+| `codeFile('./functions/x.js')` | Function code kept in a file (see "Function code") |
+| `stored()` | The stored value of this param, not shown (see below) |
+| `raw(v)` | The canonical value verbatim (literals only). `$sim` objects inside are canonical nodes, shape-checked; a `literal` node's `value` is not inspected |
+| `todo()` | Absent, with `W_REQUIRED_MISSING` when the field is required |
+| `ref('Raw.path')` | The reference text `<Raw.path>`, verbatim |
+| `env.X` | `{{X}}` |
+| `block(…)`, `edge(…)` | A generic block; a raw edge (see "Wiring") |
+
+Keys are the workspace's persisted resource keys; `.sim/sdk/workspace.d.ts` lists them. A key with
+no live resource is `E_MAT_UNKNOWN_RESOURCE` on apply.
+
+### `stored()`
+
+The printer writes `stored()` for literal text in a `password` field (a secret is never printed;
+`{{ENV}}` and references print as themselves), in params and tool params alike (a tool by position
+and type). It compiles to the value `CompileInput.stored` (the stored workflow the file continues)
+holds for the same block key, type and param, a pair's members and mode included. A new block,
+another type or an empty field is `E_STORED_VALUE_MISSING`; inside a value it is
+`E_UNSUPPORTED_SYNTAX`.
+
+### References
+
+- `blk.a.b` → `<key.a.b>`, `blk['x-y']` → `<key.x-y>`, `blk.items[0]` → `<key.items[0]>`,
+  `blk.items['0']` → `<key.items.0>`. Paths are typed from the block's outputs; a path no output
+  has is `W_UNKNOWN_OUTPUT_PATH` (skipped for dynamic outputs).
+- A ref to a block declared later is `W_FORWARD_REF`; it still resolves. A ref into a sibling
+  subflow's child is `E_OUT_OF_SCOPE`. An unknown identifier is `E_UNKNOWN_IDENTIFIER` with a
+  did-you-mean.
+- `env.X` / `env['X']` → `{{X}}`; the name must match `[A-Za-z_][A-Za-z0-9_]*`
+  (`E_INVALID_ENV_NAME`).
+- `vars.x` is decided by field, and printer and compiler share the rule. Inside a variables-input
+  field (`structured: 'variables'`, at any depth), a bare `vars.x` is the variable node
+  `{ $sim: 'var', key }`. Everywhere else, and inside any template, it is the text `<variable.x>`.
+  So a var node prints bare only in such a field (elsewhere `raw({ $sim: 'var', key })`), and
+  whole-string `<variable.x>` text there prints as `` t`${vars.x}` ``. An undeclared variable is
+  `E_UNKNOWN_VARIABLE`.
 - Hand-written `<Name.path>` text whose head is not a normalized block key, or names no block, is
-  `W_REF_NOT_NORMALIZED`, with the ident form as the hint.
+  `W_REF_NOT_NORMALIZED`, with the ident form as the hint. Such text is kept verbatim, so a rename
+  never rewrites it.
+- A `<x.y>` token in a string that resolves to nothing is kept as literal text (`W_UNRESOLVED_REF`).
+
+### JSON fields
+
+A JSON code field (subBlock type `code`: `responseFormat`, table row `data`, a response body)
+written as an object or array literal compiles to `JSON.stringify(value, null, 2)` text. Each bare
+reference is stored by its output type: quoted (`"<a.b>"`) when the catalog or the workflow types it
+`string`, bare (`<a.b>`) otherwise, because the executor splices a string raw and any other value as
+JSON. A reference nothing types is stored bare with `W_JSON_REF_UNTYPED`. A template is a JSON
+string, which is how a value becomes text on purpose. The printer writes a field's text back as the
+literal only when serializing that literal gives the same bytes; otherwise the text prints as a
+template.
+
+### Structured fields
+
 - inputFormat (`structured: 'inputFormat'`) as a record: `name: 'string'` →
-  `{ name, type: 'string', value: '' }`; `name: { type, ... }` → `{ name, type, ... }`; `{}` is the
-  empty list. Arrays pass through; the printer writes a list the record cannot carry (an
-  integer-like or repeated name, an unknown key) as `raw([...])`.
-- Function code: `code: codeFile('./functions/x.js')`, relative to the entry file, extension matching
-  `language` (default `javascript`). JavaScript files have `$ref`/`$env` chains rewritten back
-  (`src/code-files`); Python and shell are verbatim.
-- Tools (`valueKind: 'tools'`): an array of `ns.tool.method(params, options?)` /
-  `method.tool(params, options?)`, `customTool('key', { usageControl?, usageControlExpression? })`
-  (a workspace custom tool stored as the picker's reference; a copied definition prints as `raw`)
-  and `raw(tool)`. Tool params take the same aliases; a stored tool keyed by an alias name prints
-  as `raw(tool)`. Options: `operation`, `toolId`, `title`,
-  `usageControl`, `usageControlExpression`, `modes`, `customTool`, `operationPolicy`, `extra`.
+  `{ name, type: 'string', value: '' }`; `name: { type, … }` → `{ name, type, … }`; `{}` is the empty
+  list. Arrays pass through. The printer writes a list the record cannot carry (an integer-like or
+  repeated name, an unknown key) as `raw([…])`.
+- Tools (`valueKind: 'tools'`): an array of
+  - `ns.tool.method(params, options?)` (`slack.tool.sendMessage(…)`), or `builder.tool(params, options?)`
+    for a builder at the namespace root (`agent.tool(…)`);
+  - `customTool('key', options?)`: a workspace custom tool stored as the picker's reference (a
+    copied definition prints as `raw`);
+  - `raw(tool)`: any other stored tool, including MCP and child-workflow tools and a tool keyed by
+    an alias name.
+
+  Tool params take the same aliases. Options: `operation`, `toolId`, `title`, `usageControl`,
+  `usageControlExpression`, `modes` (the tool's pair modes, which pick the member the agent reads),
+  `customTool`, `operationPolicy`, `extra`.
+
+### Function code
+
+`code: codeFile('./functions/x.js')`, relative to `workflow.ts`, with the extension matching
+`language` (default `javascript`). Otherwise `E_CODE_FILE_PATH`; a file the request did not send is
+`E_CODE_FILE_MISSING`. JavaScript files use `$ref.block.path` for `<block.path>` and `$env.NAME` for
+`{{NAME}}`, rewritten back on compile; Python and shell files are verbatim. When the stored code
+cannot round-trip through a file, the printer writes it inline as `` js`…` `` with
+`W_CODE_FILE_INLINED`.
 
 ## Branches
 
-- Condition builder: the params object holds the rows; a key that is a catalog field is a param
-  instead. `else: true` (last row) is the empty else. Rows are strings or templates.
-- Router: `routes: { key: text }`. `block('condition', ...)` uses `conditions: { ... }`.
-- `{}` (or `routes: {}`) is `rows: null`; the implicit ports `if`/`else` and `route0` stay
-  addressable.
-- Per-row `title`/`extra` go in `meta.branches: { key: { title?, extra? } }`.
-- Two or more condition rows must end with `else` (`E_BRANCH_ELSE_LAST`). A key equal to an output
-  name, `to` or `onError` is `E_BRANCH_KEY_COLLIDES`.
+- Condition: the params object holds the rows, in order; a key that is a catalog field is a param
+  instead. Rows are strings or templates. `else: true` (last) is the empty else.
+- Router: `routes: { key: text }`. `block('condition', …)` uses `conditions: { … }`.
+- `{}` (or `routes: {}`) is a never-persisted row list; the implicit ports `if`/`else` and `route0`
+  stay addressable.
+- Two or more condition rows must end with `else` (`E_BRANCH_ELSE_LAST`). Branch keys are unique
+  (`E_DUPLICATE_BRANCH_KEY`) and may not equal an output name, `to` or `onError`
+  (`E_BRANCH_KEY_COLLIDES`).
+- Per-row `title`/`extra` go in `meta.branches`.
 
 ## Containers
 
-- `loop.for('N', { count })`, `loop.forEach('N', { collection })`,
-  `loop.while('N', { condition })`, `loop.doWhile('N', { condition, count })` (a `doWhile` with no
-  condition runs `count` iterations),
-  `parallel.count('N', { count, batchSize })`, `parallel.collection('N', { collection, batchSize })`,
-  and bare `parallel('N', { count, collection, batchSize })` (no `parallelType`).
-- Third argument: `(p) => { ... }`, or `(p) => block(...)` which implies `p.to(block)`.
-- The other types' stored fields have no syntax; apply keeps them from the stored workflow. A
-  loop with no `count` gets 5, the count that runs. `meta.extra` carries the container's stored
-  params and `meta.subflowData` its unreadable subflow data (see `meta` above).
-- `p.x` is `<loop.x>` / `<parallel.x>` when `p`'s container is the innermost of its kind around
-  the block, else the named `<containerkey.x>`. `container.results` / `container.index` are named
-  refs.
+| Form | Type |
+|---|---|
+| `loop.for('N', { count }, body)` | `for` |
+| `loop.forEach('N', { collection }, body)` | `forEach` |
+| `loop.while('N', { condition }, body)` | `while` |
+| `loop.doWhile('N', { condition, count }, body)` | `doWhile`; with no condition it runs `count` times |
+| `parallel.count('N', { count, batchSize }, body)` | `count` |
+| `parallel.collection('N', { collection, batchSize }, body)` | `collection` |
+| `parallel('N', { count, collection, batchSize }, body)` | no stored `parallelType` |
+
+- `body` is `(p) => { … }`, or `(p) => block(…)`, which implies `p.to(block)`. `meta` is the fourth
+  argument.
+- A loop with no `count` gets 5, the count that runs. The other types' stored fields have no
+  syntax; apply keeps them.
+- `p.index`, `p.currentItem`, `p.items` (`E_UNKNOWN_SUBFLOW_PROPERTY` for anything else) are
+  `<loop.x>` / `<parallel.x>` when `p`'s container is the innermost of its kind around the block,
+  else `<containerkey.x>`. `container.results` and `container.index` are named refs.
 
 ## Wiring
 
-- `a.to(b, c)` (fan-out), chains `a.to(b).to(c)`, groups `a.to(b, c).to(d)` (fan-in),
-  `a.onError(b)` (not chainable), `cond.key.to(x)`, `p.to(x)` (the start port), and
-  `container.to(x)` (end port).
-- `edge(a, 'handle', b)`: `'source'` is the out port (how the printer writes it for a condition,
-  router or container), `'loop-start-source'`/`'parallel-start-source'` the start port,
-  `'loop-end-source'`/`'parallel-end-source'` the end port, anything else a raw port.
-  `W_RAW_HANDLE` either way; the start/end child checks do not apply to `edge()`.
+| Form | Edge |
+|---|---|
+| `a.to(b, c)` | `a` → `b` and `a` → `c` (fan-out) |
+| `a.to(b).to(c)` | a chain |
+| `a.to(b, c).to(d)` | `b` → `d` and `c` → `d` (fan-in) |
+| `a.onError(b)` | the error port; not chainable |
+| `cond.key.to(x)` | a condition or router branch |
+| `p.to(x)` | a subflow's start port, inside its body |
+| `container.to(x)` | the port taken after the container finishes |
+| `edge(a, 'handle', b)` | a raw handle (`W_RAW_HANDLE`) |
+
+`edge()` maps `'source'` to the out port (how the printer writes it for a condition, router or
+container), `'loop-start-source'`/`'parallel-start-source'` to the start port and
+`'loop-end-source'`/`'parallel-end-source'` to the end port; anything else stays a raw port. The
+start and end child checks do not apply to `edge()`.
+
+Refused: `.to()` on a condition or router (`E_NO_DEFAULT_OUTPUT`), an unknown branch
+(`E_UNKNOWN_BRANCH`), an edge into a trigger (`E_TARGET_TRIGGER`), `onError` on a block with no
+error port (`E_ERROR_PORT_UNSUPPORTED`), an edge to or from a note (`E_EDGE_NOTE`), an edge across
+subflow scopes (`E_EDGE_SCOPE`) and a repeated edge (`E_DUPLICATE_EDGE`).
 
 ## Comments
 
-- Before the first import, and between imports: `header`. After the export: `footer`.
-- Same line after an item: trailing on it; otherwise leading on the next item; after the last
-  item: `footer` in a body, trailing on the last param in a params object.
-- Items: statements (`block` / `edges` anchors), params (`param`, the written name, so the
-  canonical id for pairs), `extra` entries (`param`, by key), variables (`var`).
+- Before the first import and between imports: `header`. After the export: `footer`.
+- On the same line after an item: trailing on it. Otherwise: leading on the next item. After the
+  last item: `footer` in a body, trailing on the last param in a params object.
+- Items: statements (`block` / `edges` anchors), params (`param`, the written name, so the canonical
+  id for pairs), `extra` entries (`param`, by key), branch rows (`param`, by branch key), variables
+  (`var`).
 - The group above the first top-level wiring statement goes to `wiring` only when a blank line
-  separates it from the statement; otherwise it goes to that statement's `edges` anchor.
-- Anything inside an expression is hoisted to the enclosing anchor with `W_COMMENT_MOVED`.
-- Branch rows take `param` anchors keyed by the branch key.
+  separates it; otherwise it goes to that statement's `edges` anchor.
+- A comment inside an expression is hoisted to the enclosing anchor (`W_COMMENT_MOVED`). A comment
+  whose block no longer exists is dropped (`W_COMMENT_DROPPED`).
 
 ## Also accepted (hand-written conveniences)
 
 - `env['X']`; `blk['to']` and non-call `blk.to` as refs.
-- `raw([...])` for a whole tool list.
+- `raw([…])` for a whole tool list.
+- `p.start.to(x)` is not accepted: write `p.to(x)`.
+
+## Diagnostics
+
+Errors refuse the whole apply. Warnings are saved as written; info is informational.
+`diagnostics/codes.ts` is the source of truth.
+
+**Compile and print**
+
+| Code | Meaning |
+|---|---|
+| `E_SYNTAX` | Babel could not parse the file. |
+| `E_SDK_HEADER` | Line 1 is not `// @sim-sdk N`. |
+| `E_SDK_MAJOR` | The header's major is newer than the server supports. |
+| `E_SDK_MAJOR_OLD` | The header's major is older than the oldest the server reads. |
+| `E_UNSUPPORTED_SYNTAX` | A construct outside this grammar; the hint names the supported form. |
+| `E_WORKFLOW_EXPORT` | Not exactly one `export default workflow(…)`. |
+| `E_LIMIT_EXCEEDED` | Over the byte, syntax-node, depth or code-file cap. |
+| `E_DUPLICATE_NAME` | Two blocks normalize to one key. |
+| `E_RESERVED_NAME` | A block name normalizes to `loop`, `parallel` or `variable`. |
+| `E_KEY_OVERRIDE` | A `meta.key` that is not a legacy key the stored workflow already has. |
+| `E_EMPTY_NAME` | An empty block name. |
+| `E_NAME_NOT_LITERAL` | A block or workflow name that is not a string literal. |
+| `W_SUSPICIOUS_CHARACTER` | A name holds a bidi control or zero-width character. |
+| `E_UNKNOWN_IDENTIFIER` | An identifier that names nothing in scope; the hint has a did-you-mean. |
+| `E_OUT_OF_SCOPE` | A ref into a sibling subflow's child. |
+| `E_UNKNOWN_VARIABLE` | `vars.x` names no declared variable. |
+| `E_DUPLICATE_VARIABLE` | Two variables with one key. |
+| `E_INVALID_ENV_NAME` | `env.X` with an invalid name. |
+| `E_UNKNOWN_SUBFLOW_PROPERTY` | `p.<prop>` that a loop or parallel does not have. |
+| `W_FORWARD_REF` | A ref to a block declared later; it resolves. |
+| `W_REF_NOT_NORMALIZED` | Hand-written `<Name.path>` text that is not in key form. |
+| `E_EDGE_SCOPE` | An edge across subflow scopes. |
+| `E_EDGE_NOTE` | An edge to or from a note. |
+| `E_TARGET_TRIGGER` | An edge into a trigger. |
+| `E_NO_DEFAULT_OUTPUT` | `.to()` on a condition or router; wire a branch. |
+| `E_DUPLICATE_EDGE` | The same edge twice. |
+| `E_ERROR_PORT_UNSUPPORTED` | `onError` on a block with no error port. |
+| `E_UNKNOWN_BRANCH` | `x.key.to()` where `key` is not a branch of `x`. |
+| `E_DUPLICATE_BRANCH_KEY` | Two rows with one key. |
+| `E_BRANCH_KEY_COLLIDES` | A branch key equal to an output name, `to` or `onError`. |
+| `E_BRANCH_ELSE_LAST` | Two or more condition rows that do not end with `else`. |
+| `W_RAW_HANDLE` | `edge()` with a handle kept verbatim. |
+| `E_UNKNOWN_BUILDER` | A builder path the catalog does not have. |
+| `E_UNKNOWN_PARAM` | A param the block does not have; the hint has a did-you-mean. |
+| `E_FIXED_PARAM` | A param the builder already pins. |
+| `W_FIELD_NOT_APPLICABLE` | A param not visible under the block's values. |
+| `W_REQUIRED_MISSING` | A required field left empty, including `todo()`. |
+| `E_STORED_VALUE_MISSING` | `stored()` where the stored workflow holds no value. |
+| `W_VALUE_KIND` | A value whose JSON type differs from the field's. |
+| `W_UNKNOWN_OUTPUT_PATH` | A ref path the block's outputs do not have. |
+| `W_JSON_REF_UNTYPED` | A bare ref in a JSON literal whose type nothing declares. |
+| `E_CODE_FILE_MISSING` | `codeFile()` names a file the request did not send. |
+| `E_CODE_FILE_PATH` | A code file path outside the directory, or with the wrong extension. |
+| `W_CODE_FILE_INLINED` | Print: the code could not round-trip through a file and was inlined. |
+| `W_UNRESOLVED_REF` | A `<x.y>` token that resolves to nothing; kept as text. |
+| `W_FORWARD_REF_LITERALIZED` | Print: a ref in a cycle printed as text. |
+| `W_COMMENT_MOVED` | A comment hoisted to the nearest anchor. |
+| `W_COMMENT_DROPPED` | A comment whose block no longer exists. |
+
+**Lock and source meta** (`.sim/lock.json`, stored `workflow_source_meta`; reported with a JSON
+`path`)
+
+| Code | Meaning |
+|---|---|
+| `E_LOCK_JSON`, `E_SOURCE_META_JSON` | Not valid JSON. |
+| `E_LOCK_VERSION`, `E_SOURCE_META_VERSION` | `version` missing or not `1`. |
+| `E_LOCK_SHAPE`, `E_SOURCE_META_SHAPE` | A required field missing or of the wrong type or format. |
+| `E_LOCK_UNKNOWN_FIELD`, `E_SOURCE_META_UNKNOWN_FIELD` | A field the schema does not define (`x-` keys are allowed). |
+| `E_LOCK_KEY` | A block or variable key not in normalized form. |
+| `E_LOCK_IDENT`, `E_SOURCE_META_IDENT` | An ident that is not a JS identifier, or is reserved. |
+| `E_LOCK_DUPLICATE_IDENT`, `E_SOURCE_META_DUPLICATE_IDENT` | Two blocks with one ident. |
+| `E_LOCK_DUPLICATE_ID` | One block, variable or branch id under two keys. |
+| `E_LOCK_PARENT` | A parent naming no block, itself, or forming a cycle. |
+| `E_LOCK_BRANCH` | A branch key that is not a JS identifier. |
+| `E_LOCK_CODE_FILE_PATH` | A `codeFile` that is absolute, escapes the directory, or uses backslashes. |
+| `E_SOURCE_META_ANCHOR` | A comment key that is not a valid anchor. |
+
+**Canonicalize** (reading the stored workflow; returned by `source get`)
+
+| Code | Meaning |
+|---|---|
+| `E_CANON_LEGACY_NAME_COLLISION` | Two stored names normalize alike; the loser is keyed `key~n`. |
+| `E_CANON_EDGE_SCOPE` | A stored edge crosses subflow scopes. |
+| `W_CANON_RESERVED_NAME` | A stored name normalizes to a reserved key. |
+| `W_CANON_DANGLING_EDGE` | A stored edge to a missing block; dropped. |
+| `W_CANON_DANGLING_PARENT` | A parent that does not exist; the block is placed at the root and the raw parent kept. |
+| `W_CANON_RAW_HANDLE` | An unknown edge handle, kept as a raw port. |
+| `W_CANON_UNKNOWN_BLOCK_TYPE` | A type the catalog does not have; params kept. |
+| `W_CANON_UNRESOLVED_ID` | A resource id with no key; kept verbatim. |
+| `W_CANON_TITLE_OVERRIDE` | A branch title that differs from its positional title. |
+| `W_CANON_SUBFLOW_REPAIRED` | A loop or parallel config the loader would repair. |
+| `W_CANON_SUBBLOCK_TYPE_DRIFT` | A stored subBlock type differs from the catalog's. |
+| `W_CANON_UNDECODABLE_JSON` | A stored JSON-text field that does not parse; kept as text. |
+
+**Materialize** (binding the compiled workflow to stored ids)
+
+| Code | Meaning |
+|---|---|
+| `E_MAT_DUPLICATE_LOCK_ID` | Two lock keys carry one block id. |
+| `E_MAT_UNKNOWN_RESOURCE` | A resource key with no live resource in this workspace. |
+| `W_MAT_DELETED_SINCE_PULL` | A lock entry whose block was deleted since the read; re-created. |
+| `W_MAT_INFERRED_RENAME` | A lockless rename inferred from type, parent and edges. |
+| `W_MAT_RETYPE_RECREATED` | A key kept with a new type: delete plus create, so webhook URLs and schedules change. |
+| `W_MAT_LOCK_ID_CLAIMED` | A lock id another workflow holds; a new id was minted. |
+| `I_MAT_NEEDS_LAYOUT` | A new block with no position; placed by autolayout. |
+
+**Apply**
+
+| Code | Meaning |
+|---|---|
+| `E_APPLY_STALE` | The workflow changed since the source was read (HTTP 409). |
+| `E_APPLY_WORKFLOW_MISMATCH` | `base.workflowId` names another workflow (HTTP 400). |
+| `E_APPLY_LOCKED_BLOCK` | The change touches a locked block or a child of a locked container. |
+| `E_APPLY_TYPE_NOT_ADDABLE` | A new block of a type that may stay but not be added. |
+| `E_APPLY_INVALID_STATE` | The resulting graph fails validation. |
+| `E_APPLY_BLOCK_NOT_FOUND`, `E_APPLY_INVALID_BLOCK_TYPE` | A block or type the engine cannot place. |
+| `E_APPLY_BLOCK_NOT_ALLOWED`, `E_APPLY_MODEL_NOT_ALLOWED`, `E_APPLY_TOOL_NOT_ALLOWED` | Refused by the workspace's permission group. |
+| `E_APPLY_INVALID_EDGE_SOURCE`, `E_APPLY_INVALID_EDGE_SCOPE`, `E_APPLY_INVALID_SOURCE_HANDLE`, `E_APPLY_INVALID_TARGET_HANDLE` | An edge the engine refuses. |
+| `E_APPLY_INVALID_SUBBLOCK_FIELD`, `E_APPLY_MISSING_REQUIRED_PARAMS` | A field the engine refuses, or required params missing. |
+| `E_APPLY_INVALID_SUBFLOW_PARENT`, `E_APPLY_NESTED_SUBFLOW_NOT_ALLOWED` | A container placement the engine refuses. |
+| `E_APPLY_DUPLICATE_BLOCK_NAME`, `E_APPLY_RESERVED_BLOCK_NAME` | A name the engine refuses. |
+| `E_APPLY_RETRY_NOT_SUPPORTED` | Retry on a block that always runs once (triggers, human-in-the-loop, containers). |
+| `E_APPLY_DUPLICATE_TRIGGER`, `E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK` | A second trigger or single-instance block. |
+| `E_APPLY_DISABLED_ANCESTOR` | An enabled block inside a disabled container. |
+| `E_APPLY_CREDENTIAL_UNREACHABLE` | A credential the acting user cannot use. |
+| `E_APPLY_SANDBOX_PLAN_REQUIRED` | The sandbox needs a plan the workspace does not have. |
+| `W_APPLY_HOSTED_KEY_DROPPED` | A hosted key that does not apply was cleared. |
+| `W_APPLY_VALUE_NORMALIZED` | Validation rewrote a value; the returned files show it. |
+| `W_APPLY_TYPE_CHANGED` | A block's type changed; its id, webhook URL and schedules are replaced. |
+| `W_APPLY_TRIGGER_REMOVED` | A deleted or retyped block still serves a live webhook, schedule, chat output or MCP tool until the next deploy. |
+| `W_APPLY_CATALOG_MOVED` | Compile failed and the block catalog changed since the read: get the source again. |
+| `E_APPLY_LINT`, `W_APPLY_LINT` | A workflow lint finding, mapped to a source line. |
