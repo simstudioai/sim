@@ -5,8 +5,8 @@ import {
   scopeCanonicalModesForTool,
 } from '../catalog/canonical-index'
 import { compileWorkflow } from '../compile'
+import { TEST_CATALOG as catalog } from '../compile/test-catalog'
 import { canonicalEquals } from '../equivalence'
-import { catalog } from '../print/__fixtures__/catalog'
 import { printWorkflow } from '../print/printer'
 import { canonicalize } from '.'
 

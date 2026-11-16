@@ -10,7 +10,7 @@
  *
  * To fix a failure, change the doc printer (`packages/workflow-code/src/print/`) until the golden
  * it prints matches Biome's output, then refresh the goldens with
- * `bun run --cwd packages/workflow-code test src/print -u`. Never edit a golden by hand.
+ * `bun run --cwd apps/sim test lib/workflows/code/goldens.test.ts -u`. Never edit a golden by hand.
  */
 import { spawnSync } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
