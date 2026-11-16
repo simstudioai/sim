@@ -26,6 +26,7 @@ export interface PagerDutyListIncidentsParams extends PagerDutyBaseParams {
   sortBy?: string
   limit?: string
   offset?: string
+  includeTotal?: boolean | string
 }
 
 export interface PagerDutyListIncidentsResponse extends ToolResponse {
@@ -154,6 +155,7 @@ export interface PagerDutyListServicesParams extends PagerDutyBaseParams {
   query?: string
   limit?: string
   offset?: string
+  includeTotal?: boolean | string
 }
 
 export interface PagerDutyListServicesResponse extends ToolResponse {
@@ -207,6 +209,7 @@ export interface PagerDutyListOncallsParams extends PagerDutyBaseParams {
   until?: string
   limit?: string
   offset?: string
+  includeTotal?: boolean | string
 }
 
 export interface PagerDutyListOncallsResponse extends ToolResponse {
@@ -235,6 +238,7 @@ export interface PagerDutyListEscalationPoliciesParams extends PagerDutyBasePara
   query?: string
   limit?: string
   offset?: string
+  includeTotal?: boolean | string
 }
 
 export interface PagerDutyListEscalationPoliciesResponse extends ToolResponse {
@@ -260,6 +264,7 @@ export interface PagerDutyListSchedulesParams extends PagerDutyBaseParams {
   query?: string
   limit?: string
   offset?: string
+  includeTotal?: boolean | string
 }
 
 export interface PagerDutyListSchedulesResponse extends ToolResponse {
@@ -284,6 +289,7 @@ export interface PagerDutyListUsersParams extends PagerDutyBaseParams {
   query?: string
   limit?: string
   offset?: string
+  includeTotal?: boolean | string
 }
 
 export interface PagerDutyListUsersResponse extends ToolResponse {
@@ -346,6 +352,7 @@ export interface PagerDutyListIncidentAlertsParams extends PagerDutyBaseParams {
   statuses?: string
   limit?: string
   offset?: string
+  includeTotal?: boolean | string
 }
 
 export interface PagerDutyListIncidentAlertsResponse extends ToolResponse {
@@ -380,6 +387,8 @@ export interface PagerDutySendEventParams {
   component?: string
   group?: string
   class?: string
+  timestamp?: string
+  customDetails?: Record<string, unknown> | string
 }
 
 export interface PagerDutySendEventResponse extends ToolResponse {

@@ -72,7 +72,7 @@ Query metric timeseries data from Datadog. Use for analyzing trends, creating re
 
 ### Datadog Create Event
 
-Post an event to the Datadog event stream. Use for deployment notifications, alerts, or any significant occurrences.
+Post an event to the Datadog event stream. Use for deployment notifications, alerts, or any significant occurrences. Uses the v1 events endpoint, which Datadog has deprecated and serves only to organizations that have used it before.
 
 <ReferenceDetails>
 
@@ -95,7 +95,8 @@ Post an event to the Datadog event stream. Use for deployment notifications, ale
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `event` | object | The created event details |
-|   ↳ `id` | number | Event ID |
+|   ↳ `id` | number | Event ID. Can lose precision above 2^53; prefer id_str |
+|   ↳ `id_str` | string | Event ID as an exact string |
 |   ↳ `title` | string | Event title |
 |   ↳ `text` | string | Event text |
 |   ↳ `date_happened` | number | Unix timestamp when event occurred |
@@ -280,7 +281,7 @@ Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or mon
 | `query` | string | Yes | Log search query using Datadog query syntax \(e.g., "service:web-app status:error", "host:prod-* @http.status_code:500"\) |
 | `from` | string | Yes | Start time in ISO-8601 format or relative time \(e.g., "now-1h", "now-15m", "2024-01-15T10:00:00Z"\) |
 | `to` | string | Yes | End time in ISO-8601 format or relative time \(e.g., "now", "now-5m", "2024-01-15T12:00:00Z"\) |
-| `limit` | number | No | Maximum number of logs to return \(e.g., 50, 100, max: 1000\) |
+| `limit` | number | No | Maximum number of logs to return \(default: 50, max: 5000\) |
 | `cursor` | string | No | Pagination cursor from a previous call, taken from its nextLogId output. Omit for the first page. |
 | `sort` | string | No | Sort order: "timestamp" for oldest first, "-timestamp" for newest first |
 | `indexes` | string | No | Comma-separated list of log indexes to search |
@@ -476,6 +477,7 @@ Get the details of a single incident by ID. Requires the Incident Management `in
 |     ↳ `modified` | string | Last modification timestamp |
 |     ↳ `resolved` | string | Resolution timestamp |
 |     ↳ `time_to_resolve` | number | Seconds from creation to resolution |
+| `included` | array | Related resources requested through include \(users, attachments\) |
 
 </ReferenceDetails>
 
@@ -705,7 +707,7 @@ Update a service level objective. Reads the current SLO first and applies only t
 | --------- | ---- | -------- | ----------- |
 | `sloId` | string | Yes | The ID of the service level objective to update |
 | `name` | string | No | New name for the SLO. Leave blank to keep the current name. |
-| `type` | string | No | SLO type: "metric" or "monitor". Leave blank to keep the current type. Changing type requires supplying the matching query or monitorIds. |
+| `type` | string | No | SLO type: "metric" or "monitor". Leave blank to keep the current type. Changing type requires supplying the matching query or monitorIds. Converting to a "time_slice" SLO is not supported. |
 | `thresholds` | string | No | JSON array of thresholds replacing the stored ones, e.g. \[\{"timeframe": "30d", "target": 99.9, "warning": 99.95\}\]. Leave blank to keep the current thresholds. |
 | `description` | string | No | Description of the SLO |
 | `tags` | string | No | Comma-separated tags \(e.g., "env:prod,team:core"\) |
@@ -785,6 +787,7 @@ Get an SLO’s history over a time window, including the overall SLI value and r
 |   ↳ `monitors` | array | Per-monitor SLI data for multi-monitor SLOs |
 |   ↳ `thresholds` | object | Thresholds keyed by timeframe |
 | `sliValue` | number | Overall SLI value over the window |
+| `errors` | array | Errors Datadog hit while querying the history; the call can succeed with partial data |
 
 </ReferenceDetails>
 

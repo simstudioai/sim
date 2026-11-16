@@ -1,5 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
 import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import {
   nullableBoolean,
   nullableString,
@@ -143,14 +146,24 @@ async function parsePullRequestResponse(response: Response): Promise<GitHubPullR
   return parsePullRequest(value)
 }
 
+/**
+ * Reads every page of a pull request's changed files. Each page is held to the
+ * transport's per-response ceiling and all pages together to the buffered
+ * transfer budget, so a PR with thousands of patched files fails with a size
+ * error instead of growing process memory without bound. The run's abort
+ * signal stops the remaining page requests.
+ */
 async function fetchPullRequestFiles(
   params: PROperationParams,
-  pullNumber: number
+  pullNumber: number,
+  signal: AbortSignal | undefined
 ): Promise<PullRequestFilesResult> {
   const files: GitHubPullRequestFile[] = []
   const maxPages = MAX_PULL_REQUEST_FILES / PULL_REQUEST_FILES_PER_PAGE
+  let remainingBytes = MAX_BUFFERED_TRANSFER_BYTES
 
   for (let page = 1; page <= maxPages; page += 1) {
+    signal?.throwIfAborted()
     const response = await outboundFetch(
       `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${pullNumber}/files?per_page=${PULL_REQUEST_FILES_PER_PAGE}&page=${page}`,
       {
@@ -159,6 +172,7 @@ async function fetchPullRequestFiles(
           Authorization: `Bearer ${params.apiKey}`,
           'X-GitHub-Api-Version': '2022-11-28',
         },
+        signal,
       }
     )
 
@@ -171,7 +185,13 @@ async function fetchPullRequestFiles(
       }
     }
 
-    const value: unknown = await response.json()
+    const text = await readResponseTextWithLimit(response, {
+      maxBytes: Math.min(MAX_TOOL_RESPONSE_BODY_BYTES, remainingBytes),
+      label: 'GitHub pull request files response',
+      signal,
+    })
+    remainingBytes -= Buffer.byteLength(text)
+    const value: unknown = JSON.parse(text)
     const pageFiles = parsePullRequestFiles(value)
     if (pageFiles.length > PULL_REQUEST_FILES_PER_PAGE) {
       throw new Error(
@@ -236,10 +256,10 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
     }),
   },
 
-  transformResponse: async (response, params) => {
+  transformResponse: async (response, params, context) => {
     const requestParams = requireParams(params)
     const pr = await parsePullRequestResponse(response)
-    const filesResult = await fetchPullRequestFiles(requestParams, pr.number)
+    const filesResult = await fetchPullRequestFiles(requestParams, pr.number, context?.signal)
 
     if (!filesResult.success) {
       return {
@@ -346,12 +366,12 @@ export const prV2Tool: ToolConfig<PRV2OperationParams, PullRequestV2Response> = 
   },
   request: prTool.request,
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response, params, context) => {
     const requestParams = requireParams(params)
     const pr = await parsePullRequestResponse(response)
 
     if (requestParams.includeFiles !== false) {
-      const filesResult = await fetchPullRequestFiles(requestParams, pr.number)
+      const filesResult = await fetchPullRequestFiles(requestParams, pr.number, context?.signal)
       if (!filesResult.success) {
         return {
           success: false,

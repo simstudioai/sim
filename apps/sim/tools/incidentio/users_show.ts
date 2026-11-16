@@ -4,6 +4,7 @@ import type {
 } from '@/tools/incidentio/types'
 import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const usersShowTool: ToolConfig<IncidentioUsersShowParams, IncidentioUsersShowResponse> = {
   id: 'incidentio_users_show',
@@ -30,7 +31,7 @@ export const usersShowTool: ToolConfig<IncidentioUsersShowParams, IncidentioUser
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/users/${params.id.trim()}`,
+    url: (params) => `https://api.incident.io/v2/users/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -49,6 +50,8 @@ export const usersShowTool: ToolConfig<IncidentioUsersShowParams, IncidentioUser
           name: data.user.name,
           email: data.user.email,
           role: data.user.role,
+          slack_user_id: data.user.slack_user_id,
+          is_active: data.user.is_active,
         },
       },
     }
@@ -63,6 +66,12 @@ export const usersShowTool: ToolConfig<IncidentioUsersShowParams, IncidentioUser
         name: { type: 'string', description: 'Full name of the user' },
         email: { type: 'string', description: 'Email address of the user' },
         role: { type: 'string', description: 'Role of the user in the workspace' },
+        slack_user_id: { type: 'string', description: 'Slack ID of the user', optional: true },
+        is_active: {
+          type: 'boolean',
+          description: 'Whether the user is active (false once deactivated)',
+          optional: true,
+        },
       },
     },
   },

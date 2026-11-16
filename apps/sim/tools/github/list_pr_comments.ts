@@ -103,7 +103,7 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
             .slice(0, 5)
             .map(
               (c: any) =>
-                `- ${c.user.login} on ${c.path}${c.line ? `:${c.line}` : ''} (${new Date(c.created_at).toLocaleDateString()}): "${truncate(c.body, 80)}"`
+                `- ${c.user?.login ?? 'unknown'} on ${c.path}${c.line ? `:${c.line}` : ''} (${new Date(c.created_at).toLocaleDateString()}): "${truncate(c.body ?? '', 80)}"`
             )
             .join('\n')}`
         : ''
@@ -117,7 +117,7 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
           comments: data.map((comment: any) => ({
             id: comment.id,
             body: comment.body,
-            user: { login: comment.user.login },
+            user: { login: comment.user?.login ?? null },
             created_at: comment.created_at,
             html_url: comment.html_url,
           })),

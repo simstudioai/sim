@@ -12,7 +12,7 @@ export const incidentsCreateTool: ToolConfig<
   id: 'incidentio_incidents_create',
   name: 'incident.io Incidents Create',
   description:
-    'Create a new incident in incident.io. Requires idempotency_key, severity_id, and visibility. Optionally accepts name, summary, type, and status.',
+    'Create a new incident in incident.io. Requires idempotency_key and visibility. Optionally accepts name, summary, severity_id, incident_type_id, and incident_status_id.',
   version: '1.0.0',
   oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
@@ -45,7 +45,7 @@ export const incidentsCreateTool: ToolConfig<
     },
     severity_id: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'ID of the severity level (e.g., "01FCNDV6P870EA6S7TK1DSYDG0")',
     },
@@ -77,12 +77,12 @@ export const incidentsCreateTool: ToolConfig<
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         idempotency_key: params.idempotency_key,
-        severity_id: params.severity_id,
         visibility: params.visibility,
       }
 
+      if (params.severity_id) body.severity_id = params.severity_id
       if (params.name) body.name = params.name
       if (params.summary) body.summary = params.summary
       if (params.incident_type_id) body.incident_type_id = params.incident_type_id

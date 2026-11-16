@@ -3,6 +3,7 @@ import {
   type IncidentioFollowUpsCreateParams,
   type IncidentioFollowUpsCreateResponse,
 } from '@/tools/incidentio/types'
+import { parseIncidentioList } from '@/tools/incidentio/utils'
 import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -81,7 +82,7 @@ export const followUpsCreateTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.incident.io/v2/follow_ups',
+    url: 'https://api.incident.io/v3/follow_ups',
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -105,12 +106,7 @@ export const followUpsCreateTool: ToolConfig<
       if (params.external_issue_reference_id) {
         body.external_issue_reference_id = params.external_issue_reference_id.trim()
       }
-      if (params.labels) {
-        body.labels = params.labels
-          .split(',')
-          .map((label) => label.trim())
-          .filter(Boolean)
-      }
+      if (params.labels) body.labels = parseIncidentioList(params.labels)
 
       return body
     },

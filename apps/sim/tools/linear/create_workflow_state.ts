@@ -35,9 +35,9 @@ export const linearCreateWorkflowStateTool: ToolConfig<
     },
     color: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'State color (hex format)',
+      description: 'State color (hex format, e.g. #5E6AD2)',
     },
     type: {
       type: 'string',

@@ -265,6 +265,18 @@ export const INCIDENTIO_ALERT_OUTPUT_PROPERTIES = {
     optional: true,
     items: { type: 'object' },
   },
+  tags: {
+    type: 'array',
+    description: 'Tags someone has applied to this alert',
+    optional: true,
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Tag ID' },
+        name: { type: 'string', description: 'Tag name' },
+      },
+    },
+  },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -429,7 +441,7 @@ export interface IncidentioIncidentsCreateParams extends IncidentioBaseParams {
   idempotency_key: string
   name?: string
   summary?: string
-  severity_id: string
+  severity_id?: string
   incident_type_id?: string
   incident_status_id?: string
   visibility: string
@@ -501,39 +513,47 @@ export interface IncidentioIncidentsUpdateResponse extends ToolResponse {
 export interface IncidentioActionsListParams extends IncidentioBaseParams {
   incident_id?: string
   incident_mode?: 'standard' | 'retrospective' | 'test' | 'tutorial' | 'stream'
+  page_size?: number
+  after?: string
 }
 
-interface IncidentioAction {
+/**
+ * Who created an action or follow-up, as the list/show tools output it: `id`/`name`/`email` are
+ * read from whichever actor is set, and the raw actor envelope is passed through alongside.
+ */
+export interface IncidentioLegacyCreator {
+  id?: string
+  name?: string
+  email?: string
+  user?: IncidentioSlimUser
+  api_key?: { id: string; name: string }
+  workflow?: { id: string; name: string }
+  alert?: { id: string; title: string }
+}
+
+/** A user an action or follow-up is assigned to, as the list/show tools output it. */
+interface IncidentioSummaryAssignee {
+  id: string
+  name: string
+  email?: string
+}
+
+export interface IncidentioActionSummary {
   id: string
   description: string
-  assignee?: {
-    id: string
-    name: string
-    email: string
-    role?: string
-    slack_user_id?: string
-  }
+  assignee?: IncidentioSummaryAssignee
   status: string
-  due_at?: string
   created_at: string
   updated_at: string
   incident_id?: string
-  creator?: {
-    id: string
-    name: string
-    email: string
-  }
+  creator?: IncidentioLegacyCreator
   completed_at?: string
-  external_issue_reference?: {
-    provider: string
-    issue_name: string
-    issue_permalink: string
-  }
 }
 
 export interface IncidentioActionsListResponse extends ToolResponse {
   output: {
-    actions: IncidentioAction[]
+    actions: IncidentioActionSummary[]
+    pagination_meta?: IncidentioPaginationMeta
   }
 }
 
@@ -543,7 +563,7 @@ export interface IncidentioActionsShowParams extends IncidentioBaseParams {
 
 export interface IncidentioActionsShowResponse extends ToolResponse {
   output: {
-    action: IncidentioAction
+    action: IncidentioActionSummary
   }
 }
 
@@ -551,36 +571,35 @@ export interface IncidentioActionsShowResponse extends ToolResponse {
 export interface IncidentioFollowUpsListParams extends IncidentioBaseParams {
   incident_id?: string
   incident_mode?: 'standard' | 'retrospective' | 'test' | 'tutorial' | 'stream'
+  page_size?: number
+  after?: string
 }
 
-interface IncidentioFollowUp {
+export interface IncidentioFollowUpSummary {
   id: string
   title: string
   description?: string
-  assignee?: {
-    id: string
-    name: string
-    email: string
-    role?: string
-    slack_user_id?: string
-  }
+  assignee?: IncidentioSummaryAssignee
+  assignee_team?: { id: string; name: string }
   status: string
   priority?: {
     id: string
     name: string
-    description: string
+    description?: string
+    rank: number
+  }
+  category?: {
+    id: string
+    name: string
+    description?: string
     rank: number
   }
   created_at: string
   updated_at: string
   incident_id?: string
-  creator?: {
-    id: string
-    name: string
-    email: string
-  }
+  creator?: IncidentioLegacyCreator
   completed_at?: string
-  labels?: string[]
+  labels: string[]
   external_issue_reference?: {
     provider: string
     issue_name: string
@@ -590,7 +609,8 @@ interface IncidentioFollowUp {
 
 export interface IncidentioFollowUpsListResponse extends ToolResponse {
   output: {
-    follow_ups: IncidentioFollowUp[]
+    follow_ups: IncidentioFollowUpSummary[]
+    pagination_meta?: IncidentioPaginationMeta
   }
 }
 
@@ -600,7 +620,7 @@ export interface IncidentioFollowUpsShowParams extends IncidentioBaseParams {
 
 export interface IncidentioFollowUpsShowResponse extends ToolResponse {
   output: {
-    follow_up: IncidentioFollowUp
+    follow_up: IncidentioFollowUpSummary
   }
 }
 
@@ -789,6 +809,7 @@ export interface IncidentioUsersListParams extends IncidentioBaseParams {
   after?: string
   email?: string
   slack_user_id?: string
+  include_inactive?: boolean
 }
 
 interface IncidentioUser {
@@ -796,6 +817,8 @@ interface IncidentioUser {
   name: string
   email: string
   role: string
+  slack_user_id?: string
+  is_active?: boolean
 }
 
 export interface IncidentioUsersListResponse extends ToolResponse {
@@ -896,7 +919,9 @@ export interface IncidentioEscalationsCreateParams extends IncidentioBaseParams 
   idempotency_key: string
   title: string
   escalation_path_id?: string
-  user_ids?: string
+  user_ids?: string | string[]
+  incident_id?: string
+  description?: string
 }
 
 export interface IncidentioEscalationsCreateResponse extends ToolResponse {
@@ -932,10 +957,7 @@ interface IncidentioSchedule {
 export interface IncidentioSchedulesListResponse extends ToolResponse {
   output: {
     schedules: IncidentioSchedule[]
-    pagination_meta?: {
-      after?: string
-      page_size: number
-    }
+    pagination_meta?: IncidentioPaginationMeta
   }
 }
 
@@ -1191,28 +1213,38 @@ export interface IncidentioScheduleOverridesCreateResponse extends ToolResponse 
 }
 
 // Escalation Paths types
-interface IncidentioEscalationPathTarget {
+/** A node of an escalation path. Only the field matching `type` is set. */
+interface IncidentioEscalationPathNode {
   id: string
   type: string
-  schedule_id?: string
-  user_id?: string
-  urgency: string
+  level?: {
+    targets: Array<{ id: string; type: string; urgency: string; schedule_mode?: string }>
+    time_to_ack_seconds?: number
+  }
+  notify_channel?: unknown
+  delay?: unknown
+  if_else?: unknown
+  repeat?: unknown
+  escalation_path?: unknown
 }
 
-interface IncidentioEscalationPathLevel {
-  targets: IncidentioEscalationPathTarget[]
-  time_to_ack_seconds: number
+/** A named working-hours window an escalation path can refer to. */
+interface IncidentioWeekdayIntervalConfig {
+  id: string
+  name: string
+  timezone: string
+  weekday_intervals: Array<{ weekday: string; start_time: string; end_time: string }>
 }
 
 interface IncidentioEscalationPath {
   id: string
   name: string
-  path: IncidentioEscalationPathLevel[]
-  working_hours?: Array<{
-    weekday: string
-    start_time: string
-    end_time: string
-  }>
+  kind?: string
+  team_ids?: string[]
+  path: IncidentioEscalationPathNode[]
+  working_hours?: IncidentioWeekdayIntervalConfig[]
+  repeat_config?: unknown
+  current_responders?: IncidentioSlimUser[]
 }
 
 export interface IncidentioEscalationPathsListParams extends IncidentioBaseParams {
@@ -1232,21 +1264,8 @@ export interface IncidentioEscalationPathsListResponse extends ToolResponse {
 
 export interface IncidentioEscalationPathsCreateParams extends IncidentioBaseParams {
   name: string
-  path: Array<{
-    targets: Array<{
-      id: string
-      type: string
-      schedule_id?: string
-      user_id?: string
-      urgency: string
-    }>
-    time_to_ack_seconds: number
-  }>
-  working_hours?: Array<{
-    weekday: string
-    start_time: string
-    end_time: string
-  }>
+  path: IncidentioEscalationPathNode[]
+  working_hours?: IncidentioWeekdayIntervalConfig[]
 }
 
 export interface IncidentioEscalationPathsCreateResponse extends ToolResponse {
@@ -1268,21 +1287,8 @@ export interface IncidentioEscalationPathsShowResponse extends ToolResponse {
 export interface IncidentioEscalationPathsUpdateParams extends IncidentioBaseParams {
   id: string
   name: string
-  path: Array<{
-    targets: Array<{
-      id: string
-      type: string
-      schedule_id?: string
-      user_id?: string
-      urgency: string
-    }>
-    time_to_ack_seconds: number
-  }>
-  working_hours?: Array<{
-    weekday: string
-    start_time: string
-    end_time: string
-  }>
+  path: IncidentioEscalationPathNode[]
+  working_hours?: IncidentioWeekdayIntervalConfig[]
 }
 
 export interface IncidentioEscalationPathsUpdateResponse extends ToolResponse {
@@ -1784,6 +1790,242 @@ export const INCIDENTIO_ACTION_RECORD_OUTPUT_PROPERTIES = {
   updated_at: { type: 'string', description: 'When the action was last updated' },
 } as const satisfies Record<string, OutputProperty>
 
+const INCIDENTIO_SUMMARY_ASSIGNEE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Assigned user',
+  optional: true,
+  properties: {
+    id: { type: 'string', description: 'User ID' },
+    name: { type: 'string', description: 'User name' },
+    email: { type: 'string', description: 'User email', optional: true },
+  },
+}
+
+/**
+ * Output definition for the creator of an action or follow-up as the list/show tools output it.
+ * `id`, `name`, and `email` are read from whichever actor is set; the actor keys are passed through.
+ */
+const INCIDENTIO_LEGACY_CREATOR_OUTPUT_PROPERTIES = {
+  id: {
+    type: 'string',
+    description: 'ID of the user, API key, workflow, or alert',
+    optional: true,
+  },
+  name: {
+    type: 'string',
+    description: 'Name of the user, API key, or workflow (or the alert title)',
+    optional: true,
+  },
+  email: { type: 'string', description: 'User email, when a user created it', optional: true },
+  ...INCIDENTIO_ACTOR_OUTPUT_PROPERTIES,
+} as const satisfies Record<string, OutputProperty>
+
+const INCIDENTIO_SUMMARY_EXTERNAL_ISSUE_REFERENCE_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'External issue tracking reference',
+  optional: true,
+  properties: {
+    provider: { type: 'string', description: 'Issue tracking provider (e.g., Jira, Linear)' },
+    issue_name: { type: 'string', description: 'Issue identifier' },
+    issue_permalink: { type: 'string', description: 'URL to the external issue' },
+  },
+}
+
+/** Output definition for an action as the list/show tools output it. */
+export const INCIDENTIO_ACTION_SUMMARY_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Action ID' },
+  description: { type: 'string', description: 'Action description' },
+  assignee: INCIDENTIO_SUMMARY_ASSIGNEE_OUTPUT,
+  status: { type: 'string', description: 'Action status' },
+  due_at: {
+    type: 'string',
+    description: 'Deprecated: incident.io actions have no due date, so this is never set',
+    optional: true,
+  },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+  incident_id: { type: 'string', description: 'Associated incident ID' },
+  creator: {
+    type: 'object',
+    description: 'Who created the action',
+    properties: INCIDENTIO_LEGACY_CREATOR_OUTPUT_PROPERTIES,
+  },
+  completed_at: { type: 'string', description: 'Completion timestamp', optional: true },
+  external_issue_reference: {
+    ...INCIDENTIO_SUMMARY_EXTERNAL_ISSUE_REFERENCE_OUTPUT,
+    description: 'Deprecated: incident.io actions have no external issue, so this is never set',
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Output definition for a follow-up as the list/show tools output it. */
+export const INCIDENTIO_FOLLOW_UP_SUMMARY_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Follow-up ID' },
+  title: { type: 'string', description: 'Follow-up title' },
+  description: { type: 'string', description: 'Follow-up description', optional: true },
+  assignee: INCIDENTIO_SUMMARY_ASSIGNEE_OUTPUT,
+  assignee_team: {
+    type: 'object',
+    description: 'The team the follow-up is assigned to',
+    optional: true,
+    properties: {
+      id: { type: 'string', description: 'Team ID' },
+      name: { type: 'string', description: 'Team name' },
+    },
+  },
+  status: { type: 'string', description: 'Follow-up status' },
+  priority: {
+    type: 'object',
+    description: 'Follow-up priority',
+    optional: true,
+    properties: {
+      id: { type: 'string', description: 'Priority ID' },
+      name: { type: 'string', description: 'Priority name' },
+      description: { type: 'string', description: 'Priority description', optional: true },
+      rank: { type: 'number', description: 'Priority rank' },
+    },
+  },
+  category: {
+    type: 'object',
+    description: 'Follow-up category',
+    optional: true,
+    properties: {
+      id: { type: 'string', description: 'Category ID' },
+      name: { type: 'string', description: 'Category name' },
+      description: { type: 'string', description: 'Category description', optional: true },
+      rank: { type: 'number', description: 'Category rank' },
+    },
+  },
+  created_at: { type: 'string', description: 'Creation timestamp' },
+  updated_at: { type: 'string', description: 'Last update timestamp' },
+  incident_id: { type: 'string', description: 'Associated incident ID' },
+  creator: {
+    type: 'object',
+    description: 'Who created the follow-up',
+    properties: INCIDENTIO_LEGACY_CREATOR_OUTPUT_PROPERTIES,
+  },
+  completed_at: { type: 'string', description: 'Completion timestamp', optional: true },
+  labels: {
+    type: 'array',
+    description: 'Labels associated with the follow-up',
+    items: { type: 'string' },
+  },
+  external_issue_reference: INCIDENTIO_SUMMARY_EXTERNAL_ISSUE_REFERENCE_OUTPUT,
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for escalation path objects.
+ * @see https://api-docs.incident.io/
+ */
+export const INCIDENTIO_ESCALATION_PATH_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'The escalation path ID' },
+  name: { type: 'string', description: 'The escalation path name' },
+  kind: { type: 'string', description: 'Path kind (standalone, templated)', optional: true },
+  team_ids: {
+    type: 'array',
+    description: 'IDs of the teams that own this escalation path',
+    optional: true,
+    items: { type: 'string' },
+  },
+  path: {
+    type: 'array',
+    description: 'Nodes that form the levels and branches of the path',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Node ID, unique within the path' },
+        type: {
+          type: 'string',
+          description:
+            'Node type (level, notify_channel, delay, if_else, repeat, voicemail, escalation_path)',
+        },
+        level: {
+          type: 'object',
+          description: 'For a level node: who to page and how long to wait for an ack',
+          optional: true,
+          properties: {
+            targets: {
+              type: 'array',
+              description: 'Users, schedules, or channels to page',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', description: 'Target ID' },
+                  type: {
+                    type: 'string',
+                    description: 'Target type (schedule, user, slack_channel, msteams_channel)',
+                  },
+                  urgency: { type: 'string', description: 'Urgency (high, low)' },
+                  schedule_mode: {
+                    type: 'string',
+                    description: 'For schedule targets, which users to page',
+                    optional: true,
+                  },
+                },
+              },
+            },
+            time_to_ack_seconds: {
+              type: 'number',
+              description: 'Seconds to wait for an ack before moving on',
+              optional: true,
+            },
+          },
+        },
+        notify_channel: { type: 'json', description: 'For a notify_channel node', optional: true },
+        delay: { type: 'json', description: 'For a delay node', optional: true },
+        if_else: { type: 'json', description: 'For an if_else node', optional: true },
+        repeat: { type: 'json', description: 'For a repeat node', optional: true },
+        escalation_path: {
+          type: 'json',
+          description: 'For an escalation_path node',
+          optional: true,
+        },
+      },
+    },
+  },
+  working_hours: {
+    type: 'array',
+    description: 'Working-hours windows the path can refer to',
+    optional: true,
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Window ID' },
+        name: { type: 'string', description: 'Window name' },
+        timezone: { type: 'string', description: 'Timezone the intervals are in' },
+        weekday_intervals: {
+          type: 'array',
+          description: 'Intervals, each {weekday, start_time, end_time}',
+          items: { type: 'object' },
+        },
+      },
+    },
+  },
+  repeat_config: { type: 'json', description: 'How the path repeats', optional: true },
+  current_responders: {
+    type: 'array',
+    description: 'Users currently on call for this path',
+    optional: true,
+    items: { type: 'object', properties: INCIDENTIO_USER_OUTPUT_PROPERTIES },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Largest `page_size` the v3 actions and follow-ups lists accept. Their v2 predecessors returned every
+ * record, so these tools request a full page unless the caller sets one.
+ */
+export const INCIDENTIO_V3_MAX_PAGE_SIZE = 250
+
+/** Output definition for the cursor pagination of the v3 list endpoints. */
+export const INCIDENTIO_CURSOR_PAGINATION_OUTPUT: OutputProperty = {
+  type: 'object',
+  description: 'Pagination metadata. Pass `after` back to fetch the next page.',
+  optional: true,
+  properties: {
+    after: { type: 'string', description: 'Cursor for the next page', optional: true },
+    page_size: { type: 'number', description: 'Number of results per page' },
+  },
+}
+
 /**
  * Whoever caused something to happen. Exactly one of these is populated, so consumers should
  * check each in turn rather than assuming a user.
@@ -1848,7 +2090,7 @@ export interface IncidentioFollowUpsCreateParams extends IncidentioBaseParams {
   follow_up_category_id?: string
   follow_up_priority_option_id?: string
   external_issue_reference_id?: string
-  labels?: string
+  labels?: string | string[]
 }
 
 export interface IncidentioFollowUpsCreateResponse extends ToolResponse {
@@ -1866,7 +2108,7 @@ export interface IncidentioFollowUpsUpdateParams extends IncidentioBaseParams {
   assignee_team_id?: string
   follow_up_category_id?: string
   follow_up_priority_option_id?: string
-  labels?: string
+  labels?: string | string[]
 }
 
 export interface IncidentioFollowUpsUpdateResponse extends ToolResponse {

@@ -2,7 +2,7 @@ import type {
   GitLabAddSamlGroupLinkParams,
   GitLabSamlGroupLinkResponse,
 } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
 import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -48,7 +48,7 @@ export const gitlabAddSamlGroupLinkTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Access level granted to members of the SAML group: 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner)',
+        'Access level granted to members of the SAML group: 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner). 5 (Minimal access) is also valid for a top-level group.',
     },
     memberRoleId: {
       type: 'number',
@@ -67,7 +67,7 @@ export const gitlabAddSamlGroupLinkTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.groupId).trim())
+      const encodedId = encodeGitLabResourceId(params.groupId)
       return `${getGitLabApiBase(params.host)}/groups/${encodedId}/saml_group_links`
     },
     method: 'POST',

@@ -113,6 +113,8 @@ Create comments on GitHub PRs
 | `path` | string | No | File path for review comment |
 | `commentType` | string | No | Type of comment \(pr_comment or file_comment\) |
 | `line` | number | No | Line number for review comment |
+| `side` | string | No | Side of the diff \(LEFT or RIGHT\) |
+| `commitId` | string | No | The SHA of the commit to comment on. Defaults to the pull request head commit. |
 
 #### Output
 
@@ -208,6 +210,8 @@ Retrieve the latest commit from a GitHub repository
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `sha` | string | Commit SHA |
+| `html_url` | string | GitHub web URL |
 | `commit` | object | Core commit data |
 |   ↳ `url` | string | Commit API URL |
 |   ↳ `message` | string | Commit message |
@@ -246,8 +250,6 @@ Retrieve the latest commit from a GitHub repository
 |   ↳ `html_url` | string | Profile page URL |
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
-| `sha` | string | Commit SHA |
-| `html_url` | string | GitHub web URL |
 
 </ReferenceDetails>
 
@@ -629,7 +631,7 @@ Get the list of files changed in a pull request
 |   ↳ `contents_url` | string | Contents API URL |
 |   ↳ `patch` | string | Diff patch |
 |   ↳ `previous_filename` | string | Previous filename \(for renames\) |
-| `count` | number | Total number of files |
+| `count` | number | Number of files in this page |
 
 </ReferenceDetails>
 
@@ -1383,7 +1385,7 @@ Close an issue in a GitHub repository
 | `owner` | string | Yes | Repository owner |
 | `repo` | string | Yes | Repository name |
 | `issue_number` | number | Yes | Issue number |
-| `state_reason` | string | No | Reason for closing: completed or not_planned |
+| `state_reason` | string | No | Reason for closing: completed, not_planned, or duplicate |
 
 #### Output
 
@@ -1946,7 +1948,7 @@ List workflow runs for a repository, or for a single workflow when a workflow ID
 | `actor` | string | No | Filter by user who triggered the workflow |
 | `branch` | string | No | Filter by branch name |
 | `event` | string | No | Filter by event type \(e.g., push, pull_request, workflow_dispatch\) |
-| `status` | string | No | Filter by status \(queued, in_progress, completed, waiting, requested, pending\) |
+| `status` | string | No | Filter by check run status or conclusion: queued, in_progress, completed, waiting, requested, pending, success, failure, cancelled, skipped, timed_out, action_required, neutral, or stale. Omit \(or pass "all"\) for every run. |
 | `per_page` | number | No | Number of results per page \(default: 30, max: 100\) |
 | `page` | number | No | Page number of results to fetch \(default: 1\) |
 
@@ -2217,8 +2219,8 @@ Search for code across GitHub repositories. Use qualifiers like repo:owner/name,
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `q` | string | Yes | Search query with optional qualifiers \(repo:, language:, path:, extension:, user:, org:\) |
-| `sort` | string | No | Sort by indexed date \(default: best match\) |
-| `order` | string | No | Sort order: asc or desc \(default: desc\) |
+| `sort` | string | No | Sort by "indexed" \(how recently GitHub indexed the file\); default is best match. GitHub has deprecated this parameter and is closing it down. |
+| `order` | string | No | Sort order: asc or desc \(default: desc\). Ignored unless sort is set; GitHub has deprecated this parameter and is closing it down. |
 | `per_page` | number | No | Results per page \(max 100, default: 30\) |
 | `page` | number | No | Page number \(default: 1\) |
 
@@ -2627,7 +2629,7 @@ List commits in a repository with optional filtering by SHA, path, author, commi
 
 ### GitHub Get Commit
 
-Get detailed information about a specific commit including files changed and stats
+Get detailed information about a specific commit including files changed and stats. GitHub returns at most the first 300 changed files of a larger commit.
 
 <ReferenceDetails>
 
@@ -2723,8 +2725,8 @@ Compare two commits or branches to see the diff, commits between them, and chang
 | `repo` | string | Yes | Repository name |
 | `base` | string | Yes | Base branch/tag/SHA for comparison |
 | `head` | string | Yes | Head branch/tag/SHA for comparison |
-| `per_page` | number | No | Results per page for files \(max 100, default: 30\) |
-| `page` | number | No | Page number for files \(default: 1\) |
+| `per_page` | number | No | Commits per page \(max 100\). Setting per_page or page paginates the commit list, and changed files are returned only on page 1. Leave both unset to get up to 250 commits and every changed file in one response. |
+| `page` | number | No | Page of the commit list. Changed files are returned only on page 1. Omit both page and per_page to get up to 250 commits in one response. |
 
 #### Output
 

@@ -5,6 +5,7 @@ import type {
 } from '@/tools/slack/types'
 import {
   assertSlackApiSuccess,
+  optionalSlackThreadTs,
   requireSlackAgentSessionStatus,
   requireSlackString,
   resolveSlackAccessToken,
@@ -60,9 +61,10 @@ export const slackSetAgentSessionStatusV2Tool: ToolConfig<
     },
     threadTs: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Timestamp of the thread associated with the agent session',
+      description:
+        'Timestamp of the thread root message the session is scoped to. Required for thread-based sessions in regular channels and DMs; omit for session channels.',
     },
     status: {
       type: 'string',
@@ -115,7 +117,7 @@ export const slackSetAgentSessionStatusV2Tool: ToolConfig<
 
       return {
         channel_id: requireSlackString(params.channel, 'Channel'),
-        thread_ts: requireSlackString(params.threadTs, 'Thread Timestamp'),
+        ...optionalSlackThreadTs(params.threadTs),
         status: requireSlackAgentSessionStatus(params.status),
         ...(title ? { title } : {}),
         ...(params.initiatorUserId?.trim()

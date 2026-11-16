@@ -5,7 +5,8 @@ import { createSlackWebApiTool } from '@/tools/slack/web-api'
 export const slackCloseConversationTool = createSlackWebApiTool({
   id: 'slack_close_conversation',
   name: 'Slack Close Conversation',
-  description: 'Close a direct message or group direct message for the authenticated identity.',
+  description:
+    'Close a direct message or group direct message for the authenticated identity. The Sim app can close 1:1 direct messages only; closing a group direct message needs a custom bot with the mpim:write scope.',
   endpoint: 'conversations.close',
   method: 'POST',
   oauth: { required: true, provider: 'slack', requiredScopes: [] },

@@ -87,7 +87,7 @@ export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, Comments
             .slice(0, 5)
             .map(
               (c: any) =>
-                `- ${c.user.login} (${new Date(c.created_at).toLocaleDateString()}): "${truncate(c.body, 80)}"`
+                `- ${c.user?.login ?? 'unknown'} (${new Date(c.created_at).toLocaleDateString()}): "${truncate(c.body ?? '', 80)}"`
             )
             .join('\n')}`
         : ''
@@ -101,7 +101,7 @@ export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, Comments
           comments: data.map((comment: any) => ({
             id: comment.id,
             body: comment.body,
-            user: { login: comment.user.login },
+            user: { login: comment.user?.login ?? null },
             created_at: comment.created_at,
             html_url: comment.html_url,
           })),

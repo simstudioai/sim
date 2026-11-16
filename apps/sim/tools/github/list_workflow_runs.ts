@@ -59,7 +59,8 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by status (queued, in_progress, completed, waiting, requested, pending)',
+      description:
+        'Filter by check run status or conclusion: queued, in_progress, completed, waiting, requested, pending, success, failure, cancelled, skipped, timed_out, action_required, neutral, or stale. Omit (or pass "all") for every run.',
     },
     per_page: {
       type: 'number',
@@ -109,7 +110,8 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
       if (params.event) {
         url.searchParams.append('event', params.event)
       }
-      if (params.status) {
+      /** `all` is the block's "no filter" option; GitHub has no such status and returns no runs for it. */
+      if (params.status && params.status !== 'all') {
         url.searchParams.append('status', params.status)
       }
       if (params.per_page) {

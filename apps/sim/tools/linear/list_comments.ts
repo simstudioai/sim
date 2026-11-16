@@ -65,6 +65,10 @@ export const linearListCommentsTool: ToolConfig<
                   name
                   email
                 }
+                issue {
+                  id
+                  title
+                }
               }
               pageInfo {
                 hasNextPage

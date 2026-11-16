@@ -53,7 +53,7 @@ export const gitlabAddMemberTool: ToolConfig<GitLabAddMemberParams, GitLabAddMem
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Access level: 0 (No access), 5 (Minimal), 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner)',
+        'Access level: 10 (Guest), 15 (Planner), 20 (Reporter), 25 (Security Manager), 30 (Developer), 40 (Maintainer), 50 (Owner). 5 (Minimal access) is also valid for a top-level group on Premium and Ultimate.',
     },
     expiresAt: {
       type: 'string',

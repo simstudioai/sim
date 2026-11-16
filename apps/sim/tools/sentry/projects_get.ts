@@ -2,6 +2,7 @@ import type { SentryGetProjectParams, SentryGetProjectResponse } from '@/tools/s
 import { SENTRY_REGIONS } from '@/tools/sentry/utils'
 import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getProjectTool: ToolConfig<SentryGetProjectParams, SentryGetProjectResponse> = {
   id: 'sentry_projects_get',
@@ -35,7 +36,7 @@ export const getProjectTool: ToolConfig<SentryGetProjectParams, SentryGetProject
 
   request: {
     url: (params) =>
-      `${SENTRY_REGIONS.apiBase(params.region)}/projects/${params.organizationSlug}/${params.projectSlug}/`,
+      `${SENTRY_REGIONS.apiBase(params.region)}/projects/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/${safeUrlPathSegment(params.projectSlug, 'projectSlug')}/`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
