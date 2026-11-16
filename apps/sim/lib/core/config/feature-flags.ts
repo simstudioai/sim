@@ -56,6 +56,11 @@ const FEATURE_FLAGS = {
       'Enable workflow tests: the workspace Tests page, tests/<name>.test.js files, and the Sim tests tool. Supports global and organization rollout; disabled by default.',
     fallback: 'WORKFLOW_TESTS',
   },
+  'workflow-code': {
+    description:
+      'Enable code-first workflows: the block catalog for the workflow SDK, workflow source read and apply, and the read-only Code tab. Global on/off; disabled by default.',
+    fallback: 'WORKFLOW_CODE',
+  },
   changelog: {
     description:
       'Enable the workspace Changelog: the Changelog page, changelog/<id>.md release bodies, and the Sim changelog tool. Supports global and organization rollout; disabled by default.',

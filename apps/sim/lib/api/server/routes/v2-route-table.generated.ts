@@ -925,6 +925,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/access-requests/discovery/route'),
   },
   {
+    pattern: '/api/v2/workspaces/{workspaceId}/block-catalog',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/block-catalog/route'),
+  },
+  {
     pattern: '/api/v2/workspaces/{workspaceId}/fork',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/route'),
   },

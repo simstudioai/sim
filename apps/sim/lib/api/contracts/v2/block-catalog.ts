@@ -1,0 +1,370 @@
+import { z } from 'zod'
+import { workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { defineRouteContract } from '@/lib/api/contracts/types'
+import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
+
+/**
+ * The workflow-SDK block catalog: one content-hashed JSON document the compiler, printer, and
+ * type generator read instead of the block, trigger, and tool registries (build-spec decision 14).
+ *
+ * The response is the catalog's core shard (`BlockCatalog` in `@sim/workflow-code`, which owns
+ * the shape; this schema mirrors it field for field, and the registry-wide catalog test parses
+ * the whole projection through it so a field added there and missed here fails CI instead of
+ * being stripped). Its `hash` is the content hash of everything else in it, and the route sends it
+ * as a strong `ETag`; a caller holding a copy sends it back as `If-None-Match` and gets `304` with
+ * no body when nothing changed. That is a deliberate exception to v2's no-ETag rule: the document
+ * is megabytes, is already content-addressed, and is what a workflow lock pins, so revalidating by
+ * hash is the read's whole purpose.
+ */
+
+export const v2BlockCatalogQuerySchema = z
+  .object({
+    workflowId: workflowIdSchema
+      .optional()
+      .describe(
+        'Return the compile catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`.'
+      ),
+  })
+  .strict()
+
+export const v2BlockCatalogParamsSchema = z.object({
+  workspaceId: workspaceIdSchema.describe(
+    'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains.'
+  ),
+})
+
+export const v2BlockCatalogHeadersSchema = z.object({
+  'if-none-match': z
+    .string()
+    .max(1024, 'if-none-match must be at most 1024 characters')
+    .optional()
+    .describe('A catalog `hash` (quoted, as sent in `ETag`) the caller already holds.'),
+})
+
+const scalarSchema = z.union([z.string(), z.number(), z.boolean()])
+
+const conditionValueSchema = z
+  .union([scalarSchema, z.array(scalarSchema)])
+  .describe('Value, or set of accepted values, the named field must hold.')
+
+const opaqueSchema = z
+  .object({ opaque: z.literal(true).describe('Always true.') })
+  .describe('A function the catalog could not evaluate to data.')
+
+const conditionClauseSchema = z
+  .object({
+    field: z.string().describe('Sibling field id whose value decides the condition.'),
+    value: conditionValueSchema,
+    not: z.boolean().optional().describe('Invert the match.'),
+    and: z
+      .object({
+        field: z.string().describe('Second field id.'),
+        value: conditionValueSchema.optional(),
+        not: z.boolean().optional().describe('Invert the second match.'),
+      })
+      .optional()
+      .describe('A second clause that must hold as well.'),
+  })
+  .describe('Holds when `field` holds `value`.')
+
+const catalogConditionSchema = z
+  .union([conditionClauseSchema, opaqueSchema])
+  .describe('A condition clause, or `{ opaque: true }` (treat as possibly holding).')
+
+const catalogOptionSchema = z
+  .object({
+    id: z.string().describe('Stored option id.'),
+    label: z.string().describe('Display label.'),
+  })
+  .describe('One static option.')
+
+const catalogSubBlockSchema = z
+  .object({
+    id: z
+      .string()
+      .describe('Field id; the param name unless the field is in a basic/advanced pair.'),
+    type: z.string().describe('Editor control type, e.g. `short-input`.'),
+    title: z.string().optional().describe('Display title.'),
+    mode: z
+      .enum(['basic', 'advanced', 'both', 'trigger', 'trigger-advanced'])
+      .optional()
+      .describe('Which editor mode shows the field.'),
+    canonicalParamId: z.string().optional().describe('Shared param name of a basic/advanced pair.'),
+    surface: z
+      .enum(['action', 'trigger'])
+      .optional()
+      .describe('Whether this declaration belongs to action or trigger mode.'),
+    condition: catalogConditionSchema.optional(),
+    visibleFor: z
+      .record(z.string(), z.boolean())
+      .optional()
+      .describe('Per operation id: whether an opaque condition can show this field.'),
+    required: z
+      .union([z.boolean(), catalogConditionSchema])
+      .optional()
+      .describe('Whether a value is required, or the condition under which it is.'),
+    dependsOn: z
+      .object({
+        all: z.array(z.string()).describe('Fields that must all hold values.'),
+        any: z.array(z.string()).describe('Fields of which one must hold a value.'),
+      })
+      .optional()
+      .describe('Editor clearing and fetch ordering hints; never visibility.'),
+    defaultValue: z.unknown().optional().describe('Editor default value (any JSON).'),
+    valueDefault: z
+      .union([
+        z
+          .object({ computed: z.literal(true).describe('Always true.') })
+          .describe('A value thunk derived from other params.'),
+        z
+          .strictObject({ constant: z.unknown().describe('The constant value (any JSON).') })
+          .describe('A value thunk that always returns this.'),
+      ])
+      .optional()
+      .describe('The registry value thunk, evaluated where it is constant.'),
+    options: z
+      .union([
+        z.array(catalogOptionSchema),
+        z
+          .object({ dynamic: z.literal(true).describe('Always true.') })
+          .describe('Options fetched per workspace through `selectorKey`.'),
+        opaqueSchema,
+      ])
+      .optional()
+      .describe('Selectable options.'),
+    hidden: z.boolean().optional().describe('Hidden from the editor.'),
+    readOnly: z.boolean().optional().describe('Display-only.'),
+    password: z.boolean().optional().describe('Holds a secret.'),
+    hideFromCopilot: z.boolean().optional().describe('Not offered to Copilot.'),
+    context: z.literal('tool-input').optional().describe('Only meaningful as an agent tool.'),
+    paramVisibility: z.string().optional().describe('Tool param visibility override.'),
+    emptyIsValid: z.boolean().optional().describe('An empty value satisfies `required`.'),
+    language: z.string().optional().describe('Code field language.'),
+    multiple: z.boolean().optional().describe('Accepts several files.'),
+    min: z.number().optional().describe('Minimum numeric value.'),
+    max: z.number().optional().describe('Maximum numeric value.'),
+    step: z.number().optional().describe('Slider increment.'),
+    integer: z.boolean().optional().describe('Integers only.'),
+    columns: z.array(z.string()).optional().describe('Table column headers.'),
+    selectorKey: z.string().optional().describe('Selector that lists the options.'),
+    serviceId: z.string().optional().describe('OAuth service the field binds.'),
+    valueKind: z
+      .enum([
+        'string',
+        'number',
+        'boolean',
+        'array',
+        'object',
+        'json',
+        'code',
+        'branches',
+        'tools',
+        'resource',
+        'picked',
+        'upload',
+        'none',
+      ])
+      .describe('How a value for this field is written in source.'),
+    resourceKind: z.string().optional().describe('Workspace resource kind, for `resource` fields.'),
+    storage: z.enum(['native', 'json-string']).describe('Encoding a new value is stored with.'),
+    structured: z
+      .enum(['tools', 'branches', 'tableRows', 'inputFormat', 'variables'])
+      .optional()
+      .describe('Structured value the canonical model decodes.'),
+  })
+  .describe('One configuration field, in declared order; duplicate ids are kept with `surface`.')
+
+const catalogOutputSchema = z
+  .object({
+    type: z.string().describe('Output value type.'),
+    description: z.string().optional().describe('What the output holds.'),
+    condition: z
+      .unknown()
+      .optional()
+      .describe('When the output is present: `{ field, value, not?, and? }`.'),
+    hiddenFromDisplay: z.boolean().optional().describe('Hidden from the output picker.'),
+    properties: z
+      .record(z.string(), z.unknown().describe('A nested output, of this same shape.'))
+      .optional()
+      .describe('Nested outputs by name, each of this same shape.'),
+    items: z.unknown().optional().describe('Array element output, of this same shape.'),
+  })
+  .describe('One output field.')
+
+const catalogOutputsSchema = z
+  .record(z.string(), catalogOutputSchema)
+  .describe('Declared outputs by name.')
+
+const catalogBlockSchema = z
+  .object({
+    type: z.string().describe('Block type id.'),
+    name: z.string().describe('Display name.'),
+    category: z.enum(['blocks', 'tools', 'triggers']).describe('Block category.'),
+    addable: z
+      .literal(false)
+      .optional()
+      .describe('Present when new blocks of this type are refused; existing ones still compile.'),
+    lifecycle: z
+      .object({
+        hidden: z.literal(true).optional().describe('Hidden from the toolbar.'),
+        preview: z.literal(true).optional().describe('Unreleased preview block.'),
+        sunset: z
+          .object({
+            status: z.enum(['legacy', 'deprecated']).describe('Lifecycle state.'),
+            replacedBy: z.string().optional().describe('Successor block type.'),
+          })
+          .optional()
+          .describe('Post-GA lifecycle state.'),
+      })
+      .optional()
+      .describe('Lifecycle flags.'),
+    triggerAllowed: z.boolean().optional().describe('Whether the block can start a workflow.'),
+    triggers: z
+      .object({
+        enabled: z.boolean().describe('Whether trigger mode is available.'),
+        available: z.array(z.string()).describe('Trigger ids the block supports.'),
+      })
+      .optional()
+      .describe('Trigger mode support.'),
+    singleInstance: z.boolean().optional().describe('At most one per workflow.'),
+    subBlocks: z.array(catalogSubBlockSchema).describe('Configuration fields in declared order.'),
+    tools: z
+      .object({
+        access: z.array(z.string()).describe('Tool ids the block can call.'),
+        selector: z
+          .enum(['single', 'operation', 'opaque'])
+          .describe('How the tool is chosen: fixed, by operation, or by an unevaluated function.'),
+      })
+      .describe('Tools the block calls.'),
+    inputs: z
+      .record(
+        z.string(),
+        z
+          .object({
+            type: z.string().describe('Input value type.'),
+            // untyped-response: a block input's JSON schema is block-authored, arbitrary JSON Schema
+            schema: z.unknown().optional().describe('JSON schema of the input.'),
+          })
+          .describe('One declared input.')
+      )
+      .describe('Declared inputs by name.'),
+    outputs: catalogOutputsSchema,
+    dynamicOutputs: z
+      .object({
+        source: z
+          .enum(['responseFormat', 'inputFormat', 'humanForm', 'tableRows'])
+          .describe('What shapes the outputs.'),
+        param: z.string().describe('Param holding that shape.'),
+      })
+      .optional()
+      .describe('Present when outputs derive from a param at run time.'),
+    graph: z
+      .object({
+        canBeTarget: z.boolean().describe('Whether an edge may connect into the block.'),
+        errorPort: z.boolean().describe('Whether the block has an error port.'),
+        container: z
+          .enum(['loop', 'parallel'])
+          .nullable()
+          .describe('The subflow kind for a container, else null.'),
+        annotationOnly: z.boolean().describe('A canvas note: no edges at all.'),
+        branches: z
+          .object({
+            subBlockId: z.string().describe('Field holding the branches.'),
+            kind: z.enum(['condition', 'router']).describe('Branch kind.'),
+          })
+          .optional()
+          .describe('The field lifted into named branches.'),
+      })
+      .describe('Edge rules for the block.'),
+    legacyIds: z
+      .array(
+        z
+          .object({
+            from: z.string().describe('Legacy field id.'),
+            to: z.string().nullable().describe('Current field id, or null when removed.'),
+            whenOperation: z
+              .array(z.string())
+              .optional()
+              .describe('Operations the rename applies to.'),
+            conditional: z.literal(true).optional().describe('Applies only to some values.'),
+          })
+          .describe('One field id rename.')
+      )
+      .optional()
+      .describe('Field id renames applied on load.'),
+    legacyCanonicalIds: z
+      .array(
+        z
+          .object({
+            from: z.string().describe('Legacy pair id.'),
+            to: z.string().describe('Current pair id.'),
+          })
+          .describe('One pair id rename.')
+      )
+      .optional()
+      .describe('Basic/advanced pair id renames applied on load.'),
+    custom: z
+      .object({
+        sourceWorkflowId: z.string().optional().describe('Workflow the custom block runs.'),
+      })
+      .optional()
+      .describe('Present for organization custom blocks.'),
+  })
+  .describe('One placeable block type.')
+
+const catalogTriggerSchema = z
+  .object({
+    id: z.string().describe('Trigger id.'),
+    provider: z.string().describe('Provider the trigger belongs to.'),
+    name: z.string().describe('Display name.'),
+    polling: z.boolean().optional().describe('Poll-based rather than webhook-based.'),
+    webhook: z.boolean().optional().describe('Receives webhooks.'),
+    subBlocks: z.array(catalogSubBlockSchema).describe('Configuration fields in declared order.'),
+    outputs: catalogOutputsSchema,
+  })
+  .describe('One trigger a block can run in trigger mode.')
+
+const catalogBuilderSchema = z
+  .object({
+    type: z.string().describe('Block type the builder creates.'),
+    operation: z.string().optional().describe('Stored operation id the builder pins.'),
+    triggerMode: z
+      .boolean()
+      .optional()
+      .describe('Whether the builder creates a trigger-mode block.'),
+    fixed: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe('Other field values the builder pins, such as the selected trigger.'),
+  })
+  .describe('One SDK builder method.')
+
+export const v2BlockCatalogSchema = z
+  .object({
+    catalogVersion: z.literal(1).describe('Catalog format version.'),
+    hash: z.string().describe('SHA-256 of the catalog content; the response `ETag`.'),
+    sdkMajor: z.number().int().describe('Workflow SDK major version this catalog serves.'),
+    blocks: z.record(z.string(), catalogBlockSchema).describe('Placeable block types by type id.'),
+    triggers: z
+      .record(z.string(), catalogTriggerSchema)
+      .describe('Triggers the listed blocks can run, by trigger id.'),
+    builders: z
+      .record(z.string(), catalogBuilderSchema)
+      .describe('SDK builder methods keyed by dotted path, e.g. `slack.sendMessage`.'),
+    scope: z
+      .object({
+        organizationId: z.string().describe('Organization whose custom blocks are included.'),
+      })
+      .optional()
+      .describe('Present when the catalog includes an organization’s custom blocks.'),
+  })
+  .describe('Block catalog core shard.')
+
+export const v2GetBlockCatalogContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workspaces/[workspaceId]/block-catalog',
+  params: v2BlockCatalogParamsSchema,
+  query: v2BlockCatalogQuerySchema,
+  headers: v2BlockCatalogHeadersSchema,
+  response: { mode: 'json', schema: v2DataResponse(v2BlockCatalogSchema) },
+})

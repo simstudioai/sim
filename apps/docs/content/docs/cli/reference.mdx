@@ -8841,6 +8841,37 @@ sim workspaces fork [options]
 
 API request and response schemas: [forkWorkspace](/api-reference/workspace-sync/forkWorkspace).
 
+### sim workspaces block-catalog list
+
+Get block catalog
+
+```bash
+sim workspaces block-catalog list <workspaceId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workspaceId` | Yes | Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-id <value>` | No | Return the compile catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`. |
+| `--if-none-match <value>` | No | A catalog `hash` (quoted, as sent in `ETag`) the caller already holds. |
+
+</CommandTable>
+
+API request and response schemas: [getBlockCatalog](/api-reference/catalog/getBlockCatalog).
+
 ### sim workspaces get
 
 Get workspace
