@@ -36,6 +36,13 @@ function siteKey(block: string, subBlock: string, field: string): string {
   return `${block}\u0000${subBlock}\u0000${field}`
 }
 
+/**
+ * The gzipped core shard every SDK client downloads. Measured at 1,105,482 bytes over 513 blocks;
+ * the budget leaves about 8% for growth. Shrinking the catalog should lower it; raise it only with
+ * a measured reason recorded here.
+ */
+const CORE_SHARD_GZIP_BUDGET_BYTES = 1_200_000
+
 describe('block catalog projection over the whole registry', () => {
   it('projects every block, subBlock and referenced trigger', () => {
     for (const block of registryBlocks) {
@@ -194,7 +201,7 @@ describe('block catalog projection over the whole registry', () => {
     expect(v2BlockCatalogSchema.parse(catalog)).toEqual(catalog)
   })
 
-  it('records the core shard size', () => {
+  it('keeps the core shard under its gzip budget', () => {
     const raw = Buffer.from(JSON.stringify(catalog))
     const gzipped = gzipSync(raw)
     const reportPath = process.env.CATALOG_REPORT_PATH
@@ -224,6 +231,6 @@ describe('block catalog projection over the whole registry', () => {
         )
       )
     }
-    expect(gzipped.length).toBeGreaterThan(0)
+    expect(gzipped.length).toBeLessThanOrEqual(CORE_SHARD_GZIP_BUDGET_BYTES)
   })
 })

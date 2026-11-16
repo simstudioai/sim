@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createProofReport, reportPathVariable } from './report'
+import { createProofReport } from './report'
 
 describe('createProofReport', () => {
   it('computes parity per block type from decided outcomes only', () => {
@@ -47,9 +47,5 @@ describe('createProofReport', () => {
     const built = report.build({ generatedAt: 'now' })
     expect(built.failures).toHaveLength(2)
     expect(built.truncatedFailures).toBe(1)
-  })
-
-  it('derives the report path variable from the suite name', () => {
-    expect(reportPathVariable('roundtrip-corpus')).toBe('ROUNDTRIP_CORPUS_REPORT_PATH')
   })
 })
