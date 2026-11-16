@@ -1,15 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { type CodeFileCodec, type CodeFileLanguage, codeFileCodec } from '../code-files'
 import { cases } from './__fixtures__/cases'
 import { catalog } from './__fixtures__/catalog'
-import { type CodeFileCodec, createPrintWorkflow, printWorkflow } from './printer'
+import { createPrintWorkflow, printWorkflow } from './printer'
 
 const GOLDEN_DIR = './__golden__'
-
-/** A codec whose file form is the stored body itself, standing in for Wave 2D's bijection. */
-const identityCodec: CodeFileCodec = {
-  toFile: (code) => code,
-  fromFile: (text) => text,
-}
 
 /** A codec whose round trip adds a byte: the printer must fall back to inline code. */
 const lossyCodec: CodeFileCodec = {
@@ -51,10 +46,10 @@ describe('printWorkflow golden files', () => {
     )
   })
 
-  it('writes function code to language files when the codec round-trips it', async () => {
+  it('writes function code to language files through the code-files codec by default', async () => {
     const testCase = cases.find((c) => c.name === 'function-languages')
     if (!testCase) throw new Error('missing case')
-    const result = createPrintWorkflow(identityCodec)({
+    const result = printWorkflow({
       workflow: testCase.workflow,
       catalog,
       options: { functionCode: 'files', codeDir: 'functions' },
@@ -65,12 +60,19 @@ describe('printWorkflow golden files', () => {
       'functions/py-code.py',
       'functions/sh-code.sh',
     ])
+    const functions: Array<[string, CodeFileLanguage]> = [
+      ['jscode', 'javascript'],
+      ['pycode', 'python'],
+      ['shcode', 'shell'],
+    ]
     expect(result.files.slice(1).map((file) => file.text)).toEqual(
-      ['jscode', 'pycode', 'shcode'].map((key) => {
+      functions.map(([key, language]) => {
         const param = testCase.workflow.blocks[key]?.params.code
-        return param?.kind === 'value' ? param.value : null
+        if (param?.kind !== 'value' || typeof param.value !== 'string') return null
+        return codeFileCodec.toFile(param.value, language)
       })
     )
+    expect(result.files[1]?.text).toContain('$ref.start.total + $env.TAX_RATE')
     expect(result.hints.blocks.jscode?.codeFile).toBe('functions/js-code.js')
     expect(result.diagnostics.filter((d) => d.code === 'W_CODE_FILE_INLINED')).toEqual([])
     await expect(result.files[0].text).toMatchFileSnapshot(`${GOLDEN_DIR}/function-files.txt`)
@@ -84,7 +86,7 @@ describe('printWorkflow golden files', () => {
       catalog,
       options: { functionCode: 'inline' },
     })
-    for (const print of [createPrintWorkflow(lossyCodec), printWorkflow]) {
+    for (const print of [createPrintWorkflow(lossyCodec), createPrintWorkflow()]) {
       const result = print({
         workflow: testCase.workflow,
         catalog,

@@ -9,6 +9,7 @@ import { compareStrings } from '@sim/utils/string'
 import { portKey } from '../anchors'
 import type { LockHintBlock, LockHints, PrintInput, PrintResult, PrintWorkflowFn } from '../api'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder, CatalogSubBlock } from '../catalog/types'
+import { type CodeFileCodec, type CodeFileLanguage, codeFileCodec } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type {
@@ -33,26 +34,13 @@ import { printKey, printMember, quoteString } from './strings'
 import { arrayExpr, arrowExpr, callExpr, type Expr, objectExpr, type Property } from './syntax'
 import { type FieldContext, type PrintedValue, type Tag, ValuePrinter } from './values'
 
-/** The function-code languages a code file can hold (`CodeLanguage`, lib/execution/languages.ts). */
-export type CodeLanguage = 'javascript' | 'python' | 'shell'
-
-/**
- * The code-position token bijection owned by `src/code-files` (Wave 2D): `toFile` rewrites a stored
- * body's code-position `<a.b>` / `{{X}}` tokens to `$ref.a.b` / `$env.X`, `fromFile` reverses it.
- * Either returns `null` when the body cannot be represented (build-spec decision 9).
- */
-export interface CodeFileCodec {
-  toFile(code: string, language: CodeLanguage): string | null
-  fromFile(text: string, language: CodeLanguage): string | null
-}
-
 const DEFAULT_WIDTH = 100
 const DEFAULT_CODE_DIR = 'functions'
 const ENTRY_PATH = 'workflow.ts'
 const SDK_MODULE = '@sim/workflow-sdk'
 
-const LANGUAGE_TAGS: Record<CodeLanguage, Tag> = { javascript: 'js', python: 'py', shell: 'sh' }
-const LANGUAGE_EXTENSIONS: Record<CodeLanguage, string> = {
+const LANGUAGE_TAGS: Record<CodeFileLanguage, Tag> = { javascript: 'js', python: 'py', shell: 'sh' }
+const LANGUAGE_EXTENSIONS: Record<CodeFileLanguage, string> = {
   javascript: 'js',
   python: 'py',
   shell: 'sh',
@@ -60,7 +48,7 @@ const LANGUAGE_EXTENSIONS: Record<CodeLanguage, string> = {
 
 type Diag = Diagnostic<PrintDiagnosticCode>
 
-function toLanguage(value: unknown): CodeLanguage | null {
+function toLanguage(value: unknown): CodeFileLanguage | null {
   if (value === 'javascript' || value === 'js') return 'javascript'
   if (value === 'python' || value === 'py') return 'python'
   if (value === 'shell' || value === 'bash' || value === 'sh') return 'shell'
@@ -454,7 +442,8 @@ class WorkflowPrinter {
     code: string,
     tag: 'js' | 'py' | 'sh'
   ): PrintedValue | null {
-    const language: CodeLanguage = tag === 'js' ? 'javascript' : tag === 'py' ? 'python' : 'shell'
+    const language: CodeFileLanguage =
+      tag === 'js' ? 'javascript' : tag === 'py' ? 'python' : 'shell'
     const inline = (reason: string): null => {
       this.diagnostics.push({
         code: 'W_CODE_FILE_INLINED',
@@ -1131,10 +1120,13 @@ function compareImportNames(a: string, b: string): number {
   return compareStrings(a, b)
 }
 
-/** Creates a printer that writes function code to files through `codec` when given. */
+/**
+ * Creates a printer that writes function code to files through `codec`. Without a codec, files
+ * mode prints every function body inline with `W_CODE_FILE_INLINED`.
+ */
 export function createPrintWorkflow(codec?: CodeFileCodec): PrintWorkflowFn {
   return (input) => new WorkflowPrinter(input, codec).print()
 }
 
-/** Prints function code inline until the code-file codec is wired in (`createPrintWorkflow`). */
-export const printWorkflow: PrintWorkflowFn = createPrintWorkflow()
+/** The printer with the code-files bijection (`codeFileCodec`), so files mode works as is. */
+export const printWorkflow: PrintWorkflowFn = createPrintWorkflow(codeFileCodec)

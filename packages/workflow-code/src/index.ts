@@ -138,10 +138,5 @@ export type {
   VarNode,
   WorkflowAnnotations,
 } from './model'
-export {
-  type CodeFileCodec,
-  type CodeLanguage,
-  createPrintWorkflow,
-  printWorkflow,
-} from './print'
+export { createPrintWorkflow, printWorkflow } from './print'
 export { GENERIC_BUILDER, SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from './sdk'
