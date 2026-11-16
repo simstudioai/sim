@@ -4,28 +4,36 @@ The authoring surface for Sim workflows written as TypeScript. A workflow file i
 package, but **nothing in it ever runs**: `@sim/workflow-code` compiles the file statically, and
 every runtime export throws `SimSdkNotExecutable`.
 
-This package is a scaffold. The modules below are planned and owned by the Wave 2E agent; `src/`
-holds no code yet, so the package has no `exports`, `type-check` or `test` script until they land.
-
-## Planned modules
+## Modules
 
 | Path | Contents |
 |------|----------|
-| `src/core.d.ts` | Authoring types: `Ref`, `Value`, `Template`, the `t`/`js`/`py`/`sh`/`json`/`md` tags, `ref`, `raw`, `todo`, `file`, `env`, resource constructors (`binding`, `table`, `kb`, `workflow`, `skill`, `customTool`, `mcp`, `sandbox`, `upload`, `picked`), `BlockMeta`, `Node`/`Block`/`Branches`, and `workflow`, `loop`, `parallel`, `condition`, `router`, `note`, `fn` |
-| `src/runtime.ts` | The runtime entry: every export throws `SimSdkNotExecutable`, so imports resolve without implying execution |
-| `src/codegen/generate.ts` | `generateSdkTypes(catalog, names)`: one `.d.ts` per block from a `BlockCatalog` (`@sim/workflow-code`) and the frozen `apps/sim/blocks/sdk-names.json` |
-| `src/codegen/visibility.ts` | The three-way visibility evaluator (always / sometimes / never visible per operation) over serialized catalog conditions |
-| `src/codegen/map-subblock.ts` | SubBlock type → TS type mapping |
-| `src/codegen/outputs.ts` | Output types, narrowed per operation |
-| `src/codegen/names.ts` | Builder, param and identifier naming |
-| `src/codegen/emit.ts` | Deterministic `.d.ts` emission |
+| `src/core.d.ts` | Authoring types: `Ref`, `Value`, `Template`, the `t`/`js`/`py`/`sh`/`json`/`md` tags, `ref`/`raw`/`todo`/`file`/`env`, resource constructors, `BlockMeta`, `Node`/`Block`/`Branches`, `workflow`, `loop`, `parallel`, the special builders (`condition`, `router`, `fn`, `runWorkflow`, `human`, `response`, `setVariables`, `note`), `edge` and the generic `block`. It exports exactly `SDK_CORE_EXPORTS` from `@sim/workflow-code` |
+| `src/runtime.ts` | The runtime entry: every export throws `SimSdkNotExecutable` |
+| `src/codegen/` | `generateSdkTypes(catalog)` (block catalog → `.d.ts`) and `generateWorkspaceTypes(manifest)` (`workspace.d.ts`) |
 
-## Rules the generated surface follows
+## Generated files
 
-- A block call is `builder(displayName, params, meta?)`; each operation is its own method, named
-  from `sdk-names.json`.
-- Param names are subBlock ids; a basic/advanced pair is one param named by its
-  `canonicalParamId`, and the mode follows from the value's kind.
-- Resource references are call-form: `table('leads')`, `binding('support-slack')`, `kb('docs')`,
-  `workflow('enrich')`, `env.NAME`.
-- Function code lives in `.js`, `.py` or `.sh` files, stored verbatim.
+`generateSdkTypes` returns files sorted by path, byte-identical for the same catalog:
+
+- `blocks/{type}.d.ts`: augments `@sim/workflow-sdk` with that block's builders, tool forms
+  (`slack.tool.sendMessage(...)`) and `SpecialBuilderTypes` entries.
+- `operations/{type}/{operation}.d.ts`: one operation's params and output types.
+- `models.d.ts`: model ids, apart so a model-list change touches one file.
+- `index.d.ts`: imports the rest; the only file that names the catalog hash.
+
+Builder names come from the catalog's frozen `builders` map; codegen never invents one. Param
+names are subBlock ids, or the `canonicalParamId` of a basic/advanced pair. Each operation's
+params are narrowed by the visibility evaluator: always visible (required when the field is
+required and has no default), sometimes visible (optional, with `@when`), never visible (dropped).
+One small dropdown that gates disjoint fields becomes one nested union level.
+
+## Checking the generated types
+
+```bash
+bun run test                                   # determinism, locality, evaluator, type-check
+bun scripts/typecheck-fixtures.ts <outDir>     # sizes, then tsc over test/examples and test/negative
+```
+
+`test/fixtures/catalog.json` is projected from 18 real registry blocks; `test/examples` are the
+five s2 example workflows, and `test/negative` holds code each generated type must reject.

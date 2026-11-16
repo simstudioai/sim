@@ -9,14 +9,35 @@
     "bun": ">=1.4.4",
     "node": ">=20.0.0"
   },
+  "exports": {
+    ".": {
+      "types": "./src/core.d.ts",
+      "default": "./src/runtime.ts"
+    },
+    "./codegen": {
+      "types": "./src/codegen/index.ts",
+      "default": "./src/codegen/index.ts"
+    }
+  },
   "scripts": {
+    "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@sim/utils": "workspace:*",
+    "@sim/workflow-code": "workspace:*",
+    "@sim/workflow-types": "workspace:*"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "typescript": "^7.0.2"
+    "@types/node": "24.19.2",
+    "@xyflow/react": "12.12.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   }
 }

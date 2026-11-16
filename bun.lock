@@ -915,9 +915,17 @@
     "packages/workflow-sdk": {
       "name": "@sim/workflow-sdk",
       "version": "0.1.0",
+      "dependencies": {
+        "@sim/utils": "workspace:*",
+        "@sim/workflow-code": "workspace:*",
+        "@sim/workflow-types": "workspace:*",
+      },
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
+        "@types/node": "24.19.2",
+        "@xyflow/react": "12.12.1",
         "typescript": "^7.0.2",
+        "vitest": "^5.1.0",
       },
     },
     "packages/workflow-types": {
