@@ -2,7 +2,7 @@
 import { file, fn, raw, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
-  const start = trigger.start('Start', { inputFormat: [] })
+  const start = trigger.start('Start', { inputFormat: { total: 'number' } })
   const jsCode = fn('Js code', { code: file('./functions/js-code.js') })
   const pyCode = fn('Py code', { language: 'python', code: file('./functions/py-code.py') })
   const shCode = fn('Sh code', { language: raw('shell'), code: file('./functions/sh-code.sh') })

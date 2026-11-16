@@ -25,7 +25,8 @@ function scalar(value: Json | undefined): EditorDefault | undefined {
     : undefined
 }
 
-function seededValue(subBlock: CatalogSubBlock): EditorDefault | undefined {
+/** The value creation seeds through this declaration, if any (`editorDefaults` applies first-wins). */
+export function subBlockEditorDefault(subBlock: CatalogSubBlock): EditorDefault | undefined {
   if (subBlock.hidden) return scalar(subBlock.defaultValue)
   if (subBlock.readOnly) return undefined
   const thunk = subBlock.valueDefault
@@ -42,7 +43,7 @@ export function editorDefaults(block: CatalogBlock): ReadonlyMap<SubBlockId, Edi
   for (const subBlock of block.subBlocks) {
     if (seen.has(subBlock.id)) continue
     seen.add(subBlock.id)
-    const value = seededValue(subBlock)
+    const value = subBlockEditorDefault(subBlock)
     if (value !== undefined) defaults.set(subBlock.id, value)
   }
   defaultsByBlock.set(block, defaults)

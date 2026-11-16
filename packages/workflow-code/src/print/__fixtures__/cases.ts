@@ -208,7 +208,11 @@ export const cases: PrintCase[] = [
     name: 'templates-and-paths',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [
+          { name: 'items', type: 'array', value: '' },
+          { name: 'some-field', type: 'string', value: '' },
+          { name: 'a', type: 'object', value: '' },
+        ]),
         blk('Writer', 'agent', {
           params: {
             model: 'gpt-5.5',
@@ -306,7 +310,7 @@ export const cases: PrintCase[] = [
     name: 'nested-subflows',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'rows', type: 'array', value: '' }]),
         blk('Outer', 'loop', {
           subflow: { kind: 'loop', loopType: 'for', iterations: 3 },
         }),
@@ -392,7 +396,7 @@ export const cases: PrintCase[] = [
     name: 'branch-titles-and-extra',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'amount', type: 'number', value: '' }]),
         blk('Check', 'condition', {
           branches: {
             kind: 'condition',
@@ -445,7 +449,7 @@ export const cases: PrintCase[] = [
     name: 'pair-modes',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'channel', type: 'string', value: '' }]),
         blk('Picked basic', 'slack_v2', {
           params: { operation: 'send', channel: 'C0ONE', text: 'a' },
           modes: { channel: 'basic' },
@@ -500,8 +504,8 @@ export const cases: PrintCase[] = [
         blk('Set vars', 'variables', {
           params: {
             variables: [
-              { variable: { $sim: 'var', key: 'retries' }, value: '<variable.retries>' },
-              { variable: { $sim: 'var', key: 'lastrun' }, value: '<query.rows>' },
+              { variableId: { $sim: 'var', key: 'retries' }, value: '<variable.retries>' },
+              { variableId: { $sim: 'var', key: 'lastrun' }, value: '<query.rows>' },
             ],
           },
         }),
@@ -559,7 +563,7 @@ export const cases: PrintCase[] = [
     name: 'generic-block-unknown-type',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'input', type: 'string', value: '' }]),
         blk('Mystery', 'custom_block_acme', {
           params: { zeta: 1, alpha: 'a <start.input>' },
           triggerMode: true,
@@ -611,7 +615,7 @@ export const cases: PrintCase[] = [
     name: 'agent-tools',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'input', type: 'string', value: '' }]),
         blk('Assistant', 'agent', {
           params: { model: 'claude-sonnet-5-5' },
           tools: {
@@ -663,7 +667,7 @@ export const cases: PrintCase[] = [
     name: 'json-code-fields',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'input', type: 'string', value: '' }]),
         blk('Sugared', 'agent', {
           params: { model: 'm', responseFormat: '{\n  "name": "ticket",\n  "strict": true\n}' },
         }),
@@ -681,7 +685,7 @@ export const cases: PrintCase[] = [
     name: 'function-languages',
     workflow: wf({
       blocks: [
-        start(),
+        start('Start', [{ name: 'total', type: 'number', value: '' }]),
         blk('Js code', 'function', {
           params: {
             language: 'javascript',
@@ -833,13 +837,13 @@ export const cases: PrintCase[] = [
           params: {
             url: 'https://example.com/a/very/long/path/that/keeps/going/and/going/until/it/overflows/the/line',
             headers: [
-              { key: 'Authorization', value: 'Bearer {{API_TOKEN}}' },
-              { key: 'Accept', value: 'application/json' },
+              { cells: { Key: 'Authorization', Value: 'Bearer {{API_TOKEN}}' } },
+              { cells: { Key: 'Accept', Value: 'application/json' } },
             ],
             method: 'GET',
           },
         }),
-        blk('Numbers', 'agent', {
+        blk('Numbers', 'custom_block_metrics', {
           params: {
             model: 'm',
             temperature: 1e21,
@@ -867,7 +871,7 @@ export const cases: PrintCase[] = [
           triggerMode: true,
           params: {
             selectedTriggerId: 'gmail_poller',
-            credential: { $sim: 'resource', kind: 'credential', key: 'finance-gmail' },
+            triggerCredentials: { $sim: 'resource', kind: 'credential', key: 'finance-gmail' },
             labelIds: ['INBOX'],
             markAsRead: true,
           },
@@ -878,12 +882,16 @@ export const cases: PrintCase[] = [
             credential: { $sim: 'resource', kind: 'credential', key: 'finance-gmail' },
             to: 'cfo@acme.test',
             subject: 'Invoices',
-            body: '<invoiceemail.email.body_text>',
+            body: '<invoiceemail.email.subject>',
           },
         }),
         blk('Odd trigger', 'gmail_v2', {
           triggerMode: true,
-          params: { selectedTriggerId: 'gmail_other', markAsRead: false },
+          params: {
+            selectedTriggerId: 'gmail_other',
+            triggerCredentials: { $sim: 'resource', kind: 'credential', key: 'finance-gmail' },
+            markAsRead: false,
+          },
         }),
       ],
       edges: [edge('invoiceemail', 'sendsummary')],

@@ -10,7 +10,7 @@ export default workflow(
     },
   },
   ({ vars }) => {
-    const start = trigger.start('Start', { inputFormat: [] })
+    const start = trigger.start('Start', { inputFormat: {} })
     const query = table.queryRows('Query', {
       tableId: raw({ $sim: 'unresolved', kind: 'table', id: 'tbl_deleted' }),
       limit: raw({
@@ -23,8 +23,8 @@ export default workflow(
     })
     const setVars = setVariables('Set vars', {
       variables: [
-        { variable: vars.retries, value: t`${vars.retries}` },
-        { variable: vars.lastrun, value: t`${query.rows}` },
+        { variableId: vars.retries, value: t`${vars.retries}` },
+        { variableId: vars.lastrun, value: t`${query.rows}` },
       ],
     })
 

@@ -5,7 +5,7 @@ export default workflow(
   'Fixture',
   { variables: { count: { type: 'number', value: 0 } } },
   ({ vars }) => {
-    const start = trigger.start('Start', { inputFormat: [] })
+    const start = trigger.start('Start', { inputFormat: {} })
     const setCount = setVariables('Set count', {
       variables: [
         { variableId: vars.count, value: t`${vars.count}` },

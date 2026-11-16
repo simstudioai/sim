@@ -1,12 +1,12 @@
 // @sim-sdk 1
-import { trigger, workflow } from '@sim/workflow-sdk'
+import { raw, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
   const hook = trigger.webhook('Hook', {
-    inputFormat: [
+    inputFormat: raw([
       { name: '1', type: 'string', value: '' },
       { name: 'id', type: 'string', value: '', extraKey: true },
-    ],
+    ]),
   })
   const start = trigger.start('Start', {
     inputFormat: {

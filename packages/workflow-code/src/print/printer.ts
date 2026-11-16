@@ -105,11 +105,6 @@ function hasValue(block: CanonicalBlock, id: string): boolean {
   return getOwn(block.params, id) !== undefined
 }
 
-/**
- * The catalog builder for a block, most specific first (operation, then pinned fields). A builder
- * whose trigger mode differs is used only when none matches, and the caller then prints
- * `triggerMode` in the meta.
- */
 function catalogBuilderEntries(catalog: BlockCatalog): Array<[string, CatalogBuilder]> {
   const entries: Array<[string, CatalogBuilder]> = []
   for (const path of catalogBuilderPaths(catalog)) {
@@ -119,15 +114,24 @@ function catalogBuilderEntries(catalog: BlockCatalog): Array<[string, CatalogBui
   return entries
 }
 
+/**
+ * The catalog builder for a block, most specific first (operation, then pinned fields). A
+ * builder's params type one surface, so a trigger-mode builder never prints an action block and an
+ * action builder never prints a block in trigger mode; such a block prints through `block()`. A
+ * trigger block (`category: 'triggers'`) serializes both surfaces, so its builders fit either
+ * stored mode.
+ */
 function findBuilder(
   catalog: BlockCatalog,
   type: string,
   triggerMode: boolean,
   read: (id: string) => string | undefined
 ): { path: string; builder: CatalogBuilder } | null {
+  const triggerBlock = catalogBlockOf(catalog, type)?.category === 'triggers'
   const candidates = catalogBuilderEntries(catalog)
     .filter(([, builder]) => {
       if (builder.type !== type) return false
+      if (!triggerBlock && (builder.triggerMode === true) !== triggerMode) return false
       if (builder.operation !== undefined && read('operation') !== builder.operation) return false
       return Object.entries(builder.fixed ?? {}).every(([id, value]) => read(id) === value)
     })
@@ -462,9 +466,13 @@ class WorkflowPrinter {
     if (!param) return null
     if (param.kind === 'tools') return this.printTools(block, param.tools)
     const context = this.context(block, catalogBlock, sb)
-    if (sb?.structured === 'inputFormat') {
+    if (sb?.structured === 'inputFormat' && Array.isArray(param.value)) {
       const sugar = inputFormatSugar(param.value)
       if (sugar) return this.printInputFormat(block, sugar)
+      // The record form is the only one the SDK types: an empty list is `{}`, and a list the
+      // record cannot carry (an integer-like or repeated name, an unknown key) is kept verbatim.
+      if (param.value.length === 0) return objectExpr([])
+      if (isJson(param.value)) return this.values.call('raw', [this.values.json(param.value)])
     }
     if (
       this.options.functionCode === 'files' &&

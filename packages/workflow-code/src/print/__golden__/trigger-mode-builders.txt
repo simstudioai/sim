@@ -3,11 +3,13 @@ import { binding, gmail, todo, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
   const invoiceEmail = trigger.gmail.poller('Invoice email', {
+    oauthCredential: binding('finance-gmail'),
     labelIds: ['INBOX'],
     labelFilterBehavior: todo(),
     markAsRead: true,
   })
   const oddTrigger = trigger.gmail.poller('Odd trigger', {
+    oauthCredential: binding('finance-gmail'),
     labelFilterBehavior: todo(),
     markAsRead: false,
   })
@@ -15,7 +17,7 @@ export default workflow('Fixture', {}, () => {
     oauthCredential: binding('finance-gmail'),
     to: 'cfo@acme.test',
     subject: 'Invoices',
-    body: invoiceEmail.email.body_text,
+    body: invoiceEmail.email.subject,
   })
 
   invoiceEmail.to(sendSummary)

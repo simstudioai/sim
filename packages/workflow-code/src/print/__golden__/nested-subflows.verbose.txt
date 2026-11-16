@@ -2,7 +2,7 @@
 import { agent, js, loop, parallel, t, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
-  const start = trigger.start('Start', { inputFormat: [] })
+  const start = trigger.start('Start', { inputFormat: { rows: 'array' } })
   const outer = loop.for('Outer', { count: 3 }, (p) => {
     const fan = parallel.collection('Fan', { collection: start.rows, batchSize: 5 }, (p2) => {
       const work = agent('Work', {

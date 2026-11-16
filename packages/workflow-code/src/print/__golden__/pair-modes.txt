@@ -2,7 +2,7 @@
 import { slack, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
-  const start = trigger.start('Start', { inputFormat: [] })
+  const start = trigger.start('Start', { inputFormat: { channel: 'string' } })
   const advancedEmpty = slack.sendMessage('Advanced empty', { text: 'd' })
   const basicHoldingText = slack.sendMessage('Basic holding text', {
     channel: start.channel,

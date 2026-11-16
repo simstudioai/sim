@@ -11,7 +11,7 @@ export default workflow(
     },
   },
   () => {
-    const start = trigger.start('Start', { inputFormat: [] })
+    const start = trigger.start('Start', { inputFormat: {} })
     // Cheap model first.
     // param not printed
     const classify = agent('Classify', {

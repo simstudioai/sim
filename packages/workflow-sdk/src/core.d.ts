@@ -200,11 +200,20 @@ export interface Tool {
   readonly [TOOL]: true
 }
 
-/** How the model may use a tool. */
+/** How the model may use a tool, and the stored tool fields a print carries. */
 export interface ToolOpts {
   usageControl?: 'auto' | 'force' | 'none'
   usageControlExpression?: string
   title?: string
+  /** The stored operation, when the method does not pin it. */
+  operation?: string
+  toolId?: string
+  /** Pair modes of the tool's params, which pick the member the agent reads. */
+  modes?: Record<string, 'basic' | 'advanced'>
+  customTool?: JsonWithRefs
+  operationPolicy?: Json
+  /** Unknown stored tool keys, kept verbatim. */
+  extra?: Json
 }
 
 /** A custom tool by key: `customTool('lookup-order')`. */
@@ -239,10 +248,23 @@ export interface BlockMeta {
   /** The block-level advanced toggle (`advancedMode`). */
   advancedMode?: boolean
   retry?: { enabled: boolean; maxTries: number; waitBetweenTriesMs: number }
-  /** Pair modes that cannot be derived from the value written. */
+  /** Runs the block as a trigger, when the builder's own mode differs. */
+  triggerMode?: boolean
+  /**
+   * Pair modes, printed only when the other member would store the value differently. Which
+   * member holds a value is otherwise canvas state that apply keeps from the stored workflow.
+   */
   modes?: Record<string, 'basic' | 'advanced'>
-  /** Stale values under hidden conditions, kept verbatim. */
+  /** Condition or router rows' stored titles and unknown keys, by branch key. */
+  branches?: Record<string, { title?: string; extra?: Json }>
+  /**
+   * Values the block keeps but never runs. Source never needs them (apply restores them from the
+   * stored workflow); `source get --verbose` prints them. Also the place for a stored field the
+   * catalog does not declare that still runs, such as a schema-agnostic custom block's input.
+   */
   inactive?: Record<string, unknown>
+  /** Unknown stored block data, kept verbatim. */
+  $unknown?: Json
 }
 
 /** Anything an edge can point at. */
@@ -354,13 +376,22 @@ type ItemOf<C> = C extends { readonly [REF]: readonly (infer E)[] }
 export interface SubflowScope<Item> {
   /** The container's start port, into its first child. */
   readonly start: Node
+  /** Wires the start port to each target (same as `start.to`). */
+  to<const T extends Target[]>(...targets: T): T extends [infer One] ? One : Group
   readonly index: Ref<number>
   readonly currentItem: Ref<Item>
   readonly items: Ref<Item[]>
 }
 
+/**
+ * A container's outputs, plus its iteration fields by name (`outer.index`), which is how a block
+ * in a nested container reads an outer loop's index or item.
+ */
 export interface SubflowOutput {
   results: Json[]
+  index: number
+  currentItem: Json
+  items: Json[]
 }
 
 /** A loop or parallel container. Its `.to()` wires the port taken after it finishes. */
@@ -371,7 +402,7 @@ type Collection = AnyRef | Template | Json[] | string
 export declare const loop: {
   for(
     name: string,
-    params: { count: number },
+    params: { count?: number },
     body: (scope: SubflowScope<never>) => void,
     meta?: BlockMeta
   ): Container
@@ -389,13 +420,20 @@ export declare const loop: {
   ): Container
   doWhile(
     name: string,
-    params: { condition: Template | string },
+    params: { condition?: Template | string; count?: number },
     body: (scope: SubflowScope<never>) => void,
     meta?: BlockMeta
   ): Container
 }
 
 export declare const parallel: {
+  /** A parallel with no stored type, which the loader runs as `count`. */
+  (
+    name: string,
+    params: { count?: number; collection?: Collection; batchSize?: number },
+    body: (scope: SubflowScope<Json>) => void,
+    meta?: BlockMeta
+  ): Container
   count(
     name: string,
     params: { count: number; batchSize?: number },
@@ -544,10 +582,11 @@ export interface Message {
   content: Value<string>
 }
 
-/** One `variables-input` assignment. */
+/** One `variables-input` assignment, with any other stored keys kept. */
 export interface VariableAssignment {
-  variable: VarRef
-  value: JsonWithRefs
+  variableId: VarRef
+  value?: JsonWithRefs
+  [key: string]: JsonWithRefs | VarRef | undefined
 }
 
 /** Child workflow inputs by name (`input-mapping`, `workflow-input-mapper`). */

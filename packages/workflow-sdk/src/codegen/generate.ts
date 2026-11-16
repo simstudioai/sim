@@ -13,6 +13,7 @@
 
 import { compareStrings } from '@sim/utils/string'
 import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from '@sim/workflow-code'
+import { subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
 import { catalogBlock, catalogBlockTypes, catalogTrigger } from '@sim/workflow-code/catalog/view'
 import { indentLines, jsdoc, literal, pascal, propertyKey, quote, union } from './emit'
 import { mapSubBlock } from './map-subblock'
@@ -142,6 +143,7 @@ function hasDefault(members: readonly CatalogSubBlock[]): boolean {
     (member) =>
       member.defaultValue !== undefined ||
       (member.valueDefault !== undefined && 'constant' in member.valueDefault) ||
+      subBlockEditorDefault(member) !== undefined ||
       ALWAYS_VALUED_TYPES.has(member.type)
   )
 }
@@ -241,10 +243,15 @@ function defaultGateValue(
   return Array.isArray(subBlock.options) ? subBlock.options[0]?.id : undefined
 }
 
+/**
+ * A param whose field canvas creation seeds with an editor default also takes `null`: source
+ * omits a value equal to the default, and writes `null` for a field stored with no value.
+ */
 function renderProperty(param: Param, required: boolean, indent: string): string[] {
+  const nullable = param.members.some((member) => subBlockEditorDefault(member) !== undefined)
   return [
     ...jsdoc(param.doc, indent),
-    `${indent}${propertyKey(param.name)}${required ? '' : '?'}: ${param.type}`,
+    `${indent}${propertyKey(param.name)}${required ? '' : '?'}: ${param.type}${nullable ? ' | null' : ''}`,
   ]
 }
 

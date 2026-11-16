@@ -55,14 +55,17 @@ function isKeyValueTable(columns: readonly string[] | undefined): boolean {
   )
 }
 
+/** Table rows as stored (`{ cells }` per row), which is how a print writes them. */
+const STORED_TABLE_ROWS = 'Array<{ cells: Record<string, Value<string>> }>'
+
 function tableType(subBlock: CatalogSubBlock): string {
   const { columns } = subBlock
-  if (isKeyValueTable(columns)) return 'Record<string, Value<string>>'
+  if (isKeyValueTable(columns)) return `Record<string, Value<string>> | ${STORED_TABLE_ROWS}`
   if (columns && columns.length > 0) {
     const row = columns.map((column) => `${quote(column)}?: Value<string>`).join('; ')
-    return `Array<{ ${row} }>`
+    return `Array<{ ${row} }> | ${STORED_TABLE_ROWS}`
   }
-  return 'Record<string, Value<string>> | Array<Record<string, Value<string>>>'
+  return `Record<string, Value<string>> | Array<Record<string, Value<string>>> | ${STORED_TABLE_ROWS}`
 }
 
 function codeType(subBlock: CatalogSubBlock): string {

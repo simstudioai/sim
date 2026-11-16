@@ -2,7 +2,7 @@
 import { api, response, todo, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
-  const start = trigger.start('Start', { inputFormat: [] })
+  const start = trigger.start('Start', { inputFormat: {} })
   const flaky = api('Flaky', { url: 'https://b.test', method: todo() })
   const fallback = response('Fallback', {})
   const guarded = api(
