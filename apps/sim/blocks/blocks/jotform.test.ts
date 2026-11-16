@@ -31,7 +31,7 @@ describe('JotformBlock', () => {
    * on the tool row must still reach the tool's `title` param.
    */
   it('maps tool-row fields on an agent tool call', () => {
-    const args = { apiKey: 'key', formId: '2315', reportTitle: 'Weekly' }
+    const args: Record<string, unknown> = { apiKey: 'key', formId: '2315', reportTitle: 'Weekly' }
 
     expect({ ...args, ...buildParams(args, { operation: 'create_report' }) }.title).toBe('Weekly')
   })

@@ -10,7 +10,7 @@ describe('KalshiBlock', () => {
    * on the tool row must still reach the tool's `orderId` param.
    */
   it('maps the order ID field on an agent tool call', () => {
-    const args = { keyId: 'key', privateKey: 'pem', orderIdParam: 'ord-1' }
+    const args: Record<string, unknown> = { keyId: 'key', privateKey: 'pem', orderIdParam: 'ord-1' }
 
     expect({ ...args, ...buildParams(args, { operation: 'cancel_order' }) }.orderId).toBe('ord-1')
   })

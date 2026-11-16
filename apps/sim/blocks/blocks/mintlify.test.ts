@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { MintlifyBlock } from '@/blocks/blocks/mintlify'
 
-const blockParams = MintlifyBlock.tools.config?.params
-if (!blockParams) throw new Error('MintlifyBlock has no params mapper')
+const mapper = MintlifyBlock.tools.config?.params
+if (!mapper) throw new Error('MintlifyBlock has no params mapper')
+const blockParams = mapper
 
 /**
  * The executor merges `tools.config.params` on top of the raw inputs, so every

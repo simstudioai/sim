@@ -1006,11 +1006,11 @@ export const StripeBlock: BlockConfig = {
         return {
           apiKey,
           ...rest,
-          ...(parsedAddress && { address: parsedAddress }),
-          ...(parsedMetadata && { metadata: parsedMetadata }),
-          ...(parsedItems && { items: parsedItems }),
-          ...(parsedImages && { images: parsedImages }),
-          ...(parsedRecurring && { recurring: parsedRecurring }),
+          ...(parsedAddress ? { address: parsedAddress } : {}),
+          ...(parsedMetadata ? { metadata: parsedMetadata } : {}),
+          ...(parsedItems ? { items: parsedItems } : {}),
+          ...(parsedImages ? { images: parsedImages } : {}),
+          ...(parsedRecurring ? { recurring: parsedRecurring } : {}),
           ...parsedBooleans,
           ...pagination,
         }

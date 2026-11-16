@@ -6,7 +6,10 @@ if (!blockParams) throw new Error('ParallelBlock has no params mapper')
 
 describe('ParallelBlock', () => {
   it('maps an agent search call, whose operation arrives only in context', () => {
-    const args = { objective: 'When was the UN founded?', include_domains: 'un.org' }
+    const args: Record<string, unknown> = {
+      objective: 'When was the UN founded?',
+      include_domains: 'un.org',
+    }
     const result = {
       ...args,
       ...blockParams(args, { operation: 'search' }),
