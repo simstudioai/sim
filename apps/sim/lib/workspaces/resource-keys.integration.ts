@@ -122,12 +122,13 @@ describe('workspace resource keys against PostgreSQL', () => {
   })
 
   it('gives distinct keys to same-named resources allocated concurrently', async () => {
-    const ids = [generateId(), generateId(), generateId()]
+    /** Live tables need distinct names, so the three differ only in what the key drops. */
+    const tables = ['Invoices', 'invoices', 'Invoices!'].map((name) => ({ id: generateId(), name }))
     await Promise.all(
-      ids.map((id, index) => insertTable(id, workspaceId, 'Invoices', at(4 + index)))
+      tables.map(({ id, name }, index) => insertTable(id, workspaceId, name, at(4 + index)))
     )
 
-    const keys = await Promise.all(ids.map((id) => keyOf('table', id)))
+    const keys = await Promise.all(tables.map(({ id }) => keyOf('table', id)))
 
     expect(new Set(keys)).toEqual(new Set(['invoices', 'invoices-2', 'invoices-3']))
   })
@@ -267,7 +268,7 @@ describe('workspace resource keys against PostgreSQL', () => {
     const older = generateId()
     const newer = generateId()
     await insertTable(older, workspaceId, 'Docs', at(20))
-    await insertTable(newer, workspaceId, 'Docs', at(21))
+    await insertTable(newer, workspaceId, 'docs', at(21))
     expect(await keyOf('table', older)).toBe('docs')
 
     await db
