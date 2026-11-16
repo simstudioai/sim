@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { AshbyBlock } from './ashby'
 
+const blockParams = AshbyBlock.tools.config?.params
+if (!blockParams) throw new Error('AshbyBlock has no params mapper')
+
 describe('AshbyBlock', () => {
   const buildParams = (operation: string, extra: Record<string, unknown>) => ({
     operation,
@@ -9,7 +12,7 @@ describe('AshbyBlock', () => {
 
   describe('alternateEmailAddresses parsing (create_candidate)', () => {
     it('parses a comma-separated string into an array', () => {
-      const result = AshbyBlock.tools.config.params!(
+      const result = blockParams(
         buildParams('create_candidate', {
           alternateEmailAddresses: 'a@x.com, b@x.com',
         })
@@ -20,9 +23,7 @@ describe('AshbyBlock', () => {
 
   describe('socialLinks parsing (update_candidate)', () => {
     it('preserves an empty JSON array so users can clear all social links', () => {
-      const result = AshbyBlock.tools.config.params!(
-        buildParams('update_candidate', { socialLinks: '[]' })
-      )
+      const result = blockParams(buildParams('update_candidate', { socialLinks: '[]' }))
       expect(result.socialLinks).toEqual([])
     })
 
@@ -30,24 +31,20 @@ describe('AshbyBlock', () => {
       // A silent [] here would let the Ashby update proceed without applying
       // the requested links and with no error shown to the workflow author.
       expect(() =>
-        AshbyBlock.tools.config.params!(
-          buildParams('update_candidate', { socialLinks: 'not json' })
-        )
+        blockParams(buildParams('update_candidate', { socialLinks: 'not json' }))
       ).toThrow(/Invalid JSON in Ashby social links/)
     })
 
     it('throws when the parsed JSON is not an array', () => {
       expect(() =>
-        AshbyBlock.tools.config.params!(
-          buildParams('update_candidate', { socialLinks: '{"type":"Twitter"}' })
-        )
+        blockParams(buildParams('update_candidate', { socialLinks: '{"type":"Twitter"}' }))
       ).toThrow(/expected a JSON array/)
     })
   })
 
   describe('nullable candidate updates', () => {
     it('preserves nulls from dynamic references for aliased update fields', () => {
-      const result = AshbyBlock.tools.config.params!(
+      const result = blockParams(
         buildParams('update_candidate', {
           updateName: null,
           candidateLocation: null,
@@ -63,17 +60,14 @@ describe('AshbyBlock', () => {
   describe('archiveEmail parsing (change_application_stage)', () => {
     it('rejects non-object archive email input', () => {
       expect(() =>
-        AshbyBlock.tools.config.params!(
-          buildParams('change_application_stage', { archiveEmail: 'true' })
-        )
+        blockParams(buildParams('change_application_stage', { archiveEmail: 'true' }))
       ).toThrow(/expected a JSON object/)
     })
   })
 
   describe('fieldValue parsing (set_custom_field_value)', () => {
     const parse = (fieldValue: unknown) =>
-      AshbyBlock.tools.config.params!(buildParams('set_custom_field_value', { fieldValue }))
-        .fieldValue
+      blockParams(buildParams('set_custom_field_value', { fieldValue })).fieldValue
 
     it('decodes null so the annotation can be cleared', () => {
       // Ashby clears a custom field when it receives an explicit null, which is
@@ -106,17 +100,13 @@ describe('AshbyBlock', () => {
   describe('fieldValues parsing (set_custom_field_values)', () => {
     it('throws instead of silently dropping the writes when the JSON is malformed', () => {
       expect(() =>
-        AshbyBlock.tools.config.params!(
-          buildParams('set_custom_field_values', { fieldValues: 'not json' })
-        )
+        blockParams(buildParams('set_custom_field_values', { fieldValues: 'not json' }))
       ).toThrow(/Invalid JSON in Ashby custom field values/)
     })
 
     it('throws when the parsed JSON is not an array', () => {
       expect(() =>
-        AshbyBlock.tools.config.params!(
-          buildParams('set_custom_field_values', { fieldValues: '{"fieldId":"abc"}' })
-        )
+        blockParams(buildParams('set_custom_field_values', { fieldValues: '{"fieldId":"abc"}' }))
       ).toThrow(/expected a JSON array/)
     })
   })
@@ -126,7 +116,7 @@ describe('AshbyBlock', () => {
       // The Source ID field is hidden once the clear switch is on, but a value
       // typed beforehand is still stored. Sending both would trip the tool's
       // exclusivity guard and surface as an error the user cannot see the cause of.
-      const result = AshbyBlock.tools.config.params!(
+      const result = blockParams(
         buildParams('change_application_source', {
           changeSourceId: 'src-left-over',
           unsetSource: 'true',
@@ -146,7 +136,7 @@ describe('AshbyBlock', () => {
       // result, not just the mapping, since that gap is where the bug lived.
       const merge = (inputs: Record<string, unknown>) => ({
         ...inputs,
-        ...AshbyBlock.tools.config.params!(inputs),
+        ...blockParams(inputs),
       })
 
       const cleared = merge(
@@ -182,7 +172,7 @@ describe('AshbyBlock', () => {
   describe('agent tool calls (operation only in context)', () => {
     const toolCall = (operation: string, args: Record<string, unknown>) => ({
       ...args,
-      ...AshbyBlock.tools.config.params!(args, { operation }),
+      ...blockParams(args, { operation }),
     })
 
     it('maps block-only fields saved on the tool row to the tool params', () => {

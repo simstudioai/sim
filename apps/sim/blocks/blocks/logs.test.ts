@@ -79,7 +79,8 @@ describe('LogsV2Block backwards compatibility', () => {
 })
 
 describe('LogsBlock agent tool calls', () => {
-  const mapParams = LogsBlock.tools.config!.params!
+  const mapParams = LogsBlock.tools.config?.params
+  if (!mapParams) throw new Error('LogsBlock has no params mapper')
 
   it('sends the log id typed into the tool row instead of query filters', () => {
     expect(mapParams({ logId: 'log-1' }, { operation: 'get_log' })).toEqual({ id: 'log-1' })
