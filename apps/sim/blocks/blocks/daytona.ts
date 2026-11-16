@@ -463,7 +463,7 @@ export const DaytonaBlock: BlockConfig = {
 
         const baseParams: Record<string, unknown> = { apiKey }
 
-        if (operation && SANDBOX_SCOPED_OPERATIONS.includes(operation)) {
+        if (SANDBOX_SCOPED_OPERATIONS.includes(operation)) {
           baseParams.sandboxId = rest.sandboxId
         }
 

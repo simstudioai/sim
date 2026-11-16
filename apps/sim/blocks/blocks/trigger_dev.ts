@@ -1013,11 +1013,8 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
         result.page = scopedNumber(params.page, NUMBERED_PAGE_OPERATIONS)
         result.perPage = scopedNumber(params.perPage, NUMBERED_PAGE_OPERATIONS)
 
-        /**
-         * The canvas blanks every key the operation does not use, so a value saved under another
-         * operation never leaks into the request. On a tool call the result is spread over the
-         * model's args, so an unset key is dropped instead of wiping the model's value.
-         */
+        // The canvas blanks unused keys so stale values never leak; a tool call's result spreads
+        // over the model's args, so an unset key is dropped instead of wiping the model's value.
         return isToolCall(context) ? filterUndefined(result) : result
       },
     },

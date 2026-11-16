@@ -4523,7 +4523,7 @@ export const CloudflareBlock: BlockConfig = {
       tool: (params) => `cloudflare_${params.operation}`,
       params: (params, context) => {
         const result = { ...params }
-        const operation = mapperOperation(params, context) ?? ''
+        const operation = mapperOperation(params, context)
         const toolCall = isToolCall(context)
         for (const [toolParam, aliasId] of Object.entries(SUBBLOCK_ALIASES[operation] ?? {})) {
           const aliasValue = result[aliasId]

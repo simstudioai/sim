@@ -1061,7 +1061,7 @@ export const FivetranBlock: BlockConfig = {
       },
       params: (params, context) => {
         const result: Record<string, unknown> = {}
-        const operation = mapperOperation(params, context) ?? ''
+        const operation = mapperOperation(params, context)
         const isConnectionSettings = (CONNECTION_SETTINGS_OPS as readonly string[]).includes(
           operation
         )
