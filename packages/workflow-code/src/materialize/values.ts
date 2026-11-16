@@ -12,6 +12,7 @@ import {
   type SimNode,
   type Value,
 } from '../model'
+import { setOwn } from '../records'
 import { type MaterializeContext, report } from './context'
 
 /** Where a value sits, for diagnostics. */
@@ -37,7 +38,7 @@ export function unliftValue(
   if (isSimNode(value)) return unliftNode(value, context, location)
   const result: Record<string, unknown> = {}
   for (const [key, member] of Object.entries(value)) {
-    if (member !== undefined) result[key] = unliftValue(member, context, location)
+    if (member !== undefined) setOwn(result, key, unliftValue(member, context, location))
   }
   return result
 }

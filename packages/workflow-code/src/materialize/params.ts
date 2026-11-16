@@ -5,7 +5,7 @@ import { decodeToolParam, toolParamDeclaration } from '../canonicalize/tools'
 import type { CatalogSubBlock } from '../catalog/types'
 import type { LockItem } from '../lock'
 import type { BlockKey, CanonicalParam, CanonicalTool, SubBlockId } from '../model'
-import { deepEqual, parseJsonContainer } from '../records'
+import { deepEqual, getOwn, parseJsonContainer, setOwn } from '../records'
 import type { MaterializeContext } from './context'
 import { unliftValue } from './values'
 
@@ -125,13 +125,13 @@ function encodeTool(
       prev &&
       prevParams &&
       Object.hasOwn(prevParams, key) &&
-      deepEqual(prev.canonical.params[key], value)
+      deepEqual(getOwn(prev.canonical.params, key), value)
     ) {
-      params[key] = prevParams[key]
+      setOwn(params, key, prevParams[key])
       continue
     }
     const { shape } = toolParamDeclaration(context.catalog, tool.type, key)
-    params[key] = encodeToolParam(unliftValue(value, context, location), shape)
+    setOwn(params, key, encodeToolParam(unliftValue(value, context, location), shape))
   }
   stored.params = params
   const binding = tool.toolId === undefined ? mcpBinding(tool.type, params) : null
@@ -150,7 +150,7 @@ function encodeTool(
     stored.code = tool.customTool.snapshot.code
   }
   if (tool.operationPolicy !== undefined) stored.operationPolicy = tool.operationPolicy
-  for (const [key, value] of Object.entries(tool.extra ?? {})) stored[key] = value
+  for (const [key, value] of Object.entries(tool.extra ?? {})) setOwn(stored, key, value)
   return stored
 }
 

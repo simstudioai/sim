@@ -181,6 +181,18 @@ describe('materialize: params keep prev bytes unless they changed', () => {
     )
   })
 
+  it('writes a __proto__ key in a value as data, not as the stored object prototype', () => {
+    const state = workflowState([blockState('a1', 'agent', 'Agent', { model: 'gpt-4o' })])
+    const message = JSON.parse('{"role":"user","__proto__":{"polluted":true}}')
+    const target = edit(canonical(state).workflow, (draft) => {
+      draft.blocks.agent.params.messages = { kind: 'value', value: [message] }
+    })
+    const stored = subBlockValue(run(target, null, { prev: state }).state, 'a1', 'messages')
+    const [written] = Array.isArray(stored) ? stored : []
+    expect(Object.hasOwn(written, '__proto__')).toBe(true)
+    expect(Object.getPrototypeOf(written)).toBe(Object.prototype)
+  })
+
   it('uses catalog storage for a param prev never stored, and writes a removed param as null', () => {
     const state = workflowState([blockState('k1', 'knowledge', 'KB', { knowledgeBaseIds: 'kb-1' })])
     const target = edit(canonical(state).workflow, (draft) => {
