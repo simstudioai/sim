@@ -224,12 +224,15 @@ const metaArb: fc.Arbitrary<{
       })
   )
 
-function mentionedIds(meta: WorkflowCodeMetaV1): Set<string> {
+/**
+ * The block ids `meta` mentions. Variable ids are a separate namespace (`var:` anchors), so a
+ * variable that shares a removed block's id is not a mention of that block.
+ */
+function mentionedBlockIds(meta: WorkflowCodeMetaV1): Set<string> {
   const ids = new Set([...Object.keys(meta.bindings), ...Object.keys(meta.order)])
   for (const key of Object.keys(meta.comments)) {
     const anchor = decodeAnchor(key as AnchorKey)
     if (anchor && 'block' in anchor) ids.add(anchor.block)
-    if (anchor?.kind === 'var') ids.add(anchor.variable)
   }
   return ids
 }
@@ -260,15 +263,20 @@ describe('code_meta properties', () => {
     )
   })
 
-  it('pruning leaves no entry that mentions a removed id and keeps every live one', () => {
+  it('pruning leaves no entry that mentions a removed block and keeps every live one', () => {
     fc.assert(
       fc.property(metaArb, fc.integer({ min: 0, max: 5 }), ({ meta, blockIds }, drop) => {
         const removed = blockIds[drop % blockIds.length]
         const pruned = pruneCodeMeta(meta, { blocks: (id) => id !== removed })
-        expect(mentionedIds(pruned).has(removed)).toBe(false)
+        expect(mentionedBlockIds(pruned).has(removed)).toBe(false)
         expect(codeMetaEquals(pruneCodeMeta(meta, { blocks: () => true }), meta)).toBe(true)
         for (const id of blockIds) {
           if (id !== removed) expect(pruned.bindings[id]).toBe(meta.bindings[id])
+        }
+        for (const key of Object.keys(meta.comments) as AnchorKey[]) {
+          if (decodeAnchor(key)?.kind === 'var') {
+            expect(pruned.comments[key]).toEqual(meta.comments[key])
+          }
         }
       })
     )
