@@ -150,9 +150,10 @@ function diffSummary(data: SourceApplyData): string {
   ]
   const variableCount =
     variables.added.length + variables.removed.length + variables.modified.length
+  const modified = blocks.modified.map(({ key, fields }) => `${key} (${fields.join(', ')})`)
   return `Blocks: ${parts.join(', ')}. Connections: +${edges.added} -${edges.removed}.${
     variableCount > 0 ? ` Variables changed: ${variableCount}.` : ''
-  }`
+  }${modified.length > 0 ? `\nModified: ${modified.join('; ')}` : ''}`
 }
 
 /** Whether a person is at a terminal to answer a prompt: never for an embedded run. */
@@ -423,6 +424,9 @@ function summarize(data: SourceApplyData, created: boolean) {
     blocksAdded: data.diff.blocks.added.length,
     blocksRemoved: data.diff.blocks.removed.length,
     blocksModified: data.diff.blocks.modified.length,
+    ...(data.diff.blocks.modified.length > 0 && {
+      modified: data.diff.blocks.modified.map(({ key, fields }) => ({ block: key, fields })),
+    }),
     edgesAdded: data.diff.edges.added,
     edgesRemoved: data.diff.edges.removed,
     errors: data.diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length,

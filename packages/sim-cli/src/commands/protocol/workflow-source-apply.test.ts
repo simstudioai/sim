@@ -217,6 +217,29 @@ describe('sim workflows source apply', () => {
     expect(process.exitCode).toBe(7)
   })
 
+  it('names each modified block and its changed fields in the result and the preview', async () => {
+    setTerminal(true)
+    const modified = outcome({ dryRun: true })
+    modified.data.diff.blocks = {
+      added: [],
+      removed: [],
+      renamed: [],
+      modified: [{ id: 'b-2', key: 'eachticket', fields: ['subflow'] }],
+    } as typeof modified.data.diff.blocks
+    request.mockResolvedValue(modified)
+    prompt.question.mockResolvedValue('n')
+
+    await apply(WORKFLOW_ID, '--dir', dir).catch(() => {})
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    expect(stderrLines().some((line) => line.includes('Modified: eachticket (subflow)'))).toBe(true)
+    const printed = vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? ''
+    expect(JSON.parse(printed)).toMatchObject({
+      blocksModified: 1,
+      modified: [{ block: 'eachticket', fields: ['subflow'] }],
+    })
+  })
+
   it('prints every note on a dry run, so a kept name or a dropped tool is never silent', async () => {
     setTerminal(false)
     const note = "The workflow name 'New' differs from the stored one and was not changed."
