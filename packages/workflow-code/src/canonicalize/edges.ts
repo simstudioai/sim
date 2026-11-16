@@ -55,7 +55,7 @@ function sourcePort(
 }
 
 /**
- * Edges by `(from, port, to)` (s1 canonicalize step 7, quirks 5, 7, 20). Handles heal on read
+ * Edges by `(from, port, to)`. Handles heal on read
  * (side-anchored ids and `''` collapse, workflow.ts:453-473); `condition-<rowId>` /
  * `router-<rowId>` become branch ports, `<kind>-start-source` / `-end-source` subflow ports, and
  * anything else a `raw` port with `W_CANON_RAW_HANDLE`. An edge to or from a missing block is

@@ -174,7 +174,7 @@ function registerList(
   for (const [key, property] of entries) addItem(property, anchorOf(key))
 }
 
-/** `meta`: block-level fields, in the printer's vocabulary (s2 D2, build-spec decision 2). */
+/** `meta`: block-level fields, in the printer's vocabulary. */
 function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSite): CompiledMeta {
   const meta: CompiledMeta = {
     enabled: true,
@@ -279,7 +279,7 @@ function resolveRelative(base: string, relative: string): string | null {
   return parts.join('/')
 }
 
-/** Reads a `codeFile('./x.js')` code file back into stored code (build-spec decision 9). */
+/** Reads a `codeFile('./x.js')` code file back into stored code. */
 function readCodeFile(
   ctx: CompileContext,
   compiled: Extract<CompiledValue, { kind: 'codeFile' }>,
@@ -432,7 +432,7 @@ function fieldSite(site: ValueSite, sub: CatalogSubBlock | undefined): ValueSite
   return sub?.structured === 'variables' ? { ...site, varNodes: true } : site
 }
 
-/** Rows from branch entries (build-spec decision 5, A7): `else: true` is the empty else. */
+/** Rows from branch entries: `else: true` is the empty else. */
 function compileBranchRows(
   ctx: CompileContext,
   entries: Array<[string, ObjectProperty]>,
@@ -572,7 +572,7 @@ function isJsonContainer(value: Value): boolean {
 }
 
 /**
- * The member a pair value compiles into (build-spec decision 7): a selector call (or a non-empty
+ * The member a pair value compiles into: a selector call (or a non-empty
  * array of them) is basic, anything else advanced. A list or object literal never lands in a JSON
  * code member when the pair's other member takes it as written: the printer writes a JSON code
  * member's value as the text it stores, never as the literal it stringifies.
@@ -1008,7 +1008,7 @@ function compileExtraParams(
   }
 }
 
-/** Catalog warnings: visibility, required fields, value kinds (s3 §4 "Catalog checks"). */
+/** Catalog warnings: visibility, required fields, value kinds. */
 function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState): void {
   const { decl, params } = state
   const values = storedValues(params)

@@ -1,6 +1,6 @@
 /**
  * `printWorkflow`: a canonical workflow → one TypeScript source file plus optional function-code
- * files (build-spec decisions 7–10, s3 D8–D12, s2 §2). Output is deterministic: the same input
+ * files. Output is deterministic: the same input
  * prints byte-identical text, a one-param change touches one line, and the file is a Biome fixed
  * point.
  */
@@ -143,7 +143,7 @@ const INTEGER_LIKE = /^(0|[1-9][0-9]*)$/
 const INPUT_FIELD_KEYS = new Set(['name', 'type', 'value', 'description', 'required'])
 
 /**
- * The `inputFormat` record sugar (s2 §2): `{ subject: 'string' }` for `{ name, type, value: '' }`
+ * The `inputFormat` record sugar: `{ subject: 'string' }` for `{ name, type, value: '' }`
  * items, `{ name: { type, value?, description?, required? } }` otherwise. `null` when any item
  * would not compile back to the same list (unknown keys, duplicate or integer-like names).
  */
@@ -754,7 +754,7 @@ class WorkflowPrinter {
   }
 
   /**
-   * Params in catalog registry order, one per canonical pair (build-spec decision 7), under the
+   * Params in catalog registry order, one per canonical pair, under the
    * defaults rule: a value equal to the editor default (`editorDefaults`) is omitted, and an
    * active field with no stored value prints `null` when a default exists. What never executes
    * (`executableInactiveParams`: inactive values, the pair member the mode hides, undeclared ids
@@ -905,7 +905,7 @@ class WorkflowPrinter {
     return entries
   }
 
-  /** A required, always-visible field with no stored value prints `todo()` (s2 D7). */
+  /** A required, always-visible field with no stored value prints `todo()`. */
   private needsTodo(block: CanonicalBlock, sb: CatalogSubBlock): boolean {
     if (sb.required !== true || sb.condition !== undefined || sb.hidden || sb.readOnly) return false
     if (sb.valueKind === 'none' || sb.valueKind === 'branches' || sb.valueKind === 'tools')

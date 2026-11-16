@@ -292,19 +292,37 @@ const TSCONFIG = `${JSON.stringify(
   2
 )}\n`
 
-/** Points an agent working in the directory at the SDK's own guide. */
+/** The guide an agent working in the directory reads first; the SDK README has the rest. */
 const AGENTS_GUIDE = `# Sim workflow source
 
-The directory holding this \`.sim\` folder is a Sim workflow written as TypeScript. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`), then, from that directory:
+This directory is a Sim workflow written as TypeScript. The server compiles \`${SOURCE_ENTRY_FILE}\` statically; nothing in it runs. The workflow id is \`workflowId\` in \`${SOURCE_BASE_FILE}\`.
 
-\`\`\`bash
-sim workflows source apply <workflowId> --dir . --dry-run   # check; prints file:line diagnostics
-sim workflows source apply <workflowId> --dir . --yes       # save the draft
-\`\`\`
+## Edit loop (run from this directory)
 
-- Types: \`${SDK_DIR}/core.d.ts\` (SDK), \`${SDK_DIR}/blocks/*.d.ts\` and \`${SDK_DIR}/operations/<block>/<operation>.d.ts\` (every block's builders, params and outputs), \`${WORKSPACE_TYPES_FILE}\` (this workspace's tables, knowledge bases, credentials, workflows and env names). \`tsc -p .\` checks the file locally.
-- Keep \`${SOURCE_LOCK_FILE}\` and \`${SOURCE_BASE_FILE}\`. A \`409\` (\`SOURCE_STALE\`, exit 5) means the workflow changed: run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there and retry.
-- The full guide is the \`@sim/workflow-sdk\` README: the edit loop, the diagnostics format and the rebase loop.
+1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`tsc -p .\` type-checks locally.
+2. \`sim workflows source apply <workflowId> --dir . --dry-run\`: fix every error it prints, rerun until it exits 0.
+3. \`sim workflows source apply <workflowId> --dir . --yes\`: saves the draft (never deploys) and rewrites this directory from what was stored.
+4. Exit 5 (\`SOURCE_STALE\`, HTTP 409): the workflow changed and nothing was saved. Run \`sim workflows source get <workflowId> --dir <fresh dir>\`, reapply your edit there, dry-run, apply.
+
+A new workflow: write \`${SOURCE_ENTRY_FILE}\` in an empty directory and run \`sim workflows source create --dir <dir> --yes\`.
+
+## Types
+
+- \`${SDK_DIR}/core.d.ts\`: the SDK (\`workflow\`, \`t\`, \`env\`, \`credential\`, \`table\`, \`BlockMeta\`).
+- \`${SDK_DIR}/operations/<block>/<operation>.d.ts\`: one operation's params and outputs. Read these to learn a block; \`${SDK_DIR}/blocks/*.d.ts\` lists every builder.
+- \`${WORKSPACE_TYPES_FILE}\`: this workspace's tables, knowledge bases, credentials, workflows and env names.
+
+## Diagnostics and exit codes
+
+Findings print as \`file:line:column severity CODE: message\`, then the code frame and a hint. \`E_*\` refuses the whole apply; \`W_*\` is saved as written and names a real problem. Exit 0 applied, 1 source errors, 5 stale, 6 workflow locked, 7 source too large.
+
+## Rules
+
+- The file holds imports from \`@sim/workflow-sdk\`, block declarations (\`const x = builder('Name', params)\`) and wiring (\`x.to(y)\`). Helpers, loops, conditionals and other imports have no stored form, so the compiler refuses them: use \`loop.forEach\`, \`condition\` and \`runWorkflow\` blocks instead.
+- Logic that does not fit a block goes in a function block with \`code: codeFile('./functions/name.js')\`; in JavaScript read outputs as \`$ref.block.path\` and env vars as \`$env.NAME\`.
+- Keep \`${SOURCE_LOCK_FILE}\` and \`${SOURCE_BASE_FILE}\` as written: they bind each block to its stored id and make the next apply safe.
+
+The full guide is the \`@sim/workflow-sdk\` README.
 `
 
 interface SourceTree {

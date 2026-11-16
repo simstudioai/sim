@@ -1,6 +1,6 @@
 /**
  * A Wadler-style document printer that reproduces the layout decisions Biome (and Prettier, which
- * Biome mirrors) make for the subset of TypeScript the workflow printer emits (s3 D8). Printed
+ * Biome mirrors) make for the subset of TypeScript the workflow printer emits. Printed
  * files must be a Biome fixed point, so the algorithm follows Prettier's `printDocToString`:
  * groups print flat when the rest of the line fits, conditional groups try their states in order,
  * and a hard line inside a group breaks it (except conditional groups, which choose for

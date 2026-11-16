@@ -817,7 +817,7 @@ describe('errors, each with its code, location and hint', () => {
   })
 })
 
-describe('rejected constructs (s3 §4 table)', () => {
+describe('rejected constructs', () => {
   const LET = 'Use const; blocks are immutable declarations.'
   const NON_BUILDER =
     'Only blocks can be named. Inline the value, or declare a workflow variable and use vars.x.'

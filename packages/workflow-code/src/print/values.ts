@@ -1,5 +1,5 @@
 /**
- * Param values as source expressions (s2 §2 mapping table, D5–D7). Strings become quoted
+ * Param values as source expressions (D5–D7). Strings become quoted
  * literals, untagged templates, or tagged `t`/`js`/`py`/`sh`/`json`/`md` templates by field kind;
  * resource nodes become call forms; a value outside its field's type prints as `raw(v)`. Sugared
  * forms are chosen only when they compile back to the same stored value.
@@ -31,7 +31,7 @@ export interface FieldContext {
 }
 
 /**
- * Resource kinds with a dedicated call form (s2 D6). A kind without one prints as
+ * Resource kinds with a dedicated call form. A kind without one prints as
  * `raw(<the CWM node>)`, which compiles back to the same node.
  */
 const RESOURCE_CALLS: Partial<Record<string, string>> = {
@@ -182,7 +182,7 @@ function nestedTag(context: FieldContext): Tag {
 
 /**
  * A JSON code body that is exactly `JSON.stringify(parsed, null, 2)` of an object or array prints
- * as that literal (s2 D7); anything else stays `json```.
+ * as that literal; anything else stays `json```.
  */
 function jsonSugar(text: string): Json | undefined {
   const parsed = parseJsonContainer(text)

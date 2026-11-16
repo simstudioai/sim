@@ -4,7 +4,7 @@ import { compileWorkflow } from './index'
 import { TEST_CATALOG } from './test-catalog'
 
 /**
- * Hostile sources (s4 D7): compile never executes anything and never throws. Each input must come
+ * Hostile sources: compile never executes anything and never throws. Each input must come
  * back as diagnostics only, with no side effect on the process. A sentinel global is set by every
  * payload that would run if the compiler evaluated code.
  */

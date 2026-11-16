@@ -39,7 +39,7 @@ export interface ListOptions {
 }
 
 /**
- * Assigns every comment to an anchor (s3 §4 "Comments", build-spec decision 10). The interpreter
+ * Assigns every comment to an anchor. The interpreter
  * registers each sibling list it walks (module statements, a body's statements, a params object's
  * properties, the variables object) with an anchor per item. A comment between items attaches to
  * the previous item when it ends on the same line (trailing), else to the next (leading), else to

@@ -1,7 +1,7 @@
 import type { Node } from '@babel/types'
 
 /**
- * The supported form for each rejected construct (s3 §4 "Rejected constructs"). Tests assert
+ * The supported form for each rejected construct. Tests assert
  * these strings, and agents act on them, so change one only on purpose.
  */
 export const HINTS = {

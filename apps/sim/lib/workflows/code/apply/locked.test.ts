@@ -1,7 +1,7 @@
 /**
  * The locked-block gate must refuse every change the persistence door's
  * `preserveProtectedWorkflowBlocks` merge would silently undo, so that a write the gate admits is
- * stored exactly as submitted (s4 D2).
+ * stored exactly as submitted.
  */
 import { omit } from '@sim/utils/object'
 import { type BlockState, preserveProtectedWorkflowBlocks } from '@sim/workflow-types/workflow'
@@ -122,7 +122,7 @@ function lockCombinations(): Set<string>[] {
   return combos
 }
 
-/** The persistence door restores stored positions before the merge (s4 D3); mirror that. */
+/** The persistence door restores stored positions before the merge; mirror that. */
 function withStoredLayout(current: SourceGraph, target: SourceGraph): SourceGraph {
   const blocks = structuredClone(target.blocks)
   for (const [id, stored] of Object.entries(current.blocks)) {

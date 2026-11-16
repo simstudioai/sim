@@ -2,7 +2,7 @@
  * The Canonical Workflow Model (CWM): a projection of a stored workflow graph with no ids and no
  * layout, keyed by normalized block name. The DB graph stays authoritative; the CWM is computed on
  * read (`canonicalize`) and written back through `materialize`, which keeps prev's raw bytes for
- * every param whose canonical form is unchanged (build-spec decision 1, s1 D1).
+ * every param whose canonical form is unchanged.
  *
  * Ids live in the lock (`lock.ts`), never here. Two CWMs are equal when `canonicalEquals` says so;
  * `annotations` never take part in equality, hashing or the source fingerprint.
@@ -16,15 +16,15 @@ import type { BlockRetryConfig, Variable } from '@sim/workflow-types/workflow'
  * whitespace and dots stripped; packages/workflow-types/src/workflow.ts:662). References resolve
  * only by this form (executor/variables/resolvers/block.ts:46-61, 388-390), so it is unique per
  * workflow. A legacy normalized-name collision is projected as `${key}~${n}` for the losing block,
- * with the smallest n ≥ 2 that no other key uses, and `E_CANON_LEGACY_NAME_COLLISION`
- * (s1 §2 canonicalize step 1). Such a workflow cannot round-trip until the block is renamed.
+ * with the smallest n ≥ 2 that no other key uses, and `E_CANON_LEGACY_NAME_COLLISION`.
+ * Such a workflow cannot round-trip until the block is renamed.
  */
 export type BlockKey = string
 
 /**
  * A condition or router branch name, unique per block and a valid JS identifier. Defaults mirror
  * the copilot handles: condition `if`, `elseIf0..n`, `else`; router `route0..n`
- * (build-spec decision 5, s1 quirk 8, validation.ts:1100-1130).
+ * (validation.ts:1100-1130).
  */
 export type BranchKey = string
 
@@ -47,7 +47,7 @@ export type ParamMode = 'basic' | 'advanced'
  * (`WORKFLOW_RESOURCE_KINDS` in `@sim/workflow-types/resources`, also used by workflow imports and
  * fork sync) minus `env-var`. Environment variables are `{{NAME}}` text tokens printed as
  * `env.NAME`, never nodes. Each kind is printed call-form (`table('leads')`,
- * `credential('support-slack')`, `knowledgeBase('docs')`, ...; build-spec decision 7, s2 D6) and resolved by the
+ * `credential('support-slack')`, `knowledgeBase('docs')`, ...) and resolved by the
  * server's `ResourceKeyResolver`.
  */
 export type ResourceKind = Exclude<PortableResourceKind, 'env-var'>
@@ -102,33 +102,31 @@ export interface LiteralNode {
   value: Json
 }
 
-/** Internal-id sites inside values, lifted to keys (s1 §2, sites per remap-internal-ids.ts:111-127). */
+/** Internal-id sites inside values, lifted to keys (sites per remap-internal-ids.ts:111-127). */
 export type SimNode = VarNode | ResourceNode | UnresolvedNode | CsvNode | LiteralNode
 
 /**
  * A param value. Strings are stored text, verbatim: references stay as `<block.path>`,
- * `{{ENV}}` and `<variable.key>` tokens (build-spec decision 8). Canonicalize rewrites only ref
- * prefixes to normalized form and `<variable.<id>>` to `<variable.<key>>` (s3 §2 requirements a, b).
+ * `{{ENV}}` and `<variable.key>` tokens. Canonicalize rewrites only ref
+ * prefixes to normalized form and `<variable.<id>>` to `<variable.<key>>`.
  */
 export type Value = Json | SimNode | Value[] | { [key: string]: Value }
 
 /**
  * One stored subBlock value, decoded. The CWM is encoding-free: whether the subBlock held native
- * JSON or JSON text (structured types: tools, tableRows, inputFormat, tag filters; s1 quirk 9) is
+ * JSON or JSON text (structured types: tools, tableRows, inputFormat, tag filters) is
  * not recorded, so `canonicalEquals`, hashes, diffs and the fingerprint never see it. Materialize
  * picks the encoding: prev's raw encoding when the subBlock exists in prev, else the catalog
- * `CatalogSubBlock.storage`; and it keeps prev's raw bytes when the decoded value is unchanged
- * (s1 D1).
+ * `CatalogSubBlock.storage`; and it keeps prev's raw bytes when the decoded value is unchanged.
  *
- * A subBlock whose stored value is `null` is absent from `CanonicalBlock.params`
- * (s3 §2 requirement d); `''` is kept and never coerced to `null` (s1 quirk 25,
- * serializer/index.ts:620-634).
+ * A subBlock whose stored value is `null` is absent from `CanonicalBlock.params`;
+ * `''` is kept and never coerced to `null` (serializer/index.ts:620-634).
  */
 export type CanonicalParam =
   | { kind: 'value'; value: Value }
   | { kind: 'tools'; tools: CanonicalTool[] }
 
-/** One entry of a `tool-input` list (s1 §2, canonicalize step 5). */
+/** One entry of a `tool-input` list. */
 export interface CanonicalTool {
   type: string
   operation?: string
@@ -138,12 +136,12 @@ export interface CanonicalTool {
   params: Record<string, Value>
   /**
    * Effective modes per canonical group of this tool, lifted from index keys `${i}:cid` and legacy
-   * `${type}:cid` (visibility.ts:372-512, s1 quirk 3); re-indexed by position on write.
+   * `${type}:cid` (visibility.ts:372-512); re-indexed by position on write.
    */
   modes: Record<CanonicalParamId, ParamMode>
   usageControl?: 'auto' | 'force' | 'none'
   usageControlExpression?: string
-  /** The DB copy wins over the snapshot at run time (agent/handler.ts:1098-1115, s1 quirk 17). */
+  /** The DB copy wins over the snapshot at run time (agent/handler.ts:1098-1115). */
   customTool?: {
     ref?: ResourceNode | UnresolvedNode
     snapshot?: { schema: Json; code: string }
@@ -158,8 +156,8 @@ export interface CanonicalBranches {
   kind: 'condition' | 'router'
   /**
    * `null` when the subBlock was never persisted: the canvas writes it only on first edit
-   * (condition-input.tsx:384-392) and edges may point at the implicit `${id}-if` handle
-   * (s1 quirk 7). Materialize keeps `null`. The source form of `null` is an empty branch object
+   * (condition-input.tsx:384-392) and edges may point at the implicit `${id}-if` handle.
+   * Materialize keeps `null`. The source form of `null` is an empty branch object
    * (`condition('Name', {})`, router `routes: {}`); the implicit default keys (`if` and `else`
    * for a condition, `route0` for a router) stay addressable as ports. A non-empty object is
    * always a persisted list, so `[]` is never produced.
@@ -174,7 +172,7 @@ export interface CanonicalBranchRow {
   /**
    * Set only when the stored title differs from the positional one. The executor finds `else` by
    * stored title (condition/handler.ts:474) while the UI shows positional titles
-   * (condition-input.tsx:395-401), s1 quirk 4.
+   * (condition-input.tsx:395-401).
    */
   titleOverride?: string
   /**
@@ -184,7 +182,7 @@ export interface CanonicalBranchRow {
    * Never set together with `titleOverride`.
    */
   titleMissing?: true
-  /** Unknown non-UI keys. UI state (`showTags`, `searchTerm`, ...) is stripped (s1 quirk 6). */
+  /** Unknown non-UI keys. UI state (`showTags`, `searchTerm`, ...) is stripped. */
   extra?: Record<string, Json>
 }
 
@@ -198,7 +196,7 @@ export interface LoopSpec {
   loopType: 'for' | 'forEach' | 'while' | 'doWhile'
   /**
    * The count that runs: `block.data.count` raw (`0` kept with `W_CANON_SUBFLOW_REPAIRED`; the
-   * runtime reads `count || 5`), or 5 when `data` has none (s1 quirk 19, load.ts:186-245).
+   * runtime reads `count || 5`), or 5 when `data` has none (load.ts:186-245).
    */
   iterations: number
   forEachItems?: Json
@@ -209,7 +207,7 @@ export interface LoopSpec {
 /** Parallel config as the `parallels` map stores it (`Parallel`, workflow.ts:744-753). */
 export interface ParallelSpec {
   kind: 'parallel'
-  /** Absent in storage means the loader's fallback applies, which differs by path (s1 quirk 19). */
+  /** Absent in storage means the loader's fallback applies, which differs by path. */
   parallelType?: 'count' | 'collection'
   count?: number
   distribution?: Json
@@ -221,12 +219,12 @@ export interface CanonicalBlock {
   key: BlockKey
   /** Display name exactly as stored; `key` is derived from it. */
   name: string
-  /** Registry type, including legacy versions and per-org `custom_block_<slug>` (s1 quirks 16, 18). */
+  /** Registry type, including legacy versions and per-org `custom_block_<slug>`. */
   type: string
   /** The enclosing loop/parallel (`data.parentId`), or `null` at the root. */
   parent: BlockKey | null
   enabled: boolean
-  /** Locked: apply refuses any diff touching it (build-spec decision 11, s4 D2). */
+  /** Locked: apply refuses any diff touching it. */
   locked: boolean
   /** The stored `triggerMode` flag. */
   triggerMode: boolean
@@ -244,14 +242,14 @@ export interface CanonicalBlock {
   retry: BlockRetryConfig | null
   /**
    * Every stored subBlock, keyed by subBlock id, except synthetic tool mirrors, server-owned
-   * runtime ids (`webhookId`, `triggerPath`, `triggerConfig`, `triggerId`; s1 D6), parked
+   * runtime ids (`webhookId`, `triggerPath`, `triggerConfig`, `triggerId`), parked
    * `_removed_` keys, and `conditions`/`routes` (lifted into `branches`). Stale hidden values are
-   * kept and listed in `annotations.inactive` (build-spec decision 2, s1 D3).
+   * kept and listed in `annotations.inactive`.
    */
   params: Record<SubBlockId, CanonicalParam>
   /**
-   * Effective mode for every canonical pair on this block, explicit or inferred (s1 canonicalize
-   * step 4). The printer elides modes derivable from the value kind (build-spec decision 7).
+   * Effective mode for every canonical pair on this block, explicit or inferred. Source never
+   * writes a mode: the value kind picks the member (DESIGN.md "Print").
    */
   modes: Record<CanonicalParamId, ParamMode>
   /** Present only on condition and router blocks. */
@@ -296,7 +294,7 @@ export type PortKey =
 
 /**
  * An edge, identified by its `(from, port, to)` tuple. Edge ids are not in the CWM or the lock;
- * the server reuses prev's edge id when the tuple matches (build-spec decision 3, s1 D5).
+ * the server reuses prev's edge id when the tuple matches.
  */
 export interface CanonicalEdge {
   from: BlockKey
@@ -318,7 +316,7 @@ export interface CanonicalWorkflowMeta {
 }
 
 /**
- * Where a comment attaches in a printed file (s3 §2, build-spec decision 10):
+ * Where a comment attaches in a printed file:
  * - `header`: above the imports; `wiring`: above the first wiring statement; `footer`: file end.
  * - `block`: the block's `const` declaration.
  * - `param`: one param property in the block call. `param` is the printed param name: the
@@ -358,12 +356,11 @@ export interface WorkflowAnnotations {
    * Per block, the param ids whose value is stored but not serialized under the current values
    * and not read by deploy (`catalog/activity.ts`; opaque catalog conditions count as
    * active unless expanded per operation). Source leaves them out and apply restores them from the
-   * stored workflow (DESIGN.md A18), so only canonicalize fills this; a compiled workflow has none.
+   * stored workflow, so only canonicalize fills this; a compiled workflow has none.
    */
   inactive: Record<BlockKey, SubBlockId[]>
   /**
-   * Comments by anchor, in source order. Persisted server-side in `workflow_source_meta` once it
-   * exists (build-spec decision 6); until then only files carry them.
+   * Comments by anchor, in source order. Stored server-side in `workflow_source_meta`.
    */
   comments: Partial<Record<AnchorKey, CodeComment[]>>
 }

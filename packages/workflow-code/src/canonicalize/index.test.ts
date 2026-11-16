@@ -10,8 +10,7 @@ import { canonicalize } from '.'
  * The catalog below is hand-projected from real registry configs (apps/sim/blocks/blocks:
  * slack.ts, agent.ts, condition.ts, router_v2.ts, function.ts, variables.ts, api.ts,
  * start_trigger.ts, table.ts, gmail.ts with triggers/gmail/poller.ts, generic_webhook.ts with
- * triggers/generic/webhook.ts) down to the fields canonicalize reads. Quirk numbers refer to
- * s1 §5.
+ * triggers/generic/webhook.ts) down to the fields canonicalize reads.
  */
 
 function sb(
@@ -336,14 +335,14 @@ function codes(result: ReturnType<typeof run>): string[] {
   return result.diagnostics.map((d) => d.code)
 }
 
-describe('canonicalize: keys and names (step 1, quirk 21)', () => {
+describe('canonicalize: keys and names', () => {
   it('keys a block by its normalized name', () => {
     const result = run(workflow([blockState('b1', 'function', 'My Code.v2')]))
     expect(Object.keys(result.workflow.blocks)).toEqual(['mycodev2'])
     expect(result.identity.blocks.mycodev2.id).toBe('b1')
   })
 
-  it('gives the dot-free name the key and keys the dotted loser key~2 with an error (quirk 21)', () => {
+  it('gives the dot-free name the key and keys the dotted loser key~2 with an error', () => {
     const result = run(
       workflow([blockState('b1', 'function', 'Agent.1'), blockState('b2', 'function', 'Agent 1')])
     )
@@ -352,7 +351,7 @@ describe('canonicalize: keys and names (step 1, quirk 21)', () => {
     expect(codes(result)).toContain('E_CANON_LEGACY_NAME_COLLISION')
   })
 
-  it('keeps the first of two dot-free colliding names, as the resolver does (quirk 21)', () => {
+  it('keeps the first of two dot-free colliding names, as the resolver does', () => {
     const result = run(
       workflow([blockState('b1', 'function', 'agent 1'), blockState('b2', 'function', 'Agent1')])
     )
@@ -360,7 +359,7 @@ describe('canonicalize: keys and names (step 1, quirk 21)', () => {
     expect(result.identity.blocks['agent1~2'].id).toBe('b2')
   })
 
-  it('skips a ~n suffix another block already owns (quirk 21)', () => {
+  it('skips a ~n suffix another block already owns', () => {
     const result = run(
       workflow([
         blockState('b1', 'function', 'x'),
@@ -371,12 +370,12 @@ describe('canonicalize: keys and names (step 1, quirk 21)', () => {
     expect(result.identity.blocks['x~3'].id).toBe('b3')
   })
 
-  it('warns when a name normalizes to a reserved prefix (quirk 21)', () => {
+  it('warns when a name normalizes to a reserved prefix', () => {
     const result = run(workflow([blockState('b1', 'function', 'Loop')]))
     expect(codes(result)).toContain('W_CANON_RESERVED_NAME')
   })
 
-  it('rewrites reference prefixes to the normalized form the resolver matches (quirk 21)', () => {
+  it('rewrites reference prefixes to the normalized form the resolver matches', () => {
     const result = run(
       workflow([
         blockState('b1', 'function', 'My Agent'),
@@ -390,7 +389,7 @@ describe('canonicalize: keys and names (step 1, quirk 21)', () => {
     )
   })
 
-  it('rewrites variable references by id or name to the variable key (quirk 21)', () => {
+  it('rewrites variable references by id or name to the variable key', () => {
     const result = run(
       workflow(
         [
@@ -410,8 +409,8 @@ describe('canonicalize: keys and names (step 1, quirk 21)', () => {
   })
 })
 
-describe('canonicalize: params (step 3)', () => {
-  it('drops runtime ids, synthetic tool mirrors and parked keys (quirks 11, 12, 23)', () => {
+describe('canonicalize: params', () => {
+  it('drops runtime ids, synthetic tool mirrors and parked keys', () => {
     const result = run(
       workflow([
         blockState('b1', 'slack', 'Slack', {
@@ -428,7 +427,7 @@ describe('canonicalize: params (step 3)', () => {
     expect(Object.keys(onlyBlock(result, 'slack').params)).toEqual(['operation'])
   })
 
-  it('drops a null value and keeps an empty string (quirk 25)', () => {
+  it('drops a null value and keeps an empty string', () => {
     const result = run(
       workflow([blockState('b1', 'slack', 'Slack', { operation: '', text: null })])
     )
@@ -437,7 +436,7 @@ describe('canonicalize: params (step 3)', () => {
     expect(params.text).toBeUndefined()
   })
 
-  it('keeps stored outputs out of the model (quirk 26)', () => {
+  it('keeps stored outputs out of the model', () => {
     const plain = run(workflow([blockState('b1', 'function', 'Code', { code: 'x' })]))
     const withOutputs = run(
       workflow([
@@ -455,7 +454,7 @@ describe('canonicalize: params (step 3)', () => {
     expect(canonicalEquals(plain.workflow, withOutputs.workflow)).toBe(true)
   })
 
-  it('decodes structured JSON text and never decodes code or long-input (quirk 9)', () => {
+  it('decodes structured JSON text and never decodes code or long-input', () => {
     const result = run(
       workflow([
         blockState('b1', 'knowledge', 'KB', { tagFilters: ' [ {"tag":"a"} ] ' }),
@@ -468,13 +467,13 @@ describe('canonicalize: params (step 3)', () => {
     expect(value(onlyBlock(result, 'slack').params.text)).toBe('{"blocks":[]}')
   })
 
-  it('keeps undecodable structured text and reports it (quirk 9)', () => {
+  it('keeps undecodable structured text and reports it', () => {
     const result = run(workflow([blockState('b1', 'knowledge', 'KB', { tagFilters: '[{oops' })]))
     expect(value(onlyBlock(result, 'kb').params.tagFilters)).toBe('[{oops')
     expect(codes(result)).toContain('W_CANON_UNDECODABLE_JSON')
   })
 
-  it('drops table row ids and blank starter rows but keeps other row shapes (quirk 24)', () => {
+  it('drops table row ids and blank starter rows but keeps other row shapes', () => {
     const result = run(
       workflow([
         blockState('b1', 'api', 'API', {
@@ -492,7 +491,7 @@ describe('canonicalize: params (step 3)', () => {
     ])
   })
 
-  it('moves inputFormat ids to identity items, keeping ids of shared names inline (quirks 24, 27)', () => {
+  it('moves inputFormat ids to identity items, keeping ids of shared names inline', () => {
     const result = run(
       workflow([
         blockState('b1', 'start_trigger', 'Start', {
@@ -523,7 +522,7 @@ describe('canonicalize: params (step 3)', () => {
     ])
   })
 
-  it('reports stored subBlock type drift and a map key that differs from subBlock.id (quirk 29)', () => {
+  it('reports stored subBlock type drift and a map key that differs from subBlock.id', () => {
     const state = workflow([blockState('b1', 'function', 'Code', { code: 'x' })])
     state.blocks.b1.subBlocks.code = { id: 'other', type: 'short-input', value: 'x' }
     const result = run(state)
@@ -533,7 +532,7 @@ describe('canonicalize: params (step 3)', () => {
     expect(value(onlyBlock(result, 'code').params.code)).toBe('x')
   })
 
-  it('keeps a legacy or unknown block type with verbatim params (quirks 15, 16)', () => {
+  it('keeps a legacy or unknown block type with verbatim params', () => {
     const result = run(workflow([blockState('b1', 'legacy_v1', 'Old', { oldField: ' {"a":1} ' })]))
     expect(value(onlyBlock(result, 'old').params.oldField)).toBe(' {"a":1} ')
     expect(onlyBlock(result, 'old').type).toBe('legacy_v1')
@@ -541,7 +540,7 @@ describe('canonicalize: params (step 3)', () => {
     expect(result.workflow.annotations.inactive.old).toBeUndefined()
   })
 
-  it('keys custom block params by subBlock id (quirk 18)', () => {
+  it('keys custom block params by subBlock id', () => {
     const result = run(
       workflow([blockState('b1', 'custom_block_acme', 'Acme', { '9b0c0d5e-field': 'v' })])
     )
@@ -549,7 +548,7 @@ describe('canonicalize: params (step 3)', () => {
   })
 })
 
-describe('canonicalize: resources and variables (step 8)', () => {
+describe('canonicalize: resources and variables', () => {
   const resolver: ResourceKeyResolver = {
     toKey: (kind, id) => (id.startsWith('known-') ? `${kind}:${id.slice(6)}` : null),
     toId: () => null,
@@ -616,7 +615,7 @@ describe('canonicalize: resources and variables (step 8)', () => {
   })
 })
 
-describe('canonicalize: modes (step 4, quirk 2)', () => {
+describe('canonicalize: modes', () => {
   it('uses an explicit override even when the other member holds the value', () => {
     const result = run(
       workflow([
@@ -662,7 +661,7 @@ describe('canonicalize: modes (step 4, quirk 2)', () => {
   })
 })
 
-describe('canonicalize: inactive annotation (step 9, quirks 1, 10, 14)', () => {
+describe('canonicalize: inactive annotation', () => {
   it('keeps a stale hidden value and marks it inactive', () => {
     const result = run(
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'read', text: 'old' })])
@@ -671,7 +670,7 @@ describe('canonicalize: inactive annotation (step 9, quirks 1, 10, 14)', () => {
     expect(result.workflow.annotations.inactive.slack).toEqual(['text'])
   })
 
-  it('treats a non-empty standalone advanced field as active even with advanced off (quirk 1)', () => {
+  it('treats a non-empty standalone advanced field as active even with advanced off', () => {
     const result = run(
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'send', threadTs: '1.2' })])
     )
@@ -720,7 +719,7 @@ describe('canonicalize: inactive annotation (step 9, quirks 1, 10, 14)', () => {
     expect(inactive('agent', { model: '<start.model>', vertexProject: 'p' })).toBeUndefined()
   })
 
-  it('marks trigger fields inactive outside trigger mode and active inside it (quirk 10)', () => {
+  it('marks trigger fields inactive outside trigger mode and active inside it', () => {
     const action = run(
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'send', botToken: 't' })])
     )
@@ -739,7 +738,7 @@ describe('canonicalize: inactive annotation (step 9, quirks 1, 10, 14)', () => {
     expect(trigger.workflow.annotations.inactive.slack).toBeUndefined()
   })
 
-  it('marks action fields inactive on a trigger-mode block (quirk 10)', () => {
+  it('marks action fields inactive on a trigger-mode block', () => {
     const result = run(
       workflow([
         blockState(
@@ -754,7 +753,7 @@ describe('canonicalize: inactive annotation (step 9, quirks 1, 10, 14)', () => {
     expect(result.workflow.annotations.inactive.slack).toEqual(['operation'])
   })
 
-  it('counts a duplicated id active when any surface declaration serializes (quirk 14)', () => {
+  it('counts a duplicated id active when any surface declaration serializes', () => {
     const action = run(
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'send', signingSecret: 's' })])
     )
@@ -803,7 +802,7 @@ describe('canonicalize: inactive annotation (step 9, quirks 1, 10, 14)', () => {
     }
   })
 
-  it('marks tool-input-only and undeclared fields inactive, except on custom blocks (quirk 18)', () => {
+  it('marks tool-input-only and undeclared fields inactive, except on custom blocks', () => {
     const result = run(
       workflow([
         blockState('b1', 'slack', 'Slack', { operation: 'send', scopeNote: 'x', legacyField: 'y' }),
@@ -815,7 +814,7 @@ describe('canonicalize: inactive annotation (step 9, quirks 1, 10, 14)', () => {
   })
 })
 
-describe('canonicalize: tools (step 5, quirks 3, 17, 24)', () => {
+describe('canonicalize: tools', () => {
   const tools = [
     {
       type: 'table',
@@ -834,7 +833,7 @@ describe('canonicalize: tools (step 5, quirks 3, 17, 24)', () => {
     },
   ]
 
-  it('lifts index-scoped modes over legacy type-scoped ones, independently per tool (quirk 3)', () => {
+  it('lifts index-scoped modes over legacy type-scoped ones, independently per tool', () => {
     const result = run(
       workflow([
         blockState(
@@ -855,7 +854,7 @@ describe('canonicalize: tools (step 5, quirks 3, 17, 24)', () => {
     expect(param.tools[1].modes).toEqual({ tableId: 'advanced' })
   })
 
-  it('decodes params by sub-block shape, drops isExpanded and keeps unknown keys (quirks 9, 24)', () => {
+  it('decodes params by sub-block shape, drops isExpanded and keeps unknown keys', () => {
     const result = run(
       workflow([blockState('b1', 'agent', 'Agent', { tools: JSON.stringify(tools) })])
     )
@@ -896,7 +895,7 @@ describe('canonicalize: tools (step 5, quirks 3, 17, 24)', () => {
   })
 })
 
-describe('canonicalize: branches (step 6, quirks 4-8)', () => {
+describe('canonicalize: branches', () => {
   const conditionRows = (id: string) => [
     {
       id: `${id}-if`,
@@ -916,7 +915,7 @@ describe('canonicalize: branches (step 6, quirks 4-8)', () => {
     { id: `${id}-else`, title: 'else', value: '' },
   ]
 
-  it('names rows by position with copilot-style keys and strips UI state (quirks 6, 8)', () => {
+  it('names rows by position with copilot-style keys and strips UI state', () => {
     const result = run(
       workflow([
         blockState('c1', 'condition', 'Cond', { conditions: JSON.stringify(conditionRows('c1')) }),
@@ -941,7 +940,7 @@ describe('canonicalize: branches (step 6, quirks 4-8)', () => {
     })
   })
 
-  it('takes keys from the lock by row id first, then a persisted row key (quirk 5)', () => {
+  it('takes keys from the lock by row id first, then a persisted row key', () => {
     const rows = conditionRows('c1').map((row, index) =>
       index === 1 ? { ...row, key: 'isVip' } : row
     )
@@ -968,7 +967,7 @@ describe('canonicalize: branches (step 6, quirks 4-8)', () => {
     ])
   })
 
-  it('keys rows the same whatever their id format (quirk 5)', () => {
+  it('keys rows the same whatever their id format', () => {
     const uuidRows = conditionRows('c1').map((row, index) => ({
       ...row,
       id: `00000000-0000-4000-8000-00000000000${index}`,
@@ -980,7 +979,7 @@ describe('canonicalize: branches (step 6, quirks 4-8)', () => {
     expect(canonicalEquals(a.workflow, b.workflow)).toBe(true)
   })
 
-  it('records a non-positional title as an override, and a missing title, with a warning (quirk 4)', () => {
+  it('records a non-positional title as an override, and a missing title, with a warning', () => {
     const rows = [
       { id: 'a', title: 'if', value: 'x' },
       { id: 'b', title: 'Otherwise', value: '' },
@@ -995,7 +994,7 @@ describe('canonicalize: branches (step 6, quirks 4-8)', () => {
     expect(codes(result)).toContain('W_CANON_TITLE_OVERRIDE')
   })
 
-  it('leaves a never-persisted list as rows: null, answering to the implicit ids (quirk 7)', () => {
+  it('leaves a never-persisted list as rows: null, answering to the implicit ids', () => {
     const result = run(
       workflow(
         [
@@ -1018,7 +1017,7 @@ describe('canonicalize: branches (step 6, quirks 4-8)', () => {
     ])
   })
 
-  it('names router rows route0..n and treats a stored "Route n" title as positional (quirk 8)', () => {
+  it('names router rows route0..n and treats a stored "Route n" title as positional', () => {
     const result = run(
       workflow([
         blockState('r1', 'router_v2', 'Router', {
@@ -1036,7 +1035,7 @@ describe('canonicalize: branches (step 6, quirks 4-8)', () => {
     expect(codes(result)).not.toContain('W_CANON_TITLE_OVERRIDE')
   })
 
-  it('keeps an unliftable branch value verbatim as a param (quirk 6)', () => {
+  it('keeps an unliftable branch value verbatim as a param', () => {
     const result = run(
       workflow([blockState('c1', 'condition', 'Cond', { conditions: '{not json' })])
     )
@@ -1047,7 +1046,7 @@ describe('canonicalize: branches (step 6, quirks 4-8)', () => {
   })
 })
 
-describe('canonicalize: edges (step 7, quirk 20)', () => {
+describe('canonicalize: edges', () => {
   const blocks = [
     blockState('f1', 'function', 'A'),
     blockState('f2', 'function', 'B', {}, { errorEnabled: false }),
@@ -1127,7 +1126,7 @@ describe('canonicalize: edges (step 7, quirk 20)', () => {
   })
 })
 
-describe('canonicalize: subflows (step 2, quirk 19)', () => {
+describe('canonicalize: subflows', () => {
   it('reads block.data first, fills from the loops map, and keeps a raw 0 count with a warning', () => {
     const result = run(
       workflow(
@@ -1213,7 +1212,7 @@ describe('canonicalize: subflows (step 2, quirk 19)', () => {
   })
 })
 
-describe('canonicalize: block fields (quirk 22)', () => {
+describe('canonicalize: block fields', () => {
   it('carries locked, triggerMode and advancedMode, raw retry, and unknown data under extra', () => {
     const result = run(
       workflow([
@@ -1241,7 +1240,7 @@ describe('canonicalize: block fields (quirk 22)', () => {
 })
 
 /*
- * Idempotence (s1 §6 O3 input side): stored encodings that execute identically canonicalize to
+ * Idempotence (the input side of O3): stored encodings that execute identically canonicalize to
  * equal models. A seeded generator builds random workflows, then re-encodes each one in ways the
  * canvas, the edit engine and jsonb produce, and every re-encoding must compare and hash equal.
  */
@@ -1333,8 +1332,8 @@ function randomWorkflow(random: () => number): WorkflowState {
 type Reencoding = (state: WorkflowState, random: () => number) => WorkflowState
 
 const REENCODINGS: Record<string, Reencoding> = {
-  'jsonb key order (quirk 28)': (state, random) => shuffleKeys(state, random) as WorkflowState,
-  'JSON text with whitespace vs native arrays (quirk 9)': (state) => {
+  'jsonb key order': (state, random) => shuffleKeys(state, random) as WorkflowState,
+  'JSON text with whitespace vs native arrays': (state) => {
     const next = structuredClone(state)
     const conditions = next.blocks.c.subBlocks.conditions
     conditions.value = JSON.stringify(JSON.parse(String(conditions.value)), null, 2)
@@ -1342,7 +1341,7 @@ const REENCODINGS: Record<string, Reencoding> = {
     tools.value = ` ${JSON.stringify(tools.value)} ` as never
     return next
   },
-  'condition UI junk (quirk 6)': (state) => {
+  'condition UI junk': (state) => {
     const next = structuredClone(state)
     const conditions = next.blocks.c.subBlocks.conditions
     const rows = JSON.parse(String(conditions.value)) as Array<Record<string, unknown>>
@@ -1358,7 +1357,7 @@ const REENCODINGS: Record<string, Reencoding> = {
     )
     return next
   },
-  'legacy type-scoped tool modes (quirk 3)': (state) => {
+  'legacy type-scoped tool modes': (state) => {
     // `${i}:tableId` alone equals the legacy `table:tableId` baseline (which reaches both table
     // tools) plus an index key pinning the other tool to the mode it inferred before: tool 0
     // holds the basic member, tool 1 the advanced one.
@@ -1375,7 +1374,7 @@ const REENCODINGS: Record<string, Reencoding> = {
     }
     return next
   },
-  'editor-only tool and field state (quirk 24)': (state) => {
+  'editor-only tool and field state': (state) => {
     const next = structuredClone(state)
     const tools = next.blocks.ag.subBlocks.tools.value as unknown as Array<Record<string, unknown>>
     next.blocks.ag.subBlocks.tools.value = tools.map((tool) => ({
@@ -1396,7 +1395,7 @@ const REENCODINGS: Record<string, Reencoding> = {
     ] as never
     return next
   },
-  'side-anchored and empty handles (quirk 20)': (state) => {
+  'side-anchored and empty handles': (state) => {
     const next = structuredClone(state)
     next.edges = next.edges.map((edge: WorkflowState['edges'][number]) =>
       edge.sourceHandle === 'source'
@@ -1407,7 +1406,7 @@ const REENCODINGS: Record<string, Reencoding> = {
     )
     return next
   },
-  'synthetic mirrors and runtime ids (quirks 11, 12, 23)': (state) => {
+  'synthetic mirrors and runtime ids': (state) => {
     const next = structuredClone(state)
     next.blocks.ag.subBlocks['tools-tool-0-limit'] = {
       id: 'tools-tool-0-limit',
@@ -1417,7 +1416,7 @@ const REENCODINGS: Record<string, Reencoding> = {
     next.blocks.s.subBlocks.triggerPath = { id: 'triggerPath', type: 'short-input', value: 's' }
     return next
   },
-  'stored subBlock type drift (quirk 29)': (state) => {
+  'stored subBlock type drift': (state) => {
     const next = structuredClone(state)
     next.blocks.sl.subBlocks.operation = { ...next.blocks.sl.subBlocks.operation, type: 'combobox' }
     return next

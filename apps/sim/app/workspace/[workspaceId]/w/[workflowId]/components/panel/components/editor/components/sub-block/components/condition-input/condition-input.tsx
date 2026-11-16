@@ -76,7 +76,7 @@ interface ConditionalBlock {
   /** Block title (if/else if/else) */
   title: string
   /**
-   * Persisted branch key (s1 D2b) written by code apply or the copilot; every edit here spreads
+   * Persisted branch key written by code apply or the copilot; every edit here spreads
    * the row, so it survives reorders and title renumbering untouched.
    */
   key?: string

@@ -1,5 +1,5 @@
 /**
- * Defaults rule (wave 4): a param omitted in source means the editor default, so a block written
+ * Defaults rule (DESIGN.md "Defaults"): a param omitted in source means the editor default, so a block written
  * from code with no params is stored exactly as canvas creation stores it, and the two execute the
  * same. For every registry block type, in action mode and (where it can host one) trigger mode,
  * this compares the block `MaterializeHooks.initBlock` creates with the block materialize writes
@@ -11,7 +11,7 @@
  *   code must still get a minted value wherever canvas creation mints one (a code-created generic
  *   webhook needs its auth token), of the same type;
  * - condition and router rows: canvas creation mints placeholder rows with fresh ids, while source
- *   `{}` is the never-persisted `rows: null` form (contract amendment 7), which canvas reads the
+ *   `{}` is the never-persisted `rows: null` form, which canvas reads the
  *   same way until the first edit.
  */
 import { catalogBlock, catalogBlockTypes, compileWorkflow, materialize } from '@sim/workflow-code'

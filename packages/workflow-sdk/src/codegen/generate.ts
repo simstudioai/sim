@@ -1,5 +1,5 @@
 /**
- * `generateSdkTypes(catalog)`: the block catalog → `.d.ts` files (s2 D10).
+ * `generateSdkTypes(catalog)`: the block catalog → `.d.ts` files.
  *
  * - `blocks/{type}.d.ts` per block type with builders. It augments `@sim/workflow-sdk` with the
  *   builder functions, tool forms and `SpecialBuilderTypes` entries.
@@ -80,7 +80,7 @@ const CORE_TYPE_NAMES = [
 
 /**
  * Trigger subBlocks the SDK never writes (`SYSTEM_SUBBLOCK_IDS` in apps/sim/triggers/constants.ts,
- * minus the credential, plus the server-owned `triggerPath`), s2 §2.
+ * minus the credential, plus the server-owned `triggerPath`).
  */
 const SYSTEM_SUBBLOCK_IDS: ReadonlySet<string> = new Set([
   'triggerInstructions',

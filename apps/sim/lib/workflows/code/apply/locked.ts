@@ -17,7 +17,7 @@ import {
 
 /**
  * The source apply path refuses, and never silently preserves, any change to a locked block:
- * one that is locked or sits inside a locked container (s4 D2). The persistence door keeps
+ * one that is locked or sits inside a locked container. The persistence door keeps
  * locked blocks as stored whatever the incoming graph says, so a source write that changed one
  * would report success while storing something else. This applies to admins too, as the
  * operations engine does; unlocking stays the canvas toggle.
@@ -143,7 +143,7 @@ function withLockOff(block: BlockState): BlockState {
  * Asserts that the persistence door's locked-block merge leaves `target` unchanged. The
  * source gate refuses every diff that merge would undo, so a difference here means the gate and
  * the merge disagree: an invariant breach, reported as an internal error (HTTP 500) rather than
- * written as a silently merged graph (s4 D2). `current` is the graph re-read under the row lock.
+ * written as a silently merged graph. `current` is the graph re-read under the row lock.
  */
 export function assertLockedBlocksPreserved(current: SourceGraph, target: SourceGraph): void {
   const merged = preserveProtectedWorkflowBlocks(current, target)

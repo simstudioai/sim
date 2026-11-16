@@ -185,7 +185,7 @@ function keyOverride(
   )
 }
 
-/** Registers one block declaration, checking its name (s3 §4 "Names and scopes"). */
+/** Registers one block declaration, checking its name. */
 function declare(
   ctx: CompileContext,
   scope: Scope,
@@ -397,7 +397,7 @@ function collectDeclaration(
 
 /**
  * Pass 1 over one body (the workflow's or a loop's): registers every block declaration in source
- * order, nested bodies included, so references resolve regardless of order (s3 D2), and queues
+ * order, nested bodies included, so references resolve regardless of order, and queues
  * wiring statements for pass 2. Any other statement is rejected with its s3 hint.
  */
 export function collectBody(

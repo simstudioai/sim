@@ -1,7 +1,7 @@
 /**
  * The editor defaults of a block: the value canvas creation writes into each subBlock of a new
  * block (`createBlockFromParams` with no inputs, which `MaterializeHooks.initBlock` wraps). A
- * param omitted in source means this value (wave 4 defaults rule), and the printer omits a stored
+ * param omitted in source means this value (DESIGN.md "Defaults"), and the printer omits a stored
  * value equal to it.
  *
  * Creation seeds each subBlock id once, from its first declaration: a visible, editable field

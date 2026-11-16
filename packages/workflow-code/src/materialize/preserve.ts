@@ -1,5 +1,5 @@
 /**
- * Preserved UI state (wave 4 governing principle): source holds what executes, and everything
+ * Preserved UI state: source holds what executes, and everything
  * else a stored block carries is taken from the block it continues. For a target block compiled
  * from source and the prev block it matched, this restores:
  * - the pair member and mode, when the pair's executable value is unchanged; a changed plain id

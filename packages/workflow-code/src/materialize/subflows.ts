@@ -21,8 +21,8 @@ function dataFields(spec: LoopSpec | ParallelSpec): Record<string, Json | undefi
 }
 
 /**
- * Writes a changed subflow config into `block.data` (s1 materialize step 6). A field the spec
- * omits is removed, so storage omits it again (contract amendment 9). Keys listed in `skip` hold a
+ * Writes a changed subflow config into `block.data`. A field the spec
+ * omits is removed, so storage omits it again. Keys listed in `skip` hold a
  * value canonicalize could not read as config and kept under `extra`; that copy wins.
  */
 export function writeSubflowData(
@@ -65,7 +65,7 @@ function sameMembers(left: readonly string[], right: readonly string[]): boolean
 }
 
 /**
- * The loops/parallels map entry for a container (s1 materialize step 6, `generateLoopBlocks`),
+ * The loops/parallels map entry for a container (`generateLoopBlocks`),
  * consistent with `block.data`. Prev's entry is returned untouched when its config, membership and
  * flags are unchanged. A continuing container that had no entry gets one only when something
  * changed, so a no-op write adds nothing.

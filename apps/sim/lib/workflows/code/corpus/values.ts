@@ -1,9 +1,8 @@
 /**
  * Stored values for corpus fixtures, one generator per subBlock type, in the shapes the editor
  * persists (the sub-block components' `useSubBlockValue` types and
- * `validateValueForSubBlockType`). Free text always carries the adversarial payload s3 §5 asks
- * for: a reference in code position, a reference inside quotes, `{{API_KEY}}`, a newline, a
- * backtick and `${`. Values that must be ids (dropdown options, selector picks, credentials) are
+ * `validateValueForSubBlockType`). Free text always carries the adversarial payload: a reference in code
+ * position, a reference inside quotes, `{{API_KEY}}`, a newline, a backtick and `${`. Values that must be ids (dropdown options, selector picks, credentials) are
  * ids instead, because a payload there is a value the editor could never have stored; the
  * advanced member of a selector pair is free text and carries the payload.
  */

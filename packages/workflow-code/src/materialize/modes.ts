@@ -21,7 +21,7 @@ export function storedModes(data: Record<string, unknown> | undefined): ModeMap 
 }
 
 /**
- * Block-level modes (s1 materialize step 4): an entry is written only where one already existed
+ * Block-level modes: an entry is written only where one already existed
  * or where inference over the written values would land on a different mode. Inference follows
  * the serializer: the legacy `advancedMode` flag makes an unset pair advanced, else the member
  * holding a value wins (`effectiveModes`).
@@ -43,7 +43,7 @@ export function writeBlockModes(
 }
 
 /**
- * Nested tool modes (s1 materialize step 4, quirk 3), rewritten whenever a tool list changed.
+ * Nested tool modes, rewritten whenever a tool list changed.
  * Every index-scoped `${i}:cid` entry is dropped, as is each legacy `${type}:cid` entry of a type
  * still in the list. Each tool then gets `${i}:cid` where its mode differs from inference over its
  * stored params, or where the prev tool it continues (`prevIndexes`) had an explicit entry, by

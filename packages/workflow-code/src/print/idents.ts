@@ -21,7 +21,7 @@ function isReservedIdentifier(name: string, extraReserved: ReadonlySet<string>):
 /**
  * Assigns one unique `const` identifier per block. Blocks are visited in declaration order: a
  * usable hinted ident (lock or source meta) is claimed first, so a canvas rename keeps the
- * identifier (build-spec decision 4); the rest derive camelCase from the display name, with a
+ * identifier; the rest derive camelCase from the display name, with a
  * numeric suffix on collision with another block, `SDK_RESERVED_IDENTIFIERS` or a name in
  * `reserved` (the catalog's builder namespaces).
  */

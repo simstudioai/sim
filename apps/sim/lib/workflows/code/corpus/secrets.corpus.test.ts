@@ -1,5 +1,5 @@
 /**
- * A secret pasted into a password field never reaches source (RS-06): the printer writes
+ * A secret pasted into a password field never reaches source: the printer writes
  * `stored()` for it, and apply keeps the stored value.
  *
  * For every corpus workflow, every password subBlock the stored block holds gets a unique secret.

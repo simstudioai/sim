@@ -1,7 +1,7 @@
 /**
  * Names the `@sim/workflow-sdk` authoring surface fixes, shared by the printer (which must never
  * emit a block ident that shadows one), the compiler (which resolves them) and the lock
- * validator. 2E's `core.d.ts` must export exactly {@link SDK_CORE_EXPORTS}.
+ * validator. `core.d.ts` in `@sim/workflow-sdk` must export exactly {@link SDK_CORE_EXPORTS}.
  */
 
 /**
@@ -29,7 +29,7 @@ export const RESPONSE_BODY_KEYS = ['body', 'status', 'headers'] as const
  */
 export const OLDEST_SDK_MAJOR = 1
 
-/** Every value the SDK's core module exports (s2 §2 core types, build-spec decision 7). */
+/** Every value the SDK's core module exports. */
 export const SDK_CORE_EXPORTS = [
   GENERIC_BUILDER,
   'childWorkflow',

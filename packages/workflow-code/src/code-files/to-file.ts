@@ -26,7 +26,7 @@ export function codeFileLanguage(path: string): CodeFileLanguage | null {
 }
 
 /**
- * Turns stored function code into the text of its code file (build-spec decision 9, s3 D6).
+ * Turns stored function code into the text of its code file.
  *
  * JavaScript: a code-position `<a.b>` becomes `$ref.a.b` and `{{X}}` becomes `$env.X`, so the
  * file is valid JS that editors and the type-checker can read. Tokens inside strings,

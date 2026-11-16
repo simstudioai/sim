@@ -1,5 +1,5 @@
 /**
- * The authoring surface for Sim workflows written as TypeScript (s2 §2).
+ * The authoring surface for Sim workflows written as TypeScript.
  *
  * Nothing declared here runs. `@sim/workflow-code` compiles a workflow file statically, and every
  * runtime export of this package throws `SimSdkNotExecutable`. These declarations exist so an
@@ -47,7 +47,7 @@ type RefPaths<T> = [Json] extends [T]
       : unknown
 
 /**
- * A typed reference to a block output, compiled to `<blockkey.path>` (build-spec decision 8).
+ * A typed reference to a block output, compiled to `<blockkey.path>`.
  * Paths map exactly: `.seg`, `['seg']` and `[n]`. Untyped JSON allows any path.
  */
 export type Ref<T> = { readonly [REF]: T } & RefPaths<T>

@@ -14,7 +14,7 @@ import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 interface SourceCatalogScope {
   gate: CatalogGate
   organizationId: string | null
-  /** Block types stored in the workflow, for the per-workflow source catalog (s4 step 2). */
+  /** Block types stored in the workflow, for the per-workflow source catalog. */
   storedTypes?: readonly string[]
 }
 

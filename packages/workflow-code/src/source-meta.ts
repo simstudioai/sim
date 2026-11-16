@@ -1,5 +1,5 @@
 /**
- * `workflow_source_meta`: the server-side half of the lock (build-spec decision 6). It keeps the
+ * `workflow_source_meta`: the server-side half of the lock. It keeps the
  * facts a source file carries that the stored graph does not (each block's `const` identifier,
  * its declaration order, and comments) so they survive edits made only on the canvas and prints
  * that have no repo lock.
@@ -9,7 +9,7 @@
  * `var` segment holding the variable id; `header`, `wiring` and `footer` carry no id.
  *
  * Branch keys are not stored here: they persist on the condition/router rows themselves as the
- * optional row `key` (s1 D2b), which canonicalize already reads.
+ * optional row `key`, which canonicalize already reads.
  *
  * Version policy matches the lock's: adding an optional field does not bump `version`; until every
  * reader knows a field, data goes under an `x-` key, which the validator tolerates and preserves.

@@ -4,7 +4,7 @@ import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 
 /**
  * Workflow source: a stored draft printed as TypeScript against the workflow SDK, with its
- * identity lock (build-spec decisions 11–13). The shapes mirror `@sim/workflow-code`'s
+ * identity lock. The shapes mirror `@sim/workflow-code`'s
  * `WorkflowLockV1` and `SourceBase`, which own them; the internal route (the canvas Code tab) and
  * the v2 route share these schemas.
  */
@@ -25,8 +25,8 @@ export const workflowSourceQuerySchema = z
 const EXTENSION_PREFIX = 'x-'
 
 /**
- * A lock object that tolerates and keeps `x-` extension fields (DESIGN amendment A3: data a newer
- * writer emits waits under `x-` until validators know it) and still rejects any other unknown key.
+ * A lock object that tolerates and keeps `x-` extension fields (data a newer writer
+ * emits waits under `x-` until validators know it) and still rejects any other unknown key.
  * Typed as the plain object so `@sim/workflow-code`'s lock interfaces, whose extension index is
  * `x-${string}`, stay assignable to it.
  */

@@ -386,7 +386,7 @@ describe('materialize: branches', () => {
   })
 })
 
-describe('materialize: identity (s1 §4)', () => {
+describe('materialize: identity', () => {
   const base = () =>
     workflowState(
       [
@@ -735,7 +735,7 @@ describe('materialize: positions and server-owned fields', () => {
   })
 })
 
-describe('materialize: preserved UI state comes from prev (wave 4 governing principle)', () => {
+describe('materialize: preserved UI state comes from prev', () => {
   /** What compile makes of a lean print: a plain id lands in the advanced member. */
   function leanPair(draft: CanonicalWorkflow, key: string, id: string) {
     const block = draft.blocks[key]

@@ -2,8 +2,8 @@
 /**
  * Asserts that every golden print of `@sim/workflow-code`'s printer is a Biome fixed point.
  *
- * The printer formats workflow source itself (s3 D8: no formatter runs at print time, so a print
- * never depends on a formatter version and works in the browser). Its doc printer mirrors Biome's
+ * The printer formats workflow source itself: no formatter runs at print time, so a print
+ * never depends on a formatter version and works in the browser. Its doc printer mirrors Biome's
  * layout rules; if it drifts, every printed file churns the first time a user runs `bun run lint`
  * on it. This runs `biome check --write` (format, organize imports, safe fixes) over each golden
  * under `packages/workflow-code/src/print/__golden__/` and fails on any difference.

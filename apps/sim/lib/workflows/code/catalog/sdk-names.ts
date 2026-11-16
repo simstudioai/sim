@@ -4,7 +4,7 @@ import { SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from '@sim/workflow-code/s
 import type { BlockConfig } from '@/blocks/types'
 
 /**
- * The frozen SDK names (`apps/sim/blocks/sdk-names.json`, build-spec decision 7, s2 D3/D4).
+ * The frozen SDK names (`apps/sim/blocks/sdk-names.json`).
  *
  * A builder's method name is API: once a workflow file says `slack.sendMessage(...)`, renaming the
  * option label must not break it. So names are derived once, written to a checked-in file, and
@@ -17,7 +17,7 @@ interface SdkNamesBlockEntry {
   methods?: Record<string, string>
   /** Trigger id → method name under `trigger.<namespace>`. */
   triggers?: Record<string, string>
-  /** Param renames per surface (s2 D4: `oauthCredential` / `triggerCredentials` → `credential`). */
+  /** Param renames per surface (`oauthCredential` / `triggerCredentials` → `credential`). */
   paramAliases?: Partial<Record<SdkSurface, Record<string, string>>>
 }
 
@@ -42,7 +42,7 @@ export interface SdkNameSource {
   hidden: boolean
   /**
    * A trigger block (registry `category: 'triggers'`): its builder is itself a trigger, named under
-   * `trigger.` (`trigger.start`, `trigger.webhook`; s2 §2), with no per-trigger methods.
+   * `trigger.` (`trigger.start`, `trigger.webhook`), with no per-trigger methods.
    */
   triggerBlock: boolean
   operations: Array<{ id: string; label: string }>
@@ -84,7 +84,7 @@ const SDK_OWNED_ROOTS = new Set<string>([
 
 /**
  * Default namespaces that are not the camelCased type, matching the builder names `core.d.ts`
- * documents for the core blocks (s2 §2 core types).
+ * documents for the core blocks.
  */
 const NAMESPACE_SEEDS: Record<string, string> = {
   function: 'fn',
@@ -99,7 +99,7 @@ const NAMESPACE_SEEDS: Record<string, string> = {
 const TRIGGER_ROOT = 'trigger'
 const TRIGGER_TYPE_SUFFIX = /_trigger$/
 
-/** Members a generated namespace declares besides its methods (s2 §2: `const tool`). */
+/** Members a generated namespace declares besides its methods (`const tool`). */
 const NAMESPACE_MEMBERS = new Set<string>(['tool'])
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/

@@ -1,6 +1,6 @@
 /**
  * Glue between `workflow_source_meta` (keyed by block id) and the key-keyed world of the printer,
- * the compiler and the lock (build-spec decisions 4 and 6).
+ * the compiler and the lock.
  *
  * Read path (`readWorkflowSource`): canonicalize the stored graph, turn source meta into printer
  * inputs with {@link hintsFromSourceMeta}, print, then assemble the lock with

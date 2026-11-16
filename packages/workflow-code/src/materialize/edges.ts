@@ -90,7 +90,7 @@ export interface EdgeInputs {
 }
 
 /**
- * Edges by tuple (s1 D5, contract amendment 9). Every prev edge whose tuple the workflow still has
+ * Edges by tuple. Every prev edge whose tuple the workflow still has
  * is kept as the whole stored object (id, handles and extra fields), in stored order, including
  * duplicates of one tuple. A prev edge that already dangled in prev is kept unless an endpoint was
  * deleted now. Each remaining compiled edge is appended as a new edge in the editor's shape

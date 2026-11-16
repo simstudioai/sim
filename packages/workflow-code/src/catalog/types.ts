@@ -1,7 +1,7 @@
 /**
  * The block catalog: a JSON projection of the block, trigger and tool registries that the
- * compiler, printer, canonicalizer and SDK codegen read instead of the registries themselves
- * (s1 §2 `BlockCatalog`, build-spec decision 14). It is pure data: every function in a registry
+ * compiler, printer, canonicalizer and SDK codegen read instead of the registries themselves.
+ * It is pure data: every function in a registry
  * definition is either evaluated once per deployment by the projection or marked
  * `{ opaque: true }`.
  *
@@ -15,7 +15,7 @@ import type { CanonicalParamId, Json, ResourceKind, SubBlockId } from '../model'
 
 /**
  * How a subBlock stores a value. `json-string` means the subBlock holds JSON text (tools,
- * condition/router rows, tableRows, inputFormat, tag filters; s1 quirk 9). Only materialize reads
+ * condition/router rows, tableRows, inputFormat, tag filters). Only materialize reads
  * this: the CWM is encoding-free.
  */
 export type ParamStorage = 'native' | 'json-string'
@@ -38,20 +38,20 @@ export interface SubBlockConditionClause {
 }
 
 /**
- * A visibility condition. Function conditions (19 in the registry, s1 §8) become
- * `{ opaque: true }`, which counts as active for `inactive` (s1 canonicalize step 9).
+ * A visibility condition. Function conditions (19 in the registry) become
+ * `{ opaque: true }`, which counts as active for `inactive`.
  */
 export type CatalogCondition = SubBlockConditionClause | OpaqueMarker
 
 /**
  * How a value for this subBlock is written in source and checked by `W_VALUE_KIND`, derived from
- * the subBlock type (build-spec decision 14; s2 §2 mapping table):
+ * the subBlock type:
  * - `string`, `number`, `boolean`, `array`, `object`, `json`: plain JSON of that shape.
  * - `code`: a code body (`code` subBlock, non-JSON language), printed `js```/`py```/`sh```.
  * - `branches`: condition-input / router-input, lifted into named branches.
  * - `tools`: tool-input lists.
  * - `resource`: a workspace resource by key (`resourceKind` says which). Selector-kind, so a pair
- *   member of this kind is the basic member (build-spec decision 7).
+ *   member of this kind is the basic member.
  * - `picked`: an opaque provider id from a remote selector (`picked('C0123')`); basic.
  * - `upload`: a workspace file (`file('path')`); basic.
  * - `none`: display-only or server-managed (text, schedule-info, webhook-config, modal); never
@@ -72,7 +72,7 @@ export type CatalogValueKind =
   | 'upload'
   | 'none'
 
-/** Structured subBlock types whose stored JSON canonicalize decodes (s1 canonicalize step 3). */
+/** Structured subBlock types whose stored JSON canonicalize decodes. */
 export type CatalogStructuredKind = 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
 
 export interface CatalogOption {
@@ -97,7 +97,7 @@ export interface CatalogSubBlock {
   canonicalParamId?: CanonicalParamId
   /**
    * Which declaration of a duplicated id this is. Action and trigger copies of one id coexist
-   * (canonical/block-spec.ts:35-63, s1 quirk 14); the catalog keeps both.
+   * (canonical/block-spec.ts:35-63); the catalog keeps both.
    */
   surface?: 'action' | 'trigger'
   condition?: CatalogCondition
@@ -121,7 +121,7 @@ export interface CatalogSubBlock {
    */
   visibleForModel?: Record<string, boolean>
   required?: boolean | CatalogCondition
-  /** UI clearing and fetch ordering only; never part of types or visibility (s2 §2). */
+  /** UI clearing and fetch ordering only; never part of types or visibility. */
   dependsOn?: { all: SubBlockId[]; any: SubBlockId[] }
   defaultValue?: Json
   /**
@@ -133,7 +133,7 @@ export interface CatalogSubBlock {
   valueDefault?: { constant: Json } | { computed: true; initial?: Json }
   /**
    * Static options; `dynamic` when fetched through `selectorKey`/`fetchOptions`; `opaque` for a
-   * function the projection could not evaluate (build-spec decision 14).
+   * function the projection could not evaluate.
    */
   options?: CatalogOption[] | { dynamic: true } | OpaqueMarker
   hidden?: boolean
@@ -159,7 +159,7 @@ export interface CatalogSubBlock {
   valueKind: CatalogValueKind
   /** Set iff `valueKind` is `resource`. */
   resourceKind?: ResourceKind
-  /** Encoding for a value with no prev raw value; prev's encoding wins when it exists (s1 D1). */
+  /** Encoding for a value with no prev raw value; prev's encoding wins when it exists. */
   storage: ParamStorage
   structured?: CatalogStructuredKind
 }
@@ -180,7 +180,7 @@ export interface CatalogBlockLifecycle {
   sunset?: { status: 'legacy' | 'deprecated'; replacedBy?: string }
 }
 
-/** A registry `subBlocks` id rename applied by load-time migrations, for CLI hints (s1 D7). */
+/** A registry `subBlocks` id rename applied by load-time migrations, for CLI hints. */
 export interface CatalogLegacyId {
   from: SubBlockId
   to: SubBlockId | null
@@ -219,7 +219,7 @@ export interface CatalogBlock {
   category: 'blocks' | 'tools' | 'triggers'
   /**
    * `false` for a type that may stay in a workflow but must not be added: types already stored in
-   * this workflow but no longer offered (s4 §2 apply step 2), hidden legacy versions, preview
+   * this workflow but no longer offered, hidden legacy versions, preview
    * blocks. Compile rejects a new block of such a type; an existing one keeps compiling.
    */
   addable?: false
@@ -228,7 +228,7 @@ export interface CatalogBlock {
   triggers?: { enabled: boolean; available: string[] }
   /** Only one instance per workflow (`duplicate_single_instance_block` gate). */
   singleInstance?: boolean
-  /** Declared order (the printer's param order), duplicates kept (s1 quirk 14). */
+  /** Declared order (the printer's param order), duplicates kept. */
   subBlocks: CatalogSubBlock[]
   /**
    * `operation`: the tool is chosen by the operation dropdown; `opaque`: by a
@@ -288,7 +288,7 @@ export interface CatalogTool {
 /**
  * One SDK builder method, keyed in `BlockCatalog.builders` by its dotted SDK path
  * (`slack.sendMessage`, `trigger.gmail.newEmail`). Method names are frozen in
- * `apps/sim/blocks/sdk-names.json` (build-spec decision 7).
+ * `apps/sim/blocks/sdk-names.json`.
  */
 export interface CatalogBuilder {
   /** The registry block type the builder creates. */

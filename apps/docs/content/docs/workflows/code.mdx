@@ -1,0 +1,186 @@
+---
+title: Workflows as code
+description: Read and edit a workflow as one TypeScript file, check it before saving, and review changes as diffs.
+---
+
+import { Callout } from '@/components/ui/callout'
+
+Every workflow can be read and written as a TypeScript file. The file and the workflow builder show the same workflow: edit either one and the other follows. Use it to review agent changes as a diff, keep workflows in git, or let a coding agent such as Claude Code build and change them for you.
+
+<Callout type="info">
+Workflows as code is in preview. When it is enabled for your workspace, the workflow builder shows a read-only **Code** tab and the [CLI](/cli) gains the `sim workflows source` commands.
+</Callout>
+
+## What the file holds
+
+The file states what the workflow runs: its blocks, their settings, the connections between them, branches, loops, and variables. Layout and other builder-only details stay in the stored workflow, so the file stays short and a change to one setting is a one-line diff.
+
+Nothing in the file runs on your machine. Sim reads it statically, checks it against your workspace, and saves it as the workflow draft. Deploying stays a separate step.
+
+## Edit a workflow from the CLI
+
+1. Write the workflow into a directory:
+
+   ```bash
+   sim workflows source get <workflowId> --dir ./support-triage
+   ```
+
+   This writes `workflow.ts`, any function code under `functions/`, and type declarations for every block and for your workspace's tables, credentials, knowledge bases, and environment variable names.
+
+2. Edit `workflow.ts`. Your editor type-checks it against the generated declarations, and `tsc -p ./support-triage` checks it from the command line.
+
+3. Check the change without saving it:
+
+   ```bash
+   sim workflows source apply <workflowId> --dir ./support-triage --dry-run
+   ```
+
+   Sim compiles the file and runs every check a save would run: unknown settings, missing required fields, broken references, permissions, and locked blocks. Each problem prints with its line, the code around it, and a hint:
+
+   ```
+   workflow.ts:56:7 error E_UNKNOWN_PARAM: Slack has no param chanel.
+     54 |     const notify = slack.sendMessage('Notify', {
+     55 |       credential: credential('support-slack'),
+   > 56 |       chanel: 'C0SUPPORT',
+        |       ^^^^^^^^^^^^^^^^^^^
+     57 |       text: t`New ${classify.category} ticket: ${ticketIn.subject}`,
+     hint: Did you mean channel?
+   ```
+
+4. Save the draft:
+
+   ```bash
+   sim workflows source apply <workflowId> --dir ./support-triage --yes
+   ```
+
+   The workflow builder updates for anyone who has the workflow open. Deploy when you are ready.
+
+
+To create a new workflow, write `workflow.ts` in an empty directory and run `sim workflows source create --dir <dir> --yes`. The command prints the new workflow ID.
+
+Keep the `.sim/` folder the commands write. `.sim/lock.json` ties each block in the file to the stored block, so renaming a block in the file or in the builder keeps the same block, with its webhook URL and schedules. `.sim/base.json` records the version you read.
+
+## Example: support triage
+
+A webhook receives a ticket, an agent classifies it, billing tickets are logged to a table, and the team hears about them in Slack. This is the file `sim workflows source get` prints for it:
+
+```ts title="workflow.ts"
+// @sim-sdk 1
+import {
+  agent,
+  condition,
+  credential,
+  env,
+  js,
+  response,
+  slack,
+  t,
+  table,
+  trigger,
+  workflow,
+} from '@sim/workflow-sdk'
+
+export default workflow(
+  'Support triage',
+  { variables: { escalations: { type: 'number', value: 0 } } },
+  () => {
+    const ticketIn = trigger.webhook('Ticket in', {
+      requireAuth: true,
+      token: env.TICKETS_WEBHOOK_TOKEN,
+      inputFormat: { subject: 'string', body: 'string', contacts: 'array' },
+    })
+    const classify = agent('Classify', {
+      messages: [
+        { role: 'system', content: 'Classify support tickets.' },
+        {
+          role: 'user',
+          content: t`${ticketIn.subject}
+
+${ticketIn.body}`,
+        },
+      ],
+      model: 'claude-sonnet-5-5',
+      responseFormat: {
+        name: 'ticket',
+        strict: true,
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['category', 'urgent'],
+          properties: {
+            category: { type: 'string', enum: ['billing', 'bug', 'other'] },
+            urgent: { type: 'boolean' },
+          },
+        },
+      },
+    })
+    const byCategory = condition('By category', {
+      billing: js`${classify.category} === 'billing'`,
+      urgent: js`${classify.urgent} === true`,
+      else: true,
+    })
+    const logTicket = table.insertRow('Log ticket', {
+      tableId: table('tickets'),
+      data: { subject: ticketIn.subject, category: classify.category },
+    })
+    const notify = slack.sendMessage('Notify', {
+      credential: credential('support-slack'),
+      channel: 'C0SUPPORT',
+      text: t`New ${classify.category} ticket: ${ticketIn.subject}`,
+    })
+    const reply = response('Reply', {
+      body: { ok: true, category: classify.category, urgent: classify.urgent },
+      status: 202,
+    })
+
+    ticketIn.to(classify)
+    classify.to(byCategory)
+    byCategory.billing.to(logTicket)
+    byCategory.urgent.to(notify)
+    byCategory.else.to(reply)
+    logTicket.to(notify)
+    logTicket.onError(notify)
+    notify.to(reply)
+  }
+)
+```
+
+How to read it:
+
+- Each `const` is a block. `agent`, `condition`, `table.insertRow`, and `slack.sendMessage` are the blocks you know from the workflow builder, with the same settings.
+- `classify.category` is a typed reference to another block's output, the same as `<classify.category>` in the builder. `t` writes text with references in it; `js` writes code.
+- `table('tickets')` and `credential('support-slack')` name workspace resources by a stable key. Renaming the table in Sim keeps the key.
+- `env.TICKETS_WEBHOOK_TOKEN` reads an environment variable. Secret values are never printed: a key pasted into a password field prints as `stored()`, which keeps the saved value.
+- `.to()` connects blocks, `byCategory.billing` is one branch of the condition, and `.onError()` follows the error path.
+
+## Function code
+
+Code that does not fit a block goes in a Function block, kept in its own file:
+
+```ts
+const score = fn('Score lead', { code: codeFile('./functions/score-lead.js') })
+```
+
+In the file, `$ref.block.path` reads another block's output and `$env.NAME` reads an environment variable. Python and shell files are saved as written.
+
+## Use it in CI
+
+Commit the directory to your repository and run `--dry-run` in CI to catch a broken workflow before it is saved. The command exits `0` when the workflow is valid and `1` when it has errors, so a failing check blocks the merge.
+
+`sim test` runs a workflow's test cases from CI and exits non-zero when one fails. It ships with the workflow CI tests release.
+
+## Working with other people
+
+- If someone changes the workflow after you read it, the save is refused with exit code `5` and nothing is overwritten. Run `get` again, reapply your edit, and save.
+- Locked blocks cannot be changed from the file. Unlock them in the workflow builder first.
+- Removing a block that serves a live webhook, schedule, chat, or MCP tool warns you: the deployed version keeps serving it until the next deploy.
+
+## Limits and known gaps
+
+- The file holds block declarations and connections only. Helper functions, loops that create blocks, and imports are refused; use Loop, Condition, and Workflow blocks instead.
+- Function code is one file per block, with no imports between files.
+- A change anyone makes while you edit means reading the workflow again; there is no automatic merge.
+- Workflows run in Sim, not locally. `--dry-run` checks everything a save checks, without running the workflow.
+- A file can be up to 1 MB, with up to 5 MB of function code across up to 500 files.
+
+See [CLI workflow commands](/cli/workflows) for every flag.

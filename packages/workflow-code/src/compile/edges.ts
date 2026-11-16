@@ -47,7 +47,7 @@ function portForHandle(handle: string): Port {
   }
 }
 
-/** Implicit branch keys of a never-persisted branch list (A7). */
+/** Implicit branch keys of a never-persisted branch list. */
 const IMPLICIT_BRANCHES = { condition: ['if', 'else'], router: ['route0'] } as const
 
 export class EdgeCollector {
@@ -82,7 +82,7 @@ export class EdgeCollector {
     )
   }
 
-  /** Validates and records one edge (s3 §4 "Edges"); `false` when it was rejected. */
+  /** Validates and records one edge; `false` when it was rejected. */
   add(
     from: BlockDecl,
     port: Port,

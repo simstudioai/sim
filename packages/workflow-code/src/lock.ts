@@ -1,14 +1,12 @@
 /**
  * `.sim/lock.json`: the committed identity sidecar of a workflow source file. It binds keys to ids
- * so a canvas rename, a drag or a branch reorder never changes identity (build-spec decision 4,
- * s1 §2, s3 D10/D11). Edge ids are never in the lock (s1 D5).
+ * so a canvas rename, a drag or a branch reorder never changes identity.
+ * Edge ids are never in the lock.
  *
  * The lock holds only environment-independent facts: logical ids, idents, print order, code
  * files and layout. Everything tied to one environment's stored state (workflow, workspace,
  * freshness fingerprint, catalog hash) is the separate {@link SourceBase}: single-workflow `source get/apply`
  * returns and takes it beside the lock, and the CLI keeps it in `.sim/base.json`.
- * Logical ids equal physical ids in the home environment; elsewhere
- * `workspace_repo_block_binding` maps them (build-spec decision 4).
  *
  * Version policy: adding an optional field does not bump `version`. Validators learn a field
  * before writers emit it; until every reader knows a field, data goes under an `x-` key, which
@@ -22,7 +20,7 @@ import type { Diagnostic } from './diagnostics/frame'
 import type { BlockKey, BranchKey, Json, SubBlockId, VarKey } from './model'
 import { SDK_RESERVED_IDENTIFIERS } from './sdk'
 
-/** `sf1:` + lowercase hex SHA-256 (build-spec decision 11, s4 D3). */
+/** `sf1:` + lowercase hex SHA-256. */
 export type SourceFingerprint = `sf1:${string}`
 
 /** An extension field: tolerated and preserved by every validator, never interpreted. */
@@ -43,7 +41,7 @@ export interface LockLayout {
 /**
  * One id-bearing list entry (an inputFormat field). A list, not a name → id map, so duplicate or
  * empty names keep their ids. These ids are cross-workflow foreign keys: custom block subBlock ids
- * are the Start field ids (blocks/custom/build-config.ts:134-151, s1 §4 "Items").
+ * are the Start field ids (blocks/custom/build-config.ts:134-151).
  */
 export interface LockItem {
   name: string
@@ -74,19 +72,19 @@ export interface LockIdentity {
 export interface WorkflowLockBlock extends LockIdentityBlock {
   [extension: LockExtensionKey]: Json
   /**
-   * The TS `const` identifier the block is printed as (s3 calls it `ident`). Derived camelCase from
-   * the name on first print, then persisted, so a canvas rename changes one line
-   * (build-spec decision 4). Never one of `SDK_RESERVED_IDENTIFIERS`.
+   * The TS `const` identifier the block is printed as. Derived camelCase from
+   * the name on first print, then persisted, so a canvas rename changes one line.
+   * Never one of `SDK_RESERVED_IDENTIFIERS`.
    */
   ident: string
   /**
-   * Print-order tie-break: the second key of the declaration sort (isTrigger, order, key)
-   * (build-spec decision 10, s3 D10). Not unique: equal orders fall back to the key, so locks
+   * Print-order tie-break: the second key of the declaration sort (isTrigger, order, key).
+   * Not unique: equal orders fall back to the key, so locks
    * merged from two branches stay valid.
    */
   order: number
   layout?: LockLayout
-  /** Repo-relative path of the block's function-code file (build-spec decision 9). */
+  /** Repo-relative path of the block's function-code file. */
   codeFile?: string
 }
 

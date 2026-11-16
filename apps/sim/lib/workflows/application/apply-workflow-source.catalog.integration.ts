@@ -281,7 +281,7 @@ afterAll(async () => {
 })
 
 check(
-  'CF-08: a custom block republished with a new input between get and apply compiles against the new catalog',
+  'a custom block republished with a new input between get and apply compiles against the new catalog',
   async () => {
     const published = await publishCustomBlock([{ id: 'f-lead', name: 'lead' }])
     const consumer = await seedConsumer(published)
@@ -305,7 +305,7 @@ check(
 )
 
 check(
-  'CF-09: a disabled custom block stays editable where it is placed but cannot be added again',
+  'a disabled custom block stays editable where it is placed but cannot be added again',
   async () => {
     const published = await publishCustomBlock([{ id: 'f-lead', name: 'lead' }])
     const consumer = await seedConsumer(published)

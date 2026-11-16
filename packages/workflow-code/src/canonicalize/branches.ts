@@ -42,7 +42,7 @@ function parseRows(value: unknown): { rows: unknown[] | null; parsed: boolean } 
   return Array.isArray(decoded) ? { rows: decoded, parsed: true } : { rows: null, parsed: false }
 }
 
-/** Positional default keys mirror the copilot handles (validation.ts:1091-1130), quirk 8. */
+/** Positional default keys mirror the copilot handles (validation.ts:1091-1130). */
 export function positionalKeys(kind: CanonicalBranches['kind'], count: number): BranchKey[] {
   if (kind === 'router') return Array.from({ length: count }, (_, index) => `route${index}`)
   let elseIf = 0
@@ -67,7 +67,7 @@ export function positionalTitle(
 
 /**
  * Ids a never-persisted (or unparseable, or empty) branch list answers to, keyed by default key:
- * `getConditionRows` / `getRouterRows` fallbacks (dynamic-handle-topology.ts:57-100), quirk 7.
+ * `getConditionRows` / `getRouterRows` fallbacks (dynamic-handle-topology.ts:57-100).
  */
 export function implicitIds(
   kind: CanonicalBranches['kind'],
@@ -107,8 +107,8 @@ function withImplicit(
 }
 
 /**
- * Lifts the `conditions` / `routes` subBlock into named branches (s1 canonicalize step 6,
- * quirks 4–8). Keys resolve lock (by row id) → persisted row `key` → positional default; a key
+ * Lifts the `conditions` / `routes` subBlock into named branches.
+ * Keys resolve lock (by row id) → persisted row `key` → positional default; a key
  * already taken gets a `_n` suffix. UI state is stripped, a stored title that differs from the
  * positional one becomes `titleOverride` (condition titles are semantic: the executor finds
  * `else` by title, condition/handler.ts:474). A never-persisted value is `rows: null` and answers

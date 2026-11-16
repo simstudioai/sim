@@ -818,8 +818,8 @@ describe('apply edges: identity, row lock, live triggers', () => {
 })
 
 /**
- * Edge cases the apply handles but nothing proved (edge matrix, package T1). Each case names the
- * bug it catches; the shared helpers above are reused, and everything this block adds lives in it.
+ * Edge cases the apply handles. Each case names the bug it catches; the shared helpers above are
+ * reused, and everything this block adds lives in it.
  */
 describe('source apply edge cases', () => {
   const readerId = generateId()
@@ -977,7 +977,7 @@ describe('source apply edge cases', () => {
   }
 
   check(
-    'RT-34: a canvas drag between get and apply leaves an unchanged source a no-op that writes nothing',
+    'a canvas drag between get and apply leaves an unchanged source a no-op that writes nothing',
     async () => {
       const seeded = await seedWorkflow()
       const source = await getSource(seeded.workflowId)
@@ -998,29 +998,26 @@ describe('source apply edge cases', () => {
     }
   )
 
-  check(
-    'RT-36: an invalid value on a changed field refuses the apply and writes nothing',
-    async () => {
-      const start = seedBlock('start_trigger', 'Start')
-      const score = seedBlock('function', 'Score', { code: ['code', 'return 1'] })
-      const workflowId = await seedGraph([start, score])
-      const source = await getInlineSource(workflowId)
-      const before = await snapshot(workflowId)
+  check('an invalid value on a changed field refuses the apply and writes nothing', async () => {
+    const start = seedBlock('start_trigger', 'Start')
+    const score = seedBlock('function', 'Score', { code: ['code', 'return 1'] })
+    const workflowId = await seedGraph([start, score])
+    const source = await getInlineSource(workflowId)
+    const before = await snapshot(workflowId)
 
-      const error = await expectRejected(
-        apply(source, edit(source.files, 'language: null', "language: 'cobol'")),
-        'E_APPLY_INVALID_SUBBLOCK_FIELD'
-      )
+    const error = await expectRejected(
+      apply(source, edit(source.files, 'language: null', "language: 'cobol'")),
+      'E_APPLY_INVALID_SUBBLOCK_FIELD'
+    )
 
-      expect(
-        error.diagnostics.find((d) => d.code === 'E_APPLY_INVALID_SUBBLOCK_FIELD')
-      ).toMatchObject({ blockId: score.id, param: 'language' })
-      expect(await snapshot(workflowId)).toEqual(before)
-    }
-  )
+    expect(
+      error.diagnostics.find((d) => d.code === 'E_APPLY_INVALID_SUBBLOCK_FIELD')
+    ).toMatchObject({ blockId: score.id, param: 'language' })
+    expect(await snapshot(workflowId)).toEqual(before)
+  })
 
   check(
-    'RT-36: a value the field normalizes is stored normalized, and untouched blocks keep their bytes',
+    'a value the field normalizes is stored normalized, and untouched blocks keep their bytes',
     async () => {
       const start = seedBlock('start_trigger', 'Start')
       const writer = seedBlock('agent', 'Writer', {
@@ -1051,7 +1048,7 @@ describe('source apply edge cases', () => {
   )
 
   check(
-    'RT-37: a structural lint finding refuses only a block the apply changed; an untouched one warns',
+    'a structural lint finding refuses only a block the apply changed; an untouched one warns',
     async () => {
       const start = seedBlock('start_trigger', 'Start')
       const score = seedBlock('function', 'Score', { code: ['code', 'return 1'] })
@@ -1076,7 +1073,7 @@ describe('source apply edge cases', () => {
   )
 
   check(
-    'RT-38: a workflow name edited in source is not applied and the note points at settings',
+    'a workflow name edited in source is not applied and the note points at settings',
     async () => {
       const seeded = await seedWorkflow()
       const source = await getSource(seeded.workflowId)
@@ -1094,7 +1091,7 @@ describe('source apply edge cases', () => {
   )
 
   check(
-    'ID-13: a lock read in another workspace is stale, so its id for a vanished block is not reused',
+    'a lock read in another workspace is stale, so its id for a vanished block is not reused',
     async () => {
       const seeded = await seedWorkflow()
       const source = await getSource(seeded.workflowId)
@@ -1119,35 +1116,32 @@ describe('source apply edge cases', () => {
     }
   )
 
-  check(
-    'ID-14: a lock id another workflow already stores is dropped and a new id is minted',
-    async () => {
-      const target = await seedWorkflow()
-      const other = await seedWorkflow()
-      const source = await getSource(target.workflowId)
-      const { files, lock } = withExtraBlock(source, other.scoreId)
+  check('a lock id another workflow already stores is dropped and a new id is minted', async () => {
+    const target = await seedWorkflow()
+    const other = await seedWorkflow()
+    const source = await getSource(target.workflowId)
+    const { files, lock } = withExtraBlock(source, other.scoreId)
 
-      const result = await apply(source, files, { lock })
+    const result = await apply(source, files, { lock })
 
-      expect(result.applied).toBe(true)
-      expect(result.diagnostics).toContainEqual(
-        expect.objectContaining({ code: 'W_MAT_LOCK_ID_CLAIMED', blockKey: 'extra' })
-      )
-      const minted = result.mintedIds.extra
-      expect(minted).toBeDefined()
-      expect(minted).not.toBe(other.scoreId)
-      const after = await snapshot(target.workflowId)
-      expect(after.state?.blocks[minted ?? '']?.name).toBe('Extra')
-      const [claimed] = await db
-        .select({ workflowId: workflowBlocks.workflowId })
-        .from(workflowBlocks)
-        .where(eq(workflowBlocks.id, other.scoreId))
-      expect(claimed.workflowId).toBe(other.workflowId)
-    }
-  )
+    expect(result.applied).toBe(true)
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'W_MAT_LOCK_ID_CLAIMED', blockKey: 'extra' })
+    )
+    const minted = result.mintedIds.extra
+    expect(minted).toBeDefined()
+    expect(minted).not.toBe(other.scoreId)
+    const after = await snapshot(target.workflowId)
+    expect(after.state?.blocks[minted ?? '']?.name).toBe('Extra')
+    const [claimed] = await db
+      .select({ workflowId: workflowBlocks.workflowId })
+      .from(workflowBlocks)
+      .where(eq(workflowBlocks.id, other.scoreId))
+    expect(claimed.workflowId).toBe(other.workflowId)
+  })
 
   check(
-    'CF-03: two applies racing on one base write once; the other answers 409 under the row lock',
+    'two applies racing on one base write once; the other answers 409 under the row lock',
     async () => {
       const seeded = await seedWorkflow()
       const source = await getSource(seeded.workflowId)
@@ -1171,7 +1165,7 @@ describe('source apply edge cases', () => {
   )
 
   check(
-    'CF-04: a canvas rename that commits while the apply waits is a 409 and the block keeps its id',
+    'a canvas rename that commits while the apply waits is a 409 and the block keeps its id',
     async () => {
       const seeded = await seedWorkflow()
       const source = await getSource(seeded.workflowId)
@@ -1195,7 +1189,7 @@ describe('source apply edge cases', () => {
   )
 
   check(
-    'CF-06: a stored value a migration rewrote between get and apply moves the fingerprint: 409',
+    'a stored value a migration rewrote between get and apply moves the fingerprint: 409',
     async () => {
       const start = seedBlock('start_trigger', 'Start')
       const writer = seedBlock('agent', 'Writer', {
@@ -1225,30 +1219,27 @@ describe('source apply edge cases', () => {
     }
   )
 
-  check(
-    'CF-11: a workflow archived while the apply waits on the row lock answers not found',
-    async () => {
-      const seeded = await seedWorkflow()
-      const source = await getSource(seeded.workflowId)
+  check('a workflow archived while the apply waits on the row lock answers not found', async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
 
-      const [outcome] = await raceUnderRowLock(
-        seeded.workflowId,
-        () => [apply(source, edit(source.files, SCORE_CODE, 'return 51'))],
-        async (tx) => {
-          await tx
-            .update(workflow)
-            .set({ archivedAt: new Date() })
-            .where(eq(workflow.id, seeded.workflowId))
-        }
-      )
+    const [outcome] = await raceUnderRowLock(
+      seeded.workflowId,
+      () => [apply(source, edit(source.files, SCORE_CODE, 'return 51'))],
+      async (tx) => {
+        await tx
+          .update(workflow)
+          .set({ archivedAt: new Date() })
+          .where(eq(workflow.id, seeded.workflowId))
+      }
+    )
 
-      expect(rejection(outcome)).toMatchObject({ code: 'not_found' })
-      const after = await snapshot(seeded.workflowId)
-      expect(after.state?.blocks[seeded.scoreId]?.subBlocks.code?.value).toBe(SCORE_CODE)
-    }
-  )
+    expect(rejection(outcome)).toMatchObject({ code: 'not_found' })
+    const after = await snapshot(seeded.workflowId)
+    expect(after.state?.blocks[seeded.scoreId]?.subBlocks.code?.value).toBe(SCORE_CODE)
+  })
 
-  check('CF-13: a dry run against a stale base answers 200 with E_APPLY_STALE', async () => {
+  check('a dry run against a stale base answers 200 with E_APPLY_STALE', async () => {
     const seeded = await seedWorkflow()
     const source = await getSource(seeded.workflowId)
     await canvasSubBlockWrite(db, seeded.scoreId, 'return 61')
@@ -1267,32 +1258,29 @@ describe('source apply edge cases', () => {
     expect(await snapshot(seeded.workflowId)).toEqual(before)
   })
 
-  check(
-    'LK-10: a workspace member with read access is refused and nothing is written',
-    async () => {
-      const seeded = await seedWorkflow()
-      const source = await getSource(seeded.workflowId)
-      const before = await snapshot(seeded.workflowId)
+  check('a workspace member with read access is refused and nothing is written', async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+    const before = await snapshot(seeded.workflowId)
 
-      await expect(
-        withPermissionGroupScope(() =>
-          applyWorkflowSource.execute({
-            principal: reader,
-            input: {
-              workflowId: seeded.workflowId,
-              files: edit(source.files, SCORE_CODE, 'return 71'),
-              lock: source.lock,
-              base: source.base,
-            },
-          })
-        )
-      ).rejects.toMatchObject({ code: 'forbidden' })
-      expect(await snapshot(seeded.workflowId)).toEqual(before)
-    }
-  )
+    await expect(
+      withPermissionGroupScope(() =>
+        applyWorkflowSource.execute({
+          principal: reader,
+          input: {
+            workflowId: seeded.workflowId,
+            files: edit(source.files, SCORE_CODE, 'return 71'),
+            lock: source.lock,
+            base: source.base,
+          },
+        })
+      )
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(await snapshot(seeded.workflowId)).toEqual(before)
+  })
 
   check(
-    'RS-10: a schedule edited in source changes only the draft and reports needsRedeployment',
+    'a schedule edited in source changes only the draft and reports needsRedeployment',
     async () => {
       const schedule = seedBlock('schedule', 'Every day', {
         scheduleType: ['dropdown', 'daily'],
@@ -1350,7 +1338,7 @@ describe('source apply edge cases', () => {
   )
 
   check(
-    'AN-03: a committed apply records one audit row carrying the client, git sha and counts',
+    'a committed apply records one audit row carrying the client, git sha and counts',
     async () => {
       const seeded = await seedWorkflow()
       const source = await getSource(seeded.workflowId)
@@ -1374,23 +1362,20 @@ describe('source apply edge cases', () => {
     }
   )
 
-  check(
-    'UI-02: the workflow-code flag turned off between get and apply refuses the apply',
-    async () => {
-      const seeded = await seedWorkflow()
-      const source = await getSource(seeded.workflowId)
-      const before = await snapshot(seeded.workflowId)
-      featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async () => false)
-      try {
-        await expect(
-          apply(source, edit(source.files, SCORE_CODE, 'return 91'))
-        ).rejects.toMatchObject({ code: 'forbidden' })
-      } finally {
-        featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
-          async (flag: string) => flag === 'workflow-code'
-        )
-      }
-      expect(await snapshot(seeded.workflowId)).toEqual(before)
+  check('the workflow-code flag turned off between get and apply refuses the apply', async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+    const before = await snapshot(seeded.workflowId)
+    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async () => false)
+    try {
+      await expect(
+        apply(source, edit(source.files, SCORE_CODE, 'return 91'))
+      ).rejects.toMatchObject({ code: 'forbidden' })
+    } finally {
+      featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+        async (flag: string) => flag === 'workflow-code'
+      )
     }
-  )
+    expect(await snapshot(seeded.workflowId)).toEqual(before)
+  })
 })

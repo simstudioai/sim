@@ -1,5 +1,5 @@
 /**
- * The Wave 3 round-trip harness (s3 §5 P1–P5, s1 §6 O1–O3) over every corpus: the generated
+ * The round-trip harness (DESIGN.md "Proof") over every corpus: the generated
  * registry corpus, the landing templates, the `@sim/testing` states, redacted production states
  * from `ROUNDTRIP_CORPUS_EXTRA_DIR` (written outside the repo by
  * scripts/export-redacted-workflows.ts), and fast-check workflows.
@@ -270,7 +270,7 @@ const properties: Record<ProofProperty, (e: ResolvedEngines, s: ProofSubject) =>
  * Stored shapes no source form expresses yet. Every property that goes through print and compile
  * must fail on exactly these and pass everywhere else: a new failure or a newly passing case fails
  * the run. The report still records each as failed. Empty since legacy name collisions and
- * reserved names print as `meta.key` (Wave 3E), which compiles against the stored keys. The O
+ * reserved names print as `meta.key`, which compiles against the stored keys. The O
  * oracles never print, so they must pass on these too.
  */
 const KNOWN_FAILURES: Record<string, string> = {}

@@ -86,7 +86,7 @@ export const workflowOperations = {
   }),
   /**
    * The source catalog: the per-workspace block catalog in the shape the workflow compiler reads.
-   * Same policy as `catalog.blocks.list` (s4 §2): a workspace read at the `read` role, reachable by
+   * Same policy as `catalog.blocks.list`: a workspace read at the `read` role, reachable by
    * a workspace API key and by Copilot delegation.
    */
   // permission-group-exempt: the source catalog is the block catalog in another shape; withholding it hides the product rather than restricting it
@@ -236,7 +236,7 @@ export const workflowOperations = {
   /**
    * Writes workflow source (TypeScript) to the draft graph. Denied to workspace API keys for the
    * reason `applyOperations` is: its gates (permission config, block visibility, credential
-   * reachability) take a human subject and fail open without one (build-spec decision 11).
+   * reachability) take a human subject and fail open without one.
    *
    * permission-group-exempt: which blocks and values a member may store is judged per block by the source gates and inside replaceWorkflowNormalizedState against the principal's human subject, not by a capability the authorization funnel can apply
    */

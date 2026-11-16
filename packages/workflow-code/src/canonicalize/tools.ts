@@ -162,7 +162,7 @@ function liftTool(
   }
   if (stored.operationPolicy !== undefined) tool.operationPolicy = toJson(stored.operationPolicy)
 
-  // s1 quirk 17: the DB copy wins over the snapshot at run time, so both are kept verbatim.
+  // The DB copy wins over the snapshot at run time, so both are kept verbatim.
   const customTool: NonNullable<CanonicalTool['customTool']> = {}
   if (typeof stored.customToolId === 'string' && stored.customToolId !== '') {
     customTool.ref = liftResourceId('custom-tool', stored.customToolId, context, location)
@@ -177,7 +177,7 @@ function liftTool(
   }
   if (customTool.ref || customTool.snapshot) tool.customTool = customTool
 
-  // s1 quirk 24: `isExpanded` is editor state and is dropped.
+  // `isExpanded` is editor state and is dropped.
   for (const [key, value] of Object.entries(stored)) {
     if (!MODELED_KEYS.has(key) && value !== undefined) setOwn(extra, key, toJson(value))
   }
@@ -194,7 +194,7 @@ function definedModes(overrides: CanonicalModeOverrides | undefined): CanonicalT
 }
 
 /**
- * Lifts a `tool-input` list (s1 canonicalize step 5, quirks 3, 9, 17, 24). Each entry's modes
+ * Lifts a `tool-input` list. Each entry's modes
  * come from its index-scoped `${i}:cid` overrides layered over legacy `${type}:cid` ones
  * (`scopeCanonicalModesForTool`), resolved to an effective mode for every pair of the tool's
  * block. Params are decoded with `decodeToolParamValue`'s shape rules. Returns `null` when any

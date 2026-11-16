@@ -1,7 +1,6 @@
 /**
- * `diffCanonical`: a key-based diff of two CWMs, the input to the apply path's source diff summary
- * (s4 `SourceDiffSummary`). Like every CWM comparison it ignores `annotations`, key order and edge
- * order.
+ * `diffCanonical`: a key-based diff of two CWMs, the input to the apply path's source diff summary.
+ * Like every CWM comparison it ignores `annotations`, key order and edge order.
  */
 
 import { portKey } from '../anchors'

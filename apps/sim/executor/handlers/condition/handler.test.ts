@@ -293,7 +293,7 @@ describe('ConditionBlockHandler', () => {
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
   })
 
-  it('routes by row id and title alone, whatever branch key a row persists (s1 D2b)', async () => {
+  it('routes by row id and title alone, whatever branch key a row persists', async () => {
     mockExecuteTool.mockResolvedValueOnce(noMatch())
 
     const conditions = [

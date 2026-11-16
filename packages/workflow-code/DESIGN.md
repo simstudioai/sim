@@ -1,345 +1,507 @@
-# @sim/workflow-code: contract decisions
+# @sim/workflow-code: design
 
-Wave 1 wrote the types every engine builds against. The reconciled build spec wins where it
-speaks; this file records the choices it left open. Change a contract type only with the
-agreement of every lane that consumes it.
+A Sim workflow can be read and written as one TypeScript file (`workflow.ts`, plus function code
+under `functions/`). This package holds the pure engines that make that lossless: the canonical
+model, canonicalize, print, compile, materialize, equality, the lock and source meta. The server
+(`apps/sim/lib/workflows/code/` and the `source-*` use cases in `apps/sim/lib/workflows/application/`)
+adds the catalog, resource keys, persistence and the apply gates. `@sim/workflow-sdk` holds the
+authoring types; `src/compile/SYNTAX.md` is the surface reference.
 
-**The Amendments section at the end supersedes any numbered item it names.**
+```
+                         stored graph (DB, authoritative)
+                                   │
+              canonicalize ◄───────┴───────► materialize (over prev)
+                   │                               ▲
+                   ▼                               │
+         CanonicalWorkflow (CWM) ──── equal? ──── CWM
+                   │          executableView       ▲
+                 print                          compile
+                   ▼                               │
+             workflow.ts + functions/* ──edit──► workflow.ts + functions/*
+```
 
-## Layout
+## Source holds what executes
 
-| Module | Owner | State |
-|---|---|---|
-| `src/model.ts` | Wave 1 | types |
-| `src/lock.ts` | Wave 1 | types + `parseWorkflowLock` (real) |
-| `src/catalog/types.ts` | Wave 1 | types |
-| `src/diagnostics/codes.ts` | Wave 1 | types |
-| `src/diagnostics/frame.ts` | Wave 1 | types + `codeFrame` (real) |
-| `src/anchors.ts` | Wave 1 | `portKey`, `parsePortKey`, `encodeAnchor`, `decodeAnchor` (real) |
-| `src/hash.ts` | Wave 1 | `stableStringify`, `sha256Hex` (real) |
-| `src/sdk.ts` | Wave 1 | `GENERIC_BUILDER`, `SDK_CORE_EXPORTS`, `SDK_RESERVED_IDENTIFIERS` |
-| `src/api.ts` | Wave 1 | engine signatures, type-only |
-| `src/catalog/canonical-index.ts`, `src/canonicalize/*` | 2B | |
-| `src/print/*` | 2C | |
-| `src/compile/*`, `src/code-files/*` | 2D | |
-| `src/materialize/*`, `src/equivalence.ts` | Wave 3 | |
+Source carries every value the workflow runs with and nothing else. A value is **active** when the
+serializer sends it to the executor (`extractBlockParams`, after the load-time migrations) or, for
+a block acting as a trigger, deploy reads it into the webhook provider config
+(`buildProviderConfig` copies every trigger-mode field except display-only system ids, visible or
+not). `catalog/activity.ts` is the one rule; canonicalize, print, materialize and the executable
+view all ask it. An opaque catalog condition counts as satisfied unless the catalog expanded it per
+operation (`visibleFor`), which is exact.
 
-Each engine implements its `api.ts` type, e.g.
-`export const compileWorkflow: CompileWorkflowFn = (input) => { ... }`, and adds its runtime
-export to `src/index.ts`. `api.ts` stays type-only, so an unimplemented engine fails to import
-instead of failing at run time.
+Everything else is **preserved state**: inactive values, which member of a basic/advanced pair holds
+a value and its mode, the fields of the loop or parallel types not in effect, layout, and unknown
+`block.data`. Source has no syntax for it. The printer leaves it out, and apply restores it from the
+stored workflow (see "Preserved state"). There is no verbose mode.
 
-## Model
+Two escape hatches carry state that runs but has no SDK syntax:
 
-1. **No separate draft type.** The CWM has no ids, so it is already name-keyed. `compileWorkflow`
-   returns a `CanonicalWorkflow`; ids bind only in materialize. s3's `CanonicalWorkflowDraft`
-   maps onto it as follows: `meta`, `variables`, `blocks[].params`, `branches`, `edges` and
-   `annotations` all exist. `options.enabled/errorEnabled/retry/locked` map to `enabled`,
-   `errorPort`, `retry` and `locked`. `unknown` maps to `extra`.
-2. **`meta` is in the CWM** (`name`, `description`). The workflow row holds them, not
-   `WorkflowState`, so canonicalize takes them as input. `diffCanonical` reports changes. Wave 3
-   decides whether apply writes them.
-3. **`annotations` is in the CWM but never semantic.** `inactive` (build-spec decision 2) and
-   `comments` (decision 10) live there. Every equality, hash, diff and fingerprint ignores them.
-   s1's `Annotations.references` was dropped: the printer tokenizes strings itself (s3 D4).
-4. **A stored `null` param is absent** (s3 requirement d). `''` is kept.
-5. **`SimNode` has two more variants than s1.** The first is `{ $sim: 'literal', value }`: it
-   escapes a stored object that already has a `$sim` key, so the encoding stays a bijection. The
-   second: `unresolved.kind` may be `'var'`.
-6. **`ResourceKind` is a closed union**: `credential`, `table`, `knowledgeBase`, `workflow`,
-   `skill`, `customTool`, `mcpServer`, `sandbox`, `file`, `folder`. A new kind is a contract
-   change.
-7. **Ports use s1's names.** The default port is `out`, not s3's `source`. `PortKey` is the
-   string form used for edge sorting and `edges:` anchors: `out`, `error`, `branch:<key>`,
-   `subflowStart`, `subflowEnd` or `raw:<handle>`. Edges sort by `(from, portKey, to)` with
-   `compareStrings`.
+- `meta.extra`: stored params of a schema-agnostic custom block, the agent's legacy prompt fields,
+  a container's stored params.
+- `meta.subflowData`: a loop or parallel's `block.data` subflow keys canonicalize could not read as
+  config, which the serializer passes on. Kept apart from `extra` because canvas containers often
+  store params under the same names.
 
-## Lock
+## Defaults
 
-8. **The lock has two halves.** The first, `LockIdentity`, holds ids, type, name, parent, branches
-   and items. Canonicalize derives it and materialize returns it, and the fingerprint hashes it.
-   The second, `WorkflowLockBlock`, adds `ident`, `order`, `contentHash`, `layout` and
-   `codeFile`. The source use case assembles the full `WorkflowLockV1` from identity plus
-   print/compile `SourceHints` plus `workflowId`/`catalogHash`/fingerprint. Canonicalize does not
-   return a full lock: it cannot know the fingerprint, which hashes its own output.
-9. **`codeFile` is per block**, not a top-level `codeFiles` map keyed by id (s3).
-10. **`SourceHints` are keyed by block key** (s3 keyed them by id): neither print nor compile sees
-    ids. They hold the same fields `workflow_source_meta` will store (decision 6).
-11. **`order` is not unique.** Ties fall back to the key, so a lock merged from two branches
-    stays valid.
-12. **The validator is strict.** It rejects any unknown field. Keys must already be in
-    normalized form and must match `normalizeWorkflowBlockName(name)` or that name's `~n`
-    collision form. `ident` must be a non-reserved identifier, unique in the lock. Ids must be
-    unique per scope: blocks, variables, branches within a block, items within a subBlock.
-    Parents must exist and must not form a cycle. `contentHash` is 64 lowercase hex characters,
-    and a fingerprint is `sf1:` plus 64 lowercase hex characters. `codeFile` must be a
-    normalized relative POSIX path. Every problem is reported at once, with an RFC 6901 `path`.
-    A string input is parsed as JSON text.
+An omitted param means the editor default, so a block written with no params is stored exactly as
+a canvas-created one and runs the same.
+
+The editor default is what canvas creation writes (`createBlockFromParams` with no inputs, wrapped
+by `MaterializeHooks.initBlock`), per subBlock id, first declaration wins
+(`catalog/defaults.ts`):
+
+- a visible editable field gets its `value()` thunk's result for a block with no values
+  (`valueDefault.constant`, or `valueDefault.initial` for a computed thunk whose creation value is
+  stable);
+- a hidden field gets its `defaultValue`;
+- a read-only field, and a thunk that mints a fresh value per call (`mintsFreshValue`, such as the
+  generic webhook's token), have none. A block created from source keeps the value `initBlock`
+  minted, as canvas creation does.
+
+Only scalars count as defaults. The printer omits a value equal to the default and prints `null`
+for an active field that has a default but no stored value. Compile fills an omitted param with
+its default; `null` and `todo()` stay stored-absent. Materialize writes a new block from
+`initBlock` and nulls only what the CWM leaves absent.
+
+## The canonical model
+
+`CanonicalWorkflow` (`model.ts`) projects a stored graph with no ids and no layout, keyed by
+block key. The DB graph stays authoritative; the CWM is computed on read and written back through
+materialize. There is no separate draft type: compile returns a CWM, and ids bind only in
+materialize.
+
+- `meta`: the workflow row's `name` and `description` (`WorkflowState` does not carry them).
+  Apply never writes them to an existing workflow; a difference becomes a note.
+- `blocks[key]`: `name`, `type` (including legacy and `custom_block_<slug>`), `parent`, `enabled`,
+  `locked`, `triggerMode`, `advancedMode` (semantic: it changes what serializes),
+  `errorPort` (`errorEnabled || has an error edge`), `retry` (raw `BlockRetryConfig`), `params`,
+  `modes`, `branches?`, `subflow?`, `extra?`.
+- `params[subBlockId]` is `{ kind: 'value', value }` or `{ kind: 'tools', tools }`. Excluded:
+  synthetic tool mirrors, server-owned trigger runtime ids (`webhookId`, `triggerPath`,
+  `triggerConfig`, `triggerId`; materialize copies them from prev), parked `_removed_` keys and
+  `conditions`/`routes` (lifted into `branches`). A stored `null` is absent; `''` is kept.
+- The CWM is **encoding-free**: whether a subBlock held native JSON or JSON text is not recorded,
+  so equality, hashes, diffs and the fingerprint never see it. Materialize picks the encoding:
+  prev's raw encoding, else the catalog `storage`.
+- `Value` is JSON plus `SimNode`s, the internal-id sites lifted to keys:
+  `{ $sim: 'var', key }`, `{ $sim: 'resource', kind, key }`, `{ $sim: 'unresolved', kind, id }`
+  (an id the resolver could not map, kept verbatim with `W_CANON_UNRESOLVED_ID`),
+  `{ $sim: 'csv', items }` (comma-joined ids) and `{ $sim: 'literal', value }` (escapes a stored
+  object that has its own `$sim` key, so the encoding stays a bijection). In a `files` value only
+  each object's `key` becomes a node. `ResourceKind` is `PortableResourceKind` minus `env-var`
+  (`@sim/workflow-types/resources`); env vars stay `{{NAME}}` text.
+- Strings are stored text. References stay `<block.path>`, `{{ENV}}` and `<variable.key>` tokens;
+  canonicalize only normalizes ref prefixes and rewrites `<variable.<id>>` to `<variable.<key>>`.
+- `branches`: `{ kind: 'condition' | 'router', rows }`, each row `{ key, value, titleOverride?,
+  titleMissing?, extra? }`. `rows: null` means the subBlock was never persisted; its source form is
+  an empty branch object and the implicit ports (`if`/`else`, `route0`) stay addressable. A
+  persisted list is never empty. Branch keys persist on the stored rows as the optional row `key`.
+- `subflow`: `LoopSpec` or `ParallelSpec`, optional fields absent exactly when storage omits them.
+  `LoopSpec.iterations` is the count that runs: `block.data.count`, or 5 when absent
+  (`convertLoopBlockToLoop`).
+- `edges`: `(from, port, to)` tuples sorted by `(from, portKey, to)` with `compareStrings`. Ports:
+  `out`, `error`, `branch:<key>`, `subflowStart`, `subflowEnd`, `raw:<handle>`. `portKey` and
+  `parsePortKey` (`anchors.ts`) are the only string forms. Edge ids are not in the CWM or the lock.
+- `variables[key]`: `{ key, name, type, value }`.
+- `annotations`: `inactive` (per block, the stored params that never run; only canonicalize fills
+  it) and `comments` (by `AnchorKey`). Annotations never take part in equality, hashing, diffing or
+  the fingerprint.
+
+`canonicalEquals` ignores annotations, key order and edge order. `canonicalHash` is
+`sha256Hex(stableStringify(cwm minus annotations))` (`hash.ts`: `stableStringify` sorts keys with
+`compareStrings` and throws on non-JSON; `sha256Hex` is `@noble/hashes`). `diffCanonical(base,
+target, renames?)` is a key-based diff; without `renames` a rename is a remove plus an add.
+
+Anchors (`Anchor`, encoded by `encodeAnchor` to a branded `AnchorKey`) are `header`, `wiring`,
+`footer`, `block`, `param` (the printed param name: the `canonicalParamId` for a pair), `edges`
+(block and port) and `var`.
+
+## The executable view
+
+`executableView(cwm, catalog)` (`equivalence/executable.ts`) is the CWM minus preserved state:
+
+- inactive params (`executableInactiveParams`, with the CWM's effective modes as overrides);
+- the pair member and mode: a pair projects to one param under its `canonicalParamId`, as the
+  serializer sends it;
+- the fields of loop or parallel types not in effect, and spellings the runtime reads alike
+  (`count || 5`, `collection || ''`, clamped `batchSize`);
+- unknown `block.data`, except a container's unreadable subflow keys, which the serializer passes on.
+
+It takes the catalog because the pair and activity rules need it. Source fidelity (P0, P1) is
+equality of executable views; stored bytes are compared separately (O1, P6).
+
+## Identity
+
+**Block key**: `normalizeWorkflowBlockName(name)` (lowercased, whitespace and dots stripped).
+References resolve only by this form, so it is unique per workflow. When two stored names
+normalize alike, the block the resolver binds keeps the key and the others become `key~n` (smallest
+free `n ≥ 2`) with `E_CANON_LEGACY_NAME_COLLISION`. A reserved name (`loop`, `parallel`,
+`variable`) gets `W_CANON_RESERVED_NAME`. Source carries such a legacy key through `meta.key`, which
+compile accepts only for a key in `CompileInput.knownKeys` (the stored workflow's keys) and only in
+those two shapes (`E_KEY_OVERRIDE` otherwise), so source round-trips a legacy key but never
+introduces one.
+
+**Ident**: the `const` name a block prints as. Derived camelCase from the name on first print
+(`assignIdentifiers`), then persisted, so a canvas rename changes one line. Never one of
+`SDK_RESERVED_IDENTIFIERS` (JS reserved words plus `SDK_CORE_EXPORTS`).
+
+**Lock** (`.sim/lock.json`, `lock.ts`): environment-independent identity, kept in the repo.
+
+```
+WorkflowLockV1 { version: 1, blocks: { [key]: WorkflowLockBlock }, variables: { [key]: id } }
+WorkflowLockBlock = LockIdentityBlock { id, parent, branches?, items? }
+                  + { ident, order, layout?, codeFile? }
+```
+
+`LockIdentity` (ids, parents, branch row ids, per-subBlock item ids as `Array<{ name, id }>`) is
+what canonicalize derives, materialize returns and the fingerprint hashes. `order` is a print-order
+tie-break and need not be unique, so a lock merged from two branches stays valid. `parseWorkflowLock`
+is strict: unknown fields are errors except `x-` keys on the lock, its blocks and layout, which are
+preserved; keys must be normalized; idents unique and non-reserved; ids unique per scope; parents
+must exist without cycles; `codeFile` a normalized relative POSIX path. It reports every problem at
+once with an RFC 6901 `path` (`E_LOCK_*`). Adding an optional field does not bump `version`;
+validators learn a field before writers emit it, and data waits under `x-` until then.
+
+**Source base** (`.sim/base.json`, `SourceBase`): one environment's freshness facts:
+`{ workflowId, workspaceId, fingerprint, catalogHash }`. Get returns it beside the lock and apply
+requires it (wire `base`). A base from another workflow is refused (`E_APPLY_WORKFLOW_MISMATCH`, by
+the CLI and the server); one from another workspace makes the lock stale.
+
+**Source meta** (`workflow_source_meta`, `source-meta.ts`): the server-side copy of the hints plus
+comments, `WorkflowSourceMetaV1 { version: 1, idents, order, comments }`, keyed by **block id** so a
+canvas rename never orphans an entry (comment anchors carry block and variable ids). It lets idents,
+order and comments survive canvas-only edits and prints with no repo lock. It lives in a side table
+(`workflow_id` pk, cascade delete), so no read of the hot workflow row loads it; source get/apply,
+duplicate, fork/promote copy and the prune on block or variable delete read it, and an empty value
+deletes the row. `parseSourceMeta` mirrors `parseWorkflowLock` (`E_SOURCE_META_*`).
+
+**Hints** (`SourceHints`): per block key, `{ ident?, order?, codeFile? }`. Print reads them,
+compile reports them as written. `hintsFromSourceMeta` and `buildLockFromState`
+(`apps/sim/lib/workflows/code/source-lock.ts`) convert between id-keyed source meta and the
+key-keyed lock; `mergeSourceMetaFromLock` stores a write's hints back by id.
+
+**Identity resolution** (`materialize/identity.ts`) binds each compiled block, in rule order:
+
+1. `lock-key`: the lock entry under the same key, when its id is in prev;
+2. `lock-ident`: a lock entry whose key the file dropped but whose ident it still uses
+   (`MaterializeOptions.compiledIdents`), so editing only the display string keeps the id;
+3. `db-name`: the prev block with the same key (the lockless and stale-lock path);
+4. `inferred`: only without a fresh lock, exactly one unmatched prev block and one unmatched
+   compiled block with the same type and parent and agreeing edge neighbourhoods
+   (`W_MAT_INFERRED_RENAME`; off with `inferRenames: false`);
+5. otherwise created: the lock's id when unclaimed, else minted (`idSource`).
+
+A match across types is a delete plus a create (`W_MAT_RETYPE_RECREATED`), except a catalog
+`sunset.replacedBy` pair, which keeps the id. `lockFreshness` (`fresh`/`stale`/`none`) gates rule 4;
+a stale lock entry whose id left prev is re-created with `W_MAT_DELETED_SINCE_PULL`. A lock id
+another workflow already stores is dropped and minted fresh (`W_MAT_LOCK_ID_CLAIMED`). Variables
+keep their ids by key: the lock's, then prev's, else new.
+
+**Resource keys**: `table('leads')`, `credential('support-slack')` name workspace resources by a
+persisted key (`workspace_resource_key`, `apps/sim/lib/workspaces/resource-keys.ts`). A key is
+allocated from the resource's name the first time it is needed and never changes; a rename keeps it,
+and a delete leaves it on the dead id so it stops resolving instead of moving. Only resources live
+in the workspace resolve. Canonicalize keeps an unmapped id as `unresolved`; materialize refuses an
+unknown key (`E_MAT_UNKNOWN_RESOURCE`).
+
+## Fingerprint
+
+`sourceFingerprint(cwm, identity)` is `sf1:` + `sha256Hex(stableStringify({ cwm minus annotations,
+identity }))`. It covers variables and locked flags and excludes layout, so a canvas drag never
+makes a source stale. `canonicalHash` covers the CWM alone. Get returns the fingerprint in
+`base.fingerprint`; apply recomputes it from the stored draft and answers 409 on a mismatch.
+
+## The catalog
+
+The source catalog is the per-workspace authoring catalog codegen, print and compile read
+(`apps/sim/lib/workflows/code/catalog/`). `projectBlockCatalog` projects the live registry
+(`CatalogBlock`, `CatalogTrigger`, `CatalogTool`, frozen builder names from `sdk-names.json`);
+`buildSourceCatalog` narrows it to the caller's gate (visibility, allowlist, the workspace's custom
+blocks) plus every type the workflow already stores, marking types that may stay but not be added
+`addable: false`. Builds are cached by content key in an `lru-cache`.
+
+Notable fields:
+
+- `CatalogBlock.graph` (`canBeTarget`, `errorPort`, `container`, `annotationOnly`, the branches
+  subBlock), `dynamicOutputs?: { source, param }`, `singleInstance`, `paramAliases` (frozen
+  `sdk-names.json` aliases, `oauthCredential` → `credential`), `addable?: false`, legacy ids.
+- `CatalogSubBlock`: `surface` (separates the action and trigger copies of one id), `condition`,
+  `visibleFor`/`visibleWhen`/`visibleForModel` (data the projection precomputed for function
+  conditions), `valueDefault`, `defaultValue`, `password`, `storage`, `columns`, `step`, `integer`.
+- `valueKind`: `string | number | boolean | array | object | json | code | branches | tools |
+  resource | picked | upload | none`. `resource`, `picked` and `upload` are the selector kinds;
+  `resourceKind` is set iff `valueKind` is `resource`. A JSON `code` member has kind `json`.
+- `options`: a static list, `{ dynamic: true }` (fetched through a selector) or `{ opaque: true }`
+  (an unevaluated function). **Opaque** means only this "could not evaluate" marker.
+- `builders`: keyed by dotted SDK path (`slack.sendMessage`, `trigger.gmail.poller`); `fixed`
+  never repeats `operation`. A type with no builder prints through `block(type, name, params, meta?)`
+  (`GENERIC_BUILDER`).
+
+**Compact and view accessors.** The served form is the core shard (`BlockCatalog`), a compact
+encoding whose entry types are supersets of the expanded ones, so an expanded catalog (every test
+fixture) is a valid shard. `compactBlockCatalog` (`catalog/compact.ts`) dedupes trigger-mode
+subBlock runs into `{ trigger, start, count }`, repeated subBlocks into `subBlocks` (`{ shared }`),
+repeated condition lists into `lists`, repeated outputs into `sharedOutputs`/`sharedProperties`,
+drops labels equal to their id, and moves other labels (except the `operation` dropdown's) and
+block `inputs` into the per-block docs shard (`CatalogBlockDocs`). Titles, output descriptions,
+defaults and option ids stay in the core shard because codegen and the printer read them.
+`expandBlockCatalog(catalog, docs?)` and the accessors in `catalog/view.ts` (`catalogBlock`,
+`catalogBlockTypes`, `catalogTrigger`, `catalogTriggerIds`, `catalogBuilder`, `catalogBuilderPaths`,
+`catalogTool`) decode lazily, memoized per catalog object. No consumer indexes `catalog.blocks`,
+`catalog.triggers` or `catalog.builders` directly. The hash is SHA-256 over `stableStringify` of
+the core shard, deterministic because tables fill in key order; it is the ETag and
+`base.catalogHash`.
+
+Shared semantics live in one place each: `catalog/surface.ts` (which declarations a block uses, and
+param aliases), `catalog/conditions.ts` (visibility; `'undecided'` is each caller's policy),
+`catalog/activity.ts` (active vs inactive) and `catalog/defaults.ts`.
+
+## Canonicalize
+
+`canonicalize(state, { catalog, meta, lock?, resources? })` → `{ workflow, identity, layout,
+diagnostics }`. Pure and total: problems become diagnostics (`E_CANON_*`, `W_CANON_*`), it never
+throws. Migrations stay server-side; the input is an already-migrated graph. The lock supplies only
+branch keys by row id; it never changes block keys. It assigns block keys, decodes structured
+values (tools, table rows, inputFormat, tag filters), lifts ids to `SimNode`s, records each pair's
+effective mode as the serializer resolves it (explicit override, then `advancedMode`, then which
+member holds a value; only on the surfaces the block serializes), lifts branches and subflow
+config, and fills `annotations.inactive`. The server canonicalizes a stored draft once per request
+(`stored-canonical.ts`).
+
+## Print
+
+`printWorkflow({ workflow, catalog, hints?, options })` → `{ files, hints, diagnostics }`.
+Deterministic: the same input prints byte-identical text, a one-param change touches one line, and
+the output is a Biome fixed point (`print/doc.ts` reproduces Prettier's layout algorithm). Every
+print compiles with zero errors.
+
+- Blocks are declared in topological order per scope; ties sort by trigger first, then hint
+  `order`, then key. A ref that would point forward (a ref cycle) prints as literal text
+  (`W_FORWARD_REF_LITERALIZED`).
+- Idents come from hints, else `assignIdentifiers`.
+- Only active values print, and none equal to its default. A pair prints under its
+  `canonicalParamId` (or its alias) and the value kind alone picks the member (see SYNTAX.md "Pair
+  mode"). A builder prints only blocks on its own surface; anything else prints through `block()`.
+- References inside strings become interpolations when they resolve in lexical scope; anything else
+  stays literal text that compiles back to the same bytes (`print/refs.ts`).
+- Strings escape bidi and zero-width characters (`‮`).
+- `functionCode: 'files'` writes function code to `codeDir` (see "Code files"); `'inline'` uses
+  `js` templates.
+
+## Compile
+
+`compileWorkflow({ entry, files, catalog, sdkMajor, limits?, knownKeys?, stored? })` → `{ workflow,
+diagnostics, spans, hints, sdkMajor }`. It parses with Babel and interprets the AST statically; it
+never executes the file. `workflow` is `null` iff any diagnostic is an error. It accepts exactly
+what the printer emits plus the conveniences SYNTAX.md lists, checks names, scope, wiring and
+catalog fields, fills defaults, resolves `stored()` from `CompileInput.stored`, and returns `spans`
+(anchor → source span) so later server findings map back to lines. Diagnostics carry `span` and a
+code `frame`; Babel's 0-based columns become 1-based, and lines split the way Babel does.
+
+## Materialize
+
+`materialize(cwm, lock, { catalog, hooks, prev?, resources?, compiledIdents?, lockFreshness,
+inferRenames? })` → `{ state, identity, entries, needsLayout, diagnostics }`. It resolves identity,
+then writes the stored graph so that a no-op is byte-identical (O1):
+
+- a param canonical-equal to prev's keeps prev's raw value;
+- an edge whose `(from, port, to)` matches a prev edge reuses that whole edge object, id and
+  handles included;
+- a subflow config canonical-equal to prev's is written back verbatim to `block.data` and the
+  loops/parallels map;
+- server-owned fields (trigger runtime ids) come from prev by id;
+- stored `outputs` are rewritten only when `computeOutputs` differs between prev and the edited
+  block, so stale outputs survive an unrelated edit;
+- new blocks start from `hooks.initBlock`; new blocks with no prev or lock position are listed in
+  `needsLayout` for targeted autolayout.
+
+`MaterializeHooks` (`initBlock`, `computeOutputs`, `newId`) are implemented server-side
+(`materialize-hooks.ts`).
+
+## Preserved state
+
+`materialize/preserve.ts` restores, for each matched block of the same type, before writing:
+
+- when a pair's executable value is unchanged, prev's members and mode; when a plain id changed and
+  prev showed the basic selector member, prev's member (whether a selector or typed text produced
+  the id is canvas state);
+- every param inactive under the target's values, from prev (absent included, so defaults compile
+  filled into fields that never run are dropped);
+- the fields of the loop or parallel types not in effect, and prev's whole config when it runs the
+  same;
+- unknown `block.data` source does not carry.
+
+Canonicalize's output already holds all of this, so restoring onto it changes nothing.
+
+## JSON fields and typed refs
+
+A JSON code field (a `code` subBlock holding JSON text: an agent's `responseFormat`, table row
+`data`, a response body) may be written as an object literal (`json-fields.ts`). The executor
+splices a reference's value into such text raw for a string and as JSON otherwise, so a bare
+reference in a literal is stored by its output type: quoted (`"<a.b>"`) when the catalog or the
+workflow types it `string`, bare (`<a.b>`) otherwise, and bare with `W_JSON_REF_UNTYPED` when
+nothing types it. A string in the literal (a template or plain string) is always a JSON string. The
+printer writes stored text back as a literal only when serializing that literal reproduces the text
+byte for byte; print and compile decide each token's form through the same `refValueKind`. In a
+pair, a list or object literal never lands in the JSON code member when the other member takes it
+as written (`table_v2`'s filter builder).
+
+## Secrets
+
+A secret is never printed. Literal text in a `password` subBlock (params and tool params alike)
+prints as `stored()`, meaning "keep the stored value". `{{ENV}}` and references print as themselves.
+Compile resolves `stored()` to the value `CompileInput.stored` (the stored workflow, canonicalized
+under the submitted lock) holds for the same block key, type and param, a pair's members and mode
+included. A new block, another type or an empty field is `E_STORED_VALUE_MISSING`; `stored()` nested
+inside a value is `E_UNSUPPORTED_SYNTAX`. Without `stored` (a create), `stored()` is refused.
+
+## Code files
+
+In `files` mode the printer writes a function block's code to `<codeDir>/<kebab-case ident>.<ext>` (the hinted path when it still fits) and the
+source references it as `codeFile('./functions/x.js')`; the hint records the path and the lock
+keeps it as `codeFile`. Python and shell are verbatim. JavaScript rewrites tokens in code position:
+`<a.b>` becomes `$ref.a.b` and `{{X}}` becomes `$env.X` (`code-files/to-file.ts`); reading back
+rewrites every member chain rooted at `$ref`/`$env` (`from-file.ts`). The printer checks the
+bijection first (`code-files/bijection.ts`) and falls back to an inline `js` template with
+`W_CODE_FILE_INLINED` when reading back would differ. Compile requires the path to be relative,
+inside the directory, and matching the block language (`E_CODE_FILE_PATH`), and the file to be sent
+(`E_CODE_FILE_MISSING`). The CLI resolves files with `realpath` and refuses symbolic links.
 
 ## Diagnostics
 
-13. **The prefix fixes severity, and the type enforces it.** `E_` is an error, `W_` a warning, `I_`
-    info. `Diagnostic` is a union over codes, so a mismatched severity does not type-check.
-    Because of this, s3's `E_FIELD_NOT_APPLICABLE` is renamed **`W_FIELD_NOT_APPLICABLE`**
-    (build-spec decision 2 makes it a warning).
-14. **Stage segments.** Compile and print codes have no stage segment and keep s3's names. The
-    other stages use `LOCK_`, `CANON_`, `MAT_` and `APPLY_`. The engine's `SkippedItemType`
-    values become `E_APPLY_<UPPER_SNAKE>` (`duplicate_trigger` becomes `E_APPLY_DUPLICATE_TRIGGER`).
-    s4's extra codes map as follows:
-    - `credential_unreachable` and `sandbox_plan_required` are errors;
-    - `hosted_key_dropped`, `value_normalized` and `type_changed` are warnings (`sunset_block`
-      and `pending_connections_dropped` were dropped: no path emits them);
-    - `lock_id_claimed` became `W_MAT_LOCK_ID_CLAIMED`.
-15. **Codes added beyond s3 §4**, because the grammar implies them:
-    - syntax and limits: `E_WORKFLOW_EXPORT`, `E_LIMIT_EXCEEDED`;
-    - scope: `E_UNKNOWN_VARIABLE`, `E_DUPLICATE_VARIABLE`, `E_INVALID_ENV_NAME`,
-      `E_UNKNOWN_SUBFLOW_PROPERTY`, `W_FORWARD_REF`;
-    - branches: `E_UNKNOWN_BRANCH`, `E_DUPLICATE_BRANCH_KEY`, `E_BRANCH_ELSE_LAST`;
-    - code files and handles: `E_CODE_FILE_MISSING`, `E_CODE_FILE_PATH`, `W_CODE_FILE_INLINED`,
-      `W_RAW_HANDLE`.
+`diagnostics/codes.ts` lists every code. The prefix fixes severity (`E_` error, `W_` warning, `I_`
+info) and `Diagnostic` is a union over codes, so a mismatched severity does not type-check. The
+next segment names the owning stage: none for compile and print (one shared vocabulary), then
+`LOCK_`, `SOURCE_META_`, `CANON_`, `MAT_`, `APPLY_`. Apply gate codes mirror the editing engine's
+`SkippedItemType` as `E_APPLY_<UPPER_SNAKE>`. Add a code rather than reuse one with a different
+meaning; codes freeze at release.
 
-    Add a code to `codes.ts` rather than reusing one with a different meaning.
-16. **Location is grouped.** Instead of flat line and column fields, a diagnostic carries
-    `span: SourceSpan`: file, 1-based line and column in UTF-16 units, end, and UTF-16 offsets
-    `start`/`end`. It also carries `frame` and `fix` (offsets into `span.file`). Compile returns
-    `LocatedDiagnostic`, which always has `span` and `frame`. Lock diagnostics carry `path`
-    instead. Babel reports 0-based columns: add 1.
-17. **`codeFrame` scope.** It shows two context lines around the span's start line. Every line
-    inside the span gets `>`, and the caret row sits under the start line only. It splits lines
-    the way Babel does (CRLF, LF, CR, U+2028, U+2029), so line numbers agree with Babel `loc`.
+A diagnostic carries `span: SourceSpan` (file, 1-based line and column in UTF-16 units, end, UTF-16
+offsets), `frame`, optional `fix`, `hint` and `related`. Compile returns `LocatedDiagnostic`, which
+always has `span` and `frame`; lock and source meta diagnostics carry an RFC 6901 `path` instead.
+`codeFrame` shows two context lines, marks every spanned line with `>`, puts the caret under the
+start line, and clamps bad input (NaN to 1, ±Infinity to a bound).
 
-## Catalog
+## Apply
 
-18. **Fields added to s1's shape:**
-    - `CatalogBlock.graph`: `canBeTarget`, `errorPort`, `container`, `annotationOnly`, and the
-      `branches` subBlock;
-    - `CatalogBlock.dynamicOutputs` and `singleInstance`;
-    - `CatalogSubBlock.surface`, which separates the action and trigger copies of one id.
-19. **`valueKind`** is one of `string | number | boolean | array | object | json | code |
-    branches | tools | resource | picked | upload | none`. `resource`, `picked` and `upload` (a
-    workspace file, `file()`) are
-    the selector kinds, so a pair member of those kinds is the basic member (build-spec
-    decision 7). `resourceKind` is set iff `valueKind` is `resource`.
-20. **`options` can be opaque.** It is a static list, `{ dynamic: true }` (fetched through a
-    selector), or `{ opaque: true }` (an unevaluated function).
-21. **`builders` are keyed by dotted SDK path** (`slack.sendMessage`, `trigger.gmail.newEmail`).
-    `fixed` never repeats `operation`.
+`applyWorkflowSource` and `createWorkflowFromSource` (`apps/sim/lib/workflows/application/`) share
+one pipeline. Create uses an empty graph as the stored draft, so every block is new and no
+fingerprint is checked. Both are gated on the global `workflow-code` flag and change only the draft;
+deploy is separate.
 
-## Engines
+```
+ request ─► base.workflowId matches? ─► fingerprint fresh? (409) ─► evaluate ─► commit
+                 (400 mismatch)                                      │            │
+                                                             refuse: errors   one replace under
+                                                             with lines       the row lock
+```
 
-22. **`IdentityEntry` is a union on `status`** (`matched` / `created` / `deleted`), not s1's
-    flat `change` + `via`. A rename, a retype and a reparent can happen together.
-    `created.idSource` replaces s4's `mintedIds`.
-23. **`diffCanonical` takes an optional `renames`** map (target key → base key) from identity
-    resolution. Without it, a rename shows up as a remove plus an add.
-24. **`MaterializeHooks.initBlock`** receives `{ id, type, name, triggerMode }`.
-25. **Hashing is unsolved: there is no SHA-256 to use.** `@sim/utils` has none, and `node:crypto`
-    is banned by the boundary rule. The equivalence owner adds one pure-JS SHA-256 inside this
-    package; `canonicalHash`, `contentHash` and `sourceFingerprint` all use it, and output is
-    lowercase hex.
+**Evaluate** (`source-evaluate.ts`, writes nothing):
+
+1. parse the lock; canonicalize the stored draft under it (what `stored()` reads and the diff
+   compares against);
+2. compile against the workflow's source catalog with `knownKeys` and `stored`; on errors, add
+   `W_APPLY_CATALOG_MOVED` when `base.catalogHash` differs from the current catalog;
+3. resolve or allocate resource keys the source names; set `lockFreshness`;
+4. materialize over the stored graph; drop lock ids another workflow holds and re-materialize;
+5. gates, each refusal an error so nothing is written:
+   - locked blocks (`code/apply/locked.ts`): any change to a locked block or a child of a locked
+     container is `E_APPLY_LOCKED_BLOCK`, admins included;
+   - the editing engine's per-user gates on added and changed blocks (`code/apply/gates.ts`):
+     block, model and tool allowlists, edge and subflow scope, required params, duplicate triggers,
+     single-instance blocks, credentials the user cannot reach, sandbox plan; a hosted key that
+     does not apply is dropped with `W_APPLY_HOSTED_KEY_DROPPED`;
+   - `addable: false` types added or retyped (`E_APPLY_TYPE_NOT_ADDABLE`);
+   - live effects (`code/apply/live-triggers.ts`): deleting or retyping a block with a live
+     webhook, schedule, chat output or MCP tool warns `W_APPLY_TRIGGER_REMOVED`;
+6. value normalization (`W_APPLY_VALUE_NORMALIZED`), MCP tool schema snapshots, targeted layout,
+   then workflow lint mapped to source lines (`E_APPLY_LINT`, `W_APPLY_LINT`).
+
+Every finding is located in the submitted files through `spans`. The result is a `SourcePlan`, or
+the refusals. A dry run returns the refusals with a 200 instead of throwing.
+
+**Commit** (`source-commit.ts`): one `replaceWorkflowNormalizedState` under the workflow row lock.
+Inside the lock it re-checks the workflow lock (423), re-checks the fingerprint (409), keeps current
+canvas positions for existing blocks (a drag during the apply survives), asserts locked blocks are
+unchanged, and writes source meta in the same transaction. A graph no-op that changes only idents,
+order or comments stores just source meta under the same checks. Create inserts the row, graph,
+variables and source meta in one transaction.
+
+**Response**: the files re-printed from what is (or would be) stored, so normalized values show in
+the source, plus `lock`, `base`, `fingerprint`, `diff`, `diagnostics` (warnings; on a dry run every
+finding), `notes`, `mintedIds` and `needsRedeployment`. Analytics and audit are recorded by the use
+case, audit only for a committed write.
+
+**Read** (`readWorkflowSource`): canonicalize, print with hints from source meta, assemble the lock
+with `buildLockFromState`, and return files, lock, base, catalog hash and diagnostics.
+
+## Limits
+
+- Compile (`compile/parse.ts` `DEFAULT_LIMITS`): entry file and each code file 1,000,000 bytes,
+  500,000 syntax nodes, nesting depth 200 (checked on raw brackets before Babel parses),
+  5,000,000 bytes summed over distinct code files, 2,000 `codeFile()` references.
+  `E_LIMIT_EXCEEDED`.
+- The apply and create routes: at most 500 files, paths up to 512 characters, a 10 MiB body.
+- The CLI exits 7 on a 413, 5 on a 409 and 6 on a 423.
+
+## Proof
+
+The round-trip harness (`apps/sim/lib/workflows/code/corpus/roundtrip.corpus.test.ts`) runs over the
+generated registry corpus (every block type and trigger mode), the landing templates, the
+`@sim/testing` states, redacted production states from `ROUNDTRIP_CORPUS_EXTRA_DIR`, and fast-check
+workflows, against the real catalog. Default mode samples per type; `ROUNDTRIP_CORPUS_FULL=1` runs
+everything. Every property must hold for every case.
+
+| | Property |
+|---|---|
+| P0 | `compile(print(c))` has the executable view of `c` |
+| P1 | `canonicalize(materialize(compile(print(c)), prev))` has the executable view of `c` |
+| P2 | serializer parity after a full source round trip |
+| P3 | `print(compile(print(c)))` is byte-identical to `print(c)` |
+| P4 | printed code compiles with zero errors |
+| P5 | files mode compiles to the same workflow as inline mode |
+| P6 | `materialize(compile(print(c)), prev x)` deep-equals `x`: a no-op apply changes nothing |
+| O1 | `materialize(canonicalize(x), prev x)` deep-equals `x` |
+| O2 | lockless execution parity: the serialized workflow, compared through the loops/parallels maps the executor runs |
+| O3 | `canonicalize(materialize(c))` equals `c` |
+
+Beside it:
+
+- **Inactive** (`inactive.corpus.test.ts`): sentinel substitution proves no param canonicalize or
+  the executable view treats as inactive reaches the serializer or deploy.
+- **Outputs** (`outputs.corpus.test.ts`): with stored outputs seeded stale, editing one param that
+  does not drive outputs leaves the block equal but for that value.
+- **Secrets** (`secrets.corpus.test.ts`): a unique secret in every password field never appears in
+  either print mode, and compiling against the stored workflow keeps it wherever it runs.
+- **Default parity** (`default-parity.test.ts`): for every registry type and trigger mode,
+  `block(type, name, {})` materializes exactly as `initBlock` creates it, minted values and
+  placeholder branch rows aside.
+- **Goldens** (`goldens.test.ts`): each case prints to its golden in `print/__golden__/` against the
+  live registry catalog, compiles back to the same executable view, reprints byte-identical, and
+  type-checks with `core.d.ts` plus the generated types. `check:workflow-code-golden` keeps them in
+  step.
+- **SDK examples** (`sdk-examples.test.ts`): the five `@sim/workflow-sdk` examples compile against
+  the real catalog with no diagnostics.
+
+## Known limitations
+
+- A 409 is whole-workflow: any concurrent change, canvas included, makes the source stale. There is
+  no three-way merge; get again and reapply the edit.
+- Function code is one verbatim file per block: no imports, no shared modules, and `$ref`/`$env`
+  are untyped globals in JavaScript. Source has no loops or helpers that generate blocks; the
+  compiler accepts only the printed grammar.
+- Nothing runs locally. Checks happen on apply (or `--dry-run`); `tsc -p .` checks types only.
+- A comment inside an expression is hoisted to its enclosing anchor (`W_COMMENT_MOVED`).
+- The per-graph block cap (`MAX_WORKFLOW_GRAPH_BLOCKS`) is not yet enforced on get and apply.
+- Chat in the product does not write through source yet.
 
 ## Package wiring
 
 - `tsconfig.json` sets `"types": []`, so no Node globals type-check here.
+- `check:boundaries` keeps `src/` (minus tests) free of Node built-ins (even type-only imports),
+  dynamic `import()`, `require`, `import.meta`, `.constructor` reads, and value references to
+  `eval`, `Function`, `globalThis`, `window`, `self`, `global` and `Reflect`.
 - `@xyflow/react` is a devDependency only so `@sim/workflow-types`' `Edge` import type-checks.
-- `check:boundaries` rule 3 keeps `src/` (minus tests) free of Node built-ins (even type-only
-  imports), dynamic `import()`, `require`, and value references to `eval` or `Function`.
-- `knip.jsonc` sets `includeEntryExports: false` and ignores `@babel/parser` and `@sim/utils`
-  until consumers and the compiler land. Remove both settings then.
-- `@sim/workflow-sdk` is a scaffold with no `exports`, `type-check` or `test` script until 2E
-  adds code. Its runtime entry is planned as `src/runtime.ts`, not s2's `runtime.js`.
-
-## Amendments (Wave 1 audit)
-
-- **A1. The CWM is encoding-free.** This supersedes item 4's storage note. `CanonicalParam` has
-  no `storage`, so equality, hashes, diffs and the fingerprint never see the encoding.
-  Materialize chooses it: prev's raw encoding first, then `CatalogSubBlock.storage`. `ParamStorage`
-  now lives in `catalog/types.ts`.
-- **A2. Two new materialize inputs.** `MaterializeOptions.compiledIdents` feeds identity rule 2.
-  `MaterializeOptions.lockFreshness` (`fresh | stale | none`, required) gates rule 4 and the
-  `W_MAT_DELETED_SINCE_PULL` handling.
-- **A3. The lock is split.** This supersedes items 8 and 12.
-  - `WorkflowLockV1` is `{ version, blocks, variables }`. Each block holds `id`, `parent`,
-    `branches?`, `items?`, `ident`, `order`, `layout?` and `codeFile?`, and every id is logical.
-  - These lock fields were removed: `workflowId`, `workspaceId`, `catalogHash`,
-    `baseFingerprint`, `blocks[].type`, `blocks[].name` and `blocks[].contentHash`. The
-    environment facts now live in `SourceBase { workflowId, workspaceId, fingerprint, catalogHash }`, which
-    `source get/apply` carries beside the lock (wire `base`, required on apply) and the CLI stores
-    in `.sim/base.json`.
-  - The validator tolerates `x-` fields on the lock, on blocks and on layout, and preserves them.
-    Item entries stay strict.
-  - Version policy: adding an optional field does not bump `version`. Validators ship support
-    for a field before writers emit it, and data waits under `x-` until then.
-- **A4. One resource-kind list.** `WORKFLOW_RESOURCE_KINDS`, `WorkflowResourceKind` and
-  `PortableResourceKind` moved to `@sim/workflow-types/resources`. This supersedes item 6.
-  - apps/sim imports that list directly. The list moved out of `references/types.ts` rather than
-    being re-exported from it, because the repo bans re-exports from non-barrel files. That file
-    keeps its other types.
-  - `ResourceKind` is now `Exclude<PortableResourceKind, 'env-var'>`, so its members are
-    kebab-case: `knowledge-base`, `mcp-server`, `custom-tool`, `file-folder`, `workflow`, and so
-    on.
-  - `UnresolvedNode.kind` is widened to `string`.
-  - Ids inside composite values are handled like this:
-    - a scalar or array id becomes a `ResourceNode`;
-    - in a `files` value, each object keeps its shape and only its `key` field becomes a node;
-    - a `csv` value becomes the new `CsvNode { $sim: 'csv', items }`, and materialize joins the
-      items with `,`.
-- **A5. Catalog additions.**
-  - `CatalogBlock.dynamicOutputs?: { source, param }` replaces the boolean.
-  - New subBlock fields: `visibleFor?` (operation → visible, which 2A precomputes for function
-    conditions), `columns?`, `step?` and `integer?`.
-- **A6. Every stored type prints and compiles.**
-  - `CatalogBlock.addable?: false` marks a type that may stay in a workflow but cannot be added.
-    Compile reports a new block of that type as `E_APPLY_TYPE_NOT_ADDABLE`.
-  - A type with no builder (legacy, unknown, or `custom_block_*` without a method) uses the
-    generic builder `block(type, name, params, meta?)` (`GENERIC_BUILDER`).
-- **A7. `rows: null` has a source form.** It is an empty branch object: `condition('Name', {})`,
-  or router `routes: {}`. The implicit default keys (`if` and `else`, `route0`) stay addressable as
-  ports. A persisted list is never empty.
-- **A8. Hashing is solved.** This supersedes item 25. `src/hash.ts` belongs to Wave 1.
-  - `stableStringify` sorts keys with `compareStrings` and throws on anything that is not JSON.
-  - `sha256Hex` is built on `@noble/hashes` 2.2.0.
-  - `canonicalHash`, `sourceFingerprint` and any content digest must use these two.
-- **A9. Items, edges and subflow configs.**
-  - Lock `items` changed to `Record<subBlockId, Array<{ name, id }>>`, so duplicate and empty
-    names keep their ids.
-  - For O1, materialize reuses the whole prev edge object (id and handles) when the
-    `(from, port, to)` tuple matches.
-  - Materialize also writes prev's subflow config back verbatim when it is canonical-equal.
-  - The optional fields of `LoopSpec` and `ParallelSpec` are absent exactly when storage omits
-    them. Canonicalize never fills defaults.
-- **A10. Anchors are structured.** This supersedes item 7's anchor strings.
-  - `Anchor` is a discriminated union over `header`, `wiring`, `footer`, `block`, `param`,
-    `inactive`, `edges` and `var`.
-  - `AnchorKey` is now a branded string, produced only by `encodeAnchor` and read by
-    `decodeAnchor`. Each segment escapes `%` and `:`.
-  - For a basic/advanced pair, a `param` anchor uses the `canonicalParamId`.
-  - `portKey` and `parsePortKey` are the only port string forms.
-- **A11. Idents avoid SDK names.** `SDK_RESERVED_IDENTIFIERS` (JS reserved words plus
-  `SDK_CORE_EXPORTS`) is enforced on lock idents.
-  - **Note for 2E:** `core.d.ts` must export exactly `SDK_CORE_EXPORTS`, and `BlockMeta` needs
-    `advancedMode?: boolean`, because the CWM keeps that legacy flag.
-- **A12. Diagnostic changes.** `Diagnostic.related?: Array<{ span, message }>` was added, along
-  with the codes `E_APPLY_LINT` and `E_APPLY_TYPE_NOT_ADDABLE`. `E_MAT_LOCK_WORKFLOW_MISMATCH` was
-  removed, because the lock no longer carries a workflow or workspace.
-- **A13. The boundary rule is tighter.** Rule 3 also bans `.constructor` reads, `import.meta`, and
-  value references to `globalThis`, `window`, `self`, `global`, `Reflect` and `require`. That
-  covers computed `globalThis[...]` access.
-- **A14. `codeFrame` clamps bad input.** NaN becomes line or column 1, ±Infinity a bound.
-- **A15. knip.** Wave 3 removes `includeEntryExports: false` and the `@babel/parser` ignore from
-  `knip.jsonc` once the consumers land. The `@sim/utils` ignore is already gone, because
-  `hash.ts` uses it.
-- **A16. The core shard is a compact encoding; consumers read it through `catalog/view.ts`.**
-  This extends item 18 and decision 14.
-  - `BlockCatalog` is the served core shard. Its entry types are supersets of the expanded types,
-    so a catalog written in expanded form (every test fixture) is still a valid shard.
-  - A block's trigger-mode subBlocks that equal a run of a shared trigger's subBlocks are stored
-    as `{ trigger, start, count }` and expand with `surface: 'trigger'`.
-  - SubBlocks declared identically more than once live in `BlockCatalog.subBlocks` (`{ shared }`),
-    condition value lists used more than once in `lists` (`{ list }`), and output records used
-    more than once in `outputs` (`sharedOutputs`, `sharedProperties`).
-  - Option labels equal to their id are dropped. Every other label except the `operation`
-    dropdown's (SDK codegen documents operation methods with it) moves to the block's docs shard
-    (`CatalogBlockDocs`), as do the block's `inputs`, which nothing reads.
-  - Titles, output descriptions, defaults and option ids stay in the core shard. SDK codegen reads
-    titles and output descriptions for JSDoc, defaults for optionality and gate values, and option
-    ids for literal unions; the printer checks values against option ids.
-  - `compactBlockCatalog` (`catalog/compact.ts`) encodes. `expandBlockCatalog(catalog, docs?)` and
-    the per-block accessors (`catalogBlock`, `catalogTrigger`, `catalogBuilder`,
-    `catalogBuilderPaths`, `catalogTool`) decode, lazily and memoized per catalog object. No
-    consumer indexes `catalog.blocks`, `catalog.triggers` or `catalog.builders` directly.
-  - The hash is still SHA-256 over `stableStringify` of the core shard, so it stays the ETag and
-    `lock.catalogHash`. It is deterministic: the tables fill in catalog key order.
-- **A17. `workflow_source_meta` (Wave 3E).** `WorkflowSourceMetaV1` in `src/source-meta.ts` is
-  `{ version: 1, idents, order, comments }`, the server-side copy of what the lock's `SourceHints`
-  carry, plus comments.
-  - Every entry is keyed by **block id**, never by key, so a canvas rename never orphans one.
-    Comment anchors are `encodeAnchor` keys whose block segment is the block id and whose `var`
-    segment is the variable id.
-  - There is no `branchKeys` map: branch keys persist on the rows as the optional row `key`
-    (s1 D2b), so there is one source of truth for them.
-  - `parseSourceMeta` mirrors `parseWorkflowLock`: strict, every problem at once, `x-` fields
-    preserved. Its codes are `E_SOURCE_META_*`.
-  - `CompileInput.knownKeys` (the lock's block keys) gates the new `meta.key` override, which is
-    how source carries a legacy `name~n` collision key or a reserved name (`Loop`, `Parallel`)
-    without being able to introduce one. A violation is `E_KEY_OVERRIDE`.
-  - Wave 4D: it is stored in the `workflow_source_meta(workflow_id pk → workflow on delete
-    cascade, meta jsonb, updated_at)` side table, not on the `workflow` row, so no `select()` of
-    the hot row loads it. Only source get/apply, duplicate, fork/promote copy and the prune on
-    block or variable delete read it. An empty value deletes the row.
-- **A18. Source holds what executes; UI-only state is preserved, never required (Wave 4B1).**
-  This supersedes build-spec decision 2's printing rule, decision 7's mode and `picked()` rules,
-  and item 3's "every equality ignores `inactive`" where it says how source carries it.
-  - **Active** means the serializer sends the value (`extractBlockParams`, after the load-time
-    migrations) **or**, for a block acting as a trigger, deploy reads it into the webhook provider
-    config (`buildProviderConfig`, which copies every trigger-mode field of the deployed trigger
-    except the display-only system ids, visible or not). `canonicalize/activity.ts` mirrors both:
-    `isInactive` checks `deployReadIds` first, then the `shouldSerializeSubBlock` rule. An opaque
-    condition counts as satisfied except where the catalog expanded it per operation
-    (`visibleFor`), which is exact. `inactive.corpus.test.ts` proves, for every corpus workflow,
-    that no param canonicalize or the executable view treats as inactive reaches the serializer
-    or deploy (sentinel substitution).
-  - **`executableView(cwm, catalog)`** (`equivalence/executable.ts`) is the CWM minus preserved UI
-    state: inactive params (`executableInactiveParams`, over the CWM with its effective modes as
-    overrides), the pair member and mode (a pair is one param under its `canonicalParamId`),
-    off-type loop/parallel fields and spellings the runtime reads alike (`count || 5`,
-    `collection || ''`, clamped `batchSize`), and unknown `block.data` (a container keeps the
-    subflow keys canonicalize could not read, which the serializer passes through). It takes the
-    catalog, which the pair and activity rules need. P0 and P1 compare it;
-    O1 still compares stored bytes, and the new **P6** asserts that materializing the compiled
-    print over prev is byte-identical to the stored workflow (a no-op apply changes nothing).
-  - **The printer writes only what executes.** It leaves out inactive values, which member of a
-    pair holds a value (a plain id is written as a string; there is no `picked()` and no
-    `meta.modes`), off-type subflow fields (a `doWhile` with no condition prints its `count`,
-    which then runs), and unknown `block.data`. There is no verbose mode: preserved state lives
-    only in the stored workflow. A stored field that runs but has no SDK syntax prints under
-    `meta.extra`, the only place source takes such a field: a schema-agnostic custom block's
-    input, the agent's legacy prompt fields, or a container's stored params. A container's
-    subflow keys of `block.data` canonicalize could not read as config print under
-    `meta.subflowData`, kept apart because canvas containers often store params under the same
-    names. The CWM keeps unknown `block.data`
-    under `extra` too, so `opaque` means only the catalog's "could not evaluate" marker.
-  - **A pair's member follows from the value kind alone.** A selector call is basic, anything
-    else advanced, and a list or object literal never lands in a JSON code member when the other
-    member takes it as written (`table_v2`'s `filterInput`: the filter builder holds the list).
-    The printer writes a JSON code member's value as the text it stores, never as the literal it
-    stringifies, so the rule is unambiguous both ways and `meta.modes` is not needed.
-  - **Defaults rule.** The editor default of a field is what canvas creation seeds
-    (`createBlockFromParams` with no inputs, wrapped by `hooks.initBlock`): per subBlock id, first
-    declaration wins; a visible editable field gets its `value()` thunk's result for a block with
-    no values (`valueDefault.constant`, or the new `valueDefault.initial` the projection records
-    for a computed thunk whose creation value is stable); a hidden field gets its `defaultValue`;
-    a thunk that mints a fresh value per call has none. Every registry default is a scalar, and
-    only scalars count (`catalog/defaults.ts`). The printer omits a value equal to the default and
-    prints `null` for an active field with a default and no stored value. Compile fills an omitted
-    param with its default; `null` and `todo()` stay stored-absent. Materialize already writes a
-    new block from `initBlock` and nulls only what the CWM leaves absent, so a code-created block
-    with no params is stored exactly as a canvas-created one (`default-parity.test.ts`, every
-    registry type and trigger mode; minted values and condition/router placeholder rows aside).
-    A field whose thunk mints a fresh value per creation (`mintsFreshValue`, such as the generic
-    webhook's auth token) keeps the value `initBlock` minted on a new block, as canvas creation
-    does; the parity test asserts such a value is present wherever canvas creation mints one.
-  - **Materialize restores preserved state** (`materialize/preserve.ts`) for each matched block of
-    the same type, before writing: when a pair's executable value is unchanged, prev's members and
-    mode; when a plain id changed and prev showed the basic selector member of a `picked` pair,
-    prev's member; then every param inactive under the target's values, from prev (absent
-    included, so defaults compile filled into fields that never run are dropped); off-type subflow
-    fields and prev's whole config when it runs the same; unknown extra data source does not
-    carry. A full CWM restores onto itself unchanged, so O1 holds. Source cannot pick a pair
-    member for a plain id: that is canvas state.
-  - **The loop count is the one that runs.** `loopSpec` reads `block.data.count`, and an absent
-    count is the 5 that runs (`convertLoopBlockToLoop`); the loops map's count is read only when the
-    loader would repair a non-numeric `data.count` from it. The O2 execution view compares
-    containers through the `loops`/`parallels` maps the executor runs, not the container's echoed
-    `data`. Corpus subjects take the stored shape: every write path rebuilds the loops map from
-    the container blocks, so an orphan map entry is never stored.
-  - **Stored outputs** are rewritten only when `computeOutputs` differs between prev and the edited
-    block, so a block with stale or empty stored outputs keeps them through an unrelated edit.
-  - **Goldens run against the real catalog.** One harness,
-    `apps/sim/lib/workflows/code/goldens.test.ts`, builds the live registry catalog narrowed to the
-    types the golden cases use (compacted and hashed like the core shard). Each case prints to its
-    golden in `print/__golden__/`, compiles back to the same executable view, reprints
-    byte-identical, and every golden type-checks with `core.d.ts` plus the types generated from
-    that catalog. Cases are canvas blocks of current types (editor defaults seeded). The round-trip
-    proof tooling (oracles, report, fast-check arbitraries) lives with the corpus in
-    `apps/sim/lib/workflows/code/corpus/proof/`.
+- `src/api.ts` declares the engine signatures; each engine declares itself against its type.

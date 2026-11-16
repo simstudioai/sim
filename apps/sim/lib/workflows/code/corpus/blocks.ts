@@ -41,7 +41,7 @@ interface BlockFixtureInput {
   pairMode: PairMode
   /** The block-level advanced toggle; when on, standalone advanced fields are filled. */
   advancedMode: boolean
-  /** Fill standalone advanced fields even with `advancedMode` off (s1 D3: they still serialize). */
+  /** Fill standalone advanced fields even with `advancedMode` off: they still serialize. */
   fillStandaloneAdvanced?: boolean
   parentId?: string
   position?: { x: number; y: number }

@@ -5,7 +5,7 @@ import { SOURCE_LIMITS, utf8Bytes } from '../limits'
 import type { Reporter } from './report'
 
 /**
- * Default caps on hostile input (s4 D7): the shared source limits, so whatever a get prints
+ * Default caps on hostile input: the shared source limits, so whatever a get prints
  * compiles, plus a nesting cap. A 200-block workflow nests under 20 levels. Syntax nodes need no
  * cap of their own: every node but an empty template element spans at least one byte, so the
  * byte cap bounds them.
@@ -147,7 +147,7 @@ interface ParsedSource {
 }
 
 /**
- * Parses a workflow file with Babel (typescript, errorRecovery, attachComment; s3 D1) after the
+ * Parses a workflow file with Babel (typescript, errorRecovery, attachComment) after the
  * byte and bracket-depth caps, then checks the AST depth cap. Babel errors are
  * re-coded as `E_SYNTAX`. Nothing is evaluated.
  */

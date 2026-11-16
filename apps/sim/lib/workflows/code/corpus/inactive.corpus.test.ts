@@ -1,8 +1,8 @@
 /**
- * `inactive` means exactly "the serializer never sends this value" (wave 4 governing principle,
- * s1 D3). Source omits inactive values and materialize restores them from the stored workflow, so
- * a value marked inactive that the serializer does send would silently drop out of the authoring
- * surface while still changing what runs.
+ * `inactive` means exactly "the serializer never sends this value" (DESIGN.md "Source holds what
+ * executes"). Source omits inactive values and materialize restores them from the stored
+ * workflow, so a value marked inactive that the serializer does send would silently drop out of
+ * the authoring surface while still changing what runs.
  *
  * For every corpus workflow and every param canonicalize marks inactive, this replaces the stored
  * value with a unique sentinel and asks the real serializer (`extractBlockParams`, which applies

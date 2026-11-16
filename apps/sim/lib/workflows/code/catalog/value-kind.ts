@@ -7,8 +7,8 @@ import type {
 import type { SubBlockConfig, SubBlockType } from '@/blocks/types'
 
 /**
- * How a subBlock's value is written in source, checked, and preferably stored (build-spec
- * decision 14; s2 §2 mapping table; s1 quirk 9 for the JSON-in-string encodings).
+ * How a subBlock's value is written in source, checked, and preferably stored
+ * (including the JSON-in-string encodings).
  */
 interface SubBlockValueShape {
   valueKind: CatalogValueKind

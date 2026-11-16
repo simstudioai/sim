@@ -27,8 +27,8 @@ import { getBlock } from '@/blocks/registry'
 
 /**
  * The editing engine's per-user gates, applied to a whole-graph diff instead of to edit
- * operations (s4 D1). The engine skips a refused item and applies the rest; source apply is
- * atomic (s4 D5), so every refusal here is an error diagnostic and nothing is written.
+ * operations. The engine skips a refused item and applies the rest; source apply is
+ * atomic, so every refusal here is an error diagnostic and nothing is written.
  *
  * Gates run on added and changed blocks only, as the engine runs them on the blocks an operation
  * names: a stored block the caller left alone is never refused for a policy that changed after
@@ -40,7 +40,7 @@ import { getBlock } from '@/blocks/registry'
 type GatedSkipType = Exclude<SkippedItemType, 'invalid_edge_target'>
 
 /**
- * The engine's skip vocabulary as apply codes (DESIGN.md decision 14). Total, so a new skip
+ * The engine's skip vocabulary as apply codes. Total, so a new skip
  * reason fails to compile until it has a code.
  */
 export const SKIP_TYPE_APPLY_CODES = {

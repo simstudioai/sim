@@ -1,10 +1,10 @@
 /**
- * Output types for a builder (s2 D8). Static outputs come from the catalog, narrowed per
+ * Output types for a builder. Static outputs come from the catalog, narrowed per
  * operation by `OutputCondition` with the same three-way evaluator as params: an output that is
  * never available for the builder is dropped, one that depends on other fields keeps a `@when`.
  * Nested outputs recurse to {@link MAX_OUTPUT_DEPTH}, then fall back to `Json`.
  *
- * Dynamic outputs (contract amendment 5, `dynamicOutputs: { source, param }`) are inferred from
+ * Dynamic outputs (`dynamicOutputs: { source, param }`) are inferred from
  * the param value through const generics; {@link dynamicOutputPlan} says which generic a builder
  * takes and how it changes params and outputs.
  */

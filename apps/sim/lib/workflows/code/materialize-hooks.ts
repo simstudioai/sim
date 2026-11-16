@@ -13,7 +13,7 @@ function effectiveTriggerMode(block: Pick<BlockState, 'type' | 'triggerMode'>): 
 }
 
 /**
- * The server callbacks `materialize` needs (s1 §3, contract `MaterializeHooks`):
+ * The server callbacks `materialize` needs (contract `MaterializeHooks`):
  * - `initBlock` creates a block exactly as the editing engine adds one (`createBlockFromParams`),
  *   so a block written from code starts with the editor's subBlock entries, types, modes and
  *   layout defaults;

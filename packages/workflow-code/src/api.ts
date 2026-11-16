@@ -1,5 +1,5 @@
 /**
- * Signatures of the engines Wave 2 and Wave 3 implement, one module each. Type-only: there is no
+ * Signatures of the engines, one module each. Type-only: there is no
  * runtime stub, so an import of an unimplemented engine fails to resolve instead of failing at
  * run time. Each implementation declares itself against its type, for example
  * `export const canonicalize: CanonicalizeFn = (state, options) => { ... }`.
@@ -47,7 +47,7 @@ export interface CanonicalizeOptions {
   catalog: BlockCatalog
   /** The workflow row's name and description, which `WorkflowState` does not carry. */
   meta: CanonicalWorkflowMeta
-  /** Supplies branch keys by row id (build-spec decision 5); never changes block keys. */
+  /** Supplies branch keys by row id; never changes block keys. */
   lock?: WorkflowLockV1 | null
   resources?: ResourceKeyResolver
 }
@@ -62,8 +62,8 @@ export interface CanonicalizeResult {
 }
 
 /**
- * Projects a stored, already-migrated graph to the CWM (s1 §2 algorithm; migrations stay
- * server-side, s1 D7). Pure and total: problems become diagnostics, never throws.
+ * Projects a stored, already-migrated graph to the CWM (migrations stay
+ * server-side). Pure and total: problems become diagnostics, never throws.
  */
 export type CanonicalizeFn = (
   state: WorkflowState,
@@ -72,15 +72,15 @@ export type CanonicalizeFn = (
 
 /** Server callbacks materialize needs; implemented in `apps/sim/lib/workflows/code/`. */
 export interface MaterializeHooks {
-  /** A fresh block with editor defaults, wrapping editing/builders (s1 §3). */
+  /** A fresh block with editor defaults, wrapping editing/builders. */
   initBlock(input: { id: string; type: string; name: string; triggerMode: boolean }): BlockState
-  /** Stored `outputs` for a new or changed block, wrapping `getEffectiveBlockOutputs` (s1 D6). */
+  /** Stored `outputs` for a new or changed block, wrapping `getEffectiveBlockOutputs`. */
   computeOutputs(block: BlockState): BlockState['outputs']
   /** A new UUID for a block, branch row, item or variable. */
   newId(): string
 }
 
-/** How identity rule matched a compiled block to a stored one (s1 §4, rules 1–4). */
+/** How identity rule matched a compiled block to a stored one (rules 1–4). */
 export type IdentityMatchRule = 'lock-key' | 'lock-ident' | 'db-name' | 'inferred'
 
 /** One block's identity outcome, for plan output and audit. */
@@ -101,7 +101,7 @@ export type IdentityEntry =
       status: 'created'
       key: BlockKey
       id: string
-      /** `lock` when the lock's id was unclaimed and reused, else `minted` (s4 §2 step 5). */
+      /** `lock` when the lock's id was unclaimed and reused, else `minted`. */
       idSource: 'lock' | 'minted'
     }
   | { status: 'deleted'; key: BlockKey; id: string }
@@ -117,14 +117,14 @@ export interface MaterializeOptions {
   /**
    * Idents as written in the compiled file (`CompileResult.hints`), by block key. Identity
    * rule 2 matches a lock entry whose key is gone by its ident, so a human who edits only the
-   * display string keeps the block's id (s1 §4).
+   * display string keeps the block's id.
    */
   compiledIdents?: Record<BlockKey, string>
   /**
    * How the lock relates to `prev`: `fresh` when its base fingerprint matches the stored graph,
    * `stale` when it does not, `none` when there is no lock. Rule 4 (inferred renames) runs only
    * for `stale` and `none`; a `stale` lock entry whose id left prev is re-created with
-   * `W_MAT_DELETED_SINCE_PULL` (s1 §4 "Stale lock").
+   * `W_MAT_DELETED_SINCE_PULL`.
    */
   lockFreshness: 'fresh' | 'stale' | 'none'
 }
@@ -133,21 +133,21 @@ export interface MaterializeResult {
   state: WorkflowState
   identity: LockIdentity
   entries: IdentityEntry[]
-  /** New blocks with neither a prev nor a lock position, for targeted autolayout (s4 D4). */
+  /** New blocks with neither a prev nor a lock position, for targeted autolayout. */
   needsLayout: BlockKey[]
   diagnostics: Diagnostic<MaterializeDiagnosticCode>[]
 }
 
 /**
- * Writes a CWM back to a stored graph. Byte-identical no-op round trips (O1; build-spec
- * decision 1, s1 D1) require, for every matched block:
+ * Writes a CWM back to a stored graph. Byte-identical no-op round trips (O1)
+ * require, for every matched block:
  * - each param whose canonical form equals prev's keeps prev's raw value; otherwise the encoding
  *   is prev's raw encoding when present, else the catalog `storage`;
  * - each edge whose `(from, port, to)` tuple matches a prev edge reuses that whole prev edge
  *   object, handles and id included;
  * - a subflow config canonical-equal to prev's is written back verbatim, to both `block.data` and
  *   the loops/parallels map.
- * Server-owned fields come from prev by id (s1 D6).
+ * Server-owned fields come from prev by id.
  */
 export type MaterializeFn = (
   workflow: CanonicalWorkflow,
@@ -155,7 +155,7 @@ export type MaterializeFn = (
   options: MaterializeOptions
 ) => MaterializeResult
 
-/** Structural equality ignoring `annotations`, key order and edge order (s1 quirk 28). */
+/** Structural equality ignoring `annotations`, key order and edge order. */
 export type CanonicalEqualsFn = (a: CanonicalWorkflow, b: CanonicalWorkflow) => boolean
 
 /** `sha256Hex(stableStringify(workflow minus annotations))`, both from `hash.ts`. */
@@ -188,7 +188,7 @@ export interface CanonicalBlockDiff {
   changes: BlockChange[]
 }
 
-/** A key-based diff of two CWMs. The apply path turns it into s4's id-based summary. */
+/** A key-based diff of two CWMs. The apply path turns it into an id-based summary. */
 export interface CanonicalDiff {
   /** True iff every other field is empty. */
   noop: boolean
@@ -215,8 +215,8 @@ export type DiffCanonicalFn = (
 ) => CanonicalDiff
 
 /**
- * Per-block print hints: the parts of the lock (or of `workflow_source_meta`, build-spec
- * decision 6) the printer reads and the compiler reports. Keyed by block key, since neither stage
+ * Per-block print hints: the parts of the lock (or of `workflow_source_meta`) the printer
+ * reads and the compiler reports. Keyed by block key, since neither stage
  * sees ids.
  */
 export type SourceHintBlock = Partial<Pick<WorkflowLockBlock, 'ident' | 'order' | 'codeFile'>>
@@ -225,7 +225,7 @@ export interface SourceHints {
   blocks: Record<BlockKey, SourceHintBlock>
 }
 
-/** Caps on hostile input (s4 D7). Defaults are the shared `SOURCE_LIMITS` (`limits.ts`). */
+/** Caps on hostile input. Defaults are the shared `SOURCE_LIMITS` (`limits.ts`). */
 export interface CompileLimits {
   /** Block declarations in the workflow. */
   maxBlocks?: number
@@ -274,7 +274,7 @@ export interface CompileResult {
   sdkMajor: number | null
 }
 
-/** Statically interprets a workflow source file. Never executes it (s3 D2, s4 D7). */
+/** Statically interprets a workflow source file. Never executes it. */
 export type CompileWorkflowFn = (input: CompileInput) => CompileResult
 
 export interface PrintOptions {
@@ -307,14 +307,14 @@ export interface PrintResult {
 }
 
 /**
- * Prints a CWM as a source file. Its output always compiles with zero errors (s3 D12): a block
+ * Prints a CWM as a source file. Its output always compiles with zero errors: a block
  * whose type has no catalog builder prints through `block(type, name, params, meta?)`.
  */
 export type PrintWorkflowFn = (input: PrintInput) => PrintResult
 
 /**
- * `sf1:` + `sha256Hex(stableStringify({ workflow minus annotations, identity }))` (build-spec
- * decision 11, s4 D3). The CWM already carries variables and locked flags and has no layout, so a
+ * `sf1:` + `sha256Hex(stableStringify({ workflow minus annotations, identity }))`. The CWM
+ * already carries variables and locked flags and has no layout, so a
  * canvas drag never fails a push.
  */
 export type SourceFingerprintFn = (

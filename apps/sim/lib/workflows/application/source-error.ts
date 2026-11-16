@@ -26,7 +26,7 @@ export interface WorkflowSourceDiagnostic {
 
 /**
  * Submitted workflow source that cannot be applied: a compile error, a gate refusal, a locked
- * block, an invalid value or a blocking lint finding (s4 D5). Nothing was written. Kept apart
+ * block, an invalid value or a blocking lint finding. Nothing was written. Kept apart
  * from the use case so a route error policy can narrow on it without importing the compiler.
  */
 export class WorkflowSourceRejectedError extends OrchestrationError {
@@ -41,7 +41,7 @@ export class WorkflowSourceRejectedError extends OrchestrationError {
 }
 
 /**
- * The stored draft no longer matches the fingerprint the source was read at (s4 D3): someone
+ * The stored draft no longer matches the fingerprint the source was read at: someone
  * edited the workflow, toggled a block lock, or a migration changed it. Re-read the source,
  * rebase the edit onto it and apply again.
  */
