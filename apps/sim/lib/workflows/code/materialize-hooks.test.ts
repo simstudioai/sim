@@ -11,7 +11,6 @@
  * hook or materialize regression fails here first.
  */
 
-import { isRecordLike, omit } from '@sim/utils/object'
 import { canonicalEquals, canonicalize, materialize } from '@sim/workflow-code'
 import { executionParity, findDifferences } from '@sim/workflow-code/proof'
 import { describe, expect, it, vi } from 'vitest'
@@ -22,6 +21,7 @@ vi.unmock('@/tools/registry')
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { type CorpusCase, generateRegistryCorpus } from '@/lib/workflows/code/corpus'
+import { withoutLockHeldState } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison/compare'
 import { getBlockRegistry } from '@/blocks/registry'
@@ -60,73 +60,6 @@ function canonical(state: WorkflowState, id: string) {
 
 function write(workflow: ReturnType<typeof canonical>, prev?: WorkflowState) {
   return materialize(workflow, null, { catalog, hooks, prev, lockFreshness: 'none' })
-}
-
-/** Item keys canonicalize drops by design, by structured kind (s1 §4 "Items", quirk 24). */
-const DROPPED_ITEM_KEYS: Record<string, string[]> = {
-  inputFormat: ['id', 'collapsed'],
-  tableRows: ['id'],
-  tools: ['isExpanded'],
-}
-
-function stripItems(value: unknown, keys: string[]): unknown {
-  const text = typeof value === 'string'
-  let list: unknown = value
-  if (text) {
-    try {
-      list = JSON.parse(value)
-    } catch {
-      return value
-    }
-  }
-  if (!Array.isArray(list)) return value
-  const stripped = list.map((item) => (isRecordLike(item) ? omit(item, keys) : item))
-  return text ? JSON.stringify(stripped) : stripped
-}
-
-/** A branch list as rows: materialize always writes text, which an array-encoded prev is not. */
-function decodedBranches(value: unknown): unknown {
-  if (typeof value !== 'string') return value
-  try {
-    return JSON.parse(value)
-  } catch {
-    return value
-  }
-}
-
-/**
- * A state without what a lockless write with no prev cannot know and what never changes what
- * runs: item ids and editor flags canonicalize drops (inputFormat field ids live in the lock's
- * `items`; table row ids, `collapsed` and `isExpanded` are editor state), and layout
- * (`horizontalHandles`, container sizes), which lives in the lock's `layout`. Branch lists compare
- * decoded, because materialize repairs an array-encoded list to the text the canvas reads
- * (condition-input.tsx:376-401).
- */
-function withoutLockHeldState(state: WorkflowState): WorkflowState {
-  const blocks: WorkflowState['blocks'] = {}
-  for (const [id, block] of Object.entries(state.blocks)) {
-    const subBlocks: WorkflowState['blocks'][string]['subBlocks'] = {}
-    for (const [subBlockId, subBlock] of Object.entries(block.subBlocks ?? {})) {
-      const declared = catalog.blocks[block.type]?.subBlocks.find((s) => s.id === subBlockId)
-      const keys = declared?.structured ? DROPPED_ITEM_KEYS[declared.structured] : undefined
-      if (declared?.structured === 'branches') {
-        subBlocks[subBlockId] = {
-          ...subBlock,
-          value: decodedBranches(subBlock.value) as typeof subBlock.value,
-        }
-      } else {
-        subBlocks[subBlockId] = keys
-          ? { ...subBlock, value: stripItems(subBlock.value, keys) as typeof subBlock.value }
-          : subBlock
-      }
-    }
-    blocks[id] = {
-      ...omit(block, ['horizontalHandles']),
-      subBlocks,
-      data: block.data && omit(block.data, ['width', 'height']),
-    }
-  }
-  return { ...state, blocks }
 }
 
 function failures(
@@ -188,8 +121,11 @@ describe(`materialize over the real registry (${cases.length} corpus cases)`, ()
     expect(
       failures((corpusCase) => {
         const result = executionParity({
-          original: withoutLockHeldState(corpusCase.state),
-          candidate: withoutLockHeldState(write(canonical(corpusCase.state, corpusCase.id)).state),
+          original: withoutLockHeldState(corpusCase.state, catalog),
+          candidate: withoutLockHeldState(
+            write(canonical(corpusCase.state, corpusCase.id)).state,
+            catalog
+          ),
           serialize: (state) =>
             serializer.serializeWorkflow(state.blocks, state.edges, state.loops, state.parallels),
           hasWorkflowChanged,

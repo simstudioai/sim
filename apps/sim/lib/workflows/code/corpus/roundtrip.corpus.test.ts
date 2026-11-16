@@ -4,11 +4,8 @@
  * from `ROUNDTRIP_CORPUS_EXTRA_DIR` (written outside the repo by
  * scripts/export-redacted-workflows.ts), and fast-check workflows.
  *
- * It imports the Wave 2 engines (catalog, canonicalize, print, compile, equivalence) statically and
- * builds the real catalog from the live registry. `materialize` and the server's materialize hooks
- * land in Wave 3, so they are read at run time: until then each property that needs them is
- * registered as a skipped test whose title names the missing export or module, and the report
- * lists it under `skippedProperties`.
+ * It imports every engine (catalog, canonicalize, print, compile, equivalence, materialize and the
+ * server's materialize hooks) statically and builds the real catalog from the live registry.
  *
  * CI budget (under 60 s): by default every block type keeps up to `CASES_PER_BLOCK_TYPE` cases
  * plus every structural case; `ROUNDTRIP_CORPUS_FULL=1` runs the whole corpus. Set
@@ -23,7 +20,6 @@ vi.unmock('@/tools/registry')
 
 import { getErrorMessage } from '@sim/utils/errors'
 import { compareStrings } from '@sim/utils/string'
-import * as workflowCode from '@sim/workflow-code'
 import {
   type BlockCatalog,
   type CanonicalWorkflow,
@@ -31,8 +27,7 @@ import {
   canonicalEquals,
   canonicalize,
   compileWorkflow,
-  type MaterializeFn,
-  type MaterializeHooks,
+  materialize,
   type PrintWorkflowFn,
   printWorkflow,
 } from '@sim/workflow-code'
@@ -56,7 +51,9 @@ import {
   type FixtureState,
   loadLandingTemplateStates,
   loadWorkflowStatesFromDirectory,
+  withoutLockHeldState,
 } from '@/lib/workflows/code/corpus/fixtures.test-helpers'
+import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison/compare'
 import { getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
@@ -72,30 +69,7 @@ const FUZZ_RUNS = 50
  */
 const PROPERTY_BUDGET_MS = 30_000
 
-/**
- * Loads a Wave 3 export without failing the file's transform. Resolves `null` when the module or
- * the export is missing.
- */
-async function optionalExport(specifier: string, name: string): Promise<unknown> {
-  try {
-    const mod: Record<string, unknown> = await import(/* @vite-ignore */ specifier)
-    return mod[name] ?? null
-  } catch {
-    return null
-  }
-}
-
-const MATERIALIZE_EXPORT = 'materialize'
-const HOOKS_MODULE = '@/lib/workflows/code/materialize-hooks'
-const HOOKS_EXPORT = 'createMaterializeHooks'
-
-const packageExports: Record<string, unknown> = { ...workflowCode }
-const materializeExport = packageExports[MATERIALIZE_EXPORT]
-const materialize: MaterializeFn | null =
-  typeof materializeExport === 'function' ? (materializeExport as MaterializeFn) : null
-const createHooks = await optionalExport(HOOKS_MODULE, HOOKS_EXPORT)
-const hooks: MaterializeHooks | null =
-  typeof createHooks === 'function' ? (createHooks() as MaterializeHooks) : null
+const hooks = createMaterializeHooks()
 
 const { catalog } = buildBlockCatalog({
   blocks: Object.values(getBlockRegistry()),
@@ -103,32 +77,16 @@ const { catalog } = buildBlockCatalog({
   sdkNames: SDK_NAMES,
 })
 
-type WaveThreeNeed = 'materialize' | 'hooks'
-
-const PROPERTY_NEEDS: Record<ProofProperty, WaveThreeNeed[]> = {
-  P0: [],
-  P1: ['hooks', 'materialize'],
-  P2: ['hooks', 'materialize'],
-  P3: [],
-  P4: [],
-  P5: [],
-  O1: ['hooks', 'materialize'],
-  O2: ['hooks', 'materialize'],
-  O3: ['hooks', 'materialize'],
-}
-
-function missingFor(property: ProofProperty): string[] {
-  return PROPERTY_NEEDS[property].flatMap((need) => {
-    if (need === 'hooks') return hooks ? [] : [`${HOOKS_MODULE}#${HOOKS_EXPORT} (Wave 3)`]
-    return materialize ? [] : [`@sim/workflow-code#${MATERIALIZE_EXPORT} (Wave 3)`]
-  })
-}
-
 interface ProofSubject {
   id: string
   blockTypes: string[]
   state: WorkflowState
+  /** Set on corpus cases whose types the registry does not know; the serializer rejects them. */
+  unknownTypes?: true
 }
+
+/** Properties that serialize the original, which an unknown block type makes throw. */
+const SERIALIZING_PROPERTIES: ReadonlySet<ProofProperty> = new Set(['P2', 'O2'])
 
 function toSubject(fixture: FixtureState): ProofSubject {
   const blockTypes = [...new Set(Object.values(fixture.state.blocks).map((b) => b.type))].sort()
@@ -171,25 +129,12 @@ const subjects: ProofSubject[] = [
 
 const report = createProofReport(SUITE)
 
-/** The catalog and the Wave 3 engines a property runs against; a missing one throws when called. */
+/** What every property runs against. */
 interface ResolvedEngines {
   catalog: BlockCatalog
-  materialize: MaterializeFn
-  hooks: () => MaterializeHooks
 }
 
-function resolveEngines(): ResolvedEngines {
-  return {
-    catalog,
-    materialize:
-      materialize ?? (() => missingWaveThree(`@sim/workflow-code#${MATERIALIZE_EXPORT}`)),
-    hooks: () => hooks ?? missingWaveThree(`${HOOKS_MODULE}#${HOOKS_EXPORT}`),
-  }
-}
-
-function missingWaveThree(name: string): never {
-  throw new Error(`${name} is not implemented`)
-}
+const engines: ResolvedEngines = { catalog }
 
 const serializer = new Serializer()
 const serialize = (state: WorkflowState) =>
@@ -256,9 +201,9 @@ function compiledWorkflow(
 }
 
 function materialized(e: ResolvedEngines, workflow: CanonicalWorkflow, prev?: WorkflowState) {
-  return e.materialize(workflow, null, {
+  return materialize(workflow, null, {
     catalog: e.catalog,
-    hooks: e.hooks(),
+    hooks,
     prev,
     lockFreshness: 'none',
   }).state
@@ -319,8 +264,8 @@ const properties: Record<ProofProperty, (e: ResolvedEngines, s: ProofSubject) =>
     }),
   O2: (e, s) =>
     executionParity({
-      original: s.state,
-      candidate: materialized(e, canonical(e, s)),
+      original: withoutLockHeldState(s.state, e.catalog),
+      candidate: withoutLockHeldState(materialized(e, canonical(e, s)), e.catalog),
       serialize,
       hasWorkflowChanged,
     }),
@@ -343,9 +288,10 @@ const RESERVED_BLOCK_NAME =
 
 /**
  * Stored shapes the editor and realtime persistence refuse (`getWorkflowBlockNameConflict`) but
- * legacy rows can hold, which no source form expresses yet. Every property must fail on exactly
- * these and pass everywhere else: a new failure or a newly passing case fails the run. The report
- * still records each as failed.
+ * legacy rows can hold, which no source form expresses yet. Every property that goes through
+ * print and compile must fail on exactly these and pass everywhere else: a new failure or a newly
+ * passing case fails the run. The report still records each as failed. The O oracles never print,
+ * so they must pass on these too.
  */
 const KNOWN_FAILURES: Record<string, string> = {
   'name-collision:function:Agent 1|agent1': LEGACY_NAME_COLLISION,
@@ -355,6 +301,25 @@ const KNOWN_FAILURES: Record<string, string> = {
   'testing:builder-parallel': RESERVED_BLOCK_NAME,
 }
 const KNOWN_FAILURE_IDS = Object.keys(KNOWN_FAILURES).sort(compareStrings)
+const SOURCE_FREE_PROPERTIES: ReadonlySet<ProofProperty> = new Set(['O1', 'O2', 'O3'])
+
+/**
+ * Stored shapes a lockless write with no prev cannot reproduce for O2, because the CWM holds no
+ * node for them. O2 must fail on exactly these, besides `KNOWN_FAILURES` for source properties.
+ */
+const KNOWN_O2_FAILURES: Record<string, string> = {
+  'testing:loop':
+    'a loops-map entry with no loop block (the pre-container shape); the CWM has no block to ' +
+    'carry it, so a write from scratch has no loop',
+  'landing-template:meeting-followup-agent-a2357a2f-67f7-40c1-8e64-301bcd604239':
+    'a loop whose block.data omits count while the loops map holds it; canonicalize reads the ' +
+    'map, and a write from scratch puts count in block.data too (s1 materialize step 6)',
+}
+
+function expectedFailures(property: ProofProperty): string[] {
+  if (property === 'O2') return Object.keys(KNOWN_O2_FAILURES).sort(compareStrings)
+  return SOURCE_FREE_PROPERTIES.has(property) ? [] : KNOWN_FAILURE_IDS
+}
 
 const PROPERTY_TITLES: Record<ProofProperty, string> = {
   P0: 'P0 source fidelity: compile(print(c)) equals c',
@@ -370,21 +335,23 @@ const PROPERTY_TITLES: Record<ProofProperty, string> = {
 
 describe(`round-trip corpus (${subjects.length} workflows)`, () => {
   for (const property of Object.keys(PROPERTY_TITLES) as ProofProperty[]) {
-    const missing = missingFor(property)
-    if (missing.length > 0) {
-      const reason = `missing ${missing.join(', ')}`
-      report.skipProperty(property, reason)
-      it.skip(`${PROPERTY_TITLES[property]} [SKIPPED until Wave 3: ${reason}]`, () => {})
-      continue
-    }
-
     it(
       PROPERTY_TITLES[property],
       () => {
-        const e = resolveEngines()
+        const e = engines
         const failed: string[] = []
         for (const subject of subjects) {
           const started = performance.now()
+          if (subject.unknownTypes && SERIALIZING_PROPERTIES.has(property)) {
+            report.record({
+              caseId: subject.id,
+              blockTypes: subject.blockTypes,
+              property,
+              status: 'skipped',
+              durationMs: 0,
+            })
+            continue
+          }
           try {
             const result = properties[property](e, subject)
             if (!result.ok) failed.push(subject.id)
@@ -408,7 +375,7 @@ describe(`round-trip corpus (${subjects.length} workflows)`, () => {
             })
           }
         }
-        expect(failed.sort(compareStrings)).toEqual(KNOWN_FAILURE_IDS)
+        expect(failed.sort(compareStrings)).toEqual(expectedFailures(property))
       },
       PROPERTY_BUDGET_MS
     )
