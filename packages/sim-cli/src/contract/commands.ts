@@ -648,6 +648,14 @@ export const CLI_CONTRACT: CliContract = {
   // The ETag revalidation header is for a client that caches the catalog, as `workflows source
   // get --out` does by hand; a one-off read has no cached hash to send.
   getBlockCatalog: { flags: { 'if-none-match': { omit: true } } },
+  /** `workflows source apply --new --from <dir>` reads and writes a source directory by hand. */
+  createWorkflowFromSource: { hidden: true },
+  /** One document, not a page: `workflows source get --out` writes it as `workspace.d.ts`. */
+  getResourceManifest: {
+    command: 'workspaces resource-manifest get',
+    describe:
+      'List the tables, knowledge bases, credentials, workflows and env names source can name',
+  },
   replaceWorkflowState: {
     command: 'workflows state replace',
     confirm: 'This replaces the entire draft graph and cannot be undone.',

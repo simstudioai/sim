@@ -180,8 +180,12 @@ export function outputSchemasFor(
   if (!builder?.triggerMode) return [block.outputs]
   const pinned = builder.fixed?.selectedTriggerId
   const ids = pinned !== undefined ? [pinned] : (block.triggers?.available ?? [])
-  const triggers = ids.flatMap((id) => catalogTrigger(catalog, id)?.outputs ?? [])
-  return [block.outputs, ...triggers]
+  const schemas = [block.outputs]
+  for (const id of ids) {
+    const trigger = catalogTrigger(catalog, id)
+    if (trigger) schemas.push(trigger.outputs)
+  }
+  return schemas
 }
 
 /** A field's catalog default: the editor's `defaultValue`, else a constant `value()` thunk. */
