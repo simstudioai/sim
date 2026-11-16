@@ -1,0 +1,114 @@
+/**
+ * Literal escaping for printed source. Every function returns text whose cooked JS value is
+ * exactly the input (s3 D5): the compiler reads cooked values, so `\`, quotes, `${`, CR,
+ * U+2028/2029, other control characters and lone surrogates are escaped, while LF stays raw inside
+ * templates so multi-line text reads naturally. Template content is never re-indented.
+ */
+
+const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
+
+/** An ASCII identifier name: usable as a bare object key or after `.` (reserved words included). */
+export function isIdentifierName(text: string): boolean {
+  return IDENTIFIER.test(text)
+}
+
+function hex4(code: number): string {
+  return `\\u${code.toString(16).toUpperCase().padStart(4, '0')}`
+}
+
+/**
+ * Escapes one UTF-16 code unit sequence. `mode` decides which characters are special: quoted
+ * strings escape LF and their quote, templates escape the backtick and `${` instead.
+ */
+function escapeText(text: string, mode: 'single' | 'double' | 'template'): string {
+  let out = ''
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i)
+    const char = text[i] ?? ''
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = text.charCodeAt(i + 1)
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        out += char + (text[i + 1] ?? '')
+        i += 1
+      } else {
+        out += hex4(code)
+      }
+      continue
+    }
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      out += hex4(code)
+      continue
+    }
+    switch (char) {
+      case '\\':
+        out += '\\\\'
+        continue
+      case '\r':
+        out += '\\r'
+        continue
+      case '\u2028':
+      case '\u2029':
+        out += hex4(code)
+        continue
+      case '\n':
+        out += mode === 'template' ? '\n' : '\\n'
+        continue
+      case '\t':
+        out += mode === 'template' ? '\t' : '\\t'
+        continue
+      case "'":
+        out += mode === 'single' ? "\\'" : "'"
+        continue
+      case '"':
+        out += mode === 'double' ? '\\"' : '"'
+        continue
+      case '`':
+        out += mode === 'template' ? '\\`' : '`'
+        continue
+      case '$':
+        out += mode === 'template' && text[i + 1] === '{' ? '\\$' : '$'
+        continue
+    }
+    if (code < 0x20 || code === 0x7f) {
+      out += hex4(code)
+      continue
+    }
+    out += char
+  }
+  return out
+}
+
+/**
+ * A quoted string literal. Single quotes unless the text holds more single than double quotes,
+ * which is the quote Biome would pick (`quoteStyle: single`).
+ */
+export function quoteString(text: string): string {
+  let singles = 0
+  let doubles = 0
+  for (const char of text) {
+    if (char === "'") singles += 1
+    else if (char === '"') doubles += 1
+  }
+  const quote = singles > doubles ? '"' : "'"
+  return quote + escapeText(text, quote === '"' ? 'double' : 'single') + quote
+}
+
+/** The literal (cooked) part of a template between interpolations. */
+export function escapeTemplateText(text: string): string {
+  return escapeText(text, 'template')
+}
+
+/** An object key: bare when it is an identifier name, quoted otherwise (`quoteProperties: asNeeded`). */
+export function printKey(key: string): string {
+  return isIdentifierName(key) ? key : quoteString(key)
+}
+
+/** A member access segment: `.seg` for identifier names, `['seg']` otherwise. */
+export function printMember(segment: string): string {
+  return isIdentifierName(segment) ? `.${segment}` : `[${quoteString(segment)}]`
+}
+
+/** A JSON number as Biome prints a numeric literal (`String(n)` minus the exponent `+`). */
+export function printNumber(value: number): string {
+  return String(value).replace('e+', 'e')
+}
