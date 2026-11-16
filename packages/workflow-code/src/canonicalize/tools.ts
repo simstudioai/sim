@@ -137,7 +137,7 @@ function liftTool(
     type,
     params,
     modes: block
-      ? effectiveModes(block.subBlocks, rawParams, explicit, false)
+      ? effectiveModes(block, false, rawParams, explicit, false)
       : definedModes(explicit),
   }
   const extra: Record<string, Json> = {}

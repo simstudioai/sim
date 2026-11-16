@@ -55,6 +55,11 @@ function toLanguage(value: unknown): CodeFileLanguage | null {
   return null
 }
 
+/** The advanced member of a basic/advanced pair, on either surface. */
+function isAdvancedMember(sb: CatalogSubBlock): boolean {
+  return sb.mode === 'advanced' || sb.mode === 'trigger-advanced'
+}
+
 function stringParam(block: CanonicalBlock, id: string): string | undefined {
   const param = block.params[id]
   return param?.kind === 'value' && typeof param.value === 'string' ? param.value : undefined
@@ -354,7 +359,9 @@ class WorkflowPrinter {
     return heads
   }
 
+  /** A trigger block (`category: 'triggers'`) serializes both surfaces (`shouldSerializeSubBlock`). */
   private surfaceSubBlocks(block: CanonicalBlock, catalogBlock: CatalogBlock): CatalogSubBlock[] {
+    if (catalogBlock.category === 'triggers') return catalogBlock.subBlocks
     const surface = block.triggerMode ? 'trigger' : 'action'
     return catalogBlock.subBlocks.filter((sb) => sb.surface === undefined || sb.surface === surface)
   }
@@ -453,6 +460,8 @@ class WorkflowPrinter {
       })
       return null
     }
+    const stored = stringParam(block, 'language') ?? 'javascript'
+    if (stored !== language) return inline(`its language ${stored} has no code-file form`)
     if (!this.codec) return inline('no code-file codec is available')
     const text = this.codec.toFile(code, language)
     if (text === null) return inline('its tokens cannot be rewritten for a code file')
@@ -585,8 +594,8 @@ class WorkflowPrinter {
           seenCids.add(cid)
           const members = subBlocks.filter((m) => m.canonicalParamId === cid && !pinned.has(m.id))
           const mode: ParamMode = block.modes[cid] ?? 'basic'
-          const basic = members.find((m) => m.mode !== 'advanced')
-          const advanced = members.find((m) => m.mode === 'advanced')
+          const basic = members.find((m) => !isAdvancedMember(m))
+          const advanced = members.find(isAdvancedMember)
           const effective = (mode === 'advanced' ? advanced : basic) ?? members[0]
           let printed: PrintedValue | null = null
           for (const member of members) {
@@ -607,7 +616,7 @@ class WorkflowPrinter {
             }
           }
           const implied: ParamMode = printed ? (printed.selector ? 'basic' : 'advanced') : 'basic'
-          if (implied !== mode) modes[cid] = mode
+          if (basic && advanced && implied !== mode) modes[cid] = mode
           continue
         }
         handled.add(sb.id)
@@ -661,8 +670,8 @@ class WorkflowPrinter {
     if (sb.required !== true || sb.condition !== undefined || sb.hidden || sb.readOnly) return false
     if (sb.valueKind === 'none' || sb.valueKind === 'branches' || sb.valueKind === 'tools')
       return false
-    const surfaceMode = block.triggerMode ? 'trigger' : undefined
-    if (block.triggerMode) return sb.mode === surfaceMode
+    if (block.triggerMode) return sb.mode === 'trigger'
+    if (sb.mode === 'trigger') return this.catalog.blocks[block.type]?.category === 'triggers'
     return sb.mode === undefined || sb.mode === 'basic' || sb.mode === 'both'
   }
 

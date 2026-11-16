@@ -227,7 +227,7 @@ export const canonicalize: CanonicalizeFn = (state, options) => {
       params,
       modes:
         catalog && !isContainer
-          ? effectiveModes(catalog.subBlocks, rawValues, overrides, advancedMode)
+          ? effectiveModes(catalog, triggerMode, rawValues, overrides, advancedMode)
           : {},
     }
     if (lifted) canonical.branches = lifted.branches

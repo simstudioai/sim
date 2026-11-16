@@ -31,8 +31,14 @@ export interface FieldIndex {
   subBlocks: Map<SubBlockId, CatalogSubBlock>
 }
 
-function onSurface(sub: CatalogSubBlock, triggerMode: boolean): boolean {
+/** A trigger block (`category: 'triggers'`) serializes both surfaces (`shouldSerializeSubBlock`). */
+function onSurface(block: CatalogBlock, sub: CatalogSubBlock, triggerMode: boolean): boolean {
+  if (block.category === 'triggers') return true
   return triggerMode ? sub.surface !== 'action' : sub.surface !== 'trigger'
+}
+
+function isAdvancedMember(sub: CatalogSubBlock): boolean {
+  return sub.mode === 'advanced' || sub.mode === 'trigger-advanced'
 }
 
 /**
@@ -48,7 +54,7 @@ export function buildFieldIndex(
 ): FieldIndex {
   const subBlocks = new Map<SubBlockId, CatalogSubBlock>()
   for (const sub of block.subBlocks) {
-    if (onSurface(sub, triggerMode) && !subBlocks.has(sub.id)) subBlocks.set(sub.id, sub)
+    if (onSurface(block, sub, triggerMode) && !subBlocks.has(sub.id)) subBlocks.set(sub.id, sub)
   }
   const fields = new Map<string, CatalogField>()
   const memberAliases = new Map<SubBlockId, CanonicalParamId>()
@@ -68,12 +74,20 @@ export function buildFieldIndex(
     fields.set(cid, {
       kind: 'pair',
       param: cid,
-      basic: members.find((member) => member.mode !== 'advanced'),
-      advanced: members.find((member) => member.mode === 'advanced'),
+      basic: members.find((member) => !isAdvancedMember(member)),
+      advanced: members.find(isAdvancedMember),
       members,
     })
   }
   return { fields, memberAliases, subBlocks }
+}
+
+/**
+ * A group with both a basic and an advanced member: the only kind whose mode the CWM records
+ * (`isCanonicalPair`), so `modes` holds exactly these on the block's surface.
+ */
+export function isModalPair(field: CatalogField): boolean {
+  return field.kind === 'pair' && field.basic !== undefined && field.advanced !== undefined
 }
 
 /** The member a group's value lands in for a mode (the printer's effective member). */

@@ -1,28 +1,32 @@
 import {
   buildCanonicalIndex,
-  type CanonicalIndexSubBlock,
   type CanonicalModeOverrides,
   isCanonicalPair,
   resolveCanonicalMode,
 } from '../catalog/canonical-index'
+import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import type { CanonicalParamId, ParamMode } from '../model'
 
 /**
- * The effective mode of every canonical pair (s1 canonicalize step 4, quirk 2), as the
- * serializer resolves it (serializer/index.ts:637-650): an explicit override wins; otherwise the
- * legacy block-level `advancedMode` makes a pair advanced; otherwise the mode is inferred from
- * which member holds a value (`resolveCanonicalMode`).
+ * The effective mode of every canonical pair on the block's surface (s1 canonicalize step 4, quirk
+ * 2), as the serializer resolves it (serializer/index.ts:637-650): an explicit override wins;
+ * otherwise the legacy block-level `advancedMode` makes a pair advanced; otherwise the mode is
+ * inferred from which member holds a value (`resolveCanonicalMode`).
  *
- * The index is unscoped, like the serializer's and the backfill's (subblock-migrations.ts:731):
- * both members of a pair always sit on one surface, so scoping cannot change which pairs exist.
+ * Only the pairs the block serializes get a mode: the trigger surface in trigger mode, the action
+ * surface otherwise, and both for a trigger block (`shouldSerializeSubBlock`). A pair on the other
+ * surface never reaches execution, and the compiler records modes the same way.
  */
 export function effectiveModes(
-  subBlocks: readonly CanonicalIndexSubBlock[],
+  block: Pick<CatalogBlock, 'category' | 'subBlocks'>,
+  triggerMode: boolean,
   values: Record<string, unknown>,
   overrides: CanonicalModeOverrides | undefined,
   legacyAdvancedMode: boolean
 ): Record<CanonicalParamId, ParamMode> {
-  const index = buildCanonicalIndex(subBlocks)
+  const index = buildCanonicalIndex(
+    block.subBlocks.filter((subBlock) => onBlockSurface(block, subBlock, triggerMode))
+  )
   const modes: Record<CanonicalParamId, ParamMode> = {}
   for (const group of Object.values(index.groupsById)) {
     if (!isCanonicalPair(group)) continue
@@ -31,4 +35,13 @@ export function effectiveModes(
       legacyAdvancedMode && !explicit ? 'advanced' : resolveCanonicalMode(group, values, overrides)
   }
   return modes
+}
+
+function onBlockSurface(
+  block: Pick<CatalogBlock, 'category'>,
+  subBlock: CatalogSubBlock,
+  triggerMode: boolean
+): boolean {
+  if (block.category === 'triggers') return true
+  return triggerMode ? subBlock.surface !== 'action' : subBlock.surface !== 'trigger'
 }

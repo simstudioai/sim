@@ -24,6 +24,7 @@ import {
   buildFieldIndex,
   type CatalogField,
   type FieldIndex,
+  isModalPair,
   isRequired,
   isVisible,
   memberFor,
@@ -551,7 +552,7 @@ function compileField(
   if (field.kind === 'pair') {
     const mode =
       meta.modes.get(field.param) ?? (isSelectorForm(compiled.form) ? 'basic' : 'advanced')
-    setOwn(modes, field.param, mode)
+    if (isModalPair(field)) setOwn(modes, field.param, mode)
     target = memberFor(field, mode)
   } else {
     target = field.sub
@@ -756,7 +757,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     if (!Object.hasOwn(modes, param)) setOwn(modes, param, mode)
   }
   for (const field of index?.fields.values() ?? []) {
-    if (field.kind === 'pair' && !Object.hasOwn(modes, field.param))
+    if (isModalPair(field) && !Object.hasOwn(modes, field.param))
       setOwn(modes, field.param, 'basic')
   }
 
