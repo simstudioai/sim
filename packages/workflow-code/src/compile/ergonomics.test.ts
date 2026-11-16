@@ -7,7 +7,7 @@ import { compileWorkflow } from './index'
 import { TEST_CATALOG } from './test-catalog'
 
 const IMPORTS =
-  "import { agent, api, childWorkflow, condition, customTool, credential, js, mail, mcp, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
+  "import { agent, api, childWorkflow, condition, customTool, credential, fn, js, mail, mcp, parallel, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
 
 function source(body: string, header = '// @sim-sdk 1'): string {
   return `${header}\n${IMPORTS}\n\nexport default workflow('Test', {}, () => {\n${body}\n})\n`
@@ -176,6 +176,22 @@ describe('condition rows stored with no title', () => {
     const text = printed(workflow)
     expect(text).toContain('else: { title: null }')
     expect(compiled(text).blocks.gate?.branches).toEqual(workflow.blocks.gate?.branches)
+  })
+})
+
+describe('a raw edge into a container child', () => {
+  it('prints where both ends are visible and compiles back to the same raw port', () => {
+    const workflow = compiled(
+      source(
+        "  parallel.count('L', { count: 3 }, (p) => {\n    const f = fn('F', { code: js`return 1` })\n    p.to(f)\n  })"
+      )
+    )
+    workflow.edges = workflow.edges.map((edge) =>
+      edge.from === 'l' && edge.to === 'f'
+        ? { ...edge, port: { kind: 'raw', handle: 'loop-start-source' } }
+        : edge
+    )
+    expect(compiled(printed(workflow)).edges).toEqual(workflow.edges)
   })
 })
 

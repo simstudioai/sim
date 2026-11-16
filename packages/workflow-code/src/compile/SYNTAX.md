@@ -295,10 +295,12 @@ cannot round-trip through a file, the printer writes it inline as `` js`…` `` 
 | `container.to(x)` | the port taken after the container finishes |
 | `edge(a, 'handle', b)` | a raw handle (`W_RAW_HANDLE`) |
 
-`edge()` maps `'source'` to the out port (how the printer writes it for a condition, router or
-container), `'loop-start-source'`/`'parallel-start-source'` to the start port and
-`'loop-end-source'`/`'parallel-end-source'` to the end port; anything else stays a raw port. The
-start and end child checks do not apply to `edge()`.
+`edge()` reads a handle as canonicalize reads a stored one: `'source'` is the out port (how the
+printer writes it for a condition, router or container), `'error'` the error port, and a loop's
+`'loop-start-source'`/`'loop-end-source'` (a parallel's `'parallel-…'`) its start and end ports.
+Anything else stays a raw port, a subflow handle on another kind of block included. The start and
+end child checks do not apply to `edge()`. The printer writes an `edge()` into a container's child
+inside the container's callback, where both names are visible.
 
 Refused: `.to()` on a condition or router (`E_NO_DEFAULT_OUTPUT`), an unknown branch
 (`E_UNKNOWN_BRANCH`), an edge into a trigger (`E_TARGET_TRIGGER`), `onError` on a block with no
