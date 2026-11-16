@@ -5,21 +5,24 @@ import {
   normalizeBlockRetryTries,
   normalizeBlockRetryWaitMs,
   resolveEffectiveErrorEnabled,
+  type WorkflowState,
 } from '@sim/workflow-types/workflow'
-import type { CanonicalizeFn } from '../api'
 import { deployReadIds, isInactive } from '../catalog/activity'
 import type { CanonicalModeOverrides } from '../catalog/canonical-index'
 import { buildCanonicalIndexForSurface } from '../catalog/surface'
+import type { BlockCatalog } from '../catalog/types'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
-import type { LockIdentity, LockIdentityBlock, LockLayout } from '../lock'
+import type { LockIdentity, LockIdentityBlock, LockLayout, WorkflowLockV1 } from '../lock'
 import type {
   BlockKey,
   BranchKey,
   CanonicalBlock,
   CanonicalVariable,
   CanonicalWorkflow,
+  CanonicalWorkflowMeta,
   Json,
+  ResourceKeyResolver,
   SubBlockId,
   VarKey,
 } from '../model'
@@ -93,7 +96,7 @@ function layoutOf(block: BlockState): LockLayout {
 
 /** Lock branch keys by block id, then row id → key. */
 function lockBranchKeysById(
-  lock: Parameters<CanonicalizeFn>[1]['lock']
+  lock: CanonicalizeOptions['lock']
 ): Map<string, Map<string, BranchKey>> {
   const result = new Map<string, Map<string, BranchKey>>()
   for (const entry of Object.values(lock?.blocks ?? {})) {
@@ -105,10 +108,31 @@ function lockBranchKeysById(
   return result
 }
 
+export interface CanonicalizeOptions {
+  catalog: BlockCatalog
+  /** The workflow row's name and description, which `WorkflowState` does not carry. */
+  meta: CanonicalWorkflowMeta
+  /** Supplies branch keys by row id; never changes block keys. */
+  lock?: WorkflowLockV1 | null
+  resources?: ResourceKeyResolver
+}
+
+export interface CanonicalizeResult {
+  workflow: CanonicalWorkflow
+  /** Key → id for every block, branch, item and variable in `workflow`. */
+  identity: LockIdentity
+  /** Stored positions by key, for the lock. Not part of the CWM. */
+  layout: Record<BlockKey, LockLayout>
+  diagnostics: Diagnostic<CanonicalizeDiagnosticCode>[]
+}
+
 /**
  * Projects a stored, already-migrated graph to the CWM. Pure and total: problems become diagnostics.
  */
-export const canonicalize: CanonicalizeFn = (state, options) => {
+export function canonicalize(
+  state: WorkflowState,
+  options: CanonicalizeOptions
+): CanonicalizeResult {
   const diagnostics: Diagnostic<CanonicalizeDiagnosticCode>[] = []
   const blocks: Record<string, BlockState> = state.blocks ?? {}
   const { keyById, referenceKeyByName } = assignBlockKeys(blocks, diagnostics)

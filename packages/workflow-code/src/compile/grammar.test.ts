@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { CompileResult } from '../api'
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
 import type { CanonicalBlock, CanonicalWorkflow } from '../model'
+import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { TEST_CATALOG } from './test-catalog'
 

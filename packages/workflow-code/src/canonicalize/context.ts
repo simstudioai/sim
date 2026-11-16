@@ -1,9 +1,8 @@
-import type { ResourceKeyResolver } from '../api'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
 import { catalogBlock as readCatalogBlock } from '../catalog/view'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
-import type { BlockKey, VarKey } from '../model'
+import type { BlockKey, ResourceKeyResolver, VarKey } from '../model'
 
 /** One stored variable in declaration order, as the workflow resolver walks them. */
 export interface VariableEntry {

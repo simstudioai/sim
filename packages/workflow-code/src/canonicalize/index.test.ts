@@ -1,9 +1,15 @@
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { describe, expect, it } from 'vitest'
-import type { CanonicalizeOptions, ResourceKeyResolver } from '../api'
 import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { canonicalEquals, canonicalHash } from '../equivalence'
-import type { CanonicalBlock, CanonicalParam, CanonicalWorkflow, Value } from '../model'
+import type {
+  CanonicalBlock,
+  CanonicalParam,
+  CanonicalWorkflow,
+  ResourceKeyResolver,
+  Value,
+} from '../model'
+import type { CanonicalizeOptions } from '.'
 import { canonicalize } from '.'
 
 /*

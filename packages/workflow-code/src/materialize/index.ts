@@ -7,18 +7,23 @@ import {
   WORKFLOW_ERROR_HANDLE_ID,
   type WorkflowState,
 } from '@sim/workflow-types/workflow'
-import type { CanonicalizeResult, MaterializeFn, MaterializeHooks } from '../api'
-import { canonicalize } from '../canonicalize'
+import { type CanonicalizeResult, canonicalize } from '../canonicalize'
 import type { BlockCatalog } from '../catalog/types'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { LockIdentity, WorkflowLockBlock, WorkflowLockV1 } from '../lock'
-import type { BlockKey, CanonicalBlock, CanonicalWorkflow, VarKey } from '../model'
+import type {
+  BlockKey,
+  CanonicalBlock,
+  CanonicalWorkflow,
+  ResourceKeyResolver,
+  VarKey,
+} from '../model'
 import { deepEqual, setOwn } from '../records'
 import { type BuiltBlock, buildBlock } from './block'
-import { catalogBlock, type MaterializeContext, report } from './context'
+import { catalogBlock, type MaterializeContext, type MaterializeHooks, report } from './context'
 import { type BranchHandles, writeEdges } from './edges'
-import { resolveIdentity } from './identity'
+import { type IdentityEntry, type LockFreshness, resolveIdentity } from './identity'
 import { restorePreserved } from './preserve'
 import { subflowEntry } from './subflows'
 import { rewriteRenamedReferences } from './values'
@@ -101,12 +106,54 @@ function childIds(blocks: Record<string, BlockState>, containerId: string): stri
     .map(([id]) => id)
 }
 
+export interface MaterializeOptions {
+  catalog: BlockCatalog
+  hooks: MaterializeHooks
+  /** The stored graph being replaced. Absent for a new workflow. */
+  prev?: WorkflowState
+  resources?: ResourceKeyResolver
+  /** Disables identity rule 4 (`--no-infer-renames`). */
+  inferRenames?: boolean
+  /**
+   * Idents as written in the compiled file (`CompileResult.hints`), by block key. Identity
+   * rule 2 matches a lock entry whose key is gone by its ident, so a human who edits only the
+   * display string keeps the block's id.
+   */
+  compiledIdents?: Record<BlockKey, string>
+  /**
+   * How the lock relates to `prev`: `fresh` when its base fingerprint matches the stored graph,
+   * `stale` when it does not, `none` when there is no lock. Rule 4 (inferred renames) runs only
+   * for `stale` and `none`; a `stale` lock entry whose id left prev is re-created with
+   * `W_MAT_DELETED_SINCE_PULL`.
+   */
+  lockFreshness: LockFreshness
+}
+
+export interface MaterializeResult {
+  state: WorkflowState
+  identity: LockIdentity
+  entries: IdentityEntry[]
+  /** New blocks with neither a prev nor a lock position, for targeted autolayout. */
+  needsLayout: BlockKey[]
+  diagnostics: Diagnostic<MaterializeDiagnosticCode>[]
+}
+
 /**
  * Writes a CWM back to a stored graph (DESIGN.md "Materialize"). With `prev`, every block, param, edge,
  * subflow and variable whose canonical form is unchanged keeps prev's stored bytes, so
- * `materialize(canonicalize(x), lock, { prev: x })` deep-equals `x` (O1).
+ * `materialize(canonicalize(x), lock, { prev: x })` deep-equals `x` (O1). For every matched block:
+ * - a param canonical-equal to prev's keeps prev's raw value; otherwise it takes prev's raw
+ *   encoding when present, else the catalog `storage`;
+ * - an edge whose `(from, port, to)` matches a prev edge reuses that whole prev edge object;
+ * - a subflow config canonical-equal to prev's is written back verbatim, to both `block.data` and
+ *   the loops/parallels map.
+ * Server-owned fields come from prev by id.
  */
-export const materialize: MaterializeFn = (input, lock, options) => {
+export function materialize(
+  input: CanonicalWorkflow,
+  lock: WorkflowLockV1 | null,
+  options: MaterializeOptions
+): MaterializeResult {
   const { catalog, hooks, prev } = options
   const diagnostics: Diagnostic<MaterializeDiagnosticCode>[] = []
   const prevCanonical = prev

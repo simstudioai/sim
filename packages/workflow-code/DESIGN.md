@@ -509,4 +509,5 @@ Beside it:
   dynamic `import()`, `require`, `import.meta`, `.constructor` reads, and value references to
   `eval`, `Function`, `globalThis`, `window`, `self`, `global` and `Reflect`.
 - `@xyflow/react` is a devDependency only so `@sim/workflow-types`' `Edge` import type-checks.
-- `src/api.ts` declares the engine signatures; each engine declares itself against its type.
+- Each engine is a plain function exported from its module, with its input, options and result
+  types beside it; `src/index.ts` is the package's only barrel.

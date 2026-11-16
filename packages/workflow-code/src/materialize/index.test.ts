@@ -1,10 +1,10 @@
 import { omit } from '@sim/utils/object'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { describe, expect, it } from 'vitest'
-import type { MaterializeOptions } from '../api'
 import { canonicalEquals } from '../equivalence'
 import type { WorkflowLockV1 } from '../lock'
 import type { CanonicalWorkflow } from '../model'
+import type { MaterializeOptions } from '.'
 import { materialize } from '.'
 import {
   blockState,

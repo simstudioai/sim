@@ -4,15 +4,17 @@
  */
 
 import { portKey } from '../anchors'
-import type {
-  BlockAttribute,
-  BlockChange,
-  CanonicalBlockDiff,
-  CanonicalDiff,
-  DiffCanonicalFn,
-} from '../api'
 import type { LockIdentity } from '../lock'
-import type { BlockKey, CanonicalBlock, CanonicalEdge, CanonicalWorkflowMeta } from '../model'
+import type {
+  BlockKey,
+  CanonicalBlock,
+  CanonicalEdge,
+  CanonicalParamId,
+  CanonicalWorkflow,
+  CanonicalWorkflowMeta,
+  SubBlockId,
+  VarKey,
+} from '../model'
 import { deepEqual } from '../records'
 
 const META_FIELDS: Array<keyof CanonicalWorkflowMeta> = ['name', 'description']
@@ -59,6 +61,49 @@ function blockChanges(
   return changes
 }
 
+/** Block-level fields a diff can name, besides params and modes. */
+export type BlockAttribute =
+  | 'name'
+  | 'type'
+  | 'parent'
+  | 'enabled'
+  | 'locked'
+  | 'triggerMode'
+  | 'advancedMode'
+  | 'errorPort'
+  | 'retry'
+  | 'branches'
+  | 'subflow'
+  | 'extra'
+
+export type BlockChange =
+  | { kind: 'param'; param: SubBlockId }
+  | { kind: 'mode'; canonicalParamId: CanonicalParamId }
+  | { kind: 'attribute'; attribute: BlockAttribute }
+
+export interface CanonicalBlockDiff {
+  /** The target key; equals the base key unless the block was renamed. */
+  key: BlockKey
+  baseKey: BlockKey
+  changes: BlockChange[]
+}
+
+/** A key-based diff of two CWMs. The apply path turns it into an id-based summary. */
+export interface CanonicalDiff {
+  /** True iff every other field is empty. */
+  noop: boolean
+  meta: Array<keyof CanonicalWorkflowMeta>
+  blocks: {
+    added: BlockKey[]
+    removed: BlockKey[]
+    /** Pairs from `renames`; each also appears in `modified` (with a `name` change). */
+    renamed: Array<{ from: BlockKey; to: BlockKey }>
+    modified: CanonicalBlockDiff[]
+  }
+  edges: { added: CanonicalEdge[]; removed: CanonicalEdge[] }
+  variables: { added: VarKey[]; removed: VarKey[]; modified: VarKey[] }
+}
+
 function edgeKey(edge: CanonicalEdge, keyOf: (key: BlockKey) => BlockKey): string {
   return `${keyOf(edge.from)}\u0000${portKey(edge.port)}\u0000${keyOf(edge.to)}`
 }
@@ -69,7 +114,11 @@ function edgeKey(edge: CanonicalEdge, keyOf: (key: BlockKey) => BlockKey): strin
  * names a base key a target block of the same key also claims, is ignored. Edges are compared
  * after mapping target keys to base keys, so a rename alone moves no edge.
  */
-export const diffCanonical: DiffCanonicalFn = (base, target, renames) => {
+export function diffCanonical(
+  base: CanonicalWorkflow,
+  target: CanonicalWorkflow,
+  renames?: ReadonlyMap<BlockKey, BlockKey>
+): CanonicalDiff {
   const pairs = new Map<BlockKey, BlockKey>()
   const claimedBase = new Set<BlockKey>()
   for (const [targetKey, baseKey] of renames ?? []) {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import type { CompileLimits, CompileResult } from '../api'
+import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
+import type { CompileLimits } from './parse'
 import { TEST_CATALOG } from './test-catalog'
 
 /**

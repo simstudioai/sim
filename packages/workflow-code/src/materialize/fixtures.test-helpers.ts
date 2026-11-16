@@ -6,12 +6,12 @@
  */
 
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
-import type { MaterializeHooks, ResourceKeyResolver } from '../api'
 import { canonicalize } from '../canonicalize'
 import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import type { WorkflowLockV1 } from '../lock'
-import type { CanonicalWorkflow } from '../model'
+import type { CanonicalWorkflow, ResourceKeyResolver } from '../model'
+import type { MaterializeHooks } from './context'
 
 function sb(
   fields: Partial<CatalogSubBlock> & Pick<CatalogSubBlock, 'id' | 'type'>

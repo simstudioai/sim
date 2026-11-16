@@ -73,6 +73,16 @@ export interface ResourceNode {
 }
 
 /**
+ * Maps workspace resources between internal ids and stable keys. Implemented server-side over the
+ * workspace's tables, knowledge bases, credentials (idents) and so on; `null` when there is no
+ * mapping.
+ */
+export interface ResourceKeyResolver {
+  toKey(kind: ResourceKind, id: string): string | null
+  toId(kind: ResourceKind, key: string): string | null
+}
+
+/**
  * An internal id the resolver could not map to a key (deleted resource, foreign workspace, or a
  * kind this version does not know). Kept verbatim so materialize writes the same bytes back;
  * canonicalize emits `W_CANON_UNRESOLVED_ID`. `kind` is any resolver kind or `var`.

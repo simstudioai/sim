@@ -2,10 +2,12 @@ import type { ArrowFunctionExpression, CallExpression, Node } from '@babel/types
 import { compareStrings } from '@sim/utils/string'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import { encodeAnchor, portKey } from '../anchors'
-import type { CompileResult, CompileWorkflowFn, SourceHints } from '../api'
-import type { SourceSpan } from '../diagnostics/frame'
+import type { BlockCatalog } from '../catalog/types'
+import type { CompileDiagnosticCode } from '../diagnostics/codes'
+import type { LocatedDiagnostic, SourceSpan } from '../diagnostics/frame'
 import { jsonFieldText, type RefTypeScope, refValueKind } from '../json-fields'
 import { utf8Bytes } from '../limits'
+import type { SourceHints } from '../lock'
 import type {
   AnchorKey,
   BlockKey,
@@ -21,10 +23,45 @@ import { CommentCollector } from './comments'
 import { type CompileContext, rangeOf, recordSpan, type Scope } from './context'
 import { EdgeCollector } from './edges'
 import { didYouMean, HINTS, hintForNode } from './hints'
-import { DEFAULT_LIMITS, parseWorkflowSource } from './parse'
+import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource } from './parse'
 import { Reporter } from './report'
 import { collectBody } from './scope'
 import { compileJsonLiteral, literalText, objectEntries } from './values'
+
+export interface CompileInput {
+  entry: { path: string; text: string }
+  /** Function-code files by repo-relative path; the caller does the I/O. */
+  files: ReadonlyMap<string, string>
+  catalog: BlockCatalog
+  /** The highest `@sim-sdk` major the caller supports. */
+  sdkMajor: number
+  limits?: CompileLimits
+  /**
+   * Block keys already bound to stored ids: the keys of the lock, or of the lock assembled from
+   * `workflow_source_meta`. A `meta.key` override (a legacy `name~n` collision key or a reserved
+   * name) compiles only for one of these, so source can carry a legacy key losslessly but never
+   * introduce one. Absent means no override is accepted.
+   */
+  knownKeys?: ReadonlySet<BlockKey>
+  /**
+   * The stored workflow the source continues, canonicalized as it was printed. `stored()` (what
+   * the printer writes for a secret it never shows) compiles to this workflow's value for the same
+   * block key, type and param. Absent means `stored()` is refused, as for a new workflow.
+   */
+  stored?: CanonicalWorkflow
+}
+
+export interface CompileResult {
+  /** `null` iff any diagnostic is an error. Name-keyed, like every CWM: ids bind in materialize. */
+  workflow: CanonicalWorkflow | null
+  diagnostics: LocatedDiagnostic<CompileDiagnosticCode>[]
+  /** Where each anchor sits, to map later server findings back to lines. */
+  spans: Partial<Record<AnchorKey, SourceSpan>>
+  /** Idents as written, `order` as declaration index, and code files, for the lock. */
+  hints: SourceHints
+  /** The header's major, or `null` when the header is missing. */
+  sdkMajor: number | null
+}
 
 const SDK_MODULE = '@sim/workflow-sdk'
 const VARIABLE_TYPES: ReadonlySet<string> = new Set([
@@ -307,7 +344,7 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
  * references, branches and wiring against the catalog. Nothing in the file is executed: values are
  * read from literal syntax only, and anything else is a located diagnostic.
  */
-export const compileWorkflow: CompileWorkflowFn = (input) => {
+export function compileWorkflow(input: CompileInput): CompileResult {
   const limits = { ...DEFAULT_LIMITS, ...input.limits }
   const file = input.entry.path
   const text = input.entry.text

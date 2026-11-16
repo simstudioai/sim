@@ -503,3 +503,14 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
   if (reader.diagnostics.length > 0) return { diagnostics: reader.diagnostics }
   return { lock: { ...extensions, version: 1, blocks, variables } }
 }
+
+/**
+ * Per-block print hints: the parts of the lock (or of `workflow_source_meta`) the printer
+ * reads and the compiler reports. Keyed by block key, since neither stage
+ * sees ids.
+ */
+export type SourceHintBlock = Partial<Pick<WorkflowLockBlock, 'ident' | 'order' | 'codeFile'>>
+
+export interface SourceHints {
+  blocks: Record<BlockKey, SourceHintBlock>
+}

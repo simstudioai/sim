@@ -1,8 +1,21 @@
 import { type ParserOptions, parse } from '@babel/parser'
 import type { File, Node } from '@babel/types'
-import type { CompileLimits } from '../api'
 import { SOURCE_LIMITS, utf8Bytes } from '../limits'
 import type { Reporter } from './report'
+
+/** Caps on hostile input. Defaults are the shared `SOURCE_LIMITS` (`limits.ts`). */
+export interface CompileLimits {
+  /** Block declarations in the workflow. */
+  maxBlocks?: number
+  /** Bytes of the entry file, and of each code file. */
+  maxFileBytes?: number
+  /** Bytes of the entry plus the distinct code files `codeFile()` references. */
+  maxTotalBytes?: number
+  /** Nesting depth of the entry file, and bracket depth of each JavaScript code file. */
+  maxDepth?: number
+  /** `codeFile()` references across the workflow, distinct or not. */
+  maxCodeFileRefs?: number
+}
 
 /**
  * Default caps on hostile input: the shared source limits, so whatever a get prints

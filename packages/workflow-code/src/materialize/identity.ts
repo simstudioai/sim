@@ -1,17 +1,40 @@
 import type { BlockState } from '@sim/workflow-types/workflow'
-import type {
-  CanonicalizeResult,
-  IdentityEntry,
-  IdentityMatchRule,
-  MaterializeHooks,
-  MaterializeOptions,
-} from '../api'
+import type { CanonicalizeResult } from '../canonicalize'
 import type { BlockCatalog } from '../catalog/types'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { WorkflowLockV1 } from '../lock'
 import type { BlockKey, CanonicalWorkflow } from '../model'
-import { catalogBlock, report } from './context'
+import { catalogBlock, type MaterializeHooks, report } from './context'
+
+/** How identity rule matched a compiled block to a stored one (rules 1–4). */
+export type IdentityMatchRule = 'lock-key' | 'lock-ident' | 'db-name' | 'inferred'
+
+/** One block's identity outcome, for plan output and audit. */
+export type IdentityEntry =
+  | {
+      status: 'matched'
+      key: BlockKey
+      id: string
+      via: IdentityMatchRule
+      /** Set when the display name changed. */
+      renamedFrom?: string
+      /** Set for a catalog `sunset.replacedBy` retype that keeps the id. */
+      retypedFrom?: string
+      /** Set when the parent changed; `null` means it was at the root. */
+      reparentedFrom?: BlockKey | null
+    }
+  | {
+      status: 'created'
+      key: BlockKey
+      id: string
+      /** `lock` when the lock's id was unclaimed and reused, else `minted`. */
+      idSource: 'lock' | 'minted'
+    }
+  | { status: 'deleted'; key: BlockKey; id: string }
+
+/** How the lock relates to the stored graph (`MaterializeOptions.lockFreshness`). */
+export type LockFreshness = 'fresh' | 'stale' | 'none'
 
 /** The stored graph being replaced, with its canonical projection (keys, identity). */
 interface PrevGraph {
@@ -43,7 +66,7 @@ interface IdentityInputs {
   prev: PrevGraph | null
   catalog: BlockCatalog
   hooks: MaterializeHooks
-  freshness: MaterializeOptions['lockFreshness']
+  freshness: LockFreshness
   compiledIdents: Record<BlockKey, string> | undefined
   inferRenames: boolean
   diagnostics: Diagnostic<MaterializeDiagnosticCode>[]

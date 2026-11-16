@@ -19,7 +19,6 @@ import {
   type WorkflowToolForm,
 } from '../agent-tools'
 import { portKey } from '../anchors'
-import type { PrintInput, PrintResult, PrintWorkflowFn, SourceHintBlock, SourceHints } from '../api'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { canonicalActivityInputs, executableInactiveParams, isInactive } from '../catalog/activity'
 import { type EditorDefault, editorDefaults } from '../catalog/defaults'
@@ -41,7 +40,7 @@ import {
   type RefTypeScope,
   refValueKind,
 } from '../json-fields'
-import { isJson } from '../lock'
+import { isJson, type SourceHintBlock, type SourceHints } from '../lock'
 import type {
   AnchorKey,
   BlockKey,
@@ -64,6 +63,35 @@ import { RefPrinter, type RefScope, referencedHeads } from './refs'
 import { printKey, printMember, quoteString } from './strings'
 import { arrayExpr, arrowExpr, callExpr, type Expr, objectExpr, type Property } from './syntax'
 import { type FieldContext, type PrintedValue, type Tag, ValuePrinter } from './values'
+
+export interface PrintOptions {
+  /** `files`: function code in `codeDir` files (repo mode); `inline`: `js``...``. */
+  functionCode: 'inline' | 'files'
+  /** Repo-relative directory for code files; required when `functionCode` is `files`. */
+  codeDir?: string
+  /** Defaults to 100 (biome.json). */
+  lineWidth?: number
+}
+
+export interface PrintInput {
+  workflow: CanonicalWorkflow
+  catalog: BlockCatalog
+  hints?: SourceHints
+  options: PrintOptions
+}
+
+export interface PrintedFile {
+  path: string
+  text: string
+}
+
+export interface PrintResult {
+  /** The workflow file first, then code files. */
+  files: [PrintedFile, ...PrintedFile[]]
+  /** Input hints plus an ident, order and code file for every block. */
+  hints: SourceHints
+  diagnostics: Diagnostic<PrintDiagnosticCode>[]
+}
 
 const DEFAULT_WIDTH = 100
 const DEFAULT_CODE_DIR = 'functions'
@@ -1423,4 +1451,10 @@ function compareImportNames(a: string, b: string): number {
   return compareStrings(a, b)
 }
 
-export const printWorkflow: PrintWorkflowFn = (input) => new WorkflowPrinter(input).print()
+/**
+ * Prints a CWM as a source file. Its output always compiles with zero errors: a block
+ * whose type has no catalog builder prints through `block(type, name, params, meta?)`.
+ */
+export function printWorkflow(input: PrintInput): PrintResult {
+  return new WorkflowPrinter(input).print()
+}

@@ -3,9 +3,9 @@
  * key order of every object (jsonb does not keep it) and the order of `edges`.
  */
 
-import type { CanonicalEqualsFn, CanonicalHashFn, SourceFingerprintFn } from '../api'
 import { compareEdges } from '../canonicalize/edges'
 import { sha256Hex, stableStringify } from '../hash'
+import type { LockIdentity, SourceFingerprint } from '../lock'
 import type { CanonicalWorkflow } from '../model'
 import { deepEqual } from '../records'
 
@@ -21,16 +21,23 @@ function semantic(workflow: CanonicalWorkflow) {
 }
 
 /** Structural equality, total (never throws). */
-export const canonicalEquals: CanonicalEqualsFn = (a, b) => deepEqual(semantic(a), semantic(b))
+export function canonicalEquals(a: CanonicalWorkflow, b: CanonicalWorkflow): boolean {
+  return deepEqual(semantic(a), semantic(b))
+}
 
 /** `sha256Hex(stableStringify(workflow minus annotations))`. Equal CWMs hash alike. */
-export const canonicalHash: CanonicalHashFn = (workflow) =>
-  sha256Hex(stableStringify(semantic(workflow)))
+export function canonicalHash(workflow: CanonicalWorkflow): string {
+  return sha256Hex(stableStringify(semantic(workflow)))
+}
 
 /**
  * `sf1:` + `sha256Hex(stableStringify({ workflow, identity }))`. The CWM
  * part already carries variables and locked flags and has no layout, and the identity adds the
  * ids, so a canvas drag never changes it while any rename, re-id or edit does.
  */
-export const sourceFingerprint: SourceFingerprintFn = (workflow, identity) =>
-  `sf1:${sha256Hex(stableStringify({ workflow: semantic(workflow), identity }))}`
+export function sourceFingerprint(
+  workflow: CanonicalWorkflow,
+  identity: LockIdentity
+): SourceFingerprint {
+  return `sf1:${sha256Hex(stableStringify({ workflow: semantic(workflow), identity }))}`
+}

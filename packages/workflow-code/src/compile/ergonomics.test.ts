@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { CompileResult } from '../api'
 import type { CanonicalWorkflow } from '../model'
 import { printWorkflow } from '../print'
 import { quoteString } from '../print/strings'
+import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
 import { TEST_CATALOG } from './test-catalog'
 

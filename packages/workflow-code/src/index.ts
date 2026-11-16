@@ -1,36 +1,9 @@
 export { decodeAnchor, encodeAnchor, parsePortKey, portKey } from './anchors'
-export type {
-  BlockAttribute,
-  BlockChange,
-  CanonicalBlockDiff,
-  CanonicalDiff,
-  CanonicalEqualsFn,
-  CanonicalHashFn,
-  CanonicalizeFn,
-  CanonicalizeOptions,
-  CanonicalizeResult,
-  CompileInput,
-  CompileLimits,
-  CompileResult,
-  CompileWorkflowFn,
-  DiffCanonicalFn,
-  IdentityEntry,
-  IdentityMatchRule,
-  MaterializeFn,
-  MaterializeHooks,
-  MaterializeOptions,
-  MaterializeResult,
-  PrintedFile,
-  PrintInput,
-  PrintOptions,
-  PrintResult,
-  PrintWorkflowFn,
-  ResourceKeyResolver,
-  SourceFingerprintFn,
-  SourceHintBlock,
-  SourceHints,
-} from './api'
-export { canonicalize } from './canonicalize'
+export {
+  type CanonicalizeOptions,
+  type CanonicalizeResult,
+  canonicalize,
+} from './canonicalize'
 export { executableInactiveParams } from './catalog/activity'
 export { type CompactedBlockCatalog, compactBlockCatalog } from './catalog/compact'
 export type {
@@ -87,7 +60,8 @@ export {
   isIdentifierName,
   toCodeFile,
 } from './code-files'
-export { compileWorkflow } from './compile'
+export { type CompileInput, type CompileResult, compileWorkflow } from './compile'
+export type { CompileLimits } from './compile/parse'
 export type {
   ApplyDiagnosticCode,
   CanonicalizeDiagnosticCode,
@@ -114,7 +88,14 @@ export {
   type LocatedDiagnostic,
   type SourceSpan,
 } from './diagnostics/frame'
-export { diffCanonical, renamesBetween } from './diff'
+export {
+  type BlockAttribute,
+  type BlockChange,
+  type CanonicalBlockDiff,
+  type CanonicalDiff,
+  diffCanonical,
+  renamesBetween,
+} from './diff'
 export { canonicalEquals, canonicalHash, sourceFingerprint } from './equivalence'
 export {
   type ExecutableBlock,
@@ -134,10 +115,18 @@ export {
   parseWorkflowLock,
   type SourceBase,
   type SourceFingerprint,
+  type SourceHintBlock,
+  type SourceHints,
   type WorkflowLockBlock,
   type WorkflowLockV1,
 } from './lock'
-export { materialize } from './materialize'
+export {
+  type MaterializeOptions,
+  type MaterializeResult,
+  materialize,
+} from './materialize'
+export type { MaterializeHooks } from './materialize/context'
+export type { IdentityEntry, IdentityMatchRule } from './materialize/identity'
 export type {
   Anchor,
   AnchorKey,
@@ -162,6 +151,7 @@ export type {
   ParamMode,
   Port,
   PortKey,
+  ResourceKeyResolver,
   ResourceKind,
   ResourceNode,
   SimNode,
@@ -172,7 +162,14 @@ export type {
   VarNode,
   WorkflowAnnotations,
 } from './model'
-export { assignIdentifiers, printWorkflow } from './print'
+export {
+  assignIdentifiers,
+  type PrintedFile,
+  type PrintInput,
+  type PrintOptions,
+  type PrintResult,
+  printWorkflow,
+} from './print'
 export { parseJsonContainer, setOwn } from './records'
 export { GENERIC_BUILDER, SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from './sdk'
 export {

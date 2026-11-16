@@ -5,7 +5,6 @@ import type {
   Node,
 } from '@babel/types'
 import { encodeAnchor } from '../anchors'
-import type { CompileLimits } from '../api'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder } from '../catalog/types'
 import type { SourceSpan } from '../diagnostics/frame'
 import type { JsonTree } from '../json-fields'
@@ -20,6 +19,7 @@ import type {
   VarKey,
 } from '../model'
 import type { AddCommentItem, CommentCollector } from './comments'
+import type { CompileLimits } from './parse'
 import type { Range, Reporter } from './report'
 
 /** How a block call was resolved against the SDK surface and the catalog. */

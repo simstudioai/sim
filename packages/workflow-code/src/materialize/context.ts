@@ -1,11 +1,21 @@
-import type { MaterializeHooks, ResourceKeyResolver } from '../api'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
 import { catalogBlock as catalogBlockOf } from '../catalog/view'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
-import type { VarKey } from '../model'
+import type { ResourceKeyResolver, VarKey } from '../model'
 
 /** State shared by the materialize steps of one call. */
+/** Server callbacks materialize needs; implemented in `apps/sim/lib/workflows/code/`. */
+export interface MaterializeHooks {
+  /** A fresh block with editor defaults, wrapping editing/builders. */
+  initBlock(input: { id: string; type: string; name: string; triggerMode: boolean }): BlockState
+  /** Stored `outputs` for a new or changed block, wrapping `getEffectiveBlockOutputs`. */
+  computeOutputs(block: BlockState): BlockState['outputs']
+  /** A new UUID for a block, branch row, item or variable. */
+  newId(): string
+}
+
 export interface MaterializeContext {
   catalog: BlockCatalog
   hooks: MaterializeHooks
