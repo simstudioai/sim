@@ -426,7 +426,8 @@ function parseArrayInput(value: unknown): unknown {
   }
 }
 
-const ROUTER_ROUTE_KEYS: ReadonlySet<string> = new Set(['id', 'title', 'value'])
+/** `key` is the optional persisted branch key (s1 D2b), which the runtime ignores. */
+const ROUTER_ROUTE_KEYS: ReadonlySet<string> = new Set(['id', 'title', 'value', 'key'])
 const ROUTER_ROUTE_SHAPE =
   'a route is {id?, title, value}; "value" holds the description the model reads'
 

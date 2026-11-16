@@ -354,6 +354,31 @@ describe('createBlockFromParams', () => {
     expect(parsed[1].id).toBe('condition-1-else')
   })
 
+  it('keeps each row key when it renumbers condition and router branch ids (s1 D2b)', () => {
+    const condition = createBlockFromParams('cond-1', {
+      type: 'condition',
+      name: 'Condition 1',
+      inputs: {
+        conditions: JSON.stringify([
+          { id: 'x', title: 'if', value: 'a', key: 'isVip' },
+          { id: 'y', title: 'else if', value: 'b', key: 'isTrial' },
+          { id: 'z', title: 'else', value: '' },
+        ]),
+      },
+      triggerMode: false,
+    })
+    expect(
+      JSON.parse(condition.subBlocks.conditions.value).map((row: { id: string; key?: string }) => [
+        row.id,
+        row.key,
+      ])
+    ).toEqual([
+      ['cond-1-if', 'isVip'],
+      ['cond-1-else-if-0', 'isTrial'],
+      ['cond-1-else', undefined],
+    ])
+  })
+
   it('persists knowledge tag subblocks as JSON strings, not raw arrays', () => {
     const block = createBlockFromParams('kb-1', {
       type: 'knowledge',

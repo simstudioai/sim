@@ -79,6 +79,8 @@ interface SanitizedCondition {
   id: string
   title: string
   value: string
+  /** The persisted branch key (s1 D2b); kept so an edit that echoes the rows keeps it. */
+  key?: string
 }
 
 function toSanitizedCondition(condition: unknown): SanitizedCondition {
@@ -87,6 +89,7 @@ function toSanitizedCondition(condition: unknown): SanitizedCondition {
     id: String(record.id ?? ''),
     title: String(record.title ?? ''),
     value: String(record.value ?? ''),
+    ...(typeof record.key === 'string' && { key: record.key }),
   }
 }
 
@@ -156,7 +159,7 @@ function sanitizeConditions(conditionsJson: string): string {
     const conditions: unknown = JSON.parse(conditionsJson)
     if (!Array.isArray(conditions)) return conditionsJson
 
-    // Keep only id, title, and value - remove UI state
+    // Keep only id, title, value and key - remove UI state
     const cleaned: SanitizedCondition[] = conditions.map(toSanitizedCondition)
 
     return JSON.stringify(cleaned)

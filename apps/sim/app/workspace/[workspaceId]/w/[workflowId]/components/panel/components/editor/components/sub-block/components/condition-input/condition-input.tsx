@@ -75,6 +75,11 @@ interface ConditionalBlock {
   id: string
   /** Block title (if/else if/else) */
   title: string
+  /**
+   * Persisted branch key (s1 D2b) written by code apply or the copilot; every edit here spreads
+   * the row, so it survives reorders and title renumbering untouched.
+   */
+  key?: string
   /** Code content of the condition */
   value: string
   /** Whether tag dropdown is visible */
