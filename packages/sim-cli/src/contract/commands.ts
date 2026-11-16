@@ -645,6 +645,9 @@ export const CLI_CONTRACT: CliContract = {
   },
   /** `workflows source apply --from <dir>` reads and writes a source directory by hand. */
   applyWorkflowSource: { hidden: true },
+  // The ETag revalidation header is for a client that caches the catalog, as `workflows source
+  // get --out` does by hand; a one-off read has no cached hash to send.
+  getBlockCatalog: { flags: { 'if-none-match': { omit: true } } },
   replaceWorkflowState: {
     command: 'workflows state replace',
     confirm: 'This replaces the entire draft graph and cannot be undone.',

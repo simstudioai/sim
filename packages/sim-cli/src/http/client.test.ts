@@ -449,6 +449,8 @@ describe('destructive operations are gated', () => {
     // the caller last chose.
     'activateWorkflowVersion',
     'applyWorkflowOperations',
+    // Replaces the draft with the submitted source: blocks the file no longer declares are removed.
+    'applyWorkflowSource',
     'applyWorkflowVariables',
     'archiveProjectFileItems',
     'bulkDeleteFiles',

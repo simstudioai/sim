@@ -944,7 +944,12 @@ describe('headers the route contract declares', () => {
    * instead of the declared header names is what let `--upload-token` through.
    */
   it('exposes no flag spelled as a raw HTTP header', () => {
-    expect([...HEADER_WIRE_FLAGS].sort()).toEqual(['--upload-token', '--x-run-id', '--x-sim-via'])
+    expect([...HEADER_WIRE_FLAGS].sort()).toEqual([
+      '--if-none-match',
+      '--upload-token',
+      '--x-run-id',
+      '--x-sim-via',
+    ])
     expect(wireSpelledFlags(buildProgram())).toEqual([])
 
     const workflowRun = buildProgram()
