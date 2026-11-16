@@ -78,8 +78,23 @@ describe('native search network boundary', () => {
     await clientFor('https://slack.com').text('/files-pri/T1-F1/plan', undefined, {
       service: 'slackFiles',
     })
-    expect(inputValidationMockFns.mockSecureFetchWithValidation).toHaveBeenCalledWith(
+    expect(inputValidationMockFns.mockSecureFetchWithValidation).toHaveBeenLastCalledWith(
       'https://files.slack.com/files-pri/T1-F1/plan',
+      expect.objectContaining({ maxRedirects: 3 })
+    )
+    expect(
+      inputValidationMockFns.mockSecureFetchWithValidation.mock.lastCall?.[1]
+    ).not.toHaveProperty('redirectPolicy')
+  })
+  it('never follows a redirect from a provider API', async () => {
+    const client = createNativeClient({
+      origin: 'https://slack.com',
+      accessToken: 'private',
+      signal: new AbortController().signal,
+    })
+    await client.json('/api/files.info')
+    expect(inputValidationMockFns.mockSecureFetchWithValidation).toHaveBeenLastCalledWith(
+      'https://slack.com/api/files.info',
       expect.objectContaining({ maxRedirects: 0 })
     )
   })

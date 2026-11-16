@@ -32,17 +32,23 @@ export const NATIVE_RESPONSE_MAX_BYTES = 4 * 1024 * 1024
 
 /**
  * Sibling hosts a provider's token may reach, each only from its own provider origin: Google
- * serves Sheets apart from Drive, and Slack serves file contents apart from its Web API.
+ * serves Sheets apart from Drive, and Slack serves file contents apart from its Web API. Slack
+ * redirects some file downloads, so its file host follows a few redirects: a hop that stays on
+ * the file host keeps the token, and a hop to any other origin carries no headers at all.
  */
 const NATIVE_SERVICES = {
-  sheets: { origin: 'https://www.googleapis.com', hostname: 'sheets.googleapis.com' },
-  slackFiles: { origin: 'https://slack.com', hostname: 'files.slack.com' },
+  sheets: {
+    origin: 'https://www.googleapis.com',
+    hostname: 'sheets.googleapis.com',
+    maxRedirects: 0,
+  },
+  slackFiles: { origin: 'https://slack.com', hostname: 'files.slack.com', maxRedirects: 3 },
 } as const
 
 /** A sibling host a request may target instead of its client's provider origin. */
 export type NativeService = keyof typeof NATIVE_SERVICES
 
-/** Tokens only go to a code-selected provider origin; redirects never carry credentials. */
+/** Tokens only go to a code-selected provider origin; a redirect never carries them elsewhere. */
 export function createNativeClient(input: {
   origin: string
   accessToken: string
@@ -76,8 +82,8 @@ export function createNativeClient(input: {
             'request_budget_exceeded'
           )
         const url = new URL(input.origin)
-        if (options?.service) {
-          const service = NATIVE_SERVICES[options.service]
+        const service = options?.service ? NATIVE_SERVICES[options.service] : undefined
+        if (service) {
           if (url.origin !== service.origin) throw new Error('Invalid provider service')
           url.hostname = service.hostname
         }
@@ -104,7 +110,7 @@ export function createNativeClient(input: {
           signal,
           timeout: 10_000,
           maxResponseBytes: NATIVE_RESPONSE_MAX_BYTES,
-          maxRedirects: 0,
+          maxRedirects: service?.maxRedirects ?? 0,
           acceptCompressed: true,
           connectionPool: input.pool,
         })
