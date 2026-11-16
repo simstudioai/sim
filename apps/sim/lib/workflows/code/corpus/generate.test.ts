@@ -10,6 +10,7 @@ vi.unmock('@/blocks/registry')
 vi.unmock('@/tools/registry')
 
 import {
+  CORPUS_CRLF_TEXT,
   CORPUS_TEXT,
   CORPUS_TEXT_MARKERS,
   type CorpusCase,
@@ -112,7 +113,7 @@ describe('generateRegistryCorpus', () => {
     for (const text of new Set(texts)) {
       for (const marker of CORPUS_TEXT_MARKERS) expect(text).toContain(marker)
     }
-    expect(texts.every((t) => t === CORPUS_TEXT)).toBe(true)
+    expect(texts.every((t) => t === CORPUS_TEXT || t === CORPUS_CRLF_TEXT)).toBe(true)
   })
 
   it('covers every pairwise dimension the proof needs', () => {
@@ -128,17 +129,23 @@ describe('generateRegistryCorpus', () => {
       'input-format',
       'variables',
       'unknown-type',
+      'shape',
+      'unicode-names',
+      'crlf-text',
+      'agent-tools',
     ]) {
       expect(kinds).toContain(kind)
     }
     expect(corpus.some((c) => c.id.endsWith(':advanced'))).toBe(true)
     expect(corpus.some((c) => c.id === 'branches:condition:null-rows')).toBe(true)
-    const toolLists = known.flatMap((c) =>
-      Object.values(c.state.blocks).flatMap((b) => {
-        const tools = b.subBlocks.tools?.value
-        return b.subBlocks.tools?.type === 'tool-input' && Array.isArray(tools) ? [tools] : []
-      })
-    )
+    const toolLists = known
+      .filter((c) => c.kind !== 'agent-tools')
+      .flatMap((c) =>
+        Object.values(c.state.blocks).flatMap((b) => {
+          const tools = b.subBlocks.tools?.value
+          return b.subBlocks.tools?.type === 'tool-input' && Array.isArray(tools) ? [tools] : []
+        })
+      )
     expect(toolLists.length).toBeGreaterThan(0)
     for (const tools of toolLists) {
       const types = tools.map((t) => (t as { type?: string }).type)
