@@ -6,7 +6,7 @@ import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { mintsFreshValue } from '../catalog/defaults'
 import type { LockItem, LockLayout, WorkflowLockBlock } from '../lock'
 import type { BlockKey, BranchKey, CanonicalBlock, SubBlockId } from '../model'
-import { deepEqual } from '../records'
+import { deepEqual, parseJsonContainer } from '../records'
 import { writeBranches } from './branches'
 import { catalogBlock, type MaterializeContext } from './context'
 import type { ResolvedBlock } from './identity'
@@ -88,12 +88,8 @@ function unliftedBranchIds(
   raw: unknown
 ): Record<BranchKey, string> {
   if (Array.isArray(raw)) return {}
-  if (typeof raw !== 'string' || raw.trim() === '') return implicitIds(kind, blockId)
-  try {
-    return Array.isArray(JSON.parse(raw)) ? {} : implicitIds(kind, blockId)
-  } catch {
-    return implicitIds(kind, blockId)
-  }
+  if (typeof raw === 'string' && Array.isArray(parseJsonContainer(raw))) return {}
+  return implicitIds(kind, blockId)
 }
 
 function rawValues(subBlocks: Record<string, SubBlockState>): Record<string, unknown> {

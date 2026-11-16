@@ -11,7 +11,7 @@
 
 import { isRecordLike } from '@sim/utils/object'
 import { compareStrings, escapeRegExp } from '@sim/utils/string'
-import { setOwn } from '@sim/workflow-code'
+import { parseJsonContainer, setOwn } from '@sim/workflow-code'
 import { normalizeWorkflowBlockName, type WorkflowState } from '@sim/workflow-types/workflow'
 import {
   type Difference,
@@ -194,15 +194,8 @@ function sortSubflowNodes(subflows: Record<string, unknown>): Record<string, unk
 /** Decodes JSON-text strings (objects and arrays only) recursively; everything else as is. */
 function decodeStructured(value: unknown): unknown {
   if (typeof value === 'string') {
-    const trimmed = value.trim()
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      try {
-        return decodeStructured(JSON.parse(trimmed))
-      } catch {
-        return value
-      }
-    }
-    return value
+    const decoded = parseJsonContainer(value)
+    return decoded === undefined ? value : decodeStructured(decoded)
   }
   if (Array.isArray(value)) return value.map(decodeStructured)
   if (isRecordLike(value)) {

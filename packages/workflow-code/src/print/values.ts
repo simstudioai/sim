@@ -7,6 +7,7 @@
 
 import type { CatalogSubBlock } from '../catalog/types'
 import type { BlockKey, Json, SimNode, Value } from '../model'
+import { parseJsonContainer } from '../records'
 import { type Doc, literalText } from './doc'
 import type { RefPrinter } from './refs'
 import { escapeTemplateText, printKey, printNumber, quoteString } from './strings'
@@ -184,13 +185,8 @@ function nestedTag(context: FieldContext): Tag {
  * as that literal (s2 D7); anything else stays `json```.
  */
 function jsonSugar(text: string): Json | undefined {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(text)
-  } catch {
-    return undefined
-  }
-  if (parsed === null || typeof parsed !== 'object') return undefined
+  const parsed = parseJsonContainer(text)
+  if (parsed === undefined) return undefined
   if (JSON.stringify(parsed, null, 2) !== text) return undefined
   if (containsSimKey(parsed)) return undefined
   return parsed as Json
