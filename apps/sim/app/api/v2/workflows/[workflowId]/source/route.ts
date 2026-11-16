@@ -15,12 +15,16 @@ export const revalidate = 0
 
 /**
  * GET /api/v2/workflows/[workflowId]/source — the draft as TypeScript source with its identity
- * lock and freshness fingerprint. Head-safe and unaudited, like `GET .../state`, which it
- * projects. Answers 403 while the `workflow-code` flag is off.
+ * lock and freshness fingerprint. Unaudited, like `GET .../state`, which it projects. Answers 403
+ * while the `workflow-code` flag is off.
+ *
+ * `headSafe: false` because the first read that references a resource with no key allocates one
+ * (`workspace_resource_binding`), so a `HEAD` probe must not run it.
  */
 export const GET = defineV2JsonRoute({
   contract: v2GetWorkflowSourceContract,
   auth: v2ApiKeyAuth,
+  headSafe: false,
   operation: workflowOperations.readSource,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,

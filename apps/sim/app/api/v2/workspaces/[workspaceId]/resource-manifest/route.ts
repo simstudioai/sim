@@ -11,10 +11,14 @@ export const revalidate = 0
  * GET /api/v2/workspaces/{workspaceId}/resource-manifest — the tables, knowledge bases, credential
  * bindings, workflows and env names workflow source can name, by key. Answers 403 while the
  * `workflow-code` flag is off.
+ *
+ * `headSafe: false` because listing a resource that has no key yet allocates one
+ * (`workspace_resource_binding`), so a `HEAD` probe must not run it.
  */
 export const GET = defineV2JsonRoute({
   contract: v2GetResourceManifestContract,
   auth: v2ApiKeyAuth,
+  headSafe: false,
   operation: workflowCodeOperations.readResourceManifest,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: catalogErrorPolicy,

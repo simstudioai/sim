@@ -10,13 +10,14 @@ import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/post
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), apply: vi.fn() }))
+const mocks = vi.hoisted(() => ({ read: vi.fn(), authorizeRead: vi.fn(), apply: vi.fn() }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/lib/workflows/application/get-workflow-source', () => ({
   getWorkflowSource: {
     operation: { id: 'workflows.source.read' },
+    authorize: mocks.authorizeRead,
     execute: mocks.read,
   },
 }))
@@ -84,6 +85,21 @@ describe('GET /api/v2/workflows/{workflowId}/source', () => {
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.read.mockResolvedValue(source)
+    mocks.authorizeRead.mockResolvedValue(undefined)
+  })
+
+  it('answers HEAD after authorizing without reading, so a probe never allocates resource keys', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/workflows/${WORKFLOW_ID}/source`, {
+        method: 'HEAD',
+        headers: { 'x-api-key': 'key' },
+      }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.authorizeRead).toHaveBeenCalledTimes(1)
+    expect(mocks.read).not.toHaveBeenCalled()
   })
 
   it('passes annotateIds as a boolean and functionCode through, omitting absent flags', async () => {

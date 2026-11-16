@@ -9,13 +9,14 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const mocks = vi.hoisted(() => ({ read: vi.fn() }))
+const mocks = vi.hoisted(() => ({ read: vi.fn(), authorize: vi.fn() }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/lib/workflows/code/resource-manifest', () => ({
   readResourceManifest: {
     operation: { id: 'workflows.code.resource_manifest.read' },
+    authorize: mocks.authorize,
     execute: mocks.read,
   },
 }))
@@ -78,6 +79,21 @@ describe('GET /api/v2/workspaces/{workspaceId}/resource-manifest', () => {
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.read.mockResolvedValue(manifest)
+    mocks.authorize.mockResolvedValue(undefined)
+  })
+
+  it('answers HEAD after authorizing without reading, so a probe never allocates resource keys', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/resource-manifest`, {
+        method: 'HEAD',
+        headers: { 'x-api-key': 'key' },
+      }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.authorize).toHaveBeenCalledTimes(1)
+    expect(mocks.read).not.toHaveBeenCalled()
   })
 
   it('returns the manifest the use case read, for the workspace in the path', async () => {
