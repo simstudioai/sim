@@ -459,6 +459,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
           description: wf.description,
           folderId: wf.folderId,
           sortOrder: wf.sortOrder,
+          codeMeta: wf.codeMeta,
         },
         workflowIdMap,
         folderIdMap,

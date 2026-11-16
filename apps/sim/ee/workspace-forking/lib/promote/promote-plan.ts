@@ -42,6 +42,8 @@ export interface ForkPromotePlanItem {
     sortOrder: number
     /** Source's public-API flag, carried onto the written target (see copyWorkflowStateIntoTarget). */
     isPublicApi: boolean
+    /** Source's stored `workflow.code_meta`, re-keyed onto the written target. */
+    codeMeta?: unknown
   }
 }
 
@@ -213,6 +215,7 @@ export function buildForkPromotePlanItems(params: {
         folderId: source.folderId,
         sortOrder: source.sortOrder,
         isPublicApi: source.isPublicApi,
+        codeMeta: source.codeMeta,
       },
     })
   }
