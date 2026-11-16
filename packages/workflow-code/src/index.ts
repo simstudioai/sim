@@ -127,12 +127,7 @@ export {
   type SourceSpan,
 } from './diagnostics/frame'
 export { diffCanonical, renamesBetween } from './diff'
-export {
-  canonicalEquals,
-  canonicalHash,
-  executableEquals,
-  sourceFingerprint,
-} from './equivalence'
+export { canonicalEquals, canonicalHash, sourceFingerprint } from './equivalence'
 export {
   type ExecutableBlock,
   type ExecutableSubflow,

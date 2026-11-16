@@ -282,7 +282,7 @@ instead of failing at run time.
     off-type loop/parallel fields and spellings the runtime reads alike (`count || 5`,
     `collection || ''`, clamped `batchSize`), and unknown `block.data` (a container keeps the
     subflow keys canonicalize could not read, which the serializer passes through). It takes the
-    catalog, which the pair and activity rules need. P0 and P1 compare it (`executableEquals`);
+    catalog, which the pair and activity rules need. P0 and P1 compare it;
     O1 still compares stored bytes, and the new **P6** asserts that materializing the compiled lean
     print over prev is byte-identical to the stored workflow (a no-op apply changes nothing).
   - **The printer is lean by default.** It leaves out inactive values, `picked()` (a plain id is
