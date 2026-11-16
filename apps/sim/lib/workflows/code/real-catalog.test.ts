@@ -82,7 +82,7 @@ describe('canonicalize and codegen over the real block catalog', () => {
     expect(missing).toEqual([])
   })
 
-  it('generates SDK types the s2 example workflows type-check against', () => {
+  it('generates SDK types the example workflows type-check against', () => {
     const files = generateSdkTypes(catalog)
     for (const file of files) {
       const target = path.join(workDir, 'types', file.path)
