@@ -4,7 +4,14 @@
  * map, splits each dotted path into namespaces, and names the generated type aliases after it.
  */
 
-import { type BlockCatalog, type CatalogBuilder, SDK_CORE_EXPORTS } from '@sim/workflow-code'
+import {
+  type BlockCatalog,
+  type CatalogBuilder,
+  catalogBlock,
+  catalogBuilder,
+  catalogBuilderPaths,
+  SDK_CORE_EXPORTS,
+} from '@sim/workflow-code'
 import { isIdentifier, pascal, RESERVED_WORDS } from './emit'
 
 /**
@@ -75,7 +82,7 @@ function compareKeys(a: string, b: string): number {
  * `tool` segment that would hide the tool form, or a builder whose block type is missing.
  */
 export function builderEntries(catalog: BlockCatalog): BuilderEntry[] {
-  const keys = Object.keys(catalog.builders).sort(compareKeys)
+  const keys = catalogBuilderPaths(catalog).sort(compareKeys)
   const entries: BuilderEntry[] = []
   const namespaces = new Set<string>()
   for (const key of keys) {
@@ -83,7 +90,8 @@ export function builderEntries(catalog: BlockCatalog): BuilderEntry[] {
     for (let depth = 1; depth < path.length; depth++) namespaces.add(path.slice(0, depth).join('.'))
   }
   for (const key of keys) {
-    const builder = catalog.builders[key]
+    const builder = catalogBuilder(catalog, key)
+    if (!builder) continue
     const path = key.split('.')
     for (const segment of path) {
       if (!isIdentifier(segment) || RESERVED_WORDS.has(segment)) {
@@ -92,7 +100,7 @@ export function builderEntries(catalog: BlockCatalog): BuilderEntry[] {
         )
       }
     }
-    if (!catalog.blocks[builder.type]) {
+    if (!catalogBlock(catalog, builder.type)) {
       throw new Error(
         `sdk codegen: builder \`${key}\` names unknown block type \`${builder.type}\``
       )

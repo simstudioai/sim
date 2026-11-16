@@ -4,6 +4,7 @@ import {
   type WorkflowEdgeScopeBlock,
 } from '@sim/workflow-types/workflow'
 import { portKey } from '../anchors'
+import { catalogBlock } from '../catalog/view'
 import type { AnchorKey, CanonicalBlock, CanonicalEdge, Port } from '../model'
 import {
   type BlockDecl,
@@ -92,8 +93,8 @@ export class EdgeCollector {
     const source = this.blocks.get(from.key)
     const target = this.blocks.get(to.key)
     if (!source || !target) return false
-    const sourceCatalog = catalogBlockOf(from) ?? this.ctx.catalog.blocks[source.type]
-    const targetCatalog = catalogBlockOf(to) ?? this.ctx.catalog.blocks[target.type]
+    const sourceCatalog = catalogBlockOf(from) ?? catalogBlock(this.ctx.catalog, source.type)
+    const targetCatalog = catalogBlockOf(to) ?? catalogBlock(this.ctx.catalog, target.type)
     if (sourceCatalog?.graph.annotationOnly || targetCatalog?.graph.annotationOnly) {
       this.error('E_EDGE_NOTE', 'Notes cannot be wired.', node, 'Remove this edge.')
       return false

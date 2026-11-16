@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest'
 import type { LockHints } from '../api'
+import { catalogBlock } from '../catalog/view'
 import type { CanonicalWorkflow } from '../model'
 import { cases } from './__fixtures__/cases'
 import { catalog } from './__fixtures__/catalog'
@@ -47,7 +48,7 @@ const EDITABLE_TYPES = new Set(['short-input', 'long-input', 'combobox'])
 function editableParams(workflow: CanonicalWorkflow): Array<[string, string]> {
   const pairs: Array<[string, string]> = []
   for (const block of Object.values(workflow.blocks)) {
-    const subBlocks = catalog.blocks[block.type]?.subBlocks ?? []
+    const subBlocks = catalogBlock(catalog, block.type)?.subBlocks ?? []
     for (const [id, param] of Object.entries(block.params)) {
       if (param.kind !== 'value' || typeof param.value !== 'string') continue
       if (!/^[\w .:/-]+$/.test(param.value)) continue

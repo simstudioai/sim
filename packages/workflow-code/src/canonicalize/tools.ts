@@ -1,6 +1,7 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { type CanonicalModeOverrides, scopeCanonicalModesForTool } from '../catalog/canonical-index'
 import type { CatalogSubBlock } from '../catalog/types'
+import { catalogTool } from '../catalog/view'
 import type { BlockKey, CanonicalTool, Json, Value } from '../model'
 import { type CanonContext, catalogBlock } from './context'
 import { effectiveModes } from './modes'
@@ -106,10 +107,7 @@ function liftTool(
   const type = stored.type
   const block = catalogBlock(context, type)
   const toolId = typeof stored.toolId === 'string' ? stored.toolId : undefined
-  const toolDeclaration =
-    toolId && context.catalog.tools && Object.hasOwn(context.catalog.tools, toolId)
-      ? context.catalog.tools[toolId]
-      : undefined
+  const toolDeclaration = toolId ? catalogTool(context.catalog, toolId) : undefined
   const location = { blockKey, param }
 
   const rawParams = toRecord(stored.params)
