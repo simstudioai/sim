@@ -6,7 +6,7 @@ query($base: String!, $head: String!) {
     "ci:e2e-assistant-actions", "ci:e2e-organization-search",
     "ci:e2e-docs-platform",
     "ci:e2e-browser-extension", "ci:e2e-project-files", "ci:e2e-mobile", "ci:e2e-seo",
-    "ci:e2e-markdown-viewer"
+    "ci:e2e-markdown-viewer", "ci:e2e-workflow-code-ui"
   ]) {
     items {
       name

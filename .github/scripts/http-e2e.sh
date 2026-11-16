@@ -3,7 +3,7 @@
 # CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|mobile|seo>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|workflow-code-ui|mobile|seo>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|mobile|seo>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|workflow-code-ui|mobile|seo>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -34,6 +34,9 @@ realtime_tag=''
 realtime_log=''
 browsers_pid=''
 local_app_url=''
+extra_pids=()
+extra_tags=()
+extra_logs=()
 # `dev` or `start`; a group sets it before start_app.
 app_server=${E2E_APP_SERVER:-dev}
 
@@ -56,6 +59,13 @@ finish() {
       tail -n 200 "$server_log"
     fi
   fi
+  for i in "${!extra_pids[@]}"; do
+    bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "${extra_pids[$i]}" "${extra_tags[$i]}" || status=1
+    wait "${extra_pids[$i]}" 2>/dev/null || true
+    if [ "$status" -ne 0 ]; then
+      tail -n 100 "${extra_logs[$i]}"
+    fi
+  done
   if [ -n "$realtime_pid" ]; then
     bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$realtime_pid" "$realtime_tag" || status=1
     wait "$realtime_pid" 2>/dev/null || true
@@ -117,6 +127,27 @@ start_app() {
   fi
   server_pid=$!
   wait_ready "$server_pid" "$local_app_url/api/health" "$label app"
+}
+
+# start_extra_app <name> <port> <label> [env-argument...]: another `next start` of the same build on
+# the same database, beside the group's app, for a suite comparing two runtime configurations.
+# The `env` arguments adjust its environment (`-u WORKFLOW_CODE` turns that flag off).
+start_extra_app() {
+  local name=$1 port=$2 label=$3
+  shift 3
+  if [ "$app_server" != start ]; then
+    echo "::error::A second app needs the production build (next start)."
+    exit 1
+  fi
+  local tag="$name-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$" url="http://127.0.0.1:$port"
+  local log="$report_dir/$name-next.log"
+  E2E_APP="$tag" NEXT_PUBLIC_APP_URL="$url" BETTER_AUTH_URL="$url" LOG_LEVEL=INFO setsid env "$@" \
+    node ../../node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port "$port" \
+    > "$log" 2>&1 &
+  extra_pids+=("$!")
+  extra_tags+=("$tag")
+  extra_logs+=("$log")
+  wait_ready "$!" "$url/api/health" "$label app"
 }
 
 # start_realtime <name> <port>: the Socket.IO server the app's browser clients connect to, so pages
@@ -335,6 +366,28 @@ JS
     MARKDOWN_VIEWER_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     MARKDOWN_VIEWER_E2E_REPORT_PATH="$report_dir/markdown-viewer-ui-report.json" \
       bun run test:markdown-viewer:e2e
+    ;;
+
+  # Two apps on one build and database: the Code tab's flag on (with realtime, so canvas edits
+  # persist) and off, for the suite's flag-off and flag-flip checks.
+  workflow-code-ui)
+    app_server=start
+    export NEXT_PUBLIC_FORCE_HOSTED=false
+    export NEXT_PUBLIC_CHAT_DISABLED=true
+    export INTERNAL_API_SECRET=workflow-code-ui-http-ci-local-secret-at-least-32-characters
+    export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3029 SOCKET_SERVER_URL=http://127.0.0.1:3029
+    export WORKFLOW_CODE=true
+    start_browser_install workflow-code-ui --only-shell chromium
+    start_app workflow-code-ui 3028 'workflow Code tab' record-http-status
+    start_realtime workflow-code-ui 3029
+    start_extra_app workflow-code-ui-flag-off 3030 'workflow Code tab (flag off)' -u WORKFLOW_CODE
+    wait_for_browsers
+    WORKFLOW_CODE_UI_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+    WORKFLOW_CODE_UI_E2E_FLAG_OFF_BASE_URL=http://127.0.0.1:3030 \
+    WORKFLOW_CODE_UI_E2E_DATABASE_URL="$DATABASE_URL" \
+    WORKFLOW_CODE_UI_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    WORKFLOW_CODE_UI_E2E_REPORT_PATH="$report_dir/workflow-code-ui-report.json" \
+      bun run test:workflow-code-ui:e2e
     ;;
 
   # MOBILE_E2E_BROWSER (chromium or webkit) narrows the job to one browser; unset runs both.

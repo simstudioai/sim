@@ -81,7 +81,10 @@ export function Code({ isActive }: CodeProps) {
 
   if (error) {
     return (
-      <div className='px-3 py-2 text-[var(--text-tertiary)] text-small'>
+      <div
+        className='px-3 py-2 text-[var(--text-tertiary)] text-small'
+        data-testid='workflow-code-error'
+      >
         Couldn't load code: {error.message}
       </div>
     )
