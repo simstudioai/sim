@@ -238,7 +238,7 @@ describe('code_meta properties', () => {
   it('every generated value parses back to itself', () => {
     fc.assert(
       fc.property(metaArb, ({ meta }) => {
-        expect(codeMetaEquals(parsed(JSON.parse(JSON.stringify(meta))), meta)).toBe(true)
+        expect(codeMetaEquals(parsed(JSON.stringify(meta)), meta)).toBe(true)
       })
     )
   })
