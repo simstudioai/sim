@@ -144,6 +144,8 @@ export const cases: PrintCase[] = [
             data: '{\n  "subject": "<ticketin.subject>"\n}',
           },
           modes: { tableId: 'basic' },
+
+          errorPort: true,
         }),
         blk('Notify', 'slack', {
           params: {
@@ -512,6 +514,7 @@ export const cases: PrintCase[] = [
         start(),
         blk('Old table op', 'table', {
           params: { operation: 'delete_everything', limit: '10' },
+          modes: { tableId: 'basic' },
         }),
       ],
     }),
@@ -790,6 +793,7 @@ export const cases: PrintCase[] = [
             operation: 'send',
             text: 'a very long message body that will never fit on the same line as its very short key',
           },
+          modes: { channel: 'basic' },
         }),
       ],
     }),

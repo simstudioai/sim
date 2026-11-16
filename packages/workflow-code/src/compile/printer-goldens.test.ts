@@ -2,23 +2,18 @@ import { compareStrings } from '@sim/utils/string'
 import { describe, expect, it } from 'vitest'
 import { portKey } from '../anchors'
 import type { CompileResult } from '../api'
-import { toCodeFile } from '../code-files'
 import type { CanonicalWorkflow } from '../model'
-import { cases } from './__printer__/cases'
-import { catalog } from './__printer__/catalog'
-import { PRINTER_GOLDENS } from './__printer__/goldens'
+import { printWorkflow } from '../print'
+import { cases } from '../print/__fixtures__/cases'
+import { catalog } from '../print/__fixtures__/catalog'
 import { compileWorkflow } from './index'
 
 /**
- * P3/P4 against the printer (Wave 2C): every golden print compiles with zero errors (s3 D12) and
- * back to the canonical workflow it was printed from. Annotations are not semantic, so only the
- * comment texts are compared: the printer hoists a comment whose anchor it does not print and
- * drops one whose block is gone.
- *
- * The printer's hand-built cases predate two CWM invariants, so the originals are completed
- * before comparing, never the compiled side: `errorPort` is effective (`errorEnabled || has an
- * error edge`, model.ts), and `modes` holds every canonical pair of the block's surface, with an
- * absent entry meaning the default `basic` the printer assumes.
+ * P3/P4 against the printer (Wave 2C): every printer case prints to source that compiles with zero
+ * errors (s3 D12) and back to the canonical workflow it was printed from. The printer's golden
+ * test pins these prints byte for byte. Annotations are not semantic, so only the comment texts
+ * are compared: the printer hoists a comment whose anchor it does not print and drops one whose
+ * block is gone.
  */
 
 function compile(text: string, files: Record<string, string> = {}): CompileResult {
@@ -30,29 +25,11 @@ function compile(text: string, files: Record<string, string> = {}): CompileResul
   })
 }
 
-function completeInvariants(workflow: CanonicalWorkflow): CanonicalWorkflow['blocks'] {
-  const blocks: CanonicalWorkflow['blocks'] = {}
-  for (const [key, block] of Object.entries(workflow.blocks)) {
-    const hasErrorEdge = workflow.edges.some(
-      (edge) => edge.from === key && edge.port.kind === 'error'
-    )
-    const modes = { ...block.modes }
-    const surface = block.triggerMode ? 'trigger' : 'action'
-    for (const sub of catalog.blocks[block.type]?.subBlocks ?? []) {
-      if (block.subflow || sub.canonicalParamId === undefined) continue
-      if (sub.surface !== undefined && sub.surface !== surface) continue
-      modes[sub.canonicalParamId] ??= 'basic'
-    }
-    blocks[key] = { ...block, errorPort: block.errorPort || hasErrorEdge, modes }
-  }
-  return blocks
-}
-
-function semantic(workflow: CanonicalWorkflow, complete = false) {
+function semantic(workflow: CanonicalWorkflow) {
   return {
     meta: workflow.meta,
     variables: workflow.variables,
-    blocks: complete ? completeInvariants(workflow) : workflow.blocks,
+    blocks: workflow.blocks,
     edges: [...workflow.edges].sort(
       (a, b) =>
         compareStrings(a.from, b.from) ||
@@ -75,46 +52,43 @@ function expectRoundTrip(result: CompileResult, original: CanonicalWorkflow, gol
       .map((d) => `${d.code} ${d.span.line}:${d.span.column} ${d.message}`)
   ).toEqual([])
   if (!result.workflow) throw new Error('expected a workflow')
-  expect(semantic(result.workflow)).toEqual(semantic(original, true))
+  expect(semantic(result.workflow)).toEqual(semantic(original))
   expect(commentTexts(result.workflow)).toEqual(
     commentTexts(original).filter((text) => golden.includes(text))
   )
 }
 
-describe('printer goldens compile back to their canonical workflow', () => {
-  it('has a golden for every printer case', () => {
-    expect(cases.map((testCase) => testCase.name).sort(compareStrings)).toEqual(
-      Object.keys(PRINTER_GOLDENS)
-        .filter((name) => name !== 'function-files')
-        .sort(compareStrings)
-    )
-  })
-
+describe('printer cases compile back to their canonical workflow', () => {
   for (const testCase of cases) {
     it(testCase.name, () => {
-      const golden = PRINTER_GOLDENS[testCase.name]
-      if (golden === undefined) throw new Error(`missing golden ${testCase.name}`)
+      const printed = printWorkflow({
+        workflow: testCase.workflow,
+        catalog,
+        hints: testCase.hints,
+        options: { functionCode: 'inline' },
+      })
+      const golden = printed.files[0].text
       expectRoundTrip(compile(golden), testCase.workflow, golden)
     })
   }
 
-  it('function-files, with code files written by the code-file codec', () => {
+  it('function-languages in files mode, with code files written by the code-file codec', () => {
     const testCase = cases.find((candidate) => candidate.name === 'function-languages')
-    const golden = PRINTER_GOLDENS['function-files']
-    if (!testCase || golden === undefined) throw new Error('missing case')
-    const files: Record<string, string> = {}
-    const layout = [
-      ['jscode', 'functions/js-code.js', 'javascript'],
-      ['pycode', 'functions/py-code.py', 'python'],
-      ['shcode', 'functions/sh-code.sh', 'shell'],
-    ] as const
-    for (const [key, path, language] of layout) {
-      const param = testCase.workflow.blocks[key]?.params.code
-      if (param?.kind !== 'value' || typeof param.value !== 'string') throw new Error('no code')
-      files[path] = toCodeFile(param.value, language)
-    }
-    const result = compile(golden, files)
-    expectRoundTrip(result, testCase.workflow, golden)
+    if (!testCase) throw new Error('missing case')
+    const printed = printWorkflow({
+      workflow: testCase.workflow,
+      catalog,
+      options: { functionCode: 'files', codeDir: 'functions' },
+    })
+    const [entry, ...codeFiles] = printed.files
+    expect(codeFiles.map((file) => file.path)).toEqual([
+      'functions/js-code.js',
+      'functions/py-code.py',
+      'functions/sh-code.sh',
+    ])
+    const files = Object.fromEntries(codeFiles.map((file) => [file.path, file.text]))
+    const result = compile(entry.text, files)
+    expectRoundTrip(result, testCase.workflow, entry.text)
     expect(result.hints.blocks.jscode?.codeFile).toBe('functions/js-code.js')
   })
 })
