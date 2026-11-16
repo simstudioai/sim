@@ -242,6 +242,7 @@ export const listCallsTool: ToolConfig<TwilioListCallsParams, TwilioListCallsOut
       type: 'string',
       description: 'Pass as pageToken to fetch the next page; null on the last page',
       optional: true,
+      nullable: true,
     },
     error: { type: 'string', description: 'Error message if retrieval failed' },
   },

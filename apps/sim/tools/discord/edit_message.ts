@@ -88,6 +88,7 @@ export const discordEditMessageTool: ToolConfig<
           type: 'string',
           description: 'Message edited timestamp',
           optional: true,
+          nullable: true,
         },
       },
     },

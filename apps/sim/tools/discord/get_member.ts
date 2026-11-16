@@ -64,10 +64,10 @@ export const discordGetMemberTool: ToolConfig<DiscordGetMemberParams, DiscordGet
           properties: {
             id: { type: 'string', description: 'User ID' },
             username: { type: 'string', description: 'Username' },
-            avatar: { type: 'string', description: 'Avatar hash', optional: true },
+            avatar: { type: 'string', description: 'Avatar hash', optional: true, nullable: true },
           },
         },
-        nick: { type: 'string', description: 'Server nickname', optional: true },
+        nick: { type: 'string', description: 'Server nickname', optional: true, nullable: true },
         roles: { type: 'array', description: 'Array of role IDs' },
         joined_at: { type: 'string', description: 'When the member joined' },
       },

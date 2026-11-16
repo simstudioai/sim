@@ -198,7 +198,7 @@ function telegramToolParams(
       const pollParams: Record<string, unknown> = {
         ...commonParams,
         question: params.question,
-        options: params.pollOptions ?? toolCallArg(context, params.options),
+        options: params.pollOptions || toolCallArg(context, params.options),
       }
       if (params.isAnonymous !== undefined && params.isAnonymous !== '') {
         pollParams.isAnonymous = toBoolean(params.isAnonymous)

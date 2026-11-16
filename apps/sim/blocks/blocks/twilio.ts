@@ -74,8 +74,7 @@ export const TwilioSMSBlock: BlockConfig = {
       id: 'fromNumber',
       title: 'From Twilio Phone Number',
       type: 'short-input',
-      placeholder: 'e.g. +1234567890',
-      required: true,
+      placeholder: 'e.g. +1234567890 (optional with a Messaging Service SID)',
     },
     {
       id: 'messagingServiceSid',

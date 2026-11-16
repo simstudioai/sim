@@ -71,6 +71,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
           type: 'string',
           description: 'User display name, if set',
           optional: true,
+          nullable: true,
         },
         avatar: { type: 'string', description: 'User avatar hash', optional: true },
         bot: { type: 'boolean', description: 'Whether user is a bot' },

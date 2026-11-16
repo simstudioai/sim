@@ -62,7 +62,7 @@ export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordG
           id: { type: 'string', description: 'Channel ID' },
           name: { type: 'string', description: 'Channel name' },
           type: { type: 'number', description: 'Channel type' },
-          topic: { type: 'string', description: 'Channel topic', optional: true },
+          topic: { type: 'string', description: 'Channel topic', optional: true, nullable: true },
           guild_id: { type: 'string', description: 'Server ID' },
         },
       },

@@ -11,7 +11,10 @@ const BASE: TwilioSendSMSParams = {
 
 function formOf(params: TwilioSendSMSParams): URLSearchParams {
   const built = sendSMSTool.request.body?.(params)
-  return new URLSearchParams(String(built?.body))
+  if (!built || typeof built !== 'object' || !('body' in built)) {
+    throw new Error('twilio_send_sms built no form body')
+  }
+  return new URLSearchParams(String(built.body))
 }
 
 describe('twilio_send_sms', () => {

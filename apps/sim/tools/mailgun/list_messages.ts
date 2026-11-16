@@ -51,8 +51,9 @@ export const mailgunListMessagesTool: ToolConfig<ListMessagesParams, ListMessage
       if (params.event) {
         queryParams.append('event', params.event)
       }
-      if (params.limit) {
-        queryParams.append('limit', params.limit.toString())
+      const limit = Math.trunc(Number(params.limit))
+      if (limit && Number.isFinite(limit)) {
+        queryParams.append('limit', String(Math.min(Math.max(1, limit), 300)))
       }
 
       const query = queryParams.toString()

@@ -40,7 +40,7 @@ export const ResendBlock: BlockConfig = {
         delete_audience: [{ text: 'Delete audience', field: 'audienceId', core: true }],
         create_broadcast: [
           'Draft a broadcast',
-          { text: 'for audience', field: 'audienceId', core: true },
+          { text: 'for', field: ['segmentId', 'audienceId'], core: true },
           { text: ', subject', field: 'broadcastSubject' },
           { text: ', named', field: 'broadcastName' },
         ],

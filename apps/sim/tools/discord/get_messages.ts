@@ -56,13 +56,17 @@ export const discordGetMessagesTool: ToolConfig<
 
   request: {
     url: (params: DiscordGetMessagesParams) => {
-      const requested = Number(params.limit)
+      const requested = Math.trunc(Number(params.limit))
       const limit = requested && Number.isFinite(requested) ? requested : 10
       const query = new URLSearchParams({ limit: String(Math.min(Math.max(1, limit), 100)) })
-      for (const cursor of ['before', 'after', 'around'] as const) {
+      const cursors = (['before', 'after', 'around'] as const).flatMap((cursor) => {
         const value = String(params[cursor] ?? '').trim()
-        if (value) query.set(cursor, value)
+        return value ? [[cursor, value] as const] : []
+      })
+      if (cursors.length > 1) {
+        throw new Error('Use only one of before, after, or around')
       }
+      for (const [cursor, value] of cursors) query.set(cursor, value)
       return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages?${query.toString()}`
     },
     method: 'GET',
@@ -121,6 +125,7 @@ export const discordGetMessagesTool: ToolConfig<
                 type: 'string',
                 description: 'Message edited timestamp',
                 optional: true,
+                nullable: true,
               },
               embeds: { type: 'array', description: 'Message embeds' },
               attachments: { type: 'array', description: 'Message attachments' },

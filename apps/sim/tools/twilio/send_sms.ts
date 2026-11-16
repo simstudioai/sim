@@ -67,7 +67,7 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
         throw new Error('Twilio credentials are required')
       }
       return {
-        Authorization: twilioAuthorization(params.accountSid, params.authToken),
+        Authorization: twilioAuthorization(params.accountSid.trim(), params.authToken),
         'Content-Type': 'application/x-www-form-urlencoded',
       }
     },
@@ -78,8 +78,9 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
       if (!params.message) {
         throw new Error('Message content is required but not provided')
       }
+      const fromNumber = params.fromNumber?.trim()
       const messagingServiceSid = params.messagingServiceSid?.trim()
-      if (!params.fromNumber && !messagingServiceSid) {
+      if (!fromNumber && !messagingServiceSid) {
         throw new Error('From number is required but not provided')
       }
 
@@ -88,8 +89,8 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
 
       const formData = new URLSearchParams()
       formData.append('To', toNumber)
-      if (params.fromNumber) {
-        formData.append('From', params.fromNumber)
+      if (fromNumber) {
+        formData.append('From', fromNumber)
       }
       if (messagingServiceSid) {
         formData.append('MessagingServiceSid', messagingServiceSid)
@@ -120,7 +121,11 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
     success: { type: 'boolean', description: 'SMS send success status' },
     messageId: { type: 'string', description: 'Unique Twilio message identifier (SID)' },
     status: { type: 'string', description: 'Message delivery status from Twilio' },
-    fromNumber: { type: 'string', description: 'Phone number message was sent from' },
-    toNumber: { type: 'string', description: 'Phone number message was sent to' },
+    fromNumber: {
+      type: 'string',
+      description: 'Phone number message was sent from',
+      nullable: true,
+    },
+    toNumber: { type: 'string', description: 'Phone number message was sent to', nullable: true },
   },
 }

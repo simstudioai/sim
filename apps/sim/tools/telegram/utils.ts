@@ -5,9 +5,12 @@ export function telegramApiUrl(botToken: string, method: string): string {
   return `https://api.telegram.org/bot${botToken}/${method}`
 }
 
-/** Tags Telegram's HTML parse mode accepts; any other `<...>` makes the whole send fail. */
+/**
+ * Tags Telegram's HTML parse mode accepts; any other `<...>` makes the whole send fail. Telegram
+ * ignores attributes it does not know, but rejects a `<span>` whose class is not `tg-spoiler`.
+ */
 const SUPPORTED_TAG =
-  /<\/?(?:b|strong|i|em|u|ins|s|strike|del|span|tg-spoiler|a|tg-emoji|tg-time|code|pre|blockquote)(?:\s[^<>]*)?>/gi
+  /<\/?(?:b|strong|i|em|u|ins|s|strike|del|tg-spoiler|a|tg-emoji|tg-time|code|pre|blockquote)(?:\s[^<>]*)?>|<span\s(?:[^<>]*\s)?class\s*=\s*(?:"tg-spoiler"|'tg-spoiler'|tg-spoiler(?=[\s>]))[^<>]*>|<\/span\s*>/gi
 
 /** Entities Telegram's HTML parse mode accepts: any numeric one plus `&lt;`, `&gt;`, `&amp;`, `&quot;`. */
 const SUPPORTED_ENTITY = /&(?!(?:#\d+|#x[\da-f]+|lt|gt|amp|quot);)/gi
@@ -28,9 +31,12 @@ function escapeHtmlText(text: string): string {
  * Converts light markdown (bold, italic, code, links) to Telegram's HTML parse mode. Supported
  * HTML tags the text already contains pass through; every other `<`, `>` and `&` is escaped, as
  * Telegram rejects the message otherwise. Tags, code spans and link URLs are set aside before the
- * emphasis rules run, so an `_` or `*` inside them is never turned into `<i>`/`<b>`.
+ * emphasis rules run, so an `_` or `*` inside them is never turned into `<i>`/`<b>`. NUL characters
+ * are dropped.
  */
-export function convertMarkdownToHTML(text: string): string {
+export function convertMarkdownToHTML(input: string): string {
+  // NUL marks a set-aside segment below, and Telegram reads it as the end of the text anyway.
+  const text = input.replace(/\u0000/g, '')
   const protectedSegments: string[] = []
   const protect = (segment: string) => `\u0000${protectedSegments.push(segment) - 1}\u0000`
   const restore = (value: string, present: (segment: string) => string) =>

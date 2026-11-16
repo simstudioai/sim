@@ -15,8 +15,9 @@ import {
   whatsappMediaLimitFor,
 } from '@/tools/whatsapp/utils'
 
-const blockParams = WhatsAppBlock.tools.config?.params
-if (!blockParams) throw new Error('WhatsAppBlock has no params mapper')
+const maybeBlockParams = WhatsAppBlock.tools.config?.params
+if (!maybeBlockParams) throw new Error('WhatsAppBlock has no params mapper')
+const blockParams = maybeBlockParams
 
 const auth = { phoneNumberId: ' 15550001111 ', accessToken: ' token ' }
 

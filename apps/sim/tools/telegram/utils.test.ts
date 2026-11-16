@@ -47,7 +47,13 @@ describe('convertMarkdownToHTML', () => {
     )
   })
 
-  it('leaves placeholder-shaped text with no matching segment unchanged', () => {
-    expect(convertMarkdownToHTML('\u00009\u0000')).toBe('\u00009\u0000')
+  it('never reads placeholder-shaped input as a set-aside segment', () => {
+    expect(convertMarkdownToHTML('<b>x</b> \u00000\u0000')).toBe('<b>x</b> 0')
+  })
+
+  it('keeps a spoiler span but escapes any other span', () => {
+    expect(convertMarkdownToHTML('<span class="tg-spoiler">a</span> <span id="x">b')).toBe(
+      '<span class="tg-spoiler">a</span> &lt;span id="x"&gt;b'
+    )
   })
 })

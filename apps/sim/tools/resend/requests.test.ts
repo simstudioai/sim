@@ -32,6 +32,12 @@ describe('Resend list pagination', () => {
     )
   })
 
+  it('clamps limit to the 1-100 page size Resend accepts', () => {
+    expect(listContactsUrl({ limit: 500 })).toBe('https://api.resend.com/contacts?limit=100')
+    expect(listContactsUrl({ limit: 0 })).toBe('https://api.resend.com/contacts?limit=1')
+    expect(listContactsUrl({ limit: 2.7 })).toBe('https://api.resend.com/contacts?limit=2')
+  })
+
   it('drops a limit that is not a finite number', () => {
     expect(listContactsUrl({ limit: Number.NaN })).toBe('https://api.resend.com/contacts')
   })

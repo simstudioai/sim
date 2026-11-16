@@ -163,14 +163,26 @@ export const telegramSendAnimationTool: ToolConfig<
               properties: {
                 file_id: { type: 'string', description: 'Thumbnail file ID' },
                 file_unique_id: { type: 'string', description: 'Unique thumbnail file identifier' },
-                file_size: { type: 'number', description: 'Thumbnail file size in bytes' },
+                file_size: {
+                  type: 'number',
+                  description: 'Thumbnail file size in bytes',
+                  optional: true,
+                },
                 width: { type: 'number', description: 'Thumbnail width in pixels' },
                 height: { type: 'number', description: 'Thumbnail height in pixels' },
               },
             },
-            file_name: { type: 'string', description: 'Original animation file name' },
-            mime_type: { type: 'string', description: 'Animation MIME type' },
-            file_size: { type: 'number', description: 'Animation file size in bytes' },
+            file_name: {
+              type: 'string',
+              description: 'Original animation file name',
+              optional: true,
+            },
+            mime_type: { type: 'string', description: 'Animation MIME type', optional: true },
+            file_size: {
+              type: 'number',
+              description: 'Animation file size in bytes',
+              optional: true,
+            },
           },
         },
         format: {
