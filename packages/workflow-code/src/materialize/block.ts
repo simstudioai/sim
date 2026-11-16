@@ -5,7 +5,7 @@ import {
   isSubflowType,
   type SubBlockState,
 } from '@sim/workflow-types/workflow'
-import { implicitIds } from '../canonicalize/branches'
+import { implicitIds, unliftedBranchIds } from '../canonicalize/branches'
 import { parseModeMap } from '../canonicalize/modes'
 import { declarationFor, isExcludedSubBlockId, uniqueFieldNames } from '../canonicalize/params'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
@@ -13,7 +13,7 @@ import { mintsFreshValue } from '../catalog/defaults'
 import { catalogBlock } from '../catalog/view'
 import type { LockItem, LockLayout, WorkflowLockBlock } from '../lock'
 import type { BlockKey, BranchKey, CanonicalBlock, SubBlockId } from '../model'
-import { deepEqual, parseJsonContainer } from '../records'
+import { deepEqual } from '../records'
 import { writeBranches } from './branches'
 import type { MaterializeContext } from './context'
 import type { ResolvedBlock } from './identity'
@@ -83,17 +83,6 @@ function storedItems(raw: unknown): LockItem[] {
     }
   }
   return items
-}
-
-/** The ids a stored-but-unliftable branch value answers to (canonicalize/branches.ts). */
-function unliftedBranchIds(
-  kind: 'condition' | 'router',
-  blockId: string,
-  raw: unknown
-): Record<BranchKey, string> {
-  if (Array.isArray(raw)) return {}
-  if (typeof raw === 'string' && Array.isArray(parseJsonContainer(raw))) return {}
-  return implicitIds(kind, blockId)
 }
 
 function rawValues(subBlocks: Record<string, SubBlockState>): Record<string, unknown> {
@@ -237,7 +226,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
         subBlocks[subBlockId] = {
           ...(existing ?? {
             id: subBlockId,
-            type: branchSpec.kind === 'condition' ? 'condition-input' : 'router-input',
+            type: declarationFor(catalog, subBlockId, target.triggerMode)?.type ?? 'short-input',
           }),
           value: write.value,
         }

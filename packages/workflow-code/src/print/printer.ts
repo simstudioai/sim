@@ -1037,25 +1037,22 @@ class WorkflowPrinter {
     const params = form ? this.responseFormParams(block, form) : collected.params
     const paramProps = this.paramProperties(params)
     const extraProps = this.paramProperties(extra)
-    const branchKind = catalogBlock?.graph.branches?.kind ?? block.branches?.kind
+    const branchSpec = catalogBlock?.graph.branches
     const { entries: branchProps, meta: branchMeta } = this.branchEntries(block)
-    const branchSubBlock =
-      catalogBlock?.graph.branches?.subBlockId ??
-      (branchKind === 'router' ? 'routes' : 'conditions')
 
     let generic = found === null
     let topLevel: Property[] = paramProps
-    if (block.branches) {
+    if (block.branches && branchSpec) {
       const collides = paramProps.some((prop) =>
         branchProps.some((branch) => branch.key === prop.key)
       )
-      if (branchKind === 'condition' && !generic && !collides) {
+      if (branchSpec.kind === 'condition' && !generic && !collides) {
         topLevel = [...branchProps, ...paramProps]
       } else {
-        if (branchKind === 'condition' && collides) generic = true
+        if (branchSpec.kind === 'condition' && collides) generic = true
         topLevel = [
           ...paramProps,
-          { key: printKey(branchSubBlock), value: objectExpr(branchProps) },
+          { key: printKey(branchSpec.subBlockId), value: objectExpr(branchProps) },
         ]
       }
     }

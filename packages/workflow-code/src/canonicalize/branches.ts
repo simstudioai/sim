@@ -90,19 +90,42 @@ function uniqueKey(base: BranchKey, taken: ReadonlySet<BranchKey>): BranchKey {
   return `${base}_${n}`
 }
 
+function keyByRowIdOf(ids: Record<BranchKey, string>): Map<string, BranchKey> {
+  return new Map(Object.entries(ids).map(([key, id]) => [id, key]))
+}
+
 function withImplicit(
   kind: CanonicalBranches['kind'],
   blockId: string,
-  rows: CanonicalBranchRow[] | null,
-  unliftedValue?: unknown
+  rows: CanonicalBranchRow[] | null
 ): LiftedBranches {
   const ids = implicitIds(kind, blockId)
-  const keyByRowId = new Map(Object.entries(ids).map(([key, id]) => [id, key]))
+  return { branches: { kind, rows }, ids, keyByRowId: keyByRowIdOf(ids) }
+}
+
+/**
+ * The ids a stored branch value that cannot be lifted answers to: none when it is a JSON list
+ * (of something other than rows), else the implicit ids, as for a never-persisted value.
+ */
+export function unliftedBranchIds(
+  kind: CanonicalBranches['kind'],
+  blockId: string,
+  stored: unknown
+): Record<BranchKey, string> {
+  return parseRows(stored).parsed ? {} : implicitIds(kind, blockId)
+}
+
+function unlifted(
+  kind: CanonicalBranches['kind'],
+  blockId: string,
+  stored: unknown
+): LiftedBranches {
+  const ids = unliftedBranchIds(kind, blockId, stored)
   return {
-    branches: { kind, rows },
+    branches: { kind, rows: null },
     ids,
-    keyByRowId,
-    ...(unliftedValue !== undefined ? { unliftedValue } : {}),
+    keyByRowId: keyByRowIdOf(ids),
+    unliftedValue: stored,
   }
 }
 
@@ -137,7 +160,7 @@ export function liftBranches(
         param,
       })
     }
-    return withImplicit(kind, blockId, null, stored)
+    return unlifted(kind, blockId, stored)
   }
   if (!storedRows || !storedRows.every(isStoredRow)) {
     report(context, {
@@ -147,12 +170,7 @@ export function liftBranches(
       blockKey,
       param,
     })
-    return {
-      branches: { kind, rows: null },
-      ids: {},
-      keyByRowId: new Map(),
-      unliftedValue: stored,
-    }
+    return unlifted(kind, blockId, stored)
   }
   if (storedRows.length === 0) return withImplicit(kind, blockId, [])
 
