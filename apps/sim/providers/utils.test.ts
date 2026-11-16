@@ -1,4 +1,5 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { omit } from '@sim/utils/object'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const workflowMetadataMocks = vi.hoisted(() => ({
@@ -11,6 +12,13 @@ vi.mock('@/lib/internal/workflows/read-tool-enrichment', () => ({
   readWorkflowMetadataForTool: workflowMetadataMocks.readWorkflowMetadataForTool,
 }))
 
+import {
+  filterRulesToFilter,
+  filterRulesToPredicate,
+  sortRulesToSort,
+} from '@/lib/table/query-builder/converters'
+import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
+import type { FilterRule, SortRule } from '@/lib/table/types'
 import { getParamsForToolOperation } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
 import { CbInsightsV2Block } from '@/blocks/blocks/cbinsights'
 import { CheckrV2Block } from '@/blocks/blocks/checkr'
@@ -22,6 +30,8 @@ import { RampBlock } from '@/blocks/blocks/ramp'
 import { ResendV2Block } from '@/blocks/blocks/resend'
 import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
 import { SharepointV2Block } from '@/blocks/blocks/sharepoint'
+import { TableBlock } from '@/blocks/blocks/table'
+import { TableV2Block } from '@/blocks/blocks/table_v2'
 import { TrelloBlock } from '@/blocks/blocks/trello'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import * as blockRegistry from '@/blocks/registry'
@@ -97,6 +107,10 @@ import { resendCreateBroadcastTool } from '@/tools/resend/create_broadcast'
 import type { CreateBroadcastParams } from '@/tools/resend/types'
 import { revenuecatGetCustomerTool } from '@/tools/revenuecat/get_customer'
 import { getListTool as sharepointGetListTool } from '@/tools/sharepoint/get_list'
+import { tableDeleteRowsByFilterTool } from '@/tools/table/delete_rows_by_filter'
+import { tableQueryRowsTool } from '@/tools/table/query_rows'
+import { tableQueryRowsV2Tool } from '@/tools/table/query_rows_v2'
+import { tableUpdateRowsByFilterTool } from '@/tools/table/update_rows_by_filter'
 import { trelloListListsTool } from '@/tools/trello/list_lists'
 import { trelloUpdateListTool } from '@/tools/trello/update_list'
 import { falaiVideoTool } from '@/tools/video/falai'
@@ -921,6 +935,117 @@ describe('Resend broadcast recipient on a tool row', () => {
     const body = resendCreateBroadcastTool.request.body?.(toolParams as CreateBroadcastParams)
     expect(body).toMatchObject(recipient)
     expect(body).not.toHaveProperty('audience_id' in recipient ? 'segment_id' : 'audience_id')
+  })
+})
+
+describe('Table builder rules pinned on an agent tool row', () => {
+  const pinnedRules: FilterRule[] = [
+    { id: 'r1', logicalOperator: 'and', column: 'status', operator: 'eq', value: 'active' },
+  ]
+  const modelFilter = { field: 'status', op: 'eq', value: 'archived' }
+
+  async function runTableTool(
+    block: typeof TableBlock,
+    operation: string,
+    tool: typeof tableUpdateRowsByFilterTool | typeof tableQueryRowsV2Tool,
+    stored: Record<string, string>,
+    modelArgs: Record<string, unknown>
+  ) {
+    const providerTool = await transformBlockTool(
+      { type: block.type, operation, params: { tableId: 'tbl_1', ...stored } },
+      {
+        selectedOperation: operation,
+        getAllBlocks: () => [block],
+        // Schema enrichment reads the live table; what reaches the tool does not depend on it.
+        getTool: () => omit(tool, ['toolEnrichment']),
+      }
+    )
+    if (!providerTool) throw new Error('Table agent tool was not created')
+    return prepareToolExecution(providerTool, modelArgs, {}, undefined).executionParams
+  }
+
+  it.each([
+    { operation: 'update_rows_by_filter', tool: tableUpdateRowsByFilterTool },
+    { operation: 'delete_rows_by_filter', tool: tableDeleteRowsByFilterTool },
+  ])(
+    'runs v2 $operation on the pinned filter, not the model filter',
+    async ({ operation, tool }) => {
+      const params = await runTableTool(
+        TableV2Block,
+        operation,
+        tool,
+        { filterBuilder: JSON.stringify(pinnedRules), data: '{"status":"done"}' },
+        { filter: modelFilter }
+      )
+      expect(params.filter).toEqual(filterRulesToPredicate(pinnedRules))
+    }
+  )
+
+  it('lets the model filter through an emptied v2 filter builder', async () => {
+    const params = await runTableTool(
+      TableV2Block,
+      'delete_rows_by_filter',
+      tableDeleteRowsByFilterTool,
+      { filterBuilder: '[]' },
+      { filter: modelFilter }
+    )
+    expect(params.filter).toEqual(normalizeTablePredicate(modelFilter))
+  })
+
+  it('fails the call instead of running a v2 bulk delete on the model filter', async () => {
+    await expect(
+      runTableTool(
+        TableV2Block,
+        'delete_rows_by_filter',
+        tableDeleteRowsByFilterTool,
+        { filterBuilder: '[{"column":' },
+        { filter: modelFilter }
+      )
+    ).rejects.toThrow('Invalid JSON in Filter')
+  })
+
+  it('sends the pinned v2 sort builder as a sort spec', async () => {
+    const sortRules: SortRule[] = [{ id: 's1', column: 'wins', direction: 'desc' }]
+    const params = await runTableTool(
+      TableV2Block,
+      'query_rows',
+      tableQueryRowsV2Tool,
+      { sortBuilder: JSON.stringify(sortRules) },
+      {}
+    )
+    expect(params.order).toEqual([{ field: 'wins', direction: 'desc' }])
+  })
+
+  it('runs a v1 bulk update on the pinned filter, not the model filter', async () => {
+    const params = await runTableTool(
+      TableBlock,
+      'update_rows_by_filter',
+      tableUpdateRowsByFilterTool,
+      {
+        bulkFilterMode: 'builder',
+        bulkFilterBuilder: JSON.stringify(pinnedRules),
+        data: '{"status":"done"}',
+      },
+      { filter: { status: 'archived' } }
+    )
+    expect(params.filter).toEqual(filterRulesToFilter(pinnedRules))
+  })
+
+  it('applies the pinned v1 query filter and sort builders', async () => {
+    const sortRules: SortRule[] = [{ id: 's1', column: 'wins', direction: 'desc' }]
+    const params = await runTableTool(
+      TableBlock,
+      'query_rows',
+      tableQueryRowsTool,
+      {
+        builderMode: 'builder',
+        filterBuilder: JSON.stringify(pinnedRules),
+        sortBuilder: JSON.stringify(sortRules),
+      },
+      { filter: { status: 'archived' }, sort: { name: 'asc' } }
+    )
+    expect(params.filter).toEqual(filterRulesToFilter(pinnedRules))
+    expect(params.sort).toEqual(sortRulesToSort(sortRules))
   })
 })
 

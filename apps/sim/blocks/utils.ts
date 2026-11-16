@@ -23,6 +23,7 @@ import {
   SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
 import { isPiSupportedModel } from '@/providers/pi-providers'
+import { ToolCallParamsError } from '@/providers/tool-params-error'
 import type { ProviderId } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
@@ -946,6 +947,24 @@ export function toolCallArg<T>(
   value: T
 ): T | undefined {
   return isToolCall(context) ? value : undefined
+}
+
+/**
+ * Runs a mapper body, and on a tool call turns any failure into a {@link ToolCallParamsError} so
+ * the call fails instead of running on the raw merged params. Use it where those raw params are
+ * unsafe: a pinned value under a block-only key (a filter builder) drops out of them, leaving the
+ * model's own argument for the same tool param in its place. The canvas rethrows unchanged.
+ */
+export function failToolCallOnError<T>(
+  context: BlockToolParamsContext | undefined,
+  map: () => T
+): T {
+  try {
+    return map()
+  } catch (error) {
+    if (!isToolCall(context) || error instanceof ToolCallParamsError) throw error
+    throw new ToolCallParamsError(toError(error).message, { cause: error })
+  }
 }
 
 /**

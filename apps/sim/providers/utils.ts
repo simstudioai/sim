@@ -17,8 +17,10 @@ import {
   buildCanonicalIndex,
   type CanonicalGroup,
   type CanonicalModeOverrides,
+  getCanonicalValues,
   isCanonicalPair,
   resolveActiveCanonicalValue,
+  resolveCanonicalMode,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import { omitConditionHiddenParams } from '@/lib/workflows/tool-input/hidden-params'
@@ -52,6 +54,7 @@ import {
   getProviderToolModelInputRegistry,
   registerPreparedProviderToolInputProvenance,
 } from '@/providers/tool-input-provenance'
+import { ToolCallParamsError } from '@/providers/tool-params-error'
 import type { ModelPricing, ProviderId, ProviderToolConfig } from '@/providers/types'
 import { isNonEmpty, mergeToolParameters } from '@/tools/merge-params'
 import { buildToolParamShapes, decodeToolParams } from '@/tools/param-shape'
@@ -537,7 +540,10 @@ type BlockToolParamsFn = (
  * Four steps, in an order each of which is load-bearing:
  *
  * 1. Collapse canonical basic/advanced pairs onto the canonical id, so a value stored
- *    under `manualChannel` becomes the `channel` the tool declares.
+ *    under `manualChannel` becomes the `channel` the tool declares. The active member is
+ *    picked from the decoded values, as the canvas sees them: a builder the user emptied
+ *    is stored as `'[]'`, which reads as filled until it decodes to `[]`, and would
+ *    otherwise hide the model's argument for the other member.
  * 2. Decode the stringified values back to their real shapes, and expand a
  *    `checkbox-list` onto its option params. After the collapse so a pair is decoded
  *    once under its canonical id, and BEFORE the block's `params` function because
@@ -595,16 +601,19 @@ export function buildBlockToolParamsTransform(config: {
   const paramsTransform = needsTransform
     ? (params: Record<string, any>): Record<string, any> => {
         let result = { ...params }
+        const decodedMembers = decodeToolParams(params, paramShapes)
 
         for (const group of canonicalGroups) {
           // Route through the canonical SOT: an explicit scoped override wins, else the value
           // heuristic - no `?? 'basic'` (which dropped an advanced-only value when basic was empty).
           const explicitMode = scopedCanonicalModes?.[group.canonicalId]
-          const chosen = resolveActiveCanonicalValue(
+          const mode = resolveCanonicalMode(
             group,
-            result,
+            decodedMembers,
             explicitMode ? { [group.canonicalId]: explicitMode } : undefined
           )
+          const { basicValue, advancedValue } = getCanonicalValues(group, result)
+          const chosen = mode === 'advanced' ? advancedValue : basicValue
 
           const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
           result = omit(result, sourceIds)
@@ -1626,6 +1635,7 @@ export function prepareToolExecution(
       toolParams = tool.paramsTransform(toolParams)
       transformed = true
     } catch (err) {
+      if (err instanceof ToolCallParamsError) throw err
       logger.warn('paramsTransform failed, using raw params', { error: err })
     }
 

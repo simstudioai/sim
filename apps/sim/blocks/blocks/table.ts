@@ -4,6 +4,7 @@ import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
 import type { BlockConfig, BlockToolParamsContext } from '@/blocks/types'
 import {
+  failToolCallOnError,
   isToolCall,
   mapperOperation,
   parseOptionalNumberInput,
@@ -760,7 +761,7 @@ Return ONLY the sort JSON:`,
         const transformer = paramTransformers[mapperOperation(params, context)]
 
         if (transformer) {
-          return transformer(rest as TableBlockParams, context)
+          return failToolCallOnError(context, () => transformer(rest as TableBlockParams, context))
         }
 
         return rest
