@@ -6134,112 +6134,150 @@ export type GetBlockCatalogResponse = {
           available: Array<string>
         }
         singleInstance?: boolean
-        subBlocks: Array<{
-          id: string
-          type: string
-          title?: string
-          mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
-          canonicalParamId?: string
-          surface?: 'action' | 'trigger'
-          condition?:
-            | {
-                field: string
-                value: string | number | boolean | Array<string | number | boolean>
-                not?: boolean
-                and?: {
-                  field: string
-                  value?: string | number | boolean | Array<string | number | boolean>
-                  not?: boolean
-                }
+        subBlocks: Array<
+          | {
+              id: string
+              type: string
+              title?: string
+              mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
+              canonicalParamId?: string
+              surface?: 'action' | 'trigger'
+              condition?:
+                | {
+                    field: string
+                    value:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                    and?: {
+                      field: string
+                      value?:
+                        | string
+                        | number
+                        | boolean
+                        | Array<string | number | boolean>
+                        | {
+                            list: number
+                          }
+                      not?: boolean
+                    }
+                  }
+                | {
+                    opaque: true
+                  }
+              visibleFor?: Record<string, boolean>
+              required?:
+                | boolean
+                | {
+                    field: string
+                    value:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                    and?: {
+                      field: string
+                      value?:
+                        | string
+                        | number
+                        | boolean
+                        | Array<string | number | boolean>
+                        | {
+                            list: number
+                          }
+                      not?: boolean
+                    }
+                  }
+                | {
+                    opaque: true
+                  }
+              dependsOn?: {
+                all: Array<string>
+                any: Array<string>
               }
-            | {
-                opaque: true
-              }
-          visibleFor?: Record<string, boolean>
-          required?:
-            | boolean
-            | {
-                field: string
-                value: string | number | boolean | Array<string | number | boolean>
-                not?: boolean
-                and?: {
-                  field: string
-                  value?: string | number | boolean | Array<string | number | boolean>
-                  not?: boolean
-                }
-              }
-            | {
-                opaque: true
-              }
-          dependsOn?: {
-            all: Array<string>
-            any: Array<string>
-          }
-          defaultValue?: unknown
-          valueDefault?:
-            | {
-                computed: true
-              }
-            | {
-                constant: unknown
-              }
-          options?:
-            | Array<{
-                id: string
-                label: string
-              }>
-            | {
-                dynamic: true
-              }
-            | {
-                opaque: true
-              }
-          hidden?: boolean
-          readOnly?: boolean
-          password?: boolean
-          hideFromCopilot?: boolean
-          context?: 'tool-input'
-          paramVisibility?: string
-          emptyIsValid?: boolean
-          language?: string
-          multiple?: boolean
-          min?: number
-          max?: number
-          step?: number
-          integer?: boolean
-          columns?: Array<string>
-          selectorKey?: string
-          serviceId?: string
-          valueKind:
-            | 'string'
-            | 'number'
-            | 'boolean'
-            | 'array'
-            | 'object'
-            | 'json'
-            | 'code'
-            | 'branches'
-            | 'tools'
-            | 'resource'
-            | 'picked'
-            | 'upload'
-            | 'none'
-          resourceKind?: string
-          storage: 'native' | 'json-string'
-          structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
-        }>
+              defaultValue?: unknown
+              valueDefault?:
+                | {
+                    computed: true
+                  }
+                | {
+                    constant: unknown
+                  }
+              options?:
+                | Array<{
+                    id: string
+                    label?: string
+                  }>
+                | {
+                    dynamic: true
+                  }
+                | {
+                    opaque: true
+                  }
+              hidden?: boolean
+              readOnly?: boolean
+              password?: boolean
+              hideFromCopilot?: boolean
+              context?: 'tool-input'
+              paramVisibility?: string
+              emptyIsValid?: boolean
+              language?: string
+              multiple?: boolean
+              min?: number
+              max?: number
+              step?: number
+              integer?: boolean
+              columns?: Array<string>
+              selectorKey?: string
+              serviceId?: string
+              valueKind:
+                | 'string'
+                | 'number'
+                | 'boolean'
+                | 'array'
+                | 'object'
+                | 'json'
+                | 'code'
+                | 'branches'
+                | 'tools'
+                | 'resource'
+                | 'picked'
+                | 'upload'
+                | 'none'
+              resourceKind?: string
+              storage: 'native' | 'json-string'
+              structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+            }
+          | {
+              shared: number
+            }
+          | {
+              trigger: string
+              start: number
+              count: number
+            }
+        >
         tools: {
           access: Array<string>
           selector: 'single' | 'operation' | 'opaque'
         }
-        inputs: Record<
+        inputs?: Record<
           string,
           {
             type: string
             schema?: unknown
           }
         >
-        outputs: Record<
+        outputs?: Record<
           string,
           {
             type: string
@@ -6247,9 +6285,11 @@ export type GetBlockCatalogResponse = {
             condition?: unknown
             hiddenFromDisplay?: boolean
             properties?: Record<string, unknown>
+            sharedProperties?: number
             items?: unknown
           }
         >
+        sharedOutputs?: number
         dynamicOutputs?: {
           source: 'responseFormat' | 'inputFormat' | 'humanForm' | 'tableRows'
           param: string
@@ -6287,101 +6327,134 @@ export type GetBlockCatalogResponse = {
         name: string
         polling?: boolean
         webhook?: boolean
-        subBlocks: Array<{
-          id: string
-          type: string
-          title?: string
-          mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
-          canonicalParamId?: string
-          surface?: 'action' | 'trigger'
-          condition?:
-            | {
-                field: string
-                value: string | number | boolean | Array<string | number | boolean>
-                not?: boolean
-                and?: {
-                  field: string
-                  value?: string | number | boolean | Array<string | number | boolean>
-                  not?: boolean
-                }
+        subBlocks: Array<
+          | {
+              id: string
+              type: string
+              title?: string
+              mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
+              canonicalParamId?: string
+              surface?: 'action' | 'trigger'
+              condition?:
+                | {
+                    field: string
+                    value:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                    and?: {
+                      field: string
+                      value?:
+                        | string
+                        | number
+                        | boolean
+                        | Array<string | number | boolean>
+                        | {
+                            list: number
+                          }
+                      not?: boolean
+                    }
+                  }
+                | {
+                    opaque: true
+                  }
+              visibleFor?: Record<string, boolean>
+              required?:
+                | boolean
+                | {
+                    field: string
+                    value:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                    and?: {
+                      field: string
+                      value?:
+                        | string
+                        | number
+                        | boolean
+                        | Array<string | number | boolean>
+                        | {
+                            list: number
+                          }
+                      not?: boolean
+                    }
+                  }
+                | {
+                    opaque: true
+                  }
+              dependsOn?: {
+                all: Array<string>
+                any: Array<string>
               }
-            | {
-                opaque: true
-              }
-          visibleFor?: Record<string, boolean>
-          required?:
-            | boolean
-            | {
-                field: string
-                value: string | number | boolean | Array<string | number | boolean>
-                not?: boolean
-                and?: {
-                  field: string
-                  value?: string | number | boolean | Array<string | number | boolean>
-                  not?: boolean
-                }
-              }
-            | {
-                opaque: true
-              }
-          dependsOn?: {
-            all: Array<string>
-            any: Array<string>
-          }
-          defaultValue?: unknown
-          valueDefault?:
-            | {
-                computed: true
-              }
-            | {
-                constant: unknown
-              }
-          options?:
-            | Array<{
-                id: string
-                label: string
-              }>
-            | {
-                dynamic: true
-              }
-            | {
-                opaque: true
-              }
-          hidden?: boolean
-          readOnly?: boolean
-          password?: boolean
-          hideFromCopilot?: boolean
-          context?: 'tool-input'
-          paramVisibility?: string
-          emptyIsValid?: boolean
-          language?: string
-          multiple?: boolean
-          min?: number
-          max?: number
-          step?: number
-          integer?: boolean
-          columns?: Array<string>
-          selectorKey?: string
-          serviceId?: string
-          valueKind:
-            | 'string'
-            | 'number'
-            | 'boolean'
-            | 'array'
-            | 'object'
-            | 'json'
-            | 'code'
-            | 'branches'
-            | 'tools'
-            | 'resource'
-            | 'picked'
-            | 'upload'
-            | 'none'
-          resourceKind?: string
-          storage: 'native' | 'json-string'
-          structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
-        }>
-        outputs: Record<
+              defaultValue?: unknown
+              valueDefault?:
+                | {
+                    computed: true
+                  }
+                | {
+                    constant: unknown
+                  }
+              options?:
+                | Array<{
+                    id: string
+                    label?: string
+                  }>
+                | {
+                    dynamic: true
+                  }
+                | {
+                    opaque: true
+                  }
+              hidden?: boolean
+              readOnly?: boolean
+              password?: boolean
+              hideFromCopilot?: boolean
+              context?: 'tool-input'
+              paramVisibility?: string
+              emptyIsValid?: boolean
+              language?: string
+              multiple?: boolean
+              min?: number
+              max?: number
+              step?: number
+              integer?: boolean
+              columns?: Array<string>
+              selectorKey?: string
+              serviceId?: string
+              valueKind:
+                | 'string'
+                | 'number'
+                | 'boolean'
+                | 'array'
+                | 'object'
+                | 'json'
+                | 'code'
+                | 'branches'
+                | 'tools'
+                | 'resource'
+                | 'picked'
+                | 'upload'
+                | 'none'
+              resourceKind?: string
+              storage: 'native' | 'json-string'
+              structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+            }
+          | {
+              shared: number
+            }
+        >
+        outputs?: Record<
           string,
           {
             type: string
@@ -6389,9 +6462,11 @@ export type GetBlockCatalogResponse = {
             condition?: unknown
             hiddenFromDisplay?: boolean
             properties?: Record<string, unknown>
+            sharedProperties?: number
             items?: unknown
           }
         >
+        sharedOutputs?: number
       }
     >
     builders: Record<
@@ -6402,6 +6477,143 @@ export type GetBlockCatalogResponse = {
         triggerMode?: boolean
         fixed?: Record<string, string>
       }
+    >
+    subBlocks?: Array<{
+      id: string
+      type: string
+      title?: string
+      mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
+      canonicalParamId?: string
+      surface?: 'action' | 'trigger'
+      condition?:
+        | {
+            field: string
+            value:
+              | string
+              | number
+              | boolean
+              | Array<string | number | boolean>
+              | {
+                  list: number
+                }
+            not?: boolean
+            and?: {
+              field: string
+              value?:
+                | string
+                | number
+                | boolean
+                | Array<string | number | boolean>
+                | {
+                    list: number
+                  }
+              not?: boolean
+            }
+          }
+        | {
+            opaque: true
+          }
+      visibleFor?: Record<string, boolean>
+      required?:
+        | boolean
+        | {
+            field: string
+            value:
+              | string
+              | number
+              | boolean
+              | Array<string | number | boolean>
+              | {
+                  list: number
+                }
+            not?: boolean
+            and?: {
+              field: string
+              value?:
+                | string
+                | number
+                | boolean
+                | Array<string | number | boolean>
+                | {
+                    list: number
+                  }
+              not?: boolean
+            }
+          }
+        | {
+            opaque: true
+          }
+      dependsOn?: {
+        all: Array<string>
+        any: Array<string>
+      }
+      defaultValue?: unknown
+      valueDefault?:
+        | {
+            computed: true
+          }
+        | {
+            constant: unknown
+          }
+      options?:
+        | Array<{
+            id: string
+            label?: string
+          }>
+        | {
+            dynamic: true
+          }
+        | {
+            opaque: true
+          }
+      hidden?: boolean
+      readOnly?: boolean
+      password?: boolean
+      hideFromCopilot?: boolean
+      context?: 'tool-input'
+      paramVisibility?: string
+      emptyIsValid?: boolean
+      language?: string
+      multiple?: boolean
+      min?: number
+      max?: number
+      step?: number
+      integer?: boolean
+      columns?: Array<string>
+      selectorKey?: string
+      serviceId?: string
+      valueKind:
+        | 'string'
+        | 'number'
+        | 'boolean'
+        | 'array'
+        | 'object'
+        | 'json'
+        | 'code'
+        | 'branches'
+        | 'tools'
+        | 'resource'
+        | 'picked'
+        | 'upload'
+        | 'none'
+      resourceKind?: string
+      storage: 'native' | 'json-string'
+      structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
+    }>
+    lists?: Array<Array<string | number | boolean>>
+    outputs?: Array<
+      Record<
+        string,
+        {
+          type: string
+          description?: string
+          condition?: unknown
+          hiddenFromDisplay?: boolean
+          properties?: Record<string, unknown>
+          sharedProperties?: number
+          items?: unknown
+        }
+      >
     >
     scope?: {
       organizationId: string

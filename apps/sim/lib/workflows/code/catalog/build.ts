@@ -3,9 +3,12 @@ import { compareStrings } from '@sim/utils/string'
 import {
   type BlockCatalog,
   type CatalogBlock,
+  type CatalogBlockDocs,
   type CatalogBuilder,
   type CatalogTool,
   type CatalogTrigger,
+  compactBlockCatalog,
+  type ExpandedBlockCatalog,
   stableStringify,
 } from '@sim/workflow-code'
 import {
@@ -40,8 +43,11 @@ function catalogHash(value: unknown): string {
   return createHash('sha256').update(stableStringify(value)).digest('hex')
 }
 
-/** One block's docs shard: the text and tool schemas the core shard leaves out. */
-interface CatalogDocsShard {
+/**
+ * One block's docs shard: the text, tool schemas, option labels and inputs the core shard leaves
+ * out. `expandBlockCatalog(catalog, docs)` merges the `CatalogBlockDocs` part back.
+ */
+interface CatalogDocsShard extends CatalogBlockDocs {
   type: string
   hash: string
   description: string
@@ -63,6 +69,14 @@ export interface CatalogBuildResult {
   catalog: BlockCatalog
   report: ProjectionReport
   docs: (type: string) => CatalogDocsShard | undefined
+}
+
+/** The projection before encoding: every block and trigger in expanded form. */
+export interface CatalogProjection {
+  catalog: Omit<ExpandedBlockCatalog, 'hash'>
+  report: ProjectionReport
+  /** Block descriptions and tool ids, for the docs shards. */
+  descriptions: ReadonlyMap<string, { description: string; access: string[] }>
 }
 
 interface ToolMetadataSource {
@@ -167,13 +181,10 @@ function sortedRecord<T>(entries: Array<[string, T]>): Record<string, T> {
 }
 
 /**
- * Builds the core shard of a `BlockCatalog` from registry definitions, plus a docs-shard reader.
- * Deterministic: the same inputs give the same bytes and the same hash.
+ * Projects registry definitions into an expanded catalog (no hash): the shape every consumer reads
+ * through the package's catalog view. {@link buildBlockCatalog} encodes it as the served core shard.
  */
-export function buildBlockCatalog(
-  input: CatalogBuildInput,
-  tools?: ToolMetadataSource
-): CatalogBuildResult {
+export function projectBlockCatalog(input: CatalogBuildInput): CatalogProjection {
   const report: ProjectionReport = { opaque: [] }
   const blocks: Array<[string, CatalogBlock]> = []
   const descriptions = new Map<string, { description: string; access: string[] }>()
@@ -216,14 +227,27 @@ export function buildBlockCatalog(
     triggers.push([id, projected])
   }
 
-  const core: Omit<BlockCatalog, 'hash'> = {
+  const catalog: Omit<ExpandedBlockCatalog, 'hash'> = {
     catalogVersion: 1,
     sdkMajor: CATALOG_SDK_MAJOR,
     blocks: sortedRecord(blocks),
     triggers: sortedRecord(triggers),
     builders: sortedRecord(Object.entries(builders)),
   }
-  if (input.scope) core.scope = { organizationId: input.scope.organizationId }
+  if (input.scope) catalog.scope = { organizationId: input.scope.organizationId }
+  return { catalog, report, descriptions }
+}
+
+/**
+ * Builds the core shard of a `BlockCatalog` from registry definitions, plus a docs-shard reader.
+ * Deterministic: the same inputs give the same bytes and the same hash.
+ */
+export function buildBlockCatalog(
+  input: CatalogBuildInput,
+  tools?: ToolMetadataSource
+): CatalogBuildResult {
+  const { catalog: expanded, report, descriptions } = projectBlockCatalog(input)
+  const { core, docs: blockDocs } = compactBlockCatalog(expanded)
   const catalog: BlockCatalog = { ...core, hash: catalogHash(core) }
 
   const docs = (type: string): CatalogDocsShard | undefined => {
@@ -235,7 +259,12 @@ export function buildBlockCatalog(
       if (metadata)
         shardTools[toolId] = projectCatalogTool(toolId, metadata, tools?.outputs(toolId))
     }
-    const body = { type, description: entry.description, tools: shardTools }
+    const body = {
+      type,
+      description: entry.description,
+      tools: shardTools,
+      ...(Object.hasOwn(blockDocs, type) ? blockDocs[type] : {}),
+    }
     return { ...body, hash: catalogHash(body) }
   }
 
