@@ -1145,9 +1145,9 @@ Return ONLY the comment text - no explanations.`,
               summary: params.summary || '',
               description: params.description || '',
               issueType: params.issueType || 'Task',
-              parent:
-                (params.parentIssue ? { key: params.parentIssue } : undefined) ??
-                toolCallArg(context, params.parent),
+              parent: params.parentIssue
+                ? { key: params.parentIssue }
+                : toolCallArg(context, params.parent),
               assignee: params.assignee || undefined,
               priority: params.priority || undefined,
               labels: parseList(params.labels),
@@ -1362,40 +1362,36 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               accountId: params.userAccountId || toolCallArg(context, params.accountId),
-              startAt:
-                (params.usersStartAt ? Number.parseInt(params.usersStartAt) : undefined) ??
-                toolCallArg(context, params.startAt),
-              maxResults:
-                (params.usersMaxResults ? Number.parseInt(params.usersMaxResults) : undefined) ??
-                toolCallArg(context, params.maxResults),
+              startAt: params.usersStartAt
+                ? Number.parseInt(params.usersStartAt)
+                : toolCallArg(context, params.startAt),
+              maxResults: params.usersMaxResults
+                ? Number.parseInt(params.usersMaxResults)
+                : toolCallArg(context, params.maxResults),
             }
           }
           case 'search_users': {
             return {
               ...baseParams,
               query: params.searchUsersQuery ?? toolCallArg(context, params.query),
-              maxResults:
-                (params.searchUsersMaxResults
-                  ? Number.parseInt(params.searchUsersMaxResults)
-                  : undefined) ?? toolCallArg(context, params.maxResults),
-              startAt:
-                (params.searchUsersStartAt
-                  ? Number.parseInt(params.searchUsersStartAt)
-                  : undefined) ?? toolCallArg(context, params.startAt),
+              maxResults: params.searchUsersMaxResults
+                ? Number.parseInt(params.searchUsersMaxResults)
+                : toolCallArg(context, params.maxResults),
+              startAt: params.searchUsersStartAt
+                ? Number.parseInt(params.searchUsersStartAt)
+                : toolCallArg(context, params.startAt),
             }
           }
           case 'list_projects': {
             return {
               ...baseParams,
               query: params.projectSearchQuery || toolCallArg(context, params.query),
-              startAt:
-                (params.listProjectsStartAt
-                  ? Number.parseInt(params.listProjectsStartAt)
-                  : undefined) ?? toolCallArg(context, params.startAt),
-              maxResults:
-                (params.listProjectsMaxResults
-                  ? Number.parseInt(params.listProjectsMaxResults)
-                  : undefined) ?? toolCallArg(context, params.maxResults),
+              startAt: params.listProjectsStartAt
+                ? Number.parseInt(params.listProjectsStartAt)
+                : toolCallArg(context, params.startAt),
+              maxResults: params.listProjectsMaxResults
+                ? Number.parseInt(params.listProjectsMaxResults)
+                : toolCallArg(context, params.maxResults),
             }
           }
           case 'get_project': {

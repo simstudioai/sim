@@ -1085,6 +1085,8 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
         const toolArg = (key: string): unknown => toolCallArg(context, params[key])
         const trimmedArg = (key: string) => getTrimmedString(toolArg(key))
         const booleanArg = (key: string) => parseOptionalBooleanInput(toolArg(key))
+        const numberArg = (key: string) => parseOptionalNumberInput(toolArg(key), key)
+        const listArg = (key: string) => parseStringArray(toolArg(key))
         const baseParams: Record<string, unknown> = {
           oauthCredential: params.oauthCredential,
         }
@@ -1136,18 +1138,17 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
             return {
               ...baseParams,
               query,
-              idBoards:
-                parseStringArray(params.searchBoardIds) ?? parseStringArray(toolArg('idBoards')),
+              idBoards: parseStringArray(params.searchBoardIds) ?? listArg('idBoards'),
               modelTypes: getTrimmedString(params.searchModelTypes) ?? trimmedArg('modelTypes'),
               cardsLimit:
                 parseOptionalNumberInput(params.searchCardsLimit, 'cardsLimit') ??
-                parseOptionalNumberInput(toolArg('cardsLimit'), 'cardsLimit'),
+                numberArg('cardsLimit'),
               cardsPage:
                 parseOptionalNumberInput(params.searchCardsPage, 'cardsPage') ??
-                parseOptionalNumberInput(toolArg('cardsPage'), 'cardsPage'),
+                numberArg('cardsPage'),
               boardsLimit:
                 parseOptionalNumberInput(params.searchBoardsLimit, 'boardsLimit') ??
-                parseOptionalNumberInput(toolArg('boardsLimit'), 'boardsLimit'),
+                numberArg('boardsLimit'),
               partial: parseOptionalBooleanInput(params.searchPartial) ?? booleanArg('partial'),
             }
           }
@@ -1197,10 +1198,8 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
               start: getTrimmedString(params.start),
               pos: getTrimmedString(params.updatePos) ?? trimmedArg('pos'),
               idBoard: getTrimmedString(params.moveCardToBoardId) ?? trimmedArg('idBoard'),
-              labelIds:
-                parseStringArray(params.updateLabelIds) ?? parseStringArray(toolArg('labelIds')),
-              memberIds:
-                parseStringArray(params.updateMemberIds) ?? parseStringArray(toolArg('memberIds')),
+              labelIds: parseStringArray(params.updateLabelIds) ?? listArg('labelIds'),
+              memberIds: parseStringArray(params.updateMemberIds) ?? listArg('memberIds'),
             }
           }
 

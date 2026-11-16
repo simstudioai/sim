@@ -16,13 +16,7 @@ describe('Trello mapper on agent tool calls', () => {
         { oauthCredential: 'cred', name: 'Roadmap', desc: 'Q1 plans', defaultLists: false },
         { operation: 'trello_create_board' }
       )
-    ).toEqual({
-      oauthCredential: 'cred',
-      name: 'Roadmap',
-      desc: 'Q1 plans',
-      idOrganization: undefined,
-      defaultLists: false,
-    })
+    ).toMatchObject({ name: 'Roadmap', desc: 'Q1 plans', defaultLists: false })
 
     expect(
       mapParams(

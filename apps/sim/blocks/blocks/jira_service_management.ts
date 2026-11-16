@@ -1300,11 +1300,13 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
               isPublic:
-                (params.includePublicComments === 'false' ? false : undefined) ??
-                toolCallArg(context, params.isPublic),
+                params.includePublicComments === 'false'
+                  ? false
+                  : toolCallArg(context, params.isPublic),
               internal:
-                (params.includeInternalComments === 'false' ? false : undefined) ??
-                toolCallArg(context, params.internal),
+                params.includeInternalComments === 'false'
+                  ? false
+                  : toolCallArg(context, params.internal),
               expand: params.expand,
               ...pagination,
             }
@@ -1636,8 +1638,9 @@ Return ONLY the comment text - no explanations.`,
               maxResults:
                 toOptionalInt(params.assetMaxResults) ?? toolCallArg(context, params.maxResults),
               includeCounts:
-                (params.assetIncludeCounts === 'true' ? true : undefined) ??
-                toolCallArg(context, params.includeCounts),
+                params.assetIncludeCounts === 'true'
+                  ? true
+                  : toolCallArg(context, params.includeCounts),
             }
           case 'get_object_schema': {
             const schemaId = params.assetSchemaId ?? toolCallArg(context, params.schemaId)
@@ -1655,8 +1658,9 @@ Return ONLY the comment text - no explanations.`,
               ...assetBaseParams,
               schemaId,
               excludeAbstract:
-                (params.assetExcludeAbstract === 'true' ? true : undefined) ??
-                toolCallArg(context, params.excludeAbstract),
+                params.assetExcludeAbstract === 'true'
+                  ? true
+                  : toolCallArg(context, params.excludeAbstract),
             }
           }
           case 'get_object_type_attributes': {
@@ -1669,8 +1673,9 @@ Return ONLY the comment text - no explanations.`,
               ...assetBaseParams,
               objectTypeId,
               onlyValueEditable:
-                (params.assetOnlyValueEditable === 'true' ? true : undefined) ??
-                toolCallArg(context, params.onlyValueEditable),
+                params.assetOnlyValueEditable === 'true'
+                  ? true
+                  : toolCallArg(context, params.onlyValueEditable),
               query: params.assetAttributeQuery || toolCallArg(context, params.query),
             }
           }
@@ -1687,8 +1692,9 @@ Return ONLY the comment text - no explanations.`,
                 toOptionalInt(params.assetResultsPerPage) ??
                 toolCallArg(context, params.resultsPerPage),
               includeAttributes:
-                (params.assetIncludeAttributes === 'false' ? false : undefined) ??
-                toolCallArg(context, params.includeAttributes),
+                params.assetIncludeAttributes === 'false'
+                  ? false
+                  : toolCallArg(context, params.includeAttributes),
               objectTypeId: params.assetObjectTypeId || toolCallArg(context, params.objectTypeId),
               objectSchemaId:
                 params.assetObjectSchemaId || toolCallArg(context, params.objectSchemaId),
