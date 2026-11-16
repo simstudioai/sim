@@ -7,7 +7,7 @@ const BASE = {
     slack: {
       namespace: 'slack',
       methods: { send: 'sendMessage', ephemeral: 'sendEphemeral' },
-      params: { action: { oauthCredential: 'credential' } },
+      paramAliases: { action: { oauthCredential: 'credential' } },
     },
     webhook: { namespace: 'trigger.webhook' },
     github: { namespace: 'github', triggers: { github_push: 'push' } },
@@ -29,7 +29,7 @@ describe('frozen sdk names', () => {
       blocks.linear = { namespace: 'linear', methods: { create: 'createIssue' } }
       ;(blocks.slack.methods as Record<string, string>).react = 'addReaction'
       ;(blocks.github.triggers as Record<string, string>).github_pr = 'pullRequest'
-      blocks.slack.params = {
+      blocks.slack.paramAliases = {
         action: { oauthCredential: 'credential' },
         trigger: { triggerCredentials: 'credential' },
       }
@@ -75,7 +75,7 @@ describe('frozen sdk names', () => {
     [
       'a deleted alias',
       (b: Record<string, Record<string, unknown>>) => {
-        Reflect.deleteProperty(b.slack, 'params')
+        Reflect.deleteProperty(b.slack, 'paramAliases')
       },
     ],
   ])('rejects %s', (_label, edit) => {

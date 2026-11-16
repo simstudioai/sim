@@ -1,8 +1,10 @@
 import type { CallExpression, Node } from '@babel/types'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
-import { catalogBuilder, catalogBuilderPaths } from '../catalog/view'
+import { paramAliases } from '../catalog/surface'
+import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
 import type { CanonicalTool, Json, ParamMode, ResourceNode, UnresolvedNode, Value } from '../model'
-import { setOwn } from '../records'
+import { getOwn, setOwn } from '../records'
+import { CUSTOM_TOOL_TYPE } from '../sdk'
 import { type CompileContext, lookup, rangeOf } from './context'
 import { didYouMean, hintForNode } from './hints'
 import {
@@ -11,11 +13,13 @@ import {
   compileNested,
   compileValue,
   literalText,
+  nestedValue as nestedToolValue,
   objectEntries,
   type ValueSite,
 } from './values'
 
 const USAGE_CONTROLS = new Set(['auto', 'force', 'none'])
+
 const TOOL_OPTIONS = [
   'operation',
   'toolId',
@@ -81,7 +85,8 @@ function toolBuilderPath(
 function compileToolCall(
   ctx: CompileContext,
   call: CallExpression,
-  site: ValueSite
+  site: ValueSite,
+  storedTool: CanonicalTool | undefined
 ): CanonicalTool | null {
   const builderPath = toolBuilderPath(ctx, site, call)
   if (builderPath === null) {
@@ -119,10 +124,38 @@ function compileToolCall(
   }
   const params: Record<string, Value> = {}
   for (const [id, value] of Object.entries(builder.fixed ?? {})) setOwn(params, id, value)
+  const block = catalogBlock(ctx.catalog, builder.type)
+  const paramOf = new Map<string, string>()
+  for (const [param, alias] of block ? paramAliases(block, false) : []) paramOf.set(alias, param)
   for (const [key, property] of objectEntries(ctx, paramsNode)) {
-    const value = compileNested(ctx, property.value, site)
+    const param = paramOf.get(key) ?? key
+    const compiled = compileValue(ctx, property.value, site)
+    if (!compiled) return null
+    const kept =
+      compiled.kind === 'stored' && storedTool?.type === builder.type
+        ? getOwn(storedTool.params, param)
+        : undefined
+    if (compiled.kind === 'stored' && kept === undefined) {
+      ctx.reporter.report(
+        'E_STORED_VALUE_MISSING',
+        `stored() keeps ${key}, but the stored tool in this position has no value for it.`,
+        rangeOf(ctx, property.value),
+        { hint: `Write the value of ${key}.`, blockKey: site.decl.key }
+      )
+      return null
+    }
+    const value = kept ?? nestedToolValue(ctx, property.value, compiled, site)
     if (value === undefined) return null
-    setOwn(params, key, value)
+    if (Object.hasOwn(params, param) && !Object.hasOwn(builder.fixed ?? {}, param)) {
+      return unsupported(
+        ctx,
+        property,
+        `${key} names a param that is already written.`,
+        'Write each param once.',
+        site
+      )
+    }
+    setOwn(params, param, value)
   }
   const tool: CanonicalTool = { type: builder.type, params, modes: {} }
   if (builder.operation !== undefined) tool.operation = builder.operation
@@ -283,13 +316,89 @@ function compileToolCall(
 }
 
 /**
+ * `customTool('key', { usageControl?, usageControlExpression? })`: a workspace custom tool by
+ * resource key, stored as the reference the tool picker writes (`customToolId`, no params). A tool
+ * carrying anything else (a snapshot, a title, params) is written `raw(tool)`.
+ */
+function compileCustomTool(
+  ctx: CompileContext,
+  call: CallExpression,
+  site: ValueSite
+): CanonicalTool | null {
+  const [keyNode, optionsNode, ...extra] = call.arguments
+  const key = keyNode ? literalText(keyNode) : null
+  if (key === null || extra.length > 0) {
+    return unsupported(
+      ctx,
+      call,
+      'customTool() takes a key and optional options.',
+      "Write customTool('lookup-order', { usageControl: 'auto' }).",
+      site
+    )
+  }
+  const tool: CanonicalTool = {
+    type: CUSTOM_TOOL_TYPE,
+    params: {},
+    modes: {},
+    customTool: { ref: { $sim: 'resource', kind: 'custom-tool', key } },
+  }
+  if (!optionsNode) return tool
+  if (optionsNode.type !== 'ObjectExpression') {
+    return unsupported(
+      ctx,
+      optionsNode,
+      'Tool options are an object literal.',
+      "Write { usageControl: 'auto' }.",
+      site
+    )
+  }
+  for (const [option, property] of objectEntries(ctx, optionsNode)) {
+    if (option === 'usageControl') {
+      const text = literalText(property.value)
+      if (text !== 'auto' && text !== 'force' && text !== 'none') {
+        return unsupported(
+          ctx,
+          property.value,
+          'Unknown usage control.',
+          `Use ${[...USAGE_CONTROLS].join(', ')}.`,
+          site
+        )
+      }
+      tool.usageControl = text
+    } else if (option === 'usageControlExpression') {
+      const compiled = compileValue(ctx, property.value, site)
+      if (!compiled || compiled.kind !== 'value' || typeof compiled.value !== 'string') {
+        return unsupported(
+          ctx,
+          property.value,
+          'usageControlExpression is text.',
+          'Write js`...`.',
+          site
+        )
+      }
+      tool.usageControlExpression = compiled.value
+    } else {
+      return unsupported(
+        ctx,
+        property,
+        `customTool() takes usageControl and usageControlExpression; ${option} is not one.`,
+        'Write a tool with other stored fields as raw(tool).',
+        site
+      )
+    }
+  }
+  return tool
+}
+
+/**
  * A tool-input value: an array of `ns.tool.method(params, options?)` calls (the printer's
  * `printTools`) or `raw(tool)` elements. `raw([...])` for the whole list is accepted too.
  */
 export function compileToolList(
   ctx: CompileContext,
   node: Node,
-  site: ValueSite
+  site: ValueSite,
+  storedTools: readonly CanonicalTool[]
 ): CanonicalTool[] | null {
   if (node.type !== 'ArrayExpression') {
     const compiled = compileValue(ctx, node, site)
@@ -326,6 +435,16 @@ export function compileToolList(
     const rootBinding = compiled === undefined ? null : lookup(site.scope, compiled)
     if (
       rootBinding?.kind === 'sdk' &&
+      rootBinding.name === 'customTool' &&
+      element.callee.type === 'Identifier'
+    ) {
+      const tool = compileCustomTool(ctx, element, site)
+      if (!tool) return null
+      tools.push(tool)
+      continue
+    }
+    if (
+      rootBinding?.kind === 'sdk' &&
       rootBinding.name === 'raw' &&
       element.callee.type === 'Identifier'
     ) {
@@ -343,7 +462,7 @@ export function compileToolList(
       tools.push(value.value)
       continue
     }
-    const tool = compileToolCall(ctx, element, site)
+    const tool = compileToolCall(ctx, element, site, storedTools[tools.length])
     if (!tool) return null
     tools.push(tool)
   }

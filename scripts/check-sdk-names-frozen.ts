@@ -72,13 +72,13 @@ export function frozenNameViolations(base: unknown, head: unknown): string[] {
     for (const map of NAME_MAPS) {
       compareMap(record(was[map]), record(own(nowValue, map)), `${type}.${map}`, out)
     }
-    const baseParams = record(was.params)
-    const headParams = record(own(nowValue, 'params'))
+    const baseParams = record(was.paramAliases)
+    const headParams = record(own(nowValue, 'paramAliases'))
     for (const surface of Object.keys(baseParams).sort(compareStrings)) {
       compareMap(
         record(baseParams[surface]),
         record(own(headParams, surface)),
-        `${type}.params.${surface}`,
+        `${type}.paramAliases.${surface}`,
         out
       )
     }

@@ -21,7 +21,7 @@ to the default and writes `null` for an active field that has a default but no s
 ## File
 
 - Line 1 is `// @sim-sdk N`; a missing header is `E_SDK_HEADER`, `N` above the caller's major is
-  `E_SDK_MAJOR`.
+  `E_SDK_MAJOR`, and `N` below `OLDEST_SDK_MAJOR` (`sdk.ts`) is `E_SDK_MAJOR_OLD`.
 - Imports: named imports from `'@sim/workflow-sdk'` only (aliases allowed). Anything else is
   `E_UNSUPPORTED_SYNTAX`.
 - Exactly one `export default workflow(name, options?, body)`. `options` is
@@ -37,8 +37,13 @@ to the default and writes `null` for an active field that has a default but no s
   fit. With a catalog type, params are checked against its fields; without one, they are kept
   verbatim.
 - Params: a subBlock id, or the `canonicalParamId` for every subBlock group sharing one (even a
-  group of one). Writing a group member by its own id is `E_UNKNOWN_PARAM` with a hint. A pinned
-  id (`operation`, a builder's `fixed`) is `E_FIXED_PARAM`; the compiler adds pinned values.
+  group of one). A param the catalog aliases (`paramAliases`, frozen in `sdk-names.json`:
+  `oauthCredential` → `credential`) prints under its alias; compile accepts the alias and the
+  param name, and both at once is `E_UNSUPPORTED_SYNTAX`. Writing a group member by its own id is
+  `E_UNKNOWN_PARAM` with a hint naming the written name. A pinned id (`operation`, a builder's
+  `fixed`) is `E_FIXED_PARAM`; the compiler adds pinned values.
+- A block name holding a bidi control or zero-width character is `W_SUSPICIOUS_CHARACTER`; the
+  printer escapes such characters (`\u202E`) in every string it writes.
 - Pair mode follows from the value kind alone; there is no `meta.modes`. A selector call
   (`credential`, `table`, `knowledgeBase`, `childWorkflow`, `skill`, `customTool`, `mcp`,
   `sandbox`, `folder`, `file`) or a non-empty array of them is basic, anything else advanced, except that a list or
@@ -89,6 +94,12 @@ to the default and writes `null` for an active field that has a default but no s
   shape-checked; a `literal` node's `value` is not inspected.
 - `todo()`: absent (no editor default fills it), with `W_REQUIRED_MISSING` when the field is
   required.
+- `stored()`: the value `CompileInput.stored` (the stored workflow the file continues) holds for
+  this block key, type and param, a pair's members and mode included. The printer writes it for
+  literal text in a `password` field (a secret is never printed; `{{ENV}}` and references print as
+  themselves), in params and tool params alike (a tool by its position and type). A block or
+  field with no stored value is `E_STORED_VALUE_MISSING`; inside a value it is
+  `E_UNSUPPORTED_SYNTAX`.
 - A plain string is fine where a selector is expected (`channel: 'C0123'`): it lands in the
   pair's advanced member, and apply keeps the stored selector member when that showed the id.
 - Strings: `'...'`, untagged templates without `${}`, and `t`/`js`/`py`/`sh`/`json`/`md` tagged
@@ -104,7 +115,20 @@ to the default and writes `null` for an active field that has a default but no s
   `raw({ $sim: 'var', key })`), and prints whole-string `<variable.x>` text there as
   `` t`${vars.x}` `` (elsewhere bare). Golden: `print/__golden__/vars-by-field.txt`.
 - A JSON code field (subBlock type `code`) written as an object or array literal compiles to
-  `JSON.stringify(value, null, 2)` (in a pair, see pair mode above).
+  `JSON.stringify(value, null, 2)` text (in a pair, see pair mode above), with each bare reference
+  stored by its output type (`json-fields.ts`): quoted (`"<a.b>"`) when the catalog or the
+  workflow types it `string`, bare (`<a.b>`) otherwise, because the executor splices a string raw
+  and any other value as JSON. A reference nothing types is stored bare with
+  `W_JSON_REF_UNTYPED`. A template is a JSON string, which is how a value becomes text on purpose.
+  The printer writes a single (non-pair) JSON field's text back as the literal only when
+  serializing that literal gives the same bytes; otherwise the text prints as a template.
+- `response(name, { body, status?, headers? })` is the response block in the editor's JSON mode:
+  `dataMode: 'json'`, `body` in `data` (a literal as above, or text), `status` as text (a number
+  literal prints for a canonical integer), `headers` as header-table rows. `body` selects the form;
+  any other key beside `status` and `headers` is `E_UNKNOWN_PARAM`. The printer uses it only for a
+  block that carries exactly those params with such rows.
+- Hand-written `<Name.path>` text whose head is not a normalized block key, or names no block, is
+  `W_REF_NOT_NORMALIZED`, with the ident form as the hint.
 - inputFormat (`structured: 'inputFormat'`) as a record: `name: 'string'` →
   `{ name, type: 'string', value: '' }`; `name: { type, ... }` → `{ name, type, ... }`; `{}` is the
   empty list. Arrays pass through; the printer writes a list the record cannot carry (an
@@ -113,7 +137,10 @@ to the default and writes `null` for an active field that has a default but no s
   `language` (default `javascript`). JavaScript files have `$ref`/`$env` chains rewritten back
   (`src/code-files`); Python and shell are verbatim.
 - Tools (`valueKind: 'tools'`): an array of `ns.tool.method(params, options?)` /
-  `method.tool(params, options?)` and `raw(tool)`. Options: `operation`, `toolId`, `title`,
+  `method.tool(params, options?)`, `customTool('key', { usageControl?, usageControlExpression? })`
+  (a workspace custom tool stored as the picker's reference; a copied definition prints as `raw`)
+  and `raw(tool)`. Tool params take the same aliases; a stored tool keyed by an alias name prints
+  as `raw(tool)`. Options: `operation`, `toolId`, `title`,
   `usageControl`, `usageControlExpression`, `modes`, `customTool`, `operationPolicy`, `extra`.
 
 ## Branches

@@ -11,6 +11,24 @@
  */
 export const GENERIC_BUILDER = 'block'
 
+/** The stored type of a workspace custom tool entry (the tool picker's `type: 'custom-tool'`). */
+export const CUSTOM_TOOL_TYPE = 'custom-tool'
+
+/** The response block type, which also takes the `response(name, { body, ... })` form. */
+export const RESPONSE_BLOCK_TYPE = 'response'
+
+/**
+ * The keys of the `response(name, { body, status?, headers? })` form. Writing `body` selects it;
+ * without `body` the params are the block's own (`dataMode`, `builderData`, `data`, ...).
+ */
+export const RESPONSE_BODY_KEYS = ['body', 'status', 'headers'] as const
+
+/**
+ * The oldest SDK major the compiler reads. A header below it is `E_SDK_MAJOR_OLD`: no
+ * down-migration exists, so such a file must be printed again for a supported major.
+ */
+export const OLDEST_SDK_MAJOR = 1
+
 /** Every value the SDK's core module exports (s2 §2 core types, build-spec decision 7). */
 export const SDK_CORE_EXPORTS = [
   GENERIC_BUILDER,
@@ -44,6 +62,7 @@ export const SDK_CORE_EXPORTS = [
   'setVariables',
   'sh',
   'skill',
+  'stored',
   't',
   'table',
   'todo',

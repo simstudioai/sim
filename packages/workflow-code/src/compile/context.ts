@@ -8,7 +8,17 @@ import { encodeAnchor } from '../anchors'
 import type { CompileLimits } from '../api'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder } from '../catalog/types'
 import type { SourceSpan } from '../diagnostics/frame'
-import type { Anchor, AnchorKey, BlockKey, CanonicalVariable, VarKey } from '../model'
+import type { JsonTree } from '../json-fields'
+import type {
+  Anchor,
+  AnchorKey,
+  BlockKey,
+  CanonicalParam,
+  CanonicalVariable,
+  CanonicalWorkflow,
+  SubBlockId,
+  VarKey,
+} from '../model'
 import type { AddCommentItem, CommentCollector } from './comments'
 import type { Range, Reporter } from './report'
 
@@ -115,6 +125,21 @@ export interface CompileContext {
   spans: Map<AnchorKey, SourceSpan>
   /** `CompileInput.knownKeys`: the only keys a `meta.key` override may name. */
   knownKeys: ReadonlySet<BlockKey>
+  /** `CompileInput.stored`: the stored workflow `stored()` reads its values from. */
+  stored: CanonicalWorkflow | undefined
+  /**
+   * JSON code fields written as literals. Their text depends on the output types of the blocks
+   * they reference (`json-fields.ts`), so it is written once every block is compiled.
+   */
+  jsonFields: JsonFieldEntry[]
+}
+
+/** A JSON code field written as a literal, and where each bare reference in it was written. */
+export interface JsonFieldEntry {
+  params: Record<SubBlockId, CanonicalParam>
+  id: SubBlockId
+  tree: JsonTree
+  refs: Array<{ token: string; range: Range; blockKey: BlockKey }>
 }
 
 /** Anything with Babel-style offsets. */

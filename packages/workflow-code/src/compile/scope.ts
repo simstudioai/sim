@@ -12,6 +12,7 @@ import {
 import { encodeAnchor } from '../anchors'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
 import type { BlockKey } from '../model'
+import { isSuspiciousCharacter } from '../print/strings'
 import { GENERIC_BUILDER } from '../sdk'
 import type { ListOptions } from './comments'
 import {
@@ -211,6 +212,14 @@ function declare(
       hint: 'Give the block a display name.',
     })
     return null
+  }
+  if ([...name].some((char) => isSuspiciousCharacter(char.charCodeAt(0)))) {
+    ctx.reporter.report(
+      'W_SUSPICIOUS_CHARACTER',
+      'This block name holds an invisible bidi control or zero-width character.',
+      rangeOf(ctx, nameNode),
+      { hint: 'Remove it, or write it as an escape (\\u202E) so reviewers can see it.' }
+    )
   }
   const metaIndex = classified.builder.kind === 'container' ? 3 : nameIndex + 2
   const override = keyOverride(ctx, call.arguments[metaIndex], normalized)

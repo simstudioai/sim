@@ -91,7 +91,11 @@ export declare const js: typeof t
 export declare const py: typeof t
 /** Shell code. */
 export declare const sh: typeof t
-/** JSON text kept verbatim, for bodies an object literal cannot reproduce byte for byte. */
+/**
+ * JSON text kept verbatim, for bodies an object literal cannot reproduce byte for byte. In a JSON
+ * field an object literal is the usual form: a bare reference keeps its value's type (`n: score.value`
+ * is a number), and a template is text.
+ */
 export declare const json: typeof t
 /** Markdown text (note content). */
 export declare const md: typeof t
@@ -104,6 +108,14 @@ export declare function raw<T = never>(value: unknown): T & { readonly [RAW]: tr
 
 /** A required value that is still missing; compiles to absent, so canvas drafts type-check. */
 export declare function todo(): never
+
+/**
+ * Keeps the value the stored workflow holds for this param, without showing it: the printer writes
+ * it for a secret pasted into a password field. Valid only on a param of a block the stored
+ * workflow already has (same name and type) and holds a value for; anything else is
+ * `E_STORED_VALUE_MISSING`.
+ */
+export declare function stored(): never
 
 /** Function code kept in a file next to the workflow (`.js`, `.py` or `.sh`), stored verbatim. */
 export interface CodeFileRef {
@@ -220,12 +232,15 @@ export interface ToolOpts {
   extra?: Json
 }
 
-/** A custom tool by key: `customTool('lookup-order')`. */
-export declare function customTool(key: string, options?: ToolOpts): Tool
-export declare namespace customTool {
-  /** A custom tool snapshot that has drifted from the workspace tool. */
-  function inline(definition: { schema: Json; code: string | Template; title?: string }): Tool
-}
+/**
+ * A workspace custom tool by key, as an agent tool: `customTool('lookup-order')`. A stored tool
+ * whose definition was copied into the workflow (and may have drifted from the workspace tool)
+ * prints as `raw(tool)` instead.
+ */
+export declare function customTool(
+  key: string,
+  options?: Pick<ToolOpts, 'usageControl' | 'usageControlExpression'>
+): Tool
 
 /** An MCP server by key; `mcp('linear').tool('create_issue')`. */
 export interface McpServerRef extends ResourceRef<'mcp-server'> {
@@ -529,10 +544,25 @@ export declare function human<const F extends InputFields = Record<never, never>
   meta?: BlockMeta
 ): Block<Omit<SpecialOutput<'human'>, 'submission'> & { submission: InputFieldsOutput<F> }>
 
-/** Ends the workflow with an API response. */
+/**
+ * A response's body, status and headers: the editor's JSON mode. An object or array `body` is
+ * JSON whose references keep their types; a template or reference is the body text as written.
+ */
+export interface ResponseBody {
+  body: JsonWithRefs
+  /** HTTP status; 200 when omitted. */
+  status?: number | Value<string>
+  /** Response headers by name. */
+  headers?: Record<string, Value<string>>
+}
+
+/**
+ * Ends the workflow with an API response: `response('Reply', { body: { ok: true }, status: 201 })`,
+ * or the block's own params (`dataMode`, `builderData`, ...) when the body is built field by field.
+ */
 export declare function response(
   name: string,
-  params: SpecialParams<'response'>,
+  params: ResponseBody | SpecialParams<'response'>,
   meta?: BlockMeta
 ): Block<SpecialOutput<'response'>>
 
@@ -588,8 +618,20 @@ export type InputFieldsOutput<F> = {
   [K in keyof F]: F[K] extends { type: infer T } ? InputFieldValue<T> : InputFieldValue<F[K]>
 }
 
-/** `response-format` fields: `{ ok: true, id: { type: 'string', value: row.id } }`. */
-export type ResponseFields = Record<string, JsonWithRefs | { type: string; value: JsonWithRefs }>
+/**
+ * One `response-format` field as the editor's builder stores it. An `object` or `array` field's
+ * `value` may hold nested fields. A response is usually written with `body` instead.
+ */
+export interface ResponseField {
+  id?: string
+  name: string
+  type: string
+  value?: JsonWithRefs
+  collapsed?: boolean
+}
+
+/** `response-format` fields: `[{ name: 'ok', type: 'boolean', value: true }]`. */
+export type ResponseFields = ResponseField[]
 
 /** An agent message. */
 export interface Message {

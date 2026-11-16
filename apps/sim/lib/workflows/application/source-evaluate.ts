@@ -172,6 +172,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     catalog,
     sdkMajor: catalog.sdkMajor,
     knownKeys: new Set([...Object.keys(lock.blocks), ...Object.keys(storedIdentity.blocks)]),
+    stored: input.storedCanonical.canonical.workflow,
   })
   const compiledWorkflow = compiled.workflow
   if (!compiledWorkflow || hasErrors(compiled.diagnostics)) {

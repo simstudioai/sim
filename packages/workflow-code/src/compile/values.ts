@@ -9,17 +9,22 @@ import type {
   TaggedTemplateExpression,
 } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
+import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import { WORKFLOW_RESOURCE_KINDS } from '@sim/workflow-types/resources'
+import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import type { CatalogOutput } from '../catalog/types'
 import {
   ENV_VAR_NAME,
+  formatMemberPath,
   formatStoredPath,
   isIndexSegment,
   isNameSegment,
   LOOP_PROPERTIES,
   PARALLEL_PROPERTIES,
+  parseStoredPath,
   type RefSegment,
 } from '../code-files/ref-path'
+import { JsonRef, type JsonTree, valueTree } from '../json-fields'
 import type { Json, ResourceKind, Value, VarNode } from '../model'
 import { setOwn } from '../records'
 import {
@@ -28,6 +33,7 @@ import {
   catalogBlockOf,
   containerKindOf,
   enclosingContainers,
+  type JsonFieldEntry,
   lookup,
   rangeOf,
   type Scope,
@@ -61,6 +67,8 @@ export type CompiledValue =
   | { kind: 'todo' }
   /** `null` at the top of a param: a stored `null` is absent. */
   | { kind: 'absent' }
+  /** `stored()`: the value the stored block holds for this param (`CompileInput.stored`). */
+  | { kind: 'stored' }
   /** `codeFile('./x.js')`: only valid as a function block's code. */
   | { kind: 'codeFile'; path: string; pathNode: Node }
 
@@ -92,6 +100,7 @@ export const SDK_VALUE_FUNCTIONS = new Set([
   ...TEMPLATE_TAGS,
   'raw',
   'todo',
+  'stored',
   'ref',
   'codeFile',
   'edge',
@@ -172,6 +181,43 @@ export function objectEntries(
     entries.push([key, property])
   }
   return entries
+}
+
+/** Heads of stored references that name no block. */
+const REFERENCE_ROOTS: ReadonlySet<string> = new Set(['variable', 'loop', 'parallel'])
+
+/**
+ * `W_REF_NOT_NORMALIZED` for each hand-written `<Name.path>` in literal text whose head is not a
+ * normalized block key, or names no declared block. Such text is kept verbatim, so a rename in the
+ * same apply never rewrites it; the block's ident is the reference that follows the block.
+ */
+function checkLiteralRefs(ctx: CompileContext, node: Node, text: string, site: ValueSite): void {
+  for (const token of findWorkflowReferenceTokens(text)) {
+    if (token.kind !== 'workflow') continue
+    const segments = parseStoredPath(token.value.slice(1, -1))
+    const head = segments?.[0]
+    if (!segments || head?.kind !== 'name') continue
+    const normalized = normalizeWorkflowBlockName(head.name)
+    if (
+      normalized === head.name &&
+      (REFERENCE_ROOTS.has(head.name) || ctx.declsByKey.has(head.name))
+    )
+      continue
+    const target = ctx.declsByKey.get(normalized)
+    ctx.reporter.report(
+      'W_REF_NOT_NORMALIZED',
+      normalized === head.name
+        ? `${token.value} names no block; the text is kept as written.`
+        : `${token.value} is not written with the block key ${normalized}; the text is kept as written.`,
+      rangeOf(ctx, node),
+      {
+        hint: target?.ident
+          ? `Write \${${formatMemberPath(target.ident, segments.slice(1))}} in a template, so a rename follows the block.`
+          : 'Reference a declared block through its ident, so a rename follows the block.',
+        blockKey: site.decl.key,
+      }
+    )
+  }
 }
 
 /** A string literal, or a template literal with no `${}`; `null` otherwise. */
@@ -640,6 +686,7 @@ function templateText(
         site
       )
     }
+    checkLiteralRefs(ctx, quasi, cooked, site)
     text += cooked
     const expression = expressions[index]
     if (!expression) continue
@@ -692,6 +739,10 @@ function compileCall(
       if (call.arguments.length > 0)
         return report(ctx, call, 'todo() takes no arguments.', 'Write todo().', site)
       return { kind: 'todo' }
+    case 'stored':
+      if (call.arguments.length > 0)
+        return report(ctx, call, 'stored() takes no arguments.', 'Write stored().', site)
+      return { kind: 'stored' }
     case 'raw': {
       const [argument, ...extra] = call.arguments
       if (!argument || extra.length > 0 || argument.type === 'SpreadElement') {
@@ -772,7 +823,7 @@ export function compileNested(ctx: CompileContext, node: Node, site: ValueSite):
   return compiled ? nestedValue(ctx, node, compiled, site) : undefined
 }
 
-function nestedValue(
+export function nestedValue(
   ctx: CompileContext,
   node: Node,
   compiled: CompiledValue,
@@ -780,17 +831,18 @@ function nestedValue(
 ): Value | undefined {
   if (compiled.kind === 'value') return compiled.value
   if (compiled.kind === 'absent') return null
-  report(
-    ctx,
-    node,
-    compiled.kind === 'todo'
-      ? 'todo() stands for a whole param.'
-      : 'codeFile() holds a whole code param.',
-    compiled.kind === 'todo'
-      ? 'Write todo() as the param value.'
-      : "Write code: codeFile('./fns/x.js').",
-    site
-  )
+  if (compiled.kind === 'codeFile') {
+    report(
+      ctx,
+      node,
+      'codeFile() holds a whole code param.',
+      "Write code: codeFile('./fns/x.js').",
+      site
+    )
+    return undefined
+  }
+  const name = compiled.kind === 'todo' ? 'todo()' : 'stored()'
+  report(ctx, node, `${name} stands for a whole param.`, `Write ${name} as the param value.`, site)
   return undefined
 }
 
@@ -806,6 +858,8 @@ export function compileValue(
 ): CompiledValue | null {
   switch (node.type) {
     case 'StringLiteral':
+      checkLiteralRefs(ctx, node, node.value, site)
+      return { kind: 'value', value: node.value, form: 'literal' }
     case 'BooleanLiteral':
       return { kind: 'value', value: node.value, form: 'literal' }
     case 'NumericLiteral':
@@ -830,6 +884,7 @@ export function compileValue(
               site
             )
       }
+      checkLiteralRefs(ctx, node, text, site)
       return { kind: 'value', value: text, form: 'literal' }
     }
     case 'TaggedTemplateExpression': {
@@ -858,6 +913,51 @@ export function compileValue(
     default:
       return rejectNode(ctx, node, site)
   }
+}
+
+/**
+ * A JSON code field written as an object or array literal (`json-fields.ts`): a bare reference is
+ * a typed leaf whose stored form follows its output type; every other leaf compiles as a value,
+ * so a template is a JSON string. `undefined` after reporting an error.
+ */
+export function compileJsonTree(
+  ctx: CompileContext,
+  node: Node,
+  site: ValueSite,
+  refs: JsonFieldEntry['refs']
+): JsonTree | undefined {
+  if (node.type === 'ObjectExpression') {
+    const result: { [key: string]: JsonTree } = {}
+    const entries = objectEntries(ctx, node)
+    let failed = entries.length !== node.properties.length
+    for (const [key, property] of entries) {
+      const tree = compileJsonTree(ctx, property.value, site, refs)
+      if (tree === undefined) failed = true
+      else setOwn(result, key, tree)
+    }
+    return failed ? undefined : result
+  }
+  if (node.type === 'ArrayExpression') {
+    const items: JsonTree[] = []
+    for (const element of node.elements) {
+      if (!element || element.type === 'SpreadElement') {
+        report(ctx, element ?? node, 'Write each element explicitly.', HINTS.spread, site)
+        return undefined
+      }
+      const tree = compileJsonTree(ctx, element, site, refs)
+      if (tree === undefined) return undefined
+      items.push(tree)
+    }
+    return items
+  }
+  if (node.type === 'Identifier' || node.type === 'MemberExpression') {
+    const ref = compileRef(ctx, node, { ...site, varNodes: false })
+    if (typeof ref !== 'string') return undefined
+    refs.push({ token: ref, range: rangeOf(ctx, node), blockKey: site.decl.key })
+    return new JsonRef(ref, false)
+  }
+  const value = compileNested(ctx, node, site)
+  return value === undefined ? undefined : valueTree(value)
 }
 
 /**

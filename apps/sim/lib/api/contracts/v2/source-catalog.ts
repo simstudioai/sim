@@ -369,6 +369,13 @@ const catalogBlockSchema = z
       )
       .optional()
       .describe('Basic/advanced pair id renames applied on load.'),
+    paramAliases: z
+      .object({
+        action: z.record(z.string(), z.string()).optional().describe('Action-surface aliases.'),
+        trigger: z.record(z.string(), z.string()).optional().describe('Trigger-surface aliases.'),
+      })
+      .optional()
+      .describe('The name source writes for a param, by param name: oauthCredential → credential.'),
     custom: z
       .object({
         sourceWorkflowId: z.string().optional().describe('Workflow the custom block runs.'),

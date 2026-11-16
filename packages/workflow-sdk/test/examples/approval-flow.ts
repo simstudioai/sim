@@ -22,10 +22,10 @@ export default workflow('Approval flow', {}, () => {
   })
   // A const cannot reference itself in its own initializer, so the block's own URL is a `ref`.
   const approve = human('Manager approval', {
-    builderData: { amount: { type: 'number', value: req.amount } },
+    builderData: [{ name: 'amount', type: 'number', value: req.amount }],
     notification: [
       slack.tool.sendMessage({
-        oauthCredential: credential('ops-slack'),
+        credential: credential('ops-slack'),
         channel: 'C0OPS',
         text: t`Approve: ${ref('managerapproval.url')}`,
       }),
@@ -33,10 +33,7 @@ export default workflow('Approval flow', {}, () => {
     inputFormat: { approved: 'boolean', note: 'string' },
   })
   const decide = condition('Approved?', { yes: js`${approve.submission.approved}`, else: true })
-  const done = response('Done', {
-    dataMode: 'structured',
-    builderData: { approved: { type: 'boolean', value: true } },
-  })
+  const done = response('Done', { body: { approved: true, amount: req.amount } })
   const notConfigured = condition('Not configured yet', {})
 
   req.to(triage)

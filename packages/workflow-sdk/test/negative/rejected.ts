@@ -37,7 +37,7 @@ export default workflow('Rejected', {}, () => {
 
   // An unknown param.
   gmail.sendEmail('Send', {
-    oauthCredential: credential('finance-gmail'),
+    credential: credential('finance-gmail'),
     to: 'a@b.co',
     body: 'hi',
     // @ts-expect-error `recipient` is not a param of gmail.sendEmail
@@ -53,7 +53,7 @@ export default workflow('Rejected', {}, () => {
 
   // A missing required param (`to`).
   // @ts-expect-error `to` is required by gmail.sendEmail
-  gmail.sendEmail('Send', { oauthCredential: credential('finance-gmail'), body: 'hi' })
+  gmail.sendEmail('Send', { credential: credential('finance-gmail'), body: 'hi' })
 
   // An unknown table column, with workspace types loaded.
   table.insertRow('Log', {

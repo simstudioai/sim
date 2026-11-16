@@ -1,11 +1,24 @@
 /**
  * Literal escaping for printed source. Every function returns text whose cooked JS value is
  * exactly the input (s3 D5): the compiler reads cooked values, so `\`, quotes, `${`, CR,
- * U+2028/2029, other control characters and lone surrogates are escaped, while LF stays raw inside
- * templates so multi-line text reads naturally. Template content is never re-indented.
+ * U+2028/2029, other control characters, lone surrogates and the characters that reorder or hide
+ * text in review ({@link isSuspiciousCharacter}) are escaped, while LF stays raw inside templates
+ * so multi-line text reads naturally. Template content is never re-indented.
  */
 
 import { isIdentifierName } from '../code-files/ref-path'
+
+/**
+ * Bidi embedding and isolate controls (U+202A–U+202E, U+2066–U+2069) and zero-width characters
+ * (U+200B–U+200F): invisible, they make printed text read differently from what it stores.
+ */
+export function isSuspiciousCharacter(code: number): boolean {
+  return (
+    (code >= 0x200b && code <= 0x200f) ||
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2066 && code <= 0x2069)
+  )
+}
 
 function hex4(code: number): string {
   return `\\u${code.toString(16).toUpperCase().padStart(4, '0')}`
@@ -64,7 +77,7 @@ function escapeText(text: string, mode: 'single' | 'double' | 'template'): strin
         out += mode === 'template' && text[i + 1] === '{' ? '\\$' : '$'
         continue
     }
-    if (code < 0x20 || code === 0x7f) {
+    if (code < 0x20 || code === 0x7f || isSuspiciousCharacter(code)) {
       out += hex4(code)
       continue
     }

@@ -13,7 +13,7 @@ import {
 
 export default workflow('Invoice report', {}, () => {
   const mail = trigger.gmail.poller('Invoice email', {
-    oauthCredential: credential('finance-gmail'),
+    credential: credential('finance-gmail'),
     labelIds: ['INBOX'],
     markAsRead: true,
   })
@@ -22,13 +22,13 @@ export default workflow('Invoice report', {}, () => {
     messages: [{ role: 'user', content: t`Extract totals:\n${mail.email.bodyText}` }],
     tools: [
       googleSheets.tool.appendData(
-        { oauthCredential: credential('finance-google'), spreadsheetId: '1AbC' },
+        { credential: credential('finance-google'), spreadsheetId: '1AbC' },
         { usageControl: 'auto' }
       ),
     ],
   })
   const send = gmail.sendEmail('Send summary', {
-    oauthCredential: credential('finance-gmail'),
+    credential: credential('finance-gmail'),
     to: 'cfo@acme.com',
     subject: 'Invoices',
     body: extract.content,

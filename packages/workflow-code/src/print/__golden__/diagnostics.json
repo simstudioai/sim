@@ -34,6 +34,8 @@
   "agent-tools": [],
   "input-format-sugar": [],
   "json-code-fields": [],
+  "response-body": [],
+  "stored-secrets": [],
   "function-languages": [],
   "comments-at-anchors": [
     "W_COMMENT_MOVED classify: A comment has no printed anchor; moved to its block declaration.",
