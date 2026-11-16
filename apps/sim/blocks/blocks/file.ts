@@ -2224,7 +2224,7 @@ export const FileV5Block: BlockConfig = {
           const shareParams = {
             isActive,
             // When disabling, leave authType unset so the stored access mode is preserved.
-            authType: modelSharing ? params.authType : isActive ? visibility : undefined,
+            authType: isActive ? (modelSharing ? params.authType : visibility) : undefined,
             password: params.sharePassword ?? toolCallArg(context, params.password),
             allowedEmails,
             workspaceId: params._context?.workspaceId,

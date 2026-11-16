@@ -64,7 +64,8 @@ interface TableBlockParams {
   columns?: unknown
   filterInput?: unknown
   sortInput?: unknown
-  limit?: string
+  /** A string on the canvas; a number when a model supplies it on a tool call. */
+  limit?: string | number
   cursor?: string
   conflictColumn?: string
   /** The tool's own `conflictTarget` param, set in an Agent tool row. */
@@ -131,11 +132,11 @@ interface ParsedParams {
  * Fail-fast limit parsing for bulk ops: an unparseable limit must never
  * silently widen the operation to every matching row.
  */
-function parseOptionalLimit(raw: string | undefined): number | undefined {
-  if (!raw) return undefined
-  const value = Number.parseInt(raw, 10)
+function parseOptionalLimit(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  const value = typeof raw === 'number' ? Math.trunc(raw) : Number.parseInt(String(raw), 10)
   if (Number.isNaN(value)) {
-    throw new Error(`Invalid Limit "${raw}" — expected a number.`)
+    throw new Error(`Invalid Limit "${String(raw)}" — expected a number.`)
   }
   return value
 }
