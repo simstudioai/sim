@@ -1,6 +1,6 @@
 /**
  * Generates the SDK types for the fixture catalog into `<outDir>`, reports their size, and
- * type-checks the s2 example workflows and negative fixtures against them.
+ * type-checks the example workflows and negative fixtures against them.
  *
  *   bun scripts/typecheck-fixtures.ts <outDir>
  */

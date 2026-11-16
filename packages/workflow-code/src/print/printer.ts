@@ -12,6 +12,12 @@ import {
   normalizeWorkflowBlockName,
   RESERVED_WORKFLOW_BLOCK_NAMES,
 } from '@sim/workflow-types/workflow'
+import {
+  type McpToolForm,
+  readMcpTool,
+  readWorkflowTool,
+  type WorkflowToolForm,
+} from '../agent-tools'
 import { portKey } from '../anchors'
 import type { PrintInput, PrintResult, PrintWorkflowFn, SourceHintBlock, SourceHints } from '../api'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
@@ -633,23 +639,72 @@ class WorkflowPrinter {
     ) {
       return null
     }
-    const options: Property[] = []
-    if (usageControl !== undefined) {
-      options.push({ key: 'usageControl', value: this.values.string(usageControl) })
-    }
-    if (usageControlExpression !== undefined) {
-      options.push({
-        key: 'usageControlExpression',
-        value: this.values.value(usageControlExpression, { tag: 'js', from: block.key }),
-      })
-    }
+    const options = this.usageOptions(block, { usageControl, usageControlExpression })
     const args: Expr[] = [this.values.string(ref.key)]
     if (options.length > 0) args.push(objectExpr(options))
     return this.values.call('customTool', args)
   }
 
+  /** `usageControl` and `usageControlExpression` options, as a tool form writes them. */
+  private usageOptions(
+    block: CanonicalBlock,
+    tool: Pick<CanonicalTool, 'usageControl' | 'usageControlExpression'>
+  ): Property[] {
+    const options: Property[] = []
+    if (tool.usageControl !== undefined) {
+      options.push({ key: 'usageControl', value: this.values.string(tool.usageControl) })
+    }
+    if (tool.usageControlExpression !== undefined) {
+      options.push({
+        key: 'usageControlExpression',
+        value: this.values.value(tool.usageControlExpression, { tag: 'js', from: block.key }),
+      })
+    }
+    return options
+  }
+
+  /** `mcp('server').tool('name', options?)` (agent-tools.ts). */
+  private mcpToolCall(block: CanonicalBlock, form: McpToolForm): Expr {
+    const options: Property[] = []
+    const args = Object.entries(form.args)
+    if (args.length > 0) {
+      const nested: FieldContext = { tag: 't', from: block.key }
+      options.push({
+        key: 'args',
+        value: objectExpr(
+          args.map(([name, value]) => ({
+            key: printKey(name),
+            value: this.values.value(value, nested),
+          }))
+        ),
+      })
+    }
+    options.push(...this.usageOptions(block, form))
+    if (Object.keys(form.snapshot).length > 0) {
+      options.push({ key: 'snapshot', value: this.values.json(form.snapshot as Json) })
+    }
+    const methodArgs: Expr[] = [this.values.string(form.name)]
+    if (options.length > 0) methodArgs.push(objectExpr(options))
+    return this.values.methodCall('mcp', [this.values.string(form.server.key)], 'tool', methodArgs)
+  }
+
+  /** `childWorkflow('key').asTool(options?)` (agent-tools.ts). */
+  private workflowToolCall(block: CanonicalBlock, form: WorkflowToolForm): Expr {
+    const options = this.usageOptions(block, form)
+    return this.values.methodCall(
+      'childWorkflow',
+      [this.values.string(form.workflow.key)],
+      'asTool',
+      options.length > 0 ? [objectExpr(options)] : []
+    )
+  }
+
   private printTools(block: CanonicalBlock, tools: CanonicalTool[]): PrintedValue {
     const elements = tools.map((tool) => {
+      const mcp = readMcpTool(this.catalog, tool)
+      if (mcp) return this.mcpToolCall(block, mcp)
+      const childWorkflow = readWorkflowTool(this.catalog, tool)
+      if (childWorkflow) return this.workflowToolCall(block, childWorkflow)
       const custom = this.customToolCall(block, tool)
       if (custom) return custom
       const catalogBlock = catalogBlockOf(this.catalog, tool.type)
@@ -688,15 +743,7 @@ class WorkflowPrinter {
         options.push({ key: 'toolId', value: this.values.string(tool.toolId) })
       if (tool.title !== undefined)
         options.push({ key: 'title', value: this.values.string(tool.title) })
-      if (tool.usageControl !== undefined) {
-        options.push({ key: 'usageControl', value: this.values.string(tool.usageControl) })
-      }
-      if (tool.usageControlExpression !== undefined) {
-        options.push({
-          key: 'usageControlExpression',
-          value: this.values.value(tool.usageControlExpression, { tag: 'js', from: block.key }),
-        })
-      }
+      options.push(...this.usageOptions(block, tool))
       if (Object.keys(tool.modes).length > 0) {
         options.push({ key: 'modes', value: this.modesExpr(tool.modes) })
       }

@@ -169,7 +169,7 @@ function callArgs(args: Expr[]): Doc {
   ]
 }
 
-export function callExpr(callee: string, args: Expr[]): Expr {
+export function callExpr(callee: Doc, args: Expr[]): Expr {
   return { doc: [callee, callArgs(args)], shape: 'call' }
 }
 

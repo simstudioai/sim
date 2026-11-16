@@ -1,5 +1,11 @@
-import type { CallExpression, Node } from '@babel/types'
+import type { CallExpression, Node, ObjectProperty } from '@babel/types'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
+import {
+  buildMcpTool,
+  buildWorkflowTool,
+  MCP_RESERVED_ARGS,
+  type McpToolForm,
+} from '../agent-tools'
 import { paramAliases } from '../catalog/surface'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
 import type { CanonicalTool, Json, ParamMode, ResourceNode, UnresolvedNode, Value } from '../model'
@@ -44,6 +50,47 @@ function unsupported(
     blockKey: site.decl.key,
   })
   return null
+}
+
+type ToolUsage = Pick<CanonicalTool, 'usageControl' | 'usageControlExpression'>
+
+/**
+ * Sets `usageControl` or `usageControlExpression` on `usage` from its option. Returns `false`
+ * after reporting a value of the wrong kind.
+ */
+function compileUsage(
+  ctx: CompileContext,
+  option: 'usageControl' | 'usageControlExpression',
+  property: ObjectProperty,
+  site: ValueSite,
+  usage: ToolUsage
+): boolean {
+  if (option === 'usageControl') {
+    const text = literalText(property.value)
+    if (text !== 'auto' && text !== 'force' && text !== 'none') {
+      unsupported(
+        ctx,
+        property.value,
+        'Unknown usage control.',
+        `Use ${[...USAGE_CONTROLS].join(', ')}.`,
+        site
+      )
+      return false
+    }
+    usage.usageControl = text
+    return true
+  }
+  const compiled = compileValue(ctx, property.value, site)
+  if (!compiled || compiled.kind !== 'value' || typeof compiled.value !== 'string') {
+    unsupported(ctx, property.value, 'usageControlExpression is text.', 'Write js`...`.', site)
+    return false
+  }
+  usage.usageControlExpression = compiled.value
+  return true
+}
+
+function isUsageOption(option: string): option is 'usageControl' | 'usageControlExpression' {
+  return option === 'usageControl' || option === 'usageControlExpression'
 }
 
 /** A `raw(tool)` element: the canonical tool verbatim, checked for the fields every tool has. */
@@ -186,31 +233,9 @@ function compileToolCall(
         tool[key] = text
         break
       case 'usageControl':
-        if (text !== 'auto' && text !== 'force' && text !== 'none') {
-          return unsupported(
-            ctx,
-            property.value,
-            'Unknown usage control.',
-            `Use ${[...USAGE_CONTROLS].join(', ')}.`,
-            site
-          )
-        }
-        tool.usageControl = text
+      case 'usageControlExpression':
+        if (!compileUsage(ctx, key, property, site, tool)) return null
         break
-      case 'usageControlExpression': {
-        const compiled = compileValue(ctx, property.value, site)
-        if (!compiled || compiled.kind !== 'value' || typeof compiled.value !== 'string') {
-          return unsupported(
-            ctx,
-            property.value,
-            'usageControlExpression is text.',
-            'Write js`...`.',
-            site
-          )
-        }
-        tool.usageControlExpression = compiled.value
-        break
-      }
       case 'modes': {
         if (property.value.type !== 'ObjectExpression') {
           return unsupported(
@@ -353,30 +378,8 @@ function compileCustomTool(
     )
   }
   for (const [option, property] of objectEntries(ctx, optionsNode)) {
-    if (option === 'usageControl') {
-      const text = literalText(property.value)
-      if (text !== 'auto' && text !== 'force' && text !== 'none') {
-        return unsupported(
-          ctx,
-          property.value,
-          'Unknown usage control.',
-          `Use ${[...USAGE_CONTROLS].join(', ')}.`,
-          site
-        )
-      }
-      tool.usageControl = text
-    } else if (option === 'usageControlExpression') {
-      const compiled = compileValue(ctx, property.value, site)
-      if (!compiled || compiled.kind !== 'value' || typeof compiled.value !== 'string') {
-        return unsupported(
-          ctx,
-          property.value,
-          'usageControlExpression is text.',
-          'Write js`...`.',
-          site
-        )
-      }
-      tool.usageControlExpression = compiled.value
+    if (isUsageOption(option)) {
+      if (!compileUsage(ctx, option, property, site, tool)) return null
     } else {
       return unsupported(
         ctx,
@@ -390,9 +393,172 @@ function compileCustomTool(
   return tool
 }
 
+const SNAPSHOT_KEYS = new Set(['serverName', 'serverUrl', 'schema'])
+
+/** `mcp(key).tool(name, { args?, snapshot?, usageControl?, usageControlExpression? })`. */
+function compileMcpTool(
+  ctx: CompileContext,
+  call: CallExpression,
+  server: ResourceNode,
+  site: ValueSite
+): CanonicalTool | null {
+  const [nameNode, optionsNode, ...extra] = call.arguments
+  const name = nameNode ? literalText(nameNode) : null
+  if (name === null || extra.length > 0) {
+    return unsupported(
+      ctx,
+      call,
+      'tool() takes the MCP tool name and optional options.',
+      "Write mcp('server').tool('search', { usageControl: 'auto' }).",
+      site
+    )
+  }
+  const form: McpToolForm = { server, name, args: {}, snapshot: {} }
+  if (!optionsNode) return buildMcpTool(ctx.catalog, form)
+  if (optionsNode.type !== 'ObjectExpression') {
+    return unsupported(
+      ctx,
+      optionsNode,
+      'Tool options are an object literal.',
+      "Write { usageControl: 'auto' }.",
+      site
+    )
+  }
+  for (const [option, property] of objectEntries(ctx, optionsNode)) {
+    if (isUsageOption(option)) {
+      if (!compileUsage(ctx, option, property, site, form)) return null
+    } else if (option === 'args') {
+      if (property.value.type !== 'ObjectExpression') {
+        return unsupported(
+          ctx,
+          property.value,
+          'args is an object literal.',
+          'Write args: { name: value }.',
+          site
+        )
+      }
+      for (const [arg, argProperty] of objectEntries(ctx, property.value)) {
+        if (MCP_RESERVED_ARGS.has(arg)) {
+          return unsupported(
+            ctx,
+            argProperty,
+            `${arg} is set by mcp().tool(), not an argument.`,
+            'Name the server with mcp(key) and the tool with tool(name).',
+            site
+          )
+        }
+        const value = compileNested(ctx, argProperty.value, site)
+        if (value === undefined) return null
+        setOwn(form.args, arg, value)
+      }
+    } else if (option === 'snapshot') {
+      const json = compileJsonLiteral(ctx, property.value, site)
+      if (json === undefined) return null
+      const snapshot = toRecordOrNull(json)
+      const { serverName, serverUrl, schema } = snapshot ?? {}
+      if (
+        !snapshot ||
+        Object.keys(snapshot).some((key) => !SNAPSHOT_KEYS.has(key)) ||
+        (serverName !== undefined && typeof serverName !== 'string') ||
+        (serverUrl !== undefined && typeof serverUrl !== 'string')
+      ) {
+        return unsupported(
+          ctx,
+          property.value,
+          'snapshot is { serverName?, serverUrl?, schema? }.',
+          "Write snapshot: { serverName: 'Docs', schema: { type: 'object' } }.",
+          site
+        )
+      }
+      form.snapshot = {
+        ...(typeof serverName === 'string' && { serverName }),
+        ...(typeof serverUrl === 'string' && { serverUrl }),
+        ...(schema !== undefined && { schema: schema as Json }),
+      }
+    } else {
+      return unsupported(
+        ctx,
+        property,
+        `mcp().tool() takes args, snapshot, usageControl and usageControlExpression; ${option} is not one.`,
+        'Write a tool with other stored fields as raw(tool).',
+        site
+      )
+    }
+  }
+  return buildMcpTool(ctx.catalog, form)
+}
+
+/** `childWorkflow(key).asTool({ usageControl?, usageControlExpression? })`. */
+function compileWorkflowTool(
+  ctx: CompileContext,
+  call: CallExpression,
+  workflow: ResourceNode,
+  site: ValueSite
+): CanonicalTool | null {
+  const [optionsNode, ...extra] = call.arguments
+  if (extra.length > 0 || (optionsNode && optionsNode.type !== 'ObjectExpression')) {
+    return unsupported(
+      ctx,
+      call,
+      'asTool() takes optional options.',
+      "Write childWorkflow('enrich').asTool({ usageControl: 'auto' }).",
+      site
+    )
+  }
+  const usage: ToolUsage = {}
+  for (const [option, property] of optionsNode ? objectEntries(ctx, optionsNode) : []) {
+    if (!isUsageOption(option)) {
+      return unsupported(
+        ctx,
+        property,
+        `asTool() takes usageControl and usageControlExpression; ${option} is not one.`,
+        'Write a tool with other stored fields through runWorkflow.tool(), or raw(tool).',
+        site
+      )
+    }
+    if (!compileUsage(ctx, option, property, site, usage)) return null
+  }
+  return buildWorkflowTool(ctx.catalog, { workflow, ...usage })
+}
+
+/** The resource method a tool element calls on an SDK resource: `mcp().tool`, `childWorkflow().asTool`. */
+const RESOURCE_TOOL_METHODS: Record<string, string> = { mcp: 'tool', childWorkflow: 'asTool' }
+
+/**
+ * `mcp(key).tool(...)` or `childWorkflow(key).asTool(...)`: the tool, `null` after an error, or
+ * `undefined` when the element is neither form.
+ */
+function compileResourceTool(
+  ctx: CompileContext,
+  call: CallExpression,
+  site: ValueSite
+): CanonicalTool | null | undefined {
+  const { callee } = call
+  if (
+    callee.type !== 'MemberExpression' ||
+    callee.computed ||
+    callee.property.type !== 'Identifier' ||
+    callee.object.type !== 'CallExpression' ||
+    callee.object.callee.type !== 'Identifier'
+  ) {
+    return undefined
+  }
+  const binding = lookup(site.scope, callee.object.callee.name)
+  if (binding?.kind !== 'sdk' || RESOURCE_TOOL_METHODS[binding.name] !== callee.property.name) {
+    return undefined
+  }
+  const resource = compileValue(ctx, callee.object, site)
+  if (resource?.kind !== 'value' || !isToolRef(resource.value)) return null
+  if (resource.value.$sim !== 'resource') return null
+  return binding.name === 'mcp'
+    ? compileMcpTool(ctx, call, resource.value, site)
+    : compileWorkflowTool(ctx, call, resource.value, site)
+}
+
 /**
  * A tool-input value: an array of `ns.tool.method(params, options?)` calls (the printer's
- * `printTools`) or `raw(tool)` elements. `raw([...])` for the whole list is accepted too.
+ * `printTools`), `customTool(key)`, `mcp(key).tool(name)`, `childWorkflow(key).asTool()` or
+ * `raw(tool)` elements. `raw([...])` for the whole list is accepted too.
  */
 export function compileToolList(
   ctx: CompileContext,
@@ -430,6 +596,12 @@ export function compileToolList(
     }
     if (element.type !== 'CallExpression') {
       return unsupported(ctx, element, `${element.type} is not a tool.`, hintForNode(element), site)
+    }
+    const resourceTool = compileResourceTool(ctx, element, site)
+    if (resourceTool !== undefined) {
+      if (!resourceTool) return null
+      tools.push(resourceTool)
+      continue
     }
     const compiled = calleePath(element.callee)?.root
     const rootBinding = compiled === undefined ? null : lookup(site.scope, compiled)

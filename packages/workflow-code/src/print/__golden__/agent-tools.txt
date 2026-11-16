@@ -1,5 +1,15 @@
 // @sim-sdk 1
-import { agent, customTool, raw, slack, t, trigger, workflow } from '@sim/workflow-sdk'
+import {
+  agent,
+  childWorkflow,
+  customTool,
+  mcp,
+  raw,
+  slack,
+  t,
+  trigger,
+  workflow,
+} from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
   const start = trigger.start('Start', { inputFormat: { input: 'string' } })
@@ -22,6 +32,24 @@ export default workflow('Fixture', {}, () => {
           snapshot: { schema: { type: 'function' }, code: 'return 1' },
         },
       }),
+      mcp('docs').tool('search_docs', {
+        args: { limit: '5' },
+        usageControl: 'auto',
+        snapshot: {
+          serverName: 'Docs',
+          schema: { type: 'object', properties: { query: { type: 'string' } } },
+        },
+      }),
+      raw({
+        type: 'mcp',
+        title: 'Renamed search',
+        params: {
+          serverId: { $sim: 'resource', kind: 'mcp-server', key: 'docs' },
+          toolName: 'search_docs',
+        },
+        modes: { server: 'basic', tool: 'basic' },
+      }),
+      childWorkflow('enrich-lead').asTool({ usageControl: 'auto' }),
     ],
   })
 

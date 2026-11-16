@@ -45,6 +45,7 @@ const GOLDEN_CATALOG_TYPES = [
   'function',
   'generic_webhook',
   'gmail_v2',
+  'mcp',
   'note',
   'response',
   'router_v2',
@@ -52,6 +53,7 @@ const GOLDEN_CATALOG_TYPES = [
   'start_trigger',
   'table_v2',
   'variables',
+  'workflow_input',
 ]
 
 /**
@@ -741,6 +743,38 @@ export const cases: PrintCase[] = [
                   ref: { $sim: 'resource', kind: 'custom-tool', key: 'lookup-vendor' },
                   snapshot: { schema: { type: 'function' }, code: 'return 1' },
                 },
+              },
+              {
+                type: 'mcp',
+                title: 'search_docs',
+                params: {
+                  serverId: { $sim: 'resource', kind: 'mcp-server', key: 'docs' },
+                  toolName: 'search_docs',
+                  serverName: 'Docs',
+                  limit: '5',
+                },
+                modes: { server: 'basic', tool: 'basic' },
+                usageControl: 'auto',
+                extra: {
+                  schema: { type: 'object', properties: { query: { type: 'string' } } },
+                },
+              },
+              {
+                type: 'mcp',
+                title: 'Renamed search',
+                params: {
+                  serverId: { $sim: 'resource', kind: 'mcp-server', key: 'docs' },
+                  toolName: 'search_docs',
+                },
+                modes: { server: 'basic', tool: 'basic' },
+              },
+              {
+                type: 'workflow_input',
+                title: 'Workflow',
+                toolId: 'workflow_executor',
+                params: { workflowId: { $sim: 'resource', kind: 'workflow', key: 'enrich-lead' } },
+                modes: { workflowId: 'basic' },
+                usageControl: 'auto',
               },
             ],
           },

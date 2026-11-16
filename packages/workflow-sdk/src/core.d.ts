@@ -237,14 +237,26 @@ export interface ToolOpts {
  * whose definition was copied into the workflow (and may have drifted from the workspace tool)
  * prints as `raw(tool)` instead.
  */
-export declare function customTool(
-  key: string,
-  options?: Pick<ToolOpts, 'usageControl' | 'usageControlExpression'>
-): Tool
+export declare function customTool(key: string, options?: ToolUsage): Tool
 
-/** An MCP server by key; `mcp('linear').tool('create_issue')`. */
+/** How the model may use a tool the SDK writes by name (`customTool`, `mcp().tool`, `asTool`). */
+export type ToolUsage = Pick<ToolOpts, 'usageControl' | 'usageControlExpression'>
+
+/** An MCP tool's arguments and the editor's snapshot of its server. */
+export interface McpToolOpts extends ToolUsage {
+  /** Argument values the workflow fixes; the model fills in the rest. */
+  args?: Record<string, JsonWithRefs>
+  /**
+   * What the editor saved about the server and the tool's input schema when the tool was picked.
+   * Shown in the editor; never run.
+   */
+  snapshot?: { serverName?: string; serverUrl?: string; schema?: Json }
+}
+
+/** An MCP server by key: `mcp('linear')`. */
 export interface McpServerRef extends ResourceRef<'mcp-server'> {
-  tool(name: string, options?: ToolOpts & { args?: Record<string, JsonWithRefs> }): Tool
+  /** One of the server's tools, as an agent tool: `mcp('linear').tool('create_issue')`. */
+  tool(name: string, options?: McpToolOpts): Tool
 }
 export declare function mcp(key: string): McpServerRef
 
@@ -346,8 +358,10 @@ export declare function block(
 export type VariableType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
 
 export interface VariableDeclaration {
+  /** The display name, written only when it differs from the key. */
+  name?: string
   type: VariableType
-  value?: Json
+  value: Json
 }
 
 export type VariableDeclarations = Record<string, VariableDeclaration>
@@ -386,7 +400,12 @@ export interface WorkflowDef {
 
 /** A child workflow by key, for `runWorkflow` or as an agent tool. */
 export interface WorkflowRef<Key extends string = string> extends ResourceRef<'workflow', Key> {
-  asTool(options?: ToolOpts): Tool
+  /**
+   * The workflow as an agent tool, as the editor's tool picker adds it:
+   * `childWorkflow('enrich-lead').asTool()`. A tool with fixed inputs is written
+   * `runWorkflow.tool({ workflowId, inputMapping }, options)`.
+   */
+  asTool(options?: ToolUsage): Tool
 }
 
 /** Declares a workflow. The body wires blocks; it never runs. */

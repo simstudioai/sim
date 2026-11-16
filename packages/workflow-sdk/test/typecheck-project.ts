@@ -13,13 +13,19 @@ export function loadFixtureCatalog(): ExpandedBlockCatalog {
   return JSON.parse(readFileSync(path.join(testRoot, 'fixtures', 'catalog.json'), 'utf8'))
 }
 
+/** The workflow files the type-check project checks by default. */
+const DEFAULT_SOURCES = ['examples', 'negative']
+
 /**
  * Writes the types generated from the fixture catalog and workspace into `outDir`, plus a
- * `tsconfig.json` that checks the s2 example workflows (`test/examples`) and the negative
- * fixtures (`test/negative`) against them, with `skipLibCheck` off so the generated `.d.ts` are
- * checked too.
+ * `tsconfig.json` that checks the workflow files under `sources` (directories of `test/`; by
+ * default the example workflows and the negative fixtures) against them, with `skipLibCheck` off
+ * so the generated `.d.ts` are checked too.
  */
-export function writeTypecheckProject(outDir: string): { tsconfig: string; files: SdkTypeFile[] } {
+export function writeTypecheckProject(
+  outDir: string,
+  sources: readonly string[] = DEFAULT_SOURCES
+): { tsconfig: string; files: SdkTypeFile[] } {
   const files = [
     ...generateSdkTypes(loadFixtureCatalog()),
     generateWorkspaceTypes(FIXTURE_WORKSPACE),
@@ -48,8 +54,7 @@ export function writeTypecheckProject(outDir: string): { tsconfig: string; files
         },
         include: [
           path.join(outDir, 'types', '**', '*.d.ts'),
-          path.join(testRoot, 'examples', '**', '*.ts'),
-          path.join(testRoot, 'negative', '**', '*.ts'),
+          ...sources.map((source) => path.join(testRoot, source, '**', '*.ts')),
         ],
       },
       null,

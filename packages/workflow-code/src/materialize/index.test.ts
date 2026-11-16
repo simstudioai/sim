@@ -322,6 +322,45 @@ describe('materialize: tool params', () => {
   })
 })
 
+describe('materialize: MCP tool binding', () => {
+  const pickerTool = (toolId: string) => ({
+    type: 'mcp',
+    title: 'search',
+    toolId,
+    params: { serverId: 's1', toolName: 'search', serverName: 'Docs' },
+    usageControl: 'auto',
+  })
+
+  it('binds the server by key and derives the stored toolId back from it', () => {
+    const state = workflowState([
+      blockState('a1', 'agent', 'Agent', {
+        model: 'gpt-4o',
+        tools: JSON.stringify([pickerTool('mcp-s1-search')]),
+      }),
+    ])
+    const c = canonical(state).workflow
+    const tools = c.blocks.agent.params.tools
+    expect(tools.kind === 'tools' && tools.tools[0]).toMatchObject({
+      params: { serverId: { $sim: 'resource', kind: 'mcp-server', key: 'mcp-server:s1' } },
+    })
+    expect(tools.kind === 'tools' && tools.tools[0].toolId).toBeUndefined()
+    const written = Object.values(run(c, null).state.blocks)[0]
+    const stored = JSON.parse(String(written.subBlocks.tools?.value))
+    expect(stored[0]).toMatchObject({ toolId: 'mcp-s1-search', params: { serverId: 's1' } })
+  })
+
+  it('keeps a toolId the binding does not derive', () => {
+    const state = workflowState([
+      blockState('a1', 'agent', 'Agent', {
+        model: 'gpt-4o',
+        tools: JSON.stringify([pickerTool('legacy-id')]),
+      }),
+    ])
+    const tools = canonical(state).workflow.blocks.agent.params.tools
+    expect(tools.kind === 'tools' && tools.tools[0].toolId).toBe('legacy-id')
+  })
+})
+
 describe('materialize: branches', () => {
   const state = () => QUIRK_STATES[3][1]
 

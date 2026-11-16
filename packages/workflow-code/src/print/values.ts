@@ -79,6 +79,12 @@ export class ValuePrinter {
     return callExpr(callee, args)
   }
 
+  /** `root(rootArgs).method(args)`, a method of an SDK value: `mcp('docs').tool('search')`. */
+  methodCall(root: string, rootArgs: Expr[], method: string, args: Expr[]): Expr {
+    this.use(root)
+    return callExpr([callExpr(root, rootArgs).doc, `.${method}`], args)
+  }
+
   /** A param value, honoring the field's value kind (selectors, static options). */
   field(value: Value, context: FieldContext): PrintedValue {
     const subBlock = context.subBlock

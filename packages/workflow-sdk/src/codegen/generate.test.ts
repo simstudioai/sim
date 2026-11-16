@@ -42,7 +42,7 @@ describe('generateSdkTypes over the fixture catalog', () => {
     expect(touched).toEqual(['blocks/api.d.ts'])
   })
 
-  it('type-checks the s2 example workflows and rejects every negative fixture', () => {
+  it('type-checks the example workflows and rejects every negative fixture', () => {
     const outDir = mkdtempSync(path.join(tmpdir(), 'sim-sdk-types-'))
     try {
       const { tsconfig } = writeTypecheckProject(outDir)

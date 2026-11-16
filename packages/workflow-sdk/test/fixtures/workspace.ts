@@ -1,6 +1,6 @@
 import type { WorkspaceManifest } from '../../src/codegen'
 
-/** The workspace the s2 example workflows run in. */
+/** The workspace the example workflows run in. */
 export const FIXTURE_WORKSPACE: WorkspaceManifest = {
   tables: {
     tickets: { columns: { subject: { type: 'string' }, category: { type: 'string' } } },

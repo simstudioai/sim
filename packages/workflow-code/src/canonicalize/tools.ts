@@ -1,4 +1,5 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { MCP_TOOL_TYPE, mcpToolId } from '../agent-tools'
 import { type CanonicalModeOverrides, scopeCanonicalModesForTool } from '../catalog/canonical-index'
 import type { BlockCatalog, CatalogSubBlock } from '../catalog/types'
 import { catalogBlock as catalogBlockOf, catalogTool } from '../catalog/view'
@@ -139,6 +140,13 @@ function liftTool(
         : undefined
     setOwn(params, key, lifted ?? toValue(decoded, context))
   }
+  const { serverId, toolName } = rawParams
+  const mcpBinding =
+    type === MCP_TOOL_TYPE &&
+    typeof serverId === 'string' &&
+    serverId !== '' &&
+    typeof toolName === 'string'
+  if (mcpBinding) params.serverId = liftResourceId('mcp-server', serverId, context, location)
 
   const explicit = scopeCanonicalModesForTool(overrides, index, type)
   const tool: CanonicalTool = {
@@ -152,6 +160,7 @@ function liftTool(
 
   for (const key of ['operation', 'toolId', 'title', 'usageControlExpression'] as const) {
     const value = stored[key]
+    if (key === 'toolId' && mcpBinding && value === mcpToolId(serverId, toolName)) continue
     if (typeof value === 'string') tool[key] = value
     else if (value !== undefined) extra[key] = toJson(value)
   }

@@ -267,7 +267,9 @@ branch keys by row id; it never changes block keys. It assigns block keys, decod
 values (tools, table rows, inputFormat, tag filters), lifts ids to `SimNode`s, records each pair's
 effective mode as the serializer resolves it (explicit override, then `advancedMode`, then which
 member holds a value; only on the surfaces the block serializes), lifts branches and subflow
-config, and fills `annotations.inactive`. The server canonicalizes a stored draft once per request
+config, and fills `annotations.inactive`. An MCP tool's `serverId` lifts to an `mcp-server` key, and
+its `toolId` is dropped when the binding derives it (`createMcpToolId`); materialize derives it
+again, so a re-encoded MCP tool that lacked one gains the picker's. The server canonicalizes a stored draft once per request
 (`stored-canonical.ts`).
 
 ## Print
@@ -289,6 +291,9 @@ print compiles with zero errors.
 - Strings escape bidi and zero-width characters (`‮`).
 - `functionCode: 'files'` writes function code to `codeDir` (see "Code files"); `'inline'` uses
   `js` templates.
+- An agent tool prints in the first form whose compile reproduces it exactly: `mcp('k').tool()`
+  and `childWorkflow('k').asTool()` (`agent-tools.ts` pairs each reader with the builder compile
+  calls), `customTool('k')`, the block builder's `ns.tool.method()`, else `raw(tool)`.
 
 ## Compile
 

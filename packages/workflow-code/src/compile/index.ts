@@ -67,7 +67,11 @@ function collectImports(ctx: CompileContext, node: Node, scope: Scope): void {
     }
     const imported =
       specifier.imported.type === 'Identifier' ? specifier.imported.name : specifier.imported.value
-    scope.bindings.set(specifier.local.name, { kind: 'sdk', name: imported })
+    // The exported `vars` is the body parameter's `vars`, untyped (core.d.ts).
+    scope.bindings.set(
+      specifier.local.name,
+      imported === 'vars' ? { kind: 'vars' } : { kind: 'sdk', name: imported }
+    )
   }
 }
 

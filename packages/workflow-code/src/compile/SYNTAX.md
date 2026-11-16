@@ -35,7 +35,8 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
 - Imports: named imports from `'@sim/workflow-sdk'` only (aliases allowed). Anything else is
   `E_UNSUPPORTED_SYNTAX`.
 - Exactly one `export default workflow(name, options?, body)` (`E_WORKFLOW_EXPORT`). `options` is
-  `{ description?, variables? }`; `body` is `() => { … }` or `({ vars }) => { … }`.
+  `{ description?, variables? }`; `body` is `() => { … }` or `({ vars }) => { … }`. The SDK also
+  exports `vars`, the same variables untyped; the printer always writes the body parameter.
 - Variables: `variables: { <key>: { name?, type, value } }`. The property key is the variable key;
   `name` is written only when it differs. `type` is `string | number | boolean | object | array |
   plain`; `value` is plain JSON.
@@ -144,9 +145,9 @@ round-trip such a block but never introduce one; renaming the block retires the 
 | `knowledgeBase('key')` | A knowledge base (`knowledge-base`) |
 | `file('path')` | A workspace file (`file`); the file block's operations live on `file.*` |
 | `folder('key')` | A workspace folder (`file-folder`) |
-| `childWorkflow('key')` | A workflow, for `runWorkflow` and similar (`workflow`) |
+| `childWorkflow('key')` | A workflow, for `runWorkflow` and similar (`workflow`); `.asTool()` in a `tools` list |
 | `customTool('key', { usageControl?, usageControlExpression? })` | A custom tool; in a `tools` list, the picker's reference |
-| `mcp('key')` | An MCP server (`mcp-server`) |
+| `mcp('key')` | An MCP server (`mcp-server`); `.tool(name)` in a `tools` list |
 | `skill('key')` | A workspace skill (`skill`) |
 | `sandbox('key')` | A sandbox image (`sandbox`) |
 | `codeFile('./functions/x.js')` | Function code kept in a file (see "Function code") |
@@ -212,8 +213,23 @@ template.
     for a builder at the namespace root (`agent.tool(…)`);
   - `customTool('key', options?)`: a workspace custom tool stored as the picker's reference (a
     copied definition prints as `raw`);
-  - `raw(tool)`: any other stored tool, including MCP and child-workflow tools and a tool keyed by
-    an alias name.
+  - `mcp('key').tool('name', { args?, snapshot?, usageControl?, usageControlExpression? })`: one
+    tool of an MCP server, stored as the picker writes it (`type: 'mcp'`, `title` = the tool name,
+    params `serverId` and `toolName`). `args` are argument values the workflow fixes; they may not
+    reuse `serverId`, `toolName`, `serverName` or `serverUrl`. `snapshot` is
+    `{ serverName?, serverUrl?, schema? }`, what the picker saved about the server and the tool's
+    input schema: shown in the editor, never run. The stored `toolId` embeds the server's id, so
+    canonicalize drops it when it equals `createMcpToolId(serverId, toolName)` and materialize
+    derives it again;
+  - `childWorkflow('key').asTool({ usageControl?, usageControlExpression? })`: a child workflow as
+    the picker adds it (`type: 'workflow_input'`, `title: 'Workflow'`,
+    `toolId: 'workflow_executor'`). One with fixed inputs prints through `runWorkflow.tool(…)`;
+  - `raw(tool)`: any other stored tool, including an MCP or child-workflow tool whose stored fields
+    drifted from what the picker writes (a renamed title, a foreign `toolId`, explicit modes) and a
+    tool keyed by an alias name.
+
+  `mcp().tool()` and `asTool()` print only when compiling them reproduces the stored tool exactly
+  (`agent-tools.ts`).
 
   Tool params take the same aliases. Options: `operation`, `toolId`, `title`, `usageControl`,
   `usageControlExpression`, `modes` (the tool's pair modes, which pick the member the agent reads),

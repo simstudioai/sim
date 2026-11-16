@@ -7,7 +7,7 @@ import { compileWorkflow } from './index'
 import { TEST_CATALOG } from './test-catalog'
 
 const IMPORTS =
-  "import { agent, api, customTool, credential, mail, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
+  "import { agent, api, childWorkflow, customTool, credential, mail, mcp, stored, t, table, trigger, workflow } from '@sim/workflow-sdk'"
 
 function source(body: string, header = '// @sim-sdk 1'): string {
   return `${header}\n${IMPORTS}\n\nexport default workflow('Test', {}, () => {\n${body}\n})\n`
@@ -181,6 +181,67 @@ describe('customTool() in a tool list', () => {
       source("  agent('A', { model: 'm', tools: [customTool('lookup', { title: 'x' })] })")
     )
     expect(codes(result)).toContain('E_UNSUPPORTED_SYNTAX')
+  })
+})
+
+describe('mcp().tool() and childWorkflow().asTool() in a tool list', () => {
+  const agentWith = (tool: string) => source(`  agent('A', { model: 'm', tools: [${tool}] })`)
+
+  it('compiles an MCP tool to the picker entry and prints back the same call', () => {
+    const call =
+      "mcp('docs').tool('search', { args: { limit: '5' }, usageControl: 'auto', snapshot: { serverName: 'Docs', schema: { type: 'object' } } })"
+    const workflow = compiled(agentWith(call))
+    expect(workflow.blocks.a?.params.tools).toEqual({
+      kind: 'tools',
+      tools: [
+        {
+          type: 'mcp',
+          title: 'search',
+          params: {
+            serverId: { $sim: 'resource', kind: 'mcp-server', key: 'docs' },
+            toolName: 'search',
+            serverName: 'Docs',
+            limit: '5',
+          },
+          modes: {},
+          usageControl: 'auto',
+          extra: { schema: { type: 'object' } },
+        },
+      ],
+    })
+    expect(printed(workflow).replace(/\s+/g, ' ')).toContain(
+      "mcp('docs').tool('search', { args: { limit: '5' }, usageControl: 'auto', snapshot: { serverName: 'Docs', schema: { type: 'object' } }, })"
+    )
+  })
+
+  it('compiles a child workflow tool to the picker entry and prints back the same call', () => {
+    const workflow = compiled(agentWith("childWorkflow('enrich').asTool({ usageControl: 'none' })"))
+    expect(workflow.blocks.a?.params.tools).toEqual({
+      kind: 'tools',
+      tools: [
+        {
+          type: 'workflow_input',
+          title: 'Workflow',
+          toolId: 'workflow_executor',
+          params: { workflowId: { $sim: 'resource', kind: 'workflow', key: 'enrich' } },
+          modes: {},
+          usageControl: 'none',
+        },
+      ],
+    })
+    expect(printed(workflow)).toContain("childWorkflow('enrich').asTool({ usageControl: 'none' })")
+  })
+
+  it.each([
+    ["mcp('docs').tool('search', { args: { serverId: 'x' } })", 'an argument the binding writes'],
+    ["mcp('docs').tool('search', { title: 'x' })", 'an option the entry does not store'],
+    [
+      "mcp('docs').tool('search', { snapshot: { other: 1 } })",
+      'a snapshot field the picker never saves',
+    ],
+    ["childWorkflow('enrich').asTool({ title: 'x' })", 'an asTool option the entry does not store'],
+  ])('refuses %s (%s)', (call) => {
+    expect(codes(run(agentWith(call)))).toContain('E_UNSUPPORTED_SYNTAX')
   })
 })
 
