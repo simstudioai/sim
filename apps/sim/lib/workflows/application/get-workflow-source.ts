@@ -89,7 +89,7 @@ function withIdComments(workflow: CanonicalWorkflow, identity: LockIdentity): Ca
 }
 
 /** The full lock: canonicalize's identity, the printer's bindings/order/code files, and layout. */
-function assembleLock(
+export function assembleLock(
   identity: LockIdentity,
   hints: Record<string, { binding?: string; order?: number; codeFile?: string }>,
   layout: Record<string, LockLayout>
