@@ -3,6 +3,7 @@ import type {
   DiscordExecuteWebhookResponse,
 } from '@/tools/discord/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordExecuteWebhookTool: ToolConfig<
   DiscordExecuteWebhookParams,
@@ -40,7 +41,7 @@ export const discordExecuteWebhookTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -48,7 +49,7 @@ export const discordExecuteWebhookTool: ToolConfig<
 
   request: {
     url: (params: DiscordExecuteWebhookParams) => {
-      return `https://discord.com/api/v10/webhooks/${params.webhookId.trim()}/${params.webhookToken.trim()}?wait=true`
+      return `https://discord.com/api/v10/webhooks/${safeUrlPathSegment(params.webhookId, 'webhookId')}/${safeUrlPathSegment(params.webhookToken, 'webhookToken')}?wait=true`
     },
     method: 'POST',
     headers: () => ({

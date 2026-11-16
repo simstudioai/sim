@@ -1,6 +1,7 @@
 import type { DiscordKickMemberParams, DiscordKickMemberResponse } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordKickMemberTool: ToolConfig<DiscordKickMemberParams, DiscordKickMemberResponse> =
   {
@@ -39,7 +40,7 @@ export const discordKickMemberTool: ToolConfig<DiscordKickMemberParams, DiscordK
 
     request: {
       url: (params: DiscordKickMemberParams) => {
-        return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/members/${params.userId.trim()}`
+        return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/members/${safeUrlPathSegment(params.userId, 'userId')}`
       },
       method: 'DELETE',
       headers: (params) => {

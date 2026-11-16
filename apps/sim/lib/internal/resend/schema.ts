@@ -19,7 +19,7 @@ export const resendSendInputSchema = z.object({
     .union([z.string().min(1), z.array(z.string().min(1))])
     .optional()
     .nullable(),
-  scheduledAt: z.string().datetime().optional().nullable(),
+  scheduledAt: z.string().datetime({ offset: true }).optional().nullable(),
   tags: z.string().optional().nullable(),
 })
 

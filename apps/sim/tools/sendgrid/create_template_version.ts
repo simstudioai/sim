@@ -6,6 +6,7 @@ import type {
 import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const INACTIVE_VALUES: unknown[] = [false, 'false', 0, '0']
 
@@ -75,7 +76,7 @@ export const sendGridCreateTemplateVersionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${SENDGRID_REGIONS.apiBase(params.region)}/templates/${params.templateId}/versions`,
+      `${SENDGRID_REGIONS.apiBase(params.region)}/templates/${safeUrlPathSegment(params.templateId, 'templateId')}/versions`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -4,6 +4,7 @@ import type {
 } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordBulkDeleteMessagesTool: ToolConfig<
   DiscordBulkDeleteMessagesParams,
@@ -37,7 +38,7 @@ export const discordBulkDeleteMessagesTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -45,7 +46,7 @@ export const discordBulkDeleteMessagesTool: ToolConfig<
 
   request: {
     url: (params: DiscordBulkDeleteMessagesParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/bulk-delete`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/bulk-delete`
     },
     method: 'POST',
     headers: (params) => ({
@@ -53,7 +54,8 @@ export const discordBulkDeleteMessagesTool: ToolConfig<
       Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordBulkDeleteMessagesParams) => {
-      const messages = (Array.isArray(params.messageIds) ? params.messageIds : [params.messageIds])
+      const ids = params.messageIds
+      const messages = (Array.isArray(ids) ? ids : String(ids ?? '').split(','))
         .map((id) => String(id).trim())
         .filter(Boolean)
       if (messages.length < 2 || messages.length > 100) {

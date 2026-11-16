@@ -358,6 +358,19 @@ describe('WhatsAppBlock file param mapping', () => {
     expect(mapParams({ operation: 'get_media', downloadMediaId: '123' }).mediaId).toBe('123')
   })
 
+  /**
+   * On an agent tool call the operation arrives only in `context`, and the model supplies the
+   * tool's `mediaId` directly because `downloadMediaId` is not a tool param.
+   */
+  it('keeps the model mediaId for Download Media on a tool call', () => {
+    const mapped = WhatsAppBlock.tools.config!.params!(
+      { mediaId: 'model-media-1' },
+      { operation: 'get_media' }
+    ) as Record<string, unknown>
+
+    expect(mapped.mediaId).toBe('model-media-1')
+  })
+
   describe('send_media media source', () => {
     /** The canonical pair carries exactly one thing — a file. Upload basic, reference advanced. */
     it('pairs a file upload with a file reference and nothing else', () => {

@@ -33,7 +33,7 @@ export const discordSendMessageTool: InternalToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -50,7 +50,11 @@ export const discordSendMessageTool: InternalToolConfig<
       return {
         botToken: params.botToken.trim(),
         channelId: params.channelId.trim(),
-        content: params.content || 'Message sent from Sim',
+        content:
+          params.content ||
+          (Array.isArray(params.files) && params.files.length > 0
+            ? undefined
+            : 'Message sent from Sim'),
         files: params.files || null,
       }
     },
@@ -68,7 +72,7 @@ export const discordSendMessageTool: InternalToolConfig<
   },
 
   outputs: {
-    message: { type: 'string', description: 'Success or error message' },
+    message: { type: 'string', description: 'Content of the sent message' },
     files: { type: 'file[]', description: 'Files attached to the message' },
     data: {
       type: 'object',

@@ -143,9 +143,41 @@ export const telegramSendAnimationTool: ToolConfig<
           type: 'string',
           description: 'Text content of the sent message (if applicable)',
         },
+        animation: {
+          type: 'object',
+          description: 'Animation sent in the message',
+          optional: true,
+          properties: {
+            file_id: {
+              type: 'string',
+              description: 'Animation file ID, reusable to resend the file',
+            },
+            file_unique_id: { type: 'string', description: 'Unique animation file identifier' },
+            width: { type: 'number', description: 'Animation width in pixels' },
+            height: { type: 'number', description: 'Animation height in pixels' },
+            duration: { type: 'number', description: 'Duration of the animation in seconds' },
+            thumbnail: {
+              type: 'object',
+              description: 'Animation thumbnail details',
+              optional: true,
+              properties: {
+                file_id: { type: 'string', description: 'Thumbnail file ID' },
+                file_unique_id: { type: 'string', description: 'Unique thumbnail file identifier' },
+                file_size: { type: 'number', description: 'Thumbnail file size in bytes' },
+                width: { type: 'number', description: 'Thumbnail width in pixels' },
+                height: { type: 'number', description: 'Thumbnail height in pixels' },
+              },
+            },
+            file_name: { type: 'string', description: 'Original animation file name' },
+            mime_type: { type: 'string', description: 'Animation MIME type' },
+            file_size: { type: 'number', description: 'Animation file size in bytes' },
+          },
+        },
         format: {
           type: 'object',
-          description: 'Media format information (for videos, GIFs, etc.)',
+          description:
+            'Legacy key: Telegram returns no format object, so this is never populated. Read animation instead.',
+          optional: true,
           properties: {
             file_name: { type: 'string', description: 'Media file name' },
             mime_type: { type: 'string', description: 'Media MIME type' },

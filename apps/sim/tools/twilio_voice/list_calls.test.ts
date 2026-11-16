@@ -97,3 +97,29 @@ describe('Twilio list calls recordings lookup', () => {
     expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(10)
   })
 })
+
+describe('Twilio list calls pagination', () => {
+  beforeEach(() => {
+    fetchMock = setupGlobalFetchMock()
+  })
+
+  it('sends the page token and returns the next one from next_page_uri', async () => {
+    if (typeof listCallsTool.request.url !== 'function') throw new Error('Missing request url')
+    const url = new URL(
+      listCallsTool.request.url({ accountSid: 'AC123', authToken: 'secret', pageToken: 'PA1' })
+    )
+    expect(url.searchParams.get('PageToken')).toBe('PA1')
+
+    if (!listCallsTool.transformResponse) throw new Error('Missing response transform')
+    const result = await listCallsTool.transformResponse(
+      jsonResponse({
+        calls: [],
+        page: 1,
+        page_size: 50,
+        next_page_uri: '/2010-04-01/Accounts/AC123/Calls.json?PageSize=50&Page=2&PageToken=PA2',
+      }),
+      { accountSid: 'AC123', authToken: 'secret' }
+    )
+    expect(result.output.nextPageToken).toBe('PA2')
+  })
+})

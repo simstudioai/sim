@@ -2,6 +2,7 @@ import type { DeleteTemplateParams } from '@/tools/sendgrid/types'
 import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const sendGridDeleteTemplateTool: ToolConfig<DeleteTemplateParams, ToolResponse> = {
   id: 'sendgrid_delete_template',
@@ -27,7 +28,8 @@ export const sendGridDeleteTemplateTool: ToolConfig<DeleteTemplateParams, ToolRe
   },
 
   request: {
-    url: (params) => `${SENDGRID_REGIONS.apiBase(params.region)}/templates/${params.templateId}`,
+    url: (params) =>
+      `${SENDGRID_REGIONS.apiBase(params.region)}/templates/${safeUrlPathSegment(params.templateId, 'templateId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

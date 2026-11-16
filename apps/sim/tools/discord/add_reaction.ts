@@ -1,6 +1,7 @@
 import type { DiscordAddReactionParams, DiscordAddReactionResponse } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordAddReactionTool: ToolConfig<
   DiscordAddReactionParams,
@@ -39,7 +40,7 @@ export const discordAddReactionTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -48,7 +49,7 @@ export const discordAddReactionTool: ToolConfig<
   request: {
     url: (params: DiscordAddReactionParams) => {
       const encodedEmoji = encodeURIComponent(params.emoji)
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/${params.messageId.trim()}/reactions/${encodedEmoji}/@me`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}/reactions/${encodedEmoji}/@me`
     },
     method: 'PUT',
     headers: (params) => ({

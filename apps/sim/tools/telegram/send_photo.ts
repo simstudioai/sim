@@ -97,33 +97,33 @@ export const telegramSendPhotoTool: ToolConfig<TelegramSendPhotoParams, Telegram
           },
           from: {
             type: 'object',
-            description: 'Chat information',
+            description: 'Sender information',
             properties: {
-              id: { type: 'number', description: 'Chat ID' },
+              id: { type: 'number', description: 'Sender user ID' },
               is_bot: {
                 type: 'boolean',
-                description: 'Whether the chat is a bot or not',
+                description: 'Whether the sender is a bot',
               },
               first_name: {
                 type: 'string',
-                description: 'Chat username (if available)',
+                description: 'Sender first name',
               },
               username: {
                 type: 'string',
-                description: 'Chat title (for groups and channels)',
+                description: 'Sender username, when available',
               },
             },
           },
           chat: {
             type: 'object',
-            description: 'Information about the bot that sent the message',
+            description: 'Recipient chat information',
             properties: {
-              id: { type: 'number', description: 'Bot user ID' },
-              first_name: { type: 'string', description: 'Bot first name' },
-              username: { type: 'string', description: 'Bot username' },
+              id: { type: 'number', description: 'Recipient chat ID' },
+              first_name: { type: 'string', description: 'Chat first name, for private chats' },
+              username: { type: 'string', description: 'Chat username, when available' },
               type: {
                 type: 'string',
-                description: 'Chat type (private, group, supergroup, channel)',
+                description: 'Chat type: private, group, supergroup, or channel',
               },
             },
           },

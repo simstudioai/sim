@@ -92,7 +92,12 @@ export const resendGetBroadcastTool: ToolConfig<GetBroadcastParams, GetBroadcast
     },
     from: { type: 'string', description: 'Sender email address' },
     subject: { type: 'string', description: 'Broadcast subject' },
-    replyTo: { type: 'string', description: 'Reply-to email address', optional: true },
+    replyTo: {
+      type: 'array',
+      description: 'Reply-to email addresses',
+      items: { type: 'string', description: 'Reply-to email address' },
+      optional: true,
+    },
     previewText: { type: 'string', description: 'Inbox preview text', optional: true },
     status: { type: 'string', description: 'Broadcast status (e.g., draft, sent)' },
     createdAt: { type: 'string', description: 'Broadcast creation timestamp' },

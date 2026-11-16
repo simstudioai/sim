@@ -1,6 +1,7 @@
 import type { DiscordPinMessageParams, DiscordPinMessageResponse } from '@/tools/discord/types'
 import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordPinMessageTool: ToolConfig<DiscordPinMessageParams, DiscordPinMessageResponse> =
   {
@@ -31,7 +32,7 @@ export const discordPinMessageTool: ToolConfig<DiscordPinMessageParams, DiscordP
       },
       serverId: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-or-llm',
         description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
       },
@@ -39,7 +40,7 @@ export const discordPinMessageTool: ToolConfig<DiscordPinMessageParams, DiscordP
 
     request: {
       url: (params: DiscordPinMessageParams) => {
-        return `https://discord.com/api/v10/channels/${params.channelId.trim()}/pins/${params.messageId.trim()}`
+        return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/pins/${safeUrlPathSegment(params.messageId, 'messageId')}`
       },
       method: 'PUT',
       headers: (params) => ({

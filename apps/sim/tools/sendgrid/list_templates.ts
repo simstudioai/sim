@@ -6,7 +6,8 @@ import type { ToolConfig } from '@/tools/types'
 export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, TemplatesResult> = {
   id: 'sendgrid_list_templates',
   name: 'SendGrid List Templates',
-  description: 'Get all email templates from SendGrid',
+  description:
+    'List email templates from SendGrid. Returns legacy templates only unless generations includes dynamic',
   version: '1.0.0',
   oauth: SENDGRID_CREDENTIAL_OAUTH,
 
@@ -22,7 +23,8 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by generation (legacy, dynamic, or both)',
+      description:
+        'Template generations to return: legacy, dynamic, or legacy,dynamic (default when omitted: legacy only)',
     },
     pageSize: {
       type: 'number',
