@@ -79,7 +79,7 @@ export const workflowSourceOpenApiRoutes = [
       summary: 'Apply workflow source',
       description: `Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and \`fingerprint\` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns \`400\` with \`details.code\` \`SOURCE_REJECTED\` and \`details.diagnostics\` (each with a file, line and column), and nothing is saved. A \`409\` means the draft changed since the source was read (\`details.currentFingerprint\`): get the source again, reapply the edit and retry. Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns \`applied: false\` without saving. The response re-prints the saved source with its new lock and fingerprint. \`dryRun=true\` runs every check without saving and always returns \`200\`. Returns \`403\` while code-first workflows are not enabled. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Workflows'],
-      errors: RESOURCE_MUTATION_ERRORS,
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The applied (or evaluated) source.', headers: RATE_LIMIT_HEADERS },
     },
     {
