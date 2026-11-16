@@ -1,5 +1,6 @@
 import { type ParserOptions, parse } from '@babel/parser'
 import type { File, Node } from '@babel/types'
+import { codeFileLanguage } from '../code-files'
 import { SOURCE_LIMITS, utf8Bytes } from '../limits'
 import type { Reporter } from './report'
 
@@ -7,8 +8,6 @@ import type { Reporter } from './report'
 export interface CompileLimits {
   /** Block declarations in the workflow. */
   maxBlocks?: number
-  /** Bytes of the entry file, and of each code file. */
-  maxFileBytes?: number
   /** Bytes of the entry plus the distinct code files `codeFile()` references. */
   maxTotalBytes?: number
   /** Nesting depth of the entry file, and bracket depth of each JavaScript code file. */
@@ -25,9 +24,8 @@ export interface CompileLimits {
  */
 export const DEFAULT_LIMITS: Required<CompileLimits> = {
   maxBlocks: SOURCE_LIMITS.maxBlocks,
-  maxFileBytes: SOURCE_LIMITS.maxFileBytes,
   maxTotalBytes: SOURCE_LIMITS.maxTotalBytes,
-  maxDepth: 200,
+  maxDepth: SOURCE_LIMITS.maxDepth,
   /** One code file per block. */
   maxCodeFileRefs: SOURCE_LIMITS.maxBlocks,
 }
@@ -177,12 +175,12 @@ export function parseWorkflowSource(
     headerEnd: header ? header[0].length : 0,
   }
 
-  if (utf8Bytes(text, limits.maxFileBytes) > limits.maxFileBytes) {
+  if (utf8Bytes(text, limits.maxTotalBytes) > limits.maxTotalBytes) {
     reporter.report(
       'E_LIMIT_EXCEEDED',
-      `The file is larger than ${limits.maxFileBytes} bytes.`,
+      `The file is larger than ${limits.maxTotalBytes} bytes, the limit for all source files together.`,
       { file, start: 0, end: 0 },
-      { hint: 'Split the workflow, or move large text into a code file.' }
+      { hint: 'Split the workflow, moving parts into child workflows.' }
     )
     return parsed
   }
@@ -236,4 +234,31 @@ export function parseWorkflowSource(
 
   parsed.ast = ast
   return parsed
+}
+
+/** Whether compile refuses an entry file for nesting: its bracket depth, then its syntax tree's. */
+function entryTooDeep(text: string, maxDepth: number): boolean {
+  if (bracketDepthOverflow(text, maxDepth) !== -1) return true
+  try {
+    return depthOverflow(parse(text, PARSER_OPTIONS), maxDepth) !== null
+  } catch (error) {
+    return error instanceof RangeError
+  }
+}
+
+/**
+ * The first printed file compile would refuse for nesting deeper than `SOURCE_LIMITS.maxDepth`, or
+ * `null`: the entry by its brackets and syntax tree, each JavaScript code file by its brackets. A
+ * get checks its output with it, so it never returns source an apply would refuse.
+ */
+export function sourceDepthOverflow(files: Readonly<Record<string, string>>): string | null {
+  for (const [path, text] of Object.entries(files)) {
+    const language = codeFileLanguage(path)
+    const tooDeep =
+      language === null
+        ? entryTooDeep(text, SOURCE_LIMITS.maxDepth)
+        : language === 'javascript' && bracketDepthOverflow(text, SOURCE_LIMITS.maxDepth) !== -1
+    if (tooDeep) return path
+  }
+  return null
 }

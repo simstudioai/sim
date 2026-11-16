@@ -17631,7 +17631,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         required: true,
         describe:
-          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files of 2000000 bytes each and 4000000 bytes together, for a workflow of at most 2000 blocks.',
+          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files and 4000000 bytes together, for a workflow of at most 2000 blocks.',
       },
       lock: {
         kind: 'object',
@@ -19165,7 +19165,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         required: true,
         describe:
-          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files of 2000000 bytes each and 4000000 bytes together, for a workflow of at most 2000 blocks.',
+          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files and 4000000 bytes together, for a workflow of at most 2000 blocks.',
       },
       name: {
         kind: 'string',

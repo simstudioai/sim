@@ -52,7 +52,7 @@ const sourceFilesSchema = z
     }
   })
   .describe(
-    `Relative path → file text: \`workflow.ts\` plus every function-code file it references (for example \`functions/score.js\`). At most ${SOURCE_LIMITS.maxFiles} files of ${SOURCE_LIMITS.maxFileBytes} bytes each and ${SOURCE_LIMITS.maxTotalBytes} bytes together, for a workflow of at most ${SOURCE_LIMITS.maxBlocks} blocks.`
+    `Relative path → file text: \`workflow.ts\` plus every function-code file it references (for example \`functions/score.js\`). At most ${SOURCE_LIMITS.maxFiles} files and ${SOURCE_LIMITS.maxTotalBytes} bytes together, for a workflow of at most ${SOURCE_LIMITS.maxBlocks} blocks.`
   )
 
 const provenanceSchema = z

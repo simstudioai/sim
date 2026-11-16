@@ -195,6 +195,22 @@ describe('sim workflows source apply', () => {
     expect(process.exitCode).toBe(1)
   })
 
+  it('exits 7 when a dry run finds the source over a size limit', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(
+      outcome({
+        dryRun: true,
+        diagnostics: [
+          { code: 'E_LIMIT_EXCEEDED', severity: 'error', message: 'workflow.ts is too large.' },
+        ],
+      })
+    )
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run')
+
+    expect(process.exitCode).toBe(7)
+  })
+
   it('creates a workflow from the directory alone, then writes its lock files', async () => {
     setTerminal(false)
     rmSync(join(dir, '.sim'), { recursive: true })

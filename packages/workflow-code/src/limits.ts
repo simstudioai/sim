@@ -1,7 +1,12 @@
 /**
- * The size limits workflow source shares across reading and writing. A get refuses to print a
- * workflow over them, and compile, the source contracts and the apply body cap enforce the same
- * numbers, so anything a get returns can be applied back unchanged.
+ * The limits workflow source shares across reading and writing. A get refuses to print a workflow
+ * over them, and compile, the source contracts and the apply body cap enforce the same numbers, so
+ * anything a get returns can be applied back unchanged.
+ *
+ * One byte cap covers every file together and none caps a single file: function code moves
+ * between the entry (inline) and code files (files mode), so a per-file cap would refuse one
+ * printing of a workflow and accept the other. The Code tab reads inline, so its one file may use
+ * the whole budget.
  *
  * Files mode never needs more files than blocks: the printer writes at most one code file per
  * block, so `maxFiles` (the entry plus one per block) always holds a workflow within `maxBlocks`,
@@ -14,10 +19,14 @@ export const SOURCE_LIMITS = {
   maxBlocks: 2_000,
   /** Files in one source: `workflow.ts` plus one code file per block. */
   maxFiles: 2_001,
-  /** UTF-8 bytes of any one file, the entry included. */
-  maxFileBytes: 2_000_000,
-  /** UTF-8 bytes of every file together. */
+  /** UTF-8 bytes of every file together, the entry included. */
   maxTotalBytes: 4_000_000,
+  /**
+   * Nesting depth: of the entry's syntax tree and brackets, and of each JavaScript code file's
+   * brackets. A 200-block workflow nests under 20 levels. A get checks its printed files with
+   * `sourceDepthOverflow` (`compile/parse.ts`), which needs the parser this module avoids.
+   */
+  maxDepth: 200,
 } as const
 
 /**
@@ -27,13 +36,11 @@ export const SOURCE_LIMITS = {
  */
 export const SOURCE_REQUEST_MAX_BYTES = 2 * SOURCE_LIMITS.maxTotalBytes + 2_000_000
 
-/** One limit a source exceeds, with the measured value. */
+/** One size limit a source exceeds, with the measured value. */
 export interface SourceLimitExcess {
-  limit: keyof typeof SOURCE_LIMITS
+  limit: 'maxBlocks' | 'maxFiles' | 'maxTotalBytes'
   actual: number
   max: number
-  /** The file, for `maxFileBytes`. */
-  file?: string
 }
 
 /** UTF-8 length of `text`, counting at most `cap + 1` bytes when a cap is given. */
@@ -51,7 +58,10 @@ export function utf8Bytes(text: string, cap = Number.POSITIVE_INFINITY): number 
   return bytes
 }
 
-/** Every limit a printed source of `blockCount` blocks exceeds, in limit order; empty when it fits. */
+/**
+ * Every size limit a printed source of `blockCount` blocks exceeds, in limit order; empty when it
+ * fits. Depth is `sourceDepthOverflow`'s.
+ */
 export function sourceLimitExcesses(
   files: Readonly<Record<string, string>>,
   blockCount: number
@@ -65,18 +75,7 @@ export function sourceLimitExcesses(
     excesses.push({ limit: 'maxFiles', actual: paths.length, max: SOURCE_LIMITS.maxFiles })
   }
   let total = 0
-  for (const path of paths) {
-    const bytes = utf8Bytes(files[path])
-    total += bytes
-    if (bytes > SOURCE_LIMITS.maxFileBytes) {
-      excesses.push({
-        limit: 'maxFileBytes',
-        actual: bytes,
-        max: SOURCE_LIMITS.maxFileBytes,
-        file: path,
-      })
-    }
-  }
+  for (const path of paths) total += utf8Bytes(files[path])
   if (total > SOURCE_LIMITS.maxTotalBytes) {
     excesses.push({ limit: 'maxTotalBytes', actual: total, max: SOURCE_LIMITS.maxTotalBytes })
   }

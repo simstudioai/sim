@@ -340,8 +340,8 @@ function readCodeFile(
 }
 
 /**
- * Reads one distinct code file under the byte caps (per file and in total) and, for JavaScript,
- * the bracket-depth cap that keeps Babel's recursive descent off a depth bomb.
+ * Reads one distinct code file under the total byte cap and, for JavaScript, the bracket-depth cap
+ * that keeps Babel's recursive descent off a depth bomb.
  */
 function parseCodeFile(
   ctx: CompileContext,
@@ -352,19 +352,7 @@ function parseCodeFile(
   decl: BlockDecl
 ): string | null {
   const { limits } = ctx
-  const bytes = utf8Bytes(text, limits.maxFileBytes)
-  if (bytes > limits.maxFileBytes) {
-    ctx.reporter.report(
-      'E_LIMIT_EXCEEDED',
-      `${path} is larger than ${limits.maxFileBytes} bytes.`,
-      at,
-      {
-        blockKey: decl.key,
-      }
-    )
-    return null
-  }
-  ctx.codeFiles.bytes += bytes
+  ctx.codeFiles.bytes += utf8Bytes(text, limits.maxTotalBytes)
   if (ctx.codeFiles.bytes > limits.maxTotalBytes) {
     ctx.reporter.report(
       'E_LIMIT_EXCEEDED',

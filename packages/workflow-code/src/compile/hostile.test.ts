@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { CompileResult } from './index'
 import { compileWorkflow } from './index'
-import type { CompileLimits } from './parse'
+import { type CompileLimits, sourceDepthOverflow } from './parse'
 import { TEST_CATALOG } from './test-catalog'
 
 /**
@@ -144,7 +144,7 @@ describe('hostile sources produce diagnostics only', () => {
 
   it('never reads a code file outside the repository or past the size cap', () => {
     const text = `// @sim-sdk 1\nimport { codeFile, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('X', {}, () => {\n  const a = fn('A', { code: codeFile('../../etc/passwd.js') })\n  const b = fn('B', { code: codeFile('./big.js') })\n})\n`
-    const result = run(text, { maxFileBytes: 1_000 }, { 'workflows/big.js': 'x'.repeat(5_000) })
+    const result = run(text, { maxTotalBytes: 1_000 }, { 'workflows/big.js': 'x'.repeat(5_000) })
     expect(codes(result)).toEqual(expect.arrayContaining(['E_CODE_FILE_PATH', 'E_LIMIT_EXCEEDED']))
   })
 
@@ -176,7 +176,7 @@ describe('hostile sources produce diagnostics only', () => {
       )
       const result = run(
         fnFile(4, (i) => `./f${i}.js`),
-        { maxFileBytes: 1_000, maxTotalBytes: 2_000 },
+        { maxTotalBytes: 2_000 },
         files
       )
       expect(codes(result)).toContain('E_LIMIT_EXCEEDED')
@@ -230,5 +230,40 @@ describe('hostile sources produce diagnostics only', () => {
     ).join('')
     expect(() => run(garbage)).not.toThrow()
     expect(run(garbage).workflow).toBeNull()
+  })
+})
+
+describe('one set of limits for get and compile', () => {
+  const nested = (levels: number) => `${'{ a: '.repeat(levels)}1${' }'.repeat(levels)}`
+  const entryWith = (value: string) =>
+    wrap(`  const a = api('A', { url: 'x', body: raw(${value}) })`)
+
+  it('lets one inline entry file use the whole byte budget', () => {
+    const text = wrap(`  const a = api('A', { url: 'x', body: '${'x'.repeat(2_500_000)}' })`)
+    expect(errorCodes(run(text))).not.toContain('E_LIMIT_EXCEEDED')
+  })
+
+  it.each([
+    [
+      'an entry nested in syntax but not in brackets',
+      { 'workflows/hostile.ts': entryWith(nested(120)) },
+    ],
+    [
+      'a JavaScript code file nested in brackets',
+      {
+        'workflows/hostile.ts': `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./deep.js') })\n})\n`,
+        'workflows/deep.js': `return ${'['.repeat(250)}${']'.repeat(250)}\n`,
+      },
+    ],
+  ])('flags %s that compile refuses, so a get never prints it', (_, files) => {
+    const { 'workflows/hostile.ts': entry, ...codeFiles } = files as Record<string, string>
+    expect(errorCodes(run(entry, undefined, codeFiles))).toContain('E_LIMIT_EXCEEDED')
+    expect(sourceDepthOverflow(files)).not.toBeNull()
+  })
+
+  it('passes a source nested within the cap', () => {
+    const files = { 'workflows/hostile.ts': entryWith(nested(20)) }
+    expect(errorCodes(run(files['workflows/hostile.ts']))).not.toContain('E_LIMIT_EXCEEDED')
+    expect(sourceDepthOverflow(files)).toBeNull()
   })
 })

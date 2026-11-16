@@ -74,7 +74,8 @@ export const v2WorkflowErrorPolicies = {
    * the refusals a graph write has structured detail for: an `atomic` batch
    * that could not be applied whole answers `409` carrying the declined
    * operations and the block inputs that would have been dropped, refused
-   * workflow source answers `400` with its line-pinned diagnostics, and stale
+   * workflow source answers `400` (`413` for a size limit) with its line-pinned
+   * diagnostics, and stale
    * source answers `409` with the current fingerprint, so a pipeline can act on
    * each without a second request.
    */
@@ -105,7 +106,8 @@ export const v2WorkflowErrorPolicies = {
   }),
   /**
    * Creating a workflow from source: an unreachable workspace is concealed as absent, and refused
-   * source answers `400` with its line-pinned diagnostics, as an apply does.
+   * source answers `400` (`413` for a size limit) with its line-pinned diagnostics, as an apply
+   * does.
    */
   concealWorkspaceSourceCreate: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workspace not found',

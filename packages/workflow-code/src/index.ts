@@ -32,6 +32,7 @@ export {
 } from './catalog/view'
 export { isIdentifierName } from './code-files'
 export { type CompileResult, compileWorkflow } from './compile'
+export { sourceDepthOverflow } from './compile/parse'
 export type { ApplyDiagnosticCode, DiagnosticCode, DiagnosticSeverity } from './diagnostics/codes'
 export { codeFrame, type Diagnostic, type SourceSpan } from './diagnostics/frame'
 export { type CanonicalDiff, diffCanonical, renamesBetween } from './diff'

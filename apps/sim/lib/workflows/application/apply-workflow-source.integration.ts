@@ -37,6 +37,7 @@ import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/re
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, sql } from 'drizzle-orm'
@@ -1376,6 +1377,30 @@ describe('source apply edge cases', () => {
         async (flag: string) => flag === 'workflow-code'
       )
     }
+    expect(await snapshot(seeded.workflowId)).toEqual(before)
+  })
+
+  check('a get of a workflow over the block limit answers 413 before printing', async () => {
+    const blocks = Array.from({ length: SOURCE_LIMITS.maxBlocks + 1 }, (_, i) =>
+      seedBlock(i === 0 ? 'start_trigger' : 'function', i === 0 ? 'Start' : `Step ${i}`)
+    )
+    const workflowId = await seedGraph(blocks)
+
+    await expect(getSource(workflowId)).rejects.toMatchObject({ code: 'payload_too_large' })
+  })
+
+  check('source over the byte limit is refused with 413 and nothing is written', async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+    const before = await snapshot(seeded.workflowId)
+    const oversized = `return '${'x'.repeat(SOURCE_LIMITS.maxTotalBytes)}'`
+
+    const error = await expectRejected(
+      apply(source, edit(source.files, SCORE_CODE, oversized)),
+      'E_LIMIT_EXCEEDED'
+    )
+
+    expect(error.code).toBe('payload_too_large')
     expect(await snapshot(seeded.workflowId)).toEqual(before)
   })
 })

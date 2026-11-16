@@ -26,15 +26,19 @@ export interface WorkflowSourceDiagnostic {
 
 /**
  * Submitted workflow source that cannot be applied: a compile error, a gate refusal, a locked
- * block, an invalid value or a blocking lint finding. Nothing was written. Kept apart
- * from the use case so a route error policy can narrow on it without importing the compiler.
+ * block, an invalid value or a blocking lint finding. Nothing was written. A source refused for
+ * exceeding a size limit (`E_LIMIT_EXCEEDED`) is `payload_too_large` (413), like the body cap;
+ * anything else is `validation` (400). Kept apart from the use case so a route error policy can
+ * narrow on it without importing the compiler.
  */
 export class WorkflowSourceRejectedError extends OrchestrationError {
   constructor(readonly diagnostics: WorkflowSourceDiagnostic[]) {
-    const errors = diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length
+    const errors = diagnostics.filter((diagnostic) => diagnostic.severity === 'error')
     super(
-      'validation',
-      `The workflow source has ${errors} error(s); nothing was written. See details.diagnostics.`
+      errors.some((diagnostic) => diagnostic.code === 'E_LIMIT_EXCEEDED')
+        ? 'payload_too_large'
+        : 'validation',
+      `The workflow source has ${errors.length} error(s); nothing was written. See details.diagnostics.`
     )
     this.name = 'WorkflowSourceRejectedError'
   }

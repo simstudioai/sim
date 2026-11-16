@@ -46,6 +46,18 @@ locked; 7 the source is too large.`
 
 type SourceApplyData = ApplyWorkflowSourceResponse['data']
 type Diagnostic = SourceApplyData['diagnostics'][number]
+
+/**
+ * The exit status of a dry run that found errors, matching the status a commit's refusal maps to:
+ * 7 when a size limit refused the source (a commit answers `413`), else 1.
+ */
+function refusedExitCode(diagnostics: Diagnostic[]): number {
+  return diagnostics.some(
+    (diagnostic) => diagnostic.severity === 'error' && diagnostic.code === 'E_LIMIT_EXCEEDED'
+  )
+    ? SOURCE_TOO_LARGE_EXIT_CODE
+    : 1
+}
 type SourceLock = ApplyWorkflowSourceBody['lock']
 type SourceBase = ApplyWorkflowSourceBody['base']
 
@@ -218,7 +230,7 @@ async function runSourceWrite(args: {
     const preview = await send(true)
     for (const diagnostic of preview.diagnostics) printError(formatDiagnostic(diagnostic))
     if (preview.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
-      setSoftExitCode(1)
+      setSoftExitCode(refusedExitCode(preview.diagnostics))
       printProtocolResult(args.output, summarize(preview, creating))
       return
     }
@@ -231,7 +243,7 @@ async function runSourceWrite(args: {
   const data = await send(options.dryRun === true)
   for (const diagnostic of data.diagnostics) printError(formatDiagnostic(diagnostic))
   const refused = data.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
-  if (refused) setSoftExitCode(1)
+  if (refused) setSoftExitCode(refusedExitCode(data.diagnostics))
 
   if (!data.dryRun && !refused && (data.applied || !creating)) {
     const write: Array<[string, string]> = Object.entries(data.files)

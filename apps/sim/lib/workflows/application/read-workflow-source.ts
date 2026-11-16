@@ -7,9 +7,14 @@ import {
   type Diagnostic,
   type SourceBase,
   type SourceFingerprint,
+  sourceDepthOverflow,
   type WorkflowLockV1,
 } from '@sim/workflow-code'
-import { type SourceLimitExcess, sourceLimitExcesses } from '@sim/workflow-code/limits'
+import {
+  SOURCE_LIMITS,
+  type SourceLimitExcess,
+  sourceLimitExcesses,
+} from '@sim/workflow-code/limits'
 import { readWorkflowSourceMeta } from '@sim/workflow-persistence/source-meta'
 import { resolveCatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -86,24 +91,31 @@ function describeExcess(excess: SourceLimitExcess): string {
       return `it has ${excess.actual} blocks, over the ${excess.max}-block limit`
     case 'maxFiles':
       return `it prints ${excess.actual} files, over the ${excess.max}-file limit`
-    case 'maxFileBytes':
-      return `${excess.file} is ${excess.actual} bytes, over the ${excess.max}-byte file limit`
     case 'maxTotalBytes':
       return `its files total ${excess.actual} bytes, over the ${excess.max}-byte limit`
   }
 }
 
 /**
- * Refuses (413) a source an apply would reject for its size, so every get can be applied back
- * unchanged. The message names each measured size against its limit.
+ * Refuses (413) a source an apply would reject for its size or nesting, so every get can be
+ * applied back unchanged. The message names each measured size against its limit, or the file
+ * nested too deeply.
  */
 function assertFitsSourceLimits(files: Record<string, string>, blockCount: number): void {
   const excesses = sourceLimitExcesses(files, blockCount)
-  if (excesses.length === 0) return
-  throw new OrchestrationError(
-    'payload_too_large',
-    `This workflow is too large to read as source: ${excesses.map(describeExcess).join('; ')}.`
-  )
+  if (excesses.length > 0) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `This workflow is too large to read as source: ${excesses.map(describeExcess).join('; ')}.`
+    )
+  }
+  const tooDeep = sourceDepthOverflow(files)
+  if (tooDeep !== null) {
+    throw new OrchestrationError(
+      'payload_too_large',
+      `This workflow is too deeply nested to read as source: ${tooDeep} nests deeper than ${SOURCE_LIMITS.maxDepth} levels.`
+    )
+  }
 }
 
 /**
@@ -114,7 +126,7 @@ function assertFitsSourceLimits(files: Record<string, string>, blockCount: numbe
  * uses. No audit. The one write is resource-key allocation: the first get that references a
  * resource with no key binds one. That is idempotent identity metadata, so read access may cause it.
  * A workflow over `SOURCE_LIMITS` is refused with `payload_too_large` before anything is printed
- * when its block count alone exceeds them, and after printing when its files do.
+ * when its block count alone exceeds them, and after printing when its files' size or nesting do.
  */
 export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
