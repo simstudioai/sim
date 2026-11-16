@@ -1318,10 +1318,10 @@ sim workflows source get <workflowId> [options]
 
 API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
 
-### Apply a workflow source directory to the workflow draft
+### Apply a workflow source directory to a workflow draft, or create one with --new
 
 ```bash
-sim workflows source apply <workflowId> [options]
+sim workflows source apply [workflowId] [options]
 ```
 
 **Arguments**
@@ -1330,7 +1330,7 @@ sim workflows source apply <workflowId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `workflowId` | Yes | Workflow whose draft the source replaces |
+| `workflowId` | No | Workflow whose draft the source replaces (omit with --new) |
 
 </CommandTable>
 
@@ -1342,6 +1342,10 @@ sim workflows source apply <workflowId> [options]
 | --- | --- | --- |
 | `--from <dir>` | Yes | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. |
 | `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
+| `--new` | No | Create a new workflow from the directory instead of updating one. |
+| `--name <name>` | No | With --new: the workflow name (default: the source's). |
+| `--folder <path>` | No | With --new: the folder to create it in (default: the root). |
+| `-y, --yes` | No | Apply without asking for confirmation. |
 
 </CommandTable>
 

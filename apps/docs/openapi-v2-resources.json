@@ -29970,6 +29970,151 @@
                                   "type": "boolean"
                                 }
                               },
+                              "visibleWhen": {
+                                "description": "Per operation id: the clause on other fields an opaque condition still asks to show this field.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "object",
+                                  "properties": {
+                                    "field": {
+                                      "type": "string",
+                                      "description": "Sibling field id whose value decides the condition."
+                                    },
+                                    "value": {
+                                      "anyOf": [
+                                        {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "boolean"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "boolean"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "list": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991,
+                                              "description": "Index into the catalog `lists` table."
+                                            }
+                                          },
+                                          "required": ["list"],
+                                          "additionalProperties": false,
+                                          "description": "A value list stored once in the catalog `lists` table."
+                                        }
+                                      ],
+                                      "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                    },
+                                    "not": {
+                                      "description": "Invert the match.",
+                                      "type": "boolean"
+                                    },
+                                    "and": {
+                                      "description": "A second clause that must hold as well.",
+                                      "type": "object",
+                                      "properties": {
+                                        "field": {
+                                          "type": "string",
+                                          "description": "Second field id."
+                                        },
+                                        "value": {
+                                          "anyOf": [
+                                            {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "number"
+                                                },
+                                                {
+                                                  "type": "boolean"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "array",
+                                              "items": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "boolean"
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "list": {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 9007199254740991,
+                                                  "description": "Index into the catalog `lists` table."
+                                                }
+                                              },
+                                              "required": ["list"],
+                                              "additionalProperties": false,
+                                              "description": "A value list stored once in the catalog `lists` table."
+                                            }
+                                          ],
+                                          "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                        },
+                                        "not": {
+                                          "description": "Invert the second match.",
+                                          "type": "boolean"
+                                        }
+                                      },
+                                      "required": ["field"],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": ["field", "value"],
+                                  "additionalProperties": false,
+                                  "description": "Holds when `field` holds `value`."
+                                }
+                              },
+                              "visibleForModel": {
+                                "description": "Per model id: whether an opaque condition shows this field.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "boolean"
+                                }
+                              },
                               "required": {
                                 "description": "Whether a value is required, or the condition under which it is.",
                                 "anyOf": [
@@ -30839,6 +30984,151 @@
                                   "type": "boolean"
                                 }
                               },
+                              "visibleWhen": {
+                                "description": "Per operation id: the clause on other fields an opaque condition still asks to show this field.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "object",
+                                  "properties": {
+                                    "field": {
+                                      "type": "string",
+                                      "description": "Sibling field id whose value decides the condition."
+                                    },
+                                    "value": {
+                                      "anyOf": [
+                                        {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "boolean"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "boolean"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "list": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991,
+                                              "description": "Index into the catalog `lists` table."
+                                            }
+                                          },
+                                          "required": ["list"],
+                                          "additionalProperties": false,
+                                          "description": "A value list stored once in the catalog `lists` table."
+                                        }
+                                      ],
+                                      "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                    },
+                                    "not": {
+                                      "description": "Invert the match.",
+                                      "type": "boolean"
+                                    },
+                                    "and": {
+                                      "description": "A second clause that must hold as well.",
+                                      "type": "object",
+                                      "properties": {
+                                        "field": {
+                                          "type": "string",
+                                          "description": "Second field id."
+                                        },
+                                        "value": {
+                                          "anyOf": [
+                                            {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "number"
+                                                },
+                                                {
+                                                  "type": "boolean"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "array",
+                                              "items": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "boolean"
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "list": {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 9007199254740991,
+                                                  "description": "Index into the catalog `lists` table."
+                                                }
+                                              },
+                                              "required": ["list"],
+                                              "additionalProperties": false,
+                                              "description": "A value list stored once in the catalog `lists` table."
+                                            }
+                                          ],
+                                          "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                        },
+                                        "not": {
+                                          "description": "Invert the second match.",
+                                          "type": "boolean"
+                                        }
+                                      },
+                                      "required": ["field"],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": ["field", "value"],
+                                  "additionalProperties": false,
+                                  "description": "Holds when `field` holds `value`."
+                                }
+                              },
+                              "visibleForModel": {
+                                "description": "Per model id: whether an opaque condition shows this field.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "boolean"
+                                }
+                              },
                               "required": {
                                 "description": "Whether a value is required, or the condition under which it is.",
                                 "anyOf": [
@@ -31506,6 +31796,151 @@
                     },
                     "visibleFor": {
                       "description": "Per operation id: whether an opaque condition can show this field.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "boolean"
+                      }
+                    },
+                    "visibleWhen": {
+                      "description": "Per operation id: the clause on other fields an opaque condition still asks to show this field.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "description": "Sibling field id whose value decides the condition."
+                          },
+                          "value": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "boolean"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "boolean"
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "list": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991,
+                                    "description": "Index into the catalog `lists` table."
+                                  }
+                                },
+                                "required": ["list"],
+                                "additionalProperties": false,
+                                "description": "A value list stored once in the catalog `lists` table."
+                              }
+                            ],
+                            "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                          },
+                          "not": {
+                            "description": "Invert the match.",
+                            "type": "boolean"
+                          },
+                          "and": {
+                            "description": "A second clause that must hold as well.",
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "description": "Second field id."
+                              },
+                              "value": {
+                                "anyOf": [
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "boolean"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "boolean"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "list": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991,
+                                        "description": "Index into the catalog `lists` table."
+                                      }
+                                    },
+                                    "required": ["list"],
+                                    "additionalProperties": false,
+                                    "description": "A value list stored once in the catalog `lists` table."
+                                  }
+                                ],
+                                "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                              },
+                              "not": {
+                                "description": "Invert the second match.",
+                                "type": "boolean"
+                              }
+                            },
+                            "required": ["field"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": ["field", "value"],
+                        "additionalProperties": false,
+                        "description": "Holds when `field` holds `value`."
+                      }
+                    },
+                    "visibleForModel": {
+                      "description": "Per model id: whether an opaque condition shows this field.",
                       "type": "object",
                       "propertyNames": {
                         "type": "string"

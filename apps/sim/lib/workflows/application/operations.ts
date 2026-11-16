@@ -203,6 +203,17 @@ export const workflowOperations = {
     contentDelivery: 'none',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  /** Creating a workflow from source runs the apply pipeline with no stored draft: same policy. */
+  // permission-group-exempt: creating a workflow from source is governed by workspace role and the same block gates as apply
+  createFromSource: defineWorkspaceOperation({
+    id: 'workflows.source.create',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   // permission-group-exempt: restoring a soft-deleted workflow is governed by workspace role
   restore: defineWorkspaceOperation({
     id: 'workflows.restore',

@@ -278,5 +278,10 @@
     "method": "GET",
     "path": "/api/v2/workspaces",
     "operation": "workspaces.list_public"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/workspaces/[workspaceId]/resource-manifest",
+    "operation": "workflows.code.resource_manifest.read"
   }
 ]

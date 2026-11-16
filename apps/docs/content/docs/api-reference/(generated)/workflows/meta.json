@@ -12,6 +12,8 @@
     "getWorkflowOutline",
     "getWorkflowSource",
     "applyWorkflowSource",
+    "createWorkflowFromSource",
+    "getResourceManifest",
     "replaceWorkflowState",
     "applyWorkflowOperations",
     "applyWorkflowVariables",

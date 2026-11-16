@@ -103,6 +103,22 @@ export const v2WorkflowErrorPolicies = {
       return v2CaughtOrchestrationError(error)
     },
   }),
+  /**
+   * Creating a workflow from source: an unreachable workspace is concealed as absent, and refused
+   * source answers `400` with its line-pinned diagnostics, as an apply does.
+   */
+  concealWorkspaceSourceCreate: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Workspace not found',
+    render(error) {
+      if (error instanceof WorkflowSourceRejectedError) {
+        return v2ErrorForOrchestration(error.code, error.message, {
+          code: 'SOURCE_REJECTED',
+          diagnostics: error.diagnostics,
+        })
+      }
+      return v2CaughtOrchestrationError(error)
+    },
+  }),
   concealRunAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Run not found',
   }),

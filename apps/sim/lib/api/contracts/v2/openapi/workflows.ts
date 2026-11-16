@@ -5,6 +5,7 @@ import {
   v2ListChatDeploymentsContract,
   v2ReplaceWorkflowChatDeploymentContract,
 } from '@/lib/api/contracts/v2/chat-deployments'
+import { resourceManifestOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/resource-manifest'
 import {
   documentedSchema,
   ERROR_RESPONSES,
@@ -1813,5 +1814,10 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
   headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,
-  routes: [...routes, ...workflowSourceOpenApiRoutes, ...workspaceSyncOpenApiRoutes],
+  routes: [
+    ...routes,
+    ...workflowSourceOpenApiRoutes,
+    ...resourceManifestOpenApiRoutes,
+    ...workspaceSyncOpenApiRoutes,
+  ],
 })
