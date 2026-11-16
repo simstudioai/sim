@@ -389,6 +389,7 @@ describe('materialize: identity (s1 §4)', () => {
       renamedFrom: 'Fetch',
     })
     expect(result.state.blocks.a1.name).toBe('Load')
+    expect(result.state.blocks.a1.outputs).toBe(prev.blocks.a1.outputs)
     expect(subBlockValue(result.state, 'a2', 'code')).toBe('return <load.result> + <load.x>')
     expect(result.state.edges.map((e) => e.id)).toEqual(['e1', 'e2'])
     expect(result.identity.blocks.load.id).toBe('a1')
