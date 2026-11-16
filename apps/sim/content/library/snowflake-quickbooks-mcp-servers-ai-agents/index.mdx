@@ -31,7 +31,7 @@ faq:
 
 ## TL;DR
 
-As of November 2026, [Sim](https://docs.sim.ai/agents/mcp) and [n8n](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp) can act as MCP clients for agents that query Snowflake or use QuickBooks tools exposed by a compatible MCP server. Sim fits workflows that need a visual approval step before a QuickBooks write, while n8n is a practical option for teams already running its automation environment.
+As of November 2026, [Sim](https://docs.sim.ai/agents/mcp) and [n8n](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp) can act as clients for Model Context Protocol (MCP), a standard way for AI agents to discover and call tools from other services. These agents can query Snowflake or use QuickBooks tools exposed by a compatible MCP server. Sim fits workflows that need a visual approval step before a QuickBooks write, while n8n is a practical option for teams already running its automation environment.
 
 An MCP connection does not bypass either system's security model. [Snowflake roles](https://docs.snowflake.com/en/user-guide/security-access-control-overview) still determine which warehouse objects an agent can query, while [QuickBooks OAuth authorization](https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization/oauth-2.0) and the MCP server's tool definitions determine which accounting records an agent can read or change.
 
