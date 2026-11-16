@@ -10,7 +10,10 @@ import { isRecordLike } from '@sim/utils/object'
  * Workflow source apply over the real HTTP boundary of a running local app: create a workflow,
  * read it as TypeScript (`GET /api/v2/workflows/{id}/source`), edit the text, apply it
  * (`POST .../source`), and check the stored graph through `GET .../state`. Also drives the dry
- * run, the stale-fingerprint 409 and the line-pinned 400. The app must have the `workflow-code`
+ * run, the stale-fingerprint 409 and the line-pinned 400. Then reads the resource manifest
+ * (`GET /api/v2/workspaces/{id}/resource-manifest`), creates a workflow from source
+ * (`POST /api/v2/workspaces/{id}/workflows/source`: dry run, create, name conflict, refusal) and
+ * applies to the new workflow with the lock the create returned. The app must have the `workflow-code`
  * flag on, and the key must be a personal API key (workspace keys are refused).
  *
  * Env: WORKFLOW_SOURCE_E2E_BASE_URL (loopback origin), WORKFLOW_SOURCE_E2E_API_KEY,
@@ -133,6 +136,8 @@ async function main() {
   const startId = String(record((created.blocks as unknown[])[0]).id)
   const scoreId = generateId()
   const seededBlocks = await storedBlocks(workflowId)
+  /** Workflows the create checks made, removed with the seeded one. */
+  const createdIds: string[] = []
 
   try {
     await request('PUT', `/api/v2/workflows/${workflowId}/state`, {
@@ -225,10 +230,107 @@ async function main() {
       assert.equal(first.file, 'workflow.ts')
       assert.equal(typeof first.line, 'number')
     })
-  } finally {
-    await request('DELETE', `/api/v2/workflows/${workflowId}`).catch((error: unknown) => {
-      logger.warn('Cleanup failed', { workflowId, error: getErrorMessage(error) })
+
+    await check('the resource manifest lists this workflow by a key that stays put', async () => {
+      const first = record(
+        (await request('GET', `/api/v2/workspaces/${workspaceId}/resource-manifest`)).data
+      )
+      const entry = (first.workflows as unknown[]).map(record).find((w) => w.id === workflowId)
+      assert(entry, 'the manifest lists the workflow')
+      assert.match(String(entry.key), /^[a-z][a-z0-9_-]{0,63}$/)
+      for (const kind of ['tables', 'knowledgeBases', 'bindings', 'env']) {
+        assert(Array.isArray(first[kind]), `${kind} is a list`)
+      }
+      const second = record(
+        (await request('GET', `/api/v2/workspaces/${workspaceId}/resource-manifest`)).data
+      )
+      const again = (second.workflows as unknown[]).map(record).find((w) => w.id === workflowId)
+      assert.equal(again?.key, entry.key)
     })
+
+    const createPath = `/api/v2/workspaces/${workspaceId}/workflows/source`
+    const copyName = `Source create e2e ${generateId().slice(0, 8)}`
+    let copy: {
+      workflowId: string
+      lock: Json
+      lockBase: Json
+      files: Record<string, string>
+    } | null = null
+
+    await check('a dry-run create checks the source and creates nothing', async () => {
+      const source = await readSource(workflowId)
+      const { data } = await request('POST', `${createPath}?dryRun=true`, {
+        files: source.files,
+        name: copyName,
+      })
+      const result = record(data)
+      assert.equal(result.applied, false)
+      assert.equal(result.dryRun, true)
+      await request('GET', `/api/v2/workflows/${String(result.workflowId)}/source`, undefined, 404)
+    })
+
+    await check('creating from source writes a new workflow with fresh ids', async () => {
+      const source = await readSource(workflowId)
+      const { data } = await request('POST', createPath, {
+        files: source.files,
+        name: copyName,
+        provenance: { client: 'api' },
+      })
+      const result = record(data)
+      assert.equal(result.applied, true)
+      const newId = String(result.workflowId)
+      createdIds.push(newId)
+      assert.notEqual(newId, workflowId)
+      copy = {
+        workflowId: newId,
+        lock: record(result.lock),
+        lockBase: record(result.lockBase),
+        files: record(result.files) as Record<string, string>,
+      }
+      const blocks = await storedBlocks(newId)
+      assert.equal(Object.keys(blocks).length, Object.keys(await storedBlocks(workflowId)).length)
+      assert(!(scoreId in blocks), 'the new workflow mints its own block ids')
+      const reread = await readSource(newId)
+      assert.equal(reread.fingerprint, result.newFingerprint)
+    })
+
+    await check(
+      'the created workflow takes an apply with the lock the create returned',
+      async () => {
+        assert(copy, 'the create check must run first')
+        const { data } = await request('POST', `/api/v2/workflows/${copy.workflowId}/source`, {
+          files: edit(copy.files, 'return 7', 'return 8'),
+          lock: copy.lock,
+          lockBase: copy.lockBase,
+          baseFingerprint: String(copy.lockBase.baseFingerprint),
+        })
+        assert.equal(record(data).applied, true)
+        const blocks = Object.values(await storedBlocks(copy.workflowId))
+        const score = blocks.find((block) => block.name === 'Score')
+        assert.equal(record(record(score?.subBlocks).code).value, 'return 8')
+      }
+    )
+
+    await check('creating under a name the folder already holds answers 409', async () => {
+      const source = await readSource(workflowId)
+      await request('POST', createPath, { files: source.files, name: copyName }, 409)
+    })
+
+    await check('broken source creates nothing and answers a line-pinned 400', async () => {
+      const body = await request(
+        'POST',
+        createPath,
+        { files: { 'workflow.ts': '// @sim-sdk 1\nconst = \n' }, name: `${copyName} broken` },
+        400
+      )
+      assert.equal(record(record(body.error).details).code, 'SOURCE_REJECTED')
+    })
+  } finally {
+    for (const id of [workflowId, ...createdIds]) {
+      await request('DELETE', `/api/v2/workflows/${id}`).catch((error: unknown) => {
+        logger.warn('Cleanup failed', { workflowId: id, error: getErrorMessage(error) })
+      })
+    }
   }
 }
 
