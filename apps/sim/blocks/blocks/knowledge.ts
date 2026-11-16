@@ -497,7 +497,11 @@ export const KnowledgeBlock: BlockConfig = {
           if (params.chunkEnabledFilter) {
             const modelEnabled =
               params.chunkEnabledFilter === 'all' ? toolCallArg(context, params.enabled) : undefined
-            params.enabled = modelEnabled || params.chunkEnabledFilter
+            /* The tool takes a string; a model may send the boolean `false`, which must survive. */
+            params.enabled =
+              modelEnabled === undefined || modelEnabled === null || modelEnabled === ''
+                ? params.chunkEnabledFilter
+                : String(modelEnabled)
           }
         }
 

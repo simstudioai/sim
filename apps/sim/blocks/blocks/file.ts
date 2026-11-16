@@ -2203,13 +2203,16 @@ export const FileV5Block: BlockConfig = {
             throw new Error('File is required to manage sharing')
           }
 
-          const allowedEmails =
+          const rowEmails =
             typeof params.shareAllowedEmails === 'string'
               ? params.shareAllowedEmails
                   .split(/[\n,]/)
                   .map((email) => email.trim())
                   .filter(Boolean)
-              : toolCallArg(context, params.allowedEmails)
+              : undefined
+          const allowedEmails = rowEmails?.length
+            ? rowEmails
+            : (toolCallArg(context, params.allowedEmails) ?? rowEmails)
 
           /* A tool row has no visibility dropdown, so a tool call states the link
              with the tool's own `isActive` / `authType` args. */

@@ -805,9 +805,9 @@ Return ONLY the timestamp or date - no explanations, no extra text.`,
           const resolved = normalizeFileInput(params.media, { single: true })
           if (resolved) result.media = resolved
         } else if (operation === 'instagram_publish_carousel') {
-          const resolved = normalizeFileInput(
-            params.carouselMedia || toolCallArg(context, params.media)
-          )
+          const resolved =
+            normalizeFileInput(params.carouselMedia) ??
+            normalizeFileInput(toolCallArg(context, params.media))
           if (resolved) result.media = resolved
         }
 
