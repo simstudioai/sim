@@ -39,7 +39,7 @@ faq:
   - q: "What should teams monitor after replacing a legacy script?"
     a: "Sim operators should monitor success rate, latency, retry frequency, model and API errors, approval delays, cost, output quality, and downstream side effects. Every alert should identify the workflow, deployed version, failed step, accountable owner, and recovery path."
   - q: "How long should teams run the old script and new workflow in parallel?"
-    a: "Sim migrations should use a parallel-run period long enough to cover normal volume, rare inputs, scheduled boundaries, and likely provider failures rather than an arbitrary number of days. The old script should remain non-authoritative during shadow testing and should be disabled promptly after the new workflow satisfies the agreed cutover evidence."
+    a: "Sim migrations should use a parallel-run period long enough to cover normal volume, rare inputs, scheduled boundaries, and likely provider failures rather than an arbitrary number of days. During shadow testing, the old script should remain authoritative while the new workflow's writes are disabled or redirected to a test destination; disable the old script promptly after the new workflow satisfies the agreed cutover evidence."
 ---
 
 ## TL;DR
@@ -84,7 +84,7 @@ A staged migration keeps each script available until its replacement workflow ha
 6. **Add the correct trigger.** Replace cron with a schedule, inbound polling with a webhook or event trigger where possible, and ad hoc manual runs with a controlled deployment endpoint.
 7. **Define retries and idempotency together.** Retry only transient failures, use stable request identifiers, and prevent repeated runs from duplicating irreversible actions.
 8. **Add alerts and approvals.** Notify an accountable team when a run fails or exceeds a threshold. Place human review before high-impact actions rather than after them.
-9. **Run the workflow in parallel.** Compare the old script's output with the new workflow across normal cases, malformed inputs, provider outages, rate limits, and partial downstream failures.
+9. **Run the workflow in parallel.** Keep the old script authoritative while the new workflow runs in shadow mode with writes disabled or redirected to a test destination. Compare their outputs across normal cases, malformed inputs, provider outages, rate limits, and partial downstream failures.
 10. **Deploy a named version and document rollback.** Record the cutover version, expected output, owner, alert destination, rollback threshold, and recovery procedure.
 11. **Disable and then retire the script.** Stop its trigger first, retain it for a defined rollback window, remove obsolete credentials, and archive its operational documentation after the new workflow is stable.
 
