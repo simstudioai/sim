@@ -83,9 +83,7 @@ function sourceResponse(files: Record<string, string> = FILES, lock: unknown = L
       files,
       lock,
       base: baseFor(WORKFLOW_ID, FIRST),
-      fingerprint: FIRST,
       canonicalHash: 'h',
-      catalogHash: CATALOG.hash,
       sdkMajor: 1,
       blockTypes: ['function'],
       diagnostics: [],
@@ -111,15 +109,12 @@ function appliedResponse(
         variables: { added: [], removed: [], modified: [] },
       },
       diagnostics: [],
-      fingerprint: SECOND,
       files,
       lock,
       base: baseFor(workflowId, SECOND),
       mintedIds: {},
       notes: [],
       needsRedeployment: true,
-      sdkMajor: 1,
-      catalogHash: CATALOG.hash,
     },
   }
 }
@@ -401,6 +396,15 @@ describe('catalog and declarations', () => {
 
     expect(error.message).toContain('Upgrade the CLI')
     expect(existsSync(join(dir, 'workflow.ts'))).toBe(false)
+  })
+
+  it('leaves the declarations alone while the index on disk names the same catalog', async () => {
+    await get()
+    writeFileSync(join(dir, '.sim/sdk/blocks/kept_block.d.ts'), 'declare const x: 1\n')
+
+    await get()
+
+    expect(existsSync(join(dir, '.sim/sdk/blocks/kept_block.d.ts'))).toBe(true)
   })
 
   it('replaces the old declarations whole when the catalog changes', async () => {

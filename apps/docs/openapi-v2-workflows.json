@@ -5911,7 +5911,7 @@
       "get": {
         "operationId": "getWorkflowSource",
         "summary": "Get workflow source",
-        "description": "Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `base` records the workflow, workspace, fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. A workflow too large to apply back as source (more than 2000 blocks, over 4000000 bytes of files in all, or nested deeper than 200 levels) returns `413` naming the measured size. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.",
+        "description": "Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and its `base`. The lock binds each block key in the source to its stored id; `base` records the workflow, workspace, freshness fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. A workflow too large to apply back as source (more than 2000 blocks, over 4000000 bytes of files in all, or nested deeper than 200 levels) returns `413` naming the measured size. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.source.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -5995,9 +5995,7 @@
                           "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                           "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
                         },
-                        "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                         "canonicalHash": "0d6e2b8a4c1f7e3d9b5a2c8f4e1d7b3a9c6f2e8d4b1a7c3e9f5d2b8a4c1e7f3d",
-                        "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a",
                         "sdkMajor": 1,
                         "blockTypes": ["start_trigger"],
                         "diagnostics": []
@@ -6037,7 +6035,7 @@
       "post": {
         "operationId": "applyWorkflowSource",
         "summary": "Apply workflow source",
-        "description": "Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and `fingerprint` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is saved; a source over a size limit (`E_LIMIT_EXCEEDED`) gets the same body with `413`. A `409` means the draft changed since the source was read (`details.currentFingerprint`): get the source again, reapply the edit and retry. A `base.workflowId` that names another workflow is refused with `400` (`E_APPLY_WORKFLOW_MISMATCH`). Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns `applied: false` without saving. The response re-prints the saved source with its new lock and fingerprint. `dryRun=true` runs every check without saving and always returns `200`. Returns `403` while code-first workflows are not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and `base` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is saved; a source over a size limit (`E_LIMIT_EXCEEDED`) gets the same body with `413`. A `409` means the draft changed since the source was read (`details.currentFingerprint`): get the source again, reapply the edit and retry. A `base.workflowId` that names another workflow is refused with `400` (`E_APPLY_WORKFLOW_MISMATCH`). Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns `applied: false` without saving. The response re-prints the saved source with its new lock and `base`. `dryRun=true` runs every check without saving and always returns `200`. Returns `403` while code-first workflows are not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.source.apply",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -6075,7 +6073,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Edited source files with the lock and fingerprint they were read with.",
+          "description": "Edited source files with the lock and base they were read with.",
           "content": {
             "application/json": {
               "schema": {
@@ -6159,7 +6157,6 @@
                           }
                         },
                         "diagnostics": [],
-                        "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                         "files": {
                           "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
                         },
@@ -6228,7 +6225,7 @@
       "post": {
         "operationId": "createWorkflowFromSource",
         "summary": "Create workflow from source",
-        "description": "Create a workflow from TypeScript workflow source in one all-or-nothing write. Requires workspace write access. The source is compiled and checked against the same rules as Apply Workflow Source; every block is new. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is created; a source over a size limit (`E_LIMIT_EXCEEDED`) gets the same body with `413`. The name defaults to the one in the source's `workflow('…')` call; a name already used in the folder returns `409`. The response carries the new `workflowId` and the source re-printed from what was saved, with its lock and fingerprint, ready for the next apply. The workflow is not deployed. `dryRun=true` runs every check without creating anything and always returns `200`. Returns `403` while code-first workflows are not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Create a workflow from TypeScript workflow source in one all-or-nothing write. Requires workspace write access. The source is compiled and checked against the same rules as Apply Workflow Source; every block is new. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is created; a source over a size limit (`E_LIMIT_EXCEEDED`) gets the same body with `413`. The name defaults to the one in the source's `workflow('…')` call; a name already used in the folder returns `409`. The response carries the new `workflowId` and the source re-printed from what was saved, with its lock and `base`, ready for the next apply. The workflow is not deployed. `dryRun=true` runs every check without creating anything and always returns `200`. Returns `403` while code-first workflows are not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.source.create",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -6338,7 +6335,6 @@
                           }
                         },
                         "diagnostics": [],
-                        "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                         "files": {
                           "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
                         },
@@ -18092,7 +18088,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256,
-                    "description": "The `fingerprint` this source was read at."
+                    "description": "Freshness token of the draft the source was read at: a hash of the canonical workflow and its ids. It ignores canvas positions, so moving blocks does not change it."
                   },
                   "catalogHash": {
                     "type": "string",
@@ -18103,17 +18099,9 @@
                 "additionalProperties": false,
                 "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
               },
-              "fingerprint": {
-                "type": "string",
-                "description": "Freshness token of the stored draft: a hash of the canonical workflow and its ids. It ignores canvas positions, so moving blocks does not change it."
-              },
               "canonicalHash": {
                 "type": "string",
                 "description": "Hash of the canonical workflow alone, without ids; comments do not affect it."
-              },
-              "catalogHash": {
-                "type": "string",
-                "description": "Hash of the block catalog the source was printed against."
               },
               "sdkMajor": {
                 "type": "integer",
@@ -18172,9 +18160,7 @@
               "files",
               "lock",
               "base",
-              "fingerprint",
               "canonicalHash",
-              "catalogHash",
               "sdkMajor",
               "blockTypes",
               "diagnostics"
@@ -18213,9 +18199,7 @@
                 "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                 "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
               },
-              "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
               "canonicalHash": "0d6e2b8a4c1f7e3d9b5a2c8f4e1d7b3a9c6f2e8d4b1a7c3e9f5d2b8a4c1e7f3d",
-              "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a",
               "sdkMajor": 1,
               "blockTypes": ["start_trigger"],
               "diagnostics": []
@@ -18431,6 +18415,14 @@
                       "description": "How to address it.",
                       "type": "string"
                     },
+                    "blockKey": {
+                      "description": "Block the finding is about.",
+                      "type": "string"
+                    },
+                    "param": {
+                      "description": "Field the finding is about.",
+                      "type": "string"
+                    },
                     "file": {
                       "description": "Submitted file the finding is in.",
                       "type": "string"
@@ -18463,16 +18455,8 @@
                       "description": "The source lines around the finding, with a caret row.",
                       "type": "string"
                     },
-                    "blockKey": {
-                      "description": "Block key the finding is about.",
-                      "type": "string"
-                    },
                     "blockId": {
                       "description": "Stored id of the block the finding is about.",
-                      "type": "string"
-                    },
-                    "param": {
-                      "description": "Field the finding is about.",
                       "type": "string"
                     },
                     "path": {
@@ -18485,10 +18469,6 @@
                   "description": "A finding from applying workflow source, pinned to the submitted files."
                 },
                 "description": "Warnings, and on a dry run every error a commit would refuse."
-              },
-              "fingerprint": {
-                "type": "string",
-                "description": "Fingerprint of the saved (or, on a dry run, would-be) draft: the next `base.fingerprint`."
               },
               "files": {
                 "type": "object",
@@ -18657,7 +18637,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256,
-                    "description": "The `fingerprint` this source was read at."
+                    "description": "Freshness token of the draft the source was read at: a hash of the canonical workflow and its ids. It ignores canvas positions, so moving blocks does not change it."
                   },
                   "catalogHash": {
                     "type": "string",
@@ -18666,7 +18646,7 @@
                 },
                 "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
                 "additionalProperties": false,
-                "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
+                "description": "Where the saved (or, on a dry run, would-be) draft was read: the next apply’s `base`."
               },
               "mintedIds": {
                 "type": "object",
@@ -18697,7 +18677,6 @@
               "applied",
               "diff",
               "diagnostics",
-              "fingerprint",
               "files",
               "lock",
               "base",
@@ -18739,7 +18718,6 @@
                 }
               },
               "diagnostics": [],
-              "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
               "files": {
                 "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
               },
@@ -18940,7 +18918,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 256,
-                "description": "The `fingerprint` this source was read at."
+                "description": "Freshness token of the draft the source was read at: a hash of the canonical workflow and its ids. It ignores canvas positions, so moving blocks does not change it."
               },
               "catalogHash": {
                 "type": "string",
@@ -18979,7 +18957,7 @@
         "required": ["files", "lock", "base"],
         "additionalProperties": false,
         "title": "Apply workflow source body",
-        "description": "Edited source files with the lock and fingerprint they were read with.",
+        "description": "Edited source files with the lock and base they were read with.",
         "examples": [
           {
             "files": {
@@ -19214,6 +19192,14 @@
                       "description": "How to address it.",
                       "type": "string"
                     },
+                    "blockKey": {
+                      "description": "Block the finding is about.",
+                      "type": "string"
+                    },
+                    "param": {
+                      "description": "Field the finding is about.",
+                      "type": "string"
+                    },
                     "file": {
                       "description": "Submitted file the finding is in.",
                       "type": "string"
@@ -19246,16 +19232,8 @@
                       "description": "The source lines around the finding, with a caret row.",
                       "type": "string"
                     },
-                    "blockKey": {
-                      "description": "Block key the finding is about.",
-                      "type": "string"
-                    },
                     "blockId": {
                       "description": "Stored id of the block the finding is about.",
-                      "type": "string"
-                    },
-                    "param": {
-                      "description": "Field the finding is about.",
                       "type": "string"
                     },
                     "path": {
@@ -19268,10 +19246,6 @@
                   "description": "A finding from applying workflow source, pinned to the submitted files."
                 },
                 "description": "Warnings, and on a dry run every error a commit would refuse."
-              },
-              "fingerprint": {
-                "type": "string",
-                "description": "Fingerprint of the saved (or, on a dry run, would-be) draft: the next `base.fingerprint`."
               },
               "files": {
                 "type": "object",
@@ -19440,7 +19414,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256,
-                    "description": "The `fingerprint` this source was read at."
+                    "description": "Freshness token of the draft the source was read at: a hash of the canonical workflow and its ids. It ignores canvas positions, so moving blocks does not change it."
                   },
                   "catalogHash": {
                     "type": "string",
@@ -19449,7 +19423,7 @@
                 },
                 "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
                 "additionalProperties": false,
-                "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
+                "description": "Where the saved (or, on a dry run, would-be) draft was read: the next apply’s `base`."
               },
               "mintedIds": {
                 "type": "object",
@@ -19480,7 +19454,6 @@
               "applied",
               "diff",
               "diagnostics",
-              "fingerprint",
               "files",
               "lock",
               "base",
@@ -19527,7 +19500,6 @@
                 }
               },
               "diagnostics": [],
-              "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
               "files": {
                 "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
               },

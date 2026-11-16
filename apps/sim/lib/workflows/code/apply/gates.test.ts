@@ -23,7 +23,7 @@ import {
   type PermissionGroupConfig,
 } from '@/lib/permission-groups/fields'
 import { gateSourceDiff, SKIP_TYPE_APPLY_CODES } from '@/lib/workflows/code/apply/gates'
-import type { SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
+import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import { findLockedBlockRefusals } from '@/lib/workflows/code/apply/locked'
 import { decideBlockEnablement } from '@/lib/workflows/editing/block-enablement'
 import { applyOperationsToWorkflowState } from '@/lib/workflows/editing/engine'
@@ -247,11 +247,13 @@ const APPLY_CODE_CATEGORY: Record<string, string> = {
 }
 
 async function sourceRefusals(testCase: ParityCase): Promise<string[]> {
+  const diff = diffGraphs(testCase.base, testCase.target)
   const diagnostics = [
-    ...findLockedBlockRefusals(testCase.base, testCase.target),
+    ...findLockedBlockRefusals(testCase.base, testCase.target, diff),
     ...(await gateSourceDiff({
       base: testCase.base,
       target: testCase.target,
+      diff,
       permissionConfig: testCase.permissionConfig ?? null,
       subjectUserId: CTX.userId,
       workspaceId: CTX.workspaceId,
@@ -790,6 +792,7 @@ describe('gateSourceDiff', () => {
     const diagnostics = await gateSourceDiff({
       base,
       target,
+      diff: diffGraphs(base, target),
       permissionConfig: null,
       subjectUserId: CTX.userId,
       workspaceId: CTX.workspaceId,
@@ -804,6 +807,7 @@ describe('gateSourceDiff', () => {
     const diagnostics = await gateSourceDiff({
       base,
       target,
+      diff: diffGraphs(base, target),
       permissionConfig: null,
       subjectUserId: CTX.userId,
       workspaceId: CTX.workspaceId,
@@ -818,6 +822,7 @@ describe('gateSourceDiff', () => {
     const diagnostics = await gateSourceDiff({
       base,
       target,
+      diff: diffGraphs(base, target),
       permissionConfig: null,
       subjectUserId: CTX.userId,
       workspaceId: CTX.workspaceId,
@@ -832,6 +837,7 @@ describe('gateSourceDiff', () => {
     const diagnostics = await gateSourceDiff({
       base,
       target,
+      diff: diffGraphs(base, target),
       permissionConfig: null,
       subjectUserId: CTX.userId,
       workspaceId: CTX.workspaceId,

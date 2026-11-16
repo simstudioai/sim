@@ -278,7 +278,7 @@ check('get → apply unchanged is a no-op that writes, audits and notifies nothi
 
   expect(result.applied).toBe(false)
   expect(result.diff.noop).toBe(true)
-  expect(result.fingerprint).toBe(source.fingerprint)
+  expect(result.base.fingerprint).toBe(source.base.fingerprint)
   expect(await snapshot(seeded.workflowId)).toEqual(before)
   expect(await settledAuditRows(seeded.workflowId, 0)).toHaveLength(0)
   expect(notifiedFor(seeded.workflowId)).toBe(0)
@@ -372,7 +372,7 @@ check('a one-field edit changes exactly that stored field and keeps every id', a
   )
 
   const reread = await getSource(seeded.workflowId)
-  expect(reread.fingerprint).toBe(result.fingerprint)
+  expect(reread.base.fingerprint).toBe(result.base.fingerprint)
   expect(await settledAuditRows(seeded.workflowId, 1)).toHaveLength(1)
   expect(notifiedFor(seeded.workflowId)).toBe(1)
 })
@@ -501,7 +501,7 @@ check(
     expect(again.lock.blocks.score.ident).toBe('scoring')
     expect(again.files['workflow.ts']).toContain('const scoring = ')
     expect(again.files['workflow.ts']).toContain('// kept across reads')
-    expect(again.fingerprint).toBe(result.fingerprint)
+    expect(again.base.fingerprint).toBe(result.base.fingerprint)
   }
 )
 
@@ -536,7 +536,7 @@ check('a dry run reports the outcome and never writes', async () => {
   expect(result.dryRun).toBe(true)
   expect(result.applied).toBe(false)
   expect(result.diff.blocks.modified.map((block) => block.id)).toEqual([seeded.scoreId])
-  expect(result.fingerprint).not.toBe(source.fingerprint)
+  expect(result.base.fingerprint).not.toBe(source.base.fingerprint)
   expect(await snapshot(seeded.workflowId)).toEqual(before)
   expect(await settledAuditRows(seeded.workflowId, 0)).toHaveLength(0)
   expect(notifiedFor(seeded.workflowId)).toBe(0)
@@ -1255,7 +1255,7 @@ describe('source apply edge cases', () => {
     expect(result.diagnostics).toContainEqual(
       expect.objectContaining({ code: 'E_APPLY_STALE', severity: 'error' })
     )
-    expect(result.fingerprint).toBe((await getSource(seeded.workflowId)).fingerprint)
+    expect(result.base.fingerprint).toBe((await getSource(seeded.workflowId)).base.fingerprint)
     expect(await snapshot(seeded.workflowId)).toEqual(before)
   })
 
@@ -1358,7 +1358,7 @@ describe('source apply edge cases', () => {
         blocksRemoved: 0,
         blocksModified: 1,
         sdkMajor: result.sdkMajor,
-        catalogHash: result.catalogHash,
+        catalogHash: result.base.catalogHash,
       })
     }
   )

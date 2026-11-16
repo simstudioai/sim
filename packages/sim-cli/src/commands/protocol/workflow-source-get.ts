@@ -1,59 +1,51 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
+import { join } from 'node:path'
+import { isRecordLike } from '@sim/utils/object'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
+import { SOURCE_ENTRY_FILE } from '@sim/workflow-code/limits'
 import {
   CORE_DTS,
   generateSdkTypes,
   generateWorkspaceTypes,
   SDK_MAJOR,
+  sdkIndexHeader,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
 import type { Command } from 'commander'
+import { readJsonFile, writeJsonFile } from '../../config/json-file'
 import { configDir } from '../../config/paths'
 import { embedStore } from '../../embed-context'
+import type { GetSourceResourcesResponse, GetWorkflowSourceResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { callsOperations, type OperationClient } from '../../runtime/called-operations'
 import { buildRequest } from '../../runtime/request'
 import { printProtocolResult } from './result'
 import {
   mergedGitattributes,
-  orphanedCodeFiles,
   readPreviousLock,
   readSourceText,
   SOURCE_SDK_DIR as SDK_DIR,
   SOURCE_AGENTS_FILE,
   SOURCE_BASE_FILE,
-  SOURCE_ENTRY_FILE,
   SOURCE_GITATTRIBUTES_FILE,
   SOURCE_LOCK_FILE,
   sourceRelativePath,
-  updateSourceDir,
+  writeBack,
 } from './workflow-source-layout'
 
 const DIR_FLAG = 'dir'
-/** The SDK file that names the catalog hash; unchanged text means unchanged declarations. */
+/** The SDK file whose first line names the catalog the declarations were generated from. */
 const SDK_INDEX_FILE = `${SDK_DIR}/index.d.ts`
 const WORKSPACE_TYPES_FILE = `${SDK_DIR}/workspace.d.ts`
+/** A cached catalog is a few megabytes of JSON; a larger file was not written by this CLI. */
+const MAX_CATALOG_CACHE_BYTES = 32 * 1024 * 1024
 
-/** The part of the source response the writer reads; the contract owns the full shape. */
-interface WorkflowSource {
-  workflowId: string
-  workspaceId: string
-  files: Record<string, string>
-  lock: unknown
-  base: unknown
-  fingerprint: string
-  blockTypes: string[]
-}
+type WorkflowSource = GetWorkflowSourceResponse['data']
 
-interface CachedCatalog {
-  hash: string
-  catalog: BlockCatalog
-}
-
-/** Enough of a block catalog to generate from; the server owns the full shape. */
+/**
+ * Enough of a block catalog to generate from, for the cache file and the server's answer alike:
+ * the generated response type declares an optional condition `value` the package type requires.
+ */
 function isBlockCatalog(value: unknown): value is BlockCatalog {
   return (
     isRecordLike(value) &&
@@ -68,33 +60,12 @@ function isBlockCatalog(value: unknown): value is BlockCatalog {
 /** Workspace ids are uuids; anything else is never used to name a cache file. */
 const CACHE_KEY = /^[\w-]+$/
 
-function readSource(raw: unknown): WorkflowSource {
-  const data = isRecordLike(raw) && isRecordLike(raw.data) ? raw.data : raw
-  if (
-    !isRecordLike(data) ||
-    typeof data.workflowId !== 'string' ||
-    typeof data.workspaceId !== 'string' ||
-    !isRecordLike(data.files) ||
-    typeof data.fingerprint !== 'string' ||
-    !Array.isArray(data.blockTypes)
-  ) {
-    throw new SimApiError('The workflow source response was not in the expected shape.', 0)
-  }
-  const files: Record<string, string> = {}
-  for (const [path, text] of Object.entries(data.files)) {
-    if (typeof text !== 'string' || sourceRelativePath(path) !== path) {
+/** Refuses a response file path outside the directory before anything is fetched or written. */
+function assertSafePaths(source: WorkflowSource): void {
+  for (const path of Object.keys(source.files)) {
+    if (sourceRelativePath(path) !== path) {
       throw new SimApiError(`The workflow source named an unsafe file path: ${path}`, 0)
     }
-    files[path] = text
-  }
-  return {
-    workflowId: data.workflowId,
-    workspaceId: data.workspaceId,
-    files,
-    lock: data.lock,
-    base: data.base,
-    fingerprint: data.fingerprint,
-    blockTypes: data.blockTypes.filter((type): type is string => typeof type === 'string'),
   }
 }
 
@@ -107,32 +78,28 @@ function catalogCachePath(workspaceId: string): string {
   return join(configDir(), 'cache', 'source-catalog', `${workspaceId}.json`)
 }
 
-/** Standalone runs only: an embedded run has no local disk of its own to cache on. */
-async function readCachedCatalog(workspaceId: string): Promise<CachedCatalog | null> {
+/**
+ * The cached catalog, or `null`. Standalone runs only: an embedded run has no local disk of its
+ * own to cache on. The file is read without following a link and under a size cap.
+ */
+function readCachedCatalog(workspaceId: string): BlockCatalog | null {
   if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return null
-  try {
-    const parsed: unknown = JSON.parse(await readFile(catalogCachePath(workspaceId), 'utf8'))
-    if (isRecordLike(parsed) && typeof parsed.hash === 'string' && isBlockCatalog(parsed.catalog)) {
-      return { hash: parsed.hash, catalog: parsed.catalog }
-    }
-  } catch {}
-  return null
+  const cached = readJsonFile(catalogCachePath(workspaceId), MAX_CATALOG_CACHE_BYTES)
+  return isBlockCatalog(cached) ? cached : null
 }
 
-async function writeCachedCatalog(workspaceId: string, catalog: BlockCatalog): Promise<void> {
-  if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return
-  const path = catalogCachePath(workspaceId)
-  const cache: CachedCatalog = { hash: catalog.hash, catalog }
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, JSON.stringify(cache))
-}
-
-function catalogFrom(raw: unknown): BlockCatalog {
-  const catalog = isRecordLike(raw) ? raw.data : null
-  if (!isBlockCatalog(catalog)) {
+/** The catalog a `getSourceCatalog` answer carries. */
+function catalogFrom(response: { data: unknown }): BlockCatalog {
+  if (!isBlockCatalog(response.data)) {
     throw new SimApiError('The block catalog response was not in the expected shape.', 0)
   }
-  return catalog
+  return response.data
+}
+
+/** Replaces the cached catalog atomically; a failed write only costs the next get a download. */
+function writeCachedCatalog(workspaceId: string, catalog: BlockCatalog): void {
+  if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return
+  writeJsonFile(catalogCachePath(workspaceId), catalog)
 }
 
 /**
@@ -145,97 +112,56 @@ async function loadCatalog(
   client: OperationClient<'getSourceCatalog'>,
   source: WorkflowSource
 ): Promise<BlockCatalog> {
-  const cached = await readCachedCatalog(source.workspaceId)
+  const cached = readCachedCatalog(source.workspaceId)
   let catalog: BlockCatalog
   try {
     catalog = catalogFrom(
-      await client.request<unknown>('getSourceCatalog', {
+      await client.request<{ data: unknown }>('getSourceCatalog', {
         params: { workspaceId: source.workspaceId },
         ...(cached ? { headers: { 'if-none-match': `"${cached.hash}"` } } : {}),
       })
     )
-    await writeCachedCatalog(source.workspaceId, catalog)
+    writeCachedCatalog(source.workspaceId, catalog)
   } catch (error) {
     if (!cached || !(error instanceof SimApiError) || error.status !== 304) throw error
-    catalog = cached.catalog
+    catalog = cached
   }
   if (source.blockTypes.every((type) => catalogBlock(catalog, type) !== undefined)) return catalog
   return catalogFrom(
-    await client.request<unknown>('getSourceCatalog', {
+    await client.request<{ data: unknown }>('getSourceCatalog', {
       params: { workspaceId: source.workspaceId },
       query: { workflowId: source.workflowId },
     })
   )
 }
 
-interface ManifestResource {
-  key: string
-}
-
-/** The resource manifest response, as `generateWorkspaceTypes` reads it. */
-function workspaceManifestFrom(raw: unknown): WorkspaceManifest {
-  const data = isRecordLike(raw) ? toRecordOrNull(raw.data) : null
-  if (!data)
-    throw new SimApiError('The resource manifest response was not in the expected shape.', 0)
-  const list = <T extends ManifestResource>(value: unknown): T[] =>
-    Array.isArray(value)
-      ? value.filter((item): item is T => isRecordLike(item) && typeof item.key === 'string')
-      : []
-  const manifest: WorkspaceManifest = {
+/** The resource manifest as `generateWorkspaceTypes` reads it. */
+function workspaceManifestFrom({
+  tables,
+  knowledgeBases,
+  credentials,
+  workflows,
+  env,
+}: GetSourceResourcesResponse['data']): WorkspaceManifest {
+  return {
     tables: Object.fromEntries(
-      list<ManifestResource & { columns?: unknown }>(data.tables).map((table) => [
+      tables.map((table) => [
         table.key,
-        {
-          columns: Object.fromEntries(
-            (Array.isArray(table.columns) ? table.columns : []).flatMap((column) =>
-              isRecordLike(column) && typeof column.name === 'string'
-                ? [
-                    [
-                      column.name,
-                      {
-                        type: typeof column.type === 'string' ? column.type : 'string',
-                        ...(Array.isArray(column.options)
-                          ? {
-                              options: column.options.filter(
-                                (option): option is string => typeof option === 'string'
-                              ),
-                            }
-                          : {}),
-                      },
-                    ],
-                  ]
-                : []
-            )
-          ),
-        },
+        { columns: Object.fromEntries(table.columns.map(({ name, ...column }) => [name, column])) },
       ])
     ),
-    knowledgeBases: list(data.knowledgeBases).map((kb) => kb.key),
+    knowledgeBases: knowledgeBases.map((knowledgeBase) => knowledgeBase.key),
     credentials: Object.fromEntries(
-      list<ManifestResource & { provider?: unknown }>(data.credentials).map((credential) => [
-        credential.key,
-        { provider: typeof credential.provider === 'string' ? credential.provider : '' },
-      ])
+      credentials.map((credential) => [credential.key, { provider: credential.provider }])
     ),
     workflows: Object.fromEntries(
-      list<ManifestResource & { inputs?: unknown }>(data.workflows).map((workflow) => [
+      workflows.map((workflow) => [
         workflow.key,
-        {
-          inputs: Object.fromEntries(
-            (Array.isArray(workflow.inputs) ? workflow.inputs : []).flatMap((input) =>
-              isRecordLike(input) && typeof input.name === 'string'
-                ? [[input.name, typeof input.type === 'string' ? input.type : 'string']]
-                : []
-            )
-          ),
-        },
+        { inputs: Object.fromEntries(workflow.inputs.map((input) => [input.name, input.type])) },
       ])
     ),
-    env: Array.isArray(data.env)
-      ? data.env.filter((name): name is string => typeof name === 'string')
-      : [],
+    env,
   }
-  return manifest
 }
 
 /**
@@ -248,8 +174,10 @@ async function loadWorkspaceTypes(
   workspaceId: string
 ): Promise<string | null> {
   try {
-    const raw = await client.request<unknown>('getSourceResources', { params: { workspaceId } })
-    return generateWorkspaceTypes(workspaceManifestFrom(raw)).text
+    const { data } = await client.request<GetSourceResourcesResponse>('getSourceResources', {
+      params: { workspaceId },
+    })
+    return generateWorkspaceTypes(workspaceManifestFrom(data)).text
   } catch (error) {
     if (error instanceof SimApiError && (error.status === 403 || error.status === 404)) return null
     throw error
@@ -332,10 +260,10 @@ interface SourceTree {
 }
 
 /**
- * Writes the source tree in one staged update. Declarations are replaced only when the catalog
- * index changed, and replaced whole so a block the catalog dropped loses its file. A refused
- * manifest removes the `workspace.d.ts` an earlier get wrote, function files the new lock no
- * longer names are pruned, and `.gitattributes` gains the LF lines it lacks.
+ * Writes the source tree in one staged update. Declarations are regenerated only when the index
+ * on disk names another catalog, and replaced whole so a block the catalog dropped loses its file.
+ * A refused manifest removes the `workspace.d.ts` an earlier get wrote, function files the new lock
+ * no longer names are pruned, and `.gitattributes` gains the LF lines it lacks.
  */
 async function writeSourceTree(
   dir: string,
@@ -343,35 +271,27 @@ async function writeSourceTree(
   catalog: BlockCatalog,
   workspaceTypes: string | null
 ): Promise<SourceTree> {
-  const write: Array<[string, string]> = [
-    ...Object.entries(source.files),
-    [SOURCE_LOCK_FILE, `${JSON.stringify(source.lock, null, 2)}\n`],
-    [SOURCE_BASE_FILE, `${JSON.stringify(source.base, null, 2)}\n`],
+  const write: Array<readonly [string, string]> = [
     ['tsconfig.json', TSCONFIG],
     [SOURCE_AGENTS_FILE, AGENTS_GUIDE],
     [`${SDK_DIR}/core.d.ts`, CORE_DTS],
   ]
-  const remove = orphanedCodeFiles(
-    await readPreviousLock(dir),
-    source.lock,
-    Object.keys(source.files)
-  )
-  const gitattributes = mergedGitattributes(await readSourceText(dir, SOURCE_GITATTRIBUTES_FILE))
-  if (gitattributes !== null) write.push([SOURCE_GITATTRIBUTES_FILE, gitattributes])
-
-  const sdkFiles = generateSdkTypes(catalog).map((file): [string, string] => [
-    `${SDK_DIR}/${file.path}`,
-    file.text,
+  const remove: string[] = []
+  const [previousLock, gitattributes, index] = await Promise.all([
+    readPreviousLock(dir),
+    readSourceText(dir, SOURCE_GITATTRIBUTES_FILE),
+    readSourceText(dir, SDK_INDEX_FILE),
   ])
-  const index = sdkFiles.find(([path]) => path === SDK_INDEX_FILE)?.[1]
-  if (index === undefined || index !== (await readSourceText(dir, SDK_INDEX_FILE))) {
+  const mergedAttributes = mergedGitattributes(gitattributes)
+  if (mergedAttributes !== null) write.push([SOURCE_GITATTRIBUTES_FILE, mergedAttributes])
+  if (index?.split('\n', 1)[0] !== sdkIndexHeader(catalog)) {
     remove.push(SDK_DIR)
-    write.push(...sdkFiles)
+    for (const file of generateSdkTypes(catalog)) write.push([`${SDK_DIR}/${file.path}`, file.text])
   }
   if (workspaceTypes === null) remove.push(WORKSPACE_TYPES_FILE)
   else write.push([WORKSPACE_TYPES_FILE, workspaceTypes])
-  await updateSourceDir(dir, { write, remove })
-  return { written: write.length, workspaceTypes: workspaceTypes !== null }
+  const written = await writeBack(dir, source, previousLock, { write, remove })
+  return { written, workspaceTypes: workspaceTypes !== null }
 }
 
 /**
@@ -415,12 +335,11 @@ export function attachWorkflowSourceGet(source: Command): void {
       flags,
       profile.workspaceId
     )
-    const workflowSource = readSource(
-      await client.request<unknown>('getWorkflowSource', {
-        params: request.params,
-        query: request.query,
-      })
+    const { data: workflowSource } = await client.request<GetWorkflowSourceResponse>(
+      'getWorkflowSource',
+      { params: request.params, query: request.query }
     )
+    assertSafePaths(workflowSource)
     const [catalog, workspaceTypes] = await Promise.all([
       loadCatalog(client, workflowSource),
       loadWorkspaceTypes(client, workflowSource.workspaceId),
@@ -432,7 +351,7 @@ export function attachWorkflowSourceGet(source: Command): void {
       dir,
       files: tree.written,
       workspaceTypes: tree.workspaceTypes,
-      fingerprint: workflowSource.fingerprint,
+      fingerprint: workflowSource.base.fingerprint,
     })
   })
 }

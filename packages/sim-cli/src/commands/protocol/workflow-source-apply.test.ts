@@ -45,7 +45,6 @@ function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[] } = {}) 
         variables: { added: [], removed: [], modified: [] },
       },
       diagnostics: overrides.diagnostics ?? [],
-      fingerprint: 'sf1:b',
       files: { 'workflow.ts': `${ENTRY}// stored\n` },
       lock: LOCK,
       base: { ...BASE, fingerprint: 'sf1:b' },

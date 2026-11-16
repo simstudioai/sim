@@ -279,10 +279,8 @@ try {
     'a workspace API key reads source that compiles with zero errors to its canonical hash',
     async () => {
       const [source, catalog] = await Promise.all([readSource(), readCatalog()])
-      assert.equal(source.catalogHash, catalog.hash)
       assert.equal(source.base.catalogHash, catalog.hash)
-      assert.equal(source.base.fingerprint, source.fingerprint)
-      assert.match(source.fingerprint, /^sf1:[0-9a-f]{64}$/)
+      assert.match(source.base.fingerprint, /^sf1:[0-9a-f]{64}$/)
       assert(source.blockTypes.includes('function'), 'blockTypes lists the function block')
       assert.equal(source.lock.blocks.score?.id, scoreBlockId, 'The lock binds the key to its id')
       assert.equal(canonicalHash(compileSource(source, catalog)), source.canonicalHash)
@@ -305,7 +303,7 @@ try {
     const source = await readSource('?functionCode=inline')
     assert.deepEqual(Object.keys(source.files), ['workflow.ts'])
     assert.equal(source.canonicalHash, baseline.canonicalHash)
-    assert.equal(source.fingerprint, baseline.fingerprint)
+    assert.equal(source.base.fingerprint, baseline.base.fingerprint)
     assert.equal(canonicalHash(compileSource(source, await readCatalog())), source.canonicalHash)
   })
 
@@ -316,7 +314,7 @@ try {
         where workflow_id = ${workflowId} returning id`
     assert(moved.length >= 2, 'Both blocks moved')
     const source = await readSource()
-    assert.equal(source.fingerprint, baseline.fingerprint)
+    assert.equal(source.base.fingerprint, baseline.base.fingerprint)
     assert.equal(source.canonicalHash, baseline.canonicalHash)
   })
 
@@ -330,7 +328,7 @@ try {
       },
     ])
     const source = await readSource()
-    assert.notEqual(source.fingerprint, baseline.fingerprint)
+    assert.notEqual(source.base.fingerprint, baseline.base.fingerprint)
     assert.notEqual(source.canonicalHash, baseline.canonicalHash)
     assert.equal(canonicalHash(compileSource(source, await readCatalog())), source.canonicalHash)
   })
@@ -341,7 +339,7 @@ try {
     ).data
     const external = await readSource()
     assert.deepEqual(internal.files, external.files)
-    assert.equal(internal.fingerprint, external.fingerprint)
+    assert.equal(internal.base.fingerprint, external.base.fingerprint)
   })
 
   await check('a key for another workspace is answered 404, and no key 401', async () => {

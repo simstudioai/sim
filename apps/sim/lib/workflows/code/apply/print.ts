@@ -67,7 +67,7 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
         state,
         { catalog, meta, resources },
         lockless,
-        identityLock(input.identity)
+        boundLock(input.identity)
       )
     : lockless
   const metaInputs = hintsFromSourceMeta(sourceMeta, canonical)
@@ -94,40 +94,27 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
   }
 }
 
-/** The fingerprint of a stored draft exactly as {@link printStoredSource} computes it. */
-export function fingerprintOf(
-  stored: StoredSource,
-  catalog: BlockCatalog,
-  resources: ResourceKeyResolver
-): SourceFingerprint {
-  const { workflow, identity } = canonicalize(stored.state, {
-    catalog,
-    meta: stored.meta,
-    resources,
-  })
-  return sourceFingerprint(workflow, identity)
-}
-
 /**
- * A lock carrying only identity. `canonicalize` reads a lock's ids and branch keys and nothing
- * else, so the printer-owned fields are placeholders here; the real ones come from the print.
+ * The `sf1:` fingerprint of a lockless canonical model: what {@link printStoredSource} reports
+ * and what every apply compares `base.fingerprint` against.
  */
-function identityLock(identity: LockIdentity): WorkflowLockV1 {
-  const blocks: Record<string, WorkflowLockBlock> = {}
-  for (const [key, block] of Object.entries(identity.blocks)) {
-    blocks[key] = { ...block, ident: key, order: 0 }
-  }
-  return { version: 1, blocks, variables: identity.variables }
+export function fingerprintOf(
+  lockless: Pick<CanonicalizeResult, 'workflow' | 'identity'>
+): SourceFingerprint {
+  return sourceFingerprint(lockless.workflow, lockless.identity)
 }
 
 /**
  * The post-materialize lock `mergeSourceMetaFromLock` re-keys onto: every bound key with its id,
- * and the submitted lock's ident and order for a block the file does not state them for.
+ * and the submitted lock's ident and order for a block the file does not state them for. Without
+ * a submitted lock it carries only identity: `canonicalize` reads a lock's ids and branch keys and
+ * nothing else, so the printer-owned fields are placeholders the print replaces.
  */
-export function boundLock(identity: LockIdentity, submitted: WorkflowLockV1): WorkflowLockV1 {
+export function boundLock(identity: LockIdentity, submitted?: WorkflowLockV1): WorkflowLockV1 {
   const blocks: Record<string, WorkflowLockBlock> = {}
   for (const [key, block] of Object.entries(identity.blocks)) {
-    const previous = Object.hasOwn(submitted.blocks, key) ? submitted.blocks[key] : undefined
+    const previous =
+      submitted && Object.hasOwn(submitted.blocks, key) ? submitted.blocks[key] : undefined
     blocks[key] = { ...block, ident: previous?.ident ?? key, order: previous?.order ?? 0 }
   }
   return { version: 1, blocks, variables: identity.variables }

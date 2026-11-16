@@ -4,7 +4,7 @@ import {
   v2GetWorkflowSourceContract,
 } from '@/lib/api/contracts/v2/workflow-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { presentSourceApply, v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
@@ -57,21 +57,5 @@ export const POST = defineV2JsonRoute({
     ...(query.dryRun !== undefined ? { dryRun: query.dryRun } : {}),
   }),
   useCase: applyWorkflowSource,
-  present: (result) => ({
-    data: {
-      workflowId: result.workflowId,
-      workspaceId: result.workspaceId,
-      dryRun: result.dryRun,
-      applied: result.applied,
-      diff: result.diff,
-      diagnostics: result.diagnostics,
-      fingerprint: result.fingerprint,
-      files: result.files,
-      lock: result.lock,
-      base: result.base,
-      mintedIds: result.mintedIds,
-      notes: result.notes,
-      needsRedeployment: result.needsRedeployment,
-    },
-  }),
+  present: presentSourceApply,
 })

@@ -71,7 +71,7 @@ const PROPERTY_BUDGET_MS = 30_000
 
 const hooks = createMaterializeHooks()
 
-const { catalog } = buildBlockCatalog({
+const catalog = buildBlockCatalog({
   blocks: Object.values(getBlockRegistry()),
   trigger: registryTrigger,
   sdkNames: SDK_NAMES,

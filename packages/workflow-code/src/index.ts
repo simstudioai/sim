@@ -5,7 +5,6 @@ export { compactBlockCatalog } from './catalog/compact'
 export type {
   BlockCatalog,
   CatalogBlock,
-  CatalogBlockDocs,
   CatalogBlockGraph,
   CatalogBuilder,
   CatalogCondition,
@@ -15,7 +14,6 @@ export type {
   CatalogOutput,
   CatalogStructuredKind,
   CatalogSubBlock,
-  CatalogTool,
   CatalogTrigger,
   CatalogValueKind,
   ExpandedBlockCatalog,
@@ -34,7 +32,7 @@ export { isIdentifierName } from './code-files'
 export { type CompileResult, compileWorkflow } from './compile'
 export { sourceDepthOverflow } from './compile/parse'
 export type { ApplyDiagnosticCode, DiagnosticCode, DiagnosticSeverity } from './diagnostics/codes'
-export { codeFrame, type Diagnostic, type SourceSpan } from './diagnostics/frame'
+export { codeFrame, type Diagnostic, type SourceSpan, splitLines } from './diagnostics/frame'
 export { type CanonicalDiff, diffCanonical, renamesBetween } from './diff'
 export {
   canonicalDigests,

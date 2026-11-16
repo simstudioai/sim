@@ -97,14 +97,7 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     capability: 'none',
     contentDelivery: 'none',
-    principalKinds: [
-      'session',
-      'personal_api_key',
-      'oauth_access_token',
-      'workspace_api_key',
-      'delegated',
-    ],
-    delegatedServices: ['copilot'],
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /**
    * The workspace resources workflow source can name, by key. A read: any member may list them,
@@ -121,14 +114,7 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     capability: 'none',
     contentDelivery: 'none',
-    principalKinds: [
-      'session',
-      'personal_api_key',
-      'oauth_access_token',
-      'workspace_api_key',
-      'delegated',
-    ],
-    delegatedServices: ['copilot'],
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /** Full diagnostics retain the caller's subject for protected reference and secret reads. */
   // permission-group-exempt: lint reads workflow content under the existing workflow and secret authorization policies

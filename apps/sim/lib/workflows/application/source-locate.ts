@@ -7,6 +7,7 @@ import {
   encodeAnchor,
   type LockIdentity,
   type SourceSpan,
+  splitLines,
 } from '@sim/workflow-code'
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { type BlockState, isSubflowType } from '@sim/workflow-types/workflow'
@@ -56,13 +57,24 @@ function spanAnchors(diagnostic: Diagnostic): AnchorKey[] {
 /**
  * Pins findings to the submitted text. A compile finding already has its span; a server finding
  * (gate, value, lint) is placed on its param, else its block declaration, through the compile
- * span map.
+ * span map. Each file is split into lines once, however many findings it frames.
  */
 export function createLocator(
   files: Record<string, string>,
   spans: CompileResult['spans'],
   idByKey: ReadonlyMap<string, string>
 ) {
+  const linesByFile = new Map<string, string[]>()
+  const linesOf = (file: string): string[] | undefined => {
+    const text = Object.hasOwn(files, file) ? files[file] : undefined
+    if (text === undefined) return undefined
+    let lines = linesByFile.get(file)
+    if (!lines) {
+      lines = splitLines(text)
+      linesByFile.set(file, lines)
+    }
+    return lines
+  }
   return (diagnostic: Diagnostic): WorkflowSourceDiagnostic => {
     let span: SourceSpan | undefined = diagnostic.span
     if (!span) {
@@ -74,7 +86,7 @@ export function createLocator(
         }
       }
     }
-    const text = span ? files[span.file] : undefined
+    const lines = span && diagnostic.frame === undefined ? linesOf(span.file) : undefined
     const blockId =
       diagnostic.blockId ?? (diagnostic.blockKey ? idByKey.get(diagnostic.blockKey) : undefined)
     return {
@@ -93,9 +105,9 @@ export function createLocator(
         : {}),
       ...(diagnostic.frame !== undefined
         ? { frame: diagnostic.frame }
-        : span && text !== undefined
+        : span && lines !== undefined
           ? {
-              frame: codeFrame(text, {
+              frame: codeFrame(lines, {
                 line: span.line,
                 column: span.column,
                 endLine: span.endLine,
@@ -111,12 +123,6 @@ export function createLocator(
   }
 }
 
-/** Subblock ids a diff sets on a block: every one for an added block. */
-function changedFieldsOf(block: BlockState, diff: GraphDiff): string[] {
-  const modified = diff.modified.find((change) => change.id === block.id)
-  return modified ? modified.subBlocks : Object.keys(block.subBlocks ?? {})
-}
-
 /**
  * The replace path's value checks, on the blocks this apply adds or changes:
  * `validateWorkflowState` with sanitization, then `validateValueForSubBlockType` on each changed,
@@ -128,9 +134,16 @@ export function normalizeChangedValues(
   diff: GraphDiff,
   keyOf: (id: string) => string
 ): { blocks: Record<string, BlockState>; diagnostics: Diagnostic[] } {
+  /** Copied on the first rewrite, so untouched blocks keep their objects and no loop copies all. */
   let blocks = input
+  const write = (id: string, block: BlockState) => {
+    if (blocks === input) blocks = { ...input }
+    blocks[id] = block
+  }
   const diagnostics: Diagnostic[] = []
-  const changedIds = [...diff.added, ...diff.modified.map((change) => change.id)]
+  /** Subblock ids a diff sets on each modified block; an added block sets every one. */
+  const modifiedFields = new Map(diff.modified.map((change) => [change.id, change.subBlocks]))
+  const changedIds = [...diff.added, ...modifiedFields.keys()]
   for (const id of changedIds) {
     const original = blocks[id]
     if (!original || isSubflowType(original.type)) continue
@@ -151,7 +164,7 @@ export function normalizeChangedValues(
     }
     const sanitized = validation.sanitizedState?.blocks[id]
     if (sanitized && !isEqual(sanitized, original)) {
-      blocks = { ...blocks, [id]: sanitized }
+      write(id, sanitized)
       diagnostics.push({
         code: 'W_APPLY_VALUE_NORMALIZED',
         severity: 'warning',
@@ -171,7 +184,7 @@ export function normalizeChangedValues(
         .map((field) => [field.id, field])
     )
     let subBlocks = block.subBlocks
-    for (const fieldId of changedFieldsOf(original, diff)) {
+    for (const fieldId of modifiedFields.get(id) ?? Object.keys(original.subBlocks ?? {})) {
       const field = visible.get(fieldId)
       const stored = subBlocks?.[fieldId]
       if (!field || !stored) continue
@@ -187,8 +200,9 @@ export function normalizeChangedValues(
         })
         continue
       }
-      if (!isEqual(result.value, stored.value) || stored.type !== field.type) {
-        if (!isEqual(result.value, stored.value)) {
+      const normalized = !isEqual(result.value, stored.value)
+      if (normalized || stored.type !== field.type) {
+        if (normalized) {
           diagnostics.push({
             code: 'W_APPLY_VALUE_NORMALIZED',
             severity: 'warning',
@@ -204,9 +218,7 @@ export function normalizeChangedValues(
         }
       }
     }
-    if (subBlocks !== block.subBlocks) {
-      blocks = { ...blocks, [id]: { ...block, subBlocks } }
-    }
+    if (subBlocks !== block.subBlocks) write(id, { ...block, subBlocks })
   }
   return { blocks, diagnostics }
 }

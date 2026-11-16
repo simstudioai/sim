@@ -11,6 +11,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import type { ResourceKind } from '@sim/workflow-code'
 import { and, asc, eq, inArray, isNull, notInArray, or } from 'drizzle-orm'
+import type { SourceResources } from '@/lib/api/contracts/v2/source-resources'
 import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
 import {
   defineAuthorizedWorkspaceUseCase,
@@ -33,45 +34,8 @@ const MAX_MANIFEST_RESOURCES_PER_KIND = 1000
 /** Credential types a `credential(...)` can name: every saved account, never an env secret. */
 const ENV_CREDENTIAL_TYPES = ['env_workspace', 'env_personal'] as const
 
-interface ManifestColumn {
-  name: string
-  type: string
-  options?: string[]
-}
-
-interface ManifestTable {
-  key: string
-  id: string
-  name: string
-  columns: ManifestColumn[]
-}
-
-interface ManifestResource {
-  key: string
-  id: string
-  name: string
-}
-
-interface ManifestCredential extends ManifestResource {
-  /** The provider the credential is for (`slack`, `google-email`, ...). */
-  provider: string
-}
-
-interface ManifestWorkflow extends ManifestResource {
-  inputs: Array<{ name: string; type: string }>
-}
-
-export interface SourceResources {
-  workspaceId: string
-  tables: ManifestTable[]
-  knowledgeBases: ManifestResource[]
-  credentials: ManifestCredential[]
-  workflows: ManifestWorkflow[]
-  /** Environment variable names the workflow can read as `env.NAME`; never values. */
-  env: string[]
-  /** True when some kind had more than {@link MAX_MANIFEST_RESOURCES_PER_KIND} resources. */
-  truncated: boolean
-}
+type ManifestColumn = SourceResources['tables'][number]['columns'][number]
+type ManifestWorkflowInputs = SourceResources['workflows'][number]['inputs']
 
 interface ReadSourceResourcesInput {
   workspaceId: string
@@ -106,8 +70,8 @@ function columnsOf(schema: unknown): ManifestColumn[] {
 /** The input fields each workflow's start block declares. */
 async function loadWorkflowInputs(
   workflowIds: string[]
-): Promise<Map<string, ManifestWorkflow['inputs']>> {
-  const inputs = new Map<string, ManifestWorkflow['inputs']>()
+): Promise<Map<string, ManifestWorkflowInputs>> {
+  const inputs = new Map<string, ManifestWorkflowInputs>()
   if (workflowIds.length === 0) return inputs
   const rows = await db
     .select({

@@ -3,7 +3,7 @@ import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { omit } from '@sim/utils/object'
-import type { BlockCatalog, SourceFingerprint } from '@sim/workflow-code'
+import { type BlockCatalog, canonicalize, type SourceFingerprint } from '@sim/workflow-code'
 import {
   readWorkflowSourceMeta,
   writeWorkflowSourceMeta,
@@ -112,16 +112,15 @@ async function loadMutableStoredSourceIn(tx: DbOrTx, workflowId: string): Promis
 interface ExistingDraftCommit {
   scope: CommitScope
   plan: SourcePlan
-  /** The draft the plan was evaluated against, and its fingerprint. */
+  /** The draft the plan was evaluated against, and its fingerprint (the submission's base). */
   stored: StoredSource
   storedFingerprint: SourceFingerprint
-  expectedFingerprint: string
   catalog: BlockCatalog
 }
 
 /**
  * Re-reads the draft under the row lock and refuses the write when the workflow was locked
- * (423) or its fingerprint moved off `expectedFingerprint` (409), then stores the submission's
+ * (423) or its fingerprint moved off `storedFingerprint` (409), then stores the submission's
  * source meta merged onto the one stored now. Returns the current draft.
  */
 async function recheckAndWriteSourceMeta(
@@ -130,10 +129,12 @@ async function recheckAndWriteSourceMeta(
 ): Promise<StoredSource> {
   const { scope, plan, stored, catalog } = args
   const current = await loadMutableStoredSourceIn(tx, scope.workflowId)
-  const fingerprint = isEqual(current, stored)
-    ? args.storedFingerprint
-    : fingerprintOf(current, catalog, plan.resources)
-  if (fingerprint !== args.expectedFingerprint) throw new WorkflowSourceStaleError(fingerprint)
+  if (!isEqual(current, stored)) {
+    const fingerprint = fingerprintOf(
+      canonicalize(current.state, { catalog, meta: current.meta, resources: plan.resources })
+    )
+    if (fingerprint !== args.storedFingerprint) throw new WorkflowSourceStaleError(fingerprint)
+  }
   await writeWorkflowSourceMeta(
     tx,
     scope.workflowId,

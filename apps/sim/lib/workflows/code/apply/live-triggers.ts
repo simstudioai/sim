@@ -8,8 +8,9 @@ import {
 } from '@sim/db/schema'
 import { isRecordLike } from '@sim/utils/object'
 import type { Diagnostic } from '@sim/workflow-code'
-import { type BlockState, normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { blockKeyOf } from '@/lib/workflows/code/apply/graph-diff'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 
 type LiveEffect = 'webhook' | 'schedule' | 'chat output' | 'MCP tool'
@@ -115,7 +116,7 @@ export async function findLiveTriggerRemovals(
         message: `Block "${block.name}" is removed or retyped in the draft, but the live deployment still serves its ${list}. This apply changes only the draft: they keep running until the next deploy, which removes them.`,
         hint: 'Keep the block, or deploy when you are ready for them to stop.',
         blockId: block.id,
-        blockKey: normalizeWorkflowBlockName(block.name ?? ''),
+        blockKey: blockKeyOf(block),
       },
     ]
   })

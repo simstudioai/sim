@@ -29,7 +29,7 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const hooks = createMaterializeHooks()
 const registry = getBlockRegistry()
-const { catalog } = buildBlockCatalog({
+const catalog = buildBlockCatalog({
   blocks: Object.values(registry),
   trigger: registryTrigger,
   sdkNames: SDK_NAMES,

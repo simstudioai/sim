@@ -40,7 +40,7 @@ const PROMPT = Array.from(
   (_, line) => `Rule ${line + 1}: answer from the ticket history, cite the source, and stay brief.`
 ).join(' ')
 
-const { catalog } = buildBlockCatalog({
+const catalog = buildBlockCatalog({
   blocks: Object.values(getBlockRegistry()),
   trigger: registryTrigger,
   sdkNames: SDK_NAMES,

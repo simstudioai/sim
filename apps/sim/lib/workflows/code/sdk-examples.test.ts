@@ -27,7 +27,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 setEnvFlags({ isHosted: true })
 afterAll(resetEnvFlagsMock)
 
-const { catalog } = buildBlockCatalog({
+const catalog = buildBlockCatalog({
   blocks: Object.values(getBlockRegistry()),
   trigger: registryTrigger,
   sdkNames: SDK_NAMES,

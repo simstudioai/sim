@@ -29,7 +29,8 @@ import { getWorkflowSourceContract, type WorkflowSource } from '@/lib/api/contra
  *
  * - Flag off: the Code tab is absent, and a persisted `activeTab: 'code'` falls back to the toolbar.
  * - Flag on: Monaco shows the draft's source and ignores typing; disabling a block on the canvas
- *   and applying source through `POST /api/v2/workflows/{id}/source` each refresh it.
+ *   and applying source through `POST /api/v2/workflows/{id}/source` each refresh it; dragging
+ *   a block does not.
  * - A failed source read shows the error state.
  * - The flag turning off while the tab is open: the page's next read is answered by the flag-off
  *   app (the real 403), and the tab shows the error state.
@@ -254,9 +255,9 @@ async function expectEditorToShowNewSource(page: Page, previous: WorkflowSource)
   await expect
     .poll(async () => {
       current = await serverSource()
-      return current.fingerprint
+      return current.base.fingerprint
     })
-    .not.toBe(previous.fingerprint)
+    .not.toBe(previous.base.fingerprint)
   const expected = compact(entryFile(current))
   await expect.poll(async () => compact(await editorText(page))).toBe(expected)
   return current
@@ -360,6 +361,26 @@ try {
     await toggleScoreBlock(page, 'Disable')
     shown = await expectEditorToShowNewSource(page, shown)
     assert.match(entryFile(shown), /disabled: true/)
+  })
+
+  await check('dragging a block on the canvas does not re-read the code', page, async () => {
+    const reads: string[] = []
+    const onRequest = (request: { url(): string }) => {
+      if (isSourceRead(request.url())) reads.push(request.url())
+    }
+    page.on('request', onRequest)
+    const block = scoreBlock(page)
+    const before = await block.boundingBox()
+    assert(before, 'The function block must be on the canvas')
+    await page.mouse.move(before.x + before.width / 2, before.y + 12)
+    await page.mouse.down()
+    await page.mouse.move(before.x + before.width / 2 + 160, before.y + 92, { steps: 8 })
+    await page.mouse.up()
+    await expect.poll(async () => (await block.boundingBox())?.x).not.toBe(before.x)
+    // Past the Code tab's refresh debounce, with time for the move to persist.
+    await page.waitForTimeout(3_000)
+    page.off('request', onRequest)
+    assert.deepEqual(reads, [], 'A position-only edit never re-reads the source')
   })
 
   await check('a source apply through the v2 API refreshes the code', page, async () => {

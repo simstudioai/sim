@@ -85,6 +85,8 @@ const sourceResourcesSchema = z
   })
   .describe('The workspace resources workflow source can name, by key.')
 
+export type SourceResources = z.output<typeof sourceResourcesSchema>
+
 /** `GET /api/v2/workspaces/{workspaceId}/workflows/source/resources`: resources source can name. */
 export const v2GetSourceResourcesContract = defineRouteContract({
   method: 'GET',

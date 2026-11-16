@@ -5,7 +5,6 @@ import {
   type CanonicalWorkflow,
   type Diagnostic,
   type SourceBase,
-  type SourceFingerprint,
   sourceDepthOverflow,
   type WorkflowLockV1,
 } from '@sim/workflow-code'
@@ -18,10 +17,12 @@ import { readWorkflowSourceMeta } from '@sim/workflow-persistence/source-meta'
 import { resolveCatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
+import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { loadWorkflowGraph } from '@/lib/workflows/application/read-workflow-graph'
-import { printStoredSource } from '@/lib/workflows/code/apply/print'
+import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
+import { printStoredSource, type StoredSource } from '@/lib/workflows/code/apply/print'
 import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { canonicalizeStored } from '@/lib/workflows/code/stored-canonical'
@@ -34,14 +35,10 @@ interface GetWorkflowSourceInput {
 }
 
 /** A canonicalize or print finding, without source spans (the read path has no input text). */
-interface WorkflowSourceReadDiagnostic {
-  code: string
-  severity: 'error' | 'warning' | 'info'
-  message: string
-  hint?: string
-  blockKey?: string
-  param?: string
-}
+type WorkflowSourceReadDiagnostic = Pick<
+  WorkflowSourceDiagnostic,
+  'code' | 'severity' | 'message' | 'hint' | 'blockKey' | 'param'
+>
 
 interface ReadWorkflowSourceResult {
   workflowId: string
@@ -49,13 +46,10 @@ interface ReadWorkflowSourceResult {
   /** Repo-relative path → text: `workflow.ts` first, then any function-code files. */
   files: Record<string, string>
   lock: WorkflowLockV1
+  /** Where the files were read: the `sf1:` fingerprint apply checks and the catalog hash. */
   base: SourceBase
-  /** `sf1:` freshness token; apply answers 409 when the stored graph no longer matches it. */
-  fingerprint: SourceFingerprint
   /** Hash of the canonical model the files compile to (annotations excluded). */
   canonicalHash: string
-  /** The source catalog's content hash the files were printed against. */
-  catalogHash: string
   sdkMajor: number
   /** Block types the source uses, as blocks or as agent tools, sorted; for SDK type generation. */
   blockTypes: string[]
@@ -117,6 +111,17 @@ function assertFitsSourceLimits(files: Record<string, string>, blockCount: numbe
   }
 }
 
+/** The stored draft and the row fields its canonical `meta` carries; apply loads it the same way. */
+export async function loadStoredSource(
+  context: ActiveWorkflowApplicationContext
+): Promise<StoredSource> {
+  const { blocks, edges, loops, parallels, variables } = await loadWorkflowGraph(context)
+  return {
+    state: { blocks, edges, loops, parallels, variables },
+    meta: { name: context.workflow.name, description: context.workflow.description ?? null },
+  }
+}
+
 /**
  * Reads a workflow's stored draft as TypeScript source. Builds the per-workflow source catalog
  * (the blocks this caller may place plus every type already in the workflow), canonicalizes the
@@ -132,21 +137,18 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
   resolveContext: resolvePrincipalWorkflowContext<GetWorkflowSourceInput>,
   async execute({ principal, input, context }): Promise<ReadWorkflowSourceResult> {
     await requireWorkflowCodeEnabled()
-    const [graph, gate, sourceMeta] = await Promise.all([
-      loadWorkflowGraph(context),
+    const [{ state, meta }, gate, sourceMeta] = await Promise.all([
+      loadStoredSource(context),
       resolveCatalogGate(principal, context, { customBlockInputs: true }),
       readWorkflowSourceMeta(db, context.workflowId),
     ])
-    const { blocks, edges, loops, parallels, variables } = graph
-    const blockCount = Object.keys(blocks).length
+    const blockCount = Object.keys(state.blocks).length
     assertFitsSourceLimits({}, blockCount)
-    const state = { blocks, edges, loops, parallels, variables }
-    const meta = { name: context.workflow.name, description: context.workflow.description ?? null }
-    const { catalog } = await withCatalogBlockScope(gate, async () =>
+    const catalog = await withCatalogBlockScope(gate, async () =>
       buildSourceCatalog({
         gate,
         organizationId: context.workspaceOrganizationId,
-        storedTypes: [...new Set(Object.values(blocks).map((block) => block.type))],
+        storedTypes: Object.values(state.blocks).map((block) => block.type),
       })
     )
     const { canonical, resources } = await canonicalizeStored({
@@ -178,9 +180,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
         fingerprint: printed.fingerprint,
         catalogHash: catalog.hash,
       },
-      fingerprint: printed.fingerprint,
       canonicalHash: printed.canonicalHash,
-      catalogHash: catalog.hash,
       sdkMajor: catalog.sdkMajor,
       blockTypes: usedBlockTypes(canonical.workflow),
       diagnostics: [...canonical.diagnostics, ...printed.diagnostics].map(toReadDiagnostic),

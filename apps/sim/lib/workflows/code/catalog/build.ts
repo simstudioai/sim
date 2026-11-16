@@ -3,9 +3,7 @@ import { compareStrings } from '@sim/utils/string'
 import {
   type BlockCatalog,
   type CatalogBlock,
-  type CatalogBlockDocs,
   type CatalogBuilder,
-  type CatalogTool,
   type CatalogTrigger,
   compactBlockCatalog,
   type ExpandedBlockCatalog,
@@ -14,21 +12,19 @@ import {
 import { SDK_MAJOR } from '@sim/workflow-sdk/codegen'
 import {
   containerBlock,
-  type OpaqueSite,
   type ProjectedBlock,
   type ProjectionReport,
   projectBlock,
-  projectCatalogTool,
   projectTrigger,
 } from '@/lib/workflows/code/catalog/project'
 import {
   operationOptions,
   type SdkNamesFile,
+  sortRecord,
   toCamelIdentifier,
 } from '@/lib/workflows/code/catalog/sdk-names'
 import { CUSTOM_BLOCK_TYPE_PREFIX } from '@/blocks/custom/build-config'
 import type { BlockConfig } from '@/blocks/types'
-import type { ToolMetadata } from '@/tools/metadata'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -39,17 +35,6 @@ import type { TriggerConfig } from '@/triggers/types'
  */
 function catalogHash(value: unknown): string {
   return createHash('sha256').update(stableStringify(value)).digest('hex')
-}
-
-/**
- * One block's docs shard: the text, tool schemas, option labels and inputs the core shard leaves
- * out. `expandBlockCatalog(catalog, docs)` merges the `CatalogBlockDocs` part back.
- */
-interface CatalogDocsShard extends CatalogBlockDocs {
-  type: string
-  hash: string
-  description: string
-  tools: Record<string, CatalogTool>
 }
 
 interface CatalogBuildInput {
@@ -63,59 +48,25 @@ interface CatalogBuildInput {
   scope?: { organizationId: string }
 }
 
-export interface CatalogBuildResult {
-  catalog: BlockCatalog
-  report: ProjectionReport
-  docs: (type: string) => CatalogDocsShard | undefined
-}
-
-/** The projection before encoding: every block and trigger in expanded form. */
-export interface CatalogProjection {
-  catalog: Omit<ExpandedBlockCatalog, 'hash'>
-  report: ProjectionReport
-  /** Block descriptions and tool ids, for the docs shards. */
-  descriptions: ReadonlyMap<string, { description: string; access: string[] }>
-}
-
-interface ToolMetadataSource {
-  metadata: (toolId: string) => ToolMetadata | undefined
-  outputs: (toolId: string) => Record<string, unknown> | undefined
-}
-
-interface MemoizedBlock {
-  projected: ProjectedBlock
-  opaque: OpaqueSite[]
-}
-
 /**
- * Projections of registry block objects, keyed by identity. A built-in block config is a
+ * Projections of registry block and trigger objects, keyed by identity. A built-in config is a
  * process-lifetime constant and every thunk it holds reads only the deployment, so it is projected
  * once per process; per-request custom-block configs are new objects and simply miss.
  */
-const blockProjections = new WeakMap<BlockConfig, MemoizedBlock>()
-const triggerProjections = new WeakMap<TriggerConfig, MemoizedTrigger>()
+const blockProjections = new WeakMap<BlockConfig, ProjectedBlock>()
+const triggerProjections = new WeakMap<TriggerConfig, CatalogTrigger>()
 
-interface MemoizedTrigger {
-  projected: CatalogTrigger
-  opaque: OpaqueSite[]
-}
-
-function memoizedBlock(block: BlockConfig): MemoizedBlock {
-  const cached = blockProjections.get(block)
-  if (cached) return cached
-  const report: ProjectionReport = { opaque: [] }
-  const entry = { projected: projectBlock(block, report), opaque: report.opaque }
-  blockProjections.set(block, entry)
-  return entry
-}
-
-function memoizedTrigger(trigger: TriggerConfig): MemoizedTrigger {
-  const cached = triggerProjections.get(trigger)
-  if (cached) return cached
-  const report: ProjectionReport = { opaque: [] }
-  const entry = { projected: projectTrigger(trigger, report), opaque: report.opaque }
-  triggerProjections.set(trigger, entry)
-  return entry
+/** The build keeps no opaque-site report; the registry-wide test projects with its own. */
+function memoized<Config extends object, Projected>(
+  cache: WeakMap<Config, Projected>,
+  config: Config,
+  project: (config: Config, report: ProjectionReport) => Projected
+): Projected {
+  const cached = cache.get(config)
+  if (cached !== undefined) return cached
+  const projected = project(config, { opaque: [] })
+  cache.set(config, projected)
+  return projected
 }
 
 function addBuilder(
@@ -174,26 +125,19 @@ function customNamespace(type: string, taken: Set<string>): string {
   return candidate
 }
 
-function sortedRecord<T>(entries: Array<[string, T]>): Record<string, T> {
-  return Object.fromEntries(entries.sort(([a], [b]) => compareStrings(a, b)))
-}
-
 /**
  * Projects registry definitions into an expanded catalog (no hash): the shape every consumer reads
  * through the package's catalog view. {@link buildBlockCatalog} encodes it as the served core shard.
  */
-export function projectBlockCatalog(input: CatalogBuildInput): CatalogProjection {
-  const report: ProjectionReport = { opaque: [] }
+export function projectBlockCatalog(input: CatalogBuildInput): Omit<ExpandedBlockCatalog, 'hash'> {
   const blocks: Array<[string, CatalogBlock]> = []
-  const descriptions = new Map<string, { description: string; access: string[] }>()
   const builders: Record<string, CatalogBuilder> = {}
   const triggerIds = new Set<string>()
   const customNamespaces = new Set<string>()
 
   const ordered = [...input.blocks].sort((a, b) => compareStrings(a.type, b.type))
   for (const block of ordered) {
-    const { projected, opaque } = memoizedBlock(block)
-    report.opaque.push(...opaque)
+    const projected = memoized(blockProjections, block, projectBlock)
     const names = input.sdkNames.blocks[block.type]
     const catalogBlock: CatalogBlock = {
       ...projected.block,
@@ -201,10 +145,6 @@ export function projectBlockCatalog(input: CatalogBuildInput): CatalogProjection
       ...(names?.paramAliases && { paramAliases: names.paramAliases }),
     }
     blocks.push([block.type, catalogBlock])
-    descriptions.set(block.type, {
-      description: projected.description,
-      access: catalogBlock.tools.access,
-    })
 
     if (names) {
       addBlockBuilders(builders, block, names.namespace, names.methods, names.triggers)
@@ -222,51 +162,25 @@ export function projectBlockCatalog(input: CatalogBuildInput): CatalogProjection
   for (const id of triggerIds) {
     const config = input.trigger(id)
     if (!config) continue
-    const { projected, opaque } = memoizedTrigger(config)
-    report.opaque.push(...opaque)
-    triggers.push([id, projected])
+    triggers.push([id, memoized(triggerProjections, config, projectTrigger)])
   }
 
   const catalog: Omit<ExpandedBlockCatalog, 'hash'> = {
     catalogVersion: 1,
     sdkMajor: SDK_MAJOR,
-    blocks: sortedRecord(blocks),
-    triggers: sortedRecord(triggers),
-    builders: sortedRecord(Object.entries(builders)),
+    blocks: sortRecord(Object.fromEntries(blocks)),
+    triggers: sortRecord(Object.fromEntries(triggers)),
+    builders: sortRecord(builders),
   }
   if (input.scope) catalog.scope = { organizationId: input.scope.organizationId }
-  return { catalog, report, descriptions }
+  return catalog
 }
 
 /**
- * Builds the core shard of a `BlockCatalog` from registry definitions, plus a docs-shard reader.
- * Deterministic: the same inputs give the same bytes and the same hash.
+ * Builds the served `BlockCatalog` (its core shard) from registry definitions. Deterministic: the
+ * same inputs give the same bytes and the same hash.
  */
-export function buildBlockCatalog(
-  input: CatalogBuildInput,
-  tools?: ToolMetadataSource
-): CatalogBuildResult {
-  const { catalog: expanded, report, descriptions } = projectBlockCatalog(input)
-  const { core, docs: blockDocs } = compactBlockCatalog(expanded)
-  const catalog: BlockCatalog = { ...core, hash: catalogHash(core) }
-
-  const docs = (type: string): CatalogDocsShard | undefined => {
-    const entry = descriptions.get(type)
-    if (!entry) return undefined
-    const shardTools: Record<string, CatalogTool> = {}
-    for (const toolId of entry.access) {
-      const metadata = tools?.metadata(toolId)
-      if (metadata)
-        shardTools[toolId] = projectCatalogTool(toolId, metadata, tools?.outputs(toolId))
-    }
-    const body = {
-      type,
-      description: entry.description,
-      tools: shardTools,
-      ...(Object.hasOwn(blockDocs, type) ? blockDocs[type] : {}),
-    }
-    return { ...body, hash: catalogHash(body) }
-  }
-
-  return { catalog, report, docs }
+export function buildBlockCatalog(input: CatalogBuildInput): BlockCatalog {
+  const { core } = compactBlockCatalog(projectBlockCatalog(input))
+  return { ...core, hash: catalogHash(core) }
 }

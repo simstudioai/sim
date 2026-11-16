@@ -1,5 +1,10 @@
 export { CORE_DTS } from './core-text.generated'
-export { type GenerateSdkTypesFn, generateSdkTypes, type SdkTypeFile } from './generate'
+export {
+  type GenerateSdkTypesFn,
+  generateSdkTypes,
+  type SdkTypeFile,
+  sdkIndexHeader,
+} from './generate'
 export { SDK_MAJOR } from './major'
 export { SPECIAL_BUILDER_KEYS } from './names'
 export {
