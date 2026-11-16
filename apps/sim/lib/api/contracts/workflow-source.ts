@@ -5,7 +5,7 @@ import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 /**
  * Workflow source: a stored draft printed as TypeScript against the workflow SDK, with its
  * identity lock (build-spec decisions 11–13). The shapes mirror `@sim/workflow-code`'s
- * `WorkflowLockV1` and `LockBase`, which own them; the internal route (the canvas Code tab) and
+ * `WorkflowLockV1` and `SourceBase`, which own them; the internal route (the canvas Code tab) and
  * the v2 route share these schemas.
  */
 
@@ -17,7 +17,7 @@ export const workflowSourceQuerySchema = z
       })
       .optional()
       .describe(
-        'Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `file()`; `inline` prints it in tagged templates.'
+        'Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `codeFile()`; `inline` prints it in tagged templates.'
       ),
   })
   .strict()
@@ -83,28 +83,32 @@ const lockBlockSchema = withExtensions({
     )
     .optional()
     .describe('Per field, its id-bearing items (input format fields) in stored order.'),
-  binding: z.string().describe('The `const` name the block is printed as.'),
+  ident: z.string().describe('The `const` name the block is printed as.'),
   order: z.number().int().describe('Declaration-order tie-break.'),
   layout: lockLayoutSchema.optional(),
   codeFile: z.string().optional().describe('Path of the block’s function-code file.'),
 }).describe('One block’s identity.')
 
 export const workflowLockSchema = withExtensions({
-  lockVersion: z.literal(1).describe('Lock format version.'),
+  version: z.literal(1).describe('Lock format version.'),
   blocks: z.record(z.string(), lockBlockSchema).describe('Block key → identity.'),
   variables: z.record(z.string(), z.string()).describe('Variable key → variable id.'),
 }).describe('Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.')
 
-export const lockBaseSchema = z
+export const sourceBaseSchema = z
   .object({
     workspaceId: z.string().describe('Workspace the workflow belongs to.'),
-    baseFingerprint: z.string().describe('The `fingerprint` this source was read at.'),
+    fingerprint: z
+      .string()
+      .min(1, 'base.fingerprint cannot be empty')
+      .max(256, 'base.fingerprint is too long')
+      .describe('The `fingerprint` this source was read at.'),
     catalogHash: z.string().describe('Hash of the block catalog the source was printed against.'),
   })
   .strict()
   .describe('Freshness facts for the lock in this environment (`.sim/base.json`).')
 
-const sourceWarningSchema = z
+const sourceReadDiagnosticSchema = z
   .object({
     code: z.string().describe('Diagnostic code, e.g. `W_CANON_UNRESOLVED_ID`.'),
     severity: z.enum(['error', 'warning', 'info']).describe('Diagnostic severity.'),
@@ -123,23 +127,23 @@ export const workflowSourceSchema = z
       .record(z.string(), z.string())
       .describe('Relative path → file text: `workflow.ts`, then any `functions/*` files.'),
     lock: workflowLockSchema,
-    lockBase: lockBaseSchema,
+    base: sourceBaseSchema,
     fingerprint: z
       .string()
       .describe(
-        'Freshness token of the stored draft. It ignores canvas positions, so moving blocks does not change it.'
+        'Freshness token of the stored draft: a hash of the canonical workflow and its ids. It ignores canvas positions, so moving blocks does not change it.'
       ),
     canonicalHash: z
       .string()
-      .describe('Hash of the canonical workflow the files compile to; comments do not affect it.'),
-    catalogVersion: z
-      .string()
-      .describe('Hash of the block catalog the source was printed against.'),
+      .describe('Hash of the canonical workflow alone, without ids; comments do not affect it.'),
+    catalogHash: z.string().describe('Hash of the block catalog the source was printed against.'),
     sdkMajor: z.number().int().describe('Workflow SDK major version of the source.'),
     blockTypes: z
       .array(z.string())
       .describe('Block types the source uses, as blocks or as agent tools, sorted.'),
-    warnings: z.array(sourceWarningSchema).describe('Findings from reading the stored graph.'),
+    diagnostics: z
+      .array(sourceReadDiagnosticSchema)
+      .describe('Findings from reading the stored graph.'),
   })
   .describe('A workflow draft as TypeScript source.')
 

@@ -11,7 +11,7 @@ import { isRecordLike } from '@sim/utils/object'
  * read it as TypeScript (`GET /api/v2/workflows/{id}/source`), edit the text, apply it
  * (`POST .../source`), and check the stored graph through `GET .../state`. Also drives the dry
  * run, the stale-fingerprint 409 and the line-pinned 400. Then reads the resource manifest
- * (`GET /api/v2/workspaces/{id}/resource-manifest`), creates a workflow from source
+ * (`GET /api/v2/workspaces/{id}/workflows/source/resources`), creates a workflow from source
  * (`POST /api/v2/workspaces/{id}/workflows/source`: dry run, create, name conflict, refusal) and
  * applies to the new workflow with the lock the create returned. The app must have the `workflow-code`
  * flag on, and the key must be a personal API key (workspace keys are refused).
@@ -101,7 +101,7 @@ async function readSource(workflowId: string) {
   return {
     files: record(source.files) as Record<string, string>,
     lock: record(source.lock),
-    lockBase: record(source.lockBase),
+    base: record(source.base),
     fingerprint: String(source.fingerprint),
   }
 }
@@ -115,8 +115,7 @@ function applyBody(source: Awaited<ReturnType<typeof readSource>>, files = sourc
   return {
     files,
     lock: source.lock,
-    lockBase: source.lockBase,
-    baseFingerprint: source.fingerprint,
+    base: source.base,
     provenance: { client: 'api' },
   }
 }
@@ -166,7 +165,7 @@ async function main() {
       const result = record(data)
       assert.equal(result.applied, false)
       assert.equal(record(result.diff).noop, true)
-      assert.equal(result.newFingerprint, source.fingerprint)
+      assert.equal(result.fingerprint, source.fingerprint)
     })
 
     await check('a dry run reports the edit and saves nothing', async () => {
@@ -199,7 +198,7 @@ async function main() {
       assert.equal(record(record(after[scoreId].subBlocks).code).value, 'return 7')
       assert.deepEqual(after[startId], before[startId])
       const reread = await readSource(workflowId)
-      assert.equal(reread.fingerprint, result.newFingerprint)
+      assert.equal(reread.fingerprint, result.fingerprint)
     })
 
     await check('source read before that edit is refused with 409', async () => {
@@ -233,16 +232,16 @@ async function main() {
 
     await check('the resource manifest lists this workflow by a key that stays put', async () => {
       const first = record(
-        (await request('GET', `/api/v2/workspaces/${workspaceId}/resource-manifest`)).data
+        (await request('GET', `/api/v2/workspaces/${workspaceId}/workflows/source/resources`)).data
       )
       const entry = (first.workflows as unknown[]).map(record).find((w) => w.id === workflowId)
       assert(entry, 'the manifest lists the workflow')
       assert.match(String(entry.key), /^[a-z][a-z0-9_-]{0,63}$/)
-      for (const kind of ['tables', 'knowledgeBases', 'bindings', 'env']) {
+      for (const kind of ['tables', 'knowledgeBases', 'credentials', 'env']) {
         assert(Array.isArray(first[kind]), `${kind} is a list`)
       }
       const second = record(
-        (await request('GET', `/api/v2/workspaces/${workspaceId}/resource-manifest`)).data
+        (await request('GET', `/api/v2/workspaces/${workspaceId}/workflows/source/resources`)).data
       )
       const again = (second.workflows as unknown[]).map(record).find((w) => w.id === workflowId)
       assert.equal(again?.key, entry.key)
@@ -253,7 +252,7 @@ async function main() {
     let copy: {
       workflowId: string
       lock: Json
-      lockBase: Json
+      base: Json
       files: Record<string, string>
     } | null = null
 
@@ -284,14 +283,14 @@ async function main() {
       copy = {
         workflowId: newId,
         lock: record(result.lock),
-        lockBase: record(result.lockBase),
+        base: record(result.base),
         files: record(result.files) as Record<string, string>,
       }
       const blocks = await storedBlocks(newId)
       assert.equal(Object.keys(blocks).length, Object.keys(await storedBlocks(workflowId)).length)
       assert(!(scoreId in blocks), 'the new workflow mints its own block ids')
       const reread = await readSource(newId)
-      assert.equal(reread.fingerprint, result.newFingerprint)
+      assert.equal(reread.fingerprint, result.fingerprint)
     })
 
     await check(
@@ -301,8 +300,7 @@ async function main() {
         const { data } = await request('POST', `/api/v2/workflows/${copy.workflowId}/source`, {
           files: edit(copy.files, 'return 7', 'return 8'),
           lock: copy.lock,
-          lockBase: copy.lockBase,
-          baseFingerprint: String(copy.lockBase.baseFingerprint),
+          base: copy.base,
         })
         assert.equal(record(data).applied, true)
         const blocks = Object.values(await storedBlocks(copy.workflowId))

@@ -2,17 +2,17 @@ import {
   type CanonicalBlock,
   type CanonicalizeResult,
   encodeAnchor,
-  parseCodeMeta,
+  parseSourceMeta,
   parseWorkflowLock,
-  type WorkflowCodeMetaV1,
+  type WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import {
   buildLockFromState,
-  codeMetaPrintInputs,
-  mergeCodeMetaFromLock,
+  hintsFromSourceMeta,
+  mergeSourceMetaFromLock,
 } from '@/lib/workflows/code/source-lock'
 
 interface StoredBlock {
@@ -63,70 +63,70 @@ function canonicalOf(
   }
 }
 
-const meta = (patch: Partial<WorkflowCodeMetaV1>): WorkflowCodeMetaV1 => ({
-  v: 1,
-  bindings: {},
+const meta = (patch: Partial<WorkflowSourceMetaV1>): WorkflowSourceMetaV1 => ({
+  version: 1,
+  idents: {},
   order: {},
   comments: {},
   ...patch,
 })
 
 describe('buildLockFromState', () => {
-  it('keeps a block binding and order across a canvas rename (keyed by id, not key)', () => {
-    const codeMeta = meta({ bindings: { 'id-1': 'classify' }, order: { 'id-1': 4 } })
-    const before = buildLockFromState(codeMeta, canonicalOf([{ id: 'id-1', name: 'Classify' }]))
+  it('keeps a block ident and order across a canvas rename (keyed by id, not key)', () => {
+    const sourceMeta = meta({ idents: { 'id-1': 'classify' }, order: { 'id-1': 4 } })
+    const before = buildLockFromState(sourceMeta, canonicalOf([{ id: 'id-1', name: 'Classify' }]))
     const after = buildLockFromState(
-      codeMeta,
+      sourceMeta,
       canonicalOf([{ id: 'id-1', name: 'Route ticket by intent' }])
     )
-    expect(before.blocks.classify).toMatchObject({ id: 'id-1', binding: 'classify', order: 4 })
+    expect(before.blocks.classify).toMatchObject({ id: 'id-1', ident: 'classify', order: 4 })
     expect(after.blocks.routeticketbyintent).toMatchObject({
       id: 'id-1',
-      binding: 'classify',
+      ident: 'classify',
       order: 4,
     })
   })
 
-  it('derives a binding and an order for blocks code_meta does not know, after stored orders', () => {
+  it('derives an ident and an order for blocks source meta does not know, after stored orders', () => {
     const lock = buildLockFromState(
-      meta({ bindings: { 'id-1': 'first' }, order: { 'id-1': 7 } }),
+      meta({ idents: { 'id-1': 'first' }, order: { 'id-1': 7 } }),
       canonicalOf([
         { id: 'id-1', name: 'Zeta' },
         { id: 'id-2', name: 'Fetch user' },
         { id: 'id-3', name: 'Alpha' },
       ])
     )
-    expect(lock.blocks.zeta).toMatchObject({ binding: 'first', order: 7 })
-    expect(lock.blocks.alpha).toMatchObject({ binding: 'alpha', order: 8 })
-    expect(lock.blocks.fetchuser).toMatchObject({ binding: 'fetchUser', order: 9 })
+    expect(lock.blocks.zeta).toMatchObject({ ident: 'first', order: 7 })
+    expect(lock.blocks.alpha).toMatchObject({ ident: 'alpha', order: 8 })
+    expect(lock.blocks.fetchuser).toMatchObject({ ident: 'fetchUser', order: 9 })
   })
 
-  it('prefers what the printer wrote over code_meta, and never reuses a binding', () => {
+  it('prefers what the printer wrote over source meta, and never reuses an ident', () => {
     const lock = buildLockFromState(
-      meta({ bindings: { 'id-1': 'slack', 'id-2': 'other' } }),
+      meta({ idents: { 'id-1': 'slack', 'id-2': 'other' } }),
       canonicalOf([
         { id: 'id-1', name: 'Slack' },
         { id: 'id-2', name: 'Other' },
       ]),
-      { blocks: { slack: { binding: 'slack2', order: 0 }, other: { binding: 'slack2', order: 1 } } }
+      { blocks: { slack: { ident: 'slack2', order: 0 }, other: { ident: 'slack2', order: 1 } } }
     )
-    expect(lock.blocks.slack.binding).toBe('slack2')
-    expect(lock.blocks.other.binding).not.toBe('slack2')
+    expect(lock.blocks.slack.ident).toBe('slack2')
+    expect(lock.blocks.other.ident).not.toBe('slack2')
   })
 
-  it('ignores unusable stored bindings instead of writing an invalid lock', () => {
+  it('ignores unusable stored idents instead of writing an invalid lock', () => {
     const lock = buildLockFromState(
-      meta({ bindings: { 'id-1': 'workflow' } }),
+      meta({ idents: { 'id-1': 'workflow' } }),
       canonicalOf([{ id: 'id-1', name: 'Workflow step' }])
     )
-    expect(lock.blocks.workflowstep.binding).toBe('workflowStep')
+    expect(lock.blocks.workflowstep.ident).toBe('workflowStep')
   })
 })
 
-describe('codeMetaPrintInputs', () => {
+describe('hintsFromSourceMeta', () => {
   it('re-keys hints and comments to the current keys and skips ids that left the graph', () => {
-    const codeMeta = meta({
-      bindings: { 'id-1': 'fetchUser', gone: 'stale' },
+    const sourceMeta = meta({
+      idents: { 'id-1': 'fetchUser', gone: 'stale' },
       order: { 'id-1': 2, gone: 0 },
       comments: {
         [encodeAnchor({ kind: 'block', block: 'id-1' })]: [
@@ -140,17 +140,17 @@ describe('codeMetaPrintInputs', () => {
         ],
       },
     })
-    const inputs = codeMetaPrintInputs(
-      codeMeta,
+    const inputs = hintsFromSourceMeta(
+      sourceMeta,
       canonicalOf([{ id: 'id-1', name: 'Load user' }], { retries: 'var-1' })
     )
-    expect(inputs.hints).toEqual({ blocks: { loaduser: { binding: 'fetchUser', order: 2 } } })
+    expect(inputs.hints).toEqual({ blocks: { loaduser: { ident: 'fetchUser', order: 2 } } })
     expect(Object.keys(inputs.comments).sort()).toEqual(['block:loaduser', 'var:retries'])
   })
 })
 
-describe('mergeCodeMetaFromLock', () => {
-  it('stores the compiled bindings, order and comments under ids and drops deleted blocks', () => {
+describe('mergeSourceMetaFromLock', () => {
+  it('stores the compiled idents, order and comments under ids and drops deleted blocks', () => {
     const lock = buildLockFromState(
       null,
       canonicalOf([
@@ -158,11 +158,11 @@ describe('mergeCodeMetaFromLock', () => {
         { id: 'id-2', name: 'Send' },
       ])
     )
-    const merged = mergeCodeMetaFromLock(
-      meta({ bindings: { 'id-gone': 'old' }, 'x-keep': true }),
+    const merged = mergeSourceMetaFromLock(
+      meta({ idents: { 'id-gone': 'old' }, 'x-keep': true }),
       lock,
       {
-        hints: { blocks: { fetch: { binding: 'getIt', order: 1 }, send: { order: 0 } } },
+        hints: { blocks: { fetch: { ident: 'getIt', order: 1 }, send: { order: 0 } } },
         workflow: {
           annotations: {
             inactive: {},
@@ -181,11 +181,11 @@ describe('mergeCodeMetaFromLock', () => {
         },
       }
     )
-    expect(merged.bindings).toEqual({ 'id-1': 'getIt', 'id-2': 'send' })
+    expect(merged.idents).toEqual({ 'id-1': 'getIt', 'id-2': 'send' })
     expect(merged.order).toEqual({ 'id-1': 1, 'id-2': 0 })
     expect(Object.keys(merged.comments).sort()).toEqual(['block:id-2', 'header'])
     expect(merged['x-keep']).toBe(true)
-    expect(parseCodeMeta(merged).diagnostics).toBeUndefined()
+    expect(parseSourceMeta(merged).diagnostics).toBeUndefined()
   })
 })
 
@@ -200,7 +200,7 @@ const graphArb = fc
   .map((names) => names.map((name, i) => ({ id: `id-${i}`, name })))
 
 describe('lock helper properties', () => {
-  it('every assembled lock is valid, whatever code_meta holds', () => {
+  it('every assembled lock is valid, whatever source meta holds', () => {
     fc.assert(
       fc.property(
         graphArb,
@@ -208,8 +208,8 @@ describe('lock helper properties', () => {
           fc.constantFrom('id-0', 'id-1', 'id-2', 'gone'),
           nameArb.map((n) => n.replace(/ /g, ''))
         ),
-        (stored, bindings) => {
-          const lock = buildLockFromState(meta({ bindings }), canonicalOf(stored))
+        (stored, idents) => {
+          const lock = buildLockFromState(meta({ idents }), canonicalOf(stored))
           expect(parseWorkflowLock(lock).diagnostics).toBeUndefined()
           expect(Object.keys(lock.blocks)).toHaveLength(stored.length)
         }
@@ -225,7 +225,7 @@ describe('lock helper properties', () => {
           meta({ order: Object.fromEntries(orders.map((order, i) => [`id-${i}`, order])) }),
           canonical
         )
-        const stored2 = mergeCodeMetaFromLock(null, first, {
+        const stored2 = mergeSourceMetaFromLock(null, first, {
           hints: { blocks: {} },
           workflow: { annotations: { inactive: {}, comments: {} } },
         })
@@ -234,20 +234,20 @@ describe('lock helper properties', () => {
     )
   })
 
-  it('renaming every block on the canvas changes no binding or order', () => {
+  it('renaming every block on the canvas changes no ident or order', () => {
     fc.assert(
       fc.property(graphArb, (stored) => {
         const first = buildLockFromState(null, canonicalOf(stored))
-        const codeMeta = mergeCodeMetaFromLock(null, first, {
+        const sourceMeta = mergeSourceMetaFromLock(null, first, {
           hints: { blocks: {} },
           workflow: { annotations: { inactive: {}, comments: {} } },
         })
         const renamed = buildLockFromState(
-          codeMeta,
+          sourceMeta,
           canonicalOf(stored.map(({ id }) => ({ id, name: `Renamed ${id}` })))
         )
         const byId = (lock: typeof first) =>
-          Object.fromEntries(Object.values(lock.blocks).map((b) => [b.id, [b.binding, b.order]]))
+          Object.fromEntries(Object.values(lock.blocks).map((b) => [b.id, [b.ident, b.order]]))
         expect(byId(renamed)).toEqual(byId(first))
       })
     )

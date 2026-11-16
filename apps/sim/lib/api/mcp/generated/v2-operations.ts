@@ -26,7 +26,6 @@ import {
   v2GetBillingStatusContract,
   v2ListBillingLogsContract,
 } from '@/lib/api/contracts/v2/billing'
-import { v2GetBlockCatalogContract } from '@/lib/api/contracts/v2/block-catalog'
 import {
   v2ExecuteToolContract,
   v2GetBlockContract,
@@ -194,7 +193,6 @@ import {
   v2RemovePermissionGroupMemberContract,
   v2UpdatePermissionGroupContract,
 } from '@/lib/api/contracts/v2/permission-groups'
-import { v2GetResourceManifestContract } from '@/lib/api/contracts/v2/resource-manifest'
 import {
   v2CreateSandboxContract,
   v2DeleteSandboxContract,
@@ -218,6 +216,8 @@ import {
   v2RevokeSkillEditorContract,
   v2UpdateSkillContract,
 } from '@/lib/api/contracts/v2/skills'
+import { v2GetSourceCatalogContract } from '@/lib/api/contracts/v2/source-catalog'
+import { v2GetSourceResourcesContract } from '@/lib/api/contracts/v2/source-resources'
 import {
   v2AddOrganizationDomainContract,
   v2DeleteSsoProviderContract,
@@ -1338,16 +1338,6 @@ export const V2_MCP_OPERATIONS = {
       "Get a block's fields, conditions, operations, tool schemas, and triggers. Unversioned types resolve to the newest visible version; the returned `id` identifies that version. Hidden or missing blocks return `404`.\n\nOAuth scope: `api:read`.",
     handler: () => import('@/app/api/v2/blocks/[blockId]/route').then((route) => route.GET),
   },
-  getBlockCatalog: {
-    contract: v2GetBlockCatalogContract,
-    summary: 'Get block catalog',
-    description:
-      'Get the block catalog that workflow source is compiled and type-checked against: every block type the caller may place in the workspace, with its fields, visibility conditions, outputs, triggers, and SDK builder names. Pass `workflowId` to add the block types already placed in that workflow. The response carries the catalog `hash` as an `ETag`; send it back in `If-None-Match` to receive `304 Not Modified` with no body when the catalog is unchanged. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.',
-    handler: () =>
-      import('@/app/api/v2/workspaces/[workspaceId]/block-catalog/route').then(
-        (route) => route.GET
-      ),
-  },
   getCustomTool: {
     contract: v2GetCustomToolContract,
     summary: 'Get custom tool',
@@ -1548,16 +1538,6 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.GET
       ),
   },
-  getResourceManifest: {
-    contract: v2GetResourceManifestContract,
-    summary: 'Get resource manifest',
-    description:
-      'List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.',
-    handler: () =>
-      import('@/app/api/v2/workspaces/[workspaceId]/resource-manifest/route').then(
-        (route) => route.GET
-      ),
-  },
   getRowEnrichment: {
     contract: v2GetRowEnrichmentContract,
     summary: 'Get row group run',
@@ -1600,6 +1580,26 @@ export const V2_MCP_OPERATIONS = {
     description:
       'Get a workspace or built-in skill, including its full instructions. Built-in skills are read-only. Requires workspace read access.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/skills/[skillId]/route').then((route) => route.GET),
+  },
+  getSourceCatalog: {
+    contract: v2GetSourceCatalogContract,
+    summary: 'Get source catalog',
+    description:
+      'Get the source catalog, the block catalog that workflow source is compiled and type-checked against: every block type the caller may place in the workspace, with its fields, visibility conditions, outputs, triggers, and SDK builder names. Pass `workflowId` to add the block types already placed in that workflow. The response carries the catalog `hash` as an `ETag`; send it back in `If-None-Match` to receive `304 Not Modified` with no body when the catalog is unchanged. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/catalog/route').then(
+        (route) => route.GET
+      ),
+  },
+  getSourceResources: {
+    contract: v2GetSourceResourcesContract,
+    summary: 'Get source resources',
+    description:
+      'List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/resources/route').then(
+        (route) => route.GET
+      ),
   },
   getSsoPolicy: {
     contract: v2GetSsoPolicyContract,
@@ -1732,7 +1732,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetWorkflowSourceContract,
     summary: 'Get workflow source',
     description:
-      'Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `lockBase` records the fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.',
+      'Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `base` records the workspace, fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/source/route').then((route) => route.GET),
   },

@@ -16,18 +16,18 @@ import {
 } from '@/lib/workflows/code/apply/graph-diff'
 
 /**
- * The source apply path refuses, and never silently preserves, any change to a protected block:
+ * The source apply path refuses, and never silently preserves, any change to a locked block:
  * one that is locked or sits inside a locked container (s4 D2). The persistence door keeps
- * protected blocks as stored whatever the incoming graph says, so a source write that changed one
+ * locked blocks as stored whatever the incoming graph says, so a source write that changed one
  * would report success while storing something else. This applies to admins too, as the
  * operations engine does; unlocking stays the canvas toggle.
  */
 
-export type ProtectedBlockDiagnostic = Diagnostic<'E_APPLY_PROTECTED_BLOCK'>
+export type LockedBlockDiagnostic = Diagnostic<'E_APPLY_LOCKED_BLOCK'>
 
-function refusal(block: BlockState, message: string): ProtectedBlockDiagnostic {
+function refusal(block: BlockState, message: string): LockedBlockDiagnostic {
   return {
-    code: 'E_APPLY_PROTECTED_BLOCK',
+    code: 'E_APPLY_LOCKED_BLOCK',
     severity: 'error',
     message,
     blockId: block.id,
@@ -45,7 +45,7 @@ function describe(block: BlockState, blocks: Record<string, BlockState>): string
 }
 
 /**
- * Whether a protected block leaves only because an unprotected container above it was deleted,
+ * Whether a locked block leaves only because an unlocked container above it was deleted,
  * which the engine and the persistence door both allow (the child goes with its container).
  */
 function leavesWithRemovedContainer(id: string, base: SourceGraph, target: SourceGraph): boolean {
@@ -60,24 +60,24 @@ function leavesWithRemovedContainer(id: string, base: SourceGraph, target: Sourc
 }
 
 /**
- * Returns one refusal per protected block the diff from `base` to `target` touches, plus one per
+ * Returns one refusal per locked block the diff from `base` to `target` touches, plus one per
  * attempt to lock a block or to put a new child into a locked container. Edges into or out of a
- * protected block may not be added or removed, except when the edge goes because its other end
+ * locked block may not be added or removed, except when the edge goes because its other end
  * was deleted.
  */
-export function findProtectedBlockRefusals(
+export function findLockedBlockRefusals(
   base: SourceGraph,
   target: SourceGraph,
   diff: GraphDiff = diffGraphs(base, target)
-): ProtectedBlockDiagnostic[] {
-  const isProtected = (id: string) => isWorkflowBlockProtected(id, base.blocks)
-  const refusals = new Map<string, ProtectedBlockDiagnostic>()
+): LockedBlockDiagnostic[] {
+  const isLockedInBase = (id: string) => isWorkflowBlockProtected(id, base.blocks)
+  const refusals = new Map<string, LockedBlockDiagnostic>()
   const refuse = (block: BlockState, message: string) => {
     if (!refusals.has(block.id)) refusals.set(block.id, refusal(block, message))
   }
 
   for (const id of diff.removed) {
-    if (isProtected(id) && !leavesWithRemovedContainer(id, base, target)) {
+    if (isLockedInBase(id) && !leavesWithRemovedContainer(id, base, target)) {
       const block = base.blocks[id]
       refuse(block, `${describe(block, base.blocks)} and cannot be deleted`)
     }
@@ -85,7 +85,7 @@ export function findProtectedBlockRefusals(
 
   for (const change of diff.modified) {
     const block = base.blocks[change.id]
-    if (isProtected(change.id)) {
+    if (isLockedInBase(change.id)) {
       const what = change.lockedChanged
         ? 'its lock cannot be changed from source'
         : change.parentChanged
@@ -99,7 +99,7 @@ export function findProtectedBlockRefusals(
       continue
     }
     const parentId = parentIdOf(target.blocks[change.id])
-    if (change.parentChanged && parentId && isProtected(parentId)) {
+    if (change.parentChanged && parentId && isLockedInBase(parentId)) {
       refuse(block, `Block "${block.name}" cannot be moved into locked container "${parentId}"`)
     }
   }
@@ -111,7 +111,7 @@ export function findProtectedBlockRefusals(
       continue
     }
     const parentId = parentIdOf(block)
-    if (parentId && isProtected(parentId)) {
+    if (parentId && isLockedInBase(parentId)) {
       refuse(block, `Block "${block.name}" cannot be added to locked container "${parentId}"`)
     }
   }
@@ -122,13 +122,13 @@ export function findProtectedBlockRefusals(
   }
   for (const edge of diff.edgesAdded) {
     for (const endpoint of [edge.source, edge.target]) {
-      if (isProtected(endpoint)) refuseEdge(endpoint, 'added to')
+      if (isLockedInBase(endpoint)) refuseEdge(endpoint, 'added to')
     }
   }
   for (const edge of diff.edgesRemoved) {
     if (!target.blocks[edge.source] || !target.blocks[edge.target]) continue
     for (const endpoint of [edge.source, edge.target]) {
-      if (isProtected(endpoint)) refuseEdge(endpoint, 'removed from')
+      if (isLockedInBase(endpoint)) refuseEdge(endpoint, 'removed from')
     }
   }
 
@@ -140,12 +140,12 @@ function withLockOff(block: BlockState): BlockState {
 }
 
 /**
- * Asserts that the persistence door's protected-block merge leaves `target` unchanged. The
+ * Asserts that the persistence door's locked-block merge leaves `target` unchanged. The
  * source gate refuses every diff that merge would undo, so a difference here means the gate and
  * the merge disagree: an invariant breach, reported as an internal error (HTTP 500) rather than
  * written as a silently merged graph (s4 D2). `current` is the graph re-read under the row lock.
  */
-export function assertProtectedBlocksPreserved(current: SourceGraph, target: SourceGraph): void {
+export function assertLockedBlocksPreserved(current: SourceGraph, target: SourceGraph): void {
   const merged = preserveProtectedWorkflowBlocks(current, target)
 
   const expectedBlocks = new Map(Object.values(target.blocks).map((b) => [b.id, withLockOff(b)]))
@@ -164,8 +164,8 @@ export function assertProtectedBlocksPreserved(current: SourceGraph, target: Sou
     throw new OrchestrationError(
       'internal',
       blockMismatch !== undefined
-        ? `Protected-block merge would change block ${blockMismatch}; the source gate let through a change it must refuse`
-        : `Protected-block merge would change edge ${edgeMismatch}; the source gate let through a change it must refuse`
+        ? `Locked-block merge would change block ${blockMismatch}; the source gate let through a change it must refuse`
+        : `Locked-block merge would change edge ${edgeMismatch}; the source gate let through a change it must refuse`
     )
   }
 }

@@ -5911,7 +5911,7 @@
       "get": {
         "operationId": "getWorkflowSource",
         "summary": "Get workflow source",
-        "description": "Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `lockBase` records the fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.",
+        "description": "Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and a freshness `fingerprint`. The lock binds each block key in the source to its stored id; `base` records the workspace, fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear as keys derived from their current names, so renaming a resource changes its key; an id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. This read records no audit event; `HEAD` mirrors `GET`. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.source.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -5940,9 +5940,9 @@
             "name": "functionCode",
             "in": "query",
             "required": false,
-            "description": "Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `file()`; `inline` prints it in tagged templates.",
+            "description": "Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `codeFile()`; `inline` prints it in tagged templates.",
             "schema": {
-              "description": "Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `file()`; `inline` prints it in tagged templates.",
+              "description": "Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `codeFile()`; `inline` prints it in tagged templates.",
               "type": "string",
               "enum": ["inline", "files"]
             }
@@ -5978,28 +5978,28 @@
                           "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
                         },
                         "lock": {
-                          "lockVersion": 1,
+                          "version": 1,
                           "blocks": {
                             "start": {
                               "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
                               "parent": null,
-                              "binding": "start",
+                              "ident": "start",
                               "order": 0
                             }
                           },
                           "variables": {}
                         },
-                        "lockBase": {
+                        "base": {
                           "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                          "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                          "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                           "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
                         },
                         "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                         "canonicalHash": "0d6e2b8a4c1f7e3d9b5a2c8f4e1d7b3a9c6f2e8d4b1a7c3e9f5d2b8a4c1e7f3d",
-                        "catalogVersion": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a",
+                        "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a",
                         "sdkMajor": 1,
                         "blockTypes": ["start_trigger"],
-                        "warnings": []
+                        "diagnostics": []
                       }
                     }
                   }
@@ -6085,23 +6085,22 @@
                       "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
                     },
                     "lock": {
-                      "lockVersion": 1,
+                      "version": 1,
                       "blocks": {
                         "start": {
                           "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
                           "parent": null,
-                          "binding": "start",
+                          "ident": "start",
                           "order": 0
                         }
                       },
                       "variables": {}
                     },
-                    "lockBase": {
+                    "base": {
                       "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                      "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                      "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                       "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
-                    },
-                    "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d"
+                    }
                   }
                 }
               }
@@ -6155,29 +6154,29 @@
                           }
                         },
                         "diagnostics": [],
-                        "newFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                        "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                         "files": {
                           "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
                         },
                         "lock": {
-                          "lockVersion": 1,
+                          "version": 1,
                           "blocks": {
                             "start": {
                               "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
                               "parent": null,
-                              "binding": "start",
+                              "ident": "start",
                               "order": 0
                             }
                           },
                           "variables": {}
                         },
-                        "lockBase": {
+                        "base": {
                           "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                          "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                          "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                           "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
                         },
                         "mintedIds": {},
-                        "warnings": [],
+                        "notes": [],
                         "needsRedeployment": false
                       }
                     }
@@ -6333,31 +6332,31 @@
                           }
                         },
                         "diagnostics": [],
-                        "newFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                        "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                         "files": {
                           "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
                         },
                         "lock": {
-                          "lockVersion": 1,
+                          "version": 1,
                           "blocks": {
                             "start": {
                               "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
                               "parent": null,
-                              "binding": "start",
+                              "ident": "start",
                               "order": 0
                             }
                           },
                           "variables": {}
                         },
-                        "lockBase": {
+                        "base": {
                           "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                          "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                          "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                           "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
                         },
                         "mintedIds": {
                           "start": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77"
                         },
-                        "warnings": [],
+                        "notes": [],
                         "needsRedeployment": false
                       }
                     }
@@ -6396,12 +6395,12 @@
         }
       }
     },
-    "/api/v2/workspaces/{workspaceId}/resource-manifest": {
+    "/api/v2/workspaces/{workspaceId}/workflows/source/resources": {
       "get": {
-        "operationId": "getResourceManifest",
-        "summary": "Get resource manifest",
+        "operationId": "getSourceResources",
+        "summary": "Get source resources",
         "description": "List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while code-first workflows are not enabled.\n\nOAuth scope: `api:read`.",
-        "x-sim-operation": "workflows.code.resource_manifest.read",
+        "x-sim-operation": "workflows.source.resources.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
         "security": [
@@ -6428,7 +6427,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The resource manifest.",
+            "description": "The resources workflow source can name.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -6443,7 +6442,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetResourceManifestResponse"
+                  "$ref": "#/components/schemas/GetSourceResourcesResponse"
                 },
                 "examples": {
                   "example1": {
@@ -6476,12 +6475,12 @@
                             "name": "Docs"
                           }
                         ],
-                        "bindings": [
+                        "credentials": [
                           {
                             "key": "support-slack",
                             "id": "cred_51d0b8f4",
                             "name": "Support Slack",
-                            "service": "slack"
+                            "provider": "slack"
                           }
                         ],
                         "workflows": [
@@ -17929,7 +17928,7 @@
               "lock": {
                 "type": "object",
                 "properties": {
-                  "lockVersion": {
+                  "version": {
                     "type": "number",
                     "const": 1,
                     "description": "Lock format version."
@@ -17993,7 +17992,7 @@
                             }
                           }
                         },
-                        "binding": {
+                        "ident": {
                           "type": "string",
                           "description": "The `const` name the block is printed as."
                         },
@@ -18042,7 +18041,7 @@
                           "type": "string"
                         }
                       },
-                      "required": ["id", "parent", "binding", "order"],
+                      "required": ["id", "parent", "ident", "order"],
                       "additionalProperties": {
                         "description": "An `x-` extension field, kept verbatim."
                       },
@@ -18061,21 +18060,23 @@
                     "description": "Variable key → variable id."
                   }
                 },
-                "required": ["lockVersion", "blocks", "variables"],
+                "required": ["version", "blocks", "variables"],
                 "additionalProperties": {
                   "description": "An `x-` extension field, kept verbatim."
                 },
                 "description": "Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids."
               },
-              "lockBase": {
+              "base": {
                 "type": "object",
                 "properties": {
                   "workspaceId": {
                     "type": "string",
                     "description": "Workspace the workflow belongs to."
                   },
-                  "baseFingerprint": {
+                  "fingerprint": {
                     "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
                     "description": "The `fingerprint` this source was read at."
                   },
                   "catalogHash": {
@@ -18083,19 +18084,19 @@
                     "description": "Hash of the block catalog the source was printed against."
                   }
                 },
-                "required": ["workspaceId", "baseFingerprint", "catalogHash"],
+                "required": ["workspaceId", "fingerprint", "catalogHash"],
                 "additionalProperties": false,
                 "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
               },
               "fingerprint": {
                 "type": "string",
-                "description": "Freshness token of the stored draft. It ignores canvas positions, so moving blocks does not change it."
+                "description": "Freshness token of the stored draft: a hash of the canonical workflow and its ids. It ignores canvas positions, so moving blocks does not change it."
               },
               "canonicalHash": {
                 "type": "string",
-                "description": "Hash of the canonical workflow the files compile to; comments do not affect it."
+                "description": "Hash of the canonical workflow alone, without ids; comments do not affect it."
               },
-              "catalogVersion": {
+              "catalogHash": {
                 "type": "string",
                 "description": "Hash of the block catalog the source was printed against."
               },
@@ -18112,7 +18113,7 @@
                 },
                 "description": "Block types the source uses, as blocks or as agent tools, sorted."
               },
-              "warnings": {
+              "diagnostics": {
                 "type": "array",
                 "items": {
                   "type": "object",
@@ -18155,13 +18156,13 @@
               "workspaceId",
               "files",
               "lock",
-              "lockBase",
+              "base",
               "fingerprint",
               "canonicalHash",
-              "catalogVersion",
+              "catalogHash",
               "sdkMajor",
               "blockTypes",
-              "warnings"
+              "diagnostics"
             ],
             "additionalProperties": false,
             "description": "Response data."
@@ -18180,28 +18181,28 @@
                 "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
               },
               "lock": {
-                "lockVersion": 1,
+                "version": 1,
                 "blocks": {
                   "start": {
                     "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
                     "parent": null,
-                    "binding": "start",
+                    "ident": "start",
                     "order": 0
                   }
                 },
                 "variables": {}
               },
-              "lockBase": {
+              "base": {
                 "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                 "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
               },
               "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
               "canonicalHash": "0d6e2b8a4c1f7e3d9b5a2c8f4e1d7b3a9c6f2e8d4b1a7c3e9f5d2b8a4c1e7f3d",
-              "catalogVersion": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a",
+              "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a",
               "sdkMajor": 1,
               "blockTypes": ["start_trigger"],
-              "warnings": []
+              "diagnostics": []
             }
           }
         ]
@@ -18399,7 +18400,7 @@
                   "properties": {
                     "code": {
                       "type": "string",
-                      "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_PROTECTED_BLOCK`."
+                      "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
                     "severity": {
                       "type": "string",
@@ -18469,9 +18470,9 @@
                 },
                 "description": "Warnings, and on a dry run every error a commit would refuse."
               },
-              "newFingerprint": {
+              "fingerprint": {
                 "type": "string",
-                "description": "Fingerprint of the saved (or, on a dry run, would-be) draft: the next `baseFingerprint`."
+                "description": "Fingerprint of the saved (or, on a dry run, would-be) draft: the next `base.fingerprint`."
               },
               "files": {
                 "type": "object",
@@ -18486,7 +18487,7 @@
               "lock": {
                 "type": "object",
                 "properties": {
-                  "lockVersion": {
+                  "version": {
                     "type": "number",
                     "const": 1,
                     "description": "Lock format version."
@@ -18550,7 +18551,7 @@
                             }
                           }
                         },
-                        "binding": {
+                        "ident": {
                           "type": "string",
                           "description": "The `const` name the block is printed as."
                         },
@@ -18599,7 +18600,7 @@
                           "type": "string"
                         }
                       },
-                      "required": ["id", "parent", "binding", "order"],
+                      "required": ["id", "parent", "ident", "order"],
                       "additionalProperties": {
                         "description": "An `x-` extension field, kept verbatim."
                       },
@@ -18618,21 +18619,23 @@
                     "description": "Variable key → variable id."
                   }
                 },
-                "required": ["lockVersion", "blocks", "variables"],
+                "required": ["version", "blocks", "variables"],
                 "additionalProperties": {
                   "description": "An `x-` extension field, kept verbatim."
                 },
                 "description": "Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids."
               },
-              "lockBase": {
+              "base": {
                 "type": "object",
                 "properties": {
                   "workspaceId": {
                     "type": "string",
                     "description": "Workspace the workflow belongs to."
                   },
-                  "baseFingerprint": {
+                  "fingerprint": {
                     "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
                     "description": "The `fingerprint` this source was read at."
                   },
                   "catalogHash": {
@@ -18640,7 +18643,7 @@
                     "description": "Hash of the block catalog the source was printed against."
                   }
                 },
-                "required": ["workspaceId", "baseFingerprint", "catalogHash"],
+                "required": ["workspaceId", "fingerprint", "catalogHash"],
                 "additionalProperties": false,
                 "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
               },
@@ -18654,7 +18657,7 @@
                 },
                 "description": "Block key → id for new blocks whose id was minted rather than taken from the lock."
               },
-              "warnings": {
+              "notes": {
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -18673,12 +18676,12 @@
               "applied",
               "diff",
               "diagnostics",
-              "newFingerprint",
+              "fingerprint",
               "files",
               "lock",
-              "lockBase",
+              "base",
               "mintedIds",
-              "warnings",
+              "notes",
               "needsRedeployment"
             ],
             "additionalProperties": false,
@@ -18715,29 +18718,29 @@
                 }
               },
               "diagnostics": [],
-              "newFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+              "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
               "files": {
                 "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
               },
               "lock": {
-                "lockVersion": 1,
+                "version": 1,
                 "blocks": {
                   "start": {
                     "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
                     "parent": null,
-                    "binding": "start",
+                    "ident": "start",
                     "order": 0
                   }
                 },
                 "variables": {}
               },
-              "lockBase": {
+              "base": {
                 "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                 "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
               },
               "mintedIds": {},
-              "warnings": [],
+              "notes": [],
               "needsRedeployment": false
             }
           }
@@ -18761,7 +18764,7 @@
           "lock": {
             "type": "object",
             "properties": {
-              "lockVersion": {
+              "version": {
                 "type": "number",
                 "const": 1,
                 "description": "Lock format version."
@@ -18825,7 +18828,7 @@
                         }
                       }
                     },
-                    "binding": {
+                    "ident": {
                       "type": "string",
                       "description": "The `const` name the block is printed as."
                     },
@@ -18874,7 +18877,7 @@
                       "type": "string"
                     }
                   },
-                  "required": ["id", "parent", "binding", "order"],
+                  "required": ["id", "parent", "ident", "order"],
                   "additionalProperties": {
                     "description": "An `x-` extension field, kept verbatim."
                   },
@@ -18893,21 +18896,23 @@
                 "description": "Variable key → variable id."
               }
             },
-            "required": ["lockVersion", "blocks", "variables"],
+            "required": ["version", "blocks", "variables"],
             "additionalProperties": {
               "description": "An `x-` extension field, kept verbatim."
             },
             "description": "Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids."
           },
-          "lockBase": {
+          "base": {
             "type": "object",
             "properties": {
               "workspaceId": {
                 "type": "string",
                 "description": "Workspace the workflow belongs to."
               },
-              "baseFingerprint": {
+              "fingerprint": {
                 "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
                 "description": "The `fingerprint` this source was read at."
               },
               "catalogHash": {
@@ -18915,15 +18920,9 @@
                 "description": "Hash of the block catalog the source was printed against."
               }
             },
-            "required": ["workspaceId", "baseFingerprint", "catalogHash"],
+            "required": ["workspaceId", "fingerprint", "catalogHash"],
             "additionalProperties": false,
-            "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
-          },
-          "baseFingerprint": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256,
-            "description": "The `fingerprint` the source was read at. The apply answers `409` when the saved draft no longer matches it."
+            "description": "Where and when the source was read (`.sim/base.json`). The apply answers `409` when the saved draft no longer matches `base.fingerprint`."
           },
           "provenance": {
             "description": "Where the source came from, for the audit log.",
@@ -18950,7 +18949,7 @@
             "additionalProperties": false
           }
         },
-        "required": ["files", "lock", "baseFingerprint"],
+        "required": ["files", "lock", "base"],
         "additionalProperties": false,
         "title": "Apply workflow source body",
         "description": "Edited source files with the lock and fingerprint they were read with.",
@@ -18960,23 +18959,22 @@
               "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
             },
             "lock": {
-              "lockVersion": 1,
+              "version": 1,
               "blocks": {
                 "start": {
                   "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
                   "parent": null,
-                  "binding": "start",
+                  "ident": "start",
                   "order": 0
                 }
               },
               "variables": {}
             },
-            "lockBase": {
+            "base": {
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-              "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+              "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
               "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
-            },
-            "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d"
+            }
           }
         ]
       },
@@ -19173,7 +19171,7 @@
                   "properties": {
                     "code": {
                       "type": "string",
-                      "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_PROTECTED_BLOCK`."
+                      "description": "Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`."
                     },
                     "severity": {
                       "type": "string",
@@ -19243,9 +19241,9 @@
                 },
                 "description": "Warnings, and on a dry run every error a commit would refuse."
               },
-              "newFingerprint": {
+              "fingerprint": {
                 "type": "string",
-                "description": "Fingerprint of the saved (or, on a dry run, would-be) draft: the next `baseFingerprint`."
+                "description": "Fingerprint of the saved (or, on a dry run, would-be) draft: the next `base.fingerprint`."
               },
               "files": {
                 "type": "object",
@@ -19260,7 +19258,7 @@
               "lock": {
                 "type": "object",
                 "properties": {
-                  "lockVersion": {
+                  "version": {
                     "type": "number",
                     "const": 1,
                     "description": "Lock format version."
@@ -19324,7 +19322,7 @@
                             }
                           }
                         },
-                        "binding": {
+                        "ident": {
                           "type": "string",
                           "description": "The `const` name the block is printed as."
                         },
@@ -19373,7 +19371,7 @@
                           "type": "string"
                         }
                       },
-                      "required": ["id", "parent", "binding", "order"],
+                      "required": ["id", "parent", "ident", "order"],
                       "additionalProperties": {
                         "description": "An `x-` extension field, kept verbatim."
                       },
@@ -19392,21 +19390,23 @@
                     "description": "Variable key → variable id."
                   }
                 },
-                "required": ["lockVersion", "blocks", "variables"],
+                "required": ["version", "blocks", "variables"],
                 "additionalProperties": {
                   "description": "An `x-` extension field, kept verbatim."
                 },
                 "description": "Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids."
               },
-              "lockBase": {
+              "base": {
                 "type": "object",
                 "properties": {
                   "workspaceId": {
                     "type": "string",
                     "description": "Workspace the workflow belongs to."
                   },
-                  "baseFingerprint": {
+                  "fingerprint": {
                     "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256,
                     "description": "The `fingerprint` this source was read at."
                   },
                   "catalogHash": {
@@ -19414,7 +19414,7 @@
                     "description": "Hash of the block catalog the source was printed against."
                   }
                 },
-                "required": ["workspaceId", "baseFingerprint", "catalogHash"],
+                "required": ["workspaceId", "fingerprint", "catalogHash"],
                 "additionalProperties": false,
                 "description": "Freshness facts for the lock in this environment (`.sim/base.json`)."
               },
@@ -19428,7 +19428,7 @@
                 },
                 "description": "Block key → id for new blocks whose id was minted rather than taken from the lock."
               },
-              "warnings": {
+              "notes": {
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -19447,12 +19447,12 @@
               "applied",
               "diff",
               "diagnostics",
-              "newFingerprint",
+              "fingerprint",
               "files",
               "lock",
-              "lockBase",
+              "base",
               "mintedIds",
-              "warnings",
+              "notes",
               "needsRedeployment"
             ],
             "additionalProperties": false,
@@ -19494,31 +19494,31 @@
                 }
               },
               "diagnostics": [],
-              "newFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+              "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
               "files": {
                 "workflow.ts": "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n"
               },
               "lock": {
-                "lockVersion": 1,
+                "version": 1,
                 "blocks": {
                   "start": {
                     "id": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77",
                     "parent": null,
-                    "binding": "start",
+                    "ident": "start",
                     "order": 0
                   }
                 },
                 "variables": {}
               },
-              "lockBase": {
+              "base": {
                 "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-                "baseFingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
+                "fingerprint": "sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d",
                 "catalogHash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a"
               },
               "mintedIds": {
                 "start": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77"
               },
-              "warnings": [],
+              "notes": [],
               "needsRedeployment": false
             }
           }
@@ -19590,7 +19590,7 @@
         "title": "Create workflow from source body",
         "description": "Source files and where to create the workflow."
       },
-      "GetResourceManifestResponse": {
+      "GetSourceResourcesResponse": {
         "type": "object",
         "properties": {
           "data": {
@@ -19670,11 +19670,11 @@
                   },
                   "required": ["key", "id", "name"],
                   "additionalProperties": false,
-                  "description": "A knowledge base: `kb(key)`."
+                  "description": "A knowledge base: `knowledgeBase(key)`."
                 },
                 "description": "Knowledge bases, oldest first."
               },
-              "bindings": {
+              "credentials": {
                 "type": "array",
                 "items": {
                   "type": "object",
@@ -19691,16 +19691,16 @@
                       "type": "string",
                       "description": "Current display name."
                     },
-                    "service": {
+                    "provider": {
                       "type": "string",
                       "description": "The provider the credential is for, e.g. `slack` or `google-email`."
                     }
                   },
-                  "required": ["key", "id", "name", "service"],
+                  "required": ["key", "id", "name", "provider"],
                   "additionalProperties": false,
-                  "description": "A saved credential: `binding(key)`."
+                  "description": "A saved credential: `credential(key)`."
                 },
-                "description": "Credential bindings, oldest first. Secrets are listed under `env`."
+                "description": "Saved credentials, oldest first. Secrets are listed under `env`."
               },
               "workflows": {
                 "type": "array",
@@ -19741,7 +19741,7 @@
                   },
                   "required": ["key", "id", "name", "inputs"],
                   "additionalProperties": false,
-                  "description": "A workflow: `workflow(key)`."
+                  "description": "A workflow: `childWorkflow(key)`."
                 },
                 "description": "Workflows, oldest first."
               },
@@ -19761,7 +19761,7 @@
               "workspaceId",
               "tables",
               "knowledgeBases",
-              "bindings",
+              "credentials",
               "workflows",
               "env",
               "truncated"
@@ -19772,7 +19772,7 @@
         },
         "required": ["data"],
         "additionalProperties": false,
-        "title": "Get resource manifest response",
+        "title": "Get source resources response",
         "description": "The workspace resources workflow source can name.",
         "examples": [
           {
@@ -19803,12 +19803,12 @@
                   "name": "Docs"
                 }
               ],
-              "bindings": [
+              "credentials": [
                 {
                   "key": "support-slack",
                   "id": "cred_51d0b8f4",
                   "name": "Support Slack",
-                  "service": "slack"
+                  "provider": "slack"
                 }
               ],
               "workflows": [

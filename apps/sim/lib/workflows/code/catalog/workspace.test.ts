@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.unmock('@/blocks/registry')
 
 import { type CatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
-import { buildCodeCatalog } from '@/lib/workflows/code/catalog/workspace-catalog'
+import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
 import type { CustomBlockOverlayRow } from '@/blocks/custom/server-overlay'
 
 function gateWith(customBlockRows: CustomBlockOverlayRow[]): CatalogGate {
@@ -32,7 +32,7 @@ function customRow(type: string, inputNames: string[]): CustomBlockOverlayRow {
 
 function catalogFor(organizationId: string, gate: CatalogGate) {
   return withCatalogBlockScope(gate, async () =>
-    buildCodeCatalog({ gate, organizationId, storedTypes: [] })
+    buildSourceCatalog({ gate, organizationId, storedTypes: [] })
   )
 }
 
@@ -40,7 +40,7 @@ function inputIds(catalog: Awaited<ReturnType<typeof catalogFor>>['catalog'], ty
   return catalogBlock(catalog, type)?.subBlocks.map((subBlock) => subBlock.id) ?? []
 }
 
-describe('compile catalog cache', () => {
+describe('source catalog cache', () => {
   it('never serves one organization the catalog holding another organization custom blocks', async () => {
     const orgA = await catalogFor('org-a', gateWith([customRow('custom_block_a', ['lead'])]))
     const orgB = await catalogFor('org-b', gateWith([customRow('custom_block_b', ['ticket'])]))

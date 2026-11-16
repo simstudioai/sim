@@ -9,12 +9,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest'
-import { readWorkflowCodeCatalog } from '@/lib/workflows/code/catalog/read-block-catalog'
+import { readSourceCatalog } from '@/lib/workflows/code/catalog/read-source-catalog'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 /**
- * The per-workflow compile catalog reads a workflow's stored block types, so the workflow id is
+ * The per-workflow source catalog reads a workflow's stored block types, so the workflow id is
  * an input the caller controls. Against real Postgres: a workflow that belongs to another
  * workspace (one the caller also administers, so only the workspace binding can refuse it) and an
  * archived workflow both answer as not found, while the caller's own active workflow is read.
@@ -48,7 +48,7 @@ function check(name: string, run: () => Promise<void>) {
 }
 
 function read(workflowId: string) {
-  return readWorkflowCodeCatalog.execute({ principal, input: { workspaceId, workflowId } })
+  return readSourceCatalog.execute({ principal, input: { workspaceId, workflowId } })
 }
 
 beforeAll(async () => {
@@ -121,7 +121,7 @@ afterAll(async () => {
   await db.delete(user).where(eq(user.id, ownerId))
 })
 
-check("reads the compile catalog for the caller's own active workflow", async () => {
+check("reads the source catalog for the caller's own active workflow", async () => {
   const catalog = await read(activeWorkflowId)
   expect(Object.hasOwn(catalog.blocks, 'function')).toBe(true)
 })

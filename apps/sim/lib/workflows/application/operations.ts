@@ -84,6 +84,43 @@ export const workflowOperations = {
     contentDelivery: 'none',
     ...WORKFLOW_READ_PRINCIPAL_POLICY,
   }),
+  /**
+   * The source catalog: the per-workspace block catalog in the shape the workflow compiler reads.
+   * Same policy as `catalog.blocks.list` (s4 §2): a workspace read at the `read` role, reachable by
+   * a workspace API key and by Copilot delegation.
+   */
+  // permission-group-exempt: the source catalog is the block catalog in another shape; withholding it hides the product rather than restricting it
+  readSourceCatalog: defineWorkspaceOperation({
+    id: 'workflows.source.catalog.read',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    principalKinds: [
+      'session',
+      'personal_api_key',
+      'oauth_access_token',
+      'workspace_api_key',
+      'delegated',
+    ],
+    delegatedServices: ['copilot'],
+  }),
+  /**
+   * The workspace resources workflow source can name, by key. A read: any member may list them,
+   * as any member may read the source that names them; a workspace API key may too, like
+   * `workflows.source.read`. Listing allocates keys for resources that have none, which changes
+   * no resource (see `readSourceResources`).
+   */
+  // permission-group-exempt: lists resource names and their keys, already visible to every workspace member; no group capability withholds them
+  readSourceResources: defineWorkspaceOperation({
+    id: 'workflows.source.resources.read',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+  }),
   /** Full diagnostics retain the caller's subject for protected reference and secret reads. */
   // permission-group-exempt: lint reads workflow content under the existing workflow and secret authorization policies
   readLint: defineWorkspaceOperation({

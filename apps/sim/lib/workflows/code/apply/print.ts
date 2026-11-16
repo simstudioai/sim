@@ -9,12 +9,12 @@ import {
   type ResourceKeyResolver,
   type SourceFingerprint,
   sourceFingerprint,
-  type WorkflowCodeMetaV1,
   type WorkflowLockBlock,
   type WorkflowLockV1,
+  type WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
-import { buildLockFromState, codeMetaPrintInputs } from '@/lib/workflows/code/source-lock'
+import { buildLockFromState, hintsFromSourceMeta } from '@/lib/workflows/code/source-lock'
 import { canonicalizeUnderLock } from '@/lib/workflows/code/stored-canonical'
 
 /** Directory function-code files are printed into when `functionCode` is `files`. */
@@ -29,8 +29,8 @@ export interface StoredSource {
 interface PrintStoredSourceInput extends StoredSource {
   catalog: BlockCatalog
   resources: ResourceKeyResolver
-  /** The bindings, order and comments to print with. */
-  codeMeta: WorkflowCodeMetaV1 | null
+  /** The idents, order and comments to print with. */
+  sourceMeta: WorkflowSourceMetaV1 | null
   functionCode: 'inline' | 'files'
   /** `state`'s lockless canonical model, when the caller already holds it. */
   lockless?: CanonicalizeResult
@@ -54,13 +54,13 @@ export interface PrintedSource {
 }
 
 /**
- * Prints a stored (or about-to-be-stored) state as source with the bindings, order and comments
- * of `codeMeta`, assembles its lock from the same print, and computes its fingerprint. `source get`
+ * Prints a stored (or about-to-be-stored) state as source with the idents, order and comments
+ * of `sourceMeta`, assembles its lock from the same print, and computes its fingerprint. `source get`
  * and every apply response go through here, so an apply answers with exactly what the next get
  * prints and its fingerprint is the next apply's base.
  */
 export function printStoredSource(input: PrintStoredSourceInput): PrintedSource {
-  const { state, meta, catalog, resources, codeMeta } = input
+  const { state, meta, catalog, resources, sourceMeta } = input
   const lockless = input.lockless ?? canonicalize(state, { catalog, meta, resources })
   const canonical = input.identity
     ? canonicalizeUnderLock(
@@ -70,7 +70,7 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
         identityLock(input.identity)
       )
     : lockless
-  const metaInputs = codeMetaPrintInputs(codeMeta, canonical)
+  const metaInputs = hintsFromSourceMeta(sourceMeta, canonical)
   const printed = printWorkflow({
     workflow: {
       ...canonical.workflow,
@@ -88,7 +88,7 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
   })
   return {
     files: Object.fromEntries(printed.files.map((file) => [file.path, file.text])),
-    lock: buildLockFromState(codeMeta, canonical, printed.hints),
+    lock: buildLockFromState(sourceMeta, canonical, printed.hints),
     fingerprint: sourceFingerprint(lockless.workflow, lockless.identity),
     canonical,
     diagnostics: printed.diagnostics,
@@ -116,20 +116,20 @@ export function fingerprintOf(
 function identityLock(identity: LockIdentity): WorkflowLockV1 {
   const blocks: Record<string, WorkflowLockBlock> = {}
   for (const [key, block] of Object.entries(identity.blocks)) {
-    blocks[key] = { ...block, binding: key, order: 0 }
+    blocks[key] = { ...block, ident: key, order: 0 }
   }
-  return { lockVersion: 1, blocks, variables: identity.variables }
+  return { version: 1, blocks, variables: identity.variables }
 }
 
 /**
- * The post-materialize lock `mergeCodeMetaFromLock` re-keys onto: every bound key with its id,
- * and the submitted lock's binding and order for a block the file does not state them for.
+ * The post-materialize lock `mergeSourceMetaFromLock` re-keys onto: every bound key with its id,
+ * and the submitted lock's ident and order for a block the file does not state them for.
  */
 export function boundLock(identity: LockIdentity, submitted: WorkflowLockV1): WorkflowLockV1 {
   const blocks: Record<string, WorkflowLockBlock> = {}
   for (const [key, block] of Object.entries(identity.blocks)) {
     const previous = Object.hasOwn(submitted.blocks, key) ? submitted.blocks[key] : undefined
-    blocks[key] = { ...block, binding: previous?.binding ?? key, order: previous?.order ?? 0 }
+    blocks[key] = { ...block, ident: previous?.ident ?? key, order: previous?.order ?? 0 }
   }
-  return { lockVersion: 1, blocks, variables: identity.variables }
+  return { version: 1, blocks, variables: identity.variables }
 }

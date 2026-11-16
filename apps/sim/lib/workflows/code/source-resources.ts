@@ -12,12 +12,12 @@ import { compareStrings } from '@sim/utils/string'
 import type { ResourceKind } from '@sim/workflow-code'
 import { and, asc, eq, inArray, isNull, notInArray, or } from 'drizzle-orm'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
-import { workflowCodeOperations } from '@/lib/workflows/code/operations'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { INPUT_DEFINITION_TRIGGER_TYPES } from '@/lib/workflows/triggers/input-definition-triggers'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
-import { type ResourceIdRef, resolveKeys } from '@/lib/workspaces/resource-bindings'
+import { type ResourceIdRef, resolveKeys } from '@/lib/workspaces/resource-keys'
 
 /**
  * Most resources of one kind the manifest lists, oldest first. Past it the manifest says
@@ -25,7 +25,7 @@ import { type ResourceIdRef, resolveKeys } from '@/lib/workspaces/resource-bindi
  */
 const MAX_MANIFEST_RESOURCES_PER_KIND = 1000
 
-/** Credential types a `binding(...)` can name: every saved account, never an env secret. */
+/** Credential types a `credential(...)` can name: every saved account, never an env secret. */
 const ENV_CREDENTIAL_TYPES = ['env_workspace', 'env_personal'] as const
 
 interface ManifestColumn {
@@ -47,20 +47,20 @@ interface ManifestResource {
   name: string
 }
 
-interface ManifestBinding extends ManifestResource {
+interface ManifestCredential extends ManifestResource {
   /** The provider the credential is for (`slack`, `google-email`, ...). */
-  service: string
+  provider: string
 }
 
 interface ManifestWorkflow extends ManifestResource {
   inputs: Array<{ name: string; type: string }>
 }
 
-export interface WorkspaceResourceManifest {
+export interface SourceResources {
   workspaceId: string
   tables: ManifestTable[]
   knowledgeBases: ManifestResource[]
-  bindings: ManifestBinding[]
+  credentials: ManifestCredential[]
   workflows: ManifestWorkflow[]
   /** Environment variable names the workflow can read as `env.NAME`; never values. */
   env: string[]
@@ -68,7 +68,7 @@ export interface WorkspaceResourceManifest {
   truncated: boolean
 }
 
-interface ReadResourceManifestInput {
+interface ReadSourceResourcesInput {
   workspaceId: string
 }
 
@@ -144,20 +144,20 @@ function capped<T>(rows: T[]): { rows: T[]; truncated: boolean } {
 
 /**
  * The workspace resources a workflow file can name, by the keys source uses for them: tables
- * with their columns, knowledge bases, credential bindings with their provider, workflows with
+ * with their columns, knowledge bases, saved credentials with their provider, workflows with
  * the inputs their start block declares, and env variable names (never values). The CLI writes it
- * as `workspace.d.ts`, so `table('tickets')`, `binding('support-slack')` and `env.X` type-check.
+ * as `workspace.d.ts`, so `table('tickets')`, `credential('support-slack')` and `env.X` type-check.
  *
  * Every listed resource gets its key here (`resolveKeys` allocates one for a resource no source
  * has named yet), so a key an agent reads from the manifest resolves on apply. That allocation is
  * idempotent identity bookkeeping, not a change to any resource, which is why a read-role caller
  * may cause it. Not audited, like the other catalog reads.
  */
-export const readResourceManifest = defineAuthorizedWorkspaceUseCase({
-  operation: workflowCodeOperations.readResourceManifest,
-  resolveContext: ({ input }: { input: ReadResourceManifestInput }) =>
+export const readSourceResources = defineAuthorizedWorkspaceUseCase({
+  operation: workflowOperations.readSourceResources,
+  resolveContext: ({ input }: { input: ReadSourceResourcesInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
-  execute: async ({ principal, context }): Promise<WorkspaceResourceManifest> => {
+  execute: async ({ principal, context }): Promise<SourceResources> => {
     await requireWorkflowCodeEnabled()
     const workspaceId = context.workspaceId
     const userId = resolvePrincipalSubjectUserId(principal)
@@ -236,9 +236,11 @@ export const readResourceManifest = defineAuthorizedWorkspaceUseCase({
         const key = keyOf('knowledge-base', row.id)
         return key ? [{ key, id: row.id, name: row.name }] : []
       }),
-      bindings: credentials.rows.flatMap((row) => {
+      credentials: credentials.rows.flatMap((row) => {
         const key = keyOf('credential', row.id)
-        return key ? [{ key, id: row.id, name: row.name, service: row.providerId ?? row.type }] : []
+        return key
+          ? [{ key, id: row.id, name: row.name, provider: row.providerId ?? row.type }]
+          : []
       }),
       workflows: workflows.rows.flatMap((row) => {
         const key = keyOf('workflow', row.id)

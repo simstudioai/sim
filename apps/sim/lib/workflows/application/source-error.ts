@@ -20,12 +20,12 @@ export interface WorkflowSourceDiagnostic {
   blockKey?: string
   blockId?: string
   param?: string
-  /** JSON Pointer into a non-source input, such as the lock (`/blocks/agent/binding`). */
+  /** JSON Pointer into a non-source input, such as the lock (`/blocks/agent/ident`). */
   path?: string
 }
 
 /**
- * Submitted workflow source that cannot be applied: a compile error, a gate refusal, a protected
+ * Submitted workflow source that cannot be applied: a compile error, a gate refusal, a locked
  * block, an invalid value or a blocking lint finding (s4 D5). Nothing was written. Kept apart
  * from the use case so a route error policy can narrow on it without importing the compiler.
  */

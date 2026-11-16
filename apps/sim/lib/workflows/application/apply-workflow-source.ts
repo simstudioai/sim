@@ -10,12 +10,15 @@ import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/work
 import { generateId } from '@sim/utils/id'
 import {
   type CanonicalizeResult,
-  type LockBase,
+  type SourceBase,
   sourceFingerprint,
-  type WorkflowCodeMetaV1,
   type WorkflowLockV1,
+  type WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
-import { readWorkflowCodeMeta, writeWorkflowCodeMeta } from '@sim/workflow-persistence/code-meta'
+import {
+  readWorkflowSourceMeta,
+  writeWorkflowSourceMeta,
+} from '@sim/workflow-persistence/source-meta'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { resolveCatalogGate, withCatalogBlockScope } from '@/lib/catalog/application/context'
@@ -46,7 +49,7 @@ import {
   printStoredSource,
   type StoredSource,
 } from '@/lib/workflows/code/apply/print'
-import { buildCodeCatalog } from '@/lib/workflows/code/catalog/workspace-catalog'
+import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { canonicalizeStored } from '@/lib/workflows/code/stored-canonical'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
@@ -71,10 +74,11 @@ export interface ApplyWorkflowSourceInput extends SourceSubmission {
   assertedWorkspaceId?: string
   /** The identity lock returned by `source get` (or a previous apply). */
   lock: WorkflowLockV1
-  /** The environment facts that came with the lock; a lock read elsewhere is treated as stale. */
-  lockBase?: LockBase
-  /** The `fingerprint` the source was read at; the apply answers 409 when it no longer matches. */
-  baseFingerprint: string
+  /**
+   * Where and when the source was read. The apply answers 409 when `base.fingerprint` no longer
+   * matches the draft; a lock read in another workspace is treated as stale.
+   */
+  base: SourceBase
 }
 
 export interface CreateWorkflowFromSourceInput extends SourceSubmission {
@@ -97,18 +101,18 @@ interface ApplyWorkflowSourceResult {
   diff: SourceDiffSummary
   /** Warnings on success; on a dry run, every finding including the errors a commit would refuse. */
   diagnostics: WorkflowSourceDiagnostic[]
-  /** The fingerprint of what is (or would be) stored; the next apply's `baseFingerprint`. */
-  newFingerprint: string
+  /** The fingerprint of what is (or would be) stored; the next apply's `base.fingerprint`. */
+  fingerprint: string
   /** Re-printed from what is (or would be) stored, so normalized values show in the source. */
   files: Record<string, string>
   lock: WorkflowLockV1
-  lockBase: LockBase
+  base: SourceBase
   /** Source key → id for every new block whose id was minted rather than taken from the lock. */
   mintedIds: Record<string, string>
-  warnings: string[]
+  notes: string[]
   needsRedeployment: boolean
   sdkMajor: number
-  catalogVersion: string
+  catalogHash: string
 }
 
 /**
@@ -116,7 +120,7 @@ interface ApplyWorkflowSourceResult {
  * apply creates, with an empty graph standing in for the stored one.
  */
 type SourceApplyTarget =
-  | { kind: 'existing'; context: ActiveWorkflowApplicationContext; baseFingerprint: string }
+  | { kind: 'existing'; context: ActiveWorkflowApplicationContext; base: SourceBase }
   | {
       kind: 'new'
       workspace: ActiveWorkspaceApplicationContext
@@ -130,8 +134,8 @@ type SourceApplyTarget =
  * against its live per-workflow catalog and evaluates them onto the stored graph
  * (`evaluateSource`); any error refuses the whole write, with source lines. The write is one
  * replace under the workflow row lock that re-checks the fingerprint (409 when the draft moved)
- * and stores the submission's bindings, order and comments in `code_meta`. A source that changes
- * only those is a graph no-op that stores just `code_meta`. Draft only: it never deploys.
+ * and stores the submission's idents, order and comments in source meta. A source that changes
+ * only those is a graph no-op that stores just source meta. Draft only: it never deploys.
  */
 export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.applySource,
@@ -142,7 +146,7 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
     return runSourceApply(principal, input, {
       kind: 'existing',
       context,
-      baseFingerprint: input.baseFingerprint,
+      base: input.base,
     })
   },
   /** Only a committed, non-empty apply is a change worth auditing. */
@@ -166,7 +170,7 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
 /**
  * Creates a workflow from source: the same pipeline as {@link applyWorkflowSource} with an empty
  * graph as the stored draft, so every block is new, every id is minted and no fingerprint is
- * checked. The row, its graph, variables and `code_meta` are written in one transaction, so a
+ * checked. The row, its graph, variables and source meta are written in one transaction, so a
  * refused or failed create leaves nothing behind. A dry run runs every check and creates nothing.
  */
 export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
@@ -187,7 +191,7 @@ export const createWorkflowFromSource = defineAuthorizedWorkflowUseCase({
     }
     return runSourceApply(
       principal,
-      { ...input, lock: { lockVersion: 1, blocks: {}, variables: {} } },
+      { ...input, lock: { version: 1, blocks: {}, variables: {} } },
       {
         kind: 'new',
         workspace: context,
@@ -237,7 +241,7 @@ function sourceAuditMetadata(
     edgesRemoved: edges.removed,
     variablesChanged: variables.added.length + variables.removed.length + variables.modified.length,
     sdkMajor: result.sdkMajor,
-    catalogVersion: result.catalogVersion,
+    catalogHash: result.catalogHash,
     ...(input.provenance ? { client: input.provenance.client } : {}),
     ...(input.provenance?.gitSha ? { gitSha: input.provenance.gitSha } : {}),
     source: principalAuditSource(principal),
@@ -255,13 +259,13 @@ async function loadStoredSource(context: ActiveWorkflowApplicationContext): Prom
 
 /**
  * The source-apply pipeline for either target: evaluate the submission onto the stored graph
- * (empty for a new workflow), then write it: `code_meta` alone for a graph no-op, a replace under
+ * (empty for a new workflow), then write it: source meta alone for a graph no-op, a replace under
  * the row lock for an existing draft, or a create that inserts the row and its graph in one
  * transaction. A dry run stops before the write; a refusal throws, or on a dry run answers 200.
  */
 async function runSourceApply(
   principal: Principal,
-  input: SourceSubmission & { lock: WorkflowLockV1; lockBase?: LockBase },
+  input: SourceSubmission & { lock: WorkflowLockV1 },
   target: SourceApplyTarget
 ): Promise<ApplyWorkflowSourceResult> {
   const context =
@@ -276,11 +280,11 @@ async function runSourceApply(
     const subjectUserId = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     }).attributedUserId
-    const [stored, storedCodeMeta]: [StoredSource, WorkflowCodeMetaV1 | null] =
+    const [stored, storedSourceMeta]: [StoredSource, WorkflowSourceMetaV1 | null] =
       target.kind === 'existing'
         ? await Promise.all([
             loadStoredSource(target.context),
-            readWorkflowCodeMeta(db, context.workflowId),
+            readWorkflowSourceMeta(db, context.workflowId),
           ])
         : [
             {
@@ -289,7 +293,7 @@ async function runSourceApply(
             },
             null,
           ]
-    const { catalog } = buildCodeCatalog({
+    const { catalog } = buildSourceCatalog({
       gate,
       organizationId: context.workspaceOrganizationId,
       storedTypes: [...new Set(Object.values(stored.state.blocks).map((block) => block.type))],
@@ -312,26 +316,26 @@ async function runSourceApply(
     const result = async (
       printed: Pick<PrintedSource, 'files' | 'lock' | 'fingerprint'>,
       outcome: Pick<ApplyWorkflowSourceResult, 'applied' | 'diff' | 'diagnostics'> &
-        Partial<Pick<ApplyWorkflowSourceResult, 'workflowName' | 'mintedIds' | 'warnings'>>
+        Partial<Pick<ApplyWorkflowSourceResult, 'workflowName' | 'mintedIds' | 'notes'>>
     ): Promise<ApplyWorkflowSourceResult> => ({
       workflowId: context.workflowId,
       workflowName: stored.meta.name,
       workspaceId: context.workspaceId,
       dryRun,
       mintedIds: {},
-      warnings: [],
+      notes: [],
       ...outcome,
-      newFingerprint: printed.fingerprint,
+      fingerprint: printed.fingerprint,
       files: printed.files,
       lock: printed.lock,
-      lockBase: {
+      base: {
         workspaceId: context.workspaceId,
-        baseFingerprint: printed.fingerprint,
+        fingerprint: printed.fingerprint,
         catalogHash: catalog.hash,
       },
       needsRedeployment: !isNew && (await checkNeedsRedeployment(context.workflowId)),
       sdkMajor: catalog.sdkMajor,
-      catalogVersion: catalog.hash,
+      catalogHash: catalog.hash,
     })
     /** Refuses a commit; a dry run reports the same findings with a 200 instead. */
     const refuse = (diagnostics: WorkflowSourceDiagnostic[]) => {
@@ -342,7 +346,7 @@ async function runSourceApply(
       )
     }
 
-    if (target.kind === 'existing' && storedFingerprint !== target.baseFingerprint) {
+    if (target.kind === 'existing' && storedFingerprint !== target.base.fingerprint) {
       if (!dryRun) throw new WorkflowSourceStaleError(storedFingerprint)
       return refuse([
         {
@@ -365,12 +369,12 @@ async function runSourceApply(
       stored,
       storedCanonical,
       storedFingerprint,
-      storedCodeMeta,
+      storedSourceMeta,
       catalog,
       createdBy,
       files: input.files,
       lock: input.lock,
-      ...(input.lockBase ? { lockBase: input.lockBase } : {}),
+      ...(target.kind === 'existing' ? { base: target.base } : {}),
       ...(target.kind === 'new' ? { create: target.create } : {}),
     })
     if ('refused' in evaluation) return refuse(evaluation.refused)
@@ -379,7 +383,7 @@ async function runSourceApply(
     /** Prints a state under the keys the submission bound, as the next `source get` will. */
     const print = (
       state: WorkflowState,
-      codeMeta: WorkflowCodeMetaV1 | null,
+      sourceMeta: WorkflowSourceMetaV1 | null,
       lockless?: CanonicalizeResult
     ) =>
       printStoredSource({
@@ -387,13 +391,13 @@ async function runSourceApply(
         meta: plan.meta,
         catalog,
         resources: plan.resources,
-        codeMeta,
+        sourceMeta,
         functionCode: plan.functionCode,
         identity: plan.identity,
         ...(lockless ? { lockless } : {}),
       })
     const printWritten = (written: Omit<WorkflowState, 'variables'>) =>
-      print({ ...written, variables: plan.storedVariables }, plan.codeMeta)
+      print({ ...written, variables: plan.storedVariables }, plan.sourceMeta)
     const logContext = {
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
@@ -401,14 +405,14 @@ async function runSourceApply(
     }
 
     if (plan.noop) {
-      const printed = print(stored.state, plan.codeMeta, storedCanonical.canonical)
+      const printed = print(stored.state, plan.sourceMeta, storedCanonical.canonical)
       if (!dryRun) {
-        const before = print(stored.state, storedCodeMeta, storedCanonical.canonical)
+        const before = print(stored.state, storedSourceMeta, storedCanonical.canonical)
         if (!isEqual(printed.files, before.files) || !isEqual(printed.lock, before.lock)) {
-          await writeWorkflowCodeMeta(db, context.workflowId, plan.codeMeta)
+          await writeWorkflowSourceMeta(db, context.workflowId, plan.sourceMeta)
         }
       }
-      return result(printed, { applied: false, diff, diagnostics, warnings: plan.warnings })
+      return result(printed, { applied: false, diff, diagnostics, notes: plan.notes })
     }
 
     const scope = {
@@ -424,7 +428,7 @@ async function runSourceApply(
         diff,
         diagnostics,
         mintedIds,
-        warnings: [...plan.warnings, ...preview.warnings],
+        notes: [...plan.notes, ...preview.warnings],
       })
     }
 
@@ -436,7 +440,7 @@ async function runSourceApply(
             plan,
             stored,
             storedFingerprint,
-            baseFingerprint: target.baseFingerprint,
+            expectedFingerprint: target.base.fingerprint,
             catalog,
           })
     logger.info(isNew ? 'Created workflow from source' : 'Applied workflow source', logContext)
@@ -446,7 +450,7 @@ async function runSourceApply(
       diagnostics,
       mintedIds,
       ...('name' in committed ? { workflowName: committed.name } : {}),
-      warnings: [...plan.warnings, ...committed.warnings],
+      notes: [...plan.notes, ...committed.warnings],
     })
   })
 }

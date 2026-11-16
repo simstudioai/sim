@@ -17,7 +17,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
-import { v2BlockCatalogSchema } from '@/lib/api/contracts/v2/block-catalog'
+import { v2SourceCatalogSchema } from '@/lib/api/contracts/v2/source-catalog'
 import { buildBlockCatalog, projectBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
@@ -245,7 +245,7 @@ describe('block catalog projection over the whole registry', () => {
   })
 
   it('passes through the v2 response schema unchanged, so no projected field is stripped', () => {
-    expect(v2BlockCatalogSchema.parse(catalog)).toEqual(catalog)
+    expect(v2SourceCatalogSchema.parse(catalog)).toEqual(catalog)
   })
 
   it('keeps the core shard under its gzip budget', () => {

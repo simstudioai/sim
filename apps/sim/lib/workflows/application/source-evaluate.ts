@@ -9,8 +9,6 @@ import {
   compileWorkflow,
   type Diagnostic,
   diffCanonical,
-  type LockBase,
-  type LockHints,
   type LockIdentity,
   type MaterializeResult,
   materialize,
@@ -18,9 +16,11 @@ import {
   type ResourceKeyResolver,
   type ResourceKind,
   renamesBetween,
-  type WorkflowCodeMetaV1,
+  type SourceBase,
+  type SourceHints,
   type WorkflowLockBlock,
   type WorkflowLockV1,
+  type WorkflowSourceMetaV1,
 } from '@sim/workflow-code'
 import { catalogBlock } from '@sim/workflow-code/catalog/view'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
@@ -41,15 +41,15 @@ import {
 import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
 import { gateSourceDiff } from '@/lib/workflows/code/apply/gates'
 import { diffGraphs, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
+import { findLockedBlockRefusals } from '@/lib/workflows/code/apply/locked'
 import { boundLock, type StoredSource } from '@/lib/workflows/code/apply/print'
-import { findProtectedBlockRefusals } from '@/lib/workflows/code/apply/protected'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
 import { loadResourceKeyResolver } from '@/lib/workflows/code/resources'
-import { mergeCodeMetaFromLock } from '@/lib/workflows/code/source-lock'
+import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import { canonicalizeUnderLock, type StoredCanonical } from '@/lib/workflows/code/stored-canonical'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
-import type { ResourceKeyRef } from '@/lib/workspaces/resource-bindings'
+import type { ResourceKeyRef } from '@/lib/workspaces/resource-keys'
 
 /** The entry file every submission carries; function code lives beside it. */
 const ENTRY_FILE = 'workflow.ts'
@@ -69,13 +69,14 @@ export interface SourceEvaluationInput {
   /** `stored` canonicalized with its resource keys. */
   storedCanonical: StoredCanonical
   storedFingerprint: string
-  storedCodeMeta: WorkflowCodeMetaV1 | null
+  storedSourceMeta: WorkflowSourceMetaV1 | null
   catalog: BlockCatalog
   /** Attribution for resource keys a submitted reference allocates. */
   createdBy: string | null
   files: Record<string, string>
   lock: WorkflowLockV1
-  lockBase?: LockBase
+  /** Where and when the source was read; absent for a create. */
+  base?: SourceBase
   /** Set when the apply creates the workflow: the caller's name and description overrides. */
   create?: { name?: string; description?: string | null }
 }
@@ -84,7 +85,7 @@ export interface SourceEvaluationInput {
 export interface SourcePlan {
   /** The workflow's name and description: the stored ones, or a created workflow's. */
   meta: CanonicalWorkflowMeta
-  /** The graph is unchanged; only `code_meta` may differ. Never true for a create. */
+  /** The graph is unchanged; only source meta may differ. Never true for a create. */
   noop: boolean
   blocks: Record<string, BlockState>
   edges: WorkflowState['edges']
@@ -94,18 +95,19 @@ export interface SourcePlan {
   storedVariables: WorkflowState['variables']
   /** Warnings (on a dry run, every finding), pinned to the submitted files. */
   diagnostics: WorkflowSourceDiagnostic[]
-  warnings: string[]
+  /** Non-fatal notes about the write. */
+  notes: string[]
   diff: SourceDiffSummary
   /** Source key → id for every new block whose id was minted rather than taken from the lock. */
   mintedIds: Record<string, string>
   /** Every key the write binds, with its id: what the next print is keyed by. */
   identity: LockIdentity
-  /** The post-materialize lock the compiled bindings and comments are re-keyed onto. */
+  /** The post-materialize lock the compiled idents and comments are re-keyed onto. */
   lock: WorkflowLockV1
-  /** The compiled file's bindings, order and comments. */
-  compiled: { hints: LockHints; workflow: Pick<CanonicalWorkflow, 'annotations'> }
-  /** `code_meta` after the write, merged onto the stored one. */
-  codeMeta: WorkflowCodeMetaV1
+  /** The compiled file's idents, order and comments. */
+  compiled: { hints: SourceHints; workflow: Pick<CanonicalWorkflow, 'annotations'> }
+  /** source meta after the write, merged onto the stored one. */
+  sourceMeta: WorkflowSourceMetaV1
   /** How the response prints function code: as the submission did. */
   functionCode: 'inline' | 'files'
   /** Answers every resource reference of both the stored and the submitted source. */
@@ -114,7 +116,7 @@ export interface SourcePlan {
 
 export type SourceEvaluation = { refused: WorkflowSourceDiagnostic[] } | { plan: SourcePlan }
 
-/** Every `(kind, key)` resource reference in a compiled model, for binding lookup. */
+/** Every `(kind, key)` resource reference in a compiled model, for ident lookup. */
 function collectResourceKeys(value: unknown, refs: ResourceKeyRef[]): void {
   if (Array.isArray(value)) {
     for (const item of value) collectResourceKeys(item, refs)
@@ -145,7 +147,7 @@ async function findBlockIdsClaimedElsewhere(workflowId: string, ids: string[]): 
 /**
  * Evaluates submitted source against a stored draft without writing it: compile against the live
  * catalog, parse the lock, materialize onto the stored graph (keeping every unchanged value's
- * stored bytes and every id the lock binds), then every gate (protected blocks, engine gates,
+ * stored bytes and every id the lock binds), then every gate (locked blocks, engine gates,
  * types that may stay but not be added), the value checks and lint. Returns the refusals, located
  * in the submitted text, or the plan the write stores.
  */
@@ -207,14 +209,14 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     Object.keys(lock.blocks).length > 0 || Object.keys(lock.variables).length > 0
   const lockFreshness: 'fresh' | 'stale' | 'none' = !hasLockEntries
     ? 'none'
-    : input.lockBase &&
-        (input.lockBase.workspaceId !== scope.workspaceId ||
-          input.lockBase.baseFingerprint !== input.storedFingerprint)
+    : input.base &&
+        (input.base.workspaceId !== scope.workspaceId ||
+          input.base.fingerprint !== input.storedFingerprint)
       ? 'stale'
       : 'fresh'
-  const compiledBindings: Record<string, string> = {}
+  const compiledIdents: Record<string, string> = {}
   for (const [key, hint] of Object.entries(compiled.hints.blocks)) {
-    if (hint.binding !== undefined) compiledBindings[key] = hint.binding
+    if (hint.ident !== undefined) compiledIdents[key] = hint.ident
   }
   const hooks = createMaterializeHooks()
   const materializeWith = (withLock: WorkflowLockV1): MaterializeResult =>
@@ -223,7 +225,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       hooks,
       prev: state,
       resources,
-      compiledBindings,
+      compiledIdents,
       lockFreshness,
     })
 
@@ -280,9 +282,9 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     { ...compiledWorkflow, meta: baseCanonical.workflow.meta },
     renamesBetween(baseCanonical.identity, materialized.identity)
   )
-  const warnings: string[] = []
+  const notes: string[] = []
   if (ignoredMeta.length > 0) {
-    warnings.push(
+    notes.push(
       `The workflow ${ignoredMeta.join(' and ')} in the source differs from the stored one and was not changed; rename or describe the workflow through its settings.`
     )
   }
@@ -307,7 +309,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     isCopilot: principal.kind === 'delegated' && principal.serviceId === 'copilot',
   })
   const refusals: Diagnostic[] = [
-    ...findProtectedBlockRefusals(storedGraph, { blocks, edges }, graphDiff),
+    ...findLockedBlockRefusals(storedGraph, { blocks, edges }, graphDiff),
     ...gateDiagnostics,
   ]
 
@@ -316,7 +318,7 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
     const block = blocks[id]
     if (block && catalogBlock(catalog, block.type)?.addable === false) {
       refusals.push({
-        code: 'E_TYPE_NOT_ADDABLE',
+        code: 'E_APPLY_TYPE_NOT_ADDABLE',
         severity: 'error',
         message: `Block type "${block.type}" can stay where it is already used but cannot be added`,
         blockId: id,
@@ -389,13 +391,13 @@ export async function evaluateSource(input: SourceEvaluationInput): Promise<Sour
       storedVariables:
         variables === undefined ? state.variables : (parseWorkflowVariables(variables) ?? {}),
       diagnostics,
-      warnings,
+      notes,
       diff: summarizeDiff(canonicalDiff, baseCanonical.identity, materialized.identity, noop),
       mintedIds,
       identity: materialized.identity,
       lock: lockAfter,
       compiled: compiledSource,
-      codeMeta: mergeCodeMetaFromLock(input.storedCodeMeta, lockAfter, compiledSource),
+      sourceMeta: mergeSourceMetaFromLock(input.storedSourceMeta, lockAfter, compiledSource),
       functionCode: Object.values(compiled.hints.blocks).some((hint) => hint.codeFile)
         ? 'files'
         : 'inline',

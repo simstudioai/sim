@@ -1,5 +1,5 @@
 /**
- * The protected-block gate must refuse every change the persistence door's
+ * The locked-block gate must refuse every change the persistence door's
  * `preserveProtectedWorkflowBlocks` merge would silently undo, so that a write the gate admits is
  * stored exactly as submitted (s4 D2).
  */
@@ -8,9 +8,9 @@ import { type BlockState, preserveProtectedWorkflowBlocks } from '@sim/workflow-
 import { describe, expect, it } from 'vitest'
 import type { SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import {
-  assertProtectedBlocksPreserved,
-  findProtectedBlockRefusals,
-} from '@/lib/workflows/code/apply/protected'
+  assertLockedBlocksPreserved,
+  findLockedBlockRefusals,
+} from '@/lib/workflows/code/apply/locked'
 
 type GraphEdge = SourceGraph['edges'][number]
 
@@ -136,8 +136,8 @@ function withStoredLayout(current: SourceGraph, target: SourceGraph): SourceGrap
   return { blocks, edges: target.edges }
 }
 
-describe('findProtectedBlockRefusals', () => {
-  it('refuses every change the protected-block merge would undo, across every lock layout', () => {
+describe('findLockedBlockRefusals', () => {
+  it('refuses every change the locked-block merge would undo, across every lock layout', () => {
     let admitted = 0
     let refused = 0
     for (const locked of lockCombinations()) {
@@ -145,14 +145,14 @@ describe('findProtectedBlockRefusals', () => {
         const base = baseGraph(locked)
         const target = structuredClone(base)
         mutate(target)
-        const refusals = findProtectedBlockRefusals(base, target)
+        const refusals = findLockedBlockRefusals(base, target)
         if (refusals.length > 0) {
           refused++
           continue
         }
         admitted++
         expect(
-          () => assertProtectedBlocksPreserved(base, withStoredLayout(base, target)),
+          () => assertLockedBlocksPreserved(base, withStoredLayout(base, target)),
           `${name} with locked=[${[...locked].join(',')}] was admitted but the merge changes it`
         ).not.toThrow()
       }
@@ -167,7 +167,7 @@ describe('findProtectedBlockRefusals', () => {
     target.blocks.b.name = 'renamed'
     const merged = preserveProtectedWorkflowBlocks(base, target)
     expect(merged.blocks.b.name).toBe('b')
-    expect(findProtectedBlockRefusals(base, target).map((d) => d.blockId)).toEqual(['b'])
+    expect(findLockedBlockRefusals(base, target).map((d) => d.blockId)).toEqual(['b'])
   })
 
   it('refuses an edge added into a locked block, which the engine would let through', () => {
@@ -175,9 +175,9 @@ describe('findProtectedBlockRefusals', () => {
     const target = structuredClone(base)
     target.blocks.n = block('n')
     target.edges.push(edge('n', 'b'))
-    const refusals = findProtectedBlockRefusals(base, target)
+    const refusals = findLockedBlockRefusals(base, target)
     expect(refusals).toEqual([
-      expect.objectContaining({ code: 'E_APPLY_PROTECTED_BLOCK', blockId: 'b' }),
+      expect.objectContaining({ code: 'E_APPLY_LOCKED_BLOCK', blockId: 'b' }),
     ])
   })
 
@@ -185,14 +185,14 @@ describe('findProtectedBlockRefusals', () => {
     const base = baseGraph(new Set(['a']))
     const target = structuredClone(base)
     target.edges = target.edges.filter((e) => e.id !== 'a->b')
-    expect(findProtectedBlockRefusals(base, target).map((d) => d.blockId)).toEqual(['a'])
+    expect(findLockedBlockRefusals(base, target).map((d) => d.blockId)).toEqual(['a'])
   })
 
   it('lets an edge to a locked block go when its unlocked source is deleted', () => {
     const base = baseGraph(new Set(['b']))
     const target = structuredClone(base)
     removeBlocks(target, ['a'])
-    expect(findProtectedBlockRefusals(base, target)).toEqual([])
+    expect(findLockedBlockRefusals(base, target)).toEqual([])
   })
 
   it('refuses locking a block or creating one locked', () => {
@@ -201,7 +201,7 @@ describe('findProtectedBlockRefusals', () => {
     target.blocks.a.locked = true
     target.blocks.n = { ...block('n'), locked: true }
     expect(
-      findProtectedBlockRefusals(base, target)
+      findLockedBlockRefusals(base, target)
         .map((d) => d.blockId)
         .sort()
     ).toEqual(['a', 'n'])
@@ -211,7 +211,7 @@ describe('findProtectedBlockRefusals', () => {
     const base = baseGraph(new Set(['a']))
     const target = structuredClone(base)
     target.blocks.a.locked = false
-    expect(findProtectedBlockRefusals(base, target)).toEqual([
+    expect(findLockedBlockRefusals(base, target)).toEqual([
       expect.objectContaining({ blockId: 'a', message: expect.stringContaining('lock') }),
     ])
   })
@@ -221,25 +221,25 @@ describe('findProtectedBlockRefusals', () => {
     const target = structuredClone(base)
     target.blocks.child.position = { x: 500, y: 500 }
     target.blocks.loop.data = { ...target.blocks.loop.data, width: 900 }
-    expect(findProtectedBlockRefusals(base, target)).toEqual([])
+    expect(findLockedBlockRefusals(base, target)).toEqual([])
   })
 })
 
-describe('assertProtectedBlocksPreserved', () => {
-  it('throws an internal error when the target changes a protected block', () => {
+describe('assertLockedBlocksPreserved', () => {
+  it('throws an internal error when the target changes a locked block', () => {
     const current = baseGraph(new Set(['a']))
     const target = structuredClone(current)
     target.blocks.a.subBlocks.prompt.value = 'changed'
-    expect(() => assertProtectedBlocksPreserved(current, target)).toThrow(
+    expect(() => assertLockedBlocksPreserved(current, target)).toThrow(
       expect.objectContaining({ code: 'internal' })
     )
   })
 
-  it('throws when the target drops an edge into a protected block', () => {
+  it('throws when the target drops an edge into a locked block', () => {
     const current = baseGraph(new Set(['b']))
     const target = structuredClone(current)
     target.edges = target.edges.filter((e) => e.id !== 'a->b')
-    expect(() => assertProtectedBlocksPreserved(current, target)).toThrow()
+    expect(() => assertLockedBlocksPreserved(current, target)).toThrow()
   })
 
   it('accepts a target whose unlocked blocks omit the lock flag', () => {
@@ -247,6 +247,6 @@ describe('assertProtectedBlocksPreserved', () => {
     const target = structuredClone(current)
     target.blocks.a.subBlocks.prompt.value = 'changed'
     target.blocks.b = omit(target.blocks.b, ['locked'])
-    expect(() => assertProtectedBlocksPreserved(current, target)).not.toThrow()
+    expect(() => assertLockedBlocksPreserved(current, target)).not.toThrow()
   })
 })

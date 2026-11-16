@@ -48,7 +48,7 @@ export const SKIP_TYPE_APPLY_CODES = {
   invalid_block_type: 'E_APPLY_INVALID_BLOCK_TYPE',
   block_not_allowed: 'E_APPLY_BLOCK_NOT_ALLOWED',
   model_not_allowed: 'E_APPLY_MODEL_NOT_ALLOWED',
-  block_locked: 'E_APPLY_BLOCK_LOCKED',
+  block_locked: 'E_APPLY_LOCKED_BLOCK',
   tool_not_allowed: 'E_APPLY_TOOL_NOT_ALLOWED',
   invalid_edge_source: 'E_APPLY_INVALID_EDGE_SOURCE',
   invalid_edge_scope: 'E_APPLY_INVALID_EDGE_SCOPE',
@@ -300,7 +300,7 @@ function sandboxChanged(entry: GatedBlock): boolean {
  * refuse the whole apply; `W_APPLY_HOSTED_KEY_DROPPED` names a platform-managed key the use case
  * must leave unset, and `W_APPLY_TYPE_CHANGED` a block that keeps its id under a new type.
  *
- * Protected blocks are refused separately, by `findProtectedBlockRefusals`.
+ * Locked blocks are refused separately, by `findLockedBlockRefusals`.
  */
 export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGateDiagnostic[]> {
   const { base, target, permissionConfig, subjectUserId, workspaceId, isCopilot } = args

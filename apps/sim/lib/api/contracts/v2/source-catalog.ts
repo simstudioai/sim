@@ -4,8 +4,9 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 
 /**
- * The workflow-SDK block catalog: one content-hashed JSON document the compiler, printer, and
- * type generator read instead of the block, trigger, and tool registries (build-spec decision 14).
+ * The source catalog, the workflow-SDK block catalog: one content-hashed JSON document the
+ * compiler, printer, and type generator read instead of the block, trigger, and tool registries
+ * (build-spec decision 14).
  *
  * The response is the catalog's core shard (`BlockCatalog` in `@sim/workflow-code`, which owns
  * the shape; this schema mirrors it field for field, and the registry-wide catalog test parses
@@ -22,23 +23,23 @@ import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
  * per-block accessors) from `@sim/workflow-code` rather than walking these references themselves.
  */
 
-const v2BlockCatalogQuerySchema = z
+const v2SourceCatalogQuerySchema = z
   .object({
     workflowId: workflowIdSchema
       .optional()
       .describe(
-        'Return the compile catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`.'
+        'Return the source catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`.'
       ),
   })
   .strict()
 
-const v2BlockCatalogParamsSchema = z.object({
+const v2SourceCatalogParamsSchema = z.object({
   workspaceId: workspaceIdSchema.describe(
     'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains.'
   ),
 })
 
-const v2BlockCatalogHeadersSchema = z.object({
+const v2SourceCatalogHeadersSchema = z.object({
   'if-none-match': z
     .string()
     .max(1024, 'if-none-match must be at most 1024 characters')
@@ -407,7 +408,7 @@ const catalogBuilderSchema = z
   })
   .describe('One SDK builder method.')
 
-export const v2BlockCatalogSchema = z
+export const v2SourceCatalogSchema = z
   .object({
     catalogVersion: z.literal(1).describe('Catalog format version.'),
     hash: z.string().describe('SHA-256 of the catalog content; the response `ETag`.'),
@@ -438,13 +439,13 @@ export const v2BlockCatalogSchema = z
       .optional()
       .describe('Present when the catalog includes an organization’s custom blocks.'),
   })
-  .describe('Block catalog core shard.')
+  .describe('Source catalog core shard.')
 
-export const v2GetBlockCatalogContract = defineRouteContract({
+export const v2GetSourceCatalogContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workspaces/[workspaceId]/block-catalog',
-  params: v2BlockCatalogParamsSchema,
-  query: v2BlockCatalogQuerySchema,
-  headers: v2BlockCatalogHeadersSchema,
-  response: { mode: 'json', schema: v2DataResponse(v2BlockCatalogSchema) },
+  path: '/api/v2/workspaces/[workspaceId]/workflows/source/catalog',
+  params: v2SourceCatalogParamsSchema,
+  query: v2SourceCatalogQuerySchema,
+  headers: v2SourceCatalogHeadersSchema,
+  response: { mode: 'json', schema: v2DataResponse(v2SourceCatalogSchema) },
 })

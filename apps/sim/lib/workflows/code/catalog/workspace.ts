@@ -11,10 +11,10 @@ import type { BlockConfig } from '@/blocks/types'
 import { getToolMetadata } from '@/tools/metadata'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 
-interface CodeCatalogScope {
+interface SourceCatalogScope {
   gate: CatalogGate
   organizationId: string | null
-  /** Block types stored in the workflow, for the per-workflow compile catalog (s4 step 2). */
+  /** Block types stored in the workflow, for the per-workflow source catalog (s4 step 2). */
   storedTypes?: readonly string[]
 }
 
@@ -69,7 +69,7 @@ function catalogCacheKey(
 }
 
 /**
- * The workspace catalog, or with `storedTypes` the per-workflow compile catalog: the blocks this
+ * The workspace catalog, or with `storedTypes` the per-workflow source catalog: the blocks this
  * caller may place, sunset blocks included (existing placements must still compile), plus every
  * type already stored in the workflow that the caller could not place, marked `addable: false`.
  *
@@ -80,7 +80,7 @@ function catalogCacheKey(
  * Served from a process cache keyed by the content the build reads; callers share the result and
  * must not mutate it.
  */
-export function buildCodeCatalog(scope: CodeCatalogScope): CatalogBuildResult {
+export function buildSourceCatalog(scope: SourceCatalogScope): CatalogBuildResult {
   const registry = getBlockRegistry()
   const included = new Map<string, BlockConfig>()
   for (const block of getAllBlocks()) {

@@ -1,5 +1,5 @@
 /**
- * Real PostgreSQL coverage for `applyWorkflowSource`: source read with `getWorkflowSource`,
+ * Real PostgreSQL coverage for `applyWorkflowSource`: source read with `readWorkflowSource`,
  * edited as text, and written back. Each check reads the stored rows directly, so "nothing was
  * written" means the rows and `updated_at` are byte-identical, not that the use case said so.
  *
@@ -19,7 +19,7 @@ import {
   webhook,
   workflow,
   workflowBlocks,
-  workflowCodeMeta,
+  workflowSourceMeta,
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
@@ -43,7 +43,7 @@ import {
   type ApplyWorkflowSourceInput,
   applyWorkflowSource,
 } from '@/lib/workflows/application/apply-workflow-source'
-import { getWorkflowSource } from '@/lib/workflows/application/get-workflow-source'
+import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 
@@ -132,16 +132,16 @@ async function seedWorkflow(): Promise<Seeded> {
   return { workflowId, startId, scoreId, edgeId, variableId }
 }
 
-type GetWorkflowSourceResult = Awaited<ReturnType<typeof getWorkflowSource.execute>>
+type ReadWorkflowSourceResult = Awaited<ReturnType<typeof readWorkflowSource.execute>>
 
-function getSource(workflowId: string): Promise<GetWorkflowSourceResult> {
+function getSource(workflowId: string): Promise<ReadWorkflowSourceResult> {
   return withPermissionGroupScope(() =>
-    getWorkflowSource.execute({ principal, input: { workflowId } })
+    readWorkflowSource.execute({ principal, input: { workflowId } })
   )
 }
 
 function apply(
-  source: GetWorkflowSourceResult,
+  source: ReadWorkflowSourceResult,
   files: Record<string, string>,
   extra: Partial<ApplyWorkflowSourceInput> = {}
 ) {
@@ -152,8 +152,7 @@ function apply(
         workflowId: source.workflowId,
         files,
         lock: source.lock,
-        lockBase: source.lockBase,
-        baseFingerprint: source.fingerprint,
+        base: source.base,
         ...extra,
       },
     })
@@ -269,7 +268,7 @@ check('get → apply unchanged is a no-op that writes, audits and notifies nothi
 
   expect(result.applied).toBe(false)
   expect(result.diff.noop).toBe(true)
-  expect(result.newFingerprint).toBe(source.fingerprint)
+  expect(result.fingerprint).toBe(source.fingerprint)
   expect(await snapshot(seeded.workflowId)).toEqual(before)
   expect(await settledAuditRows(seeded.workflowId, 0)).toHaveLength(0)
   expect(notifiedFor(seeded.workflowId)).toBe(0)
@@ -313,7 +312,7 @@ check('a one-field edit changes exactly that stored field and keeps every id', a
   )
 
   const reread = await getSource(seeded.workflowId)
-  expect(reread.fingerprint).toBe(result.newFingerprint)
+  expect(reread.fingerprint).toBe(result.fingerprint)
   expect(await settledAuditRows(seeded.workflowId, 1)).toHaveLength(1)
   expect(notifiedFor(seeded.workflowId)).toBe(1)
 })
@@ -364,11 +363,11 @@ check('editing a locked block is refused with diagnostics and writes nothing', a
 
   const error = await expectRejected(
     apply(source, edit(source.files, SCORE_CODE, 'return 11')),
-    'E_APPLY_PROTECTED_BLOCK'
+    'E_APPLY_LOCKED_BLOCK'
   )
 
   expect(error.code).toBe('validation')
-  expect(error.diagnostics.find((d) => d.code === 'E_APPLY_PROTECTED_BLOCK')?.blockId).toBe(
+  expect(error.diagnostics.find((d) => d.code === 'E_APPLY_LOCKED_BLOCK')?.blockId).toBe(
     seeded.scoreId
   )
   expect(await snapshot(seeded.workflowId)).toEqual(before)
@@ -421,28 +420,28 @@ check('a rename keeps the block id, so a webhook row bound to it stays valid', a
 })
 
 check(
-  'an apply stores its bindings, order and comments in code_meta, and the next get prints them',
+  'an apply stores its idents, order and comments in source meta, and the next get prints them',
   async () => {
     const seeded = await seedWorkflow()
     const source = await getSource(seeded.workflowId)
-    const scoreBinding = source.lock.blocks.score.binding
+    const scoreIdent = source.lock.blocks.score.ident
     const renamed = source.files['workflow.ts']
-      .replace(new RegExp(`(?<![\\w/])${scoreBinding}(?![\\w]|\\.js)`, 'g'), 'scoring')
+      .replace(new RegExp(`(?<![\\w/])${scoreIdent}(?![\\w]|\\.js)`, 'g'), 'scoring')
       .replace(/(\n\s*)const scoring = /, '$1// kept across reads$1const scoring = ')
 
     const result = await apply(source, { ...source.files, 'workflow.ts': renamed })
 
-    expect(result.lock.blocks.score.binding).toBe('scoring')
+    expect(result.lock.blocks.score.ident).toBe('scoring')
     const [row] = await db
-      .select({ meta: workflowCodeMeta.meta })
-      .from(workflowCodeMeta)
-      .where(eq(workflowCodeMeta.workflowId, seeded.workflowId))
-    expect(row.meta).toMatchObject({ v: 1, bindings: { [seeded.scoreId]: 'scoring' } })
+      .select({ meta: workflowSourceMeta.meta })
+      .from(workflowSourceMeta)
+      .where(eq(workflowSourceMeta.workflowId, seeded.workflowId))
+    expect(row.meta).toMatchObject({ version: 1, idents: { [seeded.scoreId]: 'scoring' } })
     const again = await getSource(seeded.workflowId)
-    expect(again.lock.blocks.score.binding).toBe('scoring')
+    expect(again.lock.blocks.score.ident).toBe('scoring')
     expect(again.files['workflow.ts']).toContain('const scoring = ')
     expect(again.files['workflow.ts']).toContain('// kept across reads')
-    expect(again.fingerprint).toBe(result.newFingerprint)
+    expect(again.fingerprint).toBe(result.fingerprint)
   }
 )
 
@@ -458,7 +457,7 @@ check('a workspace API key is refused before anything is read', async () => {
           workflowId: seeded.workflowId,
           files: source.files,
           lock: source.lock,
-          baseFingerprint: source.fingerprint,
+          base: source.base,
         },
       })
     )
@@ -477,7 +476,7 @@ check('a dry run reports the outcome and never writes', async () => {
   expect(result.dryRun).toBe(true)
   expect(result.applied).toBe(false)
   expect(result.diff.blocks.modified.map((block) => block.id)).toEqual([seeded.scoreId])
-  expect(result.newFingerprint).not.toBe(source.fingerprint)
+  expect(result.fingerprint).not.toBe(source.fingerprint)
   expect(await snapshot(seeded.workflowId)).toEqual(before)
   expect(await settledAuditRows(seeded.workflowId, 0)).toHaveLength(0)
   expect(notifiedFor(seeded.workflowId)).toBe(0)

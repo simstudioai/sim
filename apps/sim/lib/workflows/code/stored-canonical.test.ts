@@ -95,7 +95,7 @@ const branching = state([
 ])
 
 function lockOf(blocks: WorkflowLockV1['blocks']): WorkflowLockV1 {
-  return { lockVersion: 1, blocks, variables: {} }
+  return { version: 1, blocks, variables: {} }
 }
 
 describe('lockKeepsCanonical', () => {
@@ -111,12 +111,12 @@ describe('lockKeepsCanonical', () => {
 
   const cases: Array<[string, WorkflowLockV1 | null]> = [
     ['no lock', null],
-    ['a lock without branches', lockOf({ gate: { id: 'cond', binding: 'gate', order: 0 } })],
+    ['a lock without branches', lockOf({ gate: { id: 'cond', ident: 'gate', order: 0 } })],
     [
       'every row keyed as the lockless pass keys it',
       lockOf({
-        gate: { id: 'cond', binding: 'gate', order: 0, branches: gateBranches },
-        route: { id: 'route', binding: 'route', order: 1, branches: routeBranches },
+        gate: { id: 'cond', ident: 'gate', order: 0, branches: gateBranches },
+        route: { id: 'route', ident: 'route', order: 1, branches: routeBranches },
       }),
     ],
     [
@@ -124,7 +124,7 @@ describe('lockKeepsCanonical', () => {
       lockOf({
         gate: {
           id: 'cond',
-          binding: 'gate',
+          ident: 'gate',
           order: 0,
           branches: { [gateKeyOf('cond-c')]: 'cond-c' },
         },
@@ -133,14 +133,14 @@ describe('lockKeepsCanonical', () => {
     [
       'keys for rows and blocks the graph does not have',
       lockOf({
-        gate: { id: 'cond', binding: 'gate', order: 0, branches: { stale: 'cond-gone' } },
-        ghost: { id: 'ghost', binding: 'ghost', order: 1, branches: { if: 'ghost-if' } },
+        gate: { id: 'cond', ident: 'gate', order: 0, branches: { stale: 'cond-gone' } },
+        ghost: { id: 'ghost', ident: 'ghost', order: 1, branches: { if: 'ghost-if' } },
       }),
     ],
     [
       'a row renamed by the lock',
       lockOf({
-        gate: { id: 'cond', binding: 'gate', order: 0, branches: { highValue: 'cond-a' } },
+        gate: { id: 'cond', ident: 'gate', order: 0, branches: { highValue: 'cond-a' } },
       }),
     ],
     [
@@ -148,7 +148,7 @@ describe('lockKeepsCanonical', () => {
       lockOf({
         gate: {
           id: 'cond',
-          binding: 'gate',
+          ident: 'gate',
           order: 0,
           branches: { [gateKeyOf('cond-a')]: 'cond-b', [gateKeyOf('cond-b')]: 'cond-a' },
         },
@@ -157,7 +157,7 @@ describe('lockKeepsCanonical', () => {
     [
       'a router row given another key',
       lockOf({
-        route: { id: 'route', binding: 'route', order: 1, branches: { sales: 'route-b' } },
+        route: { id: 'route', ident: 'route', order: 1, branches: { sales: 'route-b' } },
       }),
     ],
   ]
@@ -178,10 +178,10 @@ describe('lockKeepsCanonical', () => {
   it('returns the lockless result only when the lock changes nothing', () => {
     const options = { catalog, meta, resources: { toKey: () => null, toId: () => null } }
     const agreeing = lockOf({
-      gate: { id: 'cond', binding: 'gate', order: 0, branches: gateBranches },
+      gate: { id: 'cond', ident: 'gate', order: 0, branches: gateBranches },
     })
     const renaming = lockOf({
-      gate: { id: 'cond', binding: 'gate', order: 0, branches: { highValue: 'cond-a' } },
+      gate: { id: 'cond', ident: 'gate', order: 0, branches: { highValue: 'cond-a' } },
     })
     expect(canonicalizeUnderLock(branching, options, lockless, agreeing)).toBe(lockless)
     const renamed = canonicalizeUnderLock(branching, options, lockless, renaming)

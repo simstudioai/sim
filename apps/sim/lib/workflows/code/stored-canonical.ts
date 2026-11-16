@@ -7,7 +7,7 @@
  * - Resource keys. Canonicalize asks the resolver only about the resources the graph references,
  *   so a resolver that has resolved a superset of those references gives the same result as one
  *   that resolved exactly them. The references a workflow made last time are remembered, resolved
- *   up front through the workspace's bindings, and checked after the pass; only a workflow that
+ *   up front through the workspace's resource keys, and checked after the pass; only a workflow that
  *   gained a reference pays a second pass.
  * - The lock. Canonicalize reads a lock only for branch keys, by row id
  *   (`CanonicalizeOptions.lock`: it never changes block keys). When every key the lock supplies
@@ -29,7 +29,7 @@ import { loadResourceKeyResolver, type ResourceReferences } from '@/lib/workflow
 
 /**
  * Resources each workflow's stored graph referenced on its last canonicalize: a hint for which
- * bindings to resolve before the pass. A stale entry costs at most resolving a resource no longer
+ * resource keys to resolve before the pass. A stale entry costs at most resolving a resource no longer
  * referenced (idempotent: it reads or allocates that resource's own key) or one extra pass (a
  * resource newly referenced), never a wrong result. Entries are a handful of ids, so the ceiling
  * is a memory backstop.
@@ -49,7 +49,7 @@ interface StoredCanonicalInput {
 export interface StoredCanonical {
   /** The lockless canonical model of the stored graph, resource ids lifted to keys. */
   canonical: CanonicalizeResult
-  /** Answers every reference in `loaded` from this workspace's bindings. */
+  /** Answers every reference in `loaded` from this workspace's resource keys. */
   resources: ResourceKeyResolver
   /** The references `resources` has resolved: every one the stored graph makes, maybe more. */
   loaded: ResourceReferences
@@ -70,7 +70,7 @@ function unionReferences(base: ResourceReferences, extra: ResourceReferences): R
  * Canonicalizes the stored graph with its resource keys, normally in one pass. The result equals
  * a recording pass followed by a pass over a resolver for exactly the recorded references. This is
  * the single entry point for canonicalizing a stored workflow with resources: keys come only from
- * the workspace's persisted bindings (`resolveKeys` / `resolveIds`), allocated on first reference.
+ * the workspace's persisted resource keys (`resolveKeys` / `resolveIds`), allocated on first reference.
  */
 export async function canonicalizeStored(input: StoredCanonicalInput): Promise<StoredCanonical> {
   const { workflowId, workspaceId, state, meta, catalog, createdBy } = input

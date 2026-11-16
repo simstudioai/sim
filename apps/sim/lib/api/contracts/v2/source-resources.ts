@@ -3,7 +3,7 @@ import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 
-const v2ResourceManifestParamsSchema = z
+const v2SourceResourcesParamsSchema = z
   .object({ workspaceId: workspaceIdSchema.describe('Workspace whose resources to list.') })
   .strict()
 
@@ -17,7 +17,7 @@ const manifestResourceSchema = z.object({
   name: z.string().describe('Current display name.'),
 })
 
-const resourceManifestSchema = z
+const sourceResourcesSchema = z
   .object({
     workspaceId: z.string().describe('Workspace id.'),
     tables: z
@@ -43,19 +43,19 @@ const resourceManifestSchema = z
       )
       .describe('Tables, oldest first.'),
     knowledgeBases: z
-      .array(manifestResourceSchema.describe('A knowledge base: `kb(key)`.'))
+      .array(manifestResourceSchema.describe('A knowledge base: `knowledgeBase(key)`.'))
       .describe('Knowledge bases, oldest first.'),
-    bindings: z
+    credentials: z
       .array(
         manifestResourceSchema
           .extend({
-            service: z
+            provider: z
               .string()
               .describe('The provider the credential is for, e.g. `slack` or `google-email`.'),
           })
-          .describe('A saved credential: `binding(key)`.')
+          .describe('A saved credential: `credential(key)`.')
       )
-      .describe('Credential bindings, oldest first. Secrets are listed under `env`.'),
+      .describe('Saved credentials, oldest first. Secrets are listed under `env`.'),
     workflows: z
       .array(
         manifestResourceSchema
@@ -69,7 +69,7 @@ const resourceManifestSchema = z
               )
               .describe('Inputs the workflow start block declares.'),
           })
-          .describe('A workflow: `workflow(key)`.')
+          .describe('A workflow: `childWorkflow(key)`.')
       )
       .describe('Workflows, oldest first.'),
     env: z
@@ -85,11 +85,11 @@ const resourceManifestSchema = z
   })
   .describe('The workspace resources workflow source can name, by key.')
 
-/** `GET /api/v2/workspaces/{workspaceId}/resource-manifest`: resources workflow source can name. */
-export const v2GetResourceManifestContract = defineRouteContract({
+/** `GET /api/v2/workspaces/{workspaceId}/workflows/source/resources`: resources source can name. */
+export const v2GetSourceResourcesContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/workspaces/[workspaceId]/resource-manifest',
-  params: v2ResourceManifestParamsSchema,
+  path: '/api/v2/workspaces/[workspaceId]/workflows/source/resources',
+  params: v2SourceResourcesParamsSchema,
   query: noInputSchema,
-  response: { mode: 'json', schema: v2DataResponse(resourceManifestSchema) },
+  response: { mode: 'json', schema: v2DataResponse(sourceResourcesSchema) },
 })

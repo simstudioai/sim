@@ -4,7 +4,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2DataResponse, v2FolderPathInputSchema } from '@/lib/api/contracts/v2/shared'
 import { v2WorkflowIdParamsSchema } from '@/lib/api/contracts/v2/workflows'
 import {
-  lockBaseSchema,
+  sourceBaseSchema,
   workflowLockSchema,
   workflowSourceQuerySchema,
   workflowSourceSchema,
@@ -79,23 +79,16 @@ const applyWorkflowSourceBodySchema = z
   .object({
     files: sourceFilesSchema,
     lock: workflowLockSchema,
-    lockBase: lockBaseSchema.optional(),
-    baseFingerprint: z
-      .string()
-      .min(1, 'baseFingerprint cannot be empty')
-      .max(256, 'baseFingerprint is too long')
-      .describe(
-        'The `fingerprint` the source was read at. The apply answers `409` when the saved draft no longer matches it.'
-      ),
+    base: sourceBaseSchema.describe(
+      'Where and when the source was read (`.sim/base.json`). The apply answers `409` when the saved draft no longer matches `base.fingerprint`.'
+    ),
     provenance: provenanceSchema,
   })
   .strict()
 
 const sourceDiagnosticSchema = z
   .object({
-    code: z
-      .string()
-      .describe('Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_PROTECTED_BLOCK`.'),
+    code: z.string().describe('Diagnostic code, e.g. `E_UNKNOWN_PARAM` or `E_APPLY_LOCKED_BLOCK`.'),
     severity: z.enum(['error', 'warning', 'info']).describe('Diagnostic severity.'),
     message: z.string().describe('What was found.'),
     hint: z.string().optional().describe('How to address it.'),
@@ -179,22 +172,22 @@ const applyWorkflowSourceDataSchema = z
     diagnostics: z
       .array(sourceDiagnosticSchema)
       .describe('Warnings, and on a dry run every error a commit would refuse.'),
-    newFingerprint: z
+    fingerprint: z
       .string()
       .describe(
-        'Fingerprint of the saved (or, on a dry run, would-be) draft: the next `baseFingerprint`.'
+        'Fingerprint of the saved (or, on a dry run, would-be) draft: the next `base.fingerprint`.'
       ),
     files: z
       .record(z.string(), z.string())
       .describe('The source re-printed from what was saved, including any normalized values.'),
     lock: workflowLockSchema,
-    lockBase: lockBaseSchema,
+    base: sourceBaseSchema,
     mintedIds: z
       .record(z.string(), z.string())
       .describe(
         'Block key → id for new blocks whose id was minted rather than taken from the lock.'
       ),
-    warnings: z.array(z.string()).describe('Non-fatal notes about the write.'),
+    notes: z.array(z.string()).describe('Non-fatal notes about the write.'),
     needsRedeployment: z
       .boolean()
       .describe('Whether the draft now differs from the live deployment; apply never deploys.'),

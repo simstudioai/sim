@@ -5,12 +5,12 @@ import {
   type ResourceKeyRef,
   resolveIds,
   resolveKeys,
-} from '@/lib/workspaces/resource-bindings'
+} from '@/lib/workspaces/resource-keys'
 
 /**
- * Resource keys for workflow source: `table('leads')`, `kb('docs')`, `binding('support-slack')`.
+ * Resource keys for workflow source: `table('leads')`, `knowledgeBase('docs')`, `credential('support-slack')`.
  *
- * Keys come only from the workspace's persisted bindings (`@/lib/workspaces/resource-bindings`),
+ * Keys come only from the workspace's persisted bindings (`@/lib/workspaces/resource-keys`),
  * never from a resource's current name: a rename keeps the key, and deleting a resource leaves its
  * key bound to the dead id, so the key is unresolved rather than re-pointed. A stored id that is
  * deleted, archived, of a kind with no workspace table, or from another workspace resolves to

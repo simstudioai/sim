@@ -13,7 +13,7 @@
     "getWorkflowSource",
     "applyWorkflowSource",
     "createWorkflowFromSource",
-    "getResourceManifest",
+    "getSourceResources",
     "replaceWorkflowState",
     "applyWorkflowOperations",
     "applyWorkflowVariables",

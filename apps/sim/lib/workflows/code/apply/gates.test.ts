@@ -24,7 +24,7 @@ import {
 } from '@/lib/permission-groups/fields'
 import { gateSourceDiff, SKIP_TYPE_APPLY_CODES } from '@/lib/workflows/code/apply/gates'
 import type { SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
-import { findProtectedBlockRefusals } from '@/lib/workflows/code/apply/protected'
+import { findLockedBlockRefusals } from '@/lib/workflows/code/apply/locked'
 import { decideBlockEnablement } from '@/lib/workflows/editing/block-enablement'
 import { applyOperationsToWorkflowState } from '@/lib/workflows/editing/engine'
 import { operationsReferenceSimSandbox } from '@/lib/workflows/editing/sandbox-projection'
@@ -240,7 +240,7 @@ async function engineRefusals(testCase: ParityCase): Promise<string[]> {
 
 const APPLY_CODE_CATEGORY: Record<string, string> = {
   ...Object.fromEntries(Object.entries(SKIP_TYPE_APPLY_CODES).map(([skip, code]) => [code, skip])),
-  E_APPLY_PROTECTED_BLOCK: 'block_locked',
+  E_APPLY_LOCKED_BLOCK: 'block_locked',
   E_APPLY_CREDENTIAL_UNREACHABLE: 'credential',
   W_APPLY_HOSTED_KEY_DROPPED: 'hosted_key',
   E_APPLY_SANDBOX_PLAN_REQUIRED: 'sandbox_plan',
@@ -248,7 +248,7 @@ const APPLY_CODE_CATEGORY: Record<string, string> = {
 
 async function sourceRefusals(testCase: ParityCase): Promise<string[]> {
   const diagnostics = [
-    ...findProtectedBlockRefusals(testCase.base, testCase.target),
+    ...findLockedBlockRefusals(testCase.base, testCase.target),
     ...(await gateSourceDiff({
       base: testCase.base,
       target: testCase.target,

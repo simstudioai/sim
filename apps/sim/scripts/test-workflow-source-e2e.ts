@@ -11,7 +11,7 @@ import { type BlockCatalog, canonicalHash, canonicalize, compileWorkflow } from 
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
-import { v2GetBlockCatalogContract } from '@/lib/api/contracts/v2/block-catalog'
+import { v2GetSourceCatalogContract } from '@/lib/api/contracts/v2/source-catalog'
 import { v2GetWorkflowSourceContract } from '@/lib/api/contracts/v2/workflow-source'
 import {
   v2ApplyWorkflowOperationsContract,
@@ -150,10 +150,10 @@ async function readSource(query = ''): Promise<WorkflowSource> {
 }
 
 async function readCatalog(): Promise<BlockCatalog> {
-  const parsed = v2GetBlockCatalogContract.response.schema.parse(
+  const parsed = v2GetSourceCatalogContract.response.schema.parse(
     await call(
       'GET',
-      `/api/v2/workspaces/${workspaceId}/block-catalog?workflowId=${workflowId}`,
+      `/api/v2/workspaces/${workspaceId}/workflows/source/catalog?workflowId=${workflowId}`,
       { key: workspaceKey },
       200
     )
@@ -220,7 +220,7 @@ async function seed() {
   cookie = encodeURIComponent(`${sessionToken}.${await makeSignature(sessionToken, authSecret)}`)
 }
 
-/** Compiles printed files against the compile catalog; any error diagnostic fails. */
+/** Compiles printed files against the source catalog; any error diagnostic fails. */
 function compileSource(source: WorkflowSource, catalog: BlockCatalog) {
   const entryText = source.files['workflow.ts']
   assert(entryText, 'The source must include workflow.ts')
@@ -279,9 +279,9 @@ try {
     'a workspace API key reads source that compiles with zero errors to its canonical hash',
     async () => {
       const [source, catalog] = await Promise.all([readSource(), readCatalog()])
-      assert.equal(source.catalogVersion, catalog.hash)
-      assert.equal(source.lockBase.catalogHash, catalog.hash)
-      assert.equal(source.lockBase.baseFingerprint, source.fingerprint)
+      assert.equal(source.catalogHash, catalog.hash)
+      assert.equal(source.base.catalogHash, catalog.hash)
+      assert.equal(source.base.fingerprint, source.fingerprint)
       assert.match(source.fingerprint, /^sf1:[0-9a-f]{64}$/)
       assert(source.blockTypes.includes('function'), 'blockTypes lists the function block')
       assert.equal(source.lock.blocks.score?.id, scoreBlockId, 'The lock binds the key to its id')

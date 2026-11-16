@@ -13,15 +13,15 @@ const mocks = vi.hoisted(() => ({ read: vi.fn(), authorize: vi.fn() }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/workflows/code/resource-manifest', () => ({
-  readResourceManifest: {
-    operation: { id: 'workflows.code.resource_manifest.read' },
+vi.mock('@/lib/workflows/code/source-resources', () => ({
+  readSourceResources: {
+    operation: { id: 'workflows.source.resources.read' },
     authorize: mocks.authorize,
     execute: mocks.read,
   },
 }))
 
-import { GET } from '@/app/api/v2/workspaces/[workspaceId]/resource-manifest/route'
+import { GET } from '@/app/api/v2/workspaces/[workspaceId]/workflows/source/resources/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 
@@ -51,7 +51,7 @@ const manifest = {
     },
   ],
   knowledgeBases: [{ key: 'docs', id: 'kb-1', name: 'Docs' }],
-  bindings: [{ key: 'support-slack', id: 'cred-1', name: 'Support Slack', service: 'slack' }],
+  credentials: [{ key: 'support-slack', id: 'cred-1', name: 'Support Slack', provider: 'slack' }],
   workflows: [
     {
       key: 'assign-owner',
@@ -66,14 +66,14 @@ const manifest = {
 
 function request(query = '') {
   return new NextRequest(
-    `http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/resource-manifest${query}`,
+    `http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/resources${query}`,
     { headers: { 'x-api-key': 'key' } }
   )
 }
 
 const context = { params: Promise.resolve({ workspaceId: WORKSPACE_ID }) }
 
-describe('GET /api/v2/workspaces/{workspaceId}/resource-manifest', () => {
+describe('GET /api/v2/workspaces/{workspaceId}/workflows/source/resources', () => {
   beforeEach(() => {
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
@@ -84,10 +84,13 @@ describe('GET /api/v2/workspaces/{workspaceId}/resource-manifest', () => {
 
   it('answers HEAD after authorizing without reading, so a probe never allocates resource keys', async () => {
     const response = await GET(
-      new NextRequest(`http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/resource-manifest`, {
-        method: 'HEAD',
-        headers: { 'x-api-key': 'key' },
-      }),
+      new NextRequest(
+        `http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/resources`,
+        {
+          method: 'HEAD',
+          headers: { 'x-api-key': 'key' },
+        }
+      ),
       context
     )
 

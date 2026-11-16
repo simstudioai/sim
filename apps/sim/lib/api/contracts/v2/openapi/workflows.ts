@@ -5,7 +5,6 @@ import {
   v2ListChatDeploymentsContract,
   v2ReplaceWorkflowChatDeploymentContract,
 } from '@/lib/api/contracts/v2/chat-deployments'
-import { resourceManifestOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/resource-manifest'
 import {
   documentedSchema,
   ERROR_RESPONSES,
@@ -27,6 +26,7 @@ import {
   WORKSPACE_ERRORS,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
+import { sourceResourcesOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/source-resources'
 import { workflowSourceOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workflow-source'
 import { workspaceSyncOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-sync'
 import {
@@ -1817,7 +1817,7 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
   routes: [
     ...routes,
     ...workflowSourceOpenApiRoutes,
-    ...resourceManifestOpenApiRoutes,
+    ...sourceResourcesOpenApiRoutes,
     ...workspaceSyncOpenApiRoutes,
   ],
 })

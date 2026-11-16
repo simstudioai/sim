@@ -27,11 +27,11 @@ import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
-import { getWorkflowSource } from '@/lib/workflows/application/get-workflow-source'
+import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { WorkflowSourceRejectedError } from '@/lib/workflows/application/source-error'
 import { gateSourceDiff, SKIP_TYPE_APPLY_CODES } from '@/lib/workflows/code/apply/gates'
 import type { SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
-import { findProtectedBlockRefusals } from '@/lib/workflows/code/apply/protected'
+import { findLockedBlockRefusals } from '@/lib/workflows/code/apply/locked'
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { createMaterializeHooks } from '@/lib/workflows/code/materialize-hooks'
@@ -59,11 +59,11 @@ const checks: { name: string; status: string; durationMs: number; error?: string
 /** Gate and pipeline codes as the engine's skip vocabulary, as `gates.test.ts` reduces them. */
 const CATEGORY: Record<string, string> = {
   ...Object.fromEntries(Object.entries(SKIP_TYPE_APPLY_CODES).map(([skip, code]) => [code, skip])),
-  E_APPLY_PROTECTED_BLOCK: 'block_locked',
+  E_APPLY_LOCKED_BLOCK: 'block_locked',
   E_APPLY_CREDENTIAL_UNREACHABLE: 'credential',
   E_APPLY_SANDBOX_PLAN_REQUIRED: 'sandbox_plan',
   /** The pipeline's own placement refusal for a type the caller may keep but not add. */
-  E_TYPE_NOT_ADDABLE: 'block_not_allowed',
+  E_APPLY_TYPE_NOT_ADDABLE: 'block_not_allowed',
 }
 
 interface BlockOptions {
@@ -323,7 +323,7 @@ it.each(CASES)('$name', async (testCase) => {
 
     const direct = await withPermissionGroupScope(async () =>
       categories([
-        ...findProtectedBlockRefusals(base, target),
+        ...findLockedBlockRefusals(base, target),
         ...(await gateSourceDiff({
           base,
           target,
@@ -336,7 +336,7 @@ it.each(CASES)('$name', async (testCase) => {
     )
 
     const source = await withPermissionGroupScope(() =>
-      getWorkflowSource.execute({ principal, input: { workflowId } })
+      readWorkflowSource.execute({ principal, input: { workflowId } })
     )
     const { files, lock } = printTarget(target, name)
     const outcome = await withPermissionGroupScope(() =>
@@ -346,8 +346,7 @@ it.each(CASES)('$name', async (testCase) => {
           workflowId,
           files,
           lock,
-          lockBase: source.lockBase,
-          baseFingerprint: source.fingerprint,
+          base: source.base,
         },
       })
     ).then(

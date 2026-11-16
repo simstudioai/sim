@@ -3,11 +3,11 @@ import {
   RATE_LIMIT_HEADERS,
   RESOURCE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
-import { v2GetResourceManifestContract } from '@/lib/api/contracts/v2/resource-manifest'
+import { v2GetSourceResourcesContract } from '@/lib/api/contracts/v2/source-resources'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
-import { workflowCodeOperations } from '@/lib/workflows/code/operations'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 
-const RESOURCE_MANIFEST_EXAMPLE = {
+const SOURCE_RESOURCES_EXAMPLE = {
   workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
   tables: [
     {
@@ -21,8 +21,8 @@ const RESOURCE_MANIFEST_EXAMPLE = {
     },
   ],
   knowledgeBases: [{ key: 'docs', id: 'kb_93a1e7c2', name: 'Docs' }],
-  bindings: [
-    { key: 'support-slack', id: 'cred_51d0b8f4', name: 'Support Slack', service: 'slack' },
+  credentials: [
+    { key: 'support-slack', id: 'cred_51d0b8f4', name: 'Support Slack', provider: 'slack' },
   ],
   workflows: [
     {
@@ -36,33 +36,36 @@ const RESOURCE_MANIFEST_EXAMPLE = {
   truncated: false,
 }
 
-export const resourceManifestOpenApiRoutes = [
+export const sourceResourcesOpenApiRoutes = [
   defineOpenApiRoute(
-    v2GetResourceManifestContract,
+    v2GetSourceResourcesContract,
     {
-      applicationOperation: workflowCodeOperations.readResourceManifest,
-      operationId: 'getResourceManifest',
-      summary: 'Get resource manifest',
+      applicationOperation: workflowOperations.readSourceResources,
+      operationId: 'getSourceResources',
+      summary: 'Get source resources',
       description:
         'List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while code-first workflows are not enabled.',
       tags: ['Workflows'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'The resource manifest.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description: 'The resources workflow source can name.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
-      query: v2GetResourceManifestContract.query,
+      query: v2GetSourceResourcesContract.query,
       params: documentedSchema(
-        v2GetResourceManifestContract.params,
-        'GetResourceManifestParams',
-        'Get resource manifest path parameters',
+        v2GetSourceResourcesContract.params,
+        'GetSourceResourcesParams',
+        'Get source resources path parameters',
         'Workspace whose resources to list.'
       ),
       response: documentedSchema(
-        v2GetResourceManifestContract.response.schema,
-        'GetResourceManifestResponse',
-        'Get resource manifest response',
+        v2GetSourceResourcesContract.response.schema,
+        'GetSourceResourcesResponse',
+        'Get source resources response',
         'The workspace resources workflow source can name.',
-        [{ data: RESOURCE_MANIFEST_EXAMPLE }]
+        [{ data: SOURCE_RESOURCES_EXAMPLE }]
       ),
     }
   ),

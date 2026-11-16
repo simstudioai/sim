@@ -929,10 +929,6 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/access-requests/discovery/route'),
   },
   {
-    pattern: '/api/v2/workspaces/{workspaceId}/block-catalog',
-    load: () => import('@/app/api/v2/workspaces/[workspaceId]/block-catalog/route'),
-  },
-  {
     pattern: '/api/v2/workspaces/{workspaceId}/fork',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/route'),
   },
@@ -1013,11 +1009,15 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/permission-config/route'),
   },
   {
-    pattern: '/api/v2/workspaces/{workspaceId}/resource-manifest',
-    load: () => import('@/app/api/v2/workspaces/[workspaceId]/resource-manifest/route'),
-  },
-  {
     pattern: '/api/v2/workspaces/{workspaceId}/workflows/source',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/workflows/source/catalog',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/catalog/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/workflows/source/resources',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/resources/route'),
   },
 ]

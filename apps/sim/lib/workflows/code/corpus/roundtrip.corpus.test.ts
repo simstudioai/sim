@@ -147,7 +147,7 @@ function printText(e: ResolvedEngines, workflow: CanonicalWorkflow, mode: 'inlin
 
 /**
  * The keys the stored workflow binds to ids, as the lock (or the lock assembled from
- * `code_meta`) carries them. They let a printed `meta.key` keep a legacy collision key or a
+ * source meta) carries them. They let a printed `meta.key` keep a legacy collision key or a
  * reserved name through compile.
  */
 function storedKeys(workflow: CanonicalWorkflow): ReadonlySet<string> {

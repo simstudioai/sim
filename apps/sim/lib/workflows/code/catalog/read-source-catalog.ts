@@ -10,13 +10,13 @@ import {
 } from '@/lib/catalog/application/context'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { workflowCodeCatalogOperations } from '@/lib/workflows/code/catalog/operations'
-import { buildCodeCatalog } from '@/lib/workflows/code/catalog/workspace-catalog'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 
 interface ReadBlockCatalogInput {
   workspaceId: string
-  /** Adds this workflow's stored block types (the per-workflow compile catalog, s4 §2). */
+  /** Adds this workflow's stored block types (the per-workflow source catalog, s4 §2). */
   workflowId?: string
 }
 
@@ -47,11 +47,11 @@ async function loadStoredBlockTypes(workspaceId: string, workflowId: string): Pr
 /**
  * The block catalog the workflow compiler, printer and SDK type generator read: the blocks this
  * caller may place in the workspace (the same allowlist, preview reveals and custom blocks as the
- * block list), or with `workflowId` the compile catalog for that workflow. Not audited: reading a
+ * block list), or with `workflowId` the source catalog for that workflow. Not audited: reading a
  * catalog is not a semantic event, matching the other catalog reads.
  */
-export const readWorkflowCodeCatalog = defineAuthorizedWorkspaceUseCase({
-  operation: workflowCodeCatalogOperations.read,
+export const readSourceCatalog = defineAuthorizedWorkspaceUseCase({
+  operation: workflowOperations.readSourceCatalog,
   resolveContext: ({ input }: { input: ReadBlockCatalogInput }) =>
     loadCatalogWorkspaceContext(input.workspaceId),
   authorizationOptions: { delegation: catalogDelegationPolicy },
@@ -62,7 +62,7 @@ export const readWorkflowCodeCatalog = defineAuthorizedWorkspaceUseCase({
       input.workflowId ? loadStoredBlockTypes(context.workspaceId, input.workflowId) : undefined,
     ])
     return withCatalogBlockScope(gate, async () => {
-      const { catalog } = buildCodeCatalog({
+      const { catalog } = buildSourceCatalog({
         gate,
         organizationId: context.workspaceOrganizationId,
         ...(storedTypes ? { storedTypes } : {}),

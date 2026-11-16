@@ -12,14 +12,14 @@ const mocks = vi.hoisted(() => ({ read: vi.fn() }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/workflows/code/catalog/read-block-catalog', () => ({
-  readWorkflowCodeCatalog: {
-    operation: { id: 'workflows.code.catalog.read' },
+vi.mock('@/lib/workflows/code/catalog/read-source-catalog', () => ({
+  readSourceCatalog: {
+    operation: { id: 'workflows.source.catalog.read' },
     execute: mocks.read,
   },
 }))
 
-import { GET } from '@/app/api/v2/workspaces/[workspaceId]/block-catalog/route'
+import { GET } from '@/app/api/v2/workspaces/[workspaceId]/workflows/source/catalog/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 const HASH = 'a'.repeat(64)
@@ -68,14 +68,14 @@ const catalog = {
 
 function request(query = '', headers: Record<string, string> = {}) {
   return new NextRequest(
-    `http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/block-catalog${query}`,
+    `http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/workflows/source/catalog${query}`,
     { headers: { 'x-api-key': 'key', ...headers } }
   )
 }
 
 const context = { params: Promise.resolve({ workspaceId: WORKSPACE_ID }) }
 
-describe('GET /api/v2/workspaces/{workspaceId}/block-catalog', () => {
+describe('GET /api/v2/workspaces/{workspaceId}/workflows/source/catalog', () => {
   beforeEach(() => {
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)

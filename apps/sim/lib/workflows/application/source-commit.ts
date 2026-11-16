@@ -3,7 +3,10 @@ import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import type { BlockCatalog, SourceFingerprint } from '@sim/workflow-code'
-import { readWorkflowCodeMeta, writeWorkflowCodeMeta } from '@sim/workflow-persistence/code-meta'
+import {
+  readWorkflowSourceMeta,
+  writeWorkflowSourceMeta,
+} from '@sim/workflow-persistence/source-meta'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit'
@@ -12,9 +15,9 @@ import type { DbOrTx } from '@/lib/db/types'
 import { WorkflowSourceStaleError } from '@/lib/workflows/application/source-error'
 import type { SourcePlan } from '@/lib/workflows/application/source-evaluate'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
+import { assertLockedBlocksPreserved } from '@/lib/workflows/code/apply/locked'
 import { fingerprintOf, type StoredSource } from '@/lib/workflows/code/apply/print'
-import { assertProtectedBlocksPreserved } from '@/lib/workflows/code/apply/protected'
-import { mergeCodeMetaFromLock } from '@/lib/workflows/code/source-lock'
+import { mergeSourceMetaFromLock } from '@/lib/workflows/code/source-lock'
 import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration'
 import { assertNoWithheldBlockType } from '@/lib/workflows/persistence/block-access-guard'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
@@ -124,8 +127,8 @@ function mergeCurrentLayout(
 /**
  * Writes the plan over an existing draft in one `replaceWorkflowNormalizedState` under the
  * workflow row lock. Inside the lock it re-reads the draft and answers 409 when its fingerprint
- * moved off `baseFingerprint`, keeps current canvas positions for existing blocks, asserts the
- * protected-block merge is the identity, and stores the submission's `code_meta` in the same
+ * moved off `expectedFingerprint`, keeps current canvas positions for existing blocks, asserts the
+ * locked-block merge is the identity, and stores the submission's source meta in the same
  * transaction.
  */
 export async function commitSourceReplace(args: {
@@ -134,7 +137,7 @@ export async function commitSourceReplace(args: {
   /** The draft the plan was evaluated against, and its fingerprint. */
   stored: StoredSource
   storedFingerprint: SourceFingerprint
-  baseFingerprint: string
+  expectedFingerprint: string
   catalog: BlockCatalog
 }): Promise<CommittedGraph> {
   const { scope, plan, stored, catalog } = args
@@ -152,20 +155,20 @@ export async function commitSourceReplace(args: {
       const fingerprint = isEqual(current, stored)
         ? args.storedFingerprint
         : fingerprintOf(current, catalog, plan.resources)
-      if (fingerprint !== args.baseFingerprint) throw new WorkflowSourceStaleError(fingerprint)
+      if (fingerprint !== args.expectedFingerprint) throw new WorkflowSourceStaleError(fingerprint)
       const next = {
         blocks: mergeCurrentLayout(plan.blocks, current.state.blocks),
         edges: plan.edges,
       }
-      assertProtectedBlocksPreserved(
+      assertLockedBlocksPreserved(
         { blocks: current.state.blocks, edges: current.state.edges },
         next
       )
-      await writeWorkflowCodeMeta(
+      await writeWorkflowSourceMeta(
         tx,
         scope.workflowId,
-        mergeCodeMetaFromLock(
-          await readWorkflowCodeMeta(tx, scope.workflowId),
+        mergeSourceMetaFromLock(
+          await readWorkflowSourceMeta(tx, scope.workflowId),
           plan.lock,
           plan.compiled
         )
@@ -178,7 +181,7 @@ export async function commitSourceReplace(args: {
 /**
  * Inserts a workflow created from source and its graph in one transaction: the row (with the
  * create path's folder, name-conflict and sort rules), the prepared graph under the caller's block
- * access, its variables and its `code_meta`. A name taken in the folder is a 409; any failure rolls
+ * access, its variables and its source meta. A name taken in the folder is a 409; any failure rolls
  * the whole create back.
  */
 export async function commitSourceCreate(args: {
@@ -214,7 +217,7 @@ export async function commitSourceCreate(args: {
           .set({ variables: plan.variables })
           .where(eq(workflowTable.id, workflowId))
       }
-      await writeWorkflowCodeMeta(tx, workflowId, plan.codeMeta)
+      await writeWorkflowSourceMeta(tx, workflowId, plan.sourceMeta)
     },
   })
   requireWorkflowTransition(transition, 'Failed to create workflow')

@@ -5,7 +5,7 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { internalWorkflowErrorPolicies } from '@/lib/workflows/api'
-import { getWorkflowSource } from '@/lib/workflows/application/get-workflow-source'
+import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -17,7 +17,7 @@ export const revalidate = 0
 export const GET = defineInternalJsonRoute({
   contract: getWorkflowSourceContract,
   auth: internalSessionAuth,
-  operation: getWorkflowSource.operation,
+  operation: readWorkflowSource.operation,
   rateLimit: internalRateLimits.none({
     reason: 'A session read the Code tab refetches after edits, like GET /api/workflows/[id]',
   }),
@@ -26,6 +26,6 @@ export const GET = defineInternalJsonRoute({
     workflowId: params.id,
     ...(query.functionCode ? { functionCode: query.functionCode } : {}),
   }),
-  useCase: getWorkflowSource,
+  useCase: readWorkflowSource,
   present: (source) => ({ data: source }),
 })
