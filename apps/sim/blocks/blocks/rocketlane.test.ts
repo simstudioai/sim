@@ -18,6 +18,23 @@ describe('RocketlaneBlock agent tool calls', () => {
     expect(result).toMatchObject({ date: '2026-11-15', minutes: 30, projectId: 101 })
     expect(result.taskId).toBeUndefined()
   })
+
+  it('sends only the saved time source when the model also names a different one', () => {
+    const result = resolveToolCall(
+      {
+        apiKey: 'key',
+        date: '2026-11-15',
+        minutes: '30',
+        timeEntrySource: 'task',
+        timeEntryTaskId: '42',
+        projectId: '101',
+      },
+      'create_time_entry'
+    )
+
+    expect(result).toMatchObject({ taskId: 42 })
+    expect(result.projectId).toBeUndefined()
+  })
 })
 
 describe('RocketlaneBlock canvas mapping', () => {

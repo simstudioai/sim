@@ -593,22 +593,27 @@ function buildOperationParams(
 
     case 'create_time_entry': {
       const source = params.timeEntrySource ?? 'task'
+      // Exactly one time source may be sent. A saved source is used alone; only when none is
+      // saved does a tool call fall back to the sources the model passed under the tool names.
+      const savedSource = {
+        activityName: source === 'activity' ? toStr(params.timeEntryActivityName) : undefined,
+        taskId: source === 'task' ? toNumber(params.timeEntryTaskId) : undefined,
+        projectPhaseId: source === 'phase' ? toNumber(params.timeEntryPhaseId) : undefined,
+        projectId: source === 'project' ? toNumber(params.timeEntryProjectId) : undefined,
+      }
+      const hasSavedSource = Object.values(savedSource).some((value) => value !== undefined)
+      const timeSource = hasSavedSource
+        ? savedSource
+        : {
+            activityName: toolCallArg(context, toStr(params.activityName)),
+            taskId: toolCallArg(context, toNumber(params.taskId)),
+            projectPhaseId: toolCallArg(context, toNumber(params.projectPhaseId)),
+            projectId: toolCallArg(context, toNumber(params.projectId)),
+          }
       return {
         date: toStr(params.date),
         minutes: toNumber(params.minutes),
-        // Exactly one time source may be sent — pass only the selected one.
-        activityName:
-          (source === 'activity' ? toStr(params.timeEntryActivityName) : undefined) ??
-          toolCallArg(context, toStr(params.activityName)),
-        taskId:
-          (source === 'task' ? toNumber(params.timeEntryTaskId) : undefined) ??
-          toolCallArg(context, toNumber(params.taskId)),
-        projectPhaseId:
-          (source === 'phase' ? toNumber(params.timeEntryPhaseId) : undefined) ??
-          toolCallArg(context, toNumber(params.projectPhaseId)),
-        projectId:
-          (source === 'project' ? toNumber(params.timeEntryProjectId) : undefined) ??
-          toolCallArg(context, toNumber(params.projectId)),
+        ...timeSource,
         billable: toBool(params.billable),
         userId: toNumber(params.userId),
         userEmail: toStr(params.userEmail),
