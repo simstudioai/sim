@@ -202,9 +202,13 @@ export function parseWorkflowSource(
   return parsed
 }
 
-/** Whether compile refuses an entry file for nesting: its bracket depth, then its syntax tree's. */
-function entryTooDeep(text: string, maxDepth: number): boolean {
+/**
+ * Whether compile refuses an entry file for nesting: its bracket depth, then its syntax tree's.
+ * The tree is parsed only when `depthBound`, an upper bound on its depth, exceeds `maxDepth`.
+ */
+function entryTooDeep(text: string, maxDepth: number, depthBound: number): boolean {
   if (bracketDepthOverflow(text, maxDepth) !== -1) return true
+  if (depthBound <= maxDepth) return false
   try {
     return depthOverflow(parse(text, PARSER_OPTIONS), maxDepth) !== null
   } catch (error) {
@@ -216,13 +220,18 @@ function entryTooDeep(text: string, maxDepth: number): boolean {
  * The first printed file compile would refuse for nesting deeper than `SOURCE_LIMITS.maxDepth`, or
  * `null`: the entry by its brackets and syntax tree, each JavaScript code file by its brackets. A
  * get checks its output with it, so it never returns source an apply would refuse.
+ * `entryDepthBound` is the print's upper bound on the entry's tree depth (`entryDepth`); pass
+ * `Infinity` for text the printer did not write.
  */
-export function sourceDepthOverflow(files: Readonly<Record<string, string>>): string | null {
+export function sourceDepthOverflow(
+  files: Readonly<Record<string, string>>,
+  entryDepthBound: number
+): string | null {
   for (const [path, text] of Object.entries(files)) {
     const language = codeFileLanguage(path)
     const tooDeep =
       language === null
-        ? entryTooDeep(text, SOURCE_LIMITS.maxDepth)
+        ? entryTooDeep(text, SOURCE_LIMITS.maxDepth, entryDepthBound)
         : language === 'javascript' && bracketDepthOverflow(text, SOURCE_LIMITS.maxDepth) !== -1
     if (tooDeep) return path
   }

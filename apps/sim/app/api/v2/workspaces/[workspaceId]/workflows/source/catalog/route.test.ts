@@ -57,7 +57,6 @@ const catalog = {
         },
       ],
       tools: { access: ['slack_message'], selector: 'operation' },
-      inputs: {},
       outputs: { ts: { type: 'string' } },
       graph: { canBeTarget: true, errorPort: true, container: null, annotationOnly: false },
     },

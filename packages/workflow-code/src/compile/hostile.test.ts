@@ -258,12 +258,12 @@ describe('one set of limits for get and compile', () => {
   ])('flags %s that compile refuses, so a get never prints it', (_, files) => {
     const { 'workflows/hostile.ts': entry, ...codeFiles } = files as Record<string, string>
     expect(errorCodes(run(entry, undefined, codeFiles))).toContain('E_LIMIT_EXCEEDED')
-    expect(sourceDepthOverflow(files)).not.toBeNull()
+    expect(sourceDepthOverflow(files, Number.POSITIVE_INFINITY)).not.toBeNull()
   })
 
   it('passes a source nested within the cap', () => {
     const files = { 'workflows/hostile.ts': entryWith(nested(20)) }
     expect(errorCodes(run(files['workflows/hostile.ts']))).not.toContain('E_LIMIT_EXCEEDED')
-    expect(sourceDepthOverflow(files)).toBeNull()
+    expect(sourceDepthOverflow(files, Number.POSITIVE_INFINITY)).toBeNull()
   })
 })

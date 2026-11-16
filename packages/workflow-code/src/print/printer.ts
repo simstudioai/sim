@@ -63,9 +63,18 @@ import { type Doc, group, hardline, ifBreak, indent, join, line, printDoc } from
 import { assignIdentifiers } from './idents'
 import { declarationOrder, type OrderDependency } from './order'
 import { RefPrinter, type RefScope, referencedHeads } from './refs'
-import { printKey, printMember, quoteString } from './strings'
-import { arrayExpr, arrowExpr, callExpr, type Expr, objectExpr, type Property } from './syntax'
-import { type FieldContext, type PrintedValue, type Tag, ValuePrinter } from './values'
+import { printKey, printMember } from './strings'
+import {
+  arrayExpr,
+  arrowExpr,
+  callExpr,
+  type Expr,
+  objectExpr,
+  type Property,
+  pathDepth,
+  type StatementList,
+} from './syntax'
+import { type FieldContext, type PrintedValue, refExpr, type Tag, ValuePrinter } from './values'
 
 interface PrintOptions {
   /** `files`: function code in `functions/` code files (repo mode); `inline`: `js``...``. */
@@ -90,6 +99,11 @@ interface PrintResult {
   /** Input hints plus an ident, order and code file for every block. */
   hints: SourceHints
   diagnostics: Diagnostic<PrintDiagnosticCode>[]
+  /**
+   * An upper bound on the depth of the workflow file's Babel syntax tree, the measure compile
+   * caps at `SOURCE_LIMITS.maxDepth`: a print under the cap needs no parse to know it fits.
+   */
+  entryDepth: number
 }
 
 /** biome.json's line width. */
@@ -164,7 +178,7 @@ function kebab(ident: string): string {
     .toLowerCase()
 }
 
-const NULL_EXPR: Expr = { doc: 'null', shape: 'literal' }
+const NULL_EXPR: Expr = { doc: 'null', shape: 'literal', depth: 1 }
 const INTEGER_LIKE = /^(0|[1-9][0-9]*)$/
 const INPUT_FIELD_KEYS = new Set(['name', 'type', 'value', 'description', 'required'])
 
@@ -543,10 +557,9 @@ class WorkflowPrinter {
       if (node instanceof JsonRef) {
         const expr = this.refs.resolveToken(node.token, from)
         if (expr === null) return node.quoted ? this.values.string(node.token) : null
-        const shape = /[.[]/.test(expr) ? 'member' : 'identifier'
-        if (!node.quoted || isString(node.token)) return { doc: expr, shape }
+        if (!node.quoted || isString(node.token)) return refExpr(expr)
         this.imports.add('t')
-        return { doc: ['t`${', expr, '}`'], shape: 'template' }
+        return { doc: ['t`${', expr, '}`'], shape: 'template', depth: 2 + pathDepth(expr) }
       }
       if (node === null || typeof node !== 'object') return this.values.json(node)
       if (Array.isArray(node)) {
@@ -629,7 +642,7 @@ class WorkflowPrinter {
     this.takenCodePaths.add(path)
     this.codeFileHints.set(block.key, path)
     this.codeFiles.push({ path, text })
-    return this.values.call('codeFile', [{ doc: quoteString(`./${path}`), shape: 'string' }])
+    return this.values.call('codeFile', [this.values.string(`./${path}`)])
   }
 
   /**
@@ -916,7 +929,10 @@ class WorkflowPrinter {
     if (form.status) {
       const { text: status, numeric } = form.status
       entries.push(
-        entry('status', numeric ? { doc: status, shape: 'number', numeric: true } : text(status))
+        entry(
+          'status',
+          numeric ? { doc: status, shape: 'number', numeric: true, depth: 2 } : text(status)
+        )
       )
     }
     if (form.headers) {
@@ -966,7 +982,7 @@ class WorkflowPrinter {
     }
   ): Property[] {
     const meta: Property[] = []
-    const yes: Expr = { doc: 'true', shape: 'literal' }
+    const yes: Expr = { doc: 'true', shape: 'literal', depth: 1 }
     if (needsKeyOverride(block)) meta.push({ key: 'key', value: this.values.string(block.key) })
     if (!block.enabled) meta.push({ key: 'disabled', value: yes })
     if (block.locked) meta.push({ key: 'locked', value: yes })
@@ -974,7 +990,7 @@ class WorkflowPrinter {
     if (fields.triggerMode !== undefined) {
       meta.push({
         key: 'triggerMode',
-        value: { doc: String(fields.triggerMode), shape: 'literal' },
+        value: { doc: String(fields.triggerMode), shape: 'literal', depth: 1 },
       })
     }
     if (block.errorPort && !this.hasErrorEdge(block.key))
@@ -999,7 +1015,7 @@ class WorkflowPrinter {
     const rows = branches.rows
     rows.forEach((row, index) => {
       const value: Expr = printsAsElseTrue(branches.kind, row, index, rows.length)
-        ? { doc: 'true', shape: 'literal' }
+        ? { doc: 'true', shape: 'literal', depth: 1 }
         : this.values.value(row.value, {
             tag: branches.kind === 'condition' ? 'js' : 't',
             from: block.key,
@@ -1147,20 +1163,22 @@ class WorkflowPrinter {
   }
 
   private identExpr(key: BlockKey): Expr {
-    return { doc: this.idents.get(key) ?? key, shape: 'identifier' }
+    return { doc: this.idents.get(key) ?? key, shape: 'identifier', depth: 1 }
   }
 
-  private wiring(scope: BlockKey | null): Array<{ doc: Doc; anchor: AnchorKey; source: BlockKey }> {
-    const statements: Array<{ doc: Doc; anchor: AnchorKey; source: BlockKey }> = []
+  private wiring(
+    scope: BlockKey | null
+  ): Array<{ expr: Expr; anchor: AnchorKey; source: BlockKey }> {
+    const statements: Array<{ expr: Expr; anchor: AnchorKey; source: BlockKey }> = []
     const byTarget = (a: CanonicalEdge, b: CanonicalEdge) =>
       (this.position.get(a.to) ?? 0) - (this.position.get(b.to) ?? 0) ||
       (this.preorderIndex.get(a.to) ?? -1) - (this.preorderIndex.get(b.to) ?? -1)
-    const call = (head: string, targets: CanonicalEdge[], method: string): Doc =>
+    const call = (head: string, targets: CanonicalEdge[], method: string): Expr =>
       callExpr(
         `${head}.${method}`,
         [...targets].sort(byTarget).map((edge) => this.identExpr(edge.to))
-      ).doc
-    const raw = (source: BlockKey, handle: string, target: BlockKey): Doc => {
+      )
+    const raw = (source: BlockKey, handle: string, target: BlockKey): Expr => {
       this.diagnostics.push({
         code: 'W_RAW_HANDLE',
         severity: 'warning',
@@ -1171,7 +1189,7 @@ class WorkflowPrinter {
         this.identExpr(source),
         this.values.string(handle),
         this.identExpr(target),
-      ]).doc
+      ])
     }
 
     if (scope !== null) {
@@ -1179,7 +1197,7 @@ class WorkflowPrinter {
       const starts = (this.edgesFrom.get(scope) ?? []).filter((e) => e.port.kind === 'subflowStart')
       if (container?.subflow && starts.length > 0) {
         statements.push({
-          doc: call(this.paramNames.get(scope) ?? 'p', starts, 'to'),
+          expr: call(this.paramNames.get(scope) ?? 'p', starts, 'to'),
           anchor: anchors.edges(scope, 'subflowStart'),
           source: scope,
         })
@@ -1228,33 +1246,33 @@ class WorkflowPrinter {
         if (kind.kind === 'subflowStart') {
           if (isContainer) continue
           for (const edge of targets) {
-            statements.push({ doc: raw(source, 'loop-start-source', edge.to), anchor, source })
+            statements.push({ expr: raw(source, 'loop-start-source', edge.to), anchor, source })
           }
           continue
         }
         if (kind.kind === 'raw' || (kind.kind === 'out' && (isContainer || hasBranches))) {
           const handle = kind.kind === 'raw' ? kind.handle : 'source'
           for (const edge of [...targets].sort(byTarget)) {
-            statements.push({ doc: raw(source, handle, edge.to), anchor, source })
+            statements.push({ expr: raw(source, handle, edge.to), anchor, source })
           }
           continue
         }
         if (kind.kind === 'subflowEnd' && !isContainer) {
           for (const edge of [...targets].sort(byTarget)) {
-            statements.push({ doc: raw(source, 'loop-end-source', edge.to), anchor, source })
+            statements.push({ expr: raw(source, 'loop-end-source', edge.to), anchor, source })
           }
           continue
         }
         if (kind.kind === 'error') {
-          statements.push({ doc: call(ident, targets, 'onError'), anchor, source })
+          statements.push({ expr: call(ident, targets, 'onError'), anchor, source })
         } else if (kind.kind === 'branch') {
           statements.push({
-            doc: call(`${ident}${printMember(kind.key)}`, targets, 'to'),
+            expr: call(`${ident}${printMember(kind.key)}`, targets, 'to'),
             anchor,
             source,
           })
         } else {
-          statements.push({ doc: call(ident, targets, 'to'), anchor, source })
+          statements.push({ expr: call(ident, targets, 'to'), anchor, source })
         }
       }
     }
@@ -1262,7 +1280,7 @@ class WorkflowPrinter {
   }
 
   /** Declarations then wiring for one scope (the workflow body or a container callback). */
-  private scopeStatements(scope: BlockKey | null): Doc[] {
+  private scopeStatements(scope: BlockKey | null): StatementList {
     const members = this.scopeMembers.get(scope) ?? []
     const calls = members.map((key) => {
       const block = this.blocks.get(key)
@@ -1270,6 +1288,8 @@ class WorkflowPrinter {
     })
     const wiring = this.wiring(scope)
     const wiringDocs: Doc[] = []
+    // An expression statement over the call; a declaration adds its declarator too.
+    let depth = 0
     const seenAnchors = new Set<AnchorKey>()
     wiring.forEach((statement, index) => {
       const attached: AttachedComments = seenAnchors.has(statement.anchor)
@@ -1281,7 +1301,8 @@ class WorkflowPrinter {
         attached.leading.unshift(...wiringComments.leading)
         attached.trailing.push(...wiringComments.trailing)
       }
-      wiringDocs.push(withComments(statement.doc, attached))
+      wiringDocs.push(withComments(statement.expr.doc, attached))
+      depth = Math.max(depth, 1 + statement.expr.depth)
     })
     const declarations: Doc[] = []
     for (const entry of calls) {
@@ -1296,14 +1317,17 @@ class WorkflowPrinter {
       declarations.push(
         withComments(['const ', this.idents.get(key) ?? key, ' = ', call.doc], attached)
       )
+      depth = Math.max(depth, 2 + call.depth)
     }
     if (scope === null && wiring.length === 0) {
       const dangling = this.comments.take(anchors.wiring)
       for (const comment of [...dangling.leading, ...dangling.trailing]) wiringDocs.push(comment)
     }
-    if (declarations.length > 0 && wiringDocs.length > 0)
-      return [...declarations, '', ...wiringDocs]
-    return [...declarations, ...wiringDocs]
+    const docs =
+      declarations.length > 0 && wiringDocs.length > 0
+        ? [...declarations, '', ...wiringDocs]
+        : [...declarations, ...wiringDocs]
+    return { docs, depth }
   }
 
   print(): PrintResult {
@@ -1381,6 +1405,9 @@ class WorkflowPrinter {
       files: [{ path: SOURCE_ENTRY_FILE, text }, ...this.codeFiles],
       hints: { blocks: hintBlocks },
       diagnostics: [...this.refs.diagnostics, ...this.diagnostics, ...this.comments.diagnostics],
+      // File, Program, then the default export over the workflow call; the import line is
+      // File, Program, ImportDeclaration, ImportSpecifier, Identifier.
+      entryDepth: Math.max(5, 3 + workflowCall.depth),
     }
   }
 }

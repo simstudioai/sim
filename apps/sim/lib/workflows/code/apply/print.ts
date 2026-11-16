@@ -51,6 +51,8 @@ export interface PrintedSource {
   canonical: CanonicalizeResult
   /** Print findings. */
   diagnostics: Diagnostic[]
+  /** The printer's upper bound on `workflow.ts`'s syntax-tree depth. */
+  entryDepth: number
 }
 
 /**
@@ -91,6 +93,7 @@ export function printStoredSource(input: PrintStoredSourceInput): PrintedSource 
     canonicalHash: digests.canonicalHash,
     canonical,
     diagnostics: printed.diagnostics,
+    entryDepth: printed.entryDepth,
   }
 }
 

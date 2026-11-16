@@ -22,7 +22,11 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { loadWorkflowGraph } from '@/lib/workflows/application/read-workflow-graph'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
-import { printStoredSource, type StoredSource } from '@/lib/workflows/code/apply/print'
+import {
+  type PrintedSource,
+  printStoredSource,
+  type StoredSource,
+} from '@/lib/workflows/code/apply/print'
 import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { canonicalizeStored } from '@/lib/workflows/code/stored-canonical'
@@ -94,15 +98,18 @@ function describeExcess(excess: SourceLimitExcess): string {
  * applied back unchanged. The message names each measured size against its limit, or the file
  * nested too deeply.
  */
-function assertFitsSourceLimits(files: Record<string, string>, blockCount: number): void {
-  const excesses = sourceLimitExcesses(files, blockCount)
+function assertFitsSourceLimits(
+  source: Pick<PrintedSource, 'files' | 'entryDepth'>,
+  blockCount: number
+): void {
+  const excesses = sourceLimitExcesses(source.files, blockCount)
   if (excesses.length > 0) {
     throw new OrchestrationError(
       'payload_too_large',
       `This workflow is too large to read as source: ${excesses.map(describeExcess).join('; ')}.`
     )
   }
-  const tooDeep = sourceDepthOverflow(files)
+  const tooDeep = sourceDepthOverflow(source.files, source.entryDepth)
   if (tooDeep !== null) {
     throw new OrchestrationError(
       'payload_too_large',
@@ -143,7 +150,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
       readWorkflowSourceMeta(db, context.workflowId),
     ])
     const blockCount = Object.keys(state.blocks).length
-    assertFitsSourceLimits({}, blockCount)
+    assertFitsSourceLimits({ files: {}, entryDepth: 0 }, blockCount)
     const catalog = await withCatalogBlockScope(gate, async () =>
       buildSourceCatalog({
         gate,
@@ -168,7 +175,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
       functionCode: input.functionCode ?? 'files',
       lockless: canonical,
     })
-    assertFitsSourceLimits(printed.files, blockCount)
+    assertFitsSourceLimits(printed, blockCount)
     return {
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,

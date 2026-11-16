@@ -12,7 +12,7 @@ import { SDK_RESOURCE_CALLS } from '../sdk'
 import { type Doc, literalText } from './doc'
 import type { RefPrinter } from './refs'
 import { escapeTemplateText, printKey, printMember, printNumber, quoteString } from './strings'
-import { arrayExpr, callExpr, type Expr, objectExpr, type Property } from './syntax'
+import { arrayExpr, callExpr, type Expr, objectExpr, type Property, pathDepth } from './syntax'
 
 /** The template tag a string field prints with; `t` prints untagged when it holds no refs. */
 export type Tag = 't' | 'js' | 'py' | 'sh' | 'json' | 'md'
@@ -55,7 +55,11 @@ export class ValuePrinter {
   /** `root(rootArgs).method(args)`, a method of an SDK value: `mcp('docs').tool('search')`. */
   methodCall(root: string, rootArgs: Expr[], method: string, args: Expr[]): Expr {
     this.use(root)
-    return callExpr([callExpr(root, rootArgs).doc, `.${method}`], args)
+    const rootCall = callExpr(root, rootArgs)
+    return callExpr(
+      { doc: [rootCall.doc, `.${method}`], shape: 'member', depth: 1 + rootCall.depth },
+      args
+    )
   }
 
   /** A param value, honoring the field's value kind (selectors, static options). */
@@ -75,10 +79,9 @@ export class ValuePrinter {
   }
 
   value(value: Value, context: FieldContext): PrintedValue {
-    if (value === null) return { doc: 'null', shape: 'literal' }
-    if (typeof value === 'boolean') return { doc: String(value), shape: 'literal' }
-    if (typeof value === 'number')
-      return { doc: printNumber(value), shape: 'number', numeric: true }
+    if (value === null) return { doc: 'null', shape: 'literal', depth: 1 }
+    if (typeof value === 'boolean') return { doc: String(value), shape: 'literal', depth: 1 }
+    if (typeof value === 'number') return numberExpr(value)
     if (typeof value === 'string') return this.text(value, context)
     if (Array.isArray(value)) {
       const items = value.map((item) => this.value(item, { ...context, tag: nestedTag(context) }))
@@ -95,10 +98,9 @@ export class ValuePrinter {
 
   /** Plain JSON with no ref or SimNode interpretation, as `literal()` and `raw()` take it. */
   json(value: Json): Expr {
-    if (value === null) return { doc: 'null', shape: 'literal' }
-    if (typeof value === 'boolean') return { doc: String(value), shape: 'literal' }
-    if (typeof value === 'number')
-      return { doc: printNumber(value), shape: 'number', numeric: true }
+    if (value === null) return { doc: 'null', shape: 'literal', depth: 1 }
+    if (typeof value === 'boolean') return { doc: String(value), shape: 'literal', depth: 1 }
+    if (typeof value === 'number') return numberExpr(value)
     if (typeof value === 'string') return this.string(value)
     if (Array.isArray(value)) return arrayExpr(value.map((item) => this.json(item)))
     return objectExpr(
@@ -108,14 +110,16 @@ export class ValuePrinter {
 
   /** A string with no ref interpretation: quoted, or an untagged template when multi-line. */
   string(text: string): Expr {
-    if (!text.includes('\n')) return { doc: quoteString(text), shape: 'string' }
-    return { doc: ['`', literalText(escapeTemplateText(text)), '`'], shape: 'template' }
+    if (!text.includes('\n')) return { doc: quoteString(text), shape: 'string', depth: 1 }
+    // TemplateLiteral, then TemplateElement.
+    return { doc: ['`', literalText(escapeTemplateText(text)), '`'], shape: 'template', depth: 2 }
   }
 
   private simNode(node: SimNode, context: FieldContext): PrintedValue {
     if (node.$sim === 'var' && context.variablesField === true) {
       this.useVars()
-      return { doc: `vars${printMember(node.key)}`, shape: 'member' }
+      const doc = `vars${printMember(node.key)}`
+      return { doc, shape: 'member', depth: pathDepth(doc) }
     }
     if (node.$sim === 'resource') {
       const callee = getOwn<string>(SDK_RESOURCE_CALLS, node.kind)
@@ -134,7 +138,7 @@ export class ValuePrinter {
       context.tag === 't' &&
       context.variablesField !== true
     ) {
-      return { doc: only.expr, shape: /[.[]/.test(only.expr) ? 'member' : 'identifier' }
+      return refExpr(only.expr)
     }
     if (context.tag === 'json' && !hasRef) {
       const sugar = jsonSugar(text)
@@ -147,8 +151,23 @@ export class ValuePrinter {
     const body: Doc[] = parts.map((part) =>
       part.kind === 'text' ? literalText(escapeTemplateText(part.text)) : ['${', part.expr, '}']
     )
-    return { doc: [tag, '`', body, '`'], shape: 'template' }
+    let refDepth = 1
+    for (const part of parts) {
+      if (part.kind === 'ref') refDepth = Math.max(refDepth, pathDepth(part.expr))
+    }
+    // TaggedTemplateExpression, then TemplateLiteral, then a TemplateElement or reference.
+    return { doc: [tag, '`', body, '`'], shape: 'template', depth: 2 + refDepth }
   }
+}
+
+/** A JSON number; a negative one is a unary minus over the literal. */
+function numberExpr(value: number): Expr {
+  return { doc: printNumber(value), shape: 'number', numeric: true, depth: 2 }
+}
+
+/** A reference printed bare: `start.input`, `vars.x`. */
+export function refExpr(expr: string): Expr {
+  return { doc: expr, shape: /[.[]/.test(expr) ? 'member' : 'identifier', depth: pathDepth(expr) }
 }
 
 function nestedTag(context: FieldContext): Tag {

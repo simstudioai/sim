@@ -1389,6 +1389,23 @@ describe('source apply edge cases', () => {
     await expect(getSource(workflowId)).rejects.toMatchObject({ code: 'payload_too_large' })
   })
 
+  check('a get of a workflow nested past the depth cap answers 413', async () => {
+    let body: unknown = 1
+    for (let level = 0; level < 120; level++) body = { a: body }
+    const workflowId = await seedGraph([
+      seedBlock('start_trigger', 'Start'),
+      seedBlock('api', 'Deep', {
+        url: ['short-input', 'https://example.com'],
+        body: ['code', JSON.stringify(body, null, 2)],
+      }),
+    ])
+
+    await expect(getSource(workflowId)).rejects.toMatchObject({
+      code: 'payload_too_large',
+      message: expect.stringContaining('too deeply nested'),
+    })
+  })
+
   check('source over the byte limit is refused with 413 and nothing is written', async () => {
     const seeded = await seedWorkflow()
     const source = await getSource(seeded.workflowId)
