@@ -36,6 +36,8 @@ export interface DeployedWorkflowSummary {
   sortOrder: number
   /** Whether the deployed API accepts unauthenticated calls; carried onto sync targets. */
   isPublicApi: boolean
+  /** Stored `workflow.code_meta`, re-keyed onto each copy (see copyWorkflowStateIntoTarget). */
+  codeMeta?: unknown
 }
 
 /**
@@ -62,6 +64,7 @@ export async function listDeployedWorkflows(
       folderId: workflow.folderId,
       sortOrder: workflow.sortOrder,
       isPublicApi: workflow.isPublicApi,
+      codeMeta: workflow.codeMeta,
     })
     .from(workflow)
     .where(

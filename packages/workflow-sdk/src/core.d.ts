@@ -224,6 +224,12 @@ export declare function mcp(key: string): McpServerRef
 
 /** Block-level fields (`BlockState`), written as the third builder argument. */
 export interface BlockMeta {
+  /**
+   * A legacy key the display name cannot carry (a `name~n` collision key or a reserved name such
+   * as `Loop`). Printed only for such a stored block; apply accepts it only for a key the stored
+   * workflow already has, so it can never introduce one.
+   */
+  key?: string
   /** Stored as `enabled: false`. */
   disabled?: true
   /** Protected: apply refuses any change to this block. */

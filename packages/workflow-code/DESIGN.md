@@ -251,3 +251,16 @@ instead of failing at run time.
     consumer indexes `catalog.blocks`, `catalog.triggers` or `catalog.builders` directly.
   - The hash is still SHA-256 over `stableStringify` of the core shard, so it stays the ETag and
     `lock.catalogHash`. It is deterministic: the tables fill in catalog key order.
+- **A17. `workflow.code_meta` (Wave 3E).** `WorkflowCodeMetaV1` in `src/code-meta.ts` is
+  `{ v: 1, bindings, order, comments }`, the server-side copy of what the lock's `LockHints`
+  carry, plus comments.
+  - Every entry is keyed by **block id**, never by key, so a canvas rename never orphans one.
+    Comment anchors are `encodeAnchor` keys whose block segment is the block id and whose `var`
+    segment is the variable id.
+  - There is no `branchKeys` map: branch keys persist on the rows as the optional row `key`
+    (s1 D2b), so there is one source of truth for them.
+  - `parseCodeMeta` mirrors `parseWorkflowLock`: strict, every problem at once, `x-` fields
+    preserved. Its codes are `E_CODE_META_*`.
+  - `CompileInput.knownKeys` (the lock's block keys) gates the new `meta.key` override, which is
+    how source carries a legacy `name~n` collision key or a reserved name (`Loop`, `Parallel`)
+    without being able to introduce one. A violation is `E_KEY_OVERRIDE`.

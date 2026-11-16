@@ -251,6 +251,13 @@ export interface CompileInput {
   /** The highest `@sim-sdk` major the caller supports. */
   sdkMajor: number
   limits?: CompileLimits
+  /**
+   * Block keys already bound to stored ids: the keys of the lock, or of the lock assembled from
+   * `workflow.code_meta`. A `meta.key` override (a legacy `name~n` collision key or a reserved
+   * name) compiles only for one of these, so source can carry a legacy key losslessly but never
+   * introduce one. Absent means no override is accepted.
+   */
+  knownKeys?: ReadonlySet<BlockKey>
 }
 
 export interface CompileResult {

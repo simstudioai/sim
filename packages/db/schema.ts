@@ -454,6 +454,13 @@ export const workflow = pgTable(
     lastRunAt: timestamp('last_run_at'),
     variables: json('variables').default('{}'),
     archivedAt: timestamp('archived_at'),
+    /**
+     * Source-form facts the graph does not hold (each block's TS binding, declaration order, and
+     * comments), keyed by block id so canvas edits never orphan them. Shape and validator:
+     * `WorkflowCodeMetaV1` / `parseCodeMeta` in `@sim/workflow-code/code-meta`. Not part of the
+     * workflow state, so it never counts as a deploy change. `null` until a source is applied.
+     */
+    codeMeta: jsonb('code_meta'),
   },
   (table) => ({
     workspaceIdIdx: index('workflow_workspace_id_idx').on(table.workspaceId),

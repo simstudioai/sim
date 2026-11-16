@@ -475,6 +475,33 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.routes).toEqual(routes)
   })
 
+  it('accepts a persisted branch key on condition and router rows (s1 D2b)', () => {
+    const conditions = [
+      { id: 'c-if', title: 'if', value: 'true', key: 'isVip' },
+      { id: 'c-else', title: 'else', value: '', key: 'otherwise' },
+    ]
+    const routes = [{ id: 'r-1', title: 'Billing', value: 'Invoices', key: 'billing' }]
+    const condition = validateInputsForBlock('condition', { conditions }, 'condition-1')
+    const router = validateInputsForBlock('router_v2', { routes }, 'router-1')
+
+    expect(condition.errors).toHaveLength(0)
+    expect(condition.validInputs.conditions).toEqual(conditions)
+    expect(router.errors).toHaveLength(0)
+    expect(router.validInputs.routes).toEqual(routes)
+  })
+
+  it('does not name a branch key as unknown when a route value is missing', () => {
+    const result = validateInputsForBlock(
+      'router_v2',
+      { routes: [{ id: 'r-1', title: 'Billing', key: 'billing' }] },
+      'router-1'
+    )
+
+    expect(result.errors[0]?.error).toBe(
+      'Invalid route at index 0: missing "value" — a route is {id?, title, value}; "value" holds the description the model reads'
+    )
+  })
+
   /**
    * The runtime shows the model each route's `value` as its description. A
    * route stored as `{title, description}` reads as having no description, so

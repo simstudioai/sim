@@ -6,6 +6,10 @@
  */
 
 import { compareStrings } from '@sim/utils/string'
+import {
+  normalizeWorkflowBlockName,
+  RESERVED_WORKFLOW_BLOCK_NAMES,
+} from '@sim/workflow-types/workflow'
 import { portKey } from '../anchors'
 import type { LockHintBlock, LockHints, PrintInput, PrintResult, PrintWorkflowFn } from '../api'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder, CatalogSubBlock } from '../catalog/types'
@@ -721,6 +725,7 @@ class WorkflowPrinter {
   ): Property[] {
     const meta: Property[] = []
     const yes: Expr = { doc: 'true', shape: 'literal' }
+    if (needsKeyOverride(block)) meta.push({ key: 'key', value: this.values.string(block.key) })
     if (!block.enabled) meta.push({ key: 'disabled', value: yes })
     if (block.locked) meta.push({ key: 'locked', value: yes })
     if (block.advancedMode) meta.push({ key: 'advancedMode', value: yes })
@@ -1141,6 +1146,17 @@ class WorkflowPrinter {
       diagnostics: [...this.refs.diagnostics, ...this.diagnostics, ...this.comments.diagnostics],
     }
   }
+}
+
+const RESERVED_KEYS: ReadonlySet<string> = new Set(RESERVED_WORKFLOW_BLOCK_NAMES)
+
+/**
+ * A legacy key the display name cannot carry: a `name~n` collision key, or a reserved name
+ * (`Loop`, `Parallel`). Printed as `meta.key`, which the compiler accepts only for a key the
+ * stored workflow already has (`CompileInput.knownKeys`).
+ */
+function needsKeyOverride(block: CanonicalBlock): boolean {
+  return block.key !== normalizeWorkflowBlockName(block.name) || RESERVED_KEYS.has(block.key)
 }
 
 /** Import specifiers in the order Biome's organizeImports keeps them. */

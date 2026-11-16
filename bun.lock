@@ -869,6 +869,7 @@
         "@sim/db": "workspace:*",
         "@sim/logger": "workspace:*",
         "@sim/utils": "workspace:*",
+        "@sim/workflow-code": "workspace:*",
         "@sim/workflow-types": "workspace:*",
         "drizzle-orm": "^0.45.4",
       },

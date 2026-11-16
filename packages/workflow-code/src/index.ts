@@ -86,11 +86,25 @@ export {
   fromCodeFile,
   toCodeFile,
 } from './code-files'
+export {
+  type CodeMetaDiagnostic,
+  codeMetaEquals,
+  codeMetaExtensions,
+  emptyCodeMeta,
+  isEmptyCodeMeta,
+  mapAnchorIds,
+  type ParseCodeMetaResult,
+  parseCodeMeta,
+  pruneCodeMeta,
+  remapCodeMeta,
+  type WorkflowCodeMetaV1,
+} from './code-meta'
 export { compileWorkflow } from './compile'
 export type {
   ApplyDiagnosticCode,
   CanonicalizeDiagnosticCode,
   CodeFileCode,
+  CodeMetaDiagnosticCode,
   CompileCatalogCode,
   CompileDiagnosticCode,
   CompileEdgeCode,
@@ -162,5 +176,5 @@ export type {
   VarNode,
   WorkflowAnnotations,
 } from './model'
-export { createPrintWorkflow, printWorkflow } from './print'
+export { assignIdentifiers, createPrintWorkflow, printWorkflow } from './print'
 export { GENERIC_BUILDER, SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from './sdk'

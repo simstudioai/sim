@@ -30,6 +30,12 @@ export type CompileSyntaxCode =
 export type CompileScopeCode =
   | 'E_DUPLICATE_NAME'
   | 'E_RESERVED_NAME'
+  /**
+   * A `meta.key` override that is not a legacy key already bound to an id: it must be a key in
+   * `CompileInput.knownKeys` and either the `~n` collision form of the block's name (with the
+   * plain key declared too) or the block's reserved name. It never introduces a new key.
+   */
+  | 'E_KEY_OVERRIDE'
   | 'E_EMPTY_NAME'
   | 'E_NAME_NOT_LITERAL'
   /** Includes a Levenshtein "did you mean" in `hint`. */
@@ -147,6 +153,22 @@ export type LockDiagnosticCode =
   /** A `codeFile` that is absolute, escapes the repo, or uses backslashes. */
   | 'E_LOCK_CODE_FILE_PATH'
 
+/** `parseCodeMeta` (code-meta.ts), for the stored `workflow.code_meta` value. */
+export type CodeMetaDiagnosticCode =
+  /** The text is not valid JSON. */
+  | 'E_CODE_META_JSON'
+  /** `v` is missing or not `1`. */
+  | 'E_CODE_META_VERSION'
+  /** A required field is missing or has the wrong type or format. */
+  | 'E_CODE_META_SHAPE'
+  /** A field the schema does not define. */
+  | 'E_CODE_META_UNKNOWN_FIELD'
+  /** A binding that is not a JS identifier, or is in `SDK_RESERVED_IDENTIFIERS`. */
+  | 'E_CODE_META_BINDING'
+  | 'E_CODE_META_DUPLICATE_BINDING'
+  /** A `comments` key that `decodeAnchor` does not accept. */
+  | 'E_CODE_META_ANCHOR'
+
 /** canonicalize (s1 §2 algorithm, §5 quirks). */
 export type CanonicalizeDiagnosticCode =
   /** Two stored names normalize to one key; the loser is keyed `key~n` (s1 step 1). */
@@ -249,6 +271,7 @@ export type ApplyDiagnosticCode =
 export type DiagnosticCode =
   | CompileDiagnosticCode
   | LockDiagnosticCode
+  | CodeMetaDiagnosticCode
   | CanonicalizeDiagnosticCode
   | MaterializeDiagnosticCode
   | ApplyDiagnosticCode

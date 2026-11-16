@@ -3,6 +3,12 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
+import {
+  isEmptyCodeMeta,
+  remapCodeMeta,
+  type WorkflowCodeMetaV1,
+} from '@sim/workflow-code/code-meta'
+import { readCodeMetaValue } from '@sim/workflow-persistence/code-meta'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -397,6 +403,19 @@ export interface CopyWorkflowResult {
   blockIdMapping: Map<string, string>
 }
 
+/** The source's `code_meta` re-keyed onto the copy, or `null` when nothing survives the copy. */
+function copiedCodeMeta(
+  targetWorkflowId: string,
+  stored: unknown,
+  blockIdMapping: ReadonlyMap<string, string>,
+  varIdMapping: ReadonlyMap<string, string>
+): WorkflowCodeMetaV1 | null {
+  const source = readCodeMetaValue(targetWorkflowId, stored)
+  if (!source) return null
+  const copied = remapCodeMeta(source, blockIdMapping, varIdMapping)
+  return isEmptyCodeMeta(copied) ? null : copied
+}
+
 export interface CopyWorkflowStateParams {
   tx: DbOrTx
   targetWorkflowId: string
@@ -419,6 +438,12 @@ export interface CopyWorkflowStateParams {
      * the child starts undeployed and private (going public is an explicit act there).
      */
     isPublicApi?: boolean
+    /**
+     * The source's stored `workflow.code_meta`. Written onto the target re-keyed to the copied
+     * block and variable ids, so source bindings, order and comments follow the copy. Omitted
+     * leaves the target's own value untouched.
+     */
+    codeMeta?: unknown
   }
   /** source workflow id -> target workflow id, for `workflow-selector` references */
   workflowIdMap: Map<string, string>
@@ -709,8 +734,21 @@ export async function copyWorkflowStateIntoTarget(
   // write below uses the same (folderId, name), so the registry stays consistent with it.
   nameRegistry.claim(targetFolderId, resolvedName, targetWorkflowId)
 
+  const codeMetaPatch =
+    sourceMeta.codeMeta === undefined
+      ? {}
+      : {
+          codeMeta: copiedCodeMeta(
+            targetWorkflowId,
+            sourceMeta.codeMeta,
+            blockIdMapping,
+            varIdMapping
+          ),
+        }
+
   if (mode === 'create') {
     await tx.insert(workflow).values({
+      ...codeMetaPatch,
       id: targetWorkflowId,
       userId,
       workspaceId: targetWorkspaceId,
@@ -743,6 +781,7 @@ export async function copyWorkflowStateIntoTarget(
         lastSynced: now,
         updatedAt: now,
         ...(sourceMeta.isPublicApi !== undefined ? { isPublicApi: sourceMeta.isPublicApi } : {}),
+        ...codeMetaPatch,
       })
       .where(eq(workflow.id, targetWorkflowId))
   }

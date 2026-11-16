@@ -212,7 +212,11 @@ function sourceRun(e: ResolvedEngines, subject: ProofSubject): SourceRun {
     meta: { name: subject.id, description: null },
   }).workflow
   const printed = printText(e, workflow, 'inline')
-  const run = { canonical: workflow, printed, compiled: compileFiles(e, printed) }
+  const run = {
+    canonical: workflow,
+    printed,
+    compiled: compileFiles(e, printed, storedKeys(workflow)),
+  }
   sourceRuns.set(subject, run)
   return run
 }
@@ -237,13 +241,27 @@ function printText(e: ResolvedEngines, workflow: CanonicalWorkflow, mode: 'inlin
   })
 }
 
-function compileFiles(e: ResolvedEngines, printed: ReturnType<PrintWorkflowFn>) {
+/**
+ * The keys the stored workflow binds to ids, as the lock (or the lock assembled from
+ * `code_meta`) carries them. They let a printed `meta.key` keep a legacy collision key or a
+ * reserved name through compile.
+ */
+function storedKeys(workflow: CanonicalWorkflow): ReadonlySet<string> {
+  return new Set(Object.keys(workflow.blocks))
+}
+
+function compileFiles(
+  e: ResolvedEngines,
+  printed: ReturnType<PrintWorkflowFn>,
+  knownKeys: ReadonlySet<string>
+) {
   const [entry, ...codeFiles] = printed.files
   return compileWorkflow({
     entry,
     files: new Map(codeFiles.map((file) => [file.path, file.text])),
     catalog: e.catalog,
     sdkMajor: e.catalog.sdkMajor,
+    knownKeys,
   })
 }
 
@@ -252,7 +270,7 @@ function compiledWorkflow(
   workflow: CanonicalWorkflow,
   mode: 'inline' | 'files' = 'inline'
 ) {
-  return compiledOrThrow(compileFiles(e, printText(e, workflow, mode)))
+  return compiledOrThrow(compileFiles(e, printText(e, workflow, mode), storedKeys(workflow)))
 }
 
 function materialized(e: ResolvedEngines, workflow: CanonicalWorkflow, prev?: WorkflowState) {
@@ -334,26 +352,13 @@ const properties: Record<ProofProperty, (e: ResolvedEngines, s: ProofSubject) =>
     }),
 }
 
-const LEGACY_NAME_COLLISION =
-  'two stored names normalize alike (E_CANON_LEGACY_NAME_COLLISION keys the second `name~2`); ' +
-  'the source form cannot carry that key, so compile reports E_DUPLICATE_NAME (Wave 3: lock keys)'
-const RESERVED_BLOCK_NAME =
-  'a block named Loop or Parallel (W_CANON_RESERVED_NAME); compile reports E_RESERVED_NAME ' +
-  '(Wave 3: decide the source form for legacy reserved names)'
-
 /**
- * Stored shapes the editor and realtime persistence refuse (`getWorkflowBlockNameConflict`) but
- * legacy rows can hold, which no source form expresses yet. Every property must fail on exactly
- * these and pass everywhere else: a new failure or a newly passing case fails the run. The report
- * still records each as failed.
+ * Stored shapes no source form expresses yet. Every property must fail on exactly these and pass
+ * everywhere else: a new failure or a newly passing case fails the run. The report still records
+ * each as failed. Empty since legacy name collisions and reserved names print as `meta.key`
+ * (Wave 3E), which compiles against the stored keys.
  */
-const KNOWN_FAILURES: Record<string, string> = {
-  'name-collision:function:Agent 1|agent1': LEGACY_NAME_COLLISION,
-  'name-collision:function:Fetch  Data|fetch data': LEGACY_NAME_COLLISION,
-  'name-collision:function:My.Block|myblock': LEGACY_NAME_COLLISION,
-  'testing:builder-loop': RESERVED_BLOCK_NAME,
-  'testing:builder-parallel': RESERVED_BLOCK_NAME,
-}
+const KNOWN_FAILURES: Record<string, string> = {}
 const KNOWN_FAILURE_IDS = Object.keys(KNOWN_FAILURES).sort(compareStrings)
 
 const PROPERTY_TITLES: Record<ProofProperty, string> = {

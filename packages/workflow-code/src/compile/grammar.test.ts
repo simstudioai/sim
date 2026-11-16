@@ -903,3 +903,66 @@ describe('rejected constructs (s3 §4 table)', () => {
     expectDiagnostic(run(extra), 'E_UNSUPPORTED_SYNTAX', { line: 3, column: 1 }, EXTRA)
   })
 })
+
+describe('meta.key: legacy keys the display name cannot carry', () => {
+  function withKeys(text: string, knownKeys: string[]): CompileResult {
+    return compileWorkflow({
+      entry: { path: ENTRY, text },
+      files: new Map(),
+      catalog: TEST_CATALOG,
+      sdkMajor: 1,
+      knownKeys: new Set(knownKeys),
+    })
+  }
+
+  const collision = source(
+    "const a = api('Agent 1', { url: 'x' })\nconst b = api('agent1', { url: 'y' }, { key: 'agent1~2' })"
+  )
+  const reserved = source("const a = api('Loop', { url: 'x' }, { key: 'loop' })")
+
+  it('keeps a stored name~n collision key and a stored reserved name', () => {
+    const kept = withKeys(collision, ['agent1', 'agent1~2'])
+    expect(errorsOf(kept)).toEqual([])
+    expect(Object.keys(kept.workflow?.blocks ?? {}).sort()).toEqual(['agent1', 'agent1~2'])
+    expect(kept.workflow?.blocks['agent1~2']?.name).toBe('agent1')
+    expect(kept.hints.blocks['agent1~2']).toMatchObject({ binding: 'b' })
+
+    const loopBlock = withKeys(reserved, ['loop'])
+    expect(errorsOf(loopBlock)).toEqual([])
+    expect(loopBlock.workflow?.blocks.loop?.name).toBe('Loop')
+  })
+
+  it('never introduces a legacy key the stored workflow does not have', () => {
+    expect(errorsOf(withKeys(collision, ['agent1'])).map((d) => d.code)).toEqual([
+      'E_KEY_OVERRIDE',
+      'E_DUPLICATE_NAME',
+    ])
+    expect(errorsOf(run(reserved)).map((d) => d.code)).toEqual([
+      'E_KEY_OVERRIDE',
+      'E_RESERVED_NAME',
+    ])
+  })
+
+  it('refuses a known key that is not the legacy form of this block name', () => {
+    const renamed = source(
+      "const a = api('Fetch', { url: 'x' })\nconst b = api('Other', { url: 'y' }, { key: 'fetch~2' })"
+    )
+    const steal = source("const a = api('Fetch', { url: 'x' }, { key: 'send' })")
+    const plain = source("const a = api('Fetch', { url: 'x' }, { key: 'fetch' })")
+    const known = ['fetch', 'fetch~2', 'send']
+    expect(errorsOf(withKeys(renamed, known)).map((d) => d.code)).toEqual(['E_KEY_OVERRIDE'])
+    expect(errorsOf(withKeys(steal, known)).map((d) => d.code)).toEqual(['E_KEY_OVERRIDE'])
+    expect(errorsOf(withKeys(plain, known)).map((d) => d.code)).toEqual(['E_KEY_OVERRIDE'])
+  })
+
+  it('refuses a collision key whose plain key no block holds, and a key that is not a literal', () => {
+    const orphan = source("const b = api('agent1', { url: 'y' }, { key: 'agent1~2' })")
+    expectDiagnostic(
+      withKeys(orphan, ['agent1~2']),
+      'E_KEY_OVERRIDE',
+      locate(orphan, "key: 'agent1~2'")
+    )
+    const computed = source("const a = api('Loop', { url: 'x' }, { key: 'lo' + 'op' })")
+    expect(errorsOf(withKeys(computed, ['loop'])).map((d) => d.code)).toContain('E_KEY_OVERRIDE')
+  })
+})
