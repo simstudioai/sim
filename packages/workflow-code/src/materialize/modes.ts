@@ -31,9 +31,10 @@ export function writeBlockModes(
   desired: Record<CanonicalParamId, ParamMode>,
   catalog: CatalogBlock,
   values: Record<string, unknown>,
+  triggerMode: boolean,
   advancedMode: boolean
 ): ModeMap {
-  const inferred = effectiveModes(catalog.subBlocks, values, undefined, advancedMode)
+  const inferred = effectiveModes(catalog, triggerMode, values, undefined, advancedMode)
   const next = { ...modes }
   for (const [id, mode] of Object.entries(desired)) {
     if (Object.hasOwn(next, id) || inferred[id] !== mode) next[id] = mode
@@ -66,7 +67,7 @@ export function writeToolModes(
   tools.forEach((tool, index) => {
     const block = catalogBlock(catalog, tool.type)
     const params = toRecord(toRecord(storedTools[index]).params)
-    const inferred = block ? effectiveModes(block.subBlocks, params, undefined, false) : {}
+    const inferred = block ? effectiveModes(block, false, params, undefined, false) : {}
     for (const [id, mode] of Object.entries(tool.modes)) {
       const prevIndex = prevIndexes[index]
       const hadExplicit =

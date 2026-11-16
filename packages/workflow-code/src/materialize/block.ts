@@ -255,6 +255,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
       target.modes,
       catalog,
       rawValues(subBlocks),
+      target.triggerMode,
       target.advancedMode
     )
     for (const [paramId, param] of Object.entries(target.params)) {
