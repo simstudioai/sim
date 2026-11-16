@@ -31,6 +31,7 @@ import {
   type Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
+import { checkStorableText } from './characters'
 import {
   type BlockDecl,
   type CompileContext,
@@ -331,6 +332,10 @@ function readCodeFile(
   }
   const cached = budget.reads.get(path)
   if (cached !== undefined) return cached === null ? null : { code: cached, path }
+  if (!checkStorableText(path, text, ctx.reporter)) {
+    budget.reads.set(path, null)
+    return null
+  }
   const code = parseCodeFile(ctx, path, text, language as CodeFileLanguage, at, decl)
   budget.reads.set(path, code)
   return code === null ? null : { code, path }

@@ -27,6 +27,11 @@ type CompileSyntaxCode =
   | 'E_WORKFLOW_EXPORT'
   /** Source exceeds the byte, AST node or depth cap. */
   | 'E_LIMIT_EXCEEDED'
+  /**
+   * A NUL character or an unpaired UTF-16 surrogate, raw or escaped in a literal: a workflow
+   * cannot store either (`compile/characters.ts`).
+   */
+  | 'E_INVALID_CHARACTER'
 
 /** Names, identifiers and scope. */
 type CompileScopeCode =

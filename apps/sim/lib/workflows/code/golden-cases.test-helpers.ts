@@ -278,7 +278,7 @@ export const cases: PrintCase[] = [
           params: {
             model: "it's a \"model\" with 'quotes'",
             systemPrompt:
-              'back\\slash `tick` $\u007bnotInterp} tab\there\r\ncrlf line\u2028ls\u2029ps \ud800 lone 漢字 🎉 rtl\u202Eoverride zero\u200Bwidth iso\u2066late',
+              'back\\slash `tick` $\u007bnotInterp} tab\there\r\ncrlf line\u2028ls\u2029ps 漢字 🎉 rtl\u202Eoverride zero\u200Bwidth iso\u2066late',
             messages: [{ role: 'user', content: "single 'quote' only" }],
           },
         }),

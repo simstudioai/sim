@@ -6,6 +6,7 @@
  * points at the engine and not at the generator.
  */
 
+import { sanitizeForJsonb } from '@sim/utils/string'
 import { setOwn } from '@sim/workflow-code'
 import {
   type BlockState,
@@ -22,8 +23,9 @@ const PROTOTYPE_KEY_NAMES = ['__proto__', 'constructor', 'prototype'] as const
 
 /**
  * Fragments that break naive escaping: a `<` that is not a reference, a reference-looking span,
- * nested env braces, CRLF, the JS line separators U+2028/U+2029, lone surrogates, backticks,
- * template openers, quotes, and `Object.prototype` member names.
+ * nested env braces, CRLF, the JS line separators U+2028/U+2029, the U+FFFD that stands in for
+ * a lone surrogate (jsonb cannot store one), backticks, template openers, quotes, and
+ * `Object.prototype` member names.
  */
 const ADVERSARIAL_STRING_FRAGMENTS = [
   '<3 <a.b>',
@@ -35,8 +37,7 @@ const ADVERSARIAL_STRING_FRAGMENTS = [
   '\n',
   ' ',
   ' ',
-  '\uD800',
-  '\uDC00',
+  '\uFFFD',
   '`',
   '${',
   '\u0024{x}',
@@ -66,7 +67,7 @@ function adversarialStringArbitrary(): fc.Arbitrary<string> {
       ),
       { maxLength: 8 }
     )
-    .map((parts) => parts.join(''))
+    .map((parts) => sanitizeForJsonb(parts.join('')))
 }
 
 /**

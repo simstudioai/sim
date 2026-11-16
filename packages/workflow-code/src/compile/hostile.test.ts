@@ -267,3 +267,30 @@ describe('one set of limits for get and compile', () => {
     expect(sourceDepthOverflow(files, Number.POSITIVE_INFINITY)).toBeNull()
   })
 })
+
+describe('characters a workflow cannot store', () => {
+  it.each([
+    ['a raw NUL in a comment', "// note \u0000\nconst a = api('A', { url: 'x' })"],
+    ['a NUL escape in a string', "const a = api('A', { url: 'x\\u0000y' })"],
+    ['a lone high surrogate escape', "const a = api('A', { url: '\\uD800' })"],
+    ['a lone low surrogate escape in a template', "const a = api('A', { url: `\\uDC00` })"],
+    ['a NUL escape in a block name', "const a = api('A\\u0000', { url: 'x' })"],
+  ])('refuses %s with one located diagnostic', (_label, body) => {
+    const text = wrap(body)
+    const result = run(text)
+    expect(result.workflow).toBeNull()
+    const refused = result.diagnostics.filter((d) => d.code === 'E_INVALID_CHARACTER')
+    expect(refused).toHaveLength(1)
+  })
+
+  it('refuses a NUL in a code file', () => {
+    const text = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./f.js') })\n})\n`
+    const result = run(text, undefined, { 'workflows/f.js': 'return "\u0000"\n' })
+    expect(errorCodes(result)).toContain('E_INVALID_CHARACTER')
+  })
+
+  it('keeps a well-formed astral character, raw or escaped', () => {
+    const result = run(wrap("const a = api('A', { url: '😀 \\uD83D\\uDE00 \\u{1F600}' })"))
+    expect(errorCodes(result)).toEqual([])
+  })
+})

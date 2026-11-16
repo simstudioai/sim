@@ -19,6 +19,7 @@ import type {
 import { setOwn } from '../records'
 import { OLDEST_SDK_MAJOR } from '../sdk'
 import { compileBlock } from './blocks'
+import { checkStorableLiterals, checkStorableText } from './characters'
 import { CommentCollector } from './comments'
 import { type CompileContext, rangeOf, recordSpan, type Scope, unsupported } from './context'
 import { EdgeCollector } from './edges'
@@ -352,6 +353,7 @@ export function compileWorkflow(input: CompileInput): CompileResult {
   const reporter = new Reporter()
   reporter.addFile(file, text)
 
+  checkStorableText(file, text, reporter)
   const parsed = parseWorkflowSource(file, text, limits, reporter)
   if (parsed.sdkMajor === null) {
     reporter.report(
@@ -381,6 +383,7 @@ export function compileWorkflow(input: CompileInput): CompileResult {
   }
   const ast = parsed.ast
   if (!ast) return emptyResult(reporter, parsed.sdkMajor)
+  checkStorableLiterals(file, text, ast, reporter)
 
   const ctx: CompileContext = {
     file,
