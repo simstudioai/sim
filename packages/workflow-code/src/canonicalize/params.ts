@@ -3,6 +3,7 @@ import type { BlockState } from '@sim/workflow-types/workflow'
 import type { CanonicalModeOverrides } from '../catalog/canonical-index'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import type { BlockKey, CanonicalParam, SubBlockId, Value } from '../model'
+import { setOwn } from '../records'
 import { type CanonContext, report } from './context'
 import { liftTools } from './tools'
 import { liftResourceValue, toValue } from './values'
@@ -159,7 +160,7 @@ function liftVariableAssignments(
     if (key === 'variableId' && typeof member === 'string') {
       const variableKey = context.variableKeyById.get(member)
       if (variableKey !== undefined) {
-        result[key] = { $sim: 'var', key: variableKey }
+        setOwn(result, key, { $sim: 'var', key: variableKey })
       } else {
         report(context, {
           code: 'W_CANON_UNRESOLVED_ID',
@@ -168,11 +169,11 @@ function liftVariableAssignments(
           blockKey,
           param,
         })
-        result[key] = { $sim: 'unresolved', kind: 'var', id: member }
+        setOwn(result, key, { $sim: 'unresolved', kind: 'var', id: member })
       }
       continue
     }
-    result[key] = liftVariableAssignments(member, blockKey, param, context)
+    setOwn(result, key, liftVariableAssignments(member, blockKey, param, context))
   }
   return result
 }
@@ -229,7 +230,7 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
     if (declaration?.structured === 'tools' && Array.isArray(decoded)) {
       const tools = liftTools(decoded, overrides, blockKey, id, context)
       if (tools) {
-        params[id] = { kind: 'tools', tools }
+        setOwn(params, id, { kind: 'tools', tools })
         continue
       }
     }
@@ -237,7 +238,7 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
     if (declaration?.structured === 'inputFormat' && Array.isArray(decoded)) {
       const lifted = liftInputFormat(decoded, context)
       value = lifted.value
-      if (lifted.items.length > 0) items[id] = lifted.items
+      if (lifted.items.length > 0) setOwn(items, id, lifted.items)
     } else if (declaration?.structured === 'tableRows' && Array.isArray(decoded)) {
       value = liftTableRows(decoded, context)
     } else if (declaration?.structured === 'variables') {
@@ -254,7 +255,7 @@ export function canonicalParams(inputs: ParamInputs, context: CanonContext): Par
     } else {
       value = toValue(decoded, context)
     }
-    params[id] = { kind: 'value', value }
+    setOwn(params, id, { kind: 'value', value })
   }
   return { params, items }
 }

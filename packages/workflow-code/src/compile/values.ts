@@ -19,6 +19,7 @@ import {
   type RefSegment,
 } from '../code-files/ref-path'
 import type { Json, ResourceKind, Value, VarNode } from '../model'
+import { setOwn } from '../records'
 import {
   type BlockDecl,
   type CompileContext,
@@ -129,16 +130,6 @@ function rejectNode(ctx: CompileContext, node: Node, site?: ValueSite): null {
     hintForNode(node),
     site
   )
-}
-
-/** Sets an own enumerable property, so a `__proto__` key is data and never a prototype. */
-export function setOwn<T>(target: Record<string, T>, key: string, value: T): void {
-  Object.defineProperty(target, key, {
-    value,
-    enumerable: true,
-    writable: true,
-    configurable: true,
-  })
 }
 
 /** The literal text of a property key, or `null` (after reporting) for a computed key. */

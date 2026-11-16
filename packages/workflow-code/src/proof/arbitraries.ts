@@ -15,11 +15,15 @@ import {
   type WorkflowState,
 } from '@sim/workflow-types/workflow'
 import fc from 'fast-check'
+import { setOwn } from '../records'
+
+/** Names that collide with `Object.prototype` members when used as a plain-object key. */
+const PROTOTYPE_KEY_NAMES = ['__proto__', 'constructor', 'prototype'] as const
 
 /**
  * Fragments that break naive escaping: a `<` that is not a reference, a reference-looking span,
  * nested env braces, CRLF, the JS line separators U+2028/U+2029, lone surrogates, backticks,
- * template openers and quotes.
+ * template openers, quotes, and `Object.prototype` member names.
  */
 export const ADVERSARIAL_STRING_FRAGMENTS = [
   '<3 <a.b>',
@@ -43,6 +47,7 @@ export const ADVERSARIAL_STRING_FRAGMENTS = [
   '</script>',
   '<variable.x>',
   '<loop.currentItem>',
+  ...PROTOTYPE_KEY_NAMES,
 ] as const
 
 const isUsableName = (name: string): boolean => {
@@ -65,12 +70,12 @@ export function adversarialStringArbitrary(): fc.Arbitrary<string> {
 }
 
 /**
- * Display names with dots, runs of spaces, mixed case and non-ASCII letters, always with a usable
- * normalized key. Two draws can still collide after normalization; use
- * {@link uniqueBlockNamesArbitrary} when they must not.
+ * Display names with dots, runs of spaces, mixed case and non-ASCII letters, plus the exact
+ * `Object.prototype` member names, always with a usable normalized key. Two draws can still
+ * collide after normalization; use {@link uniqueBlockNamesArbitrary} when they must not.
  */
 export function blockNameArbitrary(): fc.Arbitrary<string> {
-  return fc
+  const wordNames = fc
     .tuple(
       fc.constantFrom(
         'Agent',
@@ -87,6 +92,11 @@ export function blockNameArbitrary(): fc.Arbitrary<string> {
       fc.nat(30)
     )
     .map(([word, separator, n]) => `${word}${separator}${n}`)
+  return fc
+    .oneof(
+      { weight: 9, arbitrary: wordNames },
+      { weight: 1, arbitrary: fc.constantFrom(...PROTOTYPE_KEY_NAMES) }
+    )
     .filter(isUsableName)
 }
 
@@ -288,7 +298,7 @@ function buildPlannedState(plan: WorkflowPlan, maxDepth: number): WorkflowState 
         whileCondition: loopType === 'while' ? '<start.input> <3' : '',
         doWhileCondition: loopType === 'doWhile' ? '<start.input> <3' : '',
       }
-      loops[id] = {
+      setOwn(loops, id, {
         id,
         nodes: [],
         iterations: (variant % 5) + 1,
@@ -297,7 +307,7 @@ function buildPlannedState(plan: WorkflowPlan, maxDepth: number): WorkflowState 
         whileCondition: loopType === 'while' ? '<start.input> <3' : '',
         doWhileCondition: loopType === 'doWhile' ? '<start.input> <3' : '',
         enabled: true,
-      }
+      })
     } else if (kind === 'parallel') {
       const parallelType = PARALLEL_TYPES[variant % PARALLEL_TYPES.length] ?? 'count'
       base.data = {
@@ -306,17 +316,17 @@ function buildPlannedState(plan: WorkflowPlan, maxDepth: number): WorkflowState 
         count: (variant % 4) + 1,
         collection: parallelType === 'collection' ? '<start.input>' : '',
       }
-      parallels[id] = {
+      setOwn(parallels, id, {
         id,
         nodes: [],
         count: (variant % 4) + 1,
         distribution: parallelType === 'collection' ? '<start.input>' : '',
         parallelType,
         enabled: true,
-      }
+      })
     }
 
-    blocks[id] = base
+    setOwn(blocks, id, base)
   }
 
   const edges: WorkflowState['edges'] = []

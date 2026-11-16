@@ -24,6 +24,7 @@ import type {
   PortKey,
   Value,
 } from '../model'
+import { getOwn, setOwn } from '../records'
 import { GENERIC_BUILDER } from '../sdk'
 import { type AttachedComments, anchors, CommentPlacer, withComments } from './comments'
 import { type Doc, group, hardline, ifBreak, indent, join, line, printDoc } from './doc'
@@ -61,12 +62,12 @@ function isAdvancedMember(sb: CatalogSubBlock): boolean {
 }
 
 function stringParam(block: CanonicalBlock, id: string): string | undefined {
-  const param = block.params[id]
+  const param = getOwn(block.params, id)
   return param?.kind === 'value' && typeof param.value === 'string' ? param.value : undefined
 }
 
 function hasValue(block: CanonicalBlock, id: string): boolean {
-  return block.params[id] !== undefined
+  return getOwn(block.params, id) !== undefined
 }
 
 /**
@@ -306,7 +307,7 @@ class WorkflowPrinter {
           return {
             key,
             isTrigger: block ? this.isTrigger(block) : false,
-            order: this.hints.blocks[key]?.order,
+            order: getOwn(this.hints.blocks, key)?.order,
           }
         }),
         dependencies
@@ -329,7 +330,7 @@ class WorkflowPrinter {
       this.preorder.map((key) => ({
         key,
         name: this.blocks.get(key)?.name ?? key,
-        hint: this.hints.blocks[key]?.binding,
+        hint: getOwn(this.hints.blocks, key)?.binding,
       })),
       reserved
     )
@@ -399,7 +400,7 @@ class WorkflowPrinter {
     id: string,
     sb: CatalogSubBlock | undefined
   ): PrintedValue | null {
-    const param = block.params[id]
+    const param = getOwn(block.params, id)
     if (!param) return null
     if (param.kind === 'tools') return this.printTools(block, param.tools)
     const context = this.context(block, catalogBlock, sb)
@@ -469,7 +470,7 @@ class WorkflowPrinter {
       return inline('the code-file round trip did not reproduce the stored code')
     }
     const extension = LANGUAGE_EXTENSIONS[language]
-    const hinted = this.hints.blocks[block.key]?.codeFile
+    const hinted = getOwn(this.hints.blocks, block.key)?.codeFile
     const dir = (this.options.codeDir ?? DEFAULT_CODE_DIR).replace(/\/+$/, '')
     let path =
       hinted?.endsWith(`.${extension}`) && !this.takenCodePaths.has(hinted)
@@ -489,10 +490,10 @@ class WorkflowPrinter {
 
   private printTools(block: CanonicalBlock, tools: CanonicalTool[]): PrintedValue {
     const elements = tools.map((tool) => {
-      const catalogBlock = this.catalog.blocks[tool.type]
+      const catalogBlock = getOwn(this.catalog.blocks, tool.type)
       const found = findBuilder(this.catalog, tool.type, false, (id) => {
         if (id === 'operation') return tool.operation
-        const value = tool.params[id]
+        const value = getOwn(tool.params, id)
         return typeof value === 'string' ? value : undefined
       })
       if (!found) return this.values.call('raw', [this.values.json(tool as unknown as Json)])
@@ -556,7 +557,10 @@ class WorkflowPrinter {
     return objectExpr(
       Object.keys(modes)
         .sort(compareStrings)
-        .map((cid) => ({ key: printKey(cid), value: this.values.string(modes[cid] ?? 'basic') }))
+        .map((cid) => ({
+          key: printKey(cid),
+          value: this.values.string(getOwn(modes, cid) ?? 'basic'),
+        }))
     )
   }
 
@@ -576,7 +580,7 @@ class WorkflowPrinter {
     const handled = new Set<string>(pinned)
     const branchId = catalogBlock?.graph.branches?.subBlockId
     if (branchId) handled.add(branchId)
-    const inactiveIds = new Set(this.workflow.annotations.inactive[block.key] ?? [])
+    const inactiveIds = new Set(getOwn(this.workflow.annotations.inactive, block.key) ?? [])
     const pushInactive = (id: string, sb: CatalogSubBlock | undefined) => {
       const value = this.printParamValue(block, catalogBlock, id, sb)
       if (value)
@@ -593,7 +597,7 @@ class WorkflowPrinter {
           if (seenCids.has(cid)) continue
           seenCids.add(cid)
           const members = subBlocks.filter((m) => m.canonicalParamId === cid && !pinned.has(m.id))
-          const mode: ParamMode = block.modes[cid] ?? 'basic'
+          const mode: ParamMode = getOwn(block.modes, cid) ?? 'basic'
           const basic = members.find((m) => !isAdvancedMember(m))
           const advanced = members.find(isAdvancedMember)
           const effective = (mode === 'advanced' ? advanced : basic) ?? members[0]
@@ -616,7 +620,7 @@ class WorkflowPrinter {
             }
           }
           const implied: ParamMode = printed ? (printed.selector ? 'basic' : 'advanced') : 'basic'
-          if (basic && advanced && implied !== mode) modes[cid] = mode
+          if (basic && advanced && implied !== mode) setOwn(modes, cid, mode)
           continue
         }
         handled.add(sb.id)
@@ -660,7 +664,7 @@ class WorkflowPrinter {
     }
     for (const cid of Object.keys(block.modes).sort(compareStrings)) {
       const handledCid = catalogBlock?.subBlocks.some((sb) => sb.canonicalParamId === cid) ?? false
-      if (!handledCid) modes[cid] = block.modes[cid] ?? 'basic'
+      if (!handledCid) setOwn(modes, cid, getOwn(block.modes, cid) ?? 'basic')
     }
     return { params, inactive, modes }
   }
@@ -757,7 +761,7 @@ class WorkflowPrinter {
 
   private blockCall(block: CanonicalBlock): Expr {
     if (block.subflow) return this.containerCall(block)
-    const catalogBlock = this.catalog.blocks[block.type]
+    const catalogBlock = getOwn(this.catalog.blocks, block.type)
     const found = findBuilder(this.catalog, block.type, block.triggerMode, (id) =>
       stringParam(block, id)
     )
@@ -805,7 +809,7 @@ class WorkflowPrinter {
       if (found) {
         topLevel = this.paramProperties(
           [...pinned].sort(compareStrings).flatMap((id) => {
-            const value = block.params[id]
+            const value = getOwn(block.params, id)
             return value?.kind === 'value'
               ? [
                   {
@@ -865,7 +869,7 @@ class WorkflowPrinter {
       field('distribution', 'collection', spec.distribution, type !== 'count', 't')
       field('batchSize', 'batchSize', spec.batchSize, true, 't')
     }
-    const catalogBlock = this.catalog.blocks[block.type]
+    const catalogBlock = getOwn(this.catalog.blocks, block.type)
     const {
       params,
       inactive: inactiveParams,
@@ -1110,11 +1114,11 @@ class WorkflowPrinter {
     const hintBlocks: Record<BlockKey, LockHintBlock> = { ...this.hints.blocks }
     this.preorder.forEach((key, index) => {
       const codeFile = this.codeFileHints.get(key)
-      hintBlocks[key] = {
+      setOwn(hintBlocks, key, {
         binding: this.idents.get(key) ?? key,
         order: index,
         ...(codeFile ? { codeFile } : {}),
-      }
+      })
     })
     return {
       files: [{ path: ENTRY_PATH, text }, ...this.codeFiles],

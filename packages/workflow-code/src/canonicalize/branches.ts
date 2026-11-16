@@ -1,5 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { BlockKey, BranchKey, CanonicalBranches, CanonicalBranchRow, Json } from '../model'
+import { setOwn } from '../records'
 import { type CanonContext, report } from './context'
 import { toJson, toValue } from './values'
 
@@ -206,11 +207,11 @@ export function liftBranches(
     const extra: Record<string, Json> = {}
     for (const [field, value] of Object.entries(stored)) {
       if (MODELED_ROW_KEYS.has(field) || UI_ROW_KEYS.has(field) || value === undefined) continue
-      extra[field] = toJson(value)
+      setOwn(extra, field, toJson(value))
     }
     if (Object.keys(extra).length > 0) row.extra = extra
     rows.push(row)
-    ids[key] = rowIds[index]
+    setOwn(ids, key, rowIds[index])
     if (!keyByRowId.has(rowIds[index])) keyByRowId.set(rowIds[index], key)
   })
   return { branches: { kind, rows }, ids, keyByRowId }

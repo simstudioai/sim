@@ -21,6 +21,7 @@ import type {
   SubBlockId,
   VarKey,
 } from '../model'
+import { setOwn } from '../records'
 import { isInactive } from './activity'
 import { type LiftedBranches, liftBranches } from './branches'
 import { type CanonContext, catalogBlock, report } from './context'
@@ -65,7 +66,8 @@ function canonicalModeOverrides(data: Record<string, unknown>): CanonicalModeOve
   if (!isRecordLike(stored)) return undefined
   const overrides: CanonicalModeOverrides = {}
   for (const [id, mode] of Object.entries(stored)) {
-    if (typeof mode === 'string' && MODES.has(mode)) overrides[id] = mode as 'basic' | 'advanced'
+    if (typeof mode === 'string' && MODES.has(mode))
+      setOwn(overrides, id, mode as 'basic' | 'advanced')
   }
   return overrides
 }
@@ -200,17 +202,17 @@ export const canonicalize: CanonicalizeFn = (state, options) => {
       context
     )
     if (lifted && 'unliftedValue' in lifted && catalog?.graph.branches) {
-      params[catalog.graph.branches.subBlockId] = {
+      setOwn(params, catalog.graph.branches.subBlockId, {
         kind: 'value',
         value: toValue(lifted.unliftedValue, context),
-      }
+      })
     }
 
     const advancedMode = block.advancedMode === true
     const triggerMode = block.triggerMode === true
     const rawValues: Record<string, unknown> = {}
     for (const [subBlockId, subBlock] of Object.entries(block.subBlocks ?? {})) {
-      rawValues[subBlockId] = isRecordLike(subBlock) ? subBlock.value : undefined
+      setOwn(rawValues, subBlockId, isRecordLike(subBlock) ? subBlock.value : undefined)
     }
 
     const canonical: CanonicalBlock = {
@@ -249,7 +251,7 @@ export const canonicalize: CanonicalizeFn = (state, options) => {
       if (dataKey === 'extent' && value === 'parent' && parent !== null) continue
       if (dataKey === 'canonicalModes' && isModeMap(value)) continue
       if (isContainer && SUBFLOW_DATA_KEYS.has(dataKey) && !rejectedDataKeys.has(dataKey)) continue
-      opaqueData[dataKey] = toJson(value)
+      setOwn(opaqueData, dataKey, toJson(value))
     }
     if (Object.keys(opaqueData).length > 0) canonical.opaque = { data: opaqueData }
 
@@ -267,28 +269,28 @@ export const canonicalize: CanonicalizeFn = (state, options) => {
       const inactiveIds = Object.keys(params).filter((paramId) =>
         isInactive(paramId, activityInputs)
       )
-      if (inactiveIds.length > 0) inactive[key] = inactiveIds
+      if (inactiveIds.length > 0) setOwn(inactive, key, inactiveIds)
     }
 
-    canonicalBlocks[key] = canonical
+    setOwn(canonicalBlocks, key, canonical)
     const identityBlock: LockIdentityBlock = { id, parent }
     if (lifted && Object.keys(lifted.ids).length > 0) identityBlock.branches = lifted.ids
     if (Object.keys(items).length > 0) identityBlock.items = items
-    identity.blocks[key] = identityBlock
-    layout[key] = layoutOf(block)
+    setOwn(identity.blocks, key, identityBlock)
+    setOwn(layout, key, layoutOf(block))
   }
 
   const variables: Record<VarKey, CanonicalVariable> = {}
   const storedVariables = Object.values(state.variables ?? {})
   variableEntries.forEach((entry, index) => {
     const variable = storedVariables[index]
-    variables[entry.key] = {
+    setOwn(variables, entry.key, {
       key: entry.key,
       name: variable.name,
       type: variable.type,
       value: toJson(variable.value),
-    }
-    identity.variables[entry.key] = entry.id
+    })
+    setOwn(identity.variables, entry.key, entry.id)
   })
 
   const workflow: CanonicalWorkflow = {

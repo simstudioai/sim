@@ -13,6 +13,7 @@ import type {
   SubBlockId,
   VarKey,
 } from '../model'
+import { setOwn } from '../records'
 import { compileBlock } from './blocks'
 import { CommentCollector } from './comments'
 import { type CompileContext, rangeOf, recordSpan, type Scope } from './context'
@@ -21,7 +22,7 @@ import { didYouMean, HINTS, hintForNode } from './hints'
 import { DEFAULT_LIMITS, parseWorkflowSource } from './parse'
 import { Reporter } from './report'
 import { collectBody } from './scope'
-import { compileJsonLiteral, literalText, objectEntries, setOwn } from './values'
+import { compileJsonLiteral, literalText, objectEntries } from './values'
 
 const SDK_MODULE = '@sim/workflow-sdk'
 const VARIABLE_TYPES: ReadonlySet<string> = new Set([

@@ -2,6 +2,7 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import { type CanonicalModeOverrides, scopeCanonicalModesForTool } from '../catalog/canonical-index'
 import type { CatalogSubBlock } from '../catalog/types'
 import type { BlockKey, CanonicalTool, Json, Value } from '../model'
+import { setOwn } from '../records'
 import { type CanonContext, catalogBlock } from './context'
 import { effectiveModes } from './modes'
 import { liftResourceId, liftResourceValue, toJson, toValue } from './values'
@@ -129,7 +130,7 @@ function liftTool(
       subBlock?.valueKind === 'resource' && subBlock.resourceKind
         ? liftResourceValue(subBlock.resourceKind, decoded, context, location, subBlock.multiple)
         : undefined
-    params[key] = lifted ?? toValue(decoded, context)
+    setOwn(params, key, lifted ?? toValue(decoded, context))
   }
 
   const explicit = scopeCanonicalModesForTool(overrides, index, type)
@@ -171,7 +172,7 @@ function liftTool(
 
   // s1 quirk 24: `isExpanded` is editor state and is dropped.
   for (const [key, value] of Object.entries(stored)) {
-    if (!MODELED_KEYS.has(key) && value !== undefined) extra[key] = toJson(value)
+    if (!MODELED_KEYS.has(key) && value !== undefined) setOwn(extra, key, toJson(value))
   }
   if (Object.keys(extra).length > 0) tool.extra = extra
   return tool
@@ -180,7 +181,7 @@ function liftTool(
 function definedModes(overrides: CanonicalModeOverrides | undefined): CanonicalTool['modes'] {
   const modes: CanonicalTool['modes'] = {}
   for (const [id, mode] of Object.entries(overrides ?? {})) {
-    if (mode) modes[id] = mode
+    if (mode) setOwn(modes, id, mode)
   }
   return modes
 }

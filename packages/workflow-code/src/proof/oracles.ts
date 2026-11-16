@@ -13,6 +13,7 @@ import { isRecordLike, omit } from '@sim/utils/object'
 import { compareStrings, escapeRegExp } from '@sim/utils/string'
 import { normalizeWorkflowBlockName, type WorkflowState } from '@sim/workflow-types/workflow'
 import type { CanonicalWorkflow } from '../model'
+import { setOwn } from '../records'
 import { type Difference, findDifferences, firstTextDifference } from './diff'
 
 /** The property or oracle a verdict belongs to (s3 §5 P1–P5, s1 §6 O1–O3). */
@@ -152,13 +153,13 @@ export function assertNoErrors(
 function executionView(serialized: SerializedWorkflowLike) {
   const blocks: Record<string, unknown> = {}
   for (const block of serialized.blocks) {
-    blocks[block.id] = {
+    setOwn(blocks, block.id, {
       tool: block.config.tool ?? null,
       enabled: block.enabled ?? true,
       canonicalModes: block.canonicalModes ?? {},
       retry: block.retry ?? null,
       params: decodeStructured(block.config.params),
-    }
+    })
   }
   const connections = serialized.connections
     .map((c) =>
@@ -177,9 +178,9 @@ function sortSubflowNodes(subflows: Record<string, unknown>): Record<string, unk
   const out: Record<string, unknown> = {}
   for (const [id, config] of Object.entries(subflows)) {
     if (isRecordLike(config) && Array.isArray(config.nodes)) {
-      out[id] = { ...config, nodes: config.nodes.map(String).sort(compareStrings) }
+      setOwn(out, id, { ...config, nodes: config.nodes.map(String).sort(compareStrings) })
     } else {
-      out[id] = config
+      setOwn(out, id, config)
     }
   }
   return out
@@ -201,7 +202,7 @@ export function decodeStructured(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(decodeStructured)
   if (isRecordLike(value)) {
     const out: Record<string, unknown> = {}
-    for (const [key, child] of Object.entries(value)) out[key] = decodeStructured(child)
+    for (const [key, child] of Object.entries(value)) setOwn(out, key, decodeStructured(child))
     return out
   }
   return value
@@ -297,7 +298,7 @@ function replaceIds(value: unknown, map: Map<string, string>): unknown {
     if (Array.isArray(node)) return node.map(walk)
     if (isRecordLike(node)) {
       const out: Record<string, unknown> = {}
-      for (const [key, child] of Object.entries(node)) out[swap(key)] = walk(child)
+      for (const [key, child] of Object.entries(node)) setOwn(out, swap(key), walk(child))
       return out
     }
     return node

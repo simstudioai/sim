@@ -1,6 +1,7 @@
 import type { CallExpression, Node } from '@babel/types'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import type { CanonicalTool, Json, ParamMode, ResourceNode, UnresolvedNode, Value } from '../model'
+import { setOwn } from '../records'
 import { type CompileContext, lookup, rangeOf } from './context'
 import { didYouMean, hintForNode } from './hints'
 import {
@@ -10,7 +11,6 @@ import {
   compileValue,
   literalText,
   objectEntries,
-  setOwn,
   type ValueSite,
 } from './values'
 

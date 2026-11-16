@@ -5,6 +5,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import { portKey } from '../anchors'
 import type { AnchorKey, CanonicalBlock, CanonicalEdge, Port } from '../model'
+import { setOwn } from '../records'
 import {
   type BlockDecl,
   type CompileContext,
@@ -17,7 +18,7 @@ import {
   type WiringStatement,
 } from './context'
 import { HINTS, hintForNode } from './hints'
-import { literalText, setOwn } from './values'
+import { literalText } from './values'
 
 /** A wiring source: a block and, when written explicitly, the port (`cond.key`, `p.start`). */
 interface Endpoint {

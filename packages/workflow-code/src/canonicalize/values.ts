@@ -5,6 +5,7 @@ import {
 } from '@sim/utils/workflow-references'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import type { Json, ResourceKind, ResourceNode, UnresolvedNode, Value } from '../model'
+import { setOwn } from '../records'
 import { type CanonContext, report } from './context'
 
 /** The executor's candidate pattern (`createReferencePattern`); each match is then vetted. */
@@ -23,7 +24,7 @@ export function toJson(value: unknown): Json {
   if (isRecordLike(value)) {
     const result: Record<string, Json> = {}
     for (const [key, member] of Object.entries(value)) {
-      if (member !== undefined) result[key] = toJson(member)
+      if (member !== undefined) setOwn(result, key, toJson(member))
     }
     return result
   }
@@ -82,7 +83,7 @@ export function toValue(value: unknown, context: CanonContext): Value {
     if (Object.hasOwn(value, '$sim')) return { $sim: 'literal', value: toJson(value) }
     const result: Record<string, Value> = {}
     for (const [key, member] of Object.entries(value)) {
-      if (member !== undefined) result[key] = toValue(member, context)
+      if (member !== undefined) setOwn(result, key, toValue(member, context))
     }
     return result
   }

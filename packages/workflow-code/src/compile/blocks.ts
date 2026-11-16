@@ -17,6 +17,7 @@ import type {
   SubBlockId,
   Value,
 } from '../model'
+import { setOwn } from '../records'
 import { type BlockDecl, type CompileContext, rangeOf, recordSpan } from './context'
 import { didYouMean } from './hints'
 import { compileToolList } from './tools'
@@ -37,7 +38,6 @@ import {
   isSelectorForm,
   literalText,
   objectEntries,
-  setOwn,
   type ValueSite,
 } from './values'
 
