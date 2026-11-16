@@ -264,3 +264,66 @@ instead of failing at run time.
   - `CompileInput.knownKeys` (the lock's block keys) gates the new `meta.key` override, which is
     how source carries a legacy `name~n` collision key or a reserved name (`Loop`, `Parallel`)
     without being able to introduce one. A violation is `E_KEY_OVERRIDE`.
+- **A18. Source holds what executes; UI-only state is preserved, never required (Wave 4B1).**
+  This supersedes build-spec decision 2's printing rule, decision 7's mode and `picked()` rules,
+  and item 3's "every equality ignores `inactive`" where it says how source carries it.
+  - **Active** means the serializer sends the value (`extractBlockParams`, after the load-time
+    migrations) **or**, for a block acting as a trigger, deploy reads it into the webhook provider
+    config (`buildProviderConfig`, which copies every trigger-mode field of the deployed trigger
+    except the display-only system ids, visible or not). `canonicalize/activity.ts` mirrors both:
+    `isInactive` checks `deployReadIds` first, then the `shouldSerializeSubBlock` rule. An opaque
+    condition counts as satisfied except where the catalog expanded it per operation
+    (`visibleFor`), which is exact. `inactive.corpus.test.ts` proves, for every corpus workflow,
+    that no param canonicalize or the executable view treats as inactive reaches the serializer
+    or deploy (sentinel substitution).
+  - **`executableView(cwm, catalog)`** (`equivalence/executable.ts`) is the CWM minus preserved UI
+    state: inactive params (`executableInactiveParams`, over the CWM with its effective modes as
+    overrides), the pair member and mode (a pair is one param under its `canonicalParamId`),
+    off-type loop/parallel fields and spellings the runtime reads alike (`count || 5`,
+    `collection || ''`, clamped `batchSize`), and unknown `block.data` (a container keeps the
+    subflow keys canonicalize could not read, which the serializer passes through). It takes the
+    catalog, which the pair and activity rules need. P0 and P1 compare it (`executableEquals`);
+    O1 still compares stored bytes, and the new **P6** asserts that materializing the compiled lean
+    print over prev is byte-identical to the stored workflow (a no-op apply changes nothing).
+  - **The printer is lean by default.** It leaves out inactive values, `picked()` (a plain id is
+    written as a string), `meta.modes` (except where the other member would store the value
+    differently: a list or object literal into a JSON code or input-format member), off-type
+    subflow fields (a `doWhile` with no condition prints its `count`, which then runs), and
+    unknown residue. An undeclared stored id that still runs (a schema-agnostic custom block's
+    input, the agent's legacy prompt fields) keeps printing under `meta.inactive`, the only place
+    source takes an undeclared id. `PrintOptions.verbose` prints the rest, for
+    `source get --verbose`.
+  - **Defaults rule.** The editor default of a field is what canvas creation seeds
+    (`createBlockFromParams` with no inputs, wrapped by `hooks.initBlock`): per subBlock id, first
+    declaration wins; a visible editable field gets its `value()` thunk's result for a block with
+    no values (`valueDefault.constant`, or the new `valueDefault.initial` the projection records
+    for a computed thunk whose creation value is stable); a hidden field gets its `defaultValue`;
+    a thunk that mints a fresh value per call has none. Every registry default is a scalar, and
+    only scalars count (`catalog/defaults.ts`). The printer omits a value equal to the default and
+    prints `null` for an active field with a default and no stored value. Compile fills an omitted
+    param with its default; `null` and `todo()` stay stored-absent. Materialize already writes a
+    new block from `initBlock` and nulls only what the CWM leaves absent, so a code-created block
+    with no params is stored exactly as a canvas-created one (`default-parity.test.ts`, every
+    registry type and trigger mode; minted values and condition/router placeholder rows aside).
+  - **Materialize restores preserved state** (`materialize/preserve.ts`) for each matched block of
+    the same type, before writing: when a pair's executable value is unchanged, prev's members and
+    mode; when a plain id changed and prev showed the basic selector member of a `picked` pair,
+    prev's member; then every param inactive under the target's values, from prev (absent
+    included, so defaults compile filled into fields that never run are dropped); off-type subflow
+    fields and prev's whole config when it runs the same; unknown residue a lean print does not
+    carry. A full CWM restores onto itself unchanged, so O1 holds. Source cannot pick a pair
+    member for a plain id: that is canvas state.
+  - **The loop count is the one that runs.** `loopSpec` reads `block.data.count`, and an absent
+    count is the 5 that runs (`convertLoopBlockToLoop`); the loops map's count is read only when the
+    loader would repair a non-numeric `data.count` from it. The O2 execution view compares
+    containers through the `loops`/`parallels` maps the executor runs, not the container's echoed
+    `data`. Corpus subjects take the stored shape: every write path rebuilds the loops map from
+    the container blocks, so an orphan map entry is never stored.
+  - **Stored outputs** are rewritten only when `computeOutputs` differs between prev and the edited
+    block, so a block with stale or empty stored outputs keeps them through an unrelated edit.
+  - **Goldens run against the real catalog.** `print/__fixtures__/real-catalog.json` is the slice of
+    `buildBlockCatalog` the golden cases use (compacted and hashed like the core shard), rebuilt
+    and drift-checked by `apps/sim/lib/workflows/code/golden-catalog.test.ts`. Cases are canvas
+    blocks of current types (editor defaults seeded). `workflow-sdk`'s `goldens.test.ts`
+    type-checks every golden, lean and verbose, with `core.d.ts` plus the types generated from
+    that slice. `print/__fixtures__/catalog.ts` stays for unit tests.

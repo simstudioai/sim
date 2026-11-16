@@ -196,7 +196,10 @@ export interface CanonicalBranchRow {
 export interface LoopSpec {
   kind: 'loop'
   loopType: 'for' | 'forEach' | 'while' | 'doWhile'
-  /** Raw stored count, `0` kept with `W_CANON_SUBFLOW_REPAIRED` (s1 quirk 19, load.ts:186-245). */
+  /**
+   * The count that runs: `block.data.count` raw (`0` kept with `W_CANON_SUBFLOW_REPAIRED`; the
+   * runtime reads `count || 5`), or 5 when `data` has none (s1 quirk 19, load.ts:186-245).
+   */
   iterations: number
   forEachItems?: Json
   whileCondition?: string
@@ -351,8 +354,10 @@ export interface CodeComment {
 export interface WorkflowAnnotations {
   /**
    * Per block, the param ids whose value is stored but not serialized under the current values
-   * (mirrors `shouldSerializeSubBlock`; opaque catalog conditions count as active). The printer
-   * emits them under the block's `inactive: {...}` meta (build-spec decision 2).
+   * and not read by deploy (`canonicalize/activity.ts`; opaque catalog conditions count as
+   * active unless expanded per operation). Source leaves them out and apply restores them from the
+   * stored workflow; a verbose print lists them under the block's `inactive: {...}` meta
+   * (DESIGN.md A18).
    */
   inactive: Record<BlockKey, SubBlockId[]>
   /**
