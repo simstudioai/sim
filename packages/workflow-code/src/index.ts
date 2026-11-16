@@ -62,11 +62,13 @@ export {
   fromCodeFile,
   toCodeFile,
 } from './code-files'
+export type { WorkflowCodeMetaV1 } from './code-meta'
 export { compileWorkflow } from './compile'
 export type {
   ApplyDiagnosticCode,
   CanonicalizeDiagnosticCode,
   CodeFileCode,
+  CodeMetaDiagnosticCode,
   CompileCatalogCode,
   CompileDiagnosticCode,
   CompileEdgeCode,
