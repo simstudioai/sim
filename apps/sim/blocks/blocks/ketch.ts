@@ -1,6 +1,7 @@
 import { KetchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 export const KetchBlock: BlockConfig = {
   type: 'ketch',
@@ -186,7 +187,8 @@ export const KetchBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `ketch_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {
           organizationCode: params.organizationCode,
           propertyCode: params.propertyCode,
@@ -203,20 +205,20 @@ export const KetchBlock: BlockConfig = {
               : params.identities
         }
 
-        if (params.operation === 'get_consent' && params.purposesFilter) {
+        if (operation === 'get_consent' && params.purposesFilter) {
           result.purposes =
             typeof params.purposesFilter === 'string'
               ? JSON.parse(params.purposesFilter)
               : params.purposesFilter
         }
 
-        if (params.operation === 'set_consent' && params.purposes) {
+        if (operation === 'set_consent' && params.purposes) {
           result.purposes =
             typeof params.purposes === 'string' ? JSON.parse(params.purposes) : params.purposes
           if (params.collectedAt) result.collectedAt = Number(params.collectedAt)
         }
 
-        if (params.operation === 'set_subscriptions') {
+        if (operation === 'set_subscriptions') {
           if (params.topics) {
             result.topics =
               typeof params.topics === 'string' ? JSON.parse(params.topics) : params.topics
@@ -227,7 +229,7 @@ export const KetchBlock: BlockConfig = {
           }
         }
 
-        if (params.operation === 'invoke_right') {
+        if (operation === 'invoke_right') {
           if (params.rightCode) result.rightCode = params.rightCode
           if (params.userData) {
             result.userData =

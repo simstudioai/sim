@@ -1,7 +1,8 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { StripeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { isToolCall, withSavedCredential } from '@/blocks/utils'
+import { isToolCall, mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -18,6 +19,15 @@ const CAPTURE_AMOUNT_FIELD = ['amount_to_capture', 'amount'] as const
 function parseOptionalBoolean(value: unknown): boolean | undefined {
   if (value === undefined || value === '') return undefined
   return value === true || value === 'true'
+}
+
+/**
+ * Reads a JSON input. The canvas stores it as text; a tool call passes the model's already-parsed
+ * object or array, which is kept as is.
+ */
+function parseJsonInput(value: unknown): unknown {
+  if (!value) return undefined
+  return typeof value === 'string' ? JSON.parse(value) : value
 }
 
 const SUBSCRIPTION_LIST_OPERATION = 'list_subscriptions'
@@ -928,8 +938,8 @@ export const StripeBlock: BlockConfig = {
         return `stripe_${params.operation}`
       },
       params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           apiKey,
           address,
           metadata,
@@ -952,20 +962,20 @@ export const StripeBlock: BlockConfig = {
           ...rest
         } = params
 
-        let parsedAddress: any | undefined
-        let parsedMetadata: any | undefined
-        let parsedItems: any | undefined
-        let parsedImages: any | undefined
-        let parsedRecurring: any | undefined
+        let parsedAddress: unknown
+        let parsedMetadata: unknown
+        let parsedItems: unknown
+        let parsedImages: unknown
+        let parsedRecurring: unknown
 
         try {
-          if (address) parsedAddress = JSON.parse(address)
-          if (metadata) parsedMetadata = JSON.parse(metadata)
-          if (items) parsedItems = JSON.parse(items)
-          if (images) parsedImages = JSON.parse(images)
-          if (recurring) parsedRecurring = JSON.parse(recurring)
-        } catch (error: any) {
-          throw new Error(`Invalid JSON input: ${error.message}`)
+          parsedAddress = parseJsonInput(address)
+          parsedMetadata = parseJsonInput(metadata)
+          parsedItems = parseJsonInput(items)
+          parsedImages = parseJsonInput(images)
+          parsedRecurring = parseJsonInput(recurring)
+        } catch (error) {
+          throw new Error(`Invalid JSON input: ${getErrorMessage(error)}`)
         }
 
         // Every key is assigned, unset ones as `undefined`: the executor merges these over the raw
@@ -996,11 +1006,11 @@ export const StripeBlock: BlockConfig = {
         return {
           apiKey,
           ...rest,
-          ...(parsedAddress && { address: parsedAddress }),
-          ...(parsedMetadata && { metadata: parsedMetadata }),
-          ...(parsedItems && { items: parsedItems }),
-          ...(parsedImages && { images: parsedImages }),
-          ...(parsedRecurring && { recurring: parsedRecurring }),
+          ...(parsedAddress ? { address: parsedAddress } : {}),
+          ...(parsedMetadata ? { metadata: parsedMetadata } : {}),
+          ...(parsedItems ? { items: parsedItems } : {}),
+          ...(parsedImages ? { images: parsedImages } : {}),
+          ...(parsedRecurring ? { recurring: parsedRecurring } : {}),
           ...parsedBooleans,
           ...pagination,
         }

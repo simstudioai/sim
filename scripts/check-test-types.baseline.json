@@ -649,9 +649,6 @@
   "apps/sim/blocks/blocks/mem0.test.ts": {
     "TS18048": 1
   },
-  "apps/sim/blocks/blocks/mintlify.test.ts": {
-    "TS18048": 1
-  },
   "apps/sim/blocks/blocks/mssql.test.ts": {
     "TS18048": 1,
     "TS2339": 2

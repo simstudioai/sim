@@ -1,6 +1,6 @@
 import { JotformIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -730,10 +730,10 @@ export const JotformBlock: BlockConfig = {
        * Everything else — formId, submissionId, answers, the pagination fields — is
        * named after its param and reaches the tool unchanged.
        */
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'create_form':
             if (params.newFormQuestions) result.questions = params.newFormQuestions
             if (params.newFormProperties) result.properties = params.newFormProperties

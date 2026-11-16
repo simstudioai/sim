@@ -1,6 +1,7 @@
 import { PolymarketIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 const MARKET_REF_FIELD = ['marketId', 'marketSlug'] as const
 const EVENT_REF_FIELD = ['eventId', 'eventSlug'] as const
@@ -757,9 +758,8 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
             return 'polymarket_get_markets'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
-          operation,
           marketSlug,
           eventSlug,
           orderEvents,
@@ -787,6 +787,7 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
           holdersMinBalance,
           ...rest
         } = params
+        const operation = mapperOperation(params, context)
         const cleanParams: Record<string, any> = {}
 
         if (operation === 'get_market' && marketSlug) {

@@ -1,7 +1,7 @@
 import { ProfoundIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 const CATEGORY_REPORT_OPS = [
   'visibility_report',
@@ -439,7 +439,7 @@ export const ProfoundBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `profound_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
         const metricsMap: Record<string, string> = {
           visibility_report: 'visibilityMetrics',
@@ -450,7 +450,7 @@ export const ProfoundBlock: BlockConfig = {
           query_fanouts: 'fanoutsMetrics',
           prompt_volume: 'volumeMetrics',
         }
-        const metricsField = metricsMap[params.operation as string]
+        const metricsField = metricsMap[mapperOperation(params, context)]
         if (metricsField && params[metricsField]) {
           result.metrics = params[metricsField]
         }
