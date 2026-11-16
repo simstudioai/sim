@@ -2,18 +2,14 @@ import { compareStrings } from '@sim/utils/string'
 import {
   type BlockState,
   getWorkflowEdgeScopeDropReason,
-  getWorkflowSubflowHandleIds,
   normalizeWorkflowEdgeSourceHandle,
-  WORKFLOW_ERROR_HANDLE_ID,
-  WORKFLOW_SOURCE_HANDLE_ID,
+  parseWorkflowSourceHandle,
+  type WorkflowBranchKind,
 } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import { portKey } from '../anchors'
 import type { BranchKey, CanonicalEdge, Port } from '../model'
 import { type CanonContext, report } from './context'
-
-const CONDITION_HANDLE_PREFIX = 'condition-'
-const ROUTER_HANDLE_PREFIX = 'router-'
 
 /** Sorts edges by `(from, portKey, to)` with `compareStrings`. */
 export function compareEdges(left: CanonicalEdge, right: CanonicalEdge): number {
@@ -27,7 +23,7 @@ export function compareEdges(left: CanonicalEdge, right: CanonicalEdge): number 
 export interface EdgeInputs {
   blocks: Record<string, BlockState>
   /** Block id → its branch kind and row-id → key map, for condition and router blocks. */
-  branchKeys: Map<string, { kind: 'condition' | 'router'; keyByRowId: Map<string, BranchKey> }>
+  branchKeys: Map<string, { kind: WorkflowBranchKind; keyByRowId: Map<string, BranchKey> }>
 }
 
 function sourcePort(
@@ -36,22 +32,11 @@ function sourcePort(
   sourceId: string,
   inputs: EdgeInputs
 ): Port {
-  if (handle === null || handle === WORKFLOW_SOURCE_HANDLE_ID) return { kind: 'out' }
-  if (handle === WORKFLOW_ERROR_HANDLE_ID) return { kind: 'error' }
-  if (source.type === 'loop' || source.type === 'parallel') {
-    const { start, end } = getWorkflowSubflowHandleIds(source.type)
-    if (handle === start) return { kind: 'subflowStart' }
-    if (handle === end) return { kind: 'subflowEnd' }
-  }
   const branches = inputs.branchKeys.get(sourceId)
-  if (branches) {
-    const prefix = branches.kind === 'condition' ? CONDITION_HANDLE_PREFIX : ROUTER_HANDLE_PREFIX
-    if (handle.startsWith(prefix)) {
-      const key = branches.keyByRowId.get(handle.slice(prefix.length))
-      if (key !== undefined) return { kind: 'branch', key }
-    }
-  }
-  return { kind: 'raw', handle }
+  const parsed = parseWorkflowSourceHandle(handle, source.type, branches?.kind)
+  if (parsed.kind !== 'branch') return parsed
+  const key = branches?.keyByRowId.get(parsed.rowId)
+  return key === undefined ? { kind: 'raw', handle: parsed.handle } : { kind: 'branch', key }
 }
 
 /**

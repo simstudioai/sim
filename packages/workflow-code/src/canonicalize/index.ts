@@ -2,6 +2,7 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   type BlockRetryConfig,
   type BlockState,
+  isSubflowType,
   normalizeBlockRetryTries,
   normalizeBlockRetryWaitMs,
   resolveEffectiveErrorEnabled,
@@ -11,6 +12,7 @@ import { deployReadIds, isInactive } from '../catalog/activity'
 import type { CanonicalModeOverrides } from '../catalog/canonical-index'
 import { buildCanonicalIndexForSurface } from '../catalog/surface'
 import type { BlockCatalog } from '../catalog/types'
+import { catalogBlock } from '../catalog/view'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { LockIdentity, LockIdentityBlock, LockLayout, WorkflowLockV1 } from '../lock'
@@ -28,7 +30,7 @@ import type {
 } from '../model'
 import { setOwn } from '../records'
 import { type LiftedBranches, liftBranches } from './branches'
-import { type CanonContext, catalogBlock, report } from './context'
+import { type CanonContext, report } from './context'
 import { canonicalEdges } from './edges'
 import { assignBlockKeys, assignVariableKeys } from './keys'
 import { effectiveModes } from './modes'
@@ -150,7 +152,7 @@ export function canonicalize(
 
   const liftedBranches = new Map<string, LiftedBranches>()
   for (const [id, block] of Object.entries(blocks)) {
-    const branchSpec = catalogBlock(context, block.type)?.graph.branches
+    const branchSpec = catalogBlock(context.catalog, block.type)?.graph.branches
     if (!branchSpec) continue
     const key = keyById.get(id) ?? id
     liftedBranches.set(
@@ -189,8 +191,8 @@ export function canonicalize(
   for (const [id, block] of Object.entries(blocks)) {
     const key = keyById.get(id) ?? id
     const data: Record<string, unknown> = { ...block.data }
-    const catalog = catalogBlock(context, block.type)
-    const isContainer = block.type === 'loop' || block.type === 'parallel'
+    const catalog = catalogBlock(context.catalog, block.type)
+    const isContainer = isSubflowType(block.type)
     if (!catalog && !isContainer) {
       report(context, {
         code: 'W_CANON_UNKNOWN_BLOCK_TYPE',

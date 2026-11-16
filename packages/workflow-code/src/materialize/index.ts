@@ -9,6 +9,7 @@ import {
 } from '@sim/workflow-types/workflow'
 import { type CanonicalizeResult, canonicalize } from '../canonicalize'
 import type { BlockCatalog } from '../catalog/types'
+import { catalogBlock } from '../catalog/view'
 import type { MaterializeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { LockIdentity, WorkflowLockBlock, WorkflowLockV1 } from '../lock'
@@ -21,7 +22,7 @@ import type {
 } from '../model'
 import { deepEqual, setOwn } from '../records'
 import { type BuiltBlock, buildBlock } from './block'
-import { catalogBlock, type MaterializeContext, type MaterializeHooks, report } from './context'
+import { type MaterializeContext, type MaterializeHooks, report } from './context'
 import { type BranchHandles, writeEdges } from './edges'
 import { type IdentityEntry, type LockFreshness, resolveIdentity } from './identity'
 import { restorePreserved } from './preserve'
@@ -250,20 +251,14 @@ export function materialize(
     const id = idByKey.get(key)
     const kind = catalogBlock(catalog, workflow.blocks[key].type)?.graph.branches?.kind
     if (id === undefined || !kind || !result.branchIds) continue
-    branchHandles.set(id, {
-      prefix: kind === 'condition' ? 'condition-' : 'router-',
-      ids: result.branchIds,
-    })
+    branchHandles.set(id, { kind, ids: result.branchIds })
   }
   const prevBranchHandles = new Map<string, BranchHandles>()
   for (const [key, identity] of Object.entries(prevIdentity)) {
-    const kind = catalogBlock(catalog, prevCanonical?.workflow.blocks[key]?.type)?.graph.branches
-      ?.kind
+    const prevType = prevCanonical?.workflow.blocks[key]?.type
+    const kind = prevType && catalogBlock(catalog, prevType)?.graph.branches?.kind
     if (!kind || !identity.branches) continue
-    prevBranchHandles.set(identity.id, {
-      prefix: kind === 'condition' ? 'condition-' : 'router-',
-      ids: identity.branches,
-    })
+    prevBranchHandles.set(identity.id, { kind, ids: identity.branches })
   }
 
   const edges = writeEdges(

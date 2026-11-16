@@ -9,7 +9,7 @@ import {
   type SourceSpan,
 } from '@sim/workflow-code'
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
-import type { BlockState } from '@sim/workflow-types/workflow'
+import { type BlockState, isSubflowType } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
 import type { GraphDiff } from '@/lib/workflows/code/apply/graph-diff'
@@ -18,8 +18,6 @@ import { validateValueForSubBlockType } from '@/lib/workflows/editing/validation
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
-
-const CONTAINER_TYPES: ReadonlySet<string> = new Set(['loop', 'parallel'])
 
 interface SourceBlockRef {
   id: string
@@ -135,7 +133,7 @@ export function normalizeChangedValues(
   const changedIds = [...diff.added, ...diff.modified.map((change) => change.id)]
   for (const id of changedIds) {
     const original = blocks[id]
-    if (!original || CONTAINER_TYPES.has(original.type)) continue
+    if (!original || isSubflowType(original.type)) continue
     const blockKey = keyOf(id)
 
     const validation = validateWorkflowState(

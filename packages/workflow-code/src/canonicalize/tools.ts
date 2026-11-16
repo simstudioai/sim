@@ -2,10 +2,10 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import { MCP_TOOL_TYPE, mcpToolId } from '../agent-tools'
 import { type CanonicalModeOverrides, scopeCanonicalModesForTool } from '../catalog/canonical-index'
 import type { BlockCatalog, CatalogSubBlock } from '../catalog/types'
-import { catalogBlock as catalogBlockOf, catalogTool } from '../catalog/view'
+import { catalogBlock, catalogTool } from '../catalog/view'
 import type { BlockKey, CanonicalTool, Json, Value } from '../model'
 import { parseJsonContainer, setOwn } from '../records'
-import { type CanonContext, catalogBlock } from './context'
+import type { CanonContext } from './context'
 import { effectiveModes } from './modes'
 import { liftResourceId, liftResourceValue, toJson, toValue } from './values'
 
@@ -71,7 +71,7 @@ export function toolParamDeclaration(
   tool: { type: string; toolId?: string },
   key: string
 ): { subBlock: CatalogSubBlock | undefined; shape: ToolParamShape } {
-  const subBlock = catalogBlockOf(catalog, tool.type)?.subBlocks.find(
+  const subBlock = catalogBlock(catalog, tool.type)?.subBlocks.find(
     (candidate) => candidate.id === key || candidate.canonicalParamId === key
   )
   if (subBlock) return { subBlock, shape: subBlockShape(subBlock) }
@@ -124,7 +124,7 @@ function liftTool(
   context: CanonContext
 ): CanonicalTool {
   const type = stored.type
-  const block = catalogBlock(context, type)
+  const block = catalogBlock(context.catalog, type)
   const toolId = typeof stored.toolId === 'string' ? stored.toolId : undefined
   const location = { blockKey, param }
 

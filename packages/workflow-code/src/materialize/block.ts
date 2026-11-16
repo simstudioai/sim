@@ -1,14 +1,20 @@
 import { isRecordLike, omit } from '@sim/utils/object'
-import type { BlockData, BlockState, SubBlockState } from '@sim/workflow-types/workflow'
+import {
+  type BlockData,
+  type BlockState,
+  isSubflowType,
+  type SubBlockState,
+} from '@sim/workflow-types/workflow'
 import { implicitIds } from '../canonicalize/branches'
 import { declarationFor, isExcludedSubBlockId } from '../canonicalize/params'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { mintsFreshValue } from '../catalog/defaults'
+import { catalogBlock } from '../catalog/view'
 import type { LockItem, LockLayout, WorkflowLockBlock } from '../lock'
 import type { BlockKey, BranchKey, CanonicalBlock, SubBlockId } from '../model'
 import { deepEqual, parseJsonContainer } from '../records'
 import { writeBranches } from './branches'
-import { catalogBlock, type MaterializeContext } from './context'
+import type { MaterializeContext } from './context'
 import type { ResolvedBlock } from './identity'
 import { storedModes, writeBlockModes, writeToolModes } from './modes'
 import { encodeParam, matchPrevTools, parseStoredList } from './params'
@@ -287,7 +293,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
     }
   }
   if (isNew) {
-    const isContainer = target.type === 'loop' || target.type === 'parallel'
+    const isContainer = isSubflowType(target.type)
     for (const dataKey of Object.keys(data)) {
       const owned = MODEL_DATA_KEYS.has(dataKey) || (isContainer && SUBFLOW_DATA_KEYS.has(dataKey))
       if (!owned && !Object.hasOwn(nextExtra, dataKey)) delete data[dataKey]

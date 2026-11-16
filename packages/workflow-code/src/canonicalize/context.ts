@@ -1,5 +1,4 @@
-import type { BlockCatalog, CatalogBlock } from '../catalog/types'
-import { catalogBlock as readCatalogBlock } from '../catalog/view'
+import type { BlockCatalog } from '../catalog/types'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import type { BlockKey, ResourceKeyResolver, VarKey } from '../model'
@@ -28,8 +27,4 @@ export interface CanonContext {
 
 export function report(context: CanonContext, diagnostic: Diagnostic<CanonicalizeDiagnosticCode>) {
   context.diagnostics.push(diagnostic)
-}
-
-export function catalogBlock(context: CanonContext, type: string): CatalogBlock | undefined {
-  return readCatalogBlock(context.catalog, type)
 }

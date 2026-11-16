@@ -8,6 +8,11 @@ export const SUBFLOW_TYPES = {
 
 export type SubflowType = (typeof SUBFLOW_TYPES)[keyof typeof SUBFLOW_TYPES]
 
+/** Whether a block type is a subflow container (`loop` or `parallel`). */
+export function isSubflowType(type: string): type is SubflowType {
+  return type === SUBFLOW_TYPES.LOOP || type === SUBFLOW_TYPES.PARALLEL
+}
+
 export interface LoopConfig {
   nodes: string[]
   iterations: number
@@ -425,6 +430,52 @@ export function getWorkflowSubflowHandleIds(kind: 'loop' | 'parallel'): {
   end: string
 } {
   return { start: `${kind}-start-source`, end: `${kind}-end-source` }
+}
+
+/** The block kinds whose output handles are one per branch row. */
+export type WorkflowBranchKind = 'condition' | 'router'
+
+/** The persisted output handle of one branch row: `condition-<rowId>` / `router-<rowId>`. */
+export function getWorkflowBranchHandleId(kind: WorkflowBranchKind, rowId: string): string {
+  return `${kind}-${rowId}`
+}
+
+/** The row id a branch handle names, or `null` when `handle` is not a `kind` branch handle. */
+export function getWorkflowBranchHandleRowId(
+  kind: WorkflowBranchKind,
+  handle: string
+): string | null {
+  const prefix = `${kind}-`
+  return handle.startsWith(prefix) ? handle.slice(prefix.length) : null
+}
+
+/** A persisted source handle, decoded by the port it leaves through. */
+export type WorkflowSourceHandle =
+  | { kind: 'out' }
+  | { kind: 'error' }
+  | { kind: 'subflowStart' }
+  | { kind: 'subflowEnd' }
+  | { kind: 'branch'; rowId: string; handle: string }
+  | { kind: 'raw'; handle: string }
+
+/**
+ * Decodes a normalized source handle ({@link normalizeWorkflowEdgeSourceHandle}). A subflow port
+ * needs a container source and a branch port a `branchKind`; anything else is `raw`.
+ */
+export function parseWorkflowSourceHandle(
+  handle: string | null,
+  sourceType: string | undefined,
+  branchKind: WorkflowBranchKind | undefined
+): WorkflowSourceHandle {
+  if (handle === null || handle === WORKFLOW_SOURCE_HANDLE_ID) return { kind: 'out' }
+  if (handle === WORKFLOW_ERROR_HANDLE_ID) return { kind: 'error' }
+  if (sourceType !== undefined && isSubflowType(sourceType)) {
+    const { start, end } = getWorkflowSubflowHandleIds(sourceType)
+    if (handle === start) return { kind: 'subflowStart' }
+    if (handle === end) return { kind: 'subflowEnd' }
+  }
+  const rowId = branchKind ? getWorkflowBranchHandleRowId(branchKind, handle) : null
+  return rowId === null ? { kind: 'raw', handle } : { kind: 'branch', rowId, handle }
 }
 
 /**

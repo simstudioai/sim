@@ -1,8 +1,8 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { effectiveModes } from '../canonicalize/modes'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
+import { catalogBlock } from '../catalog/view'
 import type { CanonicalParamId, CanonicalTool, ParamMode } from '../model'
-import { catalogBlock } from './context'
 
 const MODES = new Set(['basic', 'advanced'])
 const INDEX_SCOPED_KEY = /^\d+:/
