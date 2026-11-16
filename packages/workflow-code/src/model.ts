@@ -8,6 +8,7 @@
  * `annotations` never take part in equality, hashing or the source fingerprint.
  */
 
+import type { PortableResourceKind } from '@sim/workflow-types/resources'
 import type { BlockRetryConfig, Variable } from '@sim/workflow-types/workflow'
 
 /**
@@ -42,21 +43,14 @@ export type Json = null | boolean | number | string | Json[] | { [key: string]: 
 export type ParamMode = 'basic' | 'advanced'
 
 /**
- * Kinds of workspace resource a value can point at by internal id. Each is printed call-form
- * (`table('leads')`, `binding('support-slack')`, `kb('docs')`, ...; build-spec decision 7,
- * s2 D6) and resolved to an id by the server's `ResourceKeyResolver`.
+ * Kinds of workspace resource a value can point at by internal id: the shared portable vocabulary
+ * (`WORKFLOW_RESOURCE_KINDS` in `@sim/workflow-types/resources`, also used by workflow imports and
+ * fork sync) minus `env-var`. Environment variables are `{{NAME}}` text tokens printed as
+ * `env.NAME`, never nodes. Each kind is printed call-form (`table('leads')`,
+ * `binding('support-slack')`, `kb('docs')`, ...; build-spec decision 7, s2 D6) and resolved by the
+ * server's `ResourceKeyResolver`.
  */
-export type ResourceKind =
-  | 'credential'
-  | 'table'
-  | 'knowledgeBase'
-  | 'workflow'
-  | 'skill'
-  | 'customTool'
-  | 'mcpServer'
-  | 'sandbox'
-  | 'file'
-  | 'folder'
+export type ResourceKind = Exclude<PortableResourceKind, 'env-var'>
 
 /** A workflow variable referenced by internal id (variables-input `variableId`). */
 export interface VarNode {
@@ -64,7 +58,14 @@ export interface VarNode {
   key: VarKey
 }
 
-/** A workspace resource lifted from its internal id to its stable key. */
+/**
+ * A workspace resource lifted from its internal id to its stable key. Where an id sits inside a
+ * larger stored shape, only the id is replaced and the shape is kept:
+ * - scalar or array encoding: the string, or each array element, becomes a node;
+ * - `files` encoding (file-upload objects carrying `key`): each object stays an object and its
+ *   `key` field becomes `{ $sim: 'resource', kind: 'file', key }`;
+ * - `csv` encoding (several ids in one comma-joined string): see {@link CsvNode}.
+ */
 export interface ResourceNode {
   $sim: 'resource'
   kind: ResourceKind
@@ -72,14 +73,24 @@ export interface ResourceNode {
 }
 
 /**
- * An internal id the resolver could not map to a key (deleted resource, foreign workspace). Kept
- * verbatim so materialize writes the same bytes back; canonicalize emits
- * `W_CANON_UNRESOLVED_ID`.
+ * An internal id the resolver could not map to a key (deleted resource, foreign workspace, or a
+ * kind this version does not know). Kept verbatim so materialize writes the same bytes back;
+ * canonicalize emits `W_CANON_UNRESOLVED_ID`. `kind` is any resolver kind or `var`.
  */
 export interface UnresolvedNode {
   $sim: 'unresolved'
-  kind: ResourceKind | 'var'
+  kind: string
   id: string
+}
+
+/**
+ * A stored string holding several ids joined by commas (the reference manifest's `csv` encoding,
+ * lib/workflows/references/manifest.ts:96 and import-plan.ts:73). Materialize joins the items with
+ * `,`; prev's raw string (including any spaces after commas) is kept when the items are equal.
+ */
+export interface CsvNode {
+  $sim: 'csv'
+  items: Array<ResourceNode | UnresolvedNode>
 }
 
 /**
@@ -92,7 +103,7 @@ export interface LiteralNode {
 }
 
 /** Internal-id sites inside values, lifted to keys (s1 §2, sites per remap-internal-ids.ts:111-127). */
-export type SimNode = VarNode | ResourceNode | UnresolvedNode | LiteralNode
+export type SimNode = VarNode | ResourceNode | UnresolvedNode | CsvNode | LiteralNode
 
 /**
  * A param value. Strings are stored text, verbatim: references stay as `<block.path>`,
@@ -102,21 +113,20 @@ export type SimNode = VarNode | ResourceNode | UnresolvedNode | LiteralNode
 export type Value = Json | SimNode | Value[] | { [key: string]: Value }
 
 /**
- * How a param's value is stored. `json-string` means the subBlock holds JSON text that
- * canonicalize decoded (structured types only: tools, tableRows, inputFormat, tag filters;
- * s1 quirk 9); materialize re-encodes it, and keeps prev's raw text when the decoded form is
- * unchanged, so whitespace and key order survive (s1 D1).
- */
-export type ParamStorage = 'native' | 'json-string'
-
-/**
- * One stored subBlock value. A subBlock whose stored value is `null` is absent from
- * `CanonicalBlock.params` (s3 §2 requirement d); `''` is kept and never coerced to `null`
- * (s1 quirk 25, serializer/index.ts:620-634).
+ * One stored subBlock value, decoded. The CWM is encoding-free: whether the subBlock held native
+ * JSON or JSON text (structured types: tools, tableRows, inputFormat, tag filters; s1 quirk 9) is
+ * not recorded, so `canonicalEquals`, hashes, diffs and the fingerprint never see it. Materialize
+ * picks the encoding: prev's raw encoding when the subBlock exists in prev, else the catalog
+ * `CatalogSubBlock.storage`; and it keeps prev's raw bytes when the decoded value is unchanged
+ * (s1 D1).
+ *
+ * A subBlock whose stored value is `null` is absent from `CanonicalBlock.params`
+ * (s3 §2 requirement d); `''` is kept and never coerced to `null` (s1 quirk 25,
+ * serializer/index.ts:620-634).
  */
 export type CanonicalParam =
-  | { kind: 'value'; value: Value; storage: ParamStorage }
-  | { kind: 'tools'; tools: CanonicalTool[]; storage: ParamStorage }
+  | { kind: 'value'; value: Value }
+  | { kind: 'tools'; tools: CanonicalTool[] }
 
 /** One entry of a `tool-input` list (s1 §2, canonicalize step 5). */
 export interface CanonicalTool {
@@ -149,7 +159,10 @@ export interface CanonicalBranches {
   /**
    * `null` when the subBlock was never persisted: the canvas writes it only on first edit
    * (condition-input.tsx:384-392) and edges may point at the implicit `${id}-if` handle
-   * (s1 quirk 7). Materialize keeps `null`.
+   * (s1 quirk 7). Materialize keeps `null`. The source form of `null` is an empty branch object
+   * (`condition('Name', {})`, router `routes: {}`); the implicit default keys (`if` and `else`
+   * for a condition, `route0` for a router) stay addressable as ports. A non-empty object is
+   * always a persisted list, so `[]` is never produced.
    */
   rows: CanonicalBranchRow[] | null
 }
@@ -168,23 +181,30 @@ export interface CanonicalBranchRow {
   extra?: Record<string, Json>
 }
 
+/**
+ * Loop config as the `loops` map stores it (`Loop`, workflow.ts:732-742). Optional fields are
+ * absent exactly when storage omits them; canonicalize never fills defaults, so materialize can
+ * write prev's config back verbatim when canonical-equal.
+ */
 export interface LoopSpec {
   kind: 'loop'
   loopType: 'for' | 'forEach' | 'while' | 'doWhile'
   /** Raw stored count, `0` kept with `W_CANON_SUBFLOW_REPAIRED` (s1 quirk 19, load.ts:186-245). */
   iterations: number
-  forEachItems: Json
-  whileCondition: string
-  doWhileCondition: string
+  forEachItems?: Json
+  whileCondition?: string
+  doWhileCondition?: string
 }
 
+/** Parallel config as the `parallels` map stores it (`Parallel`, workflow.ts:744-753). */
 export interface ParallelSpec {
   kind: 'parallel'
-  parallelType: 'count' | 'collection'
-  count: number
-  distribution: Json
+  /** Absent in storage means the loader's fallback applies, which differs by path (s1 quirk 19). */
+  parallelType?: 'count' | 'collection'
+  count?: number
+  distribution?: Json
   /** Raw stored value; the runtime clamps to 1–20 (subflow-helpers.ts:8-14). */
-  batchSize: number
+  batchSize?: number
 }
 
 export interface CanonicalBlock {
@@ -285,19 +305,30 @@ export interface CanonicalWorkflowMeta {
 }
 
 /**
- * Where a comment attaches in a printed file (s3 §2 `AnchorKey`, build-spec decision 10):
+ * Where a comment attaches in a printed file (s3 §2, build-spec decision 10):
  * - `header`: above the imports; `wiring`: above the first wiring statement; `footer`: file end.
- * - `block:<key>`: the block's `const` declaration.
- * - `param:<key>:<subBlockId>`: one param property inside the block call.
- * - `edges:<key>:<portKey>`: the wiring statement for that (source, port).
+ * - `block`: the block's `const` declaration.
+ * - `param`: one param property in the block call. `param` is the printed param name: the
+ *   `canonicalParamId` for a basic/advanced pair, else the subBlock id.
+ * - `inactive`: one entry under the block's `inactive: {...}` meta (a subBlock id).
+ * - `edges`: the wiring statement for that (source, port).
+ * - `var`: one variable declaration in the `workflow(...)` header.
  */
-export type AnchorKey =
-  | 'header'
-  | 'wiring'
-  | 'footer'
-  | `block:${BlockKey}`
-  | `param:${BlockKey}:${SubBlockId}`
-  | `edges:${BlockKey}:${PortKey}`
+export type Anchor =
+  | { kind: 'header' }
+  | { kind: 'wiring' }
+  | { kind: 'footer' }
+  | { kind: 'block'; block: BlockKey }
+  | { kind: 'param'; block: BlockKey; param: SubBlockId | CanonicalParamId }
+  | { kind: 'inactive'; block: BlockKey; param: SubBlockId }
+  | { kind: 'edges'; block: BlockKey; port: PortKey }
+  | { kind: 'var'; variable: VarKey }
+
+/**
+ * An {@link Anchor} serialized for use as a map key (`encodeAnchor` / `decodeAnchor` in
+ * `anchors.ts`). Branded so a raw string cannot stand in for one.
+ */
+export type AnchorKey = string & { readonly __anchorKey: true }
 
 export interface CodeComment {
   /** Comment text without the `//` or `/* *\/` delimiters, verbatim. */

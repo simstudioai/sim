@@ -1,3 +1,4 @@
+import { WORKFLOW_RESOURCE_KINDS } from '@sim/workflow-types/resources'
 import { z } from 'zod'
 import {
   nonEmptyIdSchema,
@@ -7,7 +8,6 @@ import {
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspaceSchema } from '@/lib/api/contracts/workspaces'
-import { WORKFLOW_RESOURCE_KINDS } from '@/lib/workflows/references/types'
 
 const workspaceIdParamsSchema = z.object({ id: nonEmptyIdSchema })
 

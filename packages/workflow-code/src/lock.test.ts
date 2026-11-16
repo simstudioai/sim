@@ -1,44 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { parseWorkflowLock } from './lock'
 
-const HASH = 'a'.repeat(64)
-
 function validLock(): Record<string, unknown> {
   return {
     lockVersion: 1,
-    workflowId: 'wf-1',
-    workspaceId: 'ws-1',
-    catalogHash: 'cat-1',
-    baseFingerprint: `sf1:${'b'.repeat(64)}`,
     blocks: {
-      start: {
-        id: 'blk-start',
-        type: 'start_trigger',
-        name: 'Start',
-        binding: 'start',
-        order: 0,
-        parent: null,
-        contentHash: HASH,
-      },
-      each: {
-        id: 'blk-each',
-        type: 'loop',
-        name: 'Each',
-        binding: 'each',
-        order: 1,
-        parent: null,
-        contentHash: HASH,
-      },
+      start: { id: 'blk-start', parent: null, binding: 'start', order: 0 },
+      each: { id: 'blk-each', parent: null, binding: 'each', order: 1 },
       route: {
         id: 'blk-route',
-        type: 'condition',
-        name: 'Route',
+        parent: 'each',
         binding: 'route',
         order: 2,
-        parent: 'each',
-        contentHash: HASH,
         branches: { if: 'blk-route-if', else: 'blk-route-else' },
-        items: { inputFormat: { subject: 'field-1' } },
+        items: {
+          inputFormat: [
+            { name: 'subject', id: 'field-1' },
+            { name: '', id: 'field-2' },
+            { name: 'subject', id: 'field-3' },
+          ],
+        },
         layout: { x: 10, y: -4.5, w: 200, horizontalHandles: true },
         codeFile: 'functions/route.js',
       },
@@ -70,6 +51,14 @@ describe('parseWorkflowLock', () => {
     expect(parseWorkflowLock(JSON.stringify(validLock())).lock).toEqual(fromObject.lock)
   })
 
+  it('keeps items with duplicate or empty names, in order', () => {
+    expect(parseWorkflowLock(validLock()).lock?.blocks.route.items?.inputFormat).toEqual([
+      { name: 'subject', id: 'field-1' },
+      { name: '', id: 'field-2' },
+      { name: 'subject', id: 'field-3' },
+    ])
+  })
+
   it('rejects text that is not JSON and values that are not objects', () => {
     expect(codesFor('{"lockVersion":')).toEqual(['E_LOCK_JSON '])
     expect(codesFor([])).toEqual(['E_LOCK_SHAPE '])
@@ -83,56 +72,63 @@ describe('parseWorkflowLock', () => {
   })
 
   it('reports every problem at once with JSON Pointer paths', () => {
-    const lock = withBlock('route', { binding: 'class', order: -1, contentHash: 'xyz' })
-    lock.workflowId = ''
-    lock.baseFingerprint = 'abc'
+    const lock = withBlock('route', { id: '', binding: 'class', order: -1 })
+    lock.variables = { retries: 7 }
     expect(codesFor(lock)).toEqual([
-      'E_LOCK_SHAPE /workflowId',
-      'E_LOCK_SHAPE /baseFingerprint',
+      'E_LOCK_SHAPE /blocks/route/id',
       'E_LOCK_BINDING /blocks/route/binding',
       'E_LOCK_SHAPE /blocks/route/order',
-      'E_LOCK_SHAPE /blocks/route/contentHash',
+      'E_LOCK_SHAPE /variables/retries',
     ])
   })
 
   it('rejects fields the schema does not define, at every level', () => {
     const lock = withBlock('start', { ident: 'start' })
-    lock.edges = {}
-    ;(lock.blocks as Record<string, Record<string, unknown>>).route.layout = { x: 1, y: 2, z: 3 }
+    lock.workflowId = 'wf-1'
+    const route = (lock.blocks as Record<string, Record<string, unknown>>).route
+    route.layout = { x: 1, y: 2, z: 3 }
+    route.items = { inputFormat: [{ name: 'a', id: 'f', type: 'string' }] }
     expect(codesFor(lock)).toEqual([
-      'E_LOCK_UNKNOWN_FIELD /edges',
+      'E_LOCK_UNKNOWN_FIELD /workflowId',
       'E_LOCK_UNKNOWN_FIELD /blocks/start/ident',
+      'E_LOCK_UNKNOWN_FIELD /blocks/route/items/inputFormat/0/type',
       'E_LOCK_UNKNOWN_FIELD /blocks/route/layout/z',
     ])
   })
 
-  it('requires keys in normalized form and matching their block name', () => {
+  it('tolerates and preserves x- extension fields at every object level', () => {
+    const lock = withBlock('start', { 'x-note': { by: 'tool' } })
+    lock['x-tool'] = 'v2'
+    ;(lock.blocks as Record<string, Record<string, unknown>>).route.layout = {
+      x: 1,
+      y: 2,
+      'x-snap': true,
+    }
+    const parsed = parseWorkflowLock(lock).lock
+    expect(parsed?.['x-tool']).toBe('v2')
+    expect(parsed?.blocks.start['x-note']).toEqual({ by: 'tool' })
+    expect(parsed?.blocks.route.layout?.['x-snap']).toBe(true)
+    expect(codesFor({ ...validLock(), 'x-bad': () => 1 })).toEqual(['E_LOCK_SHAPE /x-bad'])
+  })
+
+  it('requires block and variable keys in normalized form, including ~n collision keys', () => {
     const lock = validLock()
     const blocks = lock.blocks as Record<string, Record<string, unknown>>
-    blocks['My Block'] = { ...blocks.start, id: 'blk-x', binding: 'myBlock', name: 'My Block' }
-    blocks.start.name = 'Begin'
+    blocks['My Block'] = { id: 'blk-x', parent: null, binding: 'myBlock', order: 3 }
+    blocks['start~2'] = { id: 'blk-start-2', parent: null, binding: 'start2', order: 4 }
     lock.variables = { 'Retry Count': 'var-2' }
     expect(codesFor(lock)).toEqual([
-      'E_LOCK_KEY /blocks/start/name',
       'E_LOCK_KEY /blocks/My Block',
       'E_LOCK_KEY /variables/Retry Count',
     ])
   })
 
-  it('accepts the ~n key a legacy name collision is projected to', () => {
-    const lock = validLock()
-    const blocks = lock.blocks as Record<string, Record<string, unknown>>
-    blocks['start~2'] = { ...blocks.start, id: 'blk-start-2', binding: 'start2', order: 3 }
-    expect(parseWorkflowLock(lock).diagnostics).toBeUndefined()
-  })
-
-  it('rejects bindings that are not identifiers or that two blocks share', () => {
-    expect(codesFor(withBlock('route', { binding: '2fast' }))).toEqual([
-      'E_LOCK_BINDING /blocks/route/binding',
-    ])
-    expect(codesFor(withBlock('route', { binding: 'await' }))).toEqual([
-      'E_LOCK_BINDING /blocks/route/binding',
-    ])
+  it('rejects bindings that are not identifiers, are reserved, shadow the SDK, or repeat', () => {
+    for (const binding of ['2fast', 'await', 'env', 'block', 't']) {
+      expect(codesFor(withBlock('route', { binding })), binding).toEqual([
+        'E_LOCK_BINDING /blocks/route/binding',
+      ])
+    }
     expect(codesFor(withBlock('route', { binding: 'start' }))).toEqual([
       'E_LOCK_DUPLICATE_BINDING /blocks/route/binding',
     ])
@@ -142,7 +138,7 @@ describe('parseWorkflowLock', () => {
     expect(parseWorkflowLock(withBlock('route', { order: 0 })).diagnostics).toBeUndefined()
   })
 
-  it('rejects an id used by two blocks, two variables, or two branches of one block', () => {
+  it('rejects an id used twice by blocks, variables, branches of one block, or items', () => {
     expect(codesFor(withBlock('route', { id: 'blk-start' }))).toEqual([
       'E_LOCK_DUPLICATE_ID /blocks/route/id',
     ])
@@ -152,6 +148,18 @@ describe('parseWorkflowLock', () => {
     expect(codesFor(withBlock('route', { branches: { if: 'x', else: 'x' } }))).toEqual([
       'E_LOCK_DUPLICATE_ID /blocks/route/branches/else',
     ])
+    expect(
+      codesFor(
+        withBlock('route', {
+          items: {
+            inputFormat: [
+              { name: 'a', id: 'f' },
+              { name: 'b', id: 'f' },
+            ],
+          },
+        })
+      )
+    ).toEqual(['E_LOCK_DUPLICATE_ID /blocks/route/items/inputFormat/1/id'])
   })
 
   it('rejects parents that are missing, self-referential, or cyclic', () => {
@@ -161,8 +169,7 @@ describe('parseWorkflowLock', () => {
     expect(codesFor(withBlock('route', { parent: 'route' }))).toEqual([
       'E_LOCK_PARENT /blocks/route/parent',
     ])
-    const cyclic = withBlock('each', { parent: 'route' })
-    expect(codesFor(cyclic)).toEqual([
+    expect(codesFor(withBlock('each', { parent: 'route' }))).toEqual([
       'E_LOCK_PARENT /blocks/each/parent',
       'E_LOCK_PARENT /blocks/route/parent',
     ])
@@ -182,11 +189,17 @@ describe('parseWorkflowLock', () => {
     }
   })
 
-  it('rejects non-finite layout numbers and malformed item maps', () => {
+  it('rejects non-finite layout numbers and malformed item lists', () => {
     expect(
-      codesFor(withBlock('route', { layout: { x: Number.NaN, y: 0 }, items: { inputFormat: [] } }))
+      codesFor(
+        withBlock('route', {
+          layout: { x: Number.NaN, y: 0 },
+          items: { inputFormat: { subject: 'f' }, other: [{ name: 1, id: 'g' }] },
+        })
+      )
     ).toEqual([
       'E_LOCK_SHAPE /blocks/route/items/inputFormat',
+      'E_LOCK_SHAPE /blocks/route/items/other/0/name',
       'E_LOCK_SHAPE /blocks/route/layout/x',
     ])
   })
@@ -194,7 +207,7 @@ describe('parseWorkflowLock', () => {
   it('escapes ~ and / in pointer segments', () => {
     const lock = validLock()
     const blocks = lock.blocks as Record<string, Record<string, unknown>>
-    blocks['a/b~2'] = { ...blocks.start, id: 'blk-ab', binding: 'ab', name: 'a/b', order: 'x' }
+    blocks['a/b~2'] = { id: 'blk-ab', parent: null, binding: 'ab', order: 'x' }
     expect(codesFor(lock)).toEqual(['E_LOCK_SHAPE /blocks/a~1b~02/order'])
   })
 })

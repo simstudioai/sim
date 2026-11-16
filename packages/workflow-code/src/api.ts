@@ -119,6 +119,19 @@ export interface MaterializeOptions {
   layout?: 'preserve' | 'lock'
   /** Disables identity rule 4 (`--no-infer-renames`). */
   inferRenames?: boolean
+  /**
+   * Bindings as written in the compiled file (`CompileResult.hints`), by block key. Identity
+   * rule 2 matches a lock entry whose key is gone by its binding, so a human who edits only the
+   * display string keeps the block's id (s1 §4).
+   */
+  compiledBindings?: Record<BlockKey, string>
+  /**
+   * How the lock relates to `prev`: `fresh` when its base fingerprint matches the stored graph,
+   * `stale` when it does not, `none` when there is no lock. Rule 4 (inferred renames) runs only
+   * for `stale` and `none`; a `stale` lock entry whose id left prev is re-created with
+   * `W_MAT_DELETED_SINCE_PULL` (s1 §4 "Stale lock").
+   */
+  lockFreshness: 'fresh' | 'stale' | 'none'
 }
 
 export interface MaterializeResult {
@@ -131,8 +144,14 @@ export interface MaterializeResult {
 }
 
 /**
- * Writes a CWM back to a stored graph. Every param whose canonical form equals prev's keeps
- * prev's raw value, so a no-op round trip is byte-identical (build-spec decision 1, s1 D1).
+ * Writes a CWM back to a stored graph. Byte-identical no-op round trips (O1; build-spec
+ * decision 1, s1 D1) require, for every matched block:
+ * - each param whose canonical form equals prev's keeps prev's raw value; otherwise the encoding
+ *   is prev's raw encoding when present, else the catalog `storage`;
+ * - each edge whose `(from, port, to)` tuple matches a prev edge reuses that whole prev edge
+ *   object, handles and id included;
+ * - a subflow config canonical-equal to prev's is written back verbatim, to both `block.data` and
+ *   the loops/parallels map.
  * Server-owned fields come from prev by id (s1 D6).
  */
 export type MaterializeFn = (
@@ -144,7 +163,7 @@ export type MaterializeFn = (
 /** Structural equality ignoring `annotations`, key order and edge order (s1 quirk 28). */
 export type CanonicalEqualsFn = (a: CanonicalWorkflow, b: CanonicalWorkflow) => boolean
 
-/** Lowercase hex SHA-256 over a stable serialization of the CWM minus `annotations`. */
+/** `sha256Hex(stableStringify(workflow minus annotations))`, both from `hash.ts`. */
 export type CanonicalHashFn = (workflow: CanonicalWorkflow) => string
 
 /** Block-level fields a diff can name, besides params and modes. */
@@ -272,13 +291,16 @@ export interface PrintResult {
   diagnostics: Diagnostic<PrintDiagnosticCode>[]
 }
 
-/** Prints a CWM as a source file. Its output always compiles with zero errors (s3 D12). */
+/**
+ * Prints a CWM as a source file. Its output always compiles with zero errors (s3 D12): a block
+ * whose type has no catalog builder prints through `block(type, name, params, meta?)`.
+ */
 export type PrintWorkflowFn = (input: PrintInput) => PrintResult
 
 /**
- * `sf1:` + SHA-256 over the CWM minus annotations and layout, plus the lock ids, variables and
- * locked flags (build-spec decision 11, s4 D3). Layout is excluded so a canvas drag never fails a
- * push.
+ * `sf1:` + `sha256Hex(stableStringify({ workflow minus annotations, identity }))` (build-spec
+ * decision 11, s4 D3). The CWM already carries variables and locked flags and has no layout, so a
+ * canvas drag never fails a push.
  */
 export type SourceFingerprintFn = (
   workflow: CanonicalWorkflow,

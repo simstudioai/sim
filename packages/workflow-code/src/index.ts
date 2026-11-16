@@ -1,3 +1,4 @@
+export { decodeAnchor, encodeAnchor, parsePortKey, portKey } from './anchors'
 export type {
   BlockAttribute,
   BlockChange,
@@ -36,6 +37,7 @@ export type {
   CatalogBlockLifecycle,
   CatalogBuilder,
   CatalogCondition,
+  CatalogDynamicOutputs,
   CatalogLegacyId,
   CatalogOption,
   CatalogOutput,
@@ -45,6 +47,7 @@ export type {
   CatalogTrigger,
   CatalogValueKind,
   OpaqueMarker,
+  ParamStorage,
   SubBlockConditionClause,
 } from './catalog/types'
 export type {
@@ -72,10 +75,14 @@ export {
   type LocatedDiagnostic,
   type SourceSpan,
 } from './diagnostics/frame'
+export { sha256Hex, stableStringify } from './hash'
 export {
+  type LockBase,
   type LockDiagnostic,
+  type LockExtensionKey,
   type LockIdentity,
   type LockIdentityBlock,
+  type LockItem,
   type LockLayout,
   type ParseWorkflowLockResult,
   parseWorkflowLock,
@@ -84,6 +91,7 @@ export {
   type WorkflowLockV1,
 } from './lock'
 export type {
+  Anchor,
   AnchorKey,
   BlockKey,
   BranchKey,
@@ -98,12 +106,12 @@ export type {
   CanonicalWorkflow,
   CanonicalWorkflowMeta,
   CodeComment,
+  CsvNode,
   Json,
   LiteralNode,
   LoopSpec,
   ParallelSpec,
   ParamMode,
-  ParamStorage,
   Port,
   PortKey,
   ResourceKind,
@@ -116,3 +124,4 @@ export type {
   VarNode,
   WorkflowAnnotations,
 } from './model'
+export { GENERIC_BUILDER, SDK_CORE_EXPORTS, SDK_RESERVED_IDENTIFIERS } from './sdk'

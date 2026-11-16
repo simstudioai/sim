@@ -70,6 +70,8 @@ export type CompileEdgeCode =
 /** Checks against the block catalog (s3 §4 "Catalog checks", build-spec decision 2). */
 export type CompileCatalogCode =
   | 'E_UNKNOWN_BUILDER'
+  /** A new block of a catalog type marked `addable: false`; existing blocks keep compiling. */
+  | 'E_TYPE_NOT_ADDABLE'
   /** `hint` carries a did-you-mean over the params visible for the chosen operation. */
   | 'E_UNKNOWN_PARAM'
   /** The builder already pins this param (`operation` or a `fixed` entry). */
@@ -131,9 +133,9 @@ export type LockDiagnosticCode =
   | 'E_LOCK_SHAPE'
   /** A field the schema does not define (typos are caught, not ignored). */
   | 'E_LOCK_UNKNOWN_FIELD'
-  /** A block or variable key that is not in normalized form, or does not match its name. */
+  /** A block or variable key that is not in normalized form. */
   | 'E_LOCK_KEY'
-  /** A `binding` that is not a valid, non-reserved JS identifier. */
+  /** A `binding` that is not a JS identifier, or is in `SDK_RESERVED_IDENTIFIERS`. */
   | 'E_LOCK_BINDING'
   | 'E_LOCK_DUPLICATE_BINDING'
   /** The same block, variable or branch id under two keys (s1 §4 "Stale lock"). */
@@ -174,8 +176,6 @@ export type CanonicalizeDiagnosticCode =
 export type MaterializeDiagnosticCode =
   /** Two lock keys carry the same block id. */
   | 'E_MAT_DUPLICATE_LOCK_ID'
-  /** `lock.workflowId` / `workspaceId` differ from the target workflow. */
-  | 'E_MAT_LOCK_WORKFLOW_MISMATCH'
   /** A resource key the resolver cannot map to an id in this workspace. */
   | 'E_MAT_UNKNOWN_RESOURCE'
   /** A lock entry whose id has left prev; the block is re-created (s1 §4 "Stale lock"). */
@@ -236,7 +236,9 @@ export type ApplyDiagnosticCode =
   | 'W_APPLY_TYPE_CHANGED'
   /** Connections to blocks that did not survive the gates were dropped. */
   | 'W_APPLY_PENDING_CONNECTIONS_DROPPED'
-  /** A workflow lint finding, mapped to a source line. */
+  /** A blocking workflow lint finding, mapped to a source line. */
+  | 'E_APPLY_LINT'
+  /** A non-blocking workflow lint finding, mapped to a source line. */
   | 'W_APPLY_LINT'
 
 export type DiagnosticCode =

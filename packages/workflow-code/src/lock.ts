@@ -1,22 +1,34 @@
 /**
- * `.sim/lock.json`: the identity sidecar of a workflow source file. It binds keys to ids so a
- * canvas rename, a drag or a branch reorder never changes identity (build-spec decision 4,
- * s1 §2 `WorkflowLockV1`, s3 D10/D11).
+ * `.sim/lock.json`: the committed identity sidecar of a workflow source file. It binds keys to ids
+ * so a canvas rename, a drag or a branch reorder never changes identity (build-spec decision 4,
+ * s1 §2, s3 D10/D11). Edge ids are never in the lock (s1 D5).
  *
- * Ids are physical ids for single-workflow `source get/apply`; in a repo they are logical ids that
- * equal the physical ones in the home environment (build-spec decision 4). Edge ids are never in
- * the lock (s1 D5).
+ * The lock holds only environment-independent facts: logical ids, bindings, print order, code
+ * files and layout. Everything tied to one environment's stored state (workspace, freshness
+ * fingerprint, catalog hash) is the separate {@link LockBase}: single-workflow `source get/apply`
+ * returns and takes it beside the lock, and a repo keeps it in `.sim/state/<env>/revision.json`.
+ * Logical ids equal physical ids in the home environment; elsewhere
+ * `workspace_repo_block_binding` maps them (build-spec decision 4).
+ *
+ * Version policy: adding an optional field does not bump `lockVersion`. Validators learn a field
+ * before writers emit it; until every reader knows a field, data goes under an `x-` key, which
+ * every validator tolerates and preserves. Removing or changing the meaning of a field bumps it.
  */
 
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import type { Diagnostic } from './diagnostics/frame'
-import type { BlockKey, BranchKey, SubBlockId, VarKey } from './model'
+import type { BlockKey, BranchKey, Json, SubBlockId, VarKey } from './model'
+import { SDK_RESERVED_IDENTIFIERS } from './sdk'
 
 /** `sf1:` + lowercase hex SHA-256 (build-spec decision 11, s4 D3). */
 export type SourceFingerprint = `sf1:${string}`
 
+/** An extension field: tolerated and preserved by every validator, never interpreted. */
+export type LockExtensionKey = `x-${string}`
+
 /** Canvas geometry, used only for new blocks or `layout: 'lock'` applies (s4 D3). */
 export interface LockLayout {
+  [extension: LockExtensionKey]: Json
   x: number
   y: number
   w?: number
@@ -27,23 +39,27 @@ export interface LockLayout {
 }
 
 /**
+ * One id-bearing list entry (an inputFormat field). A list, not a name → id map, so duplicate or
+ * empty names keep their ids. These ids are cross-workflow foreign keys: custom block subBlock ids
+ * are the Start field ids (blocks/custom/build-config.ts:134-151, s1 §4 "Items").
+ */
+export interface LockItem {
+  name: string
+  id: string
+}
+
+/**
  * The id-bearing half of a lock block: what canonicalize derives from a stored graph and
  * materialize returns. `sourceFingerprint` hashes exactly this plus the CWM.
  */
 export interface LockIdentityBlock {
   id: string
-  type: string
-  /** Display name at pull time; the three-way base when the canvas renamed the block (s1 §4). */
-  name: string
+  /** The enclosing container's key, or `null` at the root. */
   parent: BlockKey | null
   /** Branch key → stored row id (condition/router only). */
   branches?: Record<BranchKey, string>
-  /**
-   * Per subBlock, item name → item id for id-bearing lists (inputFormat field ids). These are
-   * cross-workflow foreign keys: custom block subBlock ids are the Start field ids
-   * (blocks/custom/build-config.ts:134-151, s1 §4 "Items").
-   */
-  items?: Record<SubBlockId, Record<string, string>>
+  /** Per subBlock, its id-bearing items in stored order. */
+  items?: Record<SubBlockId, LockItem[]>
 }
 
 /** The ids of one workflow, keyed the way the CWM is. */
@@ -54,10 +70,11 @@ export interface LockIdentity {
 }
 
 export interface WorkflowLockBlock extends LockIdentityBlock {
+  [extension: LockExtensionKey]: Json
   /**
    * The TS `const` identifier the block is printed as (s3 calls it `ident`). Derived camelCase from
    * the name on first print, then persisted, so a canvas rename changes one line
-   * (build-spec decision 4).
+   * (build-spec decision 4). Never one of `SDK_RESERVED_IDENTIFIERS`.
    */
   binding: string
   /**
@@ -66,23 +83,25 @@ export interface WorkflowLockBlock extends LockIdentityBlock {
    * merged from two branches stay valid.
    */
   order: number
-  /** Lowercase hex SHA-256 of the canonical block (`canonicalHash` over that block alone). */
-  contentHash: string
   layout?: LockLayout
   /** Repo-relative path of the block's function-code file (build-spec decision 9). */
   codeFile?: string
 }
 
 export interface WorkflowLockV1 {
+  [extension: LockExtensionKey]: Json
   lockVersion: 1
-  workflowId: string
-  workspaceId: string
-  /** The catalog `hash` the file was printed against. */
-  catalogHash: string
-  /** The DB freshness token at pull; apply answers 409 when it no longer matches. */
-  baseFingerprint: SourceFingerprint
   blocks: Record<BlockKey, WorkflowLockBlock>
   variables: Record<VarKey, string>
+}
+
+/** One environment's freshness facts for a lock (see the module comment). */
+export interface LockBase {
+  workspaceId: string
+  /** The DB freshness token at pull; apply answers 409 when it no longer matches. */
+  baseFingerprint: SourceFingerprint
+  /** The catalog `hash` the file was printed against. */
+  catalogHash: string
 }
 
 export type LockDiagnostic = Diagnostic<
@@ -103,88 +122,13 @@ export type ParseWorkflowLockResult =
   | { lock: WorkflowLockV1; diagnostics?: undefined }
   | { lock?: undefined; diagnostics: LockDiagnostic[] }
 
-const HEX_SHA256 = /^[0-9a-f]{64}$/
-const FINGERPRINT = /^sf1:[0-9a-f]{64}$/
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
-const COLLISION_SUFFIX = /^(.*)~([2-9]|[1-9][0-9]+)$/
 const DRIVE_PATH = /^[A-Za-z]:/
 
-/** Reserved words plus strict-mode restrictions; none can name a `const`. */
-const RESERVED_IDENTIFIERS = new Set([
-  'arguments',
-  'await',
-  'break',
-  'case',
-  'catch',
-  'class',
-  'const',
-  'continue',
-  'debugger',
-  'default',
-  'delete',
-  'do',
-  'else',
-  'enum',
-  'eval',
-  'export',
-  'extends',
-  'false',
-  'finally',
-  'for',
-  'function',
-  'if',
-  'implements',
-  'import',
-  'in',
-  'instanceof',
-  'interface',
-  'let',
-  'new',
-  'null',
-  'package',
-  'private',
-  'protected',
-  'public',
-  'return',
-  'static',
-  'super',
-  'switch',
-  'this',
-  'throw',
-  'true',
-  'try',
-  'typeof',
-  'undefined',
-  'var',
-  'void',
-  'while',
-  'with',
-  'yield',
-])
-
-const LOCK_FIELDS = [
-  'lockVersion',
-  'workflowId',
-  'workspaceId',
-  'catalogHash',
-  'baseFingerprint',
-  'blocks',
-  'variables',
-]
-const BLOCK_FIELDS = [
-  'id',
-  'type',
-  'name',
-  'binding',
-  'order',
-  'parent',
-  'contentHash',
-  'branches',
-  'items',
-  'layout',
-  'codeFile',
-]
+const LOCK_FIELDS = ['lockVersion', 'blocks', 'variables']
+const BLOCK_FIELDS = ['id', 'parent', 'branches', 'items', 'binding', 'order', 'layout', 'codeFile']
 const LAYOUT_FIELDS = ['x', 'y', 'w', 'h', 'height', 'horizontalHandles']
+const ITEM_FIELDS = ['name', 'id']
 
 type JsonObject = Record<string, unknown>
 
@@ -200,21 +144,20 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
-function isSourceFingerprint(value: unknown): value is SourceFingerprint {
-  return typeof value === 'string' && FINGERPRINT.test(value)
+function isExtensionKey(key: string): key is LockExtensionKey {
+  return key.startsWith('x-')
+}
+
+function isJson(value: unknown): value is Json {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (Array.isArray(value)) return value.every(isJson)
+  return isObject(value) && Object.values(value).every(isJson)
 }
 
 /** RFC 6901: `~` → `~0`, `/` → `~1`. */
 function pointer(segments: readonly string[]): string {
   return segments.map((s) => `/${s.replace(/~/g, '~0').replace(/\//g, '~1')}`).join('')
-}
-
-/** Whether `key` is the key `name` normalizes to, or its `~n` legacy-collision form. */
-function keyMatchesName(key: string, name: string): boolean {
-  const normalized = normalizeWorkflowBlockName(name)
-  if (key === normalized) return true
-  const collision = COLLISION_SUFFIX.exec(key)
-  return collision !== null && collision[1] === normalized
 }
 
 function isSafeRelativePath(path: string): boolean {
@@ -229,19 +172,27 @@ class LockReader {
     this.diagnostics.push({ code, severity: 'error', message, path: pointer(segments) })
   }
 
-  rejectUnknownFields(value: JsonObject, known: readonly string[], at: readonly string[]): void {
-    for (const field of Object.keys(value)) {
-      if (!known.includes(field)) {
+  /**
+   * Reports fields outside `known` unless they are `x-` extensions, and returns the extensions
+   * (JSON values only) so the parsed lock preserves them.
+   */
+  extensions(
+    value: JsonObject,
+    known: readonly string[],
+    at: readonly string[]
+  ): Record<LockExtensionKey, Json> {
+    const extensions: Record<LockExtensionKey, Json> = {}
+    for (const [field, raw] of Object.entries(value)) {
+      if (known.includes(field)) continue
+      if (!isExtensionKey(field)) {
         this.report('E_LOCK_UNKNOWN_FIELD', [...at, field], `Unknown lock field "${field}".`)
+      } else if (isJson(raw)) {
+        extensions[field] = raw
+      } else {
+        this.report('E_LOCK_SHAPE', [...at, field], 'An extension field must hold JSON.')
       }
     }
-  }
-
-  string(value: JsonObject, field: string, at: readonly string[]): string {
-    const raw = value[field]
-    if (isNonEmptyString(raw)) return raw
-    this.report('E_LOCK_SHAPE', [...at, field], `"${field}" must be a non-empty string.`)
-    return ''
+    return extensions
   }
 
   /** A string → non-empty-string record whose values are unique within it. */
@@ -267,13 +218,48 @@ class LockReader {
     return Object.fromEntries(entries)
   }
 
+  itemList(raw: unknown, at: readonly string[]): LockItem[] {
+    if (!Array.isArray(raw)) {
+      this.report('E_LOCK_SHAPE', at, 'Expected an array of { name, id } items.')
+      return []
+    }
+    const seen = new Set<string>()
+    const items: LockItem[] = []
+    raw.forEach((entry: unknown, index) => {
+      const itemAt = [...at, String(index)]
+      if (!isObject(entry)) {
+        this.report('E_LOCK_SHAPE', itemAt, 'An item must be an object.')
+        return
+      }
+      for (const field of Object.keys(entry)) {
+        if (!ITEM_FIELDS.includes(field)) {
+          this.report('E_LOCK_UNKNOWN_FIELD', [...itemAt, field], `Unknown item field "${field}".`)
+        }
+      }
+      if (typeof entry.name !== 'string') {
+        this.report('E_LOCK_SHAPE', [...itemAt, 'name'], '"name" must be a string.')
+        return
+      }
+      if (!isNonEmptyString(entry.id)) {
+        this.report('E_LOCK_SHAPE', [...itemAt, 'id'], '"id" must be a non-empty string.')
+        return
+      }
+      if (seen.has(entry.id)) {
+        this.report('E_LOCK_DUPLICATE_ID', [...itemAt, 'id'], `Id "${entry.id}" is used twice.`)
+        return
+      }
+      seen.add(entry.id)
+      items.push({ name: entry.name, id: entry.id })
+    })
+    return items
+  }
+
   layout(raw: unknown, at: readonly string[]): LockLayout | undefined {
     if (!isObject(raw)) {
       this.report('E_LOCK_SHAPE', at, '"layout" must be an object.')
       return undefined
     }
-    this.rejectUnknownFields(raw, LAYOUT_FIELDS, at)
-    const layout: LockLayout = { x: 0, y: 0 }
+    const layout: LockLayout = { ...this.extensions(raw, LAYOUT_FIELDS, at), x: 0, y: 0 }
     for (const field of ['x', 'y'] as const) {
       if (isFiniteNumber(raw[field])) layout[field] = raw[field]
       else this.report('E_LOCK_SHAPE', [...at, field], `"${field}" must be a finite number.`)
@@ -300,24 +286,31 @@ class LockReader {
       this.report('E_LOCK_SHAPE', at, 'A lock block must be an object.')
       return undefined
     }
-    this.rejectUnknownFields(raw, BLOCK_FIELDS, at)
-    const keyIsNormalized = key.length > 0 && normalizeWorkflowBlockName(key) === key
-    if (!keyIsNormalized) {
+    const extensions = this.extensions(raw, BLOCK_FIELDS, at)
+    if (!key || normalizeWorkflowBlockName(key) !== key) {
       this.report('E_LOCK_KEY', at, `Block key "${key}" is not in normalized form.`)
     }
 
-    const id = this.string(raw, 'id', at)
-    const type = this.string(raw, 'type', at)
-    const name = this.string(raw, 'name', at)
-    if (keyIsNormalized && name && !keyMatchesName(key, name)) {
-      this.report('E_LOCK_KEY', [...at, 'name'], `Name "${name}" does not normalize to "${key}".`)
+    let id = ''
+    if (isNonEmptyString(raw.id)) id = raw.id
+    else this.report('E_LOCK_SHAPE', [...at, 'id'], '"id" must be a non-empty string.')
+
+    let parent: BlockKey | null = null
+    if (raw.parent === null || isNonEmptyString(raw.parent)) {
+      parent = raw.parent
+    } else {
+      this.report('E_LOCK_SHAPE', [...at, 'parent'], '"parent" must be a block key or null.')
     }
 
     let binding = ''
     if (typeof raw.binding !== 'string' || !IDENTIFIER.test(raw.binding)) {
       this.report('E_LOCK_BINDING', [...at, 'binding'], '"binding" must be a JS identifier.')
-    } else if (RESERVED_IDENTIFIERS.has(raw.binding)) {
-      this.report('E_LOCK_BINDING', [...at, 'binding'], `"${raw.binding}" is a reserved word.`)
+    } else if (SDK_RESERVED_IDENTIFIERS.has(raw.binding)) {
+      this.report(
+        'E_LOCK_BINDING',
+        [...at, 'binding'],
+        `"${raw.binding}" is a reserved word or an SDK export.`
+      )
     } else {
       binding = raw.binding
     }
@@ -329,21 +322,7 @@ class LockReader {
       this.report('E_LOCK_SHAPE', [...at, 'order'], '"order" must be a non-negative integer.')
     }
 
-    let parent: BlockKey | null = null
-    if (raw.parent === null || isNonEmptyString(raw.parent)) {
-      parent = raw.parent
-    } else {
-      this.report('E_LOCK_SHAPE', [...at, 'parent'], '"parent" must be a block key or null.')
-    }
-
-    let contentHash = ''
-    if (typeof raw.contentHash === 'string' && HEX_SHA256.test(raw.contentHash)) {
-      contentHash = raw.contentHash
-    } else {
-      this.report('E_LOCK_SHAPE', [...at, 'contentHash'], 'Expected a lowercase hex SHA-256.')
-    }
-
-    const block: WorkflowLockBlock = { id, type, name, binding, order, parent, contentHash }
+    const block: WorkflowLockBlock = { ...extensions, id, parent, binding, order }
 
     if (raw.branches !== undefined) {
       const branches = this.idRecord(raw.branches, [...at, 'branches'])
@@ -362,9 +341,9 @@ class LockReader {
     if (raw.items !== undefined) {
       if (isObject(raw.items)) {
         block.items = Object.fromEntries(
-          Object.entries(raw.items).map(([subBlockId, entries]) => [
+          Object.entries(raw.items).map(([subBlockId, list]) => [
             subBlockId,
-            this.idRecord(entries, [...at, 'items', subBlockId]),
+            this.itemList(list, [...at, 'items', subBlockId]),
           ])
         )
       } else {
@@ -460,7 +439,8 @@ class LockReader {
 /**
  * Validates a lock, given as parsed JSON or as JSON text. Every problem is reported at once, each
  * with an RFC 6901 `path`; a lock with any problem is rejected whole. Unknown fields are errors,
- * so a typo never silently drops identity. A version other than 1 stops validation there.
+ * so a typo never silently drops identity, except `x-` extension fields, which are preserved. A
+ * version other than 1 stops validation there.
  */
 export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
   const reader = new LockReader()
@@ -482,17 +462,7 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
     return { diagnostics: reader.diagnostics }
   }
 
-  reader.rejectUnknownFields(json, LOCK_FIELDS, [])
-  const workflowId = reader.string(json, 'workflowId', [])
-  const workspaceId = reader.string(json, 'workspaceId', [])
-  const catalogHash = reader.string(json, 'catalogHash', [])
-  let baseFingerprint: SourceFingerprint = 'sf1:'
-  if (isSourceFingerprint(json.baseFingerprint)) {
-    baseFingerprint = json.baseFingerprint
-  } else {
-    reader.report('E_LOCK_SHAPE', ['baseFingerprint'], 'Expected "sf1:" + a lowercase hex SHA-256.')
-  }
-
+  const extensions = reader.extensions(json, LOCK_FIELDS, [])
   const blockEntries: Array<[BlockKey, WorkflowLockBlock]> = []
   if (isObject(json.blocks)) {
     for (const [key, raw] of Object.entries(json.blocks)) {
@@ -507,15 +477,5 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
   const variables = reader.variables(json.variables)
 
   if (reader.diagnostics.length > 0) return { diagnostics: reader.diagnostics }
-  return {
-    lock: {
-      lockVersion: 1,
-      workflowId,
-      workspaceId,
-      catalogHash,
-      baseFingerprint,
-      blocks,
-      variables,
-    },
-  }
+  return { lock: { ...extensions, lockVersion: 1, blocks, variables } }
 }

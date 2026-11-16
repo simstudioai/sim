@@ -22,8 +22,10 @@
  * 3. `@sim/workflow-code` (every non-test file under `packages/workflow-code/src`) compiles
  *    untrusted workflow source on the server, in the browser and in the CLI, so it must stay pure
  *    and must never execute code: no Node built-in (`vm`, `child_process`, `fs`, any `node:*`,
- *    even type-only), no dynamic `import()` or `require`, and no `eval` or `Function` reached as
- *    a value (`new Function`, `globalThis.eval`, `globalThis['Function']`). Fix by keeping I/O in
+ *    even type-only), no dynamic `import()`, `import.meta` or `require`, no `.constructor` read
+ *    (a function's constructor is `Function`), and no value reference to `eval`, `Function`,
+ *    `Reflect` or the global object under any name (`globalThis`, `window`, `self`, `global`),
+ *    which also bans computed lookups such as `globalThis[name]`. Fix by keeping I/O in
  *    the caller (the compiler takes file text as input) and interpreting the AST instead of
  *    evaluating it.
  *
@@ -182,11 +184,27 @@ async function scanImports(
 }
 
 const PURE_PACKAGE_SRC = path.join(PACKAGES_DIR, 'workflow-code', 'src')
-const CODE_EXECUTING_GLOBALS = new Set(['eval', 'Function'])
+/**
+ * Names that reach code execution or the host global object, which leads back to both: `eval`,
+ * `Function`, the global object under each of its names, `Reflect` (`Reflect.get(globalThis, k)`)
+ * and `require`.
+ */
+const HOST_GLOBALS = new Set([
+  'eval',
+  'Function',
+  'globalThis',
+  'window',
+  'self',
+  'global',
+  'Reflect',
+  'require',
+])
+/** Member names banned however they are reached: `x.constructor` is `Function` for any function. */
+const HOST_MEMBERS = new Set([...HOST_GLOBALS, 'constructor'])
 
-/** Whether `node` names `eval`/`Function` as a value rather than as a key or a type. */
-function isCodeExecutingReference(node: ts.Identifier): boolean {
-  if (!CODE_EXECUTING_GLOBALS.has(node.text)) return false
+/** Whether `node` names a host global as a value rather than as a key or a type. */
+function isHostGlobalReference(node: ts.Identifier): boolean {
+  if (!HOST_GLOBALS.has(node.text)) return false
   const parent = node.parent
   if (
     (ts.isPropertyAssignment(parent) ||
@@ -228,20 +246,22 @@ async function scanPurePackageFile(file: string): Promise<Offender[]> {
     }
   }
   function visit(node: ts.Node): void {
-    if (ts.isCallExpression(node)) {
-      if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-        report(node, '@sim/workflow-code uses dynamic import()')
-      } else if (ts.isIdentifier(node.expression) && node.expression.text === 'require') {
-        report(node, '@sim/workflow-code uses require()')
-      }
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      report(node, '@sim/workflow-code uses dynamic import()')
     }
-    if (ts.isIdentifier(node) && isCodeExecutingReference(node)) {
+    if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword) {
+      report(node, '@sim/workflow-code uses import.meta')
+    }
+    if (ts.isIdentifier(node) && isHostGlobalReference(node)) {
       report(node, `@sim/workflow-code references ${node.text}`)
+    }
+    if (ts.isPropertyAccessExpression(node) && node.name.text === 'constructor') {
+      report(node, '@sim/workflow-code reads .constructor')
     }
     if (
       ts.isElementAccessExpression(node) &&
       ts.isStringLiteralLike(node.argumentExpression) &&
-      CODE_EXECUTING_GLOBALS.has(node.argumentExpression.text)
+      HOST_MEMBERS.has(node.argumentExpression.text)
     ) {
       report(node, `@sim/workflow-code references ${node.argumentExpression.text}`)
     }

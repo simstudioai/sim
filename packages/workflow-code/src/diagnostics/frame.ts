@@ -32,6 +32,8 @@ interface DiagnosticFields {
   /** `codeFrame(text, span)`; present whenever `span` is. */
   frame?: string
   fix?: DiagnosticFix
+  /** Other locations that explain this one, such as the first declaration for a duplicate name. */
+  related?: Array<{ span: SourceSpan; message: string }>
   blockKey?: BlockKey
   /** Set by the apply path once identity is resolved (s4 `SourceDiagnostic.blockId`). */
   blockId?: string
@@ -66,8 +68,10 @@ export interface FrameLocation {
 const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/
 const CONTEXT_LINES = 2
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max)
+/** `value` truncated and clamped; NaN or absent becomes `fallback`, ±Infinity a bound. */
+function position(value: number | undefined, fallback: number, min: number, max: number): number {
+  const integer = value === undefined || Number.isNaN(value) ? fallback : Math.trunc(value)
+  return Math.min(Math.max(integer, min), max)
 }
 
 /**
@@ -75,17 +79,17 @@ function clamp(value: number, min: number, max: number): number {
  * side, `>` on every line inside the span, and a caret row under the start line. Carets run to
  * `endColumn` when the span ends on the start line, else to the end of that line, and never
  * fewer than one. Tabs before the caret are kept so it lines up under tabbed source. A location
- * outside the text is clamped, never thrown. No ANSI escapes.
+ * outside the text, NaN or infinite is clamped, never thrown. No ANSI escapes.
  */
 export function codeFrame(text: string, loc: FrameLocation): string {
   const lines = text.split(LINE_BREAK)
-  const line = clamp(Math.trunc(loc.line), 1, lines.length)
-  const endLine = clamp(Math.trunc(loc.endLine ?? line), line, lines.length)
+  const line = position(loc.line, 1, 1, lines.length)
+  const endLine = position(loc.endLine, line, line, lines.length)
   const source = lines[line - 1]
-  const column = clamp(Math.trunc(loc.column), 1, source.length + 1)
+  const column = position(loc.column, 1, 1, source.length + 1)
   const caretEnd =
     endLine === line
-      ? clamp(Math.trunc(loc.endColumn ?? column + 1), column + 1, source.length + 2)
+      ? position(loc.endColumn, column + 1, column + 1, source.length + 2)
       : source.length + 1
   const caretCount = Math.max(1, caretEnd - column)
 

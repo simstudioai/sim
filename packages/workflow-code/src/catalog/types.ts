@@ -10,7 +10,14 @@
  */
 
 import type { OutputCondition, PrimitiveValueType, SubBlockType } from '@sim/workflow-types/blocks'
-import type { CanonicalParamId, Json, ParamStorage, ResourceKind, SubBlockId } from '../model'
+import type { CanonicalParamId, Json, ResourceKind, SubBlockId } from '../model'
+
+/**
+ * How a subBlock stores a value. `json-string` means the subBlock holds JSON text (tools,
+ * condition/router rows, tableRows, inputFormat, tag filters; s1 quirk 9). Only materialize reads
+ * this: the CWM is encoding-free.
+ */
+export type ParamStorage = 'native' | 'json-string'
 
 /** A function-form condition or option list the projection could not evaluate to data. */
 export interface OpaqueMarker {
@@ -84,6 +91,12 @@ export interface CatalogSubBlock {
    */
   surface?: 'action' | 'trigger'
   condition?: CatalogCondition
+  /**
+   * Per operation id, whether this subBlock is visible, precomputed by the catalog projection when
+   * `condition` is a function (and so `{ opaque: true }` here). Absent for data conditions, which
+   * consumers evaluate themselves. An operation missing from the map counts as visible.
+   */
+  visibleFor?: Record<string, boolean>
   required?: boolean | CatalogCondition
   /** UI clearing and fetch ordering only; never part of types or visibility (s2 §2). */
   dependsOn?: { all: SubBlockId[]; any: SubBlockId[] }
@@ -106,12 +119,18 @@ export interface CatalogSubBlock {
   multiple?: boolean
   min?: number
   max?: number
+  /** Slider increment (registry `step`). */
+  step?: number
+  /** Slider accepts integers only (registry `integer`). */
+  integer?: boolean
+  /** Column headers of a `table` subBlock, in order (registry `columns`). */
+  columns?: string[]
   selectorKey?: string
   serviceId?: string
   valueKind: CatalogValueKind
   /** Set iff `valueKind` is `resource`. */
   resourceKind?: ResourceKind
-  /** Preferred encoding for a new value; prev's encoding wins when it exists (s1 D1). */
+  /** Encoding for a value with no prev raw value; prev's encoding wins when it exists (s1 D1). */
   storage: ParamStorage
   structured?: CatalogStructuredKind
 }
@@ -154,10 +173,27 @@ export interface CatalogBlockGraph {
   branches?: { subBlockId: SubBlockId; kind: 'condition' | 'router' }
 }
 
+/** Which param shapes a block's outputs at run time. */
+export interface CatalogDynamicOutputs {
+  /**
+   * `responseFormat`: agent structured output; `inputFormat`: start/trigger input fields;
+   * `humanForm`: human-in-the-loop form fields; `tableRows`: table row columns.
+   */
+  source: 'responseFormat' | 'inputFormat' | 'humanForm' | 'tableRows'
+  /** The subBlock id (or canonical param id) that holds the shape. */
+  param: string
+}
+
 export interface CatalogBlock {
   type: string
   name: string
   category: 'blocks' | 'tools' | 'triggers'
+  /**
+   * `false` for a type that may stay in a workflow but must not be added: types already stored in
+   * this workflow but no longer offered (s4 §2 apply step 2), hidden legacy versions, preview
+   * blocks. Compile rejects a new block of such a type; an existing one keeps compiling.
+   */
+  addable?: false
   lifecycle?: CatalogBlockLifecycle
   triggerAllowed?: boolean
   triggers?: { enabled: boolean; available: string[] }
@@ -173,10 +209,11 @@ export interface CatalogBlock {
   inputs: Record<string, { type: string; schema?: Json }>
   outputs: Record<string, CatalogOutput>
   /**
-   * Outputs derived from params at run time (agent `responseFormat`, start `inputFormat`, HITL
-   * form, table rows), so any path is allowed and `W_UNKNOWN_OUTPUT_PATH` is skipped.
+   * Present when outputs derive from a param at run time. Compile and codegen read output paths
+   * from that param's value; where it cannot be read statically, any path is allowed and
+   * `W_UNKNOWN_OUTPUT_PATH` is skipped.
    */
-  dynamicOutputs: boolean
+  dynamicOutputs?: CatalogDynamicOutputs
   graph: CatalogBlockGraph
   legacyIds?: CatalogLegacyId[]
   legacyCanonicalIds?: Array<{ from: CanonicalParamId; to: CanonicalParamId }>
@@ -240,6 +277,12 @@ export interface BlockCatalog {
   sdkMajor: number
   blocks: Record<string, CatalogBlock>
   triggers: Record<string, CatalogTrigger>
+  /**
+   * Generated builder methods by dotted SDK path. A stored type with no entry here (legacy,
+   * unknown, or `custom_block_*` with no generated method) prints and compiles through the
+   * generic builder `block(type, name, params, meta?)` (`GENERIC_BUILDER` in `sdk.ts`), so every
+   * type always round-trips.
+   */
   builders: Record<string, CatalogBuilder>
   /** Docs shard. */
   tools?: Record<string, CatalogTool>

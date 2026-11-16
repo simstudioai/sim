@@ -4,6 +4,8 @@ Wave 1 wrote the types every engine builds against. The reconciled build spec wi
 speaks; this file records the choices it left open. Change a contract type only with the
 agreement of every lane that consumes it.
 
+**The Amendments section at the end supersedes any numbered item it names.**
+
 ## Layout
 
 | Module | Owner | State |
@@ -13,6 +15,9 @@ agreement of every lane that consumes it.
 | `src/catalog/types.ts` | Wave 1 | types |
 | `src/diagnostics/codes.ts` | Wave 1 | types |
 | `src/diagnostics/frame.ts` | Wave 1 | types + `codeFrame` (real) |
+| `src/anchors.ts` | Wave 1 | `portKey`, `parsePortKey`, `encodeAnchor`, `decodeAnchor` (real) |
+| `src/hash.ts` | Wave 1 | `stableStringify`, `sha256Hex` (real) |
+| `src/sdk.ts` | Wave 1 | `GENERIC_BUILDER`, `SDK_CORE_EXPORTS`, `SDK_RESERVED_IDENTIFIERS` |
 | `src/api.ts` | Wave 1 | engine signatures, type-only |
 | `src/catalog/canonical-index.ts`, `src/canonicalize/*` | 2B | |
 | `src/print/*` | 2C | |
@@ -144,3 +149,84 @@ instead of failing at run time.
   until consumers and the compiler land. Remove both settings then.
 - `@sim/workflow-sdk` is a scaffold with no `exports`, `type-check` or `test` script until 2E
   adds code. Its runtime entry is planned as `src/runtime.ts`, not s2's `runtime.js`.
+
+## Amendments (Wave 1 audit)
+
+- **A1. The CWM is encoding-free.** This supersedes item 4's storage note. `CanonicalParam` has
+  no `storage`, so equality, hashes, diffs and the fingerprint never see the encoding.
+  Materialize chooses it: prev's raw encoding first, then `CatalogSubBlock.storage`. `ParamStorage`
+  now lives in `catalog/types.ts`.
+- **A2. Two new materialize inputs.** `MaterializeOptions.compiledBindings` feeds identity rule 2.
+  `MaterializeOptions.lockFreshness` (`fresh | stale | none`, required) gates rule 4 and the
+  `W_MAT_DELETED_SINCE_PULL` handling.
+- **A3. The lock is split.** This supersedes items 8 and 12.
+  - `WorkflowLockV1` is `{ lockVersion, blocks, variables }`. Each block holds `id`, `parent`,
+    `branches?`, `items?`, `binding`, `order`, `layout?` and `codeFile?`, and every id is logical.
+  - These lock fields were removed: `workflowId`, `workspaceId`, `catalogHash`,
+    `baseFingerprint`, `blocks[].type`, `blocks[].name` and `blocks[].contentHash`. The
+    environment facts now live in `LockBase { workspaceId, baseFingerprint, catalogHash }`, which
+    `source get/apply` carries beside the lock and a repo stores in
+    `.sim/state/<env>/revision.json`.
+  - The validator tolerates `x-` fields on the lock, on blocks and on layout, and preserves them.
+    Item entries stay strict.
+  - Version policy: adding an optional field does not bump `lockVersion`. Validators ship support
+    for a field before writers emit it, and data waits under `x-` until then.
+- **A4. One resource-kind list.** `WORKFLOW_RESOURCE_KINDS`, `WorkflowResourceKind` and
+  `PortableResourceKind` moved to `@sim/workflow-types/resources`. This supersedes item 6.
+  - apps/sim imports that list directly. The list moved out of `references/types.ts` rather than
+    being re-exported from it, because the repo bans re-exports from non-barrel files. That file
+    keeps its other types.
+  - `ResourceKind` is now `Exclude<PortableResourceKind, 'env-var'>`, so its members are
+    kebab-case: `knowledge-base`, `mcp-server`, `custom-tool`, `file-folder`, `workflow`, and so
+    on.
+  - `UnresolvedNode.kind` is widened to `string`.
+  - Ids inside composite values are handled like this:
+    - a scalar or array id becomes a `ResourceNode`;
+    - in a `files` value, each object keeps its shape and only its `key` field becomes a node;
+    - a `csv` value becomes the new `CsvNode { $sim: 'csv', items }`, and materialize joins the
+      items with `,`.
+- **A5. Catalog additions.**
+  - `CatalogBlock.dynamicOutputs?: { source, param }` replaces the boolean.
+  - New subBlock fields: `visibleFor?` (operation → visible, which 2A precomputes for function
+    conditions), `columns?`, `step?` and `integer?`.
+- **A6. Every stored type prints and compiles.**
+  - `CatalogBlock.addable?: false` marks a type that may stay in a workflow but cannot be added.
+    Compile reports a new block of that type as `E_TYPE_NOT_ADDABLE`.
+  - A type with no builder (legacy, unknown, or `custom_block_*` without a method) uses the
+    generic builder `block(type, name, params, meta?)` (`GENERIC_BUILDER`).
+- **A7. `rows: null` has a source form.** It is an empty branch object: `condition('Name', {})`,
+  or router `routes: {}`. The implicit default keys (`if` and `else`, `route0`) stay addressable as
+  ports. A persisted list is never empty.
+- **A8. Hashing is solved.** This supersedes item 25. `src/hash.ts` belongs to Wave 1.
+  - `stableStringify` sorts keys with `compareStrings` and throws on anything that is not JSON.
+  - `sha256Hex` is built on `@noble/hashes` 2.2.0.
+  - `canonicalHash`, `sourceFingerprint` and any content digest must use these two.
+- **A9. Items, edges and subflow configs.**
+  - Lock `items` changed to `Record<subBlockId, Array<{ name, id }>>`, so duplicate and empty
+    names keep their ids.
+  - For O1, materialize reuses the whole prev edge object (id and handles) when the
+    `(from, port, to)` tuple matches.
+  - Materialize also writes prev's subflow config back verbatim when it is canonical-equal.
+  - The optional fields of `LoopSpec` and `ParallelSpec` are absent exactly when storage omits
+    them. Canonicalize never fills defaults.
+- **A10. Anchors are structured.** This supersedes item 7's anchor strings.
+  - `Anchor` is a discriminated union over `header`, `wiring`, `footer`, `block`, `param`,
+    `inactive`, `edges` and `var`.
+  - `AnchorKey` is now a branded string, produced only by `encodeAnchor` and read by
+    `decodeAnchor`. Each segment escapes `%` and `:`.
+  - For a basic/advanced pair, a `param` anchor uses the `canonicalParamId`.
+  - `portKey` and `parsePortKey` are the only port string forms.
+- **A11. Bindings avoid SDK names.** `SDK_RESERVED_IDENTIFIERS` (JS reserved words plus
+  `SDK_CORE_EXPORTS`) is enforced on lock bindings.
+  - **Note for 2E:** `core.d.ts` must export exactly `SDK_CORE_EXPORTS`, and `BlockMeta` needs
+    `advancedMode?: boolean`, because the CWM keeps that legacy flag.
+- **A12. Diagnostic changes.** `Diagnostic.related?: Array<{ span, message }>` was added, along
+  with the codes `E_APPLY_LINT` and `E_TYPE_NOT_ADDABLE`. `E_MAT_LOCK_WORKFLOW_MISMATCH` was
+  removed, because the lock no longer carries a workflow or workspace.
+- **A13. The boundary rule is tighter.** Rule 3 also bans `.constructor` reads, `import.meta`, and
+  value references to `globalThis`, `window`, `self`, `global`, `Reflect` and `require`. That
+  covers computed `globalThis[...]` access.
+- **A14. `codeFrame` clamps bad input.** NaN becomes line or column 1, ±Infinity a bound.
+- **A15. knip.** Wave 3 removes `includeEntryExports: false` and the `@babel/parser` ignore from
+  `knip.jsonc` once the consumers land. The `@sim/utils` ignore is already gone, because
+  `hash.ts` uses it.

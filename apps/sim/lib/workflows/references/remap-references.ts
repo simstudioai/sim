@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
+import type { WorkflowResourceKind } from '@sim/workflow-types/resources'
 import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
 import { readFolderPaths } from '@/lib/folders/selection'
 import { isMcpRuntimeReference, normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
@@ -15,7 +16,6 @@ import {
   collectForkFileUploadKeys,
   remapForkFileUploadValue,
 } from '@/lib/workflows/references/remap-files'
-import type { WorkflowResourceKind } from '@/lib/workflows/references/types'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import {
   getWorkflowSearchSubBlockResourceDefinition,

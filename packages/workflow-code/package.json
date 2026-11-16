@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@babel/parser": "7.29.9",
+    "@noble/hashes": "2.2.0",
     "@sim/utils": "workspace:*",
     "@sim/workflow-types": "workspace:*"
   },

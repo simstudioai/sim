@@ -59,6 +59,22 @@ describe('codeFrame', () => {
     expect(codeFrame('', { line: 0, column: 0 })).toBe(['> 1 |', '    | ^'].join('\n'))
   })
 
+  it('treats NaN as the first line or column and Infinity as the last, instead of throwing', () => {
+    expect(codeFrame('ab\ncd', { line: Number.NaN, column: Number.NaN })).toBe(
+      ['> 1 | ab', '    | ^', '  2 | cd'].join('\n')
+    )
+    expect(
+      codeFrame('ab\ncd', {
+        line: Number.POSITIVE_INFINITY,
+        column: Number.POSITIVE_INFINITY,
+        endColumn: Number.NaN,
+      })
+    ).toBe(['  1 | ab', '> 2 | cd', '    |   ^'].join('\n'))
+    expect(
+      codeFrame('ab', { line: 1, column: 1, endLine: Number.NaN, endColumn: Number.NaN })
+    ).toBe(['> 1 | ab', '    | ^'].join('\n'))
+  })
+
   it('never emits ANSI escapes or trailing spaces on empty lines', () => {
     const frame = codeFrame('a\n\nb', { line: 3, column: 1 })
     expect(frame).toBe(['  1 | a', '  2 |', '> 3 | b', '    | ^'].join('\n'))
