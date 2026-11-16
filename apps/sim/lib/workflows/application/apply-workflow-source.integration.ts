@@ -39,6 +39,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { SOURCE_LIMITS } from '@sim/workflow-code/limits'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
+import { CONTAINER_DIMENSIONS } from '@sim/workflow-renderer/dimensions'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, sql } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit'
@@ -404,6 +405,145 @@ check('a canvas write that commits while the apply waits on the row lock is a 40
   expect(after.state?.blocks[seeded.scoreId]?.subBlocks.code?.value).toBe('return 9')
 })
 
+check(
+  'a canvas write the fingerprint ignores, committed under the row lock, is a 409 and is kept',
+  async () => {
+    const seeded = await seedWorkflow()
+    const source = await getSource(seeded.workflowId)
+    let outcome: Promise<unknown> = Promise.resolve()
+    let settled = false
+
+    await db.transaction(async (tx) => {
+      const [self] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      await tx
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(eq(workflow.id, seeded.workflowId))
+        .for('update')
+      outcome = runOutsideTransactionContext(() =>
+        apply(source, edit(source.files, SCORE_CODE, 'return 8')).finally(() => {
+          settled = true
+        })
+      )
+      await waitForBlocked(Number(self?.pid), () => settled)
+      await canvasSubBlockSet(tx, seeded.scoreId, 'triggerPath', 'kept-webhook-path')
+    })
+
+    await expect(outcome).rejects.toMatchObject({ code: 'conflict' })
+    const after = await snapshot(seeded.workflowId)
+    const score = after.state?.blocks[seeded.scoreId]
+    expect(score?.subBlocks.triggerPath?.value).toBe('kept-webhook-path')
+    expect(score?.subBlocks.code?.value).toBe(SCORE_CODE)
+  }
+)
+
+check('a canvas drag committed under the row lock survives the apply', async () => {
+  const seeded = await seedWorkflow()
+  const source = await getSource(seeded.workflowId)
+  let outcome: Promise<unknown> = Promise.resolve()
+  let settled = false
+
+  await db.transaction(async (tx) => {
+    const [self] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+    await tx
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(eq(workflow.id, seeded.workflowId))
+      .for('update')
+    outcome = runOutsideTransactionContext(() =>
+      apply(source, edit(source.files, SCORE_CODE, 'return 8')).finally(() => {
+        settled = true
+      })
+    )
+    await waitForBlocked(Number(self?.pid), () => settled)
+    await tx
+      .update(workflowBlocks)
+      .set({ positionX: '777', positionY: '333' })
+      .where(eq(workflowBlocks.id, seeded.scoreId))
+  })
+
+  await expect(outcome).resolves.toMatchObject({ applied: true })
+  const after = await snapshot(seeded.workflowId)
+  expect(after.state?.blocks[seeded.scoreId]?.position).toEqual({ x: 777, y: 333 })
+  expect(after.state?.blocks[seeded.scoreId]?.subBlocks.code?.value).toBe('return 8')
+})
+
+check('a block added to a loop stores the loop resized by the targeted layout', async () => {
+  const workflowId = generateId()
+  const ids = { start: generateId(), loop: generateId(), inner: generateId() }
+  const now = new Date()
+  await db.insert(workflow).values({
+    id: workflowId,
+    userId: ownerId,
+    workspaceId,
+    name: `Source apply ${workflowId}`,
+    lastSynced: now,
+    createdAt: now,
+    updatedAt: now,
+  })
+  const base = (id: string, type: string, name: string): BlockState => ({
+    id,
+    type,
+    name,
+    position: { x: 0, y: 0 },
+    subBlocks: {},
+    outputs: {},
+    enabled: true,
+  })
+  const saved = await saveWorkflowToNormalizedTables(workflowId, {
+    blocks: {
+      [ids.start]: base(ids.start, 'start_trigger', 'Start'),
+      [ids.loop]: {
+        ...base(ids.loop, 'loop', 'Each'),
+        position: { x: 400, y: 0 },
+        data: { width: 100, height: 100 },
+      },
+      [ids.inner]: {
+        ...base(ids.inner, 'function', 'Inner'),
+        position: { x: 50, y: 50 },
+        subBlocks: { code: { id: 'code', type: 'code', value: 'return 1' } },
+        data: { parentId: ids.loop, extent: 'parent' },
+      },
+    },
+    edges: [
+      { id: generateId(), source: ids.start, target: ids.loop },
+      {
+        id: generateId(),
+        source: ids.loop,
+        target: ids.inner,
+        sourceHandle: 'loop-start-source',
+      },
+    ],
+    loops: {},
+    parallels: {},
+  })
+  if (!saved.success) throw new Error(`Seeding the workflow failed: ${saved.error}`)
+  const source = await getSource(workflowId)
+  const innerIdent = source.lock.blocks.inner.ident
+  const workflowFile = source.files['workflow.ts']
+  const innerLine = new RegExp(`\\n(\\s*)const ${innerIdent} = [^\\n]*\\n`)
+  expect(workflowFile).toMatch(innerLine)
+
+  const result = await apply(source, {
+    ...source.files,
+    'workflow.ts': workflowFile.replace(innerLine, (line, indent: string) => {
+      const extra = line
+        .trim()
+        .replace(`const ${innerIdent} =`, 'const extra =')
+        .replace("'Inner'", "'Extra'")
+      return `${line}${indent}${extra}\n${indent}${innerIdent}.to(extra)\n`
+    }),
+  })
+
+  expect(result.applied).toBe(true)
+  const after = await snapshot(workflowId)
+  const extraId = result.mintedIds.extra
+  expect(after.state?.blocks[extraId]?.data?.parentId).toBe(ids.loop)
+  const loop = after.state?.blocks[ids.loop]
+  expect(loop?.data?.width).toBeGreaterThanOrEqual(CONTAINER_DIMENSIONS.DEFAULT_WIDTH)
+  expect(loop?.data?.height).toBeGreaterThanOrEqual(CONTAINER_DIMENSIONS.DEFAULT_HEIGHT)
+})
+
 check('a block lock toggled between get and apply is a 409', async () => {
   const seeded = await seedWorkflow()
   const source = await getSource(seeded.workflowId)
@@ -567,6 +707,21 @@ async function canvasSubBlockWrite(tx: DbOrTx, blockId: string, code: string) {
   await tx
     .update(workflowBlocks)
     .set({ subBlocks: { ...subBlocks, code: { ...subBlocks.code, value: code } } })
+    .where(eq(workflowBlocks.id, blockId))
+}
+
+/** A realtime subblock write of a value the source fingerprint ignores, such as `triggerPath`. */
+async function canvasSubBlockSet(tx: DbOrTx, blockId: string, subBlockId: string, value: string) {
+  const [row] = await tx
+    .select({ subBlocks: workflowBlocks.subBlocks })
+    .from(workflowBlocks)
+    .where(eq(workflowBlocks.id, blockId))
+  const subBlocks = row.subBlocks as Record<string, unknown>
+  await tx
+    .update(workflowBlocks)
+    .set({
+      subBlocks: { ...subBlocks, [subBlockId]: { id: subBlockId, type: 'short-input', value } },
+    })
     .where(eq(workflowBlocks.id, blockId))
 }
 
