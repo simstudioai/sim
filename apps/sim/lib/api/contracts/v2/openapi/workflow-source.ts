@@ -12,13 +12,13 @@ import {
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 
-const BLOCK_ID = '5b0c2f7e-91d4-4a63-8e2b-0f6d3c9a1e47'
+const BLOCK_ID = 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77'
 const FINGERPRINT = 'sf1:9c1d4e7f0a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e1f4a7b0c3d6e9f2a5b8c1d'
 const CATALOG_HASH = '3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a'
 
 const WORKFLOW_SOURCE_EXAMPLE = {
-  workflowId: '3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8',
-  workspaceId: '7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28',
+  workflowId: '3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36',
+  workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
   files: {
     'workflow.ts':
       "// @sim-sdk 1\nimport { trigger, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('Support triage', () => {\n  const start = trigger.start('Start')\n})\n",
@@ -29,7 +29,7 @@ const WORKFLOW_SOURCE_EXAMPLE = {
     variables: {},
   },
   lockBase: {
-    workspaceId: '7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28',
+    workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
     baseFingerprint: FINGERPRINT,
     catalogHash: CATALOG_HASH,
   },
