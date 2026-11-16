@@ -13,6 +13,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./proof": {
+      "types": "./src/proof/index.ts",
+      "default": "./src/proof/index.ts"
     }
   },
   "scripts": {
@@ -33,6 +37,7 @@
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "@xyflow/react": "12.12.1",
+    "fast-check": "3.23.2",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
   }
