@@ -78,6 +78,16 @@ function resolveUrl<P>(url: string | ((params: P) => string), params: P): string
   return typeof url === 'function' ? url(params) : url
 }
 
+type SearchRecordsParams = Parameters<
+  NonNullable<typeof microsoftDynamics365SearchRecordsTool.request.body>
+>[0]
+
+function searchRecordsBody(params: SearchRecordsParams) {
+  const { body } = microsoftDynamics365SearchRecordsTool.request
+  if (!body) throw new Error('search records tool has no request body')
+  return body(params)
+}
+
 describe('Microsoft Dataverse Dynamics CRM shared safety', () => {
   it.each([
     microsoftDynamics365ListRecordsTool,
@@ -510,11 +520,9 @@ describe('microsoft_dynamics_365_search response validation', () => {
     const entities = JSON.stringify([
       { Name: 'account', SelectColumns: ['name'], Filter: 'statecode eq 0' },
     ])
-    expect(
-      microsoftDynamics365SearchRecordsTool.request.body!({ ...SEARCH_PARAMS, entities })
-    ).toMatchObject({ entities })
+    expect(searchRecordsBody({ ...SEARCH_PARAMS, entities })).toMatchObject({ entities })
     expect(() =>
-      microsoftDynamics365SearchRecordsTool.request.body!({
+      searchRecordsBody({
         ...SEARCH_PARAMS,
         entities: JSON.stringify([{ Name: 'systemuser' }]),
       })

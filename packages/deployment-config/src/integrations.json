@@ -19237,6 +19237,10 @@
           "description": "Unsuspend a previously suspended user in your Okta organization. Returns the user to ACTIVE status."
         },
         {
+          "name": "Unlock User",
+          "description": "Unlock a LOCKED_OUT user, or an ACTIVE user blocked from unknown devices, so they can sign in with their current password. Works only for Okta-sourced users, not directory-sourced accounts such as Active Directory."
+        },
+        {
           "name": "Reset Password",
           "description": "Generate a one-time token to reset a user password. Can email the reset link to the user or return it directly. Transitions the user to RECOVERY status."
         },
@@ -19275,6 +19279,10 @@
         {
           "name": "List Group Members",
           "description": "List all members of a specific group in your Okta organization"
+        },
+        {
+          "name": "List User Groups",
+          "description": "List every group a user is a member of. Use it for access reviews and offboarding instead of scanning the members of each group."
         },
         {
           "name": "List Group Rules",
@@ -19381,7 +19389,7 @@
           "description": "Query the Okta System Log for sign-ins, admin changes, and security events. Supports a time window, SCIM filter expressions, keyword search, and cursor pagination for audit and investigation workflows."
         }
       ],
-      "operationCount": 44,
+      "operationCount": 46,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -19389,7 +19397,7 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity", "automation"],
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "onedrive",
@@ -27063,7 +27071,7 @@
         },
         {
           "name": "List Query History",
-          "description": "List queries that completed in the last seven days, optionally filtered."
+          "description": "List queries from the last seven days, optionally filtered. Queries still running are included unless an end time is set."
         },
         {
           "name": "List Copy History",
@@ -27093,7 +27101,7 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-warehouse", "data-analytics", "cloud"],
-      "updatedAt": "2026-09-26"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "splunk_v2",
@@ -31632,7 +31640,7 @@
         },
         {
           "name": "List Threads",
-          "description": "List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content, summary, to/cc/bcc) come back only from Get Thread."
+          "description": "List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content) come back only from Get Thread."
         },
         {
           "name": "Get Thread",
@@ -31745,7 +31753,7 @@
       "category": "tools",
       "integrationType": "support",
       "tags": ["customer-support", "ticketing", "automation"],
-      "updatedAt": "2026-10-18"
+      "updatedAt": "2026-11-16"
     },
     {
       "type": "zoom",
