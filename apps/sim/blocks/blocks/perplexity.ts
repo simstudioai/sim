@@ -206,17 +206,13 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
       params: (params, context) => {
         if (mapperOperation(params, context) === 'perplexity_search') {
           // The block takes a comma-separated string; a tool call already sends an array.
-          let domainFilter: string[] | undefined
-          if (params.search_domain_filter && typeof params.search_domain_filter === 'string') {
-            domainFilter = params.search_domain_filter
-              .split(',')
-              .map((d) => d.trim())
-              .filter((d) => d.length > 0)
-          } else if (Array.isArray(params.search_domain_filter)) {
-            domainFilter = params.search_domain_filter
-              .map((d) => String(d).trim())
-              .filter((d) => d.length > 0)
-          }
+          const rawDomains: unknown[] | undefined =
+            params.search_domain_filter && typeof params.search_domain_filter === 'string'
+              ? params.search_domain_filter.split(',')
+              : Array.isArray(params.search_domain_filter)
+                ? params.search_domain_filter
+                : undefined
+          const domainFilter = rawDomains?.map((d) => String(d).trim()).filter((d) => d.length > 0)
 
           const searchParams = {
             apiKey: params.apiKey,
@@ -244,7 +240,9 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
           max_tokens: params.max_tokens ? Number.parseInt(params.max_tokens) : undefined,
           temperature: params.temperature
             ? Number.parseFloat(params.temperature)
-            : toolCallArg(context, params.temperature === 0 ? 0 : undefined),
+            : params.temperature === 0
+              ? toolCallArg(context, 0)
+              : undefined,
         }
 
         return chatParams

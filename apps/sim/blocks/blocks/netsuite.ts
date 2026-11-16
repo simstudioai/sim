@@ -95,10 +95,6 @@ const BATCH_WRITE_OPERATIONS = [
   'netsuite_batch_upsert_records',
 ]
 
-function usesOperation(operation: string, operations: readonly string[]): boolean {
-  return operations.includes(operation)
-}
-
 function optionalBoolean(value: unknown): boolean | undefined {
   if (value === true || value === 'true') return true
   if (value === false || value === 'false') return false
@@ -856,24 +852,24 @@ Return ONLY the SuiteQL query - no explanations, no markdown, no extra text.`,
               : undefined
         return {
           ...rest,
-          body: usesOperation(operation, BODY_OPERATIONS)
+          body: BODY_OPERATIONS.includes(operation)
             ? parseJson(rest.body, 'Record fields')
             : undefined,
-          items: usesOperation(operation, BATCH_WRITE_OPERATIONS)
+          items: BATCH_WRITE_OPERATIONS.includes(operation)
             ? parseJson(rest.items, 'Records')
             : undefined,
-          limit: usesOperation(operation, PAGING_OPERATIONS)
+          limit: PAGING_OPERATIONS.includes(operation)
             ? parseOptionalNumberInput(rest.limit, 'Limit', {
                 integer: true,
                 min: 1,
                 max: 1_000,
               })
             : undefined,
-          offset: usesOperation(operation, PAGING_OPERATIONS)
+          offset: PAGING_OPERATIONS.includes(operation)
             ? parseOptionalNumberInput(rest.offset, 'Offset', { integer: true, min: 0 })
             : undefined,
-          expand: usesOperation(operation, RECORD_QUERY_OPERATIONS) ? rest.expand : undefined,
-          expandSubResources: usesOperation(operation, RECORD_QUERY_OPERATIONS)
+          expand: RECORD_QUERY_OPERATIONS.includes(operation) ? rest.expand : undefined,
+          expandSubResources: RECORD_QUERY_OPERATIONS.includes(operation)
             ? optionalBoolean(rest.expandSubResources)
             : undefined,
           roleId:
