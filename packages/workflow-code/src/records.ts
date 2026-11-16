@@ -23,6 +23,16 @@ export function getOwn<T>(record: Readonly<Record<string, T>>, key: string): T |
   return Object.hasOwn(record, key) ? record[key] : undefined
 }
 
+/** Sets `target[key]`, or deletes it when `value` is `undefined`. Keys are typed, never stored data. */
+export function setOrDelete<T extends object, K extends keyof T>(
+  target: T,
+  key: K,
+  value: T[K]
+): void {
+  if (value === undefined) delete target[key]
+  else target[key] = value
+}
+
 /** Defined own entries; an `undefined` member means the same as an absent one. */
 function definedEntries(value: object): Array<[string, unknown]> {
   return Object.entries(value).filter(([, member]) => member !== undefined)

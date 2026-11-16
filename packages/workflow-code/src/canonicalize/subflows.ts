@@ -6,9 +6,9 @@ import { toValue } from './values'
 const LOOP_TYPES = new Set(['for', 'forEach', 'while', 'doWhile'])
 const PARALLEL_TYPES = new Set(['count', 'collection'])
 const PARALLEL_BATCH_MIN = 1
-const PARALLEL_BATCH_MAX = 20
-/** `count || 5` in `convertLoopBlockToLoop` (subflow-helpers.ts:46). */
-const DEFAULT_LOOP_ITERATIONS = 5
+export const PARALLEL_BATCH_MAX = 20
+/** `count || 5` in `convertLoopBlockToLoop` (subflow-helpers.ts:46) and the loop orchestrator. */
+export const DEFAULT_LOOP_ITERATIONS = 5
 
 /** `block.data` keys a container's subflow config owns. */
 export const SUBFLOW_DATA_KEYS: ReadonlySet<string> = new Set([

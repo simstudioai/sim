@@ -1,6 +1,7 @@
 import { type ParserOptions, parse } from '@babel/parser'
 import type { Expression, MemberExpression, Node } from '@babel/types'
 import { isLikelyWorkflowReferenceSegment } from '@sim/utils/workflow-references'
+import { babelErrorShape, childNodes } from '../babel'
 import {
   ENV_VAR_NAME,
   formatStoredPath,
@@ -45,14 +46,8 @@ interface Replacement {
   text: string
 }
 
-interface BabelErrorShape {
-  message?: unknown
-  pos?: unknown
-  loc?: { line?: unknown; column?: unknown }
-}
-
 function toSyntaxError(error: unknown): CodeFileSyntaxError {
-  const shape: BabelErrorShape = typeof error === 'object' && error !== null ? error : {}
+  const shape = babelErrorShape(error)
   const line = typeof shape.loc?.line === 'number' ? shape.loc.line : 1
   const column = typeof shape.loc?.column === 'number' ? shape.loc.column + 1 : 1
   return {
@@ -97,35 +92,6 @@ export function fromCodeFile(text: string, language: CodeFileLanguage): FromCode
     cursor = replacement.end
   }
   return { ok: true, code: code + text.slice(cursor) }
-}
-
-function isNode(value: unknown): value is Node {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as { type?: unknown }).type === 'string'
-  )
-}
-
-function childNodes(node: Node): Node[] {
-  const children: Node[] = []
-  for (const [key, value] of Object.entries(node)) {
-    if (
-      key === 'leadingComments' ||
-      key === 'trailingComments' ||
-      key === 'innerComments' ||
-      key === 'loc' ||
-      key === 'extra'
-    ) {
-      continue
-    }
-    if (Array.isArray(value)) {
-      for (const item of value) if (isNode(item)) children.push(item)
-    } else if (isNode(value)) {
-      children.push(value)
-    }
-  }
-  return children
 }
 
 function isParenthesized(node: Node): boolean {

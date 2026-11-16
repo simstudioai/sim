@@ -1,5 +1,6 @@
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
 import type { Json, LoopSpec, ParallelSpec } from '../model'
+import { setOrDelete } from '../records'
 
 /** `block.data` keys each subflow kind owns, and the model field each one holds. */
 function dataFields(spec: LoopSpec | ParallelSpec): Record<string, Json | undefined> {
@@ -35,11 +36,6 @@ export function writeSubflowData(
     if (value === undefined) delete data[key]
     else data[key] = value
   }
-}
-
-function setOrDelete<T extends object, K extends keyof T>(target: T, key: K, value: T[K]): void {
-  if (value === undefined) delete target[key]
-  else target[key] = value
 }
 
 export interface SubflowEntryInputs {

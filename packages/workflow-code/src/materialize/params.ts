@@ -1,6 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { MCP_TOOL_TYPE, mcpToolId } from '../agent-tools'
-import { shouldDecode } from '../canonicalize/params'
+import { shouldDecode, uniqueFieldNames } from '../canonicalize/params'
 import { decodeToolParam, toolParamDeclaration } from '../canonicalize/tools'
 import type { CatalogSubBlock } from '../catalog/types'
 import type { LockItem } from '../lock'
@@ -55,12 +55,7 @@ function encodeStorage(json: unknown, site: ParamSite): unknown {
  * flag is carried over from the prev field with the same id.
  */
 function restoreInputFormatIds(list: unknown[], site: ParamSite, context: MaterializeContext) {
-  const nameCounts = new Map<string, number>()
-  for (const item of list) {
-    if (isRecordLike(item) && typeof item.name === 'string') {
-      nameCounts.set(item.name, (nameCounts.get(item.name) ?? 0) + 1)
-    }
-  }
+  const unique = uniqueFieldNames(list)
   const prevById = new Map<string, Record<string, unknown>>()
   for (const item of parseStoredList(site.prevRaw)) {
     if (isRecordLike(item) && typeof item.id === 'string') prevById.set(item.id, item)
@@ -68,7 +63,7 @@ function restoreInputFormatIds(list: unknown[], site: ParamSite, context: Materi
   const used = new Set<string>()
   return list.map((item) => {
     if (!isRecordLike(item) || typeof item.name !== 'string' || item.id !== undefined) return item
-    if (nameCounts.get(item.name) !== 1) return item
+    if (!unique.has(item.name)) return item
     const name = item.name
     const known = site.itemIds.find((entry) => entry.name === name && !used.has(entry.id))
     const id = known?.id ?? context.hooks.newId()

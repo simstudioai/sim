@@ -6,7 +6,8 @@ import {
   type SubBlockState,
 } from '@sim/workflow-types/workflow'
 import { implicitIds } from '../canonicalize/branches'
-import { declarationFor, isExcludedSubBlockId } from '../canonicalize/params'
+import { parseModeMap } from '../canonicalize/modes'
+import { declarationFor, isExcludedSubBlockId, uniqueFieldNames } from '../canonicalize/params'
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { mintsFreshValue } from '../catalog/defaults'
 import { catalogBlock } from '../catalog/view'
@@ -16,7 +17,7 @@ import { deepEqual, parseJsonContainer } from '../records'
 import { writeBranches } from './branches'
 import type { MaterializeContext } from './context'
 import type { ResolvedBlock } from './identity'
-import { storedModes, writeBlockModes, writeToolModes } from './modes'
+import { writeBlockModes, writeToolModes } from './modes'
 import { encodeParam, matchPrevTools, parseStoredList } from './params'
 import { writeSubflowData } from './subflows'
 
@@ -74,13 +75,10 @@ function sameBlock(left: CanonicalBlock, right: CanonicalBlock): boolean {
  */
 function storedItems(raw: unknown): LockItem[] {
   const list = parseStoredList(raw).filter(isRecordLike)
-  const counts = new Map<string, number>()
-  for (const item of list) {
-    if (typeof item.name === 'string') counts.set(item.name, (counts.get(item.name) ?? 0) + 1)
-  }
+  const unique = uniqueFieldNames(list)
   const items: LockItem[] = []
   for (const { name, id } of list) {
-    if (typeof name === 'string' && typeof id === 'string' && counts.get(name) === 1) {
+    if (typeof name === 'string' && typeof id === 'string' && unique.has(name)) {
       items.push({ name, id })
     }
   }
@@ -252,7 +250,7 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
 
   const nextExtra = target.extra ?? {}
   if (catalog && !Object.hasOwn(nextExtra, 'canonicalModes')) {
-    const original = storedModes(data)
+    const original = parseModeMap(data.canonicalModes)
     let modes = writeBlockModes(
       original ?? {},
       target.modes,

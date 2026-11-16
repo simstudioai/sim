@@ -65,7 +65,7 @@ export interface FrameLocation {
 }
 
 /** Babel's line terminators (`lineBreak` in @babel/parser): CRLF, LF, CR, U+2028, U+2029. */
-const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/
+export const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/
 const CONTEXT_LINES = 2
 
 /** `text` split at Babel's line terminators. */

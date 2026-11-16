@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import {
   type CanonicalModeOverrides,
   isCanonicalPair,
@@ -6,6 +7,26 @@ import {
 import { buildCanonicalIndexForSurface } from '../catalog/surface'
 import type { CatalogBlock } from '../catalog/types'
 import type { CanonicalParamId, ParamMode } from '../model'
+import { setOwn } from '../records'
+
+function isParamMode(value: unknown): value is ParamMode {
+  return value === 'basic' || value === 'advanced'
+}
+
+/** The valid entries of a stored `data.canonicalModes`, or `undefined` when it is not a record. */
+export function parseModeMap(value: unknown): Record<string, ParamMode> | undefined {
+  if (!isRecordLike(value)) return undefined
+  const modes: Record<string, ParamMode> = {}
+  for (const [id, mode] of Object.entries(value)) {
+    if (isParamMode(mode)) setOwn(modes, id, mode)
+  }
+  return modes
+}
+
+/** Whether a stored `data.canonicalModes` holds only valid entries. */
+export function isModeMap(value: unknown): boolean {
+  return isRecordLike(value) && Object.values(value).every(isParamMode)
+}
 
 /**
  * The effective mode of every canonical pair on the block's surface, as the serializer resolves

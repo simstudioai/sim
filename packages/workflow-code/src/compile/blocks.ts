@@ -2,10 +2,11 @@ import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
 import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
-import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
+import { DEFAULT_LOOP_ITERATIONS, SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { editorDefaults } from '../catalog/defaults'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
+import { isIdentifierName } from '../code-files/ref-path'
 import { jsonFieldText } from '../json-fields'
 import { utf8Bytes } from '../limits'
 import {
@@ -77,9 +78,7 @@ const META_KEYS = [
   'extra',
   'subflowData',
 ]
-const BRANCH_KEY = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 const EDGE_METHOD_NAMES = new Set(['to', 'onError'])
-const DEFAULT_LOOP_ITERATIONS = 5
 const CODE_LANGUAGES: ReadonlySet<string> = new Set(['javascript', 'python', 'shell'])
 
 interface CompiledMeta {
@@ -424,7 +423,7 @@ function compileBranchRows(
   const rows: CanonicalBranchRow[] = []
   for (const [index, [key, property]] of entries.entries()) {
     recordSpan(ctx, { kind: 'param', block: decl.key, param: key }, property)
-    if (!BRANCH_KEY.test(key)) {
+    if (!isIdentifierName(key)) {
       unsupported(
         ctx,
         property,

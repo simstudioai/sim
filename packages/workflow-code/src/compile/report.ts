@@ -1,14 +1,15 @@
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
 import {
   codeFrame,
+  LINE_BREAK,
   type LocatedDiagnostic,
   type SourceSpan,
   splitLines,
 } from '../diagnostics/frame'
 import type { BlockKey, SubBlockId } from '../model'
 
-/** Babel's line terminators (`lineBreak` in @babel/parser), so lines agree with Babel `loc`. */
-const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/g
+/** Babel's line terminators, so lines agree with Babel `loc`. */
+const LINE_BREAKS = new RegExp(LINE_BREAK.source, 'g')
 
 /** Line start offsets of one file, for offset → line/column. */
 class LineIndex {
@@ -16,7 +17,7 @@ class LineIndex {
   private split: string[] | null = null
 
   constructor(readonly text: string) {
-    for (const match of text.matchAll(LINE_BREAK)) {
+    for (const match of text.matchAll(LINE_BREAKS)) {
       this.starts.push(match.index + match[0].length)
     }
   }
