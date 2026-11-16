@@ -196,16 +196,18 @@ export function projectBlockCatalog(input: CatalogBuildInput): CatalogProjection
   for (const block of ordered) {
     const { projected, opaque } = memoizedBlock(block)
     report.opaque.push(...opaque)
-    const catalogBlock: CatalogBlock = input.notAddable?.has(block.type)
-      ? { ...projected.block, addable: false }
-      : projected.block
+    const names = input.sdkNames.blocks[block.type]
+    const catalogBlock: CatalogBlock = {
+      ...projected.block,
+      ...(input.notAddable?.has(block.type) && { addable: false as const }),
+      ...(names?.paramAliases && { paramAliases: names.paramAliases }),
+    }
     blocks.push([block.type, catalogBlock])
     descriptions.set(block.type, {
       description: projected.description,
       access: catalogBlock.tools.access,
     })
 
-    const names = input.sdkNames.blocks[block.type]
     if (names) {
       addBlockBuilders(builders, block, names.namespace, names.methods, names.triggers)
     } else if (block.type.startsWith(CUSTOM_BLOCK_TYPE_PREFIX)) {

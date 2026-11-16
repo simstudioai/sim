@@ -15,9 +15,6 @@ export default workflow('Doc QA', {}, () => {
       { role: 'user', content: start.question },
     ],
   })
-  const reply = response('Reply', {
-    dataMode: 'structured',
-    builderData: { answer: { type: 'string', value: answer.content } },
-  })
+  const reply = response('Reply', { body: { answer: answer.content, question: start.question } })
   start.to(search).to(answer).to(reply)
 })

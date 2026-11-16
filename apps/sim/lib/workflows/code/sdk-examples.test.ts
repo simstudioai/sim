@@ -12,8 +12,9 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
-import { canonicalize, compileWorkflow, printWorkflow } from '@sim/workflow-code'
+import { canonicalize, catalogBlock, compileWorkflow, printWorkflow } from '@sim/workflow-code'
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
+import { paramAliases } from '@sim/workflow-code/catalog/surface'
 import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { type CorpusCase, generateRegistryCorpus } from '@/lib/workflows/code/corpus'
@@ -103,6 +104,7 @@ describe('catalog field checks on the SDK examples and the registry corpus', () 
         files: new Map(),
         catalog,
         sdkMajor: catalog.sdkMajor,
+        stored: canonical.workflow,
       })
       for (const diagnostic of compiled.diagnostics) {
         if (diagnostic.code !== 'W_REQUIRED_MISSING' || !diagnostic.blockKey) continue
@@ -112,8 +114,12 @@ describe('catalog field checks on the SDK examples and the registry corpus', () 
         const config = block ? getBlock(block.type) : undefined
         if (!block || !config) continue
         const values = buildSubBlockValues(block.subBlocks ?? {})
+        const declared = catalogBlock(catalog, block.type)
+        const aliased = declared ? paramAliases(declared, block.triggerMode === true) : new Map()
+        const param =
+          [...aliased].find(([, alias]) => alias === diagnostic.param)?.[0] ?? diagnostic.param
         const members = config.subBlocks.filter(
-          (sub) => sub.id === diagnostic.param || sub.canonicalParamId === diagnostic.param
+          (sub) => sub.id === param || sub.canonicalParamId === param
         )
         if (!members.some((sub) => evaluateSubBlockCondition(sub.condition, values))) {
           violations.push(`${corpusCase.id} ${diagnostic.blockKey}.${diagnostic.param}`)

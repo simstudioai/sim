@@ -18529,7 +18529,12 @@
         "container": null,
         "annotationOnly": false
       },
-      "description": "Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions"
+      "description": "Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions",
+      "paramAliases": {
+        "action": {
+          "oauthCredential": "credential"
+        }
+      }
     },
     "gmail_v2": {
       "type": "gmail_v2",
@@ -19795,7 +19800,15 @@
         "container": null,
         "annotationOnly": false
       },
-      "description": "Send, read, search, and move Gmail messages or trigger workflows from Gmail events"
+      "description": "Send, read, search, and move Gmail messages or trigger workflows from Gmail events",
+      "paramAliases": {
+        "action": {
+          "oauthCredential": "credential"
+        },
+        "trigger": {
+          "oauthCredential": "credential"
+        }
+      }
     },
     "google_sheets_v2": {
       "type": "google_sheets_v2",
@@ -20923,7 +20936,15 @@
         "container": null,
         "annotationOnly": false
       },
-      "description": "Read, write, and update data with sheet selection"
+      "description": "Read, write, and update data with sheet selection",
+      "paramAliases": {
+        "action": {
+          "oauthCredential": "credential"
+        },
+        "trigger": {
+          "oauthCredential": "credential"
+        }
+      }
     },
     "table_v2": {
       "type": "table_v2",

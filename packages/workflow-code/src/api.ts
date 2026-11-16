@@ -253,6 +253,12 @@ export interface CompileInput {
    * introduce one. Absent means no override is accepted.
    */
   knownKeys?: ReadonlySet<BlockKey>
+  /**
+   * The stored workflow the source continues, canonicalized as it was printed. `stored()` (what
+   * the printer writes for a secret it never shows) compiles to this workflow's value for the same
+   * block key, type and param. Absent means `stored()` is refused, as for a new workflow.
+   */
+  stored?: CanonicalWorkflow
 }
 
 export interface CompileResult {

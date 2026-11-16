@@ -49,3 +49,42 @@ export function buildCanonicalIndexForSurface(
   const used = block.subBlocks.filter((subBlock) => onSurface(block, subBlock, triggerMode))
   return buildCanonicalIndex(used)
 }
+
+const aliasMemo = new WeakMap<CatalogBlock, Map<boolean, ReadonlyMap<string, string>>>()
+
+/**
+ * The aliases a block in `triggerMode` writes its params under: param name (canonical id or
+ * subBlock id) → alias, from the catalog's frozen `paramAliases` for the surface the block uses
+ * (both for a trigger block). An alias that would name another param on that surface, or a second
+ * param, is dropped, so every param keeps exactly one written name. Print writes the alias;
+ * compile accepts the alias and the param name.
+ */
+export function paramAliases(
+  block: CatalogBlock,
+  triggerMode: boolean
+): ReadonlyMap<string, string> {
+  let byMode = aliasMemo.get(block)
+  if (!byMode) {
+    byMode = new Map()
+    aliasMemo.set(block, byMode)
+  }
+  const cached = byMode.get(triggerMode)
+  if (cached) return cached
+  const names = new Set<string>()
+  for (const subBlock of block.subBlocks) {
+    if (onSurface(block, subBlock, triggerMode)) names.add(subBlock.canonicalParamId ?? subBlock.id)
+  }
+  const surfaces: Array<'action' | 'trigger'> =
+    block.category === 'triggers' ? ['action', 'trigger'] : [triggerMode ? 'trigger' : 'action']
+  const aliases = new Map<string, string>()
+  const taken = new Set<string>()
+  for (const surface of surfaces) {
+    for (const [name, alias] of Object.entries(block.paramAliases?.[surface] ?? {})) {
+      if (!names.has(name) || aliases.has(name) || names.has(alias) || taken.has(alias)) continue
+      aliases.set(name, alias)
+      taken.add(alias)
+    }
+  }
+  byMode.set(triggerMode, aliases)
+  return aliases
+}

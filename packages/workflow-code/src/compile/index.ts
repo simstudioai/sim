@@ -4,6 +4,7 @@ import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import { encodeAnchor, portKey } from '../anchors'
 import type { CompileResult, CompileWorkflowFn, SourceHints } from '../api'
 import type { SourceSpan } from '../diagnostics/frame'
+import { jsonFieldText, type RefTypeScope, refValueKind } from '../json-fields'
 import type {
   AnchorKey,
   BlockKey,
@@ -13,6 +14,7 @@ import type {
   VarKey,
 } from '../model'
 import { setOwn } from '../records'
+import { OLDEST_SDK_MAJOR } from '../sdk'
 import { compileBlock } from './blocks'
 import { CommentCollector } from './comments'
 import { type CompileContext, rangeOf, recordSpan, type Scope } from './context'
@@ -324,6 +326,15 @@ export const compileWorkflow: CompileWorkflowFn = (input) => {
       { file, start: 0, end: parsed.headerEnd },
       { hint: `Write // @sim-sdk ${input.sdkMajor}, or update Sim.` }
     )
+  } else if (parsed.sdkMajor < OLDEST_SDK_MAJOR) {
+    reporter.report(
+      'E_SDK_MAJOR_OLD',
+      `This file targets SDK ${parsed.sdkMajor}; this server supports SDK ${OLDEST_SDK_MAJOR} to ${input.sdkMajor}.`,
+      { file, start: 0, end: parsed.headerEnd },
+      {
+        hint: `Rewrite the file for SDK ${input.sdkMajor}: run sim workflows source get to print it again.`,
+      }
+    )
   }
   const ast = parsed.ast
   if (!ast) return emptyResult(reporter, parsed.sdkMajor)
@@ -345,6 +356,8 @@ export const compileWorkflow: CompileWorkflowFn = (input) => {
     implied: [],
     spans: new Map(),
     knownKeys: input.knownKeys ?? new Set(),
+    stored: input.stored,
+    jsonFields: [],
   }
 
   const moduleScope: Scope = { parent: null, bindings: new Map(), container: null }
@@ -434,6 +447,28 @@ export const compileWorkflow: CompileWorkflowFn = (input) => {
       order: decl.order,
       ...(result.codeFile !== undefined && { codeFile: result.codeFile }),
     })
+  }
+
+  const refTypes: RefTypeScope = {
+    catalog: input.catalog,
+    block: (key) => compiled.get(key),
+    variable: (key) => ctx.variables.get(key),
+  }
+  const isString = (token: string) => refValueKind(token, refTypes) === 'string'
+  for (const { params, id, tree, refs } of ctx.jsonFields) {
+    setOwn(params, id, { kind: 'value', value: jsonFieldText(tree, isString) })
+    for (const ref of refs) {
+      if (refValueKind(ref.token, refTypes) !== 'untyped') continue
+      reporter.report(
+        'W_JSON_REF_UNTYPED',
+        `Nothing declares the type of ${ref.token}; it is stored bare, so a string value would break the JSON.`,
+        ref.range,
+        {
+          hint: `Write t\`\${${text.slice(ref.range.start, ref.range.end)}}\` when the value is text.`,
+          blockKey: ref.blockKey,
+        }
+      )
+    }
   }
 
   const edges = new EdgeCollector(ctx, compiled)

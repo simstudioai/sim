@@ -19,6 +19,8 @@ export type CompileSyntaxCode =
   | 'E_SDK_HEADER'
   /** The header's major is above the server's supported major. */
   | 'E_SDK_MAJOR'
+  /** The header's major is below the oldest major the server reads (`OLDEST_SDK_MAJOR`). */
+  | 'E_SDK_MAJOR_OLD'
   /** A construct outside the accepted grammar; `hint` names the supported form (s3 §4 table). */
   | 'E_UNSUPPORTED_SYNTAX'
   /** Not exactly one `export default workflow(...)`. */
@@ -37,6 +39,8 @@ export type CompileScopeCode =
    */
   | 'E_KEY_OVERRIDE'
   | 'E_EMPTY_NAME'
+  /** A block name holds a bidi control or zero-width character (`isSuspiciousCharacter`). */
+  | 'W_SUSPICIOUS_CHARACTER'
   | 'E_NAME_NOT_LITERAL'
   /** Includes a Levenshtein "did you mean" in `hint`. */
   | 'E_UNKNOWN_IDENTIFIER'
@@ -51,6 +55,11 @@ export type CompileScopeCode =
   | 'E_UNKNOWN_SUBFLOW_PROPERTY'
   /** A ref to a block declared later; it resolves, but the order is unusual. */
   | 'W_FORWARD_REF'
+  /**
+   * Hand-written `<Name.path>` text whose head is not a normalized block key or names no block;
+   * kept verbatim, so a rename never rewrites it. `hint` names the ident form.
+   */
+  | 'W_REF_NOT_NORMALIZED'
 
 /** Wiring (s3 §4 "Edges", build-spec decision 5). */
 export type CompileEdgeCode =
@@ -87,10 +96,20 @@ export type CompileCatalogCode =
   | 'W_FIELD_NOT_APPLICABLE'
   /** Includes `todo()` placeholders. */
   | 'W_REQUIRED_MISSING'
+  /**
+   * `stored()` on a param the stored workflow holds no value for: a new block, a block of another
+   * type, or an empty field (`CompileInput.stored`).
+   */
+  | 'E_STORED_VALUE_MISSING'
   /** The value's JSON type differs from the field's `valueKind`; never coerced. */
   | 'W_VALUE_KIND'
   /** Skipped when the block's outputs are dynamic. */
   | 'W_UNKNOWN_OUTPUT_PATH'
+  /**
+   * A bare reference in a JSON field literal whose output type nothing declares: it is stored bare
+   * (typed), so a string value would break the JSON (`json-fields.ts`).
+   */
+  | 'W_JSON_REF_UNTYPED'
 
 /** Function-code files (build-spec decision 9, s3 D6/D7). */
 export type CodeFileCode =

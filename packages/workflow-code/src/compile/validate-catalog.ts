@@ -1,6 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { type ConditionLookup, evaluateClause, evaluateCondition } from '../catalog/conditions'
-import { isAdvancedMember, onSurface } from '../catalog/surface'
+import { isAdvancedMember, onSurface, paramAliases } from '../catalog/surface'
 import type {
   BlockCatalog,
   CatalogBlock,
@@ -14,32 +14,43 @@ import type { CanonicalParamId, SubBlockId, Value } from '../model'
 
 /**
  * One source param: a single subBlock, or every subBlock sharing a `canonicalParamId`, written
- * once under that id (build-spec decision 7). A group may lack either member.
+ * once under that id (build-spec decision 7). A group may lack either member. `param` is the
+ * subBlock id or canonical id (what `modes` is keyed by); `name` is what source writes, the
+ * param's alias when the catalog gives one (`paramAliases`), else `param`.
  */
 export type CatalogField =
-  | { kind: 'single'; param: string; sub: CatalogSubBlock }
+  | { kind: 'single'; param: string; name: string; sub: CatalogSubBlock }
   | {
       kind: 'pair'
       param: CanonicalParamId
+      name: string
       basic: CatalogSubBlock | undefined
       advanced: CatalogSubBlock | undefined
       members: CatalogSubBlock[]
     }
 
 export interface FieldIndex {
-  /** By source param name: subBlock id for singles, canonical id for groups. */
+  /** By written name: the alias, else the subBlock id for singles or canonical id for groups. */
   fields: Map<string, CatalogField>
-  /** Group member ids whose own id is not the param name, mapped to that name. */
-  memberAliases: Map<SubBlockId, CanonicalParamId>
+  /** Params written under an alias, by their own name: compile accepts both spellings. */
+  aliased: Map<string, CatalogField>
+  /** Group member ids whose own id is not the written name, mapped to that name. */
+  memberAliases: Map<SubBlockId, string>
   /** Every subBlock on this surface by id (first declaration wins). */
   subBlocks: Map<SubBlockId, CatalogSubBlock>
 }
 
+/** The field a written param name targets: its written name or, when aliased, its own name. */
+export function fieldFor(index: FieldIndex, key: string): CatalogField | undefined {
+  return index.fields.get(key) ?? index.aliased.get(key)
+}
+
 /**
  * The params a builder accepts: subBlock ids, with every `canonicalParamId` group written once
- * under its canonical id. The surface (action or trigger copy of a duplicated id) follows the
- * block's trigger mode, the first declaration of an id wins, the branches subBlock and the
- * builder's pinned ids are excluded. This is exactly the set the printer emits as params.
+ * under its canonical id, each under its alias when the catalog gives one. The surface (action or
+ * trigger copy of a duplicated id) follows the block's trigger mode, the first declaration of an
+ * id wins, the branches subBlock and the builder's pinned ids are excluded. This is exactly the
+ * set the printer emits as params.
  */
 export function buildFieldIndex(
   block: CatalogBlock,
@@ -50,30 +61,38 @@ export function buildFieldIndex(
   for (const sub of block.subBlocks) {
     if (onSurface(block, sub, triggerMode) && !subBlocks.has(sub.id)) subBlocks.set(sub.id, sub)
   }
+  const aliases = paramAliases(block, triggerMode)
   const fields = new Map<string, CatalogField>()
-  const memberAliases = new Map<SubBlockId, CanonicalParamId>()
+  const aliased = new Map<string, CatalogField>()
+  const memberAliases = new Map<SubBlockId, string>()
+  const add = (field: CatalogField) => {
+    fields.set(field.name, field)
+    if (field.name !== field.param) aliased.set(field.param, field)
+  }
   const branchId = block.graph.branches?.subBlockId
   for (const sub of subBlocks.values()) {
     if (sub.id === branchId || pinned.has(sub.id)) continue
     const cid = sub.canonicalParamId
     if (cid === undefined) {
-      fields.set(sub.id, { kind: 'single', param: sub.id, sub })
+      add({ kind: 'single', param: sub.id, name: aliases.get(sub.id) ?? sub.id, sub })
       continue
     }
-    if (sub.id !== cid) memberAliases.set(sub.id, cid)
-    if (fields.has(cid)) continue
+    const name = aliases.get(cid) ?? cid
+    if (sub.id !== name) memberAliases.set(sub.id, name)
+    if (fields.has(name)) continue
     const members = [...subBlocks.values()].filter(
       (member) => member.canonicalParamId === cid && !pinned.has(member.id)
     )
-    fields.set(cid, {
+    add({
       kind: 'pair',
       param: cid,
+      name,
       basic: members.find((member) => !isAdvancedMember(member)),
       advanced: members.find(isAdvancedMember),
       members,
     })
   }
-  return { fields, memberAliases, subBlocks }
+  return { fields, aliased, memberAliases, subBlocks }
 }
 
 /**

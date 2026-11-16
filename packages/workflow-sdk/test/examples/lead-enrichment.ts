@@ -50,7 +50,7 @@ export default workflow('Lead enrichment', {}, () => {
   })
   const legacyPing = slack.sendMessage(
     'Old ping',
-    { oauthCredential: credential('sales-slack'), channel: 'C0SALES', text: 'done' },
+    { credential: credential('sales-slack'), channel: 'C0SALES', text: 'done' },
     { disabled: true }
   )
   nightly.to(pending).to(enrichAll).to(handoff, legacyPing)

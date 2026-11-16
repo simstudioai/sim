@@ -6,6 +6,7 @@ import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { editorDefaults } from '../catalog/defaults'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
+import { jsonFieldText } from '../json-fields'
 import type {
   AnchorKey,
   CanonicalBlock,
@@ -19,16 +20,26 @@ import type {
   SubBlockId,
   Value,
 } from '../model'
-import { setOwn } from '../records'
-import { type BlockDecl, type CompileContext, rangeOf, recordSpan } from './context'
+import { getOwn, setOwn } from '../records'
+import { RESPONSE_BLOCK_TYPE } from '../sdk'
+import {
+  type BlockDecl,
+  type CompileContext,
+  catalogBlockOf,
+  type JsonFieldEntry,
+  rangeOf,
+  recordSpan,
+} from './context'
 import { didYouMean } from './hints'
 import { bracketDepthOverflow, utf8Length } from './parse'
 import type { Range } from './report'
+import { compileResponseParam } from './response'
 import { compileToolList } from './tools'
 import {
   buildFieldIndex,
   type CatalogField,
   type FieldIndex,
+  fieldFor,
   isModalPair,
   isVisible,
   memberFor,
@@ -38,6 +49,7 @@ import {
 import {
   type CompiledValue,
   compileJsonLiteral,
+  compileJsonTree,
   compileValue,
   isSelectorForm,
   objectEntries,
@@ -551,6 +563,9 @@ interface BlockState {
   pendingFile: { compiled: Extract<CompiledValue, { kind: 'codeFile' }>; target: SubBlockId } | null
 }
 
+/** How `pairMode` sees any object or array literal. */
+const LITERAL_CONTAINER: CompiledValue = { kind: 'value', value: [], form: 'literal' }
+
 function isJsonContainer(value: Value): boolean {
   return Array.isArray(value) || (isRecordLike(value) && !('$sim' in value))
 }
@@ -572,6 +587,43 @@ function pairMode(field: Extract<CatalogField, { kind: 'pair' }>, value: Compile
     : derived
 }
 
+/**
+ * `stored()`: the param keeps what the stored block holds (`CompileInput.stored`), a pair its
+ * members and mode, without the value ever appearing in source. Only a block the stored workflow
+ * already has under this key and type, holding a value for the param, can keep one.
+ */
+function keepStored(
+  ctx: CompileContext,
+  state: BlockState,
+  members: ReadonlyArray<{ id: SubBlockId }>,
+  property: ObjectProperty,
+  field: CatalogField | null
+): void {
+  const { decl, params, modes } = state
+  const stored = ctx.stored ? getOwn(ctx.stored.blocks, decl.key) : undefined
+  const name = field?.name ?? members[0]?.id ?? ''
+  const type =
+    decl.builder.kind === 'container' || decl.builder.kind === 'unknown' ? null : decl.builder.type
+  if (!stored || stored.type !== type || !members.some(({ id }) => getOwn(stored.params, id))) {
+    ctx.reporter.report(
+      'E_STORED_VALUE_MISSING',
+      stored && stored.type === type
+        ? `stored() keeps ${name}, but the stored ${decl.name} has no value for it.`
+        : `stored() keeps a stored value, but ${decl.name} is not a stored block of this type.`,
+      rangeOf(ctx, property.value),
+      { hint: `Write the value of ${name}.`, blockKey: decl.key, param: name }
+    )
+    return
+  }
+  for (const { id } of members) {
+    const param = getOwn(stored.params, id)
+    if (param) setOwn(params, id, param)
+    else state.unset.add(id)
+  }
+  const mode = field && isModalPair(field) ? getOwn(stored.modes, field.param) : undefined
+  if (field && mode) setOwn(modes, field.param, mode)
+}
+
 /** Compiles one catalog param into its member subBlock (`pairMode` picks a pair's member). */
 function compileField(
   ctx: CompileContext,
@@ -583,16 +635,52 @@ function compileField(
   const firstSub = field.kind === 'single' ? field.sub : field.members[0]
   const site = fieldSite(state.site, firstSub)
   if (firstSub?.valueKind === 'tools') {
-    const tools = compileToolList(ctx, property.value, site)
+    const storedBlock = ctx.stored ? getOwn(ctx.stored.blocks, decl.key) : undefined
+    const storedParam = storedBlock ? getOwn(storedBlock.params, firstSub.id) : undefined
+    const storedTools =
+      storedBlock?.type === catalogBlockOf(decl)?.type && storedParam?.kind === 'tools'
+        ? storedParam.tools
+        : []
+    const tools = compileToolList(ctx, property.value, site, storedTools)
     if (tools) setOwn(params, firstSub.id, { kind: 'tools', tools })
     return
+  }
+  if (property.value.type === 'ObjectExpression' || property.value.type === 'ArrayExpression') {
+    const mode = field.kind === 'pair' ? pairMode(field, LITERAL_CONTAINER) : null
+    const jsonTarget =
+      field.kind === 'pair' && mode
+        ? memberFor(field, mode)
+        : field.kind === 'single'
+          ? field.sub
+          : undefined
+    if (jsonTarget?.type === 'code') {
+      const refs: JsonFieldEntry['refs'] = []
+      const tree = compileJsonTree(ctx, property.value, site, refs)
+      if (tree === undefined) return
+      if (mode && isModalPair(field)) setOwn(modes, field.param, mode)
+      const value = jsonFieldText(tree, () => true)
+      setOwn(params, jsonTarget.id, { kind: 'value', value })
+      ctx.jsonFields.push({ params, id: jsonTarget.id, tree, refs })
+      state.written.push({
+        property,
+        param: field.name,
+        target: jsonTarget.id,
+        checked: false,
+        value,
+      })
+      return
+    }
   }
   const compiled = compileValue(ctx, property.value, site)
   if (!compiled) return
   if (compiled.kind === 'absent' || compiled.kind === 'todo') {
     const member = field.kind === 'pair' ? memberFor(field, 'basic') : field.sub
     if (member) state.unset.add(member.id)
-    if (compiled.kind === 'todo') state.todos.set(field.param, property)
+    if (compiled.kind === 'todo') state.todos.set(field.name, property)
+    return
+  }
+  if (compiled.kind === 'stored') {
+    keepStored(ctx, state, field.kind === 'single' ? [field.sub] : field.members, property, field)
     return
   }
   if (compiled.kind === 'codeFile') {
@@ -621,15 +709,12 @@ function compileField(
   if (!target) return
 
   let value = compiled.value
-  let checked = compiled.form === 'literal'
-  if (target.type === 'code' && compiled.form === 'literal' && isJsonContainer(value)) {
-    value = JSON.stringify(value, null, 2)
-    checked = false
-  } else if (target.structured === 'inputFormat' && compiled.form === 'literal') {
+  const checked = compiled.form === 'literal'
+  if (target.structured === 'inputFormat' && compiled.form === 'literal') {
     value = inputFormatItems(value)
   }
   setOwn(params, target.id, { kind: 'value', value })
-  state.written.push({ property, param: field.param, target: target.id, checked, value })
+  state.written.push({ property, param: field.name, target: target.id, checked, value })
 }
 
 /** Compiles a block call: `builder(name, params, meta?)` or `block(type, name, params, meta?)`. */
@@ -681,6 +766,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
   }
   const paramsObject = paramsNode?.type === 'ObjectExpression' ? paramsNode : undefined
   const branchEntries: Array<[string, ObjectProperty]> = []
+  let responseBody = false
   let branches: CanonicalBranches | undefined = branchField
     ? { kind: branchField.kind, rows: null }
     : undefined
@@ -698,9 +784,16 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
       owner: encodeAnchor({ kind: 'block', block: decl.key }),
       tail: 'last-item',
     })
+    const writtenFields = new Set<CatalogField>()
+    responseBody =
+      builder.kind === 'catalog' &&
+      builder.type === RESPONSE_BLOCK_TYPE &&
+      entries.some(([key]) => key === 'body')
     for (const [key, property] of entries) {
-      addItem(property, encodeAnchor({ kind: 'param', block: decl.key, param: key }))
-      recordSpan(ctx, { kind: 'param', block: decl.key, param: key }, property)
+      const field = index ? fieldFor(index, key) : undefined
+      const name = field?.name ?? key
+      addItem(property, encodeAnchor({ kind: 'param', block: decl.key, param: name }))
+      recordSpan(ctx, { kind: 'param', block: decl.key, param: name }, property)
       if (branchField && key === branchField.subBlockId) {
         if (property.value.type !== 'ObjectExpression') {
           unsupported(
@@ -729,7 +822,11 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
         }
         continue
       }
-      if (conditionForm && !index?.fields.has(key) && !pinned.has(key)) {
+      if (responseBody) {
+        compileResponseParam(ctx, site, params, key, property)
+        continue
+      }
+      if (conditionForm && !field && !pinned.has(key)) {
         branchEntries.push([key, property])
         continue
       }
@@ -745,6 +842,10 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
       if (!index) {
         const compiled = compileValue(ctx, property.value, site)
         if (!compiled || compiled.kind === 'absent' || compiled.kind === 'todo') continue
+        if (compiled.kind === 'stored') {
+          keepStored(ctx, state, [{ id: key }], property, null)
+          continue
+        }
         if (compiled.kind === 'codeFile') {
           unsupported(
             ctx,
@@ -758,7 +859,6 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
         setOwn(params, key, { kind: 'value', value: compiled.value })
         continue
       }
-      const field = index.fields.get(key)
       if (!field) {
         const alias = index.memberAliases.get(key)
         ctx.reporter.report(
@@ -777,9 +877,21 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
         )
         continue
       }
+      if (writtenFields.has(field)) {
+        unsupported(
+          ctx,
+          property,
+          `${key} names the param ${field.name}, which is already written.`,
+          `Write ${field.name} once.`,
+          decl
+        )
+        continue
+      }
+      writtenFields.add(field)
       compileField(ctx, state, field, property)
     }
   }
+  if (responseBody) setOwn(params, 'dataMode', { kind: 'value', value: 'json' })
   if (conditionForm && branchField) {
     branches = {
       kind: 'condition',
@@ -924,15 +1036,15 @@ function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState):
     }
   }
   for (const field of missingRequiredFields(index, values, (id) => Object.hasOwn(params, id))) {
-    const todo = state.todos.get(field.param)
+    const todo = state.todos.get(field.name)
     ctx.reporter.report(
       'W_REQUIRED_MISSING',
-      `${field.param} is required.`,
+      `${field.name} is required.`,
       rangeOf(ctx, todo ?? decl.call),
       {
-        hint: `Set ${field.param} before running the workflow.`,
+        hint: `Set ${field.name} before running the workflow.`,
         blockKey: decl.key,
-        param: field.param,
+        param: field.name,
       }
     )
   }

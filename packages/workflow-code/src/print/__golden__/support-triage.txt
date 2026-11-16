@@ -45,20 +45,18 @@ ${ticketIn.body}`,
     })
     const logTicket = table.insertRow('Log ticket', {
       tableId: table('tickets'),
-      data: t`{
-  "subject": "${ticketIn.subject}"
-}`,
+      data: { subject: ticketIn.subject },
     })
     const notify = slack.sendMessage(
       'Notify',
       {
-        oauthCredential: credential('support-slack'),
+        credential: credential('support-slack'),
         channel: 'C0SUPPORT',
         text: t`New ${classify.content} ticket: ${ticketIn.subject}`,
       },
       { errorPort: true }
     )
-    const reply = response('Reply', { builderData: { ok: true } })
+    const reply = response('Reply', { body: { ok: true, category: classify.content } })
 
     ticketIn.to(classify)
     classify.to(byCategory)

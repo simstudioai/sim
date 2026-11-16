@@ -30752,6 +30752,33 @@
                         "description": "One pair id rename."
                       }
                     },
+                    "paramAliases": {
+                      "description": "The name source writes for a param, by param name: oauthCredential → credential.",
+                      "type": "object",
+                      "properties": {
+                        "action": {
+                          "description": "Action-surface aliases.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "trigger": {
+                          "description": "Trigger-surface aliases.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "additionalProperties": false
+                    },
                     "custom": {
                       "description": "Present for organization custom blocks.",
                       "type": "object",

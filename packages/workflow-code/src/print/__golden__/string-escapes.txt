@@ -12,7 +12,7 @@ export default workflow('Fixture', {}, () => {
     {
       extra: {
         systemPrompt: `back\\slash \`tick\` \${notInterp} tab	here\r
-crlf line\u2028ls\u2029ps \uD800 lone 漢字 🎉`,
+crlf line\u2028ls\u2029ps \uD800 lone 漢字 🎉 rtl\u202Eoverride zero\u200Bwidth iso\u2066late`,
       },
     }
   )

@@ -249,7 +249,10 @@ export const cases: PrintCase[] = [
           errorPort: true,
         }),
         blk('Reply', 'response', {
-          params: { dataMode: 'structured', builderData: { ok: true } },
+          params: {
+            dataMode: 'json',
+            data: '{\n  "ok": true,\n  "category": "<classify.content>"\n}',
+          },
         }),
       ],
       edges: [
@@ -273,7 +276,7 @@ export const cases: PrintCase[] = [
           params: {
             model: "it's a \"model\" with 'quotes'",
             systemPrompt:
-              'back\\slash `tick` $\u007bnotInterp} tab\there\r\ncrlf line\u2028ls\u2029ps \ud800 lone 漢字 🎉',
+              'back\\slash `tick` $\u007bnotInterp} tab\there\r\ncrlf line\u2028ls\u2029ps \ud800 lone 漢字 🎉 rtl\u202Eoverride zero\u200Bwidth iso\u2066late',
             messages: [{ role: 'user', content: "single 'quote' only" }],
           },
         }),
@@ -720,12 +723,23 @@ export const cases: PrintCase[] = [
                 usageControl: 'auto',
               },
               {
-                type: 'custom-tool-type',
-                title: 'Lookup vendor',
-                params: { query: '' },
+                type: 'custom-tool',
+                params: {},
+                modes: {},
+                usageControl: 'auto',
+                customTool: {
+                  ref: { $sim: 'resource', kind: 'custom-tool', key: 'lookup-vendor' },
+                },
+              },
+              {
+                type: 'custom-tool',
+                title: 'Drifted copy',
+                toolId: 'custom-drifted',
+                params: {},
                 modes: {},
                 customTool: {
                   ref: { $sim: 'resource', kind: 'custom-tool', key: 'lookup-vendor' },
+                  snapshot: { schema: { type: 'function' }, code: 'return 1' },
                 },
               },
             ],
@@ -759,7 +773,10 @@ export const cases: PrintCase[] = [
     name: 'json-code-fields',
     workflow: wf({
       blocks: [
-        start('Start', [{ name: 'input', type: 'string', value: '' }]),
+        start('Start', [
+          { name: 'input', type: 'string', value: '' },
+          { name: 'count', type: 'number', value: '' },
+        ]),
         blk('Sugared', 'agent', {
           params: { model: 'm', responseFormat: '{\n  "name": "ticket",\n  "strict": true\n}' },
         }),
@@ -769,8 +786,58 @@ export const cases: PrintCase[] = [
         blk('Refs in json', 'api', {
           params: { url: 'https://x.test', body: '{\n  "q": <start.input>\n}' },
         }),
+        blk('Typed refs', 'table_v2', {
+          params: {
+            operation: 'insert_row',
+            tableSelector: { $sim: 'resource', kind: 'table', key: 'tickets' },
+            data: '{\n  "subject": "<start.input>",\n  "count": <start.count>,\n  "asText": "<start.count>",\n  "note": "re: <start.input>",\n  "tags": [\n    "a",\n    <start.count>\n  ]\n}',
+          },
+          modes: { tableId: 'basic' },
+        }),
       ],
       edges: [edge('start', 'sugared')],
+    }),
+  },
+  {
+    name: 'response-body',
+    workflow: wf({
+      blocks: [
+        start('Start', [
+          { name: 'input', type: 'string', value: '' },
+          { name: 'count', type: 'number', value: '' },
+        ]),
+        blk('Created', 'response', {
+          params: {
+            dataMode: 'json',
+            data: '{\n  "ok": true,\n  "subject": "<start.input>",\n  "count": <start.count>\n}',
+            status: '201',
+            headers: [{ cells: { Key: 'X-Trace', Value: '<start.input>' } }],
+          },
+        }),
+        blk('Echo', 'response', { params: { dataMode: 'json', data: '<start.input>' } }),
+        blk('Built', 'response', {
+          params: {
+            dataMode: 'structured',
+            builderData: [{ id: 'f1', name: 'ok', type: 'boolean', value: 'true' }],
+          },
+        }),
+      ],
+      edges: [edge('start', 'created')],
+    }),
+  },
+  {
+    name: 'stored-secrets',
+    workflow: wf({
+      blocks: [
+        start(),
+        blk('Pasted key', 'agent', {
+          params: { model: 'gpt-5.5', apiKey: 'sk-live-0123456789' },
+        }),
+        blk('Env key', 'agent', {
+          params: { model: 'gpt-5.5', apiKey: '{{OPENAI_API_KEY}}' },
+        }),
+      ],
+      edges: [edge('start', 'pastedkey'), edge('start', 'envkey')],
     }),
   },
   {

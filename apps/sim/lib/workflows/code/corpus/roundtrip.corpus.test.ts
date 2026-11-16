@@ -119,7 +119,7 @@ function sourceRun(e: ResolvedEngines, subject: ProofSubject): SourceRun {
   const run = {
     canonical: workflow,
     printed,
-    compiled: compileFiles(e, printed, storedKeys(workflow)),
+    compiled: compileFiles(e, printed, workflow),
   }
   sourceRuns.set(subject, run)
   return run
@@ -154,10 +154,11 @@ function storedKeys(workflow: CanonicalWorkflow): ReadonlySet<string> {
   return new Set(Object.keys(workflow.blocks))
 }
 
+/** Compiles a print of `stored` as apply does: against the stored keys and values it continues. */
 function compileFiles(
   e: ResolvedEngines,
   printed: ReturnType<PrintWorkflowFn>,
-  knownKeys: ReadonlySet<string>
+  stored: CanonicalWorkflow
 ) {
   const [entry, ...codeFiles] = printed.files
   return compileWorkflow({
@@ -165,7 +166,8 @@ function compileFiles(
     files: new Map(codeFiles.map((file) => [file.path, file.text])),
     catalog: e.catalog,
     sdkMajor: e.catalog.sdkMajor,
-    knownKeys,
+    knownKeys: storedKeys(stored),
+    stored,
   })
 }
 
@@ -174,7 +176,7 @@ function compiledWorkflow(
   workflow: CanonicalWorkflow,
   mode: 'inline' | 'files' = 'inline'
 ) {
-  return compiledOrThrow(compileFiles(e, printText(e, workflow, mode), storedKeys(workflow)))
+  return compiledOrThrow(compileFiles(e, printText(e, workflow, mode), workflow))
 }
 
 function materialized(e: ResolvedEngines, workflow: CanonicalWorkflow, prev?: WorkflowState) {

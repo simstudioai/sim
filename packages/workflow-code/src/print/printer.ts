@@ -5,7 +5,9 @@
  * point.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
+import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import {
   normalizeWorkflowBlockName,
   RESERVED_WORKFLOW_BLOCK_NAMES,
@@ -15,7 +17,7 @@ import type { PrintInput, PrintResult, PrintWorkflowFn, SourceHintBlock, SourceH
 import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { canonicalActivityInputs, executableInactiveParams, isInactive } from '../catalog/activity'
 import { type EditorDefault, editorDefaults } from '../catalog/defaults'
-import { isAdvancedMember, onSurface } from '../catalog/surface'
+import { isAdvancedMember, onSurface, paramAliases } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder, CatalogSubBlock } from '../catalog/types'
 import {
   catalogBlock as catalogBlockOf,
@@ -25,6 +27,14 @@ import {
 import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
+import {
+  JsonRef,
+  type JsonTree,
+  jsonFieldText,
+  parseJsonField,
+  type RefTypeScope,
+  refValueKind,
+} from '../json-fields'
 import { isJson } from '../lock'
 import type {
   AnchorKey,
@@ -39,7 +49,7 @@ import type {
   Value,
 } from '../model'
 import { getOwn, setOwn } from '../records'
-import { GENERIC_BUILDER } from '../sdk'
+import { CUSTOM_TOOL_TYPE, GENERIC_BUILDER, RESPONSE_BLOCK_TYPE } from '../sdk'
 import { type AttachedComments, anchors, CommentPlacer, withComments } from './comments'
 import { type Doc, group, hardline, ifBreak, indent, join, line, printDoc } from './doc'
 import { assignIdentifiers } from './idents'
@@ -173,6 +183,20 @@ interface ScopeInfo {
   members: BlockKey[]
 }
 
+/**
+ * A value in a password field that holds literal text: anything but `null`, `''` or text made
+ * only of reference and `{{ENV}}` tokens. It prints as `stored()`, never as the secret.
+ */
+function isLiteralSecret(value: Value): boolean {
+  if (value === null || value === '') return false
+  if (typeof value !== 'string') return true
+  let rest = value
+  for (const token of findWorkflowReferenceTokens(value).reverse()) {
+    rest = rest.slice(0, token.start) + rest.slice(token.end)
+  }
+  return rest.trim() !== ''
+}
+
 /** One resolved param ready to print. */
 interface ParamEntry {
   key: string
@@ -212,6 +236,7 @@ class WorkflowPrinter {
   private readonly codeFiles: Array<{ path: string; text: string }> = []
   private readonly codeFileHints = new Map<BlockKey, string>()
   private readonly takenCodePaths = new Set<string>()
+  private readonly refTypes: RefTypeScope
 
   constructor(input: PrintInput) {
     this.workflow = input.workflow
@@ -245,6 +270,11 @@ class WorkflowPrinter {
       }
     )
     this.comments = new CommentPlacer(this.workflow.annotations.comments)
+    this.refTypes = {
+      catalog: this.catalog,
+      block: (key) => this.blocks.get(key),
+      variable: (key) => getOwn(this.workflow.variables, key),
+    }
   }
 
   /** A parent chain that loops (corrupt input) is cut at the block that closes it. */
@@ -425,11 +455,22 @@ class WorkflowPrinter {
     block: CanonicalBlock,
     catalogBlock: CatalogBlock | undefined,
     id: string,
-    sb: CatalogSubBlock | undefined
+    sb: CatalogSubBlock | undefined,
+    single = false
   ): PrintedValue | null {
     const param = getOwn(block.params, id)
     if (!param) return null
     if (param.kind === 'tools') return this.printTools(block, param.tools)
+    if (sb?.password && isLiteralSecret(param.value)) return this.values.call('stored', [])
+    if (
+      single &&
+      sb?.type === 'code' &&
+      sb.valueKind === 'json' &&
+      typeof param.value === 'string'
+    ) {
+      const literal = this.printJsonField(block, param.value)
+      if (literal) return literal
+    }
     const context = this.context(block, catalogBlock, sb)
     if (sb?.structured === 'inputFormat' && Array.isArray(param.value)) {
       const sugar = inputFormatSugar(param.value)
@@ -450,6 +491,65 @@ class WorkflowPrinter {
       if (fileExpr) return fileExpr
     }
     return this.values.field(param.value, context)
+  }
+
+  /**
+   * JSON field text as the object or array literal compile turns back into exactly that text
+   * (`json-fields.ts`), or `null` to keep the text form. A quoted token prints as a bare reference
+   * when its value is a string and as `` t`${ref}` `` otherwise; a bare token prints bare, which
+   * only a non-string value can be.
+   */
+  private printJsonField(block: CanonicalBlock, text: string): Expr | null {
+    const tree = parseJsonField(text)
+    if (tree === undefined) return null
+    const isString = (token: string) => refValueKind(token, this.refTypes) === 'string'
+    let expressible = true
+    const asCompiled = (node: JsonTree): JsonTree => {
+      if (node instanceof JsonRef) {
+        if (!node.quoted) {
+          if (isString(node.token)) expressible = false
+          return node
+        }
+        return isString(node.token) ? node : node.token
+      }
+      if (node === null || typeof node !== 'object') return node
+      if (Array.isArray(node)) return node.map(asCompiled)
+      const result: { [key: string]: JsonTree } = {}
+      for (const [key, item] of Object.entries(node)) setOwn(result, key, asCompiled(item))
+      return result
+    }
+    const compiled = asCompiled(tree)
+    if (!expressible || jsonFieldText(compiled, isString) !== text) return null
+    const from = block.key
+    const render = (node: JsonTree): Expr | null => {
+      if (typeof node === 'string') return this.values.value(node, { tag: 't', from })
+      if (node instanceof JsonRef) {
+        const expr = this.refs.resolveToken(node.token, from)
+        if (expr === null) return node.quoted ? this.values.string(node.token) : null
+        const shape = /[.[]/.test(expr) ? 'member' : 'identifier'
+        if (!node.quoted || isString(node.token)) return { doc: expr, shape }
+        this.imports.add('t')
+        return { doc: ['t`${', expr, '}`'], shape: 'template' }
+      }
+      if (node === null || typeof node !== 'object') return this.values.json(node)
+      if (Array.isArray(node)) {
+        const items: Expr[] = []
+        for (const item of node) {
+          const printed = render(item)
+          if (!printed) return null
+          items.push(printed)
+        }
+        return arrayExpr(items)
+      }
+      const properties: Property[] = []
+      for (const [key, item] of Object.entries(node)) {
+        const printed = render(item)
+        if (!printed) return null
+        properties.push({ key: printKey(key), value: printed })
+      }
+      return objectExpr(properties)
+    }
+    return render(tree)
   }
 
   private printInputFormat(
@@ -516,15 +616,55 @@ class WorkflowPrinter {
     return this.values.call('codeFile', [{ doc: quoteString(`./${path}`), shape: 'string' }])
   }
 
+  /**
+   * `customTool('key', options?)` for a custom tool stored as the picker's reference (a key, no
+   * params, no snapshot); `null` for any other tool, which prints through its builder or `raw()`.
+   */
+  private customToolCall(block: CanonicalBlock, tool: CanonicalTool): Expr | null {
+    const ref = tool.customTool?.ref
+    const { type, params, modes, customTool, usageControl, usageControlExpression, ...rest } = tool
+    if (
+      type !== CUSTOM_TOOL_TYPE ||
+      ref?.$sim !== 'resource' ||
+      ref.kind !== 'custom-tool' ||
+      customTool?.snapshot !== undefined ||
+      Object.keys(params).length > 0 ||
+      Object.keys(modes).length > 0 ||
+      Object.values(rest).some((value) => value !== undefined)
+    ) {
+      return null
+    }
+    const options: Property[] = []
+    if (usageControl !== undefined) {
+      options.push({ key: 'usageControl', value: this.values.string(usageControl) })
+    }
+    if (usageControlExpression !== undefined) {
+      options.push({
+        key: 'usageControlExpression',
+        value: this.values.value(usageControlExpression, { tag: 'js', from: block.key }),
+      })
+    }
+    const args: Expr[] = [this.values.string(ref.key)]
+    if (options.length > 0) args.push(objectExpr(options))
+    return this.values.call('customTool', args)
+  }
+
   private printTools(block: CanonicalBlock, tools: CanonicalTool[]): PrintedValue {
     const elements = tools.map((tool) => {
+      const custom = this.customToolCall(block, tool)
+      if (custom) return custom
       const catalogBlock = catalogBlockOf(this.catalog, tool.type)
       const found = findBuilder(this.catalog, tool.type, false, (id) => {
         if (id === 'operation') return tool.operation
         const value = getOwn(tool.params, id)
         return typeof value === 'string' ? value : undefined
       })
-      if (!found) return this.values.call('raw', [this.values.json(toolJson(tool))])
+      const aliases = catalogBlock ? paramAliases(catalogBlock, false) : new Map<string, string>()
+      const aliasNames = new Set(aliases.values())
+      // A stored key spelled like an alias would compile back to the param the alias names.
+      if (!found || Object.keys(tool.params).some((id) => aliasNames.has(id))) {
+        return this.values.call('raw', [this.values.json(toolJson(tool))])
+      }
       const pinned = pinnedIds(found.builder)
       const nested: FieldContext = { tag: 't', from: block.key }
       const params: Property[] = Object.entries(tool.params)
@@ -532,10 +672,13 @@ class WorkflowPrinter {
         .map(([id, value]) => {
           const sb = catalogBlock?.subBlocks.find((candidate) => candidate.id === id)
           return {
-            key: printKey(id),
-            value: sb
-              ? this.values.field(value, { ...nested, subBlock: sb })
-              : this.values.value(value, nested),
+            key: printKey(aliases.get(id) ?? id),
+            value:
+              sb?.password && isLiteralSecret(value)
+                ? this.values.call('stored', [])
+                : sb
+                  ? this.values.field(value, { ...nested, subBlock: sb })
+                  : this.values.value(value, nested),
           }
         })
       const options: Property[] = []
@@ -637,6 +780,8 @@ class WorkflowPrinter {
     const push = (list: ParamEntry[], key: string, value: Expr) => {
       list.push({ key: printKey(key), anchor: anchors.param(block.key, key), value })
     }
+    const aliases = catalogBlock ? paramAliases(catalogBlock, block.triggerMode) : new Map()
+    const named = (param: string): string => aliases.get(param) ?? param
     const isDefault = (id: string) => {
       const param = getOwn(block.params, id)
       return param?.kind === 'value' && defaults.has(id) && defaults.get(id) === param.value
@@ -662,30 +807,30 @@ class WorkflowPrinter {
             if (inactiveIds.has(effective.id)) continue
             if (mode === 'basic' && effective === basic && isDefault(effective.id)) continue
             const printed = this.printParamValue(block, catalogBlock, effective.id, effective)
-            if (printed) push(params, cid, printed)
+            if (printed) push(params, named(cid), printed)
           } else if (
             members.some((member) => defaults.has(member.id)) &&
             this.activeIfSet(block, catalogBlock, effective, defaults.get(effective.id) ?? '')
           ) {
-            push(params, cid, NULL_EXPR)
+            push(params, named(cid), NULL_EXPR)
           }
           continue
         }
         handled.add(sb.id)
         if (!hasValue(block, sb.id)) {
           if (this.needsTodo(block, sb)) {
-            push(params, sb.id, this.values.call('todo', []))
+            push(params, named(sb.id), this.values.call('todo', []))
           } else {
             const fallback = defaults.get(sb.id)
             if (fallback !== undefined && this.activeIfSet(block, catalogBlock, sb, fallback)) {
-              push(params, sb.id, NULL_EXPR)
+              push(params, named(sb.id), NULL_EXPR)
             }
           }
           continue
         }
         if (inactiveIds.has(sb.id) || isDefault(sb.id)) continue
-        const printed = this.printParamValue(block, catalogBlock, sb.id, sb)
-        if (printed) push(params, sb.id, printed)
+        const printed = this.printParamValue(block, catalogBlock, sb.id, sb, true)
+        if (printed) push(params, named(sb.id), printed)
       }
     }
 
@@ -697,6 +842,68 @@ class WorkflowPrinter {
       if (printed) push(catalogBlock ? extra : params, id, printed)
     }
     return { params, extra }
+  }
+
+  /**
+   * The `response(name, { body, status?, headers? })` form, for a response block in the editor's
+   * JSON mode whose params it carries exactly: `status` text that is a canonical integer prints
+   * as a number, header rows as a record. `null` keeps the block's own params.
+   */
+  private responseBody(
+    block: CanonicalBlock,
+    collected: { params: ParamEntry[]; extra: ParamEntry[] }
+  ): ParamEntry[] | null {
+    const allowed = new Set(['dataMode', 'data', 'status', 'headers'])
+    if (collected.extra.length > 0 || collected.params.some((entry) => !allowed.has(entry.key))) {
+      return null
+    }
+    const value = (id: string): Value | undefined => {
+      const param = getOwn(block.params, id)
+      return param?.kind === 'value' ? param.value : undefined
+    }
+    const data = value('data')
+    const status = value('status')
+    const headers = value('headers')
+    if (value('dataMode') !== 'json' || typeof data !== 'string') return null
+    if (status !== undefined && typeof status !== 'string') return null
+    const rows = headers === undefined ? [] : headers
+    if (!Array.isArray(rows)) return null
+    const names = new Set<string>()
+    const headerProps: Property[] = []
+    for (const row of rows) {
+      const cells = isRecordLike(row) && Object.keys(row).join() === 'cells' ? row.cells : null
+      if (!isRecordLike(cells) || Object.keys(cells).sort().join() !== 'Key,Value') return null
+      const { Key, Value: text } = cells
+      if (typeof Key !== 'string' || typeof text !== 'string' || names.has(Key)) return null
+      names.add(Key)
+      headerProps.push({
+        key: printKey(Key),
+        value: this.values.value(text, { tag: 't', from: block.key }),
+      })
+    }
+    const entry = (key: string, expr: Expr): ParamEntry => ({
+      key,
+      anchor: anchors.param(block.key, key),
+      value: expr,
+    })
+    const entries = [
+      entry(
+        'body',
+        this.printJsonField(block, data) ?? this.values.value(data, { tag: 't', from: block.key })
+      ),
+    ]
+    if (status !== undefined) {
+      entries.push(
+        entry(
+          'status',
+          /^[1-9][0-9]{0,14}$/.test(status)
+            ? { doc: status, shape: 'number', numeric: true }
+            : this.values.value(status, { tag: 't', from: block.key })
+        )
+      )
+    }
+    if (headers !== undefined) entries.push(entry('headers', objectExpr(headerProps)))
+    return entries
   }
 
   /** A required, always-visible field with no stored value prints `todo()` (s2 D7). */
@@ -797,7 +1004,11 @@ class WorkflowPrinter {
       stringParam(block, id)
     )
     const pinned = pinnedIds(found?.builder)
-    const { params, extra } = this.collectParams(block, catalogBlock, pinned)
+    const collected = this.collectParams(block, catalogBlock, pinned)
+    const { extra } = collected
+    const body =
+      found?.builder.type === RESPONSE_BLOCK_TYPE ? this.responseBody(block, collected) : null
+    const params = body ?? collected.params
     const paramProps = this.paramProperties(params)
     const extraProps = this.paramProperties(extra)
     const branchKind = catalogBlock?.graph.branches?.kind ?? block.branches?.kind

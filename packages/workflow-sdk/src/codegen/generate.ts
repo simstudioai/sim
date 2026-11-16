@@ -14,7 +14,7 @@
 import { compareStrings } from '@sim/utils/string'
 import type { BlockCatalog, CatalogBlock, CatalogOutput, CatalogSubBlock } from '@sim/workflow-code'
 import { subBlockEditorDefault } from '@sim/workflow-code/catalog/defaults'
-import { onSurface } from '@sim/workflow-code/catalog/surface'
+import { onSurface, paramAliases } from '@sim/workflow-code/catalog/surface'
 import { catalogBlock, catalogBlockTypes, catalogTrigger } from '@sim/workflow-code/catalog/view'
 import { indentLines, jsdoc, literal, pascal, propertyKey, quote, union } from './emit'
 import { mapSubBlock } from './map-subblock'
@@ -118,7 +118,10 @@ function candidateSubBlocks(block: CatalogBlock, entry: BuilderEntry): CatalogSu
 }
 
 interface Param {
+  /** The subBlock id or canonical id. */
   name: string
+  /** What source writes: the catalog's alias for the param (`paramAliases`), else `name`. */
+  key: string
   members: CatalogSubBlock[]
   visibility: ParamVisibility
   type: string
@@ -238,7 +241,7 @@ function renderProperty(param: Param, required: boolean, indent: string): string
   const nullable = param.members.some((member) => subBlockEditorDefault(member) !== undefined)
   return [
     ...jsdoc(param.doc, indent),
-    `${indent}${propertyKey(param.name)}${required ? '' : '?'}: ${param.type}${nullable ? ' | null' : ''}`,
+    `${indent}${propertyKey(param.key)}${required ? '' : '?'}: ${param.type}${nullable ? ' | null' : ''}`,
   ]
 }
 
@@ -301,6 +304,7 @@ function buildParams(
   const candidates = candidateSubBlocks(block, entry)
   const context = buildVisibilityContext(candidates, pinnedValues(entry))
   const coreParams = new Set(entry.special?.coreParams ?? [])
+  const aliases = paramAliases(block, entry.builder.triggerMode === true)
   const params: Param[] = []
   for (const [name, members] of groupParams(candidates)) {
     if (coreParams.has(name)) continue
@@ -314,7 +318,14 @@ function buildParams(
     )
     if (plan && plan.param.name === name) type = plan.param.type
     else if (plan?.paramOverrides[name]) type = plan.paramOverrides[name]
-    params.push({ name, members, visibility, type, doc: paramDoc(members, visibility) })
+    params.push({
+      name,
+      key: aliases.get(name) ?? name,
+      members,
+      visibility,
+      type,
+      doc: paramDoc(members, visibility),
+    })
   }
   const alwaysVisible = new Set(
     params.filter((param) => param.visibility.kind === 'always').map((param) => param.name)

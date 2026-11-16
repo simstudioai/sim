@@ -73,6 +73,7 @@ export const TEST_CATALOG: BlockCatalog = {
     'slack.sendMessage': { type: 'slack', operation: 'send' },
     'slack.listChannels': { type: 'slack', operation: 'list_channels' },
     'table.insertRow': { type: 'table', operation: 'insert_row' },
+    mail: { type: 'mail' },
   },
   blocks: {
     start_trigger: block(
@@ -238,6 +239,24 @@ export const TEST_CATALOG: BlockCatalog = {
       ],
       { email: ANY },
       { triggerAllowed: true }
+    ),
+    mail: block(
+      'mail',
+      [
+        sub('credential', 'oauth-input', 'resource', {
+          resourceKind: 'credential',
+          mode: 'basic',
+          canonicalParamId: 'oauthCredential',
+        }),
+        sub('manualCredential', 'short-input', 'string', {
+          mode: 'advanced',
+          canonicalParamId: 'oauthCredential',
+        }),
+        sub('apiKey', 'short-input', 'string', { password: true }),
+        sub('to', 'short-input', 'string'),
+      ],
+      { id: TEXT },
+      { paramAliases: { action: { oauthCredential: 'credential' } } }
     ),
     loop: block('loop', [], { results: ANY }, { graph: graph({ container: 'loop' }) }),
     parallel: block('parallel', [], { results: ANY }, { graph: graph({ container: 'parallel' }) }),

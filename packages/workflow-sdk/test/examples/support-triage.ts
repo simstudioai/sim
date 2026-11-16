@@ -52,13 +52,13 @@ export default workflow(
       data: { subject: ticketIn.subject, category: classify.category },
     })
     const notify = slack.sendMessage('Notify', {
-      oauthCredential: credential('support-slack'),
+      credential: credential('support-slack'),
       channel: 'C0SUPPORT',
       text: t`New ${classify.category} ticket: ${ticketIn.subject}`,
     })
     const reply = response('Reply', {
-      dataMode: 'structured',
-      builderData: { ok: true, id: { type: 'string', value: logTicket.row.id } },
+      body: { ok: true, category: classify.category, urgent: classify.urgent },
+      status: 202,
     })
 
     ticketIn.to(classify).to(byCategory)

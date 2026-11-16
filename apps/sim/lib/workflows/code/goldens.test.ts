@@ -59,12 +59,17 @@ function print(workflow: CanonicalWorkflow, hints: SourceHints | undefined) {
   return printWorkflow({ workflow, catalog, hints, options: INLINE })
 }
 
-function compile(text: string, files: ReadonlyArray<[string, string]> = []): CompileResult {
+function compile(
+  text: string,
+  stored: CanonicalWorkflow,
+  files: ReadonlyArray<[string, string]> = []
+): CompileResult {
   return compileWorkflow({
     entry: { path: 'workflow.ts', text },
     files: new Map(files),
     catalog,
     sdkMajor: catalog.sdkMajor,
+    stored,
   })
 }
 
@@ -131,7 +136,7 @@ function editableParams(workflow: CanonicalWorkflow): Array<[string, string]> {
       if (inactive.has(id) || defaults.get(id) === param.value) continue
       if (!/^[\w .:/-]+$/.test(param.value)) continue
       const subBlock = subBlocks.find((candidate) => candidate.id === id)
-      if (subBlock && !EDITABLE_TYPES.has(subBlock.type)) continue
+      if (subBlock && (!EDITABLE_TYPES.has(subBlock.type) || subBlock.password)) continue
       pairs.push([block.key, id])
     }
   }
@@ -146,7 +151,7 @@ describe('printer goldens over the real catalog', () => {
       const text = printed.files[0].text
       await expect(text).toMatchFileSnapshot(goldenPath(`${testCase.name}.txt`))
 
-      const compiled = expectCompilesBack(compile(text), testCase.workflow, text)
+      const compiled = expectCompilesBack(compile(text, testCase.workflow), testCase.workflow, text)
       expect(print(compiled, printed.hints).files[0].text).toBe(text)
       expect(print(reorder(testCase.workflow), testCase.hints).files[0].text).toBe(text)
 
@@ -196,6 +201,7 @@ describe('printer goldens over the real catalog', () => {
     await expect(entry.text).toMatchFileSnapshot(goldenPath(FILES_GOLDEN))
     const result = compile(
       entry.text,
+      testCase.workflow,
       codeFiles.map((file) => [file.path, file.text])
     )
     expectCompilesBack(result, testCase.workflow, entry.text)

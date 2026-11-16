@@ -246,6 +246,12 @@ export interface CatalogBlock {
   graph: CatalogBlockGraph
   legacyIds?: CatalogLegacyId[]
   legacyCanonicalIds?: Array<{ from: CanonicalParamId; to: CanonicalParamId }>
+  /**
+   * The user-facing name source writes for a param, per surface: param name (a canonical id or a
+   * subBlock id) → alias (`oauthCredential` → `credential`). Frozen in
+   * `apps/sim/blocks/sdk-names.json`; read through `paramAliases` in `catalog/surface.ts`.
+   */
+  paramAliases?: Partial<Record<'action' | 'trigger', Record<string, string>>>
   /** Present for per-org `custom_block_<slug>` types. */
   custom?: { sourceWorkflowId?: string }
   /** Docs shard. */
