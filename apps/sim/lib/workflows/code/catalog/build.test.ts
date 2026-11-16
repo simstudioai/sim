@@ -7,13 +7,18 @@
  */
 import { writeFileSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
-import type { CatalogBlock, CatalogSubBlock } from '@sim/workflow-code'
+import {
+  type CatalogBlock,
+  type CatalogSubBlock,
+  expandBlockCatalog,
+  stableStringify,
+} from '@sim/workflow-code'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
 import { v2BlockCatalogSchema } from '@/lib/api/contracts/v2/block-catalog'
-import { buildBlockCatalog } from '@/lib/workflows/code/catalog/build'
+import { buildBlockCatalog, projectBlockCatalog } from '@/lib/workflows/code/catalog/build'
 import { registryTrigger } from '@/lib/workflows/code/catalog/registry-sources'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
 import { getBlockRegistry } from '@/blocks/registry'
@@ -27,6 +32,8 @@ const built = buildBlockCatalog({
   sdkNames: SDK_NAMES,
 })
 const { catalog, report } = built
+/** What every consumer reads: the core shard expanded through the package's catalog view. */
+const view = expandBlockCatalog(catalog)
 
 function isOpaque(value: unknown): boolean {
   return typeof value === 'object' && value !== null && 'opaque' in value
@@ -39,26 +46,25 @@ function siteKey(block: string, subBlock: string, field: string): string {
 describe('block catalog projection over the whole registry', () => {
   it('projects every block, subBlock and referenced trigger', () => {
     for (const block of registryBlocks) {
-      const projected = catalog.blocks[block.type]
+      const projected = view.blocks[block.type]
       expect(projected, block.type).toBeDefined()
       expect(projected.subBlocks.map((subBlock) => subBlock.id)).toEqual(
         block.subBlocks.map((subBlock) => subBlock.id)
       )
       if (block.triggers?.enabled) {
         for (const id of block.triggers.available) {
-          if (registryTrigger(id))
-            expect(catalog.triggers[id], `${block.type} → ${id}`).toBeDefined()
+          if (registryTrigger(id)) expect(view.triggers[id], `${block.type} → ${id}`).toBeDefined()
         }
       }
     }
-    expect(catalog.blocks.loop.graph.container).toBe('loop')
-    expect(catalog.blocks.parallel.graph.container).toBe('parallel')
+    expect(view.blocks.loop.graph.container).toBe('loop')
+    expect(view.blocks.parallel.graph.container).toBe('parallel')
   })
 
   it('keeps canonicalParamId pairs consistent with the registry', () => {
     const problems: string[] = []
     for (const block of registryBlocks) {
-      const projected = catalog.blocks[block.type]
+      const projected = view.blocks[block.type]
       block.subBlocks.forEach((subBlock, index) => {
         if (projected.subBlocks[index].canonicalParamId !== subBlock.canonicalParamId) {
           problems.push(`${block.type}.${subBlock.id}: canonicalParamId changed`)
@@ -112,8 +118,8 @@ describe('block catalog projection over the whole registry', () => {
         if (isOpaque(subBlock.options)) markers.add(siteKey(owner, subBlock.id, 'options'))
       }
     }
-    for (const block of Object.values(catalog.blocks)) visit(block.type, block.subBlocks)
-    for (const trigger of Object.values(catalog.triggers)) {
+    for (const block of Object.values(view.blocks)) visit(block.type, block.subBlocks)
+    for (const trigger of Object.values(view.triggers)) {
       visit(`trigger:${trigger.id}`, trigger.subBlocks)
     }
     const reported = new Set(
@@ -138,7 +144,7 @@ describe('block catalog projection over the whole registry', () => {
   it('pre-expands operation-only conditions for exactly the block operations', () => {
     for (const block of registryBlocks) {
       const operations = operationOptions(block).map((operation) => operation.id)
-      for (const subBlock of catalog.blocks[block.type].subBlocks) {
+      for (const subBlock of view.blocks[block.type].subBlocks) {
         if (!subBlock.visibleFor) continue
         expect(isOpaque(subBlock.condition), `${block.type}.${subBlock.id}`).toBe(true)
         expect(Object.keys(subBlock.visibleFor)).toEqual(operations)
@@ -160,7 +166,7 @@ describe('block catalog projection over the whole registry', () => {
     }
     expect(missing).toEqual([])
     for (const [path, builder] of Object.entries(catalog.builders)) {
-      expect(catalog.blocks[builder.type], path).toBeDefined()
+      expect(view.blocks[builder.type], path).toBeDefined()
     }
   })
 
@@ -183,11 +189,52 @@ describe('block catalog projection over the whole registry', () => {
       trigger: registryTrigger,
       sdkNames: SDK_NAMES,
     })
-    const { addable, ...rest } = scoped.catalog.blocks[first.type]
+    const { addable, ...rest } = expandBlockCatalog(scoped.catalog).blocks[first.type]
     expect(addable).toBe(false)
-    const { addable: _ignored, ...original }: CatalogBlock = catalog.blocks[first.type]
+    const { addable: _ignored, ...original }: CatalogBlock = view.blocks[first.type]
     expect(rest).toEqual(original)
     expect(scoped.catalog.hash).not.toBe(catalog.hash)
+  })
+
+  it('encodes the projection losslessly: core shard plus docs expands to it for every block', () => {
+    const { catalog: projection } = projectBlockCatalog({
+      blocks: registryBlocks,
+      trigger: registryTrigger,
+      sdkNames: SDK_NAMES,
+    })
+    const { hash, ...expanded } = expandBlockCatalog(catalog, built.docs)
+    expect(hash).toBe(catalog.hash)
+    const mismatched = Object.keys(projection.blocks).filter(
+      (type) => stableStringify(expanded.blocks[type]) !== stableStringify(projection.blocks[type])
+    )
+    expect(mismatched).toEqual([])
+    expect(Object.keys(expanded.blocks)).toEqual(Object.keys(projection.blocks))
+    expect(expanded).toEqual(projection)
+  })
+
+  it('stores no trigger subBlock twice: every trigger-surface run that matches is a reference', () => {
+    const full = expandBlockCatalog(catalog, built.docs)
+    const triggerKeys = new Set(
+      Object.values(full.triggers).flatMap((trigger) =>
+        trigger.subBlocks.map((subBlock) => stableStringify({ ...subBlock, surface: 'trigger' }))
+      )
+    )
+    const copied: string[] = []
+    for (const [type, block] of Object.entries(catalog.blocks)) {
+      let index = 0
+      for (const entry of block.subBlocks) {
+        if ('trigger' in entry) {
+          index += entry.count
+          continue
+        }
+        const expanded = full.blocks[type].subBlocks[index]
+        if (expanded.surface === 'trigger' && triggerKeys.has(stableStringify(expanded))) {
+          copied.push(`${type}.${expanded.id}`)
+        }
+        index += 1
+      }
+    }
+    expect(copied).toEqual([])
   })
 
   it('passes through the v2 response schema unchanged, so no projected field is stripped', () => {
@@ -213,7 +260,7 @@ describe('block catalog projection over the whole registry', () => {
             blocks: Object.keys(catalog.blocks).length,
             triggers: Object.keys(catalog.triggers).length,
             builders: Object.keys(catalog.builders).length,
-            subBlocks: Object.values(catalog.blocks).reduce((n, b) => n + b.subBlocks.length, 0),
+            subBlocks: Object.values(view.blocks).reduce((n, b) => n + b.subBlocks.length, 0),
             coreShardBytes: raw.length,
             coreShardGzipBytes: gzipped.length,
             opaqueByField: byField,
