@@ -159,8 +159,20 @@ async function readCatalog(): Promise<BlockCatalog> {
     )
   )
   const catalog: unknown = parsed.data
-  assert(isRecordLike(catalog) && typeof catalog.hash === 'string', 'Expected a block catalog')
-  return catalog as BlockCatalog
+  assert(isBlockCatalog(catalog), 'Expected a block catalog')
+  return catalog
+}
+
+/** The catalog fields this script reads; the response contract already validated the rest. */
+function isBlockCatalog(value: unknown): value is BlockCatalog {
+  return (
+    isRecordLike(value) &&
+    typeof value.hash === 'string' &&
+    typeof value.sdkMajor === 'number' &&
+    isRecordLike(value.blocks) &&
+    isRecordLike(value.builders) &&
+    isRecordLike(value.triggers)
+  )
 }
 
 async function readStoredState(): Promise<WorkflowState> {

@@ -25,6 +25,7 @@ import {
   type ResourceKeyResolver,
   type ResourceKind,
   renamesBetween,
+  type SourceFingerprint,
   type SourceSpan,
   sourceFingerprint,
   type WorkflowCodeMetaV1,
@@ -220,7 +221,7 @@ function fingerprintOf(
   stored: StoredSource,
   catalog: BlockCatalog,
   resources: ResourceKeyResolver
-): string {
+): SourceFingerprint {
   const { workflow, identity } = canonicalize(stored.state, {
     catalog,
     meta: stored.meta,
@@ -605,7 +606,7 @@ function mergeCurrentLayout(
 interface Reprinted {
   files: Record<string, string>
   lock: WorkflowLockV1
-  fingerprint: string
+  fingerprint: SourceFingerprint
 }
 
 /**
@@ -728,7 +729,7 @@ export const applyWorkflowSource = defineAuthorizedWorkflowUseCase({
         sdkMajor: catalog.sdkMajor,
         catalogVersion: catalog.hash,
       }
-      const lockBaseFor = (fingerprint: string): LockBase => ({
+      const lockBaseFor = (fingerprint: SourceFingerprint): LockBase => ({
         workspaceId: context.workspaceId,
         baseFingerprint: fingerprint,
         catalogHash: catalog.hash,

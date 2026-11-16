@@ -89,13 +89,14 @@ function graph(blocks: BlockState[]): WorkflowState {
 const anchorFetch = encodeAnchor({ kind: 'block', block: fetchId })
 const anchorCleanup = encodeAnchor({ kind: 'param', block: cleanupId, param: 'code' })
 const anchorVariable = encodeAnchor({ kind: 'var', variable: variableId })
+const anchorHeader = encodeAnchor({ kind: 'header' })
 
 const storedMeta: WorkflowCodeMetaV1 = {
   v: 1,
   bindings: { [fetchId]: 'fetchUser', [sendId]: 'notify', [cleanupId]: 'tidy' },
   order: { [fetchId]: 0, [sendId]: 1, [cleanupId]: 2 },
   comments: {
-    header: [{ text: ' onboarding flow', kind: 'line', placement: 'leading' }],
+    [anchorHeader]: [{ text: ' onboarding flow', kind: 'line', placement: 'leading' }],
     [anchorFetch]: [{ text: ' loads the account', kind: 'line', placement: 'leading' }],
     [anchorCleanup]: [{ text: ' best effort', kind: 'line', placement: 'trailing' }],
     [anchorVariable]: [{ text: ' retry budget', kind: 'line', placement: 'trailing' }],
@@ -210,14 +211,14 @@ describe('workflow.code_meta against real Postgres', () => {
     expect(afterDelete.bindings).toEqual({ [fetchId]: 'fetchUser', [sendId]: 'notify' })
     expect(afterDelete.order).toEqual({ [fetchId]: 0, [sendId]: 1 })
     expect(Object.keys(afterDelete.comments).sort()).toEqual(
-      [anchorFetch, anchorVariable, 'header'].sort()
+      [anchorFetch, anchorVariable, anchorHeader].sort()
     )
 
     await db.transaction((tx) =>
       pruneWorkflowCodeMeta(tx, workflowId, { variables: (id) => id !== variableId })
     )
     expect(Object.keys((await storedCodeMeta(workflowId)).comments).sort()).toEqual(
-      [anchorFetch, 'header'].sort()
+      [anchorFetch, anchorHeader].sort()
     )
   })
 
@@ -248,7 +249,7 @@ describe('workflow.code_meta against real Postgres', () => {
       [copiedSend ?? '']: 'notify',
     })
     expect(Object.keys(meta.comments).sort()).toEqual(
-      [encodeAnchor({ kind: 'block', block: copiedFetch ?? '' }), 'header'].sort()
+      [encodeAnchor({ kind: 'block', block: copiedFetch ?? '' }), anchorHeader].sort()
     )
     expect(JSON.stringify(meta)).not.toContain(fetchId)
     expect(await storedCodeMeta(workflowId)).toMatchObject({ bindings: { [fetchId]: 'fetchUser' } })
