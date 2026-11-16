@@ -25,7 +25,7 @@ import {
   slackString,
 } from '@/lib/internal/slack/client'
 import { SlackOperationError } from '@/lib/internal/slack/errors'
-import { assertSlackFileHost, slackFileDownloadUrl } from '@/lib/internal/slack/file-download'
+import { isSlackFileHost, slackFileDownloadUrl } from '@/lib/internal/slack/file-download'
 import { forEachSlackAttachmentFile } from '@/lib/internal/slack/file-input'
 import {
   createInternalToolFileResult,
@@ -458,7 +458,10 @@ export async function executeSlackDownload(input: SlackDownloadBody, signal?: Ab
     headers: { Authorization: `Bearer ${input.accessToken}` },
     maxResponseBytes: MAX_FILE_SIZE,
     signal,
-    assertRedirectTarget: assertSlackFileHost,
+    assertRedirectTarget: (target) => {
+      if (!isSlackFileHost(target))
+        failure(400, 'Slack redirected the file download away from its file host')
+    },
   })
   signal?.throwIfAborted()
   if (!response.ok) failure(400, 'Failed to download file content')

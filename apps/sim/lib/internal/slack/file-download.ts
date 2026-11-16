@@ -19,10 +19,15 @@ export function slackFileDownloadUrl(file: Record<string, unknown>): URL | undef
 }
 
 /**
- * Redirect guard for a Slack file download: a hop off the file host, such as the workspace
- * sign-in page Slack sends a token it will not serve, is refused rather than read as the file.
+ * Whether a redirect stays on Slack's file host. A hop elsewhere, such as the workspace sign-in
+ * page Slack sends a token it will not serve, must be refused rather than read as the file.
  */
+export function isSlackFileHost(target: string): boolean {
+  return URL.parse(target)?.origin === SLACK_FILE_ORIGIN
+}
+
+/** Redirect guard for a Slack file download; see {@link isSlackFileHost}. */
 export function assertSlackFileHost(target: string): void {
-  if (URL.parse(target)?.origin !== SLACK_FILE_ORIGIN)
+  if (!isSlackFileHost(target))
     throw new Error('Slack redirected the file download away from its file host')
 }

@@ -18,7 +18,6 @@ vi.mock('@/lib/internal/slack/file-input', () => ({
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-import { assertSlackFileHost } from '@/lib/internal/slack/file-download'
 import { executeSlackDownload } from '@/lib/internal/slack/operations'
 import { executeSlackGetChannelHistoryOperation } from '@/lib/internal/slack/operations/get-channel-history'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
@@ -75,8 +74,15 @@ describe('Slack operations', () => {
         profile: 'contentFetch',
         maxResponseBytes: MAX_FILE_SIZE,
         signal: controller.signal,
-        assertRedirectTarget: assertSlackFileHost,
+        assertRedirectTarget: expect.any(Function),
       }
+    )
+    const guard = mockSecureFetchWithPinnedIP.mock.lastCall?.[2]?.assertRedirectTarget
+    expect(() =>
+      guard?.('https://files.slack.com/files-pri/T1-F1/download/report.pdf')
+    ).not.toThrow()
+    expect(() => guard?.('https://slack-files.com/files-pri-safe/T1-F1/report.pdf')).toThrow(
+      expect.objectContaining({ status: 400 })
     )
     assert(isInternalToolFileResult(result))
     expect(result.files).toEqual([
