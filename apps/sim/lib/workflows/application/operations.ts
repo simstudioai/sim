@@ -72,7 +72,7 @@ export const workflowOperations = {
   }),
   /**
    * The draft as workflow source (TypeScript), its identity lock and freshness fingerprint. The
-   * same read as `read`, projected through the code-first canonical model.
+   * same read as `read`, projected through the workflows-as-code canonical model.
    */
   // permission-group-exempt: workflow source is the workflow definition in another form, governed by workspace role like `read`
   readSource: defineWorkspaceOperation({

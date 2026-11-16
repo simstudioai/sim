@@ -42,10 +42,14 @@ export const sourceCatalogOpenApiRoutes = [
       operationId: 'getSourceCatalog',
       summary: 'Get source catalog',
       description:
-        'Get the source catalog, the block catalog that workflow source is compiled and type-checked against: every block type the caller may place in the workspace, with its fields, visibility conditions, outputs, triggers, and SDK builder names. Pass `workflowId` to add the block types already placed in that workflow. The response carries the catalog `hash` as an `ETag`; send it back in `If-None-Match` to receive `304 Not Modified` with no body when the catalog is unchanged. Returns `403` while code-first workflows are not enabled.',
+        'Get the source catalog, the block catalog that workflow source is compiled and type-checked against: every block type the caller may place in the workspace, with its fields, visibility conditions, outputs, triggers, and SDK builder names. Pass `workflowId` to add the block types already placed in that workflow. The response carries the catalog `hash` as an `ETag`; send it back in `If-None-Match` to receive `304 Not Modified` with no body when the catalog is unchanged. Returns `403` while workflows as code is not enabled.',
       tags: ['Catalog'],
       errors: RESOURCE_ERRORS,
-      success: { description: 'The source catalog.', headers: RATE_LIMIT_HEADERS },
+      success: {
+        description:
+          'The source catalog. A request whose `If-None-Match` matches the current `ETag` gets `304 Not Modified` with no body instead.',
+        headers: RATE_LIMIT_HEADERS,
+      },
     },
     {
       params: documentedSchema(

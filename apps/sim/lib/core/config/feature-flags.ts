@@ -58,7 +58,7 @@ const FEATURE_FLAGS = {
   },
   'workflow-code': {
     description:
-      'Enable code-first workflows: the block catalog for the workflow SDK, workflow source read and apply, and the read-only Code tab. Global on/off; disabled by default.',
+      'Enable workflows as code: the block catalog for the workflow SDK, workflow source read and apply, and the read-only Code tab. Global on/off; disabled by default.',
     fallback: 'WORKFLOW_CODE',
   },
   changelog: {
