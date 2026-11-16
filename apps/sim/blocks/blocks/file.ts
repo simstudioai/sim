@@ -286,6 +286,9 @@ function namedFileTarget(
  * {@link namedFileTarget} for a mapper that also runs on tool calls, where the stored picker may
  * be empty and the model names the file with the tool's own `fileName` and `folderPath` args. The
  * model's folder applies only to the model's name, and never beside a scope the row already pins.
+ *
+ * The result is spread over the merged row and model params, so a folder arg the model sent stays
+ * in the request unless it is cleared here; the tool refuses `folderPath` and `folderPaths` together.
  */
 function namedFileTargetWithModelFolder(
   params: FileFamilyParams & { fileName?: unknown },
@@ -299,8 +302,12 @@ function namedFileTargetWithModelFolder(
     pickerValue || toolCallArg(context, params.fileName),
     label
   )
-  if (pickerValue || !modelFolderPath || target.folderPath || target.folderPaths) return target
-  return { ...target, folderPath: modelFolderPath }
+  if (!isToolCall(context)) return target
+  if (pickerValue || target.folderPath || target.folderPaths) {
+    return { folderPath: undefined, folderPaths: undefined, ...target }
+  }
+  if (!modelFolderPath) return target
+  return { ...target, folderPath: modelFolderPath, folderPaths: undefined }
 }
 
 /**
