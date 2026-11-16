@@ -1,0 +1,23 @@
+// @sim-sdk 1
+import { env, fn, js, py, sh, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: [] })
+  const jsCode = fn('Js code', {
+    language: 'javascript',
+    code: js`const total = ${start.total} + ${env.TAX_RATE}
+// keep \`ticks\` and \${braces}
+return total`,
+  })
+  const pyCode = fn('Py code', {
+    language: 'python',
+    code: py`def main():
+    return ${start.total}
+`,
+  })
+  const shCode = fn('Sh code', { language: 'shell', code: sh`echo "${env.HOME_DIR}"` })
+
+  start.to(jsCode)
+  jsCode.to(pyCode)
+  pyCode.to(shCode)
+})

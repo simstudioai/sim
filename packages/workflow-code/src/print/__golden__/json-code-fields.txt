@@ -1,0 +1,16 @@
+// @sim-sdk 1
+import { agent, api, json, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: [] })
+  const compact = agent('Compact', { model: 'm', responseFormat: json`{"name":"ticket"}` })
+  const refsInJson = api('Refs in json', {
+    url: 'https://x.test',
+    body: json`{
+  "q": ${start.input}
+}`,
+  })
+  const sugared = agent('Sugared', { model: 'm', responseFormat: { name: 'ticket', strict: true } })
+
+  start.to(sugared)
+})

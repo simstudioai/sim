@@ -1,0 +1,17 @@
+// @sim-sdk 1
+import { response, router, t, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { amount: 'number', reason: 'string' } })
+  const triage = router('Triage', {
+    context: t`${start.amount} for ${start.reason}`,
+    model: 'claude-sonnet-5-5',
+    routes: { small: 'Under $100, auto-approve', review: 'Needs a manager' },
+  })
+  const approve = response('Approve', {})
+  const escalate = response('Escalate', {})
+
+  start.to(triage)
+  triage.small.to(approve)
+  triage.review.to(escalate)
+})

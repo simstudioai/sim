@@ -1,0 +1,24 @@
+// @sim-sdk 1
+import { agent, picked, raw, slack, t, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: [] })
+  const assistant = agent('Assistant', {
+    model: 'claude-sonnet-5-5',
+    tools: [
+      slack.tool.sendMessage(
+        { channel: picked('C0OPS'), text: t`Approve: ${start.input}` },
+        { usageControl: 'auto', modes: { channel: 'basic' } }
+      ),
+      raw({
+        type: 'custom-tool-type',
+        title: 'Lookup vendor',
+        params: { query: '' },
+        modes: {},
+        customTool: { ref: { $sim: 'resource', kind: 'custom-tool', key: 'lookup-vendor' } },
+      }),
+    ],
+  })
+
+  start.to(assistant)
+})
