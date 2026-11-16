@@ -13,7 +13,7 @@ import {
   isLocked,
   parentIdOf,
   type SourceGraph,
-} from '@/lib/workflows/source/graph-diff'
+} from '@/lib/workflows/code/apply/graph-diff'
 
 /**
  * The source apply path refuses, and never silently preserves, any change to a protected block:

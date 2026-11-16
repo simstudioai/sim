@@ -27,7 +27,7 @@ export type SourceFingerprint = `sf1:${string}`
 /** An extension field: tolerated and preserved by every validator, never interpreted. */
 export type LockExtensionKey = `x-${string}`
 
-/** Canvas geometry, used only for new blocks or `layout: 'lock'` applies (s4 D3). */
+/** Canvas geometry; materialize applies it only to a block the stored graph does not hold. */
 export interface LockLayout {
   [extension: LockExtensionKey]: Json
   x: number

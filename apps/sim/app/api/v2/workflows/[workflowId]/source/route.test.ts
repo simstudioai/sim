@@ -102,19 +102,18 @@ describe('GET /api/v2/workflows/{workflowId}/source', () => {
     expect(mocks.read).not.toHaveBeenCalled()
   })
 
-  it('passes annotateIds as a boolean and functionCode through, omitting absent flags', async () => {
-    await GET(request('?annotateIds=1&functionCode=inline'), context)
+  it('passes functionCode through, omitting it when absent', async () => {
+    await GET(request('?functionCode=inline'), context)
     await GET(request(), context)
 
     expect(mocks.read.mock.calls[0][0].input).toEqual({
       workflowId: WORKFLOW_ID,
-      annotateIds: true,
       functionCode: 'inline',
     })
     expect(mocks.read.mock.calls[1][0].input).toEqual({ workflowId: WORKFLOW_ID })
   })
 
-  it.each(['?functionCode=ts', '?annotate=true'])(
+  it.each(['?functionCode=ts', '?annotateIds=true'])(
     'rejects %s with 400 before reading the workflow',
     async (query) => {
       const response = await GET(request(query), context)

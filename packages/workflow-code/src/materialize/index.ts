@@ -183,7 +183,6 @@ export const materialize: MaterializeFn = (input, lock, options) => {
             : undefined,
         lockBlock: lockById.get(resolved.id),
         layout: lock?.blocks[key]?.layout,
-        layoutMode: options.layout ?? 'preserve',
       },
       context
     )

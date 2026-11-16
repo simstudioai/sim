@@ -24,7 +24,6 @@ export const GET = defineInternalJsonRoute({
   errorPolicy: internalWorkflowErrorPolicies.concealWorkflowAuthorization,
   mapInput: ({ params, query }) => ({
     workflowId: params.id,
-    ...(query.annotateIds !== undefined ? { annotateIds: query.annotateIds } : {}),
     ...(query.functionCode ? { functionCode: query.functionCode } : {}),
   }),
   useCase: getWorkflowSource,

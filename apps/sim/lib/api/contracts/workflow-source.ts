@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 
@@ -12,9 +11,6 @@ import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 
 export const workflowSourceQuerySchema = z
   .object({
-    annotateIds: booleanQueryFlagSchema
-      .optional()
-      .describe("Print each block's id as a trailing `// id:` comment on its declaration."),
     functionCode: z
       .enum(['inline', 'files'], {
         error: 'functionCode: expected one of "inline" | "files"',

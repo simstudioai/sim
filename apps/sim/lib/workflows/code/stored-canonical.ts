@@ -46,7 +46,7 @@ interface StoredCanonicalInput {
   createdBy: string | null
 }
 
-interface StoredCanonical {
+export interface StoredCanonical {
   /** The lockless canonical model of the stored graph, resource ids lifted to keys. */
   canonical: CanonicalizeResult
   /** Answers every reference in `loaded` from this workspace's bindings. */

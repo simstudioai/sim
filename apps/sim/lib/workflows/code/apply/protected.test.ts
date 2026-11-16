@@ -6,11 +6,11 @@
 import { omit } from '@sim/utils/object'
 import { type BlockState, preserveProtectedWorkflowBlocks } from '@sim/workflow-types/workflow'
 import { describe, expect, it } from 'vitest'
-import type { SourceGraph } from '@/lib/workflows/source/graph-diff'
+import type { SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import {
   assertProtectedBlocksPreserved,
   findProtectedBlockRefusals,
-} from '@/lib/workflows/source/protected'
+} from '@/lib/workflows/code/apply/protected'
 
 type GraphEdge = SourceGraph['edges'][number]
 

@@ -87,14 +87,6 @@ const applyWorkflowSourceBodySchema = z
       .describe(
         'The `fingerprint` the source was read at. The apply answers `409` when the saved draft no longer matches it.'
       ),
-    layout: z
-      .enum(['preserve', 'lock'], {
-        error: 'layout: expected one of "preserve" | "lock"',
-      })
-      .optional()
-      .describe(
-        '`preserve` (default): existing blocks keep their canvas positions and lock positions apply only to new blocks. `lock`: every block the lock positions moves there.'
-      ),
     provenance: provenanceSchema,
   })
   .strict()

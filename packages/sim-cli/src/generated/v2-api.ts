@@ -738,7 +738,6 @@ export type ApplyWorkflowSourceBody = {
     catalogHash: string
   }
   baseFingerprint: string
-  layout?: 'preserve' | 'lock'
   provenance?: {
     client: 'cli' | 'copilot' | 'canvas' | 'api'
     gitSha?: string
@@ -9009,7 +9008,6 @@ export type GetWorkflowSourceParams = {
 }
 
 export type GetWorkflowSourceQuery = {
-  annotateIds?: boolean
   functionCode?: 'inline' | 'files'
 }
 
@@ -17644,12 +17642,6 @@ export const V2_OPERATIONS = {
         describe:
           'The `fingerprint` the source was read at. The apply answers `409` when the saved draft no longer matches it.',
       },
-      layout: {
-        kind: 'enum',
-        values: ['preserve', 'lock'] as const,
-        describe:
-          '`preserve` (default): existing blocks keep their canvas positions and lock positions apply only to new blocks. `lock`: every block the lock positions moves there.',
-      },
       provenance: { kind: 'object', describe: 'Where the source came from, for the audit log.' },
     },
   },
@@ -21282,10 +21274,6 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get workflow source',
     query: {
-      annotateIds: {
-        kind: 'boolean',
-        describe: "Print each block's id as a trailing `// id:` comment on its declaration.",
-      },
       functionCode: {
         kind: 'enum',
         values: ['inline', 'files'] as const,
