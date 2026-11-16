@@ -16,9 +16,14 @@ import { callsOperations, type OperationClient } from '../../runtime/called-oper
 import { buildRequest } from '../../runtime/request'
 import { saveToFile } from './files-get'
 import { printProtocolResult } from './result'
+import {
+  SOURCE_SDK_DIR as SDK_DIR,
+  SOURCE_BASE_FILE,
+  SOURCE_ENTRY_FILE,
+  SOURCE_LOCK_FILE,
+} from './workflow-source-layout'
 
 const OUT_FLAG = 'out'
-const SDK_DIR = '.sim/sdk'
 const CATALOG_CACHE = '.sim/cache/block-catalog.json'
 
 /** The part of the source response the writer reads; the contract owns the full shape. */
@@ -174,7 +179,7 @@ const TSCONFIG = `${JSON.stringify(
       noEmit: true,
       paths: { '@sim/workflow-sdk': [`./${SDK_DIR}/core.d.ts`] },
     },
-    include: ['workflow.ts', `${SDK_DIR}/**/*.d.ts`],
+    include: [SOURCE_ENTRY_FILE, `${SDK_DIR}/**/*.d.ts`],
   },
   null,
   2
@@ -188,8 +193,8 @@ async function writeSourceTree(
   const sdkFiles = generateSdkTypes(narrowCatalog(catalog, source.blockTypes))
   const files: Array<[string, string]> = [
     ...Object.entries(source.files),
-    ['.sim/lock.json', `${JSON.stringify(source.lock, null, 2)}\n`],
-    ['.sim/base.json', `${JSON.stringify(source.lockBase, null, 2)}\n`],
+    [SOURCE_LOCK_FILE, `${JSON.stringify(source.lock, null, 2)}\n`],
+    [SOURCE_BASE_FILE, `${JSON.stringify(source.lockBase, null, 2)}\n`],
     [`${SDK_DIR}/core.d.ts`, CORE_DTS],
     ...sdkFiles.map((file): [string, string] => [`${SDK_DIR}/${file.path}`, file.text]),
     ['tsconfig.json', TSCONFIG],

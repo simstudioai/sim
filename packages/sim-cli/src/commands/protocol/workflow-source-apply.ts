@@ -9,11 +9,12 @@ import { apiCommand } from '../../runtime/called-operations'
 import { embeddedFileContent } from '../../transfer/local-file'
 import { saveToFile } from './files-get'
 import { printProtocolResult } from './result'
+import {
+  SOURCE_BASE_FILE as BASE_FILE,
+  SOURCE_ENTRY_FILE as ENTRY_FILE,
+  SOURCE_LOCK_FILE as LOCK_FILE,
+} from './workflow-source-layout'
 
-/** The layout `workflows source get` writes and this command reads back. */
-const ENTRY_FILE = 'workflow.ts'
-const LOCK_FILE = '.sim/lock.json'
-const BASE_FILE = '.sim/base.json'
 /** `code: file('./functions/x.js')` in the entry file (the SDK's only code-file form). */
 const CODE_FILE_REFERENCE = /\bfile\(\s*(['"])([^'"\n]+)\1\s*\)/g
 
