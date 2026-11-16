@@ -2,7 +2,7 @@
  * SubBlock type → TS param type (s2 §2 "Mapping each subBlock type"). Every one of the 48
  * `SubBlockType`s has an arm; the `never` check makes a new type a compile error here.
  *
- * Types reference names exported by `core.d.ts` (`Value`, `Picked`, `Binding`, ...). A basic/advanced
+ * Types reference names exported by `core.d.ts` (`Value`, `Binding`, `TableRef`, ...). A basic/advanced
  * pair is the union of its members' types, so the mode follows from the kind of value written
  * (build-spec decision 7): a selector-kind constructor is basic, a plain value or reference is
  * advanced.
@@ -119,11 +119,11 @@ export function mapSubBlock(subBlock: CatalogSubBlock): MappedType | null {
     case 'column-selector':
     case 'mcp-server-selector':
     case 'mcp-tool-selector':
-      return { type: 'Picked', doc: [...doc, ...selectorDoc(subBlock)] }
+      return { type: 'string', doc: [...doc, ...selectorDoc(subBlock)] }
     case 'folder-selector':
       return subBlock.resourceKind === 'file-folder'
         ? { type: 'FolderRef', doc }
-        : { type: 'Picked', doc: [...doc, ...selectorDoc(subBlock)] }
+        : { type: 'string', doc: [...doc, ...selectorDoc(subBlock)] }
     case 'knowledge-base-selector':
       return { type: 'KnowledgeBaseRef', doc }
     case 'table-selector':

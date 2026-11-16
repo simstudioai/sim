@@ -6,7 +6,6 @@ import {
   googleSheets,
   md,
   note,
-  picked,
   t,
   trigger,
   workflow,
@@ -23,7 +22,7 @@ export default workflow('Invoice report', {}, () => {
     messages: [{ role: 'user', content: t`Extract totals:\n${mail.email.bodyText}` }],
     tools: [
       googleSheets.tool.appendData(
-        { oauthCredential: binding('finance-google'), spreadsheetId: picked('1AbC') },
+        { oauthCredential: binding('finance-google'), spreadsheetId: '1AbC' },
         { usageControl: 'auto' }
       ),
     ],

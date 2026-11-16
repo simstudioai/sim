@@ -1,5 +1,5 @@
 // @sim-sdk 1
-import { slack, trigger, workflow } from '@sim/workflow-sdk'
+import { slack, table, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Fixture', {}, () => {
   const start = trigger.start('Start', { inputFormat: { channel: 'string' } })
@@ -9,6 +9,18 @@ export default workflow('Fixture', {}, () => {
     text: 'c',
   })
   const bothMembers = slack.sendMessage('Both members', { channel: 'C0NEW', text: 'e' })
+  const filterBuilderList = table.queryRows('Filter builder list', {
+    tableId: table('tickets'),
+    filterInput: [{ field: 'status', op: 'eq', value: 'open' }],
+  })
+  const filterCodeJson = table.queryRows('Filter code json', {
+    tableId: table('tickets'),
+    filterInput: `{
+  "field": "status",
+  "op": "eq",
+  "value": "open"
+}`,
+  })
   const manualAdvanced = slack.sendMessage('Manual advanced', { channel: start.channel, text: 'b' })
   const pickedBasic = slack.sendMessage('Picked basic', { channel: 'C0ONE', text: 'a' })
 })

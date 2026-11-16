@@ -82,15 +82,11 @@ export type CompileCatalogCode =
   | 'E_UNKNOWN_PARAM'
   /** The builder already pins this param (`operation` or a `fixed` entry). */
   | 'E_FIXED_PARAM'
-  /** `meta.modes` contradicts the mode the value kind implies. */
-  | 'E_MODE_CONFLICT'
   /**
    * A param not visible under the block's current values. A warning, not an error, because stale
    * hidden values are preserved (build-spec decision 2); s3 called it `E_FIELD_NOT_APPLICABLE`.
    */
   | 'W_FIELD_NOT_APPLICABLE'
-  /** A key under `meta.inactive` that is in fact active. */
-  | 'W_INACTIVE_IS_ACTIVE'
   /** Includes `todo()` placeholders. */
   | 'W_REQUIRED_MISSING'
   /** The value's JSON type differs from the field's `valueKind`; never coerced. */
@@ -181,7 +177,7 @@ export type CanonicalizeDiagnosticCode =
   | 'W_CANON_DANGLING_EDGE'
   /**
    * A block whose `data.parentId` names no stored block. It is placed at the root and the raw
-   * `parentId` is kept under `opaque.data`, so nothing is lost.
+   * `parentId` is kept under `extra`, so nothing is lost.
    */
   | 'W_CANON_DANGLING_PARENT'
   /** An unknown edge handle, kept as a `raw` port. */
@@ -257,12 +253,8 @@ export type ApplyDiagnosticCode =
   | 'W_APPLY_HOSTED_KEY_DROPPED'
   /** Value validation rewrote a value; the response files are re-printed. */
   | 'W_APPLY_VALUE_NORMALIZED'
-  /** A block whose type is `legacy` or `deprecated`. */
-  | 'W_APPLY_SUNSET_BLOCK'
   /** A block's type changed; its id, webhook URL and schedules are replaced. */
   | 'W_APPLY_TYPE_CHANGED'
-  /** Connections to blocks that did not survive the gates were dropped. */
-  | 'W_APPLY_PENDING_CONNECTIONS_DROPPED'
   /** A blocking workflow lint finding, mapped to a source line. */
   | 'E_APPLY_LINT'
   /** A non-blocking workflow lint finding, mapped to a source line. */

@@ -1,16 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { type CodeFileCodec, type CodeFileLanguage, codeFileCodec } from '../code-files'
+import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import { cases } from './__fixtures__/cases'
 import { realCatalog as catalog } from './__fixtures__/real-catalog'
-import { createPrintWorkflow, printWorkflow } from './printer'
+import { printWorkflow } from './printer'
 
 const GOLDEN_DIR = './__golden__'
-
-/** A codec whose round trip adds a byte: the printer must fall back to inline code. */
-const lossyCodec: CodeFileCodec = {
-  toFile: (code) => code,
-  fromFile: (text) => `${text}\n`,
-}
 
 describe('printWorkflow golden files', () => {
   for (const testCase of cases) {
@@ -23,28 +17,6 @@ describe('printWorkflow golden files', () => {
       })
       expect(result.files).toHaveLength(1)
       await expect(result.files[0].text).toMatchFileSnapshot(`${GOLDEN_DIR}/${testCase.name}.txt`)
-    })
-  }
-
-  /** `source get --verbose`: the preserved UI state a lean print leaves to apply. */
-  const VERBOSE_CASES = [
-    'support-triage',
-    'pair-modes',
-    'inactive-values',
-    'loop-foreach',
-    'nested-subflows',
-  ]
-  for (const name of VERBOSE_CASES) {
-    it(`prints ${name} verbosely`, async () => {
-      const testCase = cases.find((candidate) => candidate.name === name)
-      if (!testCase) throw new Error(`missing case ${name}`)
-      const result = printWorkflow({
-        workflow: testCase.workflow,
-        catalog,
-        hints: testCase.hints,
-        options: { functionCode: 'inline', verbose: true },
-      })
-      await expect(result.files[0].text).toMatchFileSnapshot(`${GOLDEN_DIR}/${name}.verbose.txt`)
     })
   }
 
@@ -68,7 +40,7 @@ describe('printWorkflow golden files', () => {
     )
   })
 
-  it('writes function code to language files through the code-files codec by default', async () => {
+  it('writes function code to language files when the code-file round trip is exact', async () => {
     const testCase = cases.find((c) => c.name === 'function-languages')
     if (!testCase) throw new Error('missing case')
     const result = printWorkflow({
@@ -91,7 +63,8 @@ describe('printWorkflow golden files', () => {
       functions.map(([key, language]) => {
         const param = testCase.workflow.blocks[key]?.params.code
         if (param?.kind !== 'value' || typeof param.value !== 'string') return null
-        return codeFileCodec.toFile(param.value, language)
+        const check = checkCodeFileBijection(param.value, language)
+        return check.ok ? check.file : null
       })
     )
     expect(result.files[1]?.text).toContain('$ref.start.total + $env.TAX_RATE')
@@ -100,24 +73,36 @@ describe('printWorkflow golden files', () => {
     await expect(result.files[0].text).toMatchFileSnapshot(`${GOLDEN_DIR}/function-files.txt`)
   })
 
-  it('falls back to inline code with a warning when the codec round trip is lossy or absent', () => {
+  it('prints function code inline with a warning when its file form would read back differently', () => {
     const testCase = cases.find((c) => c.name === 'function-languages')
     if (!testCase) throw new Error('missing case')
-    const inline = printWorkflow({
-      workflow: testCase.workflow,
-      catalog,
-      options: { functionCode: 'inline' },
-    })
-    for (const print of [createPrintWorkflow(lossyCodec), createPrintWorkflow()]) {
-      const result = print({
-        workflow: testCase.workflow,
-        catalog,
-        options: { functionCode: 'files', codeDir: 'functions' },
-      })
-      expect(result.files).toHaveLength(1)
-      expect(result.files[0].text).toBe(inline.files[0].text)
-      const inlined = result.diagnostics.filter((d) => d.code === 'W_CODE_FILE_INLINED')
-      expect(inlined.map((d) => d.blockKey)).toEqual(['jscode', 'pycode', 'shcode'])
+    const jscode = testCase.workflow.blocks.jscode
+    if (!jscode) throw new Error('missing jscode')
+    const workflow = {
+      ...testCase.workflow,
+      blocks: {
+        ...testCase.workflow.blocks,
+        jscode: {
+          ...jscode,
+          params: {
+            ...jscode.params,
+            code: { kind: 'value' as const, value: 'return <start.total>.length' },
+          },
+        },
+      },
     }
+    const result = printWorkflow({
+      workflow,
+      catalog,
+      options: { functionCode: 'files', codeDir: 'functions' },
+    })
+    expect(result.files.map((file) => file.path)).toEqual([
+      'workflow.ts',
+      'functions/py-code.py',
+      'functions/sh-code.sh',
+    ])
+    expect(result.files[0].text).toContain('return ${start.total}.length')
+    const inlined = result.diagnostics.filter((d) => d.code === 'W_CODE_FILE_INLINED')
+    expect(inlined.map((d) => d.blockKey)).toEqual(['jscode'])
   })
 })

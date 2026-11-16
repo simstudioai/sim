@@ -32,7 +32,6 @@ export const SDK_CORE_EXPORTS = [
   'md',
   'note',
   'parallel',
-  'picked',
   'py',
   'raw',
   'ref',

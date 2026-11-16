@@ -10,7 +10,6 @@ import type {
   CanonicalBlock,
   CanonicalVariable,
   CanonicalWorkflow,
-  SubBlockId,
   VarKey,
 } from '../model'
 import { setOwn } from '../records'
@@ -425,13 +424,11 @@ export const compileWorkflow: CompileWorkflowFn = (input) => {
   }
 
   const compiled = new Map<BlockKey, CanonicalBlock>()
-  const inactive: Record<BlockKey, SubBlockId[]> = {}
   const hints: LockHints = { blocks: {} }
   for (const decl of ctx.decls) {
     const result = compileBlock(ctx, decl)
     if (!result) continue
     compiled.set(decl.key, result.block)
-    if (result.inactive.length > 0) setOwn(inactive, decl.key, result.inactive)
     setOwn(hints.blocks, decl.key, {
       ...(decl.binding !== null && { binding: decl.binding }),
       order: decl.order,
@@ -470,7 +467,7 @@ export const compileWorkflow: CompileWorkflowFn = (input) => {
           blocks: Object.fromEntries(compiled),
           edges: sortedEdges,
           variables: Object.fromEntries(ctx.variables),
-          annotations: { inactive, comments: ctx.comments.comments },
+          annotations: { inactive: {}, comments: ctx.comments.comments },
         }
   return { workflow, diagnostics: reporter.diagnostics, spans, hints, sdkMajor: parsed.sdkMajor }
 }

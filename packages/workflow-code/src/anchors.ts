@@ -64,8 +64,7 @@ export function encodeAnchor(anchor: Anchor): AnchorKey {
     case 'block':
       return brand(`block:${escapeSegment(anchor.block)}`)
     case 'param':
-    case 'inactive':
-      return brand(`${anchor.kind}:${escapeSegment(anchor.block)}:${escapeSegment(anchor.param)}`)
+      return brand(`param:${escapeSegment(anchor.block)}:${escapeSegment(anchor.param)}`)
     case 'edges':
       return brand(`edges:${escapeSegment(anchor.block)}:${escapeSegment(anchor.port)}`)
     case 'var':
@@ -92,7 +91,6 @@ export function decodeAnchor(text: string): Anchor | null {
     case 'var':
       return segments.length === 1 ? { kind, variable: segments[0] } : null
     case 'param':
-    case 'inactive':
       return segments.length === 2 ? { kind, block: segments[0], param: segments[1] } : null
     case 'edges': {
       if (segments.length !== 2) return null

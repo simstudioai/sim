@@ -22,7 +22,7 @@ import {
   catalogBuilder,
   catalogBuilderPaths,
 } from '../catalog/view'
-import { type CodeFileCodec, type CodeFileLanguage, codeFileCodec } from '../code-files'
+import { type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
 import { isJson } from '../lock'
@@ -73,27 +73,6 @@ function toLanguage(value: unknown): CodeFileLanguage | null {
 function stringParam(block: CanonicalBlock, id: string): string | undefined {
   const param = getOwn(block.params, id)
   return param?.kind === 'value' && typeof param.value === 'string' ? param.value : undefined
-}
-
-/**
- * Whether compiling the effective member's value into `other` would store it differently. A
- * value the source writes as a list or object literal is stored as JSON text by a code member and
- * reshaped by an input-format member (`compile/blocks.ts` `compileField`); everything else lands
- * the same in either member, so which member holds it is UI state and a lean print leaves the mode
- * to the stored workflow.
- */
-function storesDifferently(
-  block: CanonicalBlock,
-  effective: CatalogSubBlock | undefined,
-  other: CatalogSubBlock | undefined
-): boolean {
-  const param = effective ? getOwn(block.params, effective.id) : undefined
-  if (param?.kind !== 'value' || !other) return false
-  const { value } = param
-  const literal =
-    Array.isArray(value) ||
-    (value !== null && typeof value === 'object' && !Object.hasOwn(value, '$sim'))
-  return literal && (other.type === 'code' || other.structured === 'inputFormat')
 }
 
 function hasValue(block: CanonicalBlock, id: string): boolean {
@@ -159,6 +138,7 @@ function kebab(ident: string): string {
     .toLowerCase()
 }
 
+const NULL_EXPR: Expr = { doc: 'null', shape: 'literal' }
 const INTEGER_LIKE = /^(0|[1-9][0-9]*)$/
 const INPUT_FIELD_KEYS = new Set(['name', 'type', 'value', 'description', 'required'])
 
@@ -216,8 +196,6 @@ class WorkflowPrinter {
   private readonly hints: LockHints
   private readonly width: number
   private readonly options: PrintInput['options']
-  /** `PrintOptions.verbose`: also print the preserved UI state source never needs. */
-  private readonly verbose: boolean
   private readonly diagnostics: Diag[] = []
   private readonly imports = new Set<string>(['workflow'])
   private usesVars = false
@@ -235,16 +213,12 @@ class WorkflowPrinter {
   private readonly codeFileHints = new Map<BlockKey, string>()
   private readonly takenCodePaths = new Set<string>()
 
-  constructor(
-    input: PrintInput,
-    private readonly codec: CodeFileCodec | undefined
-  ) {
+  constructor(input: PrintInput) {
     this.workflow = input.workflow
     this.catalog = input.catalog
     this.hints = input.hints ?? { blocks: {} }
     this.width = input.options.lineWidth ?? DEFAULT_WIDTH
     this.options = input.options
-    this.verbose = input.options.verbose === true
     this.blocks = new Map(Object.entries(this.workflow.blocks))
     for (const [key, block] of this.blocks) {
       const parent = block.parent === null ? undefined : this.blocks.get(block.parent)
@@ -268,8 +242,7 @@ class WorkflowPrinter {
       (name) => this.imports.add(name),
       () => {
         this.usesVars = true
-      },
-      input.options.verbose === true
+      }
     )
     this.comments = new CommentPlacer(this.workflow.annotations.comments)
   }
@@ -521,12 +494,9 @@ class WorkflowPrinter {
     }
     const stored = stringParam(block, 'language') ?? 'javascript'
     if (stored !== language) return inline(`its language ${stored} has no code-file form`)
-    if (!this.codec) return inline('no code-file codec is available')
-    const text = this.codec.toFile(code, language)
-    if (text === null) return inline('its tokens cannot be rewritten for a code file')
-    if (this.codec.fromFile(text, language) !== code) {
-      return inline('the code-file round trip did not reproduce the stored code')
-    }
+    const check = checkCodeFileBijection(code, language)
+    if (!check.ok) return inline('its tokens cannot be rewritten for a code file')
+    const text = check.file
     const extension = LANGUAGE_EXTENSIONS[language]
     const hinted = getOwn(this.hints.blocks, block.key)?.codeFile
     const dir = (this.options.codeDir ?? DEFAULT_CODE_DIR).replace(/\/+$/, '')
@@ -623,16 +593,6 @@ class WorkflowPrinter {
   }
 
   /**
-   * The ids of a block that never reach execution. A lean print uses the executable view's rule
-   * (`executableInactiveParams`, shared with materialize); a verbose print lists the stored
-   * annotation, so it shows exactly what canonicalize kept.
-   */
-  private inactiveIds(block: CanonicalBlock, catalogBlock: CatalogBlock | undefined): Set<string> {
-    if (this.verbose) return new Set(getOwn(this.workflow.annotations.inactive, block.key) ?? [])
-    return catalogBlock ? new Set(executableInactiveParams(block, this.catalog)) : new Set()
-  }
-
-  /**
    * Whether a field with no stored value would reach execution holding `value`, the editor
    * default compile fills in when the field is omitted. An absent field prints `null` only then:
    * an inactive one is restored from the stored workflow either way. The value matters for a
@@ -654,38 +614,28 @@ class WorkflowPrinter {
   /**
    * Params in catalog registry order, one per canonical pair (build-spec decision 7), under the
    * defaults rule: a value equal to the editor default (`editorDefaults`) is omitted, and an
-   * active field with no stored value prints `null` when a default exists. A lean print leaves out
-   * what never executes (inactive values, the pair member the mode hides, undeclared ids that do
-   * not run); a verbose print lists them under `inactive` so nothing is lost (build-spec decision
-   * 2), with the modes derivation would get wrong.
+   * active field with no stored value prints `null` when a default exists. What never executes
+   * (`executableInactiveParams`: inactive values, the pair member the mode hides, undeclared ids
+   * that do not run) is left out; apply restores it from the stored workflow. A stored id the
+   * catalog does not declare that still runs (a schema-agnostic custom block's input, the agent's
+   * legacy prompt fields) goes to `extra`, the only place source takes such an id.
    */
   private collectParams(
     block: CanonicalBlock,
     catalogBlock: CatalogBlock | undefined,
     pinned: Set<string>
-  ): { params: ParamEntry[]; inactive: ParamEntry[]; modes: Record<string, ParamMode> } {
+  ): { params: ParamEntry[]; extra: ParamEntry[] } {
     const params: ParamEntry[] = []
-    const inactive: ParamEntry[] = []
-    const modes: Record<string, ParamMode> = {}
+    const extra: ParamEntry[] = []
     const handled = new Set<string>(pinned)
     const branchId = catalogBlock?.graph.branches?.subBlockId
     if (branchId) handled.add(branchId)
-    const inactiveIds = this.inactiveIds(block, catalogBlock)
+    const inactiveIds = new Set(executableInactiveParams(block, this.catalog))
     const defaults: ReadonlyMap<string, EditorDefault> = catalogBlock
       ? editorDefaults(catalogBlock)
       : new Map()
-    const pushInactive = (id: string, sb: CatalogSubBlock | undefined) => {
-      if (!this.verbose) return
-      const value = this.printParamValue(block, catalogBlock, id, sb)
-      if (value)
-        inactive.push({ key: printKey(id), anchor: anchors.inactive(block.key, id), value })
-    }
-    const pushNull = (key: string) => {
-      params.push({
-        key: printKey(key),
-        anchor: anchors.param(block.key, key),
-        value: { doc: 'null', shape: 'literal' },
-      })
+    const push = (list: ParamEntry[], key: string, value: Expr) => {
+      list.push({ key: printKey(key), anchor: anchors.param(block.key, key), value })
     }
     const isDefault = (id: string) => {
       const param = getOwn(block.params, id)
@@ -702,115 +652,51 @@ class WorkflowPrinter {
           if (seenCids.has(cid)) continue
           seenCids.add(cid)
           const members = subBlocks.filter((m) => m.canonicalParamId === cid && !pinned.has(m.id))
+          for (const member of members) handled.add(member.id)
           const mode: ParamMode = getOwn(block.modes, cid) ?? 'basic'
           const basic = members.find((m) => !isAdvancedMember(m))
           const advanced = members.find(isAdvancedMember)
           const effective = (mode === 'advanced' ? advanced : basic) ?? members[0]
-          let printed: PrintedValue | null = null
-          let elided = false
-          for (const member of members) {
-            if (handled.has(member.id)) continue
-            handled.add(member.id)
-            if (!hasValue(block, member.id)) continue
-            if (member === effective && !inactiveIds.has(member.id)) {
-              if (mode === 'basic' && member === basic && isDefault(member.id)) {
-                elided = true
-                continue
-              }
-              printed = this.printParamValue(block, catalogBlock, member.id, member)
-              if (printed) {
-                params.push({
-                  key: printKey(cid),
-                  anchor: anchors.param(block.key, cid),
-                  value: printed,
-                })
-              }
-            } else {
-              pushInactive(member.id, member)
-            }
-          }
-          if (
-            !printed &&
-            !elided &&
-            effective &&
-            !hasValue(block, effective.id) &&
+          if (!effective) continue
+          if (hasValue(block, effective.id)) {
+            if (inactiveIds.has(effective.id)) continue
+            if (mode === 'basic' && effective === basic && isDefault(effective.id)) continue
+            const printed = this.printParamValue(block, catalogBlock, effective.id, effective)
+            if (printed) push(params, cid, printed)
+          } else if (
             members.some((member) => defaults.has(member.id)) &&
             this.activeIfSet(block, catalogBlock, effective, defaults.get(effective.id) ?? '')
           ) {
-            pushNull(cid)
-          }
-          const implied: ParamMode = printed ? (printed.selector ? 'basic' : 'advanced') : 'basic'
-          if (
-            basic &&
-            advanced &&
-            implied !== mode &&
-            (this.verbose ||
-              storesDifferently(block, effective, implied === 'basic' ? basic : advanced))
-          ) {
-            setOwn(modes, cid, mode)
+            push(params, cid, NULL_EXPR)
           }
           continue
         }
         handled.add(sb.id)
         if (!hasValue(block, sb.id)) {
           if (this.needsTodo(block, sb)) {
-            params.push({
-              key: printKey(sb.id),
-              anchor: anchors.param(block.key, sb.id),
-              value: this.values.call('todo', []),
-            })
+            push(params, sb.id, this.values.call('todo', []))
           } else {
             const fallback = defaults.get(sb.id)
             if (fallback !== undefined && this.activeIfSet(block, catalogBlock, sb, fallback)) {
-              pushNull(sb.id)
+              push(params, sb.id, NULL_EXPR)
             }
           }
           continue
         }
-        if (inactiveIds.has(sb.id)) {
-          pushInactive(sb.id, sb)
-          continue
-        }
-        if (isDefault(sb.id)) continue
+        if (inactiveIds.has(sb.id) || isDefault(sb.id)) continue
         const printed = this.printParamValue(block, catalogBlock, sb.id, sb)
-        if (printed) {
-          params.push({
-            key: printKey(sb.id),
-            anchor: anchors.param(block.key, sb.id),
-            value: printed,
-          })
-        }
+        if (printed) push(params, sb.id, printed)
       }
     }
 
     const rest = Object.keys(block.params)
-      .filter((id) => !handled.has(id))
+      .filter((id) => !handled.has(id) && !inactiveIds.has(id))
       .sort(compareStrings)
     for (const id of rest) {
-      if (!catalogBlock) {
-        const printed = this.printParamValue(block, undefined, id, undefined)
-        if (printed) {
-          params.push({ key: printKey(id), anchor: anchors.param(block.key, id), value: printed })
-        }
-        continue
-      }
-      // `inactive` is the only place source takes an id the catalog does not declare on this
-      // surface. A lean print keeps only the ones that still run: a schema-agnostic custom
-      // block's inputs and the agent's legacy prompt fields.
-      if (!this.verbose && inactiveIds.has(id)) continue
-      const value = this.printParamValue(block, catalogBlock, id, undefined)
-      if (value) {
-        inactive.push({ key: printKey(id), anchor: anchors.inactive(block.key, id), value })
-      }
+      const printed = this.printParamValue(block, catalogBlock, id, undefined)
+      if (printed) push(catalogBlock ? extra : params, id, printed)
     }
-    if (this.verbose) {
-      for (const cid of Object.keys(block.modes).sort(compareStrings)) {
-        const handledCid =
-          catalogBlock?.subBlocks.some((sb) => sb.canonicalParamId === cid) ?? false
-        if (!handledCid) setOwn(modes, cid, getOwn(block.modes, cid) ?? 'basic')
-      }
-    }
-    return { params, inactive, modes }
+    return { params, extra }
   }
 
   /** A required, always-visible field with no stored value prints `todo()` (s2 D7). */
@@ -842,10 +728,10 @@ class WorkflowPrinter {
 
   private metaProperties(
     block: CanonicalBlock,
-    extra: {
+    fields: {
       triggerMode?: boolean | undefined
-      modes: Record<string, ParamMode>
-      inactive: Property[]
+      extra: Property[]
+      extraData?: Record<string, Json>
       branches?: Property[]
     }
   ): Property[] {
@@ -855,39 +741,21 @@ class WorkflowPrinter {
     if (!block.enabled) meta.push({ key: 'disabled', value: yes })
     if (block.locked) meta.push({ key: 'locked', value: yes })
     if (block.advancedMode) meta.push({ key: 'advancedMode', value: yes })
-    if (extra.triggerMode !== undefined) {
-      meta.push({ key: 'triggerMode', value: { doc: String(extra.triggerMode), shape: 'literal' } })
+    if (fields.triggerMode !== undefined) {
+      meta.push({
+        key: 'triggerMode',
+        value: { doc: String(fields.triggerMode), shape: 'literal' },
+      })
     }
     if (block.errorPort && !this.hasErrorEdge(block.key))
       meta.push({ key: 'errorPort', value: yes })
     if (block.retry) meta.push({ key: 'retry', value: this.values.json({ ...block.retry }) })
-    if (Object.keys(extra.modes).length > 0)
-      meta.push({ key: 'modes', value: this.modesExpr(extra.modes) })
-    if (extra.branches && extra.branches.length > 0) {
-      meta.push({ key: 'branches', value: objectExpr(extra.branches) })
+    if (fields.branches && fields.branches.length > 0) {
+      meta.push({ key: 'branches', value: objectExpr(fields.branches) })
     }
-    if (extra.inactive.length > 0) meta.push({ key: 'inactive', value: objectExpr(extra.inactive) })
-    const opaque = this.printedOpaque(block)
-    if (opaque && Object.keys(opaque).length > 0) {
-      meta.push({ key: '$unknown', value: this.values.json(opaque) })
-    }
+    if (fields.extra.length > 0) meta.push({ key: 'extra', value: objectExpr(fields.extra) })
+    if (fields.extraData) meta.push({ key: 'extraData', value: this.values.json(fields.extraData) })
     return meta
-  }
-
-  /**
-   * The unknown `block.data` a print carries as `$unknown`. Nothing executes it, so a lean print
-   * keeps only a container's subflow keys canonicalize could not read as config, which the
-   * serializer passes through with the container's data; a verbose print keeps all of it.
-   */
-  private printedOpaque(block: CanonicalBlock): Record<string, Json> | undefined {
-    const opaque = block.opaque?.data
-    if (!opaque || this.verbose) return opaque
-    if (!block.subflow) return undefined
-    const kept: Record<string, Json> = {}
-    for (const [key, value] of Object.entries(opaque)) {
-      if (SUBFLOW_DATA_KEYS.has(key)) setOwn(kept, key, value)
-    }
-    return kept
   }
 
   /** Branch rows as named keys, plus per-row title overrides and extra keys for the meta. */
@@ -927,9 +795,9 @@ class WorkflowPrinter {
       stringParam(block, id)
     )
     const pinned = pinnedIds(found?.builder)
-    const { params, inactive, modes } = this.collectParams(block, catalogBlock, pinned)
+    const { params, extra } = this.collectParams(block, catalogBlock, pinned)
     const paramProps = this.paramProperties(params)
-    const inactiveProps = this.paramProperties(inactive)
+    const extraProps = this.paramProperties(extra)
     const branchKind = catalogBlock?.graph.branches?.kind ?? block.branches?.kind
     const { entries: branchProps, meta: branchMeta } = this.branchEntries(block)
     const branchSubBlock =
@@ -958,8 +826,7 @@ class WorkflowPrinter {
       triggerMode = block.triggerMode
     const meta = this.metaProperties(block, {
       triggerMode,
-      modes,
-      inactive: inactiveProps,
+      extra: extraProps,
       branches: branchMeta,
     })
     const args: Expr[] = []
@@ -989,58 +856,50 @@ class WorkflowPrinter {
     return this.values.call(callee, args)
   }
 
+  /**
+   * `loop.<type>(name, config, body, meta?)` / `parallel[.<type>](...)`. Config holds the fields
+   * the type runs with; the other types' fields are left to the stored workflow. `meta.extra`
+   * carries the container's stored params, and `meta.extraData` the subflow keys of `block.data`
+   * canonicalize could not read as config, which the serializer passes on with the container's
+   * data.
+   */
   private containerCall(block: CanonicalBlock): Expr {
     const spec = block.subflow
     if (!spec) throw new Error('containerCall requires a subflow block')
     const config: Property[] = []
-    const inactive: Property[] = []
-    const field = (
-      name: string,
-      key: string,
-      value: Json | undefined,
-      active: boolean,
-      tag: Tag
-    ) => {
-      if (value === undefined) return
-      if (!active && !this.verbose) return
-      const printed = this.values.value(value, { tag, from: block.key })
-      if (active) {
-        config.push({ key, value: printed })
-      } else {
-        const attached = this.comments.take(anchors.inactive(block.key, name))
-        inactive.push({ key: name, value: printed, ...attached })
-      }
+    const field = (key: string, value: Json | undefined, active: boolean, tag: Tag) => {
+      if (value === undefined || !active) return
+      config.push({ key, value: this.values.value(value, { tag, from: block.key }) })
     }
     let callee: string
     if (spec.kind === 'loop') {
       callee = `loop.${spec.loopType}`
       const countRuns =
         spec.loopType === 'for' || (spec.loopType === 'doWhile' && !spec.doWhileCondition)
-      field('iterations', 'count', spec.iterations, countRuns, 't')
-      field('forEachItems', 'collection', spec.forEachItems, spec.loopType === 'forEach', 't')
-      field('whileCondition', 'condition', spec.whileCondition, spec.loopType === 'while', 'js')
-      field(
-        'doWhileCondition',
-        'condition',
-        spec.doWhileCondition,
-        spec.loopType === 'doWhile',
-        'js'
-      )
+      field('count', spec.iterations, countRuns, 't')
+      field('collection', spec.forEachItems, spec.loopType === 'forEach', 't')
+      field('condition', spec.whileCondition, spec.loopType === 'while', 'js')
+      field('condition', spec.doWhileCondition, spec.loopType === 'doWhile', 'js')
     } else {
       const type = spec.parallelType
       callee = type === undefined ? 'parallel' : `parallel.${type}`
-      field('count', 'count', spec.count, type !== 'collection', 't')
-      field('distribution', 'collection', spec.distribution, type !== 'count', 't')
-      field('batchSize', 'batchSize', spec.batchSize, true, 't')
+      field('count', spec.count, type !== 'collection', 't')
+      field('collection', spec.distribution, type !== 'count', 't')
+      field('batchSize', spec.batchSize, true, 't')
     }
-    const catalogBlock = catalogBlockOf(this.catalog, block.type)
-    const {
-      params,
-      inactive: inactiveParams,
-      modes,
-    } = this.collectParams(block, catalogBlock, new Set())
-    const extraInactive = this.paramProperties([...params, ...inactiveParams])
-    const meta = this.metaProperties(block, { modes, inactive: [...inactive, ...extraInactive] })
+    const { params, extra } = this.collectParams(
+      block,
+      catalogBlockOf(this.catalog, block.type),
+      new Set()
+    )
+    const residue: Record<string, Json> = {}
+    for (const [key, value] of Object.entries(block.extra ?? {})) {
+      if (SUBFLOW_DATA_KEYS.has(key)) setOwn(residue, key, value)
+    }
+    const meta = this.metaProperties(block, {
+      extra: this.paramProperties([...params, ...extra]),
+      ...(Object.keys(residue).length > 0 && { extraData: residue }),
+    })
     const body = this.scopeStatements(block.key)
     const args: Expr[] = [
       this.values.string(block.name),
@@ -1308,13 +1167,4 @@ function compareImportNames(a: string, b: string): number {
   return compareStrings(a, b)
 }
 
-/**
- * Creates a printer that writes function code to files through `codec`. Without a codec, files
- * mode prints every function body inline with `W_CODE_FILE_INLINED`.
- */
-export function createPrintWorkflow(codec?: CodeFileCodec): PrintWorkflowFn {
-  return (input) => new WorkflowPrinter(input, codec).print()
-}
-
-/** The printer with the code-files bijection (`codeFileCodec`), so files mode works as is. */
-export const printWorkflow: PrintWorkflowFn = createPrintWorkflow(codeFileCodec)
+export const printWorkflow: PrintWorkflowFn = (input) => new WorkflowPrinter(input).print()

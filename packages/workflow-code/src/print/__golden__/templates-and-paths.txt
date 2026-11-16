@@ -18,7 +18,7 @@ next`,
       model: 'gpt-5.5',
     },
     {
-      inactive: {
+      extra: {
         systemPrompt: `Line one
 Line two without refs`,
       },

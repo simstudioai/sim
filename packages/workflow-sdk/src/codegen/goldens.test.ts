@@ -1,5 +1,5 @@
 /**
- * Every printer golden of `@sim/workflow-code` (lean and verbose) type-checks against what an
+ * Every printer golden of `@sim/workflow-code` type-checks against what an
  * author gets: the shipped `core.d.ts` plus the types generated from the same real-catalog slice
  * the goldens are printed with (`print/__fixtures__/real-catalog.json`, drift-checked against the
  * registry in apps/sim). A field the printer emits that `core.d.ts` or the generated builders do

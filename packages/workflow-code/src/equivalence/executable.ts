@@ -176,7 +176,7 @@ function executableBlock(block: CanonicalBlock, catalog: BlockCatalog): Executab
   if (block.subflow) {
     view.subflow = executableSubflow(block.subflow)
     const residue: Record<string, Json> = {}
-    for (const [key, value] of Object.entries(block.opaque?.data ?? {})) {
+    for (const [key, value] of Object.entries(block.extra ?? {})) {
       if (SUBFLOW_DATA_KEYS.has(key)) setOwn(residue, key, value)
     }
     if (Object.keys(residue).length > 0) view.subflowResidue = residue

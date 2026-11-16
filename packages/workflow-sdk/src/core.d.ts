@@ -187,13 +187,6 @@ export declare function folder(key: string): FolderRef
 export type Upload = ResourceRef<'file'>
 export declare function upload(path: string): Upload
 
-/** An opaque provider id chosen in a remote selector: `picked('C0123')`. */
-export interface Picked {
-  readonly [RESOURCE]: 'picked'
-  readonly id: string
-}
-export declare function picked(id: string): Picked
-
 /** A file produced at run time (`file` / `file[]` outputs). */
 export interface SimFile {
   id: string
@@ -265,23 +258,21 @@ export interface BlockMeta {
   triggerMode?: boolean
   retry?: { enabled: boolean; maxTries: number; waitBetweenTriesMs: number }
   /**
-   * Pair modes, printed only when the other member would store the value differently. Which
-   * member holds a value is otherwise canvas state that apply keeps from the stored workflow.
-   */
-  modes?: Record<string, 'basic' | 'advanced'>
-  /**
    * Per branch key of a condition or router, the row's display `title` and any stored fields the
    * SDK has no syntax for (`extra`, plain JSON).
    */
   branches?: Record<string, { title?: string; extra?: Record<string, Json> }>
   /**
-   * Values the block keeps but never runs. Source never needs them (apply restores them from the
-   * stored workflow); `source get --verbose` prints them. Also the place for a stored field the
-   * catalog does not declare that still runs, such as a schema-agnostic custom block's input.
+   * Stored params that run but have no SDK syntax: a schema-agnostic custom block's inputs, the
+   * agent's legacy prompt fields, a container's stored params. Values the block keeps but never
+   * runs are not written; apply keeps them from the stored workflow.
    */
-  inactive?: Record<string, unknown>
-  /** Stored block data the SDK has no syntax for, kept verbatim (plain JSON). */
-  $unknown?: Record<string, Json>
+  extra?: Record<string, unknown>
+  /**
+   * A loop or parallel's `block.data` subflow keys the loader could not read as config, kept
+   * verbatim (plain JSON).
+   */
+  extraData?: Record<string, Json>
 }
 
 /** Anything an edge can point at. */

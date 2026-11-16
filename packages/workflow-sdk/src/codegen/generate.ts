@@ -58,7 +58,6 @@ const CORE_TYPE_NAMES = [
   'Message',
   'Model',
   'ModelFallback',
-  'Picked',
   'ResponseFields',
   'ResponseFormat',
   'ResponseFormatOutput',

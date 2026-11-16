@@ -2,6 +2,7 @@ import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
 import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
+import { SUBFLOW_DATA_KEYS } from '../canonicalize/subflows'
 import { editorDefaults } from '../catalog/defaults'
 import type { CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { type CodeFileLanguage, codeFileLanguage, fromCodeFile } from '../code-files'
@@ -39,15 +40,12 @@ import {
   compileJsonLiteral,
   compileValue,
   isSelectorForm,
-  literalText,
   objectEntries,
   type ValueSite,
 } from './values'
 
 interface CompiledBlock {
   block: CanonicalBlock
-  /** Param ids written under `meta.inactive`. */
-  inactive: SubBlockId[]
   /** Repo-relative path of the function-code file, when the code came from `file()`. */
   codeFile?: string
 }
@@ -60,10 +58,9 @@ const META_KEYS = [
   'triggerMode',
   'errorPort',
   'retry',
-  'modes',
   'branches',
-  'inactive',
-  '$unknown',
+  'extra',
+  'extraData',
 ]
 const BRANCH_KEY = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 const EDGE_METHOD_NAMES = new Set(['to', 'onError'])
@@ -77,11 +74,12 @@ interface CompiledMeta {
   retry: BlockRetryConfig | null
   advancedMode: boolean
   triggerMode: boolean | null
-  modes: Map<string, ParamMode>
   /** Per-row `title` and `extra` (the printer's meta `branches`). */
   branches: Array<[string, ObjectProperty]>
-  inactive: Array<[string, ObjectProperty]>
-  opaque: Record<string, Json> | null
+  /** Stored fields that run but have no SDK syntax (the printer's meta `extra`). */
+  extra: Array<[string, ObjectProperty]>
+  /** A container's unreadable subflow `block.data` keys (the printer's meta `extraData`). */
+  extraData: { node: Node; data: Record<string, Json> } | null
 }
 
 function unsupported(
@@ -172,10 +170,9 @@ function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSit
     retry: null,
     advancedMode: false,
     triggerMode: null,
-    modes: new Map(),
     branches: [],
-    inactive: [],
-    opaque: null,
+    extra: [],
+    extraData: null,
   }
   if (!node) return meta
   const { decl } = site
@@ -205,57 +202,38 @@ function compileMeta(ctx: CompileContext, node: Node | undefined, site: ValueSit
       case 'retry':
         meta.retry = compileRetry(ctx, property.value, site)
         break
-      case 'modes': {
-        const modes = objectValue(ctx, property, decl, "modes: { channel: 'basic' }")
-        if (!modes) break
-        for (const [param, modeProperty] of objectEntries(ctx, modes)) {
-          const mode = literalText(modeProperty.value)
-          if (mode !== 'basic' && mode !== 'advanced') {
-            unsupported(
-              ctx,
-              modeProperty.value,
-              "A mode is 'basic' or 'advanced'.",
-              "Write 'basic' or 'advanced'.",
-              decl
-            )
-            continue
-          }
-          meta.modes.set(param, mode)
-        }
-        break
-      }
       case 'branches': {
         const branches = objectValue(ctx, property, decl, "branches: { key: { title: '...' } }")
         if (branches) meta.branches = objectEntries(ctx, branches)
         break
       }
-      case 'inactive': {
-        const inactive = objectValue(ctx, property, decl, 'inactive: { field: value }')
-        if (!inactive) break
-        meta.inactive = objectEntries(ctx, inactive)
+      case 'extra': {
+        const extra = objectValue(ctx, property, decl, 'extra: { field: value }')
+        if (!extra) break
+        meta.extra = objectEntries(ctx, extra)
         registerList(
           ctx,
-          inactive,
-          meta.inactive,
-          (param) => encodeAnchor({ kind: 'inactive', block: decl.key, param }),
+          extra,
+          meta.extra,
+          (param) => encodeAnchor({ kind: 'param', block: decl.key, param }),
           decl
         )
         break
       }
-      case '$unknown': {
+      case 'extraData': {
         const json = compileJsonLiteral(ctx, property.value, site)
         if (json === undefined) break
-        if (!isRecordLike(json)) {
+        if (!isRecordLike(json) || Object.keys(json).some((k) => !SUBFLOW_DATA_KEYS.has(k))) {
           unsupported(
             ctx,
             property.value,
-            '$unknown is an object.',
-            'Write $unknown: { key: value }.',
+            'extraData holds subflow data keys only.',
+            `Keys are ${[...SUBFLOW_DATA_KEYS].join(', ')}.`,
             decl
           )
           break
         }
-        meta.opaque = json as Record<string, Json>
+        meta.extraData = { node: property, data: json as Record<string, Json> }
         break
       }
       default:
@@ -578,17 +556,30 @@ function isJsonContainer(value: Value): boolean {
 }
 
 /**
- * Compiles one catalog param into its member subBlock (build-spec decision 7): a selector call
- * (or a non-empty array of them) is basic, anything else advanced, and an explicit `meta.modes`
- * entry wins either way, as the printer writes one exactly when the derived mode would be wrong.
+ * The member a pair value compiles into (build-spec decision 7): a selector call (or a non-empty
+ * array of them) is basic, anything else advanced. A list or object literal never lands in a JSON
+ * code member when the pair's other member takes it as written: the printer writes a JSON code
+ * member's value as the text it stores, never as the literal it stringifies.
  */
+function pairMode(field: Extract<CatalogField, { kind: 'pair' }>, value: CompiledValue): ParamMode {
+  if (value.kind !== 'value') return 'basic'
+  const derived: ParamMode = isSelectorForm(value.form) ? 'basic' : 'advanced'
+  if (value.form !== 'literal' || !isJsonContainer(value.value)) return derived
+  const other: ParamMode = derived === 'basic' ? 'advanced' : 'basic'
+  const otherMember = other === 'basic' ? field.basic : field.advanced
+  return memberFor(field, derived)?.type === 'code' && otherMember && otherMember.type !== 'code'
+    ? other
+    : derived
+}
+
+/** Compiles one catalog param into its member subBlock (`pairMode` picks a pair's member). */
 function compileField(
   ctx: CompileContext,
   state: BlockState,
   field: CatalogField,
   property: ObjectProperty
 ): void {
-  const { decl, meta, params, modes } = state
+  const { decl, params, modes } = state
   const firstSub = field.kind === 'single' ? field.sub : field.members[0]
   const site = fieldSite(state.site, firstSub)
   if (firstSub?.valueKind === 'tools') {
@@ -599,8 +590,7 @@ function compileField(
   const compiled = compileValue(ctx, property.value, site)
   if (!compiled) return
   if (compiled.kind === 'absent' || compiled.kind === 'todo') {
-    const member =
-      field.kind === 'pair' ? memberFor(field, meta.modes.get(field.param) ?? 'basic') : field.sub
+    const member = field.kind === 'pair' ? memberFor(field, 'basic') : field.sub
     if (member) state.unset.add(member.id)
     if (compiled.kind === 'todo') state.todos.set(field.param, property)
     return
@@ -622,8 +612,7 @@ function compileField(
 
   let target: CatalogSubBlock | undefined
   if (field.kind === 'pair') {
-    const mode =
-      meta.modes.get(field.param) ?? (isSelectorForm(compiled.form) ? 'basic' : 'advanced')
+    const mode = pairMode(field, compiled)
     if (isModalPair(field)) setOwn(modes, field.param, mode)
     target = memberFor(field, mode)
   } else {
@@ -832,15 +821,23 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     }
   }
 
-  for (const [param, mode] of meta.modes) {
-    if (!Object.hasOwn(modes, param)) setOwn(modes, param, mode)
-  }
   for (const field of index?.fields.values() ?? []) {
     if (isModalPair(field) && !Object.hasOwn(modes, field.param))
       setOwn(modes, field.param, 'basic')
   }
 
-  const inactive = compileInactive(ctx, meta.inactive, params, site)
+  compileExtraParams(ctx, meta.extra, params, site, (id) =>
+    Boolean(index?.subBlocks.has(id) || pinned.has(id) || id === branchField?.subBlockId)
+  )
+  if (meta.extraData) {
+    unsupported(
+      ctx,
+      meta.extraData.node,
+      'Only a loop or parallel has extraData.',
+      'Remove extraData; apply keeps the stored block data.',
+      decl
+    )
+  }
   if (catalogBlock) {
     for (const [id, value] of editorDefaults(catalogBlock)) {
       if (Object.hasOwn(params, id) || state.unset.has(id) || pinned.has(id)) continue
@@ -848,7 +845,7 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
       setOwn(params, id, { kind: 'value', value })
     }
   }
-  if (index) checkFields(ctx, index, state, inactive.properties)
+  if (index) checkFields(ctx, index, state)
 
   const block: CanonicalBlock = {
     key: decl.key,
@@ -864,69 +861,43 @@ function compileRegularBlock(ctx: CompileContext, decl: BlockDecl): CompiledBloc
     params,
     modes,
     ...(branches && { branches }),
-    ...(meta.opaque && { opaque: { data: meta.opaque } }),
   }
-  return { block, inactive: inactive.ids, ...(codeFile !== undefined && { codeFile }) }
-}
-
-function catalogSubBlock(decl: BlockDecl, id: SubBlockId): CatalogSubBlock | undefined {
-  const block =
-    decl.builder.kind === 'catalog' || decl.builder.kind === 'generic'
-      ? decl.builder.block
-      : undefined
-  return block?.subBlocks.find((candidate) => candidate.id === id)
+  return { block, ...(codeFile !== undefined && { codeFile }) }
 }
 
 /**
- * `meta.inactive`: stored values kept but not effective (build-spec decision 2): annotated stale
- * values, the non-effective member of a pair, and ids the catalog does not know. Any id is
- * accepted, by subBlock id.
+ * `meta.extra` entries that become params: stored ids with no SDK syntax that still run (a
+ * schema-agnostic custom block's input, the agent's legacy prompt fields, a container's stored
+ * params). An id the block's params can name (`declared`) or already hold is refused.
  */
-function compileInactive(
+function compileExtraParams(
   ctx: CompileContext,
   entries: Array<[string, ObjectProperty]>,
   params: Record<SubBlockId, CanonicalParam>,
-  site: ValueSite
-): { ids: SubBlockId[]; properties: Map<SubBlockId, ObjectProperty> } {
-  const ids: SubBlockId[] = []
-  const properties = new Map<SubBlockId, ObjectProperty>()
+  site: ValueSite,
+  declared: (id: SubBlockId) => boolean
+): void {
   const { decl } = site
   for (const [id, property] of entries) {
-    if (Object.hasOwn(params, id)) {
+    if (declared(id) || Object.hasOwn(params, id)) {
       unsupported(
         ctx,
         property,
-        `${id} is both active and inactive.`,
-        'Keep the value in params or in inactive, not both.',
+        `${id} is a param of this block, not an extra field.`,
+        'Write it in params.',
         decl
       )
       continue
     }
-    recordSpan(ctx, { kind: 'inactive', block: decl.key, param: id }, property)
-    const sub = catalogSubBlock(decl, id)
-    if (sub?.valueKind === 'tools') {
-      const tools = compileToolList(ctx, property.value, fieldSite(site, sub))
-      if (!tools) continue
-      setOwn(params, id, { kind: 'tools', tools })
-    } else {
-      const compiled = compileValue(ctx, property.value, fieldSite(site, sub))
-      if (!compiled || compiled.kind !== 'value') continue
-      setOwn(params, id, { kind: 'value', value: compiled.value })
-    }
-    ids.push(id)
-    properties.set(id, property)
+    recordSpan(ctx, { kind: 'param', block: decl.key, param: id }, property)
+    const compiled = compileValue(ctx, property.value, site)
+    if (compiled?.kind === 'value') setOwn(params, id, { kind: 'value', value: compiled.value })
   }
-  return { ids, properties }
 }
 
 /** Catalog warnings: visibility, required fields, value kinds (s3 §4 "Catalog checks"). */
-function checkFields(
-  ctx: CompileContext,
-  index: FieldIndex,
-  state: BlockState,
-  inactive: Map<SubBlockId, ObjectProperty>
-): void {
-  const { decl, params, modes } = state
+function checkFields(ctx: CompileContext, index: FieldIndex, state: BlockState): void {
+  const { decl, params } = state
   const values = storedValues(params)
   for (const entry of state.written) {
     const sub = index.subBlocks.get(entry.target)
@@ -937,7 +908,7 @@ function checkFields(
         `${entry.param} is hidden under the block's current values; it is kept but not used.`,
         rangeOf(ctx, entry.property),
         {
-          hint: 'Remove it, or move it under meta.inactive.',
+          hint: 'Remove it; apply keeps the stored value.',
           blockKey: decl.key,
           param: entry.param,
         }
@@ -951,19 +922,6 @@ function checkFields(
         { blockKey: decl.key, param: entry.param }
       )
     }
-  }
-  for (const [id, property] of inactive) {
-    const sub = index.subBlocks.get(id)
-    if (!sub || !isVisible(sub, values)) continue
-    const group = sub.canonicalParamId ? index.fields.get(sub.canonicalParamId) : undefined
-    const effective = group?.kind === 'pair' ? memberFor(group, modes[group.param] ?? 'basic') : sub
-    if (effective !== sub) continue
-    ctx.reporter.report(
-      'W_INACTIVE_IS_ACTIVE',
-      `${id} is visible, so it is not inactive.`,
-      rangeOf(ctx, property),
-      { hint: 'Move it into params.', blockKey: decl.key, param: id }
-    )
   }
   for (const field of missingRequiredFields(index, values, (id) => Object.hasOwn(params, id))) {
     const todo = state.todos.get(field.param)
@@ -990,10 +948,6 @@ const CONTAINER_CONFIG: Record<string, Record<string, string>> = {
   'parallel.collection': { collection: 'distribution', batchSize: 'batchSize' },
   parallel: { count: 'count', collection: 'distribution', batchSize: 'batchSize' },
 }
-const SUBFLOW_FIELDS: Record<'loop' | 'parallel', readonly string[]> = {
-  loop: ['iterations', 'forEachItems', 'whileCondition', 'doWhileCondition'],
-  parallel: ['count', 'distribution', 'batchSize'],
-}
 const NUMBER_FIELDS = new Set(['iterations', 'count', 'batchSize'])
 const TEXT_FIELDS = new Set(['whileCondition', 'doWhileCondition'])
 
@@ -1011,8 +965,9 @@ function numberLiteral(node: Node): number | null {
 
 /**
  * `loop.<type>(name, config, body, meta?)` / `parallel[.<type>](...)`. Config holds the fields
- * the type uses; the subflow's other stored fields, and any params, sit under `meta.inactive` by
- * their CWM names (build-spec decision 2, A9).
+ * the type uses; apply keeps the other types' fields from the stored workflow. `meta.extra` holds
+ * the container's stored params, and `meta.extraData` the subflow keys of `block.data`
+ * canonicalize could not read as config.
  */
 function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock | null {
   const builder = decl.builder
@@ -1063,19 +1018,8 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
     }
   }
 
-  const subflowFields = SUBFLOW_FIELDS[builder.container]
-  const activeFields = new Set(Object.values(configKeys))
-  const paramEntries: Array<[string, ObjectProperty]> = []
-  for (const [key, property] of meta.inactive) {
-    if (subflowFields.includes(key) && !activeFields.has(key)) {
-      recordSpan(ctx, { kind: 'inactive', block: decl.key, param: key }, property)
-      setField(key, property.value)
-    } else {
-      paramEntries.push([key, property])
-    }
-  }
   const params: Record<SubBlockId, CanonicalParam> = {}
-  const inactive = compileInactive(ctx, paramEntries, params, site)
+  compileExtraParams(ctx, meta.extra, params, site, () => false)
 
   const json = (field: string): Json | undefined => fields.get(field) as Json | undefined
   const text = (field: string): string | undefined => {
@@ -1112,8 +1056,6 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
     }
   }
 
-  const modes: Record<string, ParamMode> = {}
-  for (const [param, mode] of meta.modes) setOwn(modes, param, mode)
   const block: CanonicalBlock = {
     key: decl.key,
     name: decl.name,
@@ -1126,11 +1068,11 @@ function compileContainer(ctx: CompileContext, decl: BlockDecl): CompiledBlock |
     errorPort: meta.errorPort,
     retry: meta.retry,
     params,
-    modes,
+    modes: {},
     subflow,
-    ...(meta.opaque && { opaque: { data: meta.opaque } }),
+    ...(meta.extraData && { extra: meta.extraData.data }),
   }
-  return { block, inactive: inactive.ids }
+  return { block }
 }
 
 /** Pass 2 for one declaration. `null` for declarations already reported as invalid. */

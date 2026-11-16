@@ -36,7 +36,7 @@ instead of failing at run time.
    returns a `CanonicalWorkflow`; ids bind only in materialize. s3's `CanonicalWorkflowDraft`
    maps onto it as follows: `meta`, `variables`, `blocks[].params`, `branches`, `edges` and
    `annotations` all exist. `options.enabled/errorEnabled/retry/locked` map to `enabled`,
-   `errorPort`, `retry` and `locked`. `unknown` maps to `opaque`.
+   `errorPort`, `retry` and `locked`. `unknown` maps to `extra`.
 2. **`meta` is in the CWM** (`name`, `description`). The workflow row holds them, not
    `WorkflowState`, so canonicalize takes them as input. `diffCanonical` reports changes. Wave 3
    decides whether apply writes them.
@@ -88,15 +88,14 @@ instead of failing at run time.
     values become `E_APPLY_<UPPER_SNAKE>` (`duplicate_trigger` becomes `E_APPLY_DUPLICATE_TRIGGER`).
     s4's extra codes map as follows:
     - `credential_unreachable` and `sandbox_plan_required` are errors;
-    - `hosted_key_dropped`, `value_normalized`, `sunset_block`, `type_changed` and
-      `pending_connections_dropped` are warnings;
+    - `hosted_key_dropped`, `value_normalized` and `type_changed` are warnings (`sunset_block`
+      and `pending_connections_dropped` were dropped: no path emits them);
     - `lock_id_claimed` became `W_MAT_LOCK_ID_CLAIMED`.
 15. **Codes added beyond s3 §4**, because the grammar implies them:
     - syntax and limits: `E_WORKFLOW_EXPORT`, `E_LIMIT_EXCEEDED`;
     - scope: `E_UNKNOWN_VARIABLE`, `E_DUPLICATE_VARIABLE`, `E_INVALID_ENV_NAME`,
       `E_UNKNOWN_LOOP_PROPERTY`, `W_FORWARD_REF`;
     - branches: `E_UNKNOWN_BRANCH`, `E_DUPLICATE_BRANCH_KEY`, `E_BRANCH_ELSE_LAST`;
-    - modes: `E_MODE_CONFLICT`, `W_INACTIVE_IS_ACTIVE`;
     - code files and handles: `E_CODE_FILE_MISSING`, `E_CODE_FILE_PATH`, `W_CODE_FILE_INLINED`,
       `W_RAW_HANDLE`.
 
@@ -287,16 +286,24 @@ instead of failing at run time.
     `collection || ''`, clamped `batchSize`), and unknown `block.data` (a container keeps the
     subflow keys canonicalize could not read, which the serializer passes through). It takes the
     catalog, which the pair and activity rules need. P0 and P1 compare it;
-    O1 still compares stored bytes, and the new **P6** asserts that materializing the compiled lean
+    O1 still compares stored bytes, and the new **P6** asserts that materializing the compiled
     print over prev is byte-identical to the stored workflow (a no-op apply changes nothing).
-  - **The printer is lean by default.** It leaves out inactive values, `picked()` (a plain id is
-    written as a string), `meta.modes` (except where the other member would store the value
-    differently: a list or object literal into a JSON code or input-format member), off-type
-    subflow fields (a `doWhile` with no condition prints its `count`, which then runs), and
-    unknown residue. An undeclared stored id that still runs (a schema-agnostic custom block's
-    input, the agent's legacy prompt fields) keeps printing under `meta.inactive`, the only place
-    source takes an undeclared id. `PrintOptions.verbose` prints the rest, for
-    `source get --verbose`.
+  - **The printer writes only what executes.** It leaves out inactive values, which member of a
+    pair holds a value (a plain id is written as a string; there is no `picked()` and no
+    `meta.modes`), off-type subflow fields (a `doWhile` with no condition prints its `count`,
+    which then runs), and unknown `block.data`. There is no verbose mode: preserved state lives
+    only in the stored workflow. A stored field that runs but has no SDK syntax prints under
+    `meta.extra`, the only place source takes such a field: a schema-agnostic custom block's
+    input, the agent's legacy prompt fields, or a container's stored params. A container's
+    subflow keys of `block.data` canonicalize could not read as config print under
+    `meta.extraData`, kept apart because canvas containers often store params under the same
+    names. The CWM keeps unknown `block.data`
+    under `extra` too, so `opaque` means only the catalog's "could not evaluate" marker.
+  - **A pair's member follows from the value kind alone.** A selector call is basic, anything
+    else advanced, and a list or object literal never lands in a JSON code member when the other
+    member takes it as written (`table_v2`'s `filterInput`: the filter builder holds the list).
+    The printer writes a JSON code member's value as the text it stores, never as the literal it
+    stringifies, so the rule is unambiguous both ways and `meta.modes` is not needed.
   - **Defaults rule.** The editor default of a field is what canvas creation seeds
     (`createBlockFromParams` with no inputs, wrapped by `hooks.initBlock`): per subBlock id, first
     declaration wins; a visible editable field gets its `value()` thunk's result for a block with
@@ -317,7 +324,7 @@ instead of failing at run time.
     mode; when a plain id changed and prev showed the basic selector member of a `picked` pair,
     prev's member; then every param inactive under the target's values, from prev (absent
     included, so defaults compile filled into fields that never run are dropped); off-type subflow
-    fields and prev's whole config when it runs the same; unknown residue a lean print does not
+    fields and prev's whole config when it runs the same; unknown residue source does not
     carry. A full CWM restores onto itself unchanged, so O1 holds. Source cannot pick a pair
     member for a plain id: that is canvas state.
   - **The loop count is the one that runs.** `loopSpec` reads `block.data.count`, and an absent
@@ -332,5 +339,5 @@ instead of failing at run time.
     `buildBlockCatalog` the golden cases use (compacted and hashed like the core shard), rebuilt
     and drift-checked by `apps/sim/lib/workflows/code/golden-catalog.test.ts`. Cases are canvas
     blocks of current types (editor defaults seeded). `workflow-sdk`'s `goldens.test.ts`
-    type-checks every golden, lean and verbose, with `core.d.ts` plus the types generated from
+    type-checks every golden with `core.d.ts` plus the types generated from
     that slice. `print/__fixtures__/catalog.ts` stays for unit tests.

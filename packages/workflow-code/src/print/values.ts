@@ -48,7 +48,7 @@ const RESOURCE_CALLS: Partial<Record<string, string>> = {
 
 export interface PrintedValue extends Expr {
   /**
-   * True when the value printed as a selector call (`table('x')`, `picked('C1')`, ...) or a
+   * True when the value printed as a selector call (`table('x')`, `upload('a.pdf')`, ...) or a
    * non-empty array of them: the form that stores into the basic member of a pair.
    */
   selector?: boolean
@@ -67,16 +67,10 @@ function isSimNode(value: object): value is SimNode {
 
 /** Prints values, recording SDK imports and reference diagnostics as it goes. */
 export class ValuePrinter {
-  /**
-   * @param pickedCalls Whether a plain selector id prints as `picked('C1')`. Only verbose prints
-   *   do: the call records that a selector produced the id, which is UI state, so source writes
-   *   the id as a plain string and materialize keeps the stored member.
-   */
   constructor(
     private readonly refs: RefPrinter,
     private readonly use: (name: string) => void,
-    private readonly useVars: () => void,
-    private readonly pickedCalls: boolean
+    private readonly useVars: () => void
   ) {}
 
   call(callee: string, args: Expr[]): Expr {
@@ -87,10 +81,6 @@ export class ValuePrinter {
   /** A param value, honoring the field's value kind (selectors, static options). */
   field(value: Value, context: FieldContext): PrintedValue {
     const subBlock = context.subBlock
-    const kind = subBlock?.valueKind
-    if (this.pickedCalls && kind === 'picked' && isPlainSelectorValue(value)) {
-      return { ...this.call('picked', [this.json(value as Json)]), selector: true }
-    }
     if (
       typeof value === 'string' &&
       value !== '' &&
@@ -187,12 +177,6 @@ function memberOf(key: string): string {
 
 function nestedTag(context: FieldContext): Tag {
   return context.tag === 'json' ? 't' : context.tag === 'md' ? 't' : context.tag
-}
-
-/** A stored selector value with no reference text: a non-empty id string. */
-function isPlainSelectorValue(value: Value): boolean {
-  if (typeof value === 'string') return value.length > 0 && !/[<>{}]/.test(value)
-  return false
 }
 
 /**

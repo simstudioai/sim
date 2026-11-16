@@ -29,7 +29,7 @@ const ATTRIBUTES: Array<Exclude<BlockAttribute, 'parent'>> = [
   'retry',
   'branches',
   'subflow',
-  'opaque',
+  'extra',
 ]
 
 function unionKeys(left: object | undefined, right: object | undefined): string[] {

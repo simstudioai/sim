@@ -1179,7 +1179,7 @@ describe('canonicalize: subflows (step 2, quirk 19)', () => {
     })
   })
 
-  it('keeps an unknown parallel type under opaque data and reports it', () => {
+  it('keeps an unknown parallel type under extra and reports it', () => {
     const result = run(
       workflow([
         blockState(
@@ -1193,11 +1193,11 @@ describe('canonicalize: subflows (step 2, quirk 19)', () => {
     )
     const fan = onlyBlock(result, 'fan')
     expect(fan.subflow).toEqual({ kind: 'parallel', count: 3, batchSize: 50 })
-    expect(fan.opaque).toEqual({ data: { parallelType: 'weird' } })
+    expect(fan.extra).toEqual({ parallelType: 'weird' })
     expect(result.diagnostics.filter((d) => d.code === 'W_CANON_SUBFLOW_REPAIRED')).toHaveLength(2)
   })
 
-  it('takes the parent from data.parentId, and keeps a dangling parent under opaque data', () => {
+  it('takes the parent from data.parentId, and keeps a dangling parent under extra', () => {
     const result = run(
       workflow([
         blockState('l1', 'loop', 'Each', {}, { data: { loopType: 'for', count: 2 } }),
@@ -1206,15 +1206,15 @@ describe('canonicalize: subflows (step 2, quirk 19)', () => {
       ])
     )
     expect(onlyBlock(result, 'in').parent).toBe('each')
-    expect(onlyBlock(result, 'in').opaque).toBeUndefined()
+    expect(onlyBlock(result, 'in').extra).toBeUndefined()
     expect(onlyBlock(result, 'lost').parent).toBeNull()
-    expect(onlyBlock(result, 'lost').opaque).toEqual({ data: { parentId: 'gone' } })
+    expect(onlyBlock(result, 'lost').extra).toEqual({ parentId: 'gone' })
     expect(codes(result)).toContain('W_CANON_DANGLING_PARENT')
   })
 })
 
 describe('canonicalize: block fields (quirk 22)', () => {
-  it('carries locked, triggerMode and advancedMode, raw retry, and unknown data under opaque', () => {
+  it('carries locked, triggerMode and advancedMode, raw retry, and unknown data under extra', () => {
     const result = run(
       workflow([
         blockState(
@@ -1235,7 +1235,7 @@ describe('canonicalize: block fields (quirk 22)', () => {
     const code = onlyBlock(result, 'code')
     expect(code.locked).toBe(true)
     expect(code.retry).toEqual({ enabled: false, maxTries: 4, waitBetweenTriesMs: 10 })
-    expect(code.opaque).toEqual({ data: { someFutureFlag: 'x' } })
+    expect(code.extra).toEqual({ someFutureFlag: 'x' })
     expect(result.layout.code).toEqual({ x: 5, y: 6, w: 100 })
   })
 })
