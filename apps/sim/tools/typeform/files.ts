@@ -25,13 +25,13 @@ export const filesTool: InternalToolConfig<TypeformFilesParams, TypeformFilesRes
     fieldId: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Unique ID of the file upload field',
     },
     filename: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Filename of the uploaded file',
     },
     inline: {

@@ -6,6 +6,7 @@ import {
   HOSTS_OUTPUT,
 } from '@/tools/calcom/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getBookingTool: ToolConfig<CalcomGetBookingParams, CalcomGetBookingResponse> = {
   id: 'calcom_get_booking',
@@ -35,7 +36,7 @@ export const getBookingTool: ToolConfig<CalcomGetBookingParams, CalcomGetBooking
 
   request: {
     url: (params: CalcomGetBookingParams) => {
-      return `https://api.cal.com/v2/bookings/${encodeURIComponent(params.bookingUid)}`
+      return `https://api.cal.com/v2/bookings/${safeUrlPathSegment(params.bookingUid, 'bookingUid')}`
     },
     method: 'GET',
     headers: (params) => ({

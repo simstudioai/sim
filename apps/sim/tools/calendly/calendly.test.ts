@@ -3,6 +3,7 @@ import { createEventInviteeTool } from '@/tools/calendly/create_event_invitee'
 import { createInviteeNoShowTool } from '@/tools/calendly/create_invitee_no_show'
 import { createWebhookTool } from '@/tools/calendly/create_webhook'
 import { getEventInviteeTool } from '@/tools/calendly/get_event_invitee'
+import { getScheduledEventTool } from '@/tools/calendly/get_scheduled_event'
 import { listEventTypesTool } from '@/tools/calendly/list_event_types'
 import { listScheduledEventsTool } from '@/tools/calendly/list_scheduled_events'
 import { listWebhooksTool } from '@/tools/calendly/list_webhooks'
@@ -20,13 +21,13 @@ function buildBody(tool: { request: { body?: unknown } }, params: Record<string,
 
 describe('calendly resource identifiers', () => {
   it('extracts the trailing uuid from a nested invitee uri', () => {
-    expect(toUuid('https://api.calendly.com/scheduled_events/event-1/invitees/invitee-2')).toBe(
-      'invitee-2'
-    )
+    expect(
+      toUuid('https://api.calendly.com/scheduled_events/event-1/invitees/invitee-2', 'id')
+    ).toBe('invitee-2')
   })
 
   it('leaves a bare uuid untouched and strips surrounding whitespace', () => {
-    expect(toUuid('  event-1  ')).toBe('event-1')
+    expect(toUuid('  event-1  ', 'id')).toBe('event-1')
   })
 
   it('expands a bare uuid into a canonical uri and passes a full uri through', () => {
@@ -69,6 +70,10 @@ describe('calendly list tools', () => {
     expect(buildUrl(listEventTypesTool, { apiKey: 'k', user: 'user-1', active: true })).toContain(
       'active=true'
     )
+  })
+
+  it('requires a user or organization scope for event types', () => {
+    expect(() => buildUrl(listEventTypesTool, { apiKey: 'k' })).toThrow(/"user" or "organization"/)
   })
 
   it('omits the active filter entirely when it is not set', () => {
@@ -118,6 +123,43 @@ describe('calendly booking', () => {
     expect(body.event_guests).toEqual(['guest@example.com'])
   })
 
+  it('sends the location and booking answers typed as json text', () => {
+    const body = buildBody(createEventInviteeTool, {
+      ...bookingParams,
+      location: '{"kind":"outbound_call","location":"+14155551234"}',
+      questionsAndAnswers: '[{"question":"Company","answer":"Acme","position":0}]',
+    })
+
+    expect(body.location).toEqual({ kind: 'outbound_call', location: '+14155551234' })
+    expect(body.questions_and_answers).toEqual([
+      { question: 'Company', answer: 'Acme', position: 0 },
+    ])
+  })
+
+  it('sends a location and booking answers a model passes as objects', () => {
+    const body = buildBody(createEventInviteeTool, {
+      ...bookingParams,
+      location: { kind: 'zoom_conference' },
+      questionsAndAnswers: [{ question: 'Company', answer: 'Acme', position: 0 }],
+    })
+
+    expect(body.location).toEqual({ kind: 'zoom_conference' })
+    expect(body.questions_and_answers).toEqual([
+      { question: 'Company', answer: 'Acme', position: 0 },
+    ])
+  })
+
+  it('leaves location and answers out when the fields are blank', () => {
+    const body = buildBody(createEventInviteeTool, {
+      ...bookingParams,
+      location: '',
+      questionsAndAnswers: '  ',
+    })
+
+    expect(body).not.toHaveProperty('location')
+    expect(body).not.toHaveProperty('questions_and_answers')
+  })
+
   it('rejects a booking with neither a full name nor a first name', () => {
     const { inviteeName, ...withoutName } = bookingParams
     expect(() => buildBody(createEventInviteeTool, withoutName)).toThrow(
@@ -142,6 +184,19 @@ describe('calendly booking', () => {
         inviteeUuid: 'i-1',
       })
     ).toBe('https://api.calendly.com/scheduled_events/e-1/invitees/i-1')
+  })
+})
+
+describe('calendly path segments', () => {
+  it('encodes an id so it cannot add a query string to the request path', () => {
+    const url = buildUrl(getScheduledEventTool, { apiKey: 'k', eventUuid: 'e-1?x=1#frag' })
+    expect(url).toBe('https://api.calendly.com/scheduled_events/e-1%3Fx%3D1%23frag')
+  })
+
+  it('rejects a dot segment that would walk up the request path', () => {
+    expect(() => buildUrl(getScheduledEventTool, { apiKey: 'k', eventUuid: '..' })).toThrow(
+      /path traversal/
+    )
   })
 })
 

@@ -6,6 +6,7 @@ import {
   HOSTS_OUTPUT,
 } from '@/tools/calcom/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const confirmBookingTool: ToolConfig<
   CalcomConfirmBookingParams,
@@ -38,7 +39,7 @@ export const confirmBookingTool: ToolConfig<
 
   request: {
     url: (params: CalcomConfirmBookingParams) => {
-      return `https://api.cal.com/v2/bookings/${encodeURIComponent(params.bookingUid)}/confirm`
+      return `https://api.cal.com/v2/bookings/${safeUrlPathSegment(params.bookingUid, 'bookingUid')}/confirm`
     },
     method: 'POST',
     headers: (params) => ({

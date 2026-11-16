@@ -6,6 +6,7 @@ import {
   HOSTS_OUTPUT,
 } from '@/tools/calcom/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const cancelBookingTool: ToolConfig<CalcomCancelBookingParams, CalcomCancelBookingResponse> =
   {
@@ -42,7 +43,7 @@ export const cancelBookingTool: ToolConfig<CalcomCancelBookingParams, CalcomCanc
 
     request: {
       url: (params: CalcomCancelBookingParams) => {
-        return `https://api.cal.com/v2/bookings/${encodeURIComponent(params.bookingUid)}/cancel`
+        return `https://api.cal.com/v2/bookings/${safeUrlPathSegment(params.bookingUid, 'bookingUid')}/cancel`
       },
       method: 'POST',
       headers: (params) => ({

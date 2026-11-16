@@ -58,6 +58,9 @@ export const shopifyGetCollectionTool: ToolConfig<
     method: 'POST',
     headers: getShopifyHeaders,
     body: (params) => {
+      if (!params.collectionId?.trim()) {
+        throw new Error('Collection ID is required')
+      }
       const productsFirst = getShopifyPageSize(params.productsFirst)
 
       return {

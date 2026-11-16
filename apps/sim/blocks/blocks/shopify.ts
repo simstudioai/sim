@@ -2,7 +2,12 @@ import { ShopifyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
+import {
+  mapperOperation,
+  parseOptionalBooleanInput,
+  parseOptionalNumberInput,
+  toolCallArg,
+} from '@/blocks/utils'
 
 const LIST_OPERATIONS = [
   'shopify_list_products',
@@ -16,6 +21,20 @@ const LIST_OPERATIONS = [
   'shopify_get_fulfillment',
   'shopify_get_inventory_level',
 ] as const
+
+/**
+ * Parses a tag list from a comma-separated block field or an array a model sent on a tool call.
+ */
+function parseTagList(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    return value.map((tag) => String(tag).trim()).filter(Boolean)
+  }
+  if (typeof value !== 'string') return undefined
+  return value
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+}
 
 export const ShopifyBlock: BlockConfig = {
   type: 'shopify',
@@ -224,6 +243,7 @@ export const ShopifyBlock: BlockConfig = {
       mode: 'advanced',
       options: [
         { label: 'Shopify default', id: '' },
+        { label: 'Created At', id: 'CREATED_AT' },
         { label: 'Id', id: 'ID' },
         { label: 'Name', id: 'NAME' },
         { label: 'Relevance', id: 'RELEVANCE' },
@@ -1513,8 +1533,8 @@ export const ShopifyBlock: BlockConfig = {
       tool: (params) => {
         return params.operation || 'shopify_list_products'
       },
-      params: (params) => {
-        const operation = params.operation || 'shopify_list_products'
+      params: (params, context) => {
+        const operation = mapperOperation(params, context) || 'shopify_list_products'
         const first = LIST_OPERATIONS.some((listOperation) => listOperation === operation)
           ? parseOptionalNumberInput(params.first, 'first')
           : undefined
@@ -1579,10 +1599,7 @@ export const ShopifyBlock: BlockConfig = {
               descriptionHtml: params.descriptionHtml?.trim(),
               productType: params.productType?.trim(),
               vendor: params.vendor?.trim(),
-              tags: params.tags
-                ?.split(',')
-                .map((t: string) => t.trim())
-                .filter(Boolean),
+              tags: parseTagList(params.tags),
               status: params.status || undefined,
             }
 
@@ -1600,9 +1617,9 @@ export const ShopifyBlock: BlockConfig = {
           case 'shopify_list_products':
             return {
               ...baseParams,
-              sortKey: params.productsSortKey || undefined,
+              sortKey: params.productsSortKey || toolCallArg(context, params.sortKey),
               first,
-              query: params.productQuery?.trim(),
+              query: params.productQuery?.trim() || toolCallArg(context, params.query),
             }
 
           case 'shopify_update_product':
@@ -1616,10 +1633,7 @@ export const ShopifyBlock: BlockConfig = {
               descriptionHtml: params.descriptionHtml?.trim(),
               productType: params.productType?.trim(),
               vendor: params.vendor?.trim(),
-              tags: params.tags
-                ?.split(',')
-                .map((t: string) => t.trim())
-                .filter(Boolean),
+              tags: parseTagList(params.tags),
               status: params.status || undefined,
             }
 
@@ -1645,10 +1659,13 @@ export const ShopifyBlock: BlockConfig = {
           case 'shopify_list_orders':
             return {
               ...baseParams,
-              sortKey: params.ordersSortKey || undefined,
+              sortKey: params.ordersSortKey || toolCallArg(context, params.sortKey),
               first,
-              status: params.orderStatus !== 'any' ? params.orderStatus : undefined,
-              query: params.orderQuery?.trim(),
+              status:
+                params.orderStatus && params.orderStatus !== 'any'
+                  ? params.orderStatus
+                  : toolCallArg(context, params.status),
+              query: params.orderQuery?.trim() || toolCallArg(context, params.query),
             }
 
           case 'shopify_update_order':
@@ -1658,48 +1675,50 @@ export const ShopifyBlock: BlockConfig = {
             return {
               ...baseParams,
               orderId: params.orderId.trim(),
-              note: params.orderNote?.trim(),
-              email: params.orderEmail?.trim(),
-              phone: params.orderPhone?.trim(),
-              tags: params.orderTags
-                ?.split(',')
-                .map((t: string) => t.trim())
-                .filter(Boolean),
+              note: params.orderNote?.trim() ?? toolCallArg(context, params.note),
+              email: params.orderEmail?.trim() ?? toolCallArg(context, params.email),
+              phone: params.orderPhone?.trim() ?? toolCallArg(context, params.phone),
+              tags:
+                parseTagList(params.orderTags) ?? toolCallArg(context, parseTagList(params.tags)),
             }
 
           case 'shopify_cancel_order':
             if (!params.orderId?.trim()) {
               throw new Error('Order ID is required.')
             }
-            if (!params.cancelReason) {
-              throw new Error('Cancel reason is required.')
-            }
-            return {
-              ...baseParams,
-              orderId: params.orderId.trim(),
-              reason: params.cancelReason,
-              restock: parseOptionalBooleanInput(params.restock) ?? false,
-              notifyCustomer: parseOptionalBooleanInput(params.cancelNotifyCustomer),
-              refundMethod:
-                params.refundMethod ||
-                (parseOptionalBooleanInput(params.refundOriginalPayment) === true
-                  ? { originalPaymentMethodsRefund: true }
-                  : undefined),
-              staffNote: params.staffNote?.trim(),
+            {
+              const reason = params.cancelReason || toolCallArg(context, params.reason)
+              if (!reason) {
+                throw new Error('Cancel reason is required.')
+              }
+              return {
+                ...baseParams,
+                orderId: params.orderId.trim(),
+                reason,
+                restock: parseOptionalBooleanInput(params.restock) ?? false,
+                notifyCustomer:
+                  parseOptionalBooleanInput(params.cancelNotifyCustomer) ??
+                  toolCallArg(context, parseOptionalBooleanInput(params.notifyCustomer)),
+                refundMethod:
+                  params.refundMethod ||
+                  (parseOptionalBooleanInput(params.refundOriginalPayment) === true
+                    ? { originalPaymentMethodsRefund: true }
+                    : undefined),
+                staffNote: params.staffNote?.trim(),
+              }
             }
 
           case 'shopify_create_customer':
             return {
               ...baseParams,
-              email: params.customerEmail?.trim(),
+              email: params.customerEmail?.trim() ?? toolCallArg(context, params.email),
               firstName: params.firstName?.trim(),
               lastName: params.lastName?.trim(),
               phone: params.phone?.trim(),
-              note: params.customerNote?.trim(),
-              tags: params.customerTags
-                ?.split(',')
-                .map((t: string) => t.trim())
-                .filter(Boolean),
+              note: params.customerNote?.trim() ?? toolCallArg(context, params.note),
+              tags:
+                parseTagList(params.customerTags) ??
+                toolCallArg(context, parseTagList(params.tags)),
             }
 
           case 'shopify_get_customer':
@@ -1714,9 +1733,9 @@ export const ShopifyBlock: BlockConfig = {
           case 'shopify_list_customers':
             return {
               ...baseParams,
-              sortKey: params.customersSortKey || undefined,
+              sortKey: params.customersSortKey || toolCallArg(context, params.sortKey),
               first,
-              query: params.customerQuery?.trim(),
+              query: params.customerQuery?.trim() || toolCallArg(context, params.query),
             }
 
           case 'shopify_update_customer':
@@ -1726,15 +1745,14 @@ export const ShopifyBlock: BlockConfig = {
             return {
               ...baseParams,
               customerId: params.customerId.trim(),
-              email: params.customerEmail?.trim(),
+              email: params.customerEmail?.trim() ?? toolCallArg(context, params.email),
               firstName: params.firstName?.trim(),
               lastName: params.lastName?.trim(),
               phone: params.phone?.trim(),
-              note: params.customerNote?.trim(),
-              tags: params.customerTags
-                ?.split(',')
-                .map((t: string) => t.trim())
-                .filter(Boolean),
+              note: params.customerNote?.trim() ?? toolCallArg(context, params.note),
+              tags:
+                parseTagList(params.customerTags) ??
+                toolCallArg(context, parseTagList(params.tags)),
             }
 
           case 'shopify_delete_customer':
@@ -1750,7 +1768,7 @@ export const ShopifyBlock: BlockConfig = {
             return {
               ...baseParams,
               first,
-              query: params.inventoryQuery?.trim(),
+              query: params.inventoryQuery?.trim() || toolCallArg(context, params.query),
             }
 
           case 'shopify_get_inventory_level':
@@ -1787,11 +1805,11 @@ export const ShopifyBlock: BlockConfig = {
           case 'shopify_list_locations':
             return {
               ...baseParams,
-              sortKey: params.locationsSortKey || undefined,
+              sortKey: params.locationsSortKey || toolCallArg(context, params.sortKey),
               first,
               includeInactive: parseOptionalBooleanInput(params.includeInactive),
               includeLegacy: parseOptionalBooleanInput(params.includeLegacy),
-              query: params.locationQuery?.trim(),
+              query: params.locationQuery?.trim() || toolCallArg(context, params.query),
             }
 
           case 'shopify_create_fulfillment':
@@ -1810,9 +1828,9 @@ export const ShopifyBlock: BlockConfig = {
           case 'shopify_list_collections':
             return {
               ...baseParams,
-              sortKey: params.collectionsSortKey || undefined,
+              sortKey: params.collectionsSortKey || toolCallArg(context, params.sortKey),
               first,
-              query: params.collectionQuery?.trim(),
+              query: params.collectionQuery?.trim() || toolCallArg(context, params.query),
             }
 
           case 'shopify_get_collection':
@@ -1841,7 +1859,9 @@ export const ShopifyBlock: BlockConfig = {
             return {
               ...baseParams,
               fulfillmentId: params.fulfillmentId?.trim(),
-              notifyCustomer: parseOptionalBooleanInput(params.trackingNotifyCustomer),
+              notifyCustomer:
+                parseOptionalBooleanInput(params.trackingNotifyCustomer) ??
+                toolCallArg(context, parseOptionalBooleanInput(params.notifyCustomer)),
             }
           default:
             return baseParams

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -11,6 +12,7 @@ import { TypeformOperationError } from '@/lib/internal/typeform/errors'
 import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import type { TypeformFilesParams, TypeformFilesResponse } from '@/tools/typeform/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const MAX_TYPEFORM_FILE_BYTES = 10 * 1024 * 1024
 
@@ -22,9 +24,26 @@ export interface TypeformOperationContext {
   signal?: AbortSignal
 }
 
+/** Rejects dot segments (which `new URL` would resolve away) before they reach the authenticated request. */
+function typeformPathSegment(
+  value: string,
+  paramName: string,
+  options?: { allowSeparators?: boolean }
+): string {
+  try {
+    return safeUrlPathSegment(value, paramName, options)
+  } catch (error) {
+    throw new TypeformOperationError(getErrorMessage(error, `Invalid ${paramName}`), 400)
+  }
+}
+
 function buildTypeformFileUrl(input: TypeformFilesParams): string {
+  const formId = typeformPathSegment(input.formId, 'formId')
+  const responseId = typeformPathSegment(input.responseId, 'responseId')
+  const fieldId = typeformPathSegment(input.fieldId, 'fieldId')
+  const filename = typeformPathSegment(input.filename, 'filename', { allowSeparators: true })
   const url = new URL(
-    `https://api.typeform.com/forms/${encodeURIComponent(input.formId)}/responses/${encodeURIComponent(input.responseId)}/fields/${encodeURIComponent(input.fieldId)}/files/${encodeURIComponent(input.filename)}`
+    `https://api.typeform.com/forms/${formId}/responses/${responseId}/fields/${fieldId}/files/${filename}`
   )
   if (input.inline !== undefined) url.searchParams.set('inline', String(input.inline))
   return url.toString()

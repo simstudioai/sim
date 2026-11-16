@@ -1,6 +1,7 @@
 import { TYPEFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TypeformUpdateFormParams, TypeformUpdateFormResponse } from '@/tools/typeform/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateFormTool: ToolConfig<TypeformUpdateFormParams, TypeformUpdateFormResponse> = {
   id: 'typeform_update_form',
@@ -27,13 +28,13 @@ export const updateFormTool: ToolConfig<TypeformUpdateFormParams, TypeformUpdate
       required: true,
       visibility: 'user-only',
       description:
-        'Array of JSON Patch operations (RFC 6902). Each operation needs: op (add/remove/replace), path, and value (for add/replace)',
+        'Array of JSON Patch operations (RFC 6902), each with op, path, and value. Typeform accepts only these paths: /title, /settings/is_public, /settings/meta, /settings/google_analytics, /settings/google_tag_manager, /settings/facebook_pixel, /settings/enrichment_in_renderer, /settings/email_consent_notifications_config, /theme, /workspace',
     },
   },
 
   request: {
     url: (params: TypeformUpdateFormParams) => {
-      return `https://api.typeform.com/forms/${params.formId}`
+      return `https://api.typeform.com/forms/${safeUrlPathSegment(params.formId, 'formId')}`
     },
     method: 'PATCH',
     headers: (params) => ({

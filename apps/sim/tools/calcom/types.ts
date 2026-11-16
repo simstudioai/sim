@@ -464,6 +464,10 @@ export interface CalcomListBookingsParams {
   status?: 'upcoming' | 'recurring' | 'past' | 'cancelled' | 'unconfirmed'
   take?: number
   skip?: number
+  attendeeEmail?: string
+  afterStart?: string
+  beforeEnd?: string
+  sortStart?: 'asc' | 'desc'
 }
 
 export interface CalcomListBookingsResponse extends ToolResponse {

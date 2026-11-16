@@ -40,7 +40,7 @@ export const listOrganizationMembershipsTool: ToolConfig<
     email: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Filter memberships by member email address',
     },
     role: {

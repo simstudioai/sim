@@ -120,7 +120,7 @@ export const brexCreateSpendLimitTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Flexible buffer on the limit as a 0-100 percentage',
+      description: 'Flexible buffer on the limit as a whole-number percentage from 0 to 100',
     },
     description: {
       type: 'string',

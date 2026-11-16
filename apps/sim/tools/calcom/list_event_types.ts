@@ -85,6 +85,12 @@ export const listEventTypesTool: ToolConfig<
           disableGuests: { type: 'boolean', description: 'Whether guests are disabled' },
           createdAt: { type: 'string', description: 'ISO timestamp of creation' },
           updatedAt: { type: 'string', description: 'ISO timestamp of last update' },
+          bookingUrl: { type: 'string', description: 'Public booking page URL for the event type' },
+          hidden: {
+            type: 'boolean',
+            description: 'Whether the event type is hidden from the profile',
+          },
+          ownerId: { type: 'number', description: 'ID of the user who owns the event type' },
         },
       },
     },

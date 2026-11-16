@@ -28,7 +28,7 @@ export const getUserTool: ToolConfig<CalendlyGetUserParams, CalendlyGetUserRespo
 
   request: {
     url: (params: CalendlyGetUserParams) =>
-      `https://api.calendly.com/users/${toUuid(params.userUuid)}`,
+      `https://api.calendly.com/users/${toUuid(params.userUuid, 'userUuid')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

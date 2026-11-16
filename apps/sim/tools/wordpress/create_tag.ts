@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressCreateTagParams,
@@ -45,7 +46,8 @@ export const createTagTool: ToolConfig<WordPressCreateTagParams, WordPressCreate
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/tags`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/tags`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

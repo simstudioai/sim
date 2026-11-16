@@ -2,6 +2,7 @@ import { ZoomIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /*
@@ -10,6 +11,29 @@ import { getTrigger } from '@/triggers'
  * the raw id filled.
  */
 const MEETING_FIELD = ['meetingSelector', 'meetingId'] as const
+
+const MEETING_TYPE_OPTIONS = [
+  { label: 'Scheduled', id: '2' },
+  { label: 'Instant', id: '1' },
+  { label: 'Recurring (no fixed time)', id: '3' },
+  { label: 'Recurring (fixed time)', id: '8' },
+]
+
+const AUTO_RECORDING_OPTIONS = [
+  { label: 'None', id: 'none' },
+  { label: 'Local', id: 'local' },
+  { label: 'Cloud', id: 'cloud' },
+]
+
+/**
+ * A text input as a trimmed string. A model may send a Zoom meeting ID as a number, which the
+ * spec types as an integer.
+ */
+function trimmedText(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' || typeof value === 'bigint') return String(value)
+  return ''
+}
 
 export const ZoomBlock: BlockConfig = {
   type: 'zoom',
@@ -203,13 +227,27 @@ export const ZoomBlock: BlockConfig = {
       id: 'type',
       title: 'Meeting Type',
       type: 'dropdown',
-      options: [
-        { label: 'Scheduled', id: '2' },
-        { label: 'Instant', id: '1' },
-        { label: 'Recurring (no fixed time)', id: '3' },
-        { label: 'Recurring (fixed time)', id: '8' },
+      dependsOn: ['operation'],
+      /**
+       * Every context except a known Create Meeting leads with "No change", so an update does not
+       * turn a recurring meeting into a scheduled one; that includes agent tool rows, whose values
+       * carry no operation. Without block values (Copilot validation, catalogs) every option is
+       * listed, with "No change" last so the default stays Scheduled. Create sends Scheduled when
+       * left empty.
+       */
+      options: (params) => [
+        ...(params && params.values.operation !== 'zoom_create_meeting'
+          ? [{ label: 'No change', id: '' }]
+          : []),
+        ...MEETING_TYPE_OPTIONS,
+        ...(params ? [] : [{ label: 'No change', id: '' }]),
       ],
-      value: () => '2',
+      value: (params) =>
+        params?.operation === 'zoom_create_meeting'
+          ? '2'
+          : params?.operation === 'zoom_update_meeting'
+            ? ''
+            : undefined,
       condition: {
         field: 'operation',
         value: ['zoom_create_meeting', 'zoom_update_meeting'],
@@ -346,12 +384,24 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'autoRecording',
       title: 'Auto Recording',
       type: 'dropdown',
-      options: [
-        { label: 'None', id: 'none' },
-        { label: 'Local', id: 'local' },
-        { label: 'Cloud', id: 'cloud' },
+      dependsOn: ['operation'],
+      /**
+       * Same "No change" layout as Meeting Type, so a new Update Meeting block or agent tool row
+       * does not seed a value that would overwrite the meeting's recording setting.
+       */
+      options: (params) => [
+        ...(params && params.values.operation !== 'zoom_create_meeting'
+          ? [{ label: 'No change', id: '' }]
+          : []),
+        ...AUTO_RECORDING_OPTIONS,
+        ...(params ? [] : [{ label: 'No change', id: '' }]),
       ],
-      value: () => 'none',
+      value: (params) =>
+        params?.operation === 'zoom_create_meeting'
+          ? 'none'
+          : params?.operation === 'zoom_update_meeting'
+            ? ''
+            : undefined,
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -405,7 +455,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'fromDate',
       title: 'From Date',
       type: 'short-input',
-      placeholder: 'yyyy-mm-dd (within last 6 months)',
+      placeholder: 'yyyy-mm-dd (max 1-month range; defaults to today)',
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -415,7 +465,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         enabled: true,
         prompt: `Generate a date string based on the user's description.
 The date should be in the format: yyyy-mm-dd (e.g., 2024-01-15).
-This is for filtering Zoom recordings from this date (must be within last 6 months).
+This is for filtering Zoom recordings from this date. Zoom allows at most a one-month range and defaults to today when no date is given.
 Examples:
 - "last month" -> Calculate 30 days ago in yyyy-mm-dd format
 - "beginning of this month" -> First day of current month in yyyy-mm-dd format
@@ -497,6 +547,7 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
       id: 'cancelMeetingReminder',
       title: 'Send Cancellation Email',
       type: 'switch',
+      description: 'Email the meeting registrants about the cancellation',
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -527,23 +578,32 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
       tool: (params) => {
         return params.operation || 'zoom_create_meeting'
       },
-      params: (params) => {
-        const baseParams: Record<string, any> = {
+      params: (params, context) => {
+        const baseParams: Record<string, unknown> = {
           credential: params.oauthCredential,
         }
+        const userId = trimmedText(params.userId)
+        const meetingId = trimmedText(params.meetingId)
+        const requireUserId = () => {
+          if (!userId) throw new Error('User ID is required.')
+          return userId
+        }
+        const requireMeetingId = () => {
+          if (!meetingId) throw new Error('Meeting ID is required.')
+          return meetingId
+        }
 
-        switch (params.operation) {
-          case 'zoom_create_meeting':
-            if (!params.userId?.trim()) {
-              throw new Error('User ID is required.')
-            }
-            if (!params.topic?.trim()) {
+        switch (mapperOperation(params, context)) {
+          case 'zoom_create_meeting': {
+            const topic = trimmedText(params.topic)
+            requireUserId()
+            if (!topic) {
               throw new Error('Topic is required.')
             }
             return {
               ...baseParams,
-              userId: params.userId.trim(),
-              topic: params.topic.trim(),
+              userId,
+              topic,
               type: params.type ? Number(params.type) : 2,
               startTime: params.startTime,
               duration: params.duration ? Number(params.duration) : undefined,
@@ -557,37 +617,29 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
               waitingRoom: params.waitingRoom,
               autoRecording: params.autoRecording !== 'none' ? params.autoRecording : undefined,
             }
+          }
 
           case 'zoom_list_meetings':
-            if (!params.userId?.trim()) {
-              throw new Error('User ID is required.')
-            }
             return {
               ...baseParams,
-              userId: params.userId.trim(),
-              type: params.listType,
+              userId: requireUserId(),
+              type: params.listType || toolCallArg(context, params.type),
               pageSize: params.pageSize ? Number(params.pageSize) : undefined,
               nextPageToken: params.nextPageToken,
             }
 
           case 'zoom_get_meeting':
-            if (!params.meetingId?.trim()) {
-              throw new Error('Meeting ID is required.')
-            }
             return {
               ...baseParams,
-              meetingId: params.meetingId.trim(),
+              meetingId: requireMeetingId(),
               occurrenceId: params.occurrenceId,
             }
 
           case 'zoom_update_meeting':
-            if (!params.meetingId?.trim()) {
-              throw new Error('Meeting ID is required.')
-            }
             return {
               ...baseParams,
-              meetingId: params.meetingId.trim(),
-              topic: params.topicUpdate,
+              meetingId: requireMeetingId(),
+              topic: params.topicUpdate || toolCallArg(context, params.topic),
               type: params.type ? Number(params.type) : undefined,
               startTime: params.startTime,
               duration: params.duration ? Number(params.duration) : undefined,
@@ -603,65 +655,42 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
             }
 
           case 'zoom_delete_meeting':
-            if (!params.meetingId?.trim()) {
-              throw new Error('Meeting ID is required.')
-            }
             return {
               ...baseParams,
-              meetingId: params.meetingId.trim(),
+              meetingId: requireMeetingId(),
               occurrenceId: params.occurrenceId,
               cancelMeetingReminder: params.cancelMeetingReminder,
             }
 
           case 'zoom_get_meeting_invitation':
-            if (!params.meetingId?.trim()) {
-              throw new Error('Meeting ID is required.')
-            }
+          case 'zoom_get_meeting_recordings':
             return {
               ...baseParams,
-              meetingId: params.meetingId.trim(),
+              meetingId: requireMeetingId(),
             }
 
           case 'zoom_list_recordings':
-            if (!params.userId?.trim()) {
-              throw new Error('User ID is required.')
-            }
             return {
               ...baseParams,
-              userId: params.userId.trim(),
-              from: params.fromDate,
-              to: params.toDate,
+              userId: requireUserId(),
+              from: params.fromDate || toolCallArg(context, params.from),
+              to: params.toDate || toolCallArg(context, params.to),
               pageSize: params.pageSize ? Number(params.pageSize) : undefined,
               nextPageToken: params.nextPageToken,
             }
 
-          case 'zoom_get_meeting_recordings':
-            if (!params.meetingId?.trim()) {
-              throw new Error('Meeting ID is required.')
-            }
-            return {
-              ...baseParams,
-              meetingId: params.meetingId.trim(),
-            }
-
           case 'zoom_delete_recording':
-            if (!params.meetingId?.trim()) {
-              throw new Error('Meeting ID is required.')
-            }
             return {
               ...baseParams,
-              meetingId: params.meetingId.trim(),
+              meetingId: requireMeetingId(),
               recordingId: params.recordingId,
-              action: params.deleteAction,
+              action: params.deleteAction || toolCallArg(context, params.action),
             }
 
           case 'zoom_list_past_participants':
-            if (!params.meetingId?.trim()) {
-              throw new Error('Meeting ID is required.')
-            }
             return {
               ...baseParams,
-              meetingId: params.meetingId.trim(),
+              meetingId: requireMeetingId(),
               pageSize: params.pageSize ? Number(params.pageSize) : undefined,
               nextPageToken: params.nextPageToken,
             }
@@ -749,9 +778,9 @@ export const ZoomBlockMeta = {
     },
     {
       icon: ZoomIcon,
-      title: 'Zoom webinar follow-up',
+      title: 'Zoom meeting follow-up',
       prompt:
-        'Build a workflow that runs after a Zoom webinar, pulls the registrant and attendee lists, sends a follow-up email with the recording link, and writes attendance into HubSpot for marketing scoring.',
+        'Build a workflow that runs after a Zoom meeting ends, lists the past participants, sends each a follow-up email with the recording link, and writes attendance into HubSpot for marketing scoring.',
       modules: ['agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'crm'],

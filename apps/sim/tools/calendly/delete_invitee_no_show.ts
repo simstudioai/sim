@@ -34,7 +34,7 @@ export const deleteInviteeNoShowTool: ToolConfig<
 
   request: {
     url: (params: CalendlyDeleteInviteeNoShowParams) =>
-      `https://api.calendly.com/invitee_no_shows/${toUuid(params.noShowUuid)}`,
+      `https://api.calendly.com/invitee_no_shows/${toUuid(params.noShowUuid, 'noShowUuid')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

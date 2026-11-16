@@ -41,7 +41,7 @@ export const getEventInviteeTool: ToolConfig<
 
   request: {
     url: (params: CalendlyGetEventInviteeParams) =>
-      `https://api.calendly.com/scheduled_events/${toUuid(params.eventUuid)}/invitees/${toUuid(params.inviteeUuid)}`,
+      `https://api.calendly.com/scheduled_events/${toUuid(params.eventUuid, 'eventUuid')}/invitees/${toUuid(params.inviteeUuid, 'inviteeUuid')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
