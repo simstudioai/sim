@@ -8,6 +8,22 @@
 
 import type { AttributionProperties } from '@/lib/analytics/attribution'
 
+/**
+ * Where a write to a workflow's graph came from. `canvas` is the web or desktop
+ * editor (its live edits are counted by the realtime server), `api` the HTTP
+ * APIs, `cli` the Sim CLI, `mcp` the Sim MCP server, `copilot` the in-app
+ * agent, and `import`, `duplicate` and `fork` the doors that copy a workflow in.
+ */
+export type WorkflowWriteSource =
+  | 'canvas'
+  | 'copilot'
+  | 'cli'
+  | 'api'
+  | 'mcp'
+  | 'import'
+  | 'duplicate'
+  | 'fork'
+
 export interface PostHogEventMap {
   user_created: {
     auth_method: 'email' | 'oauth' | 'sso'
@@ -181,16 +197,6 @@ export interface PostHogEventMap {
   workflow_undeployed: {
     workflow_id: string
     workspace_id: string
-  }
-
-  /** A committed workflow source apply that changed the draft; `client` is the self-reported submitter. */
-  workflow_source_applied: {
-    workflow_id: string
-    workspace_id: string
-    blocks_added: number
-    blocks_removed: number
-    blocks_modified: number
-    client: string
   }
 
   workflow_restored: {
@@ -781,13 +787,6 @@ export interface PostHogEventMap {
   }
 
   /** A workflow's edit-lock was toggled on or off. */
-  /** The canvas Code tab was opened. */
-  code_view_opened: {
-    workflow_id: string
-    workspace_id: string
-    entry: 'toolbar' | 'shortcut' | 'link'
-  }
-
   workflow_lock_toggled: {
     workflow_id: string
     workspace_id?: string
@@ -929,6 +928,23 @@ export interface PostHogEventMap {
     subscription_id: string
     from_entity: 'user' | 'organization'
     to_entity: 'user' | 'organization'
+  }
+
+  /** Defined ahead of the code view; captured client-side when it ships. */
+  code_view_opened: {
+    workflow_id: string
+    workspace_id: string
+    entry: 'toolbar' | 'shortcut' | 'link'
+  }
+
+  /** Defined ahead of workflow source apply; captured when it ships. */
+  workflow_source_applied: {
+    workflow_id: string
+    workspace_id: string
+    source: WorkflowWriteSource
+    ok: boolean
+    ops: number
+    error_kind?: string
   }
 }
 

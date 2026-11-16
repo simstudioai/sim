@@ -295,7 +295,7 @@ describe('POST /api/v2/workflows/{workflowId}/source', () => {
     expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
       'user-1',
       'workflow_source_applied',
-      expect.objectContaining({ workflow_id: WORKFLOW_ID, blocks_modified: 1, client: 'cli' }),
+      { workflow_id: WORKFLOW_ID, workspace_id: WORKSPACE_ID, source: 'cli', ok: true, ops: 1 },
       { groups: { workspace: WORKSPACE_ID } }
     )
   })

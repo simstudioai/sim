@@ -1,9 +1,10 @@
-import { isUserCredentialPrincipal } from '@sim/auth/principal'
+import { isUserCredentialPrincipal, type Principal } from '@sim/auth/principal'
 import {
   v2ApplyWorkflowSourceContract,
   v2GetWorkflowSourceContract,
 } from '@/lib/api/contracts/v2/workflow-source'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import type { WorkflowWriteSource } from '@/lib/posthog/events'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
@@ -33,6 +34,17 @@ export const GET = defineV2JsonRoute({
   useCase: getWorkflowSource,
   present: (source) => ({ data: source }),
 })
+
+/** The user a source apply is attributed to in analytics, and the surface it came through. */
+function sourceActor(
+  principal: Principal,
+  client: string | undefined
+): { userId: string; source: WorkflowWriteSource } | null {
+  if (isUserCredentialPrincipal(principal)) {
+    return { userId: principal.userId, source: client === 'cli' ? 'cli' : 'api' }
+  }
+  return null
+}
 
 /**
  * POST /api/v2/workflows/[workflowId]/source — writes TypeScript source to the draft in one
@@ -75,19 +87,34 @@ export const POST = defineV2JsonRoute({
       needsRedeployment: result.needsRedeployment,
     },
   }),
-  /** Telemetry only, for writes that changed the draft. */
+  /**
+   * Telemetry only, for writes that changed the draft. A personal key or OAuth token counts as
+   * the user behind it (`cli` when the CLI submitted it). Workspace API keys are denied at
+   * admission, so no actorless write reaches here.
+   */
   onSuccess: ({ principal, input, result }) => {
-    if (!result.applied || !isUserCredentialPrincipal(principal)) return
+    if (!result.applied) return
+    const actor = sourceActor(principal, input.provenance?.client)
+    if (!actor) return
+    const { blocks, edges, variables } = result.diff
     captureServerEvent(
-      principal.userId,
+      actor.userId,
       'workflow_source_applied',
       {
         workflow_id: result.workflowId,
         workspace_id: result.workspaceId,
-        blocks_added: result.diff.blocks.added.length,
-        blocks_removed: result.diff.blocks.removed.length,
-        blocks_modified: result.diff.blocks.modified.length,
-        client: input.provenance?.client ?? 'api',
+        source: actor.source,
+        ok: true,
+        ops:
+          blocks.added.length +
+          blocks.removed.length +
+          blocks.renamed.length +
+          blocks.modified.length +
+          edges.added +
+          edges.removed +
+          variables.added.length +
+          variables.removed.length +
+          variables.modified.length,
       },
       { groups: { workspace: result.workspaceId } }
     )
