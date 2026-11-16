@@ -2,6 +2,8 @@ import { AffinityIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  isToolCall,
+  mapperOperation,
   parseOptionalBooleanInput,
   parseOptionalNumberInput,
   withSavedCredential,
@@ -1337,9 +1339,13 @@ export const AffinityBlock: BlockConfig = {
        * omitting a key leaves the previous operation's value on the wire — an
        * advanced field is serialized on non-emptiness alone, even while the UI
        * hides it. `undefined` is what actually drops one.
+       *
+       * On a tool call the model's args arrive under the tool's own param names,
+       * so a tool param the selected operation does not fill from a block field
+       * keeps the model's value instead of being dropped.
        */
-      params: (params) => {
-        const operation = String(params.operation ?? '')
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const isIn = (group: readonly string[]) => group.includes(operation)
 
         const isKeywordSearch = isIn(KEYWORD_SEARCH_OPERATIONS)
@@ -1380,7 +1386,7 @@ export const AffinityBlock: BlockConfig = {
         else if (isKeywordSearch) ids = params.searchIds
         else if (isFieldValueSelection) ids = params.valueFieldIds
 
-        return {
+        const toolParams: Record<string, unknown> = {
           apiKey: params.apiKey,
           entityType,
           type,
@@ -1470,6 +1476,16 @@ export const AffinityBlock: BlockConfig = {
           totalCount: isIn(TOTAL_COUNT_OPERATIONS)
             ? parseOptionalBooleanInput(params.totalCount)
             : undefined,
+        }
+
+        if (isToolCall(context)) {
+          for (const [key, value] of Object.entries(toolParams)) {
+            if (value === undefined) toolParams[key] = params[key]
+          }
+        }
+
+        return {
+          ...toolParams,
           fieldEntityType: undefined,
           noteEntityType: undefined,
           mergeEntityType: undefined,

@@ -13,6 +13,7 @@ import type {
 } from '@/lib/table/types'
 import type { BlockConfig } from '@/blocks/types'
 import {
+  mapperOperation,
   resolveTableColumnSelection,
   TABLE_OUTPUT_COLUMNS_INPUT,
   TABLE_OUTPUT_COLUMNS_SUBBLOCK,
@@ -86,9 +87,24 @@ function resolveFilter(params: TableBlockParams): TablePredicate | undefined {
   return normalizeTablePredicate(predicate)
 }
 
+/**
+ * A sort-spec array (`[{field, direction}]`), as a model passes the tool's `order` arg, rather
+ * than the visual builder's rules, which always carry `column`.
+ */
+function isSortSpec(raw: unknown[]): raw is SortSpec {
+  return (
+    raw.length > 0 &&
+    raw.every(
+      (entry) =>
+        typeof entry === 'object' && entry !== null && 'field' in entry && !('column' in entry)
+    )
+  )
+}
+
 function resolveOrder(params: TableBlockParams): SortSpec | undefined {
   const raw = params.sortInput
   if (Array.isArray(raw)) {
+    if (isSortSpec(raw)) return raw
     return raw.length > 0 ? (sortRulesToSortSpec(raw as SortRule[]) ?? undefined) : undefined
   }
   const parsed = parseJSON(raw, 'Sort')
@@ -542,9 +558,9 @@ Return ONLY the JSON object:`,
         }
         return toolMap[params.operation] || 'table_query_rows_v2'
       },
-      params: (params) => {
+      params: (params, context) => {
         const { operation, ...rest } = params
-        const transformer = paramTransformers[operation]
+        const transformer = paramTransformers[mapperOperation(params, context)]
         if (transformer) {
           return transformer(rest as TableBlockParams)
         }

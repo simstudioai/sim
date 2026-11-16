@@ -1,6 +1,7 @@
 import { ContextDevIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 /** Operations whose primary input is a full page URL. */
 const URL_OPS = [
@@ -628,9 +629,9 @@ Do not include any explanations, markdown formatting, or other text outside the 
     config: {
       tool: (params) =>
         params.operation ? `context_dev_${params.operation}` : 'context_dev_scrape_markdown',
-      params: (params) => {
-        const { operation, apiKey } = params
-        const result: Record<string, any> = { apiKey }
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const result: Record<string, unknown> = { apiKey: params.apiKey }
 
         const setBool = (key: string) => {
           if (params[key] != null) result[key] = params[key]

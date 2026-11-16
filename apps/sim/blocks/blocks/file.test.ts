@@ -186,4 +186,51 @@ describe('FileV5Block', () => {
       })
     ).toThrow('Manage Sharing accepts a single file at a time')
   })
+
+  describe('on a tool call, where the operation arrives only in context', () => {
+    it('sends the file picked on a Get Content row', () => {
+      expect(
+        FileV5Block.tools.config?.params?.(
+          { getContentInput: 'file-1', offset: 5 },
+          { operation: 'file_get_content' }
+        )
+      ).toEqual({ fileId: ['file-1'], workspaceId: undefined })
+    })
+
+    it('keeps the model folder the canonical pass republished as folderRef on write', () => {
+      expect(
+        FileV5Block.tools.config?.params?.(
+          { fileName: 'notes.md', content: 'hi', folderRef: '/Reports' },
+          { operation: 'file_write' }
+        )
+      ).toMatchObject({ fileName: 'notes.md', folderPath: '/Reports', content: 'hi' })
+    })
+
+    it('moves the model-named folder under the destination parent the row pins', () => {
+      expect(
+        FileV5Block.tools.config?.params?.(
+          { destinationParentRef: '/Archive', path: '/Reports/Q1', destinationPath: '/Other/Q1' },
+          { operation: 'file_update_folder' }
+        )
+      ).toMatchObject({ path: '/Reports/Q1', destinationPath: '/Archive/Q1' })
+    })
+
+    it('creates the model-named folder under the parent the row pins', () => {
+      expect(
+        FileV5Block.tools.config?.params?.(
+          { createParentRef: '/Reports', path: '/Other/New' },
+          { operation: 'file_create_folder' }
+        )
+      ).toMatchObject({ path: '/Reports/New' })
+    })
+
+    it('keeps the model path for Create Folder when the row pins no parent', () => {
+      expect(
+        FileV5Block.tools.config?.params?.(
+          { path: '/Other/New' },
+          { operation: 'file_create_folder' }
+        )
+      ).toMatchObject({ path: '/Other/New' })
+    })
+  })
 })

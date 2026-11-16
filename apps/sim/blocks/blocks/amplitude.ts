@@ -1,6 +1,6 @@
 import { AmplitudeIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 /*
  * Amplitude identifies a person by user id or device id — either one alone is
@@ -1012,10 +1012,10 @@ export const AmplitudeBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `amplitude_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'send_event':
             if (params.sendEventUserProperties)
               result.userProperties = params.sendEventUserProperties

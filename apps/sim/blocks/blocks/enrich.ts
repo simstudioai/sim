@@ -1,7 +1,7 @@
 import { EnrichSoIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
+import { isToolCall, mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 /**
  * City and country are independent filters rather than a canonical pair, so the
@@ -755,8 +755,15 @@ export const EnrichBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `enrich_${params.operation}`,
-      params: (params) => {
-        const { operation, ...rest } = params
+      params: (params, context) => {
+        const rest = params
+        const operation = mapperOperation(params, context)
+        const toolCall = isToolCall(context)
+        /** A block-only field; on a tool call a blank one yields to the model's arg under the tool's param name. */
+        const blockFieldOr = (blockValue: unknown, modelArg: unknown) =>
+          toolCall && (blockValue === undefined || blockValue === null || blockValue === '')
+            ? modelArg
+            : blockValue
         const parsedParams: Record<string, any> = { ...rest }
 
         try {
@@ -769,7 +776,11 @@ export const EnrichBlock: BlockConfig = {
           if (rest.industries && typeof rest.industries === 'string') {
             parsedParams.industries = JSON.parse(rest.industries)
           }
-          if (rest.companyIds && typeof rest.companyIds === 'string') {
+          if (
+            operation !== 'search_jobs' &&
+            rest.companyIds &&
+            typeof rest.companyIds === 'string'
+          ) {
             parsedParams.companyIds = JSON.parse(rest.companyIds)
           }
           if (rest.jobTitles && typeof rest.jobTitles === 'string') {
@@ -789,7 +800,7 @@ export const EnrichBlock: BlockConfig = {
         }
 
         if (operation === 'linkedin_profile') {
-          parsedParams.url = rest.linkedinUrl
+          parsedParams.url = blockFieldOr(rest.linkedinUrl, rest.url)
           parsedParams.linkedinUrl = undefined
         }
         if (
@@ -797,32 +808,32 @@ export const EnrichBlock: BlockConfig = {
           operation === 'linkedin_to_personal_email' ||
           operation === 'phone_finder'
         ) {
-          parsedParams.linkedinProfile = rest.linkedinUrl
+          parsedParams.linkedinProfile = blockFieldOr(rest.linkedinUrl, rest.linkedinProfile)
           parsedParams.linkedinUrl = undefined
         }
         if (operation === 'company_lookup') {
-          parsedParams.name = rest.companyName
+          parsedParams.name = blockFieldOr(rest.companyName, rest.name)
           parsedParams.companyName = undefined
         }
         if (operation === 'search_company') {
-          parsedParams.name = rest.searchCompanyName
+          parsedParams.name = blockFieldOr(rest.searchCompanyName, rest.name)
           parsedParams.searchCompanyName = undefined
         }
         if (operation === 'search_similar_companies') {
-          parsedParams.url = rest.linkedinCompanyUrl
+          parsedParams.url = blockFieldOr(rest.linkedinCompanyUrl, rest.url)
           parsedParams.linkedinCompanyUrl = undefined
         }
         if (operation === 'get_post_details') {
-          parsedParams.url = rest.postUrl
+          parsedParams.url = blockFieldOr(rest.postUrl, rest.url)
           parsedParams.postUrl = undefined
         }
         if (operation === 'search_logo') {
-          parsedParams.url = rest.domain
+          parsedParams.url = blockFieldOr(rest.domain, rest.url)
         }
         if (operation === 'search_jobs') {
-          parsedParams.location = rest.jobLocation
+          parsedParams.location = blockFieldOr(rest.jobLocation, rest.location)
           parsedParams.jobLocation = undefined
-          parsedParams.companyIds = rest.jobCompanyIds
+          parsedParams.companyIds = blockFieldOr(rest.jobCompanyIds, rest.companyIds)
           parsedParams.jobCompanyIds = undefined
         }
 

@@ -179,4 +179,33 @@ describe('AshbyBlock', () => {
       expect(explicit.sourceId).toBe('src-intended')
     })
   })
+  describe('agent tool calls (operation only in context)', () => {
+    const toolCall = (operation: string, args: Record<string, unknown>) => ({
+      ...args,
+      ...AshbyBlock.tools.config.params!(args, { operation }),
+    })
+
+    it('maps block-only fields saved on the tool row to the tool params', () => {
+      const result = toolCall('create_application', {
+        appCandidateId: 'cand-1',
+        appCreatedAt: '2026-01-01T00:00:00Z',
+        jobId: 'job-1',
+      })
+      expect(result.candidateId).toBe('cand-1')
+      expect(result.createdAt).toBe('2026-01-01T00:00:00Z')
+    })
+
+    it('keeps model args keyed by the tool param names', () => {
+      const values = [{ fieldId: 'f-1', fieldValue: 'High' }]
+      expect(
+        toolCall('set_custom_field_values', { objectType: 'Candidate', objectId: 'c-1', values })
+          .values
+      ).toEqual(values)
+      expect(
+        toolCall('change_application_source', { applicationId: 'app-1', sourceId: 'src-1' })
+          .sourceId
+      ).toBe('src-1')
+      expect(toolCall('search_candidates', { name: 'Ada', limit: 5 }).limit).toBe(5)
+    })
+  })
 })
