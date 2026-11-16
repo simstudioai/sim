@@ -262,9 +262,10 @@ function blockCases(config: BlockConfig, registry: Registry, seed: number): Corp
     after?: (builder: CaseBuilder, subjectId: string) => void
   ) => {
     const builder = new CaseBuilder(seed, `${kind}:${type}:${detail}`)
-    const start = startBlock(builder, registry)
+    // The Start block is single-instance: a start_trigger subject is the case's only Start.
+    const start = type === 'start_trigger' ? null : startBlock(builder, registry)
     const { block } = subject(builder, registry, config, options)
-    if (!isTriggerOnly(config, options.triggerMode ?? false) && canConnect(config)) {
+    if (start && !isTriggerOnly(config, options.triggerMode ?? false) && canConnect(config)) {
       builder.connect(start, block.id)
     }
     after?.(builder, block.id)
