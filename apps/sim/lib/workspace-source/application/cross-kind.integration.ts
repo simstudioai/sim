@@ -47,10 +47,17 @@ vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-import { deleteWorkspaceCustomToolUseCase } from '@/lib/custom-tools/application/use-cases'
-import { deleteKnowledgeBaseOperation } from '@/lib/knowledge/application/knowledge-bases'
+import {
+  createWorkspaceCustomToolUseCase,
+  deleteWorkspaceCustomToolUseCase,
+} from '@/lib/custom-tools/application/use-cases'
+import {
+  createKnowledgeBase,
+  deleteKnowledgeBaseOperation,
+} from '@/lib/knowledge/application/knowledge-bases'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
-import { deleteTableUseCase } from '@/lib/table/application/tables'
+import { createSkillUseCase } from '@/lib/skills/application/use-cases'
+import { createTableUseCase, deleteTableUseCase } from '@/lib/table/application/tables'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import {
@@ -550,6 +557,63 @@ describe('workspace source across kinds', () => {
       expect(findings((await plan(501)).diagnostics, 'error')).toEqual([
         'E_LIMIT_EXCEEDED custom-tool:undefined',
       ])
+    }
+  )
+
+  check(
+    'renaming any named resource to a name another one holds is refused at plan, nothing written',
+    async () => {
+      const { workspaceId, dir, base } = await setUp()
+      const principal = owner
+      await createTableUseCase.execute({
+        principal,
+        input: {
+          workspaceId,
+          name: 'contacts',
+          schema: { columns: [{ name: 'email', type: 'string' }] },
+        },
+      })
+      await createWorkspaceCustomToolUseCase.execute({
+        principal,
+        input: {
+          workspaceId,
+          title: 'Taken tool',
+          schema: {
+            type: 'function',
+            function: { name: 'taken', parameters: { type: 'object', properties: {} } },
+          },
+          code: 'return 1',
+        },
+      })
+      await createSkillUseCase.execute({
+        principal,
+        input: { workspaceId, name: 'taken', description: 'Taken', content: 'Taken' },
+      })
+      await createKnowledgeBase.execute({ principal, input: { workspaceId, name: 'Taken KB' } })
+      const before = await snapshot(workspaceId)
+      const rename = (path: string, from: string, to: string) => [
+        path,
+        dir.files[path].replace(from, to),
+      ]
+      const files = {
+        ...dir.files,
+        ...Object.fromEntries([
+          rename('tables/leads.ts', "name: 'leads'", "name: 'Contacts'"),
+          rename('tools/lookup.ts', "title: 'Lookup order'", "title: 'Taken tool'"),
+          rename('skills/tone.md', 'name: tone', 'name: taken'),
+          rename('knowledge/policies/knowledge.ts', "name: 'Policies'", "name: 'Taken KB'"),
+        ]),
+      }
+
+      const refused = await refusal(apply(workspaceId, { ...dir, files }, { base }))
+
+      expect(findings(refused.diagnostics, 'error')).toEqual([
+        'E_NAME_TAKEN custom-tool:lookup',
+        'E_NAME_TAKEN knowledge-base:policies',
+        'E_NAME_TAKEN skill:tone',
+        'E_NAME_TAKEN table:leads',
+      ])
+      expect(await snapshot(workspaceId)).toEqual(before)
     }
   )
 })

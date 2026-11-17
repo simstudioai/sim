@@ -90,6 +90,14 @@ async function reload(ctx: SourceContext, tableId: string): Promise<StoredTableS
   return { table, folderPath: tableFolderPathForId(folders, table.folderId) }
 }
 
+/** The table other than `self` that holds `name` (table names are case-insensitive). */
+function nameHolder(stored: StoredSet<StoredTableState>, name: string, self?: string) {
+  const folded = name.toLowerCase()
+  return [...stored.bound.values(), ...stored.unbound].find(
+    (table) => table.id !== self && table.name.toLowerCase() === folded
+  )
+}
+
 async function planTable(
   key: string,
   decl: TableDecl,
@@ -146,9 +154,7 @@ async function planTable(
           : {}),
       }
     case 'create': {
-      const holder = [...stored.bound.values(), ...stored.unbound].find(
-        (table) => table.name.toLowerCase() === decl.name.toLowerCase()
-      )
+      const holder = nameHolder(stored, decl.name)
       if (holder) {
         change.diagnostics.push(
           kindFinding(
@@ -170,6 +176,18 @@ async function planTable(
     case 'adopt':
     case 'update': {
       const { state } = resolution.stored
+      const holder = nameHolder(stored, decl.name, resolution.stored.id)
+      if (holder) {
+        change.diagnostics.push(
+          kindFinding(
+            'table',
+            key,
+            'E_NAME_TAKEN',
+            `The table name "${decl.name}" belongs to ${holder.key ? `the table under key "${holder.key}"` : 'another table'}.`,
+            'Pick another name, or rename that table first.'
+          )
+        )
+      }
       if (resolution.action === 'adopt') {
         ctx.pending.push({ kind: 'table', key, id: resolution.stored.id })
       }
