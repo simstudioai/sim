@@ -64,20 +64,10 @@ describe('workflow references', () => {
     }
   })
 
-  it('scans many references in time linear in the input', () => {
-    const fastest = (count: number) => {
-      const source = '<a.b>{{K}}'.repeat(count)
-      let best = Number.POSITIVE_INFINITY
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const started = performance.now()
-        findWorkflowReferenceTokens(source)
-        best = Math.min(best, performance.now() - started)
-      }
-      return best
-    }
-    const small = fastest(8_000)
-    // Ten times the input: about 10x when linear, 100x when quadratic.
-    expect(fastest(80_000)).toBeLessThan(Math.max(small, 1) * 40)
+  it('finds every reference and env token in a long mixed input', () => {
+    // 160k tokens: the all-pairs scan this replaced takes far past the test timeout here.
+    const tokens = findWorkflowReferenceTokens('<a.b>{{K}}'.repeat(80_000))
+    expect(tokens).toHaveLength(160_000)
   })
 })
 

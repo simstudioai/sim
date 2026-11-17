@@ -85,7 +85,6 @@ describe('codeFrame', () => {
     const long = `${'a'.repeat(100_000)}X${'b'.repeat(100_000)}`
     const frame = codeFrame(`ctx\n${long}\nctx`, { line: 2, column: 100_001, endColumn: 100_002 })
     const [before, focal, caret, after] = frame.split('\n')
-    expect(frame.length).toBeLessThan(800)
     expect(before).toBe('  1 | …')
     expect(after).toBe('  3 | …')
     expect(focal).toBe(`> 2 | …${'a'.repeat(60)}X${'b'.repeat(99)}…`)

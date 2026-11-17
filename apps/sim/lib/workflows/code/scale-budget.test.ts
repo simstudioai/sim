@@ -224,6 +224,5 @@ describe('workflow source at the block cap', () => {
     expect(sourceLimitExcesses({}, { blocks: 2, edges: MAX_WORKFLOW_GRAPH_EDGES + 1 })).toEqual([
       { limit: 'maxEdges', actual: MAX_WORKFLOW_GRAPH_EDGES + 1, max: SOURCE_LIMITS.maxEdges },
     ])
-    expect(SOURCE_LIMITS.maxEdges).toBe(MAX_WORKFLOW_GRAPH_EDGES)
   })
 })

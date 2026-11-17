@@ -118,6 +118,7 @@ function copilotDraftKey(
 ): string | undefined {
   return workflowId ? `${workspaceId}:workflow-copilot:${workflowId}:${chatId ?? 'new'}` : undefined
 }
+
 /** Shared chrome for the panel's tab buttons: a border only while active or hovered. */
 function tabButtonClass(isActive: boolean): string {
   return cn(
@@ -145,7 +146,6 @@ function tabButtonClass(isActive: boolean): string {
  *
  * @returns Panel on the right side of the workflow
  */
-
 export const Panel = memo(function Panel() {
   const router = useResourceRouter()
   const { workspaceId, workflowId: scopedWorkflowId } = useWorkflowScope()

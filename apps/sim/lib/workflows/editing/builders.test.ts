@@ -157,14 +157,18 @@ describe('createBlockFromParams', () => {
     mockGetBlock.mockImplementation((type: string) =>
       type === 'schedule' ? ScheduleBlock : blocksByType[type]
     )
-    const block = createBlockFromParams('schedule-1', {
-      type: 'schedule',
-      name: 'Daily',
-      triggerMode: true,
-      inputs: { scheduleType: 'daily', dailyTime: '09:00' },
-    })
-    expect(block.subBlocks.timezone?.value ?? null).toBeNull()
-    mockGetBlock.mockImplementation((type: string) => blocksByType[type])
+    try {
+      const block = createBlockFromParams('schedule-1', {
+        type: 'schedule',
+        name: 'Daily',
+        triggerMode: true,
+        inputs: { scheduleType: 'daily', dailyTime: '09:00' },
+      })
+      expect(block.subBlocks.timezone).toBeDefined()
+      expect(block.subBlocks.timezone?.value ?? null).toBeNull()
+    } finally {
+      mockGetBlock.mockImplementation((type: string) => blocksByType[type])
+    }
   })
 
   it.each([
