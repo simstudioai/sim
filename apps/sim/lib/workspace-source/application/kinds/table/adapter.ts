@@ -174,7 +174,7 @@ async function planTable(
             'table',
             key,
             'E_APPLY_DELETE_NOT_ALLOWED',
-            `This ${losses.join(' and ')} of "${state.table.name}", losing ${changes.lostCells} cell(s).`,
+            `This ${losses.join(' and ')} of "${state.table.name}"${changes.lostCells > 0 ? `, losing ${changes.lostCells} cell(s)` : ''}.`,
             'Pass --allow-delete to apply it, or keep the columns and options declared.'
           )
         )
@@ -184,7 +184,7 @@ async function planTable(
         action: resolution.action === 'adopt' ? 'adopt' : changed ? 'update' : 'noop',
         storedId: resolution.stored.id,
         ...(changes.fields.length > 0 ? { fields: changes.fields } : {}),
-        ...(changes.lostCells > 0
+        ...(changes.dropped > 0 || changes.lostCells > 0
           ? {
               destructive: {
                 what: 'cells',

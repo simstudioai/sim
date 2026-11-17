@@ -864,6 +864,33 @@ describe('workspace source apply', () => {
     expect((await storedTable(workspaceId)).description ?? null).toBeNull()
   })
 
+  check(
+    'dropping an empty column needs --allow-delete and shows in the destructive line',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const files = {
+        ...read.files,
+        'tables/leads.ts': read.files['tables/leads.ts'].replace(/\n\s*status: [^\n]*/, ''),
+      }
+
+      const refused = await refusal(apply(workspaceId, files, { base: read.base }))
+      const planned = await apply(workspaceId, files, {
+        base: read.base,
+        allowDelete: true,
+        dryRun: true,
+      })
+
+      expect(refused.diagnostics.find((finding) => finding.severity === 'error')?.message).toBe(
+        'This drops 1 column(s) of "leads".'
+      )
+      expect(planned.plan).toMatchObject([
+        { key: 'leads', destructive: { counts: { columns: 1, cells: 0 } } },
+        { key: 'ingest' },
+      ])
+    }
+  )
+
   check('warns that a base read from another workspace creates everything anew', async () => {
     const workspaceId = await newWorkspace()
     const read = await setUp(workspaceId)
