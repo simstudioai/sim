@@ -331,12 +331,7 @@ function compileToolCall(
           'E_UNKNOWN_PARAM',
           `${key} is not a tool option.`,
           rangeOf(ctx, property),
-          {
-            ...(didYouMean(key, TOOL_OPTIONS) !== undefined && {
-              hint: didYouMean(key, TOOL_OPTIONS),
-            }),
-            blockKey: site.decl.key,
-          }
+          { hint: didYouMean(key, TOOL_OPTIONS), blockKey: site.decl.key }
         )
         return null
     }
@@ -760,6 +755,18 @@ export function compileToolList(
       const tools: CanonicalTool[] = []
       for (const tool of compiled.value) if (isCanonicalTool(tool)) tools.push(tool)
       if (tools.length === compiled.value.length) return tools
+      const malformed = compiled.value.findIndex((tool) => !isCanonicalTool(tool))
+      const elements =
+        node.type === 'CallExpression' && node.arguments[0]?.type === 'ArrayExpression'
+          ? node.arguments[0].elements
+          : []
+      return unsupported(
+        ctx,
+        elements[malformed] ?? node,
+        'raw(tool) needs type, params and modes.',
+        'Write raw({ type, params: {}, modes: {} }).',
+        site.decl.key
+      )
     }
     if (compiled)
       unsupported(
@@ -778,7 +785,7 @@ export function compileToolList(
       return unsupported(
         ctx,
         element ?? node,
-        'Write each tool explicitly.',
+        'A tool list cannot hold a hole or a spread.',
         'Write each tool explicitly.',
         site.decl.key
       )
@@ -799,8 +806,8 @@ export function compileToolList(
       calls.push(null)
       continue
     }
-    const compiled = calleePath(element.callee)?.root
-    const rootBinding = compiled === undefined ? null : lookup(site.scope, compiled)
+    const rootName = calleePath(element.callee)?.root
+    const rootBinding = rootName === undefined ? null : lookup(site.scope, rootName)
     if (
       rootBinding?.kind === 'sdk' &&
       rootBinding.name === 'customTool' &&

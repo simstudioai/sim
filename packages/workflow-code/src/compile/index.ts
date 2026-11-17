@@ -264,14 +264,11 @@ function compileWorkflowCall(
         } else if (key === 'variables') {
           compileVariables(ctx, property.value)
         } else {
-          const hint = didYouMean(key, WORKFLOW_OPTIONS)
           ctx.reporter.report(
             'E_UNKNOWN_PARAM',
             `${key} is not a workflow option.`,
             rangeOf(ctx, property),
-            {
-              ...(hint !== undefined && { hint }),
-            }
+            { hint: didYouMean(key, WORKFLOW_OPTIONS) }
           )
         }
       }

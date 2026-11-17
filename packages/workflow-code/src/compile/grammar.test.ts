@@ -758,6 +758,13 @@ describe('errors, each with its code, location and hint', () => {
       'Write a string, number, boolean, null, array or object here.',
     ],
     [
+      'a malformed tool in raw([...])',
+      "const a = agent('A', { model: 'm', tools: raw([{ type: 'x', params: {}, modes: {} }, { type: 'y' }]) })",
+      'E_UNSUPPORTED_SYNTAX',
+      "{ type: 'y' }",
+      'Write raw({ type, params: {}, modes: {} }).',
+    ],
+    [
       'a template tag called as a function',
       "const a = api('A', { url: t('x') })",
       'E_UNSUPPORTED_SYNTAX',
