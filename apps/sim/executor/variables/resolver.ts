@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import {
+  buildCanonicalIndex,
+  resolveCanonicalMode,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
@@ -285,17 +289,25 @@ interface TemplateResolutionOptions {
   jsonText?: boolean
 }
 
-/** Whether `key` is a block input the editor stores as JSON text (a JSON code field). */
+/**
+ * Whether `key` is a block input the editor stores as JSON text (a JSON code field). A canonical
+ * id is JSON only while the active member of its basic/advanced pair is the JSON field: the
+ * block's mode override picks it, as the serializer's collapse did, and a pair without one reads
+ * its basic member (the member values are gone by now, so the value heuristic cannot rerun).
+ */
 function isJsonCodeInput(block: SerializedBlock | undefined, key: string): boolean {
   const blockType = block?.metadata?.id
-  if (!blockType) return false
-  return (
-    getBlock(blockType)?.subBlocks.some(
-      (subBlock) =>
-        subBlock.type === 'code' &&
-        subBlock.language === 'json' &&
-        (subBlock.id === key || subBlock.canonicalParamId === key)
-    ) ?? false
+  const subBlocks = blockType ? getBlock(blockType)?.subBlocks : undefined
+  if (!block || !subBlocks) return false
+  const group = buildCanonicalIndex(subBlocks).groupsById[key]
+  const activeIds = !group
+    ? [key]
+    : resolveCanonicalMode(group, {}, block.canonicalModes) === 'advanced'
+      ? group.advancedIds
+      : [group.basicId]
+  return subBlocks.some(
+    (subBlock) =>
+      activeIds.includes(subBlock.id) && subBlock.type === 'code' && subBlock.language === 'json'
   )
 }
 
