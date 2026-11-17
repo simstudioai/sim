@@ -34,6 +34,7 @@
     "test:workflow-version-compare:e2e": "bun --no-env-file scripts/test-workflow-version-compare-e2e.ts",
     "test:workflow-source:e2e": "bun --no-env-file scripts/test-workflow-source-e2e.ts",
     "test:workflow-source-apply:e2e": "bun --no-env-file scripts/test-workflow-source-apply-e2e.ts",
+    "test:workspace-source:e2e": "bun --no-env-file scripts/test-workspace-source-e2e.ts",
     "test:workflow-code-ui:e2e": "bun --no-env-file scripts/test-workflow-code-ui-e2e.ts",
     "test:workflow-stop-after:e2e": "bun --no-env-file scripts/test-workflow-stop-after-e2e.ts",
     "test:workflow-pinned-execute:e2e": "bun --no-env-file scripts/test-workflow-pinned-execute-e2e.ts",
