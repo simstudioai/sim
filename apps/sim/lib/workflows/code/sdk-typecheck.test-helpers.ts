@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type { BlockCatalog } from '@sim/workflow-code'
-import { generateSdkTypes } from '@sim/workflow-sdk/codegen'
+import { generateSdkTypes, SOURCE_COMPILER_OPTIONS } from '@sim/workflow-sdk/codegen'
 
 const REPO_ROOT = path.resolve(process.cwd(), '../..')
 /** The SDK package, whose `src/core.d.ts` every type-check resolves `@sim/workflow-sdk` to. */
@@ -21,7 +21,7 @@ export function writeSdkTypes(dir: string, catalog: BlockCatalog) {
 
 /**
  * Type-checks `include` against `core.d.ts` and the declarations under `<dir>/types` with the
- * workspace compiler, strict. Returns the compiler's output: empty when everything checks.
+ * workspace compiler and the options every source directory gets. Returns the compiler's output: empty when everything checks.
  */
 export function typeCheckAgainstSdk(dir: string, name: string, include: string[]): string {
   const tsconfig = path.join(dir, `tsconfig.${name}.json`)
@@ -29,14 +29,7 @@ export function typeCheckAgainstSdk(dir: string, name: string, include: string[]
     tsconfig,
     JSON.stringify({
       compilerOptions: {
-        target: 'ES2022',
-        lib: ['ES2022'],
-        module: 'ESNext',
-        moduleResolution: 'bundler',
-        moduleDetection: 'force',
-        types: [],
-        strict: true,
-        noEmit: true,
+        ...SOURCE_COMPILER_OPTIONS,
         skipLibCheck: false,
         paths: { '@sim/workflow-sdk': [path.join(SDK_ROOT, 'src/core.d.ts')] },
       },
