@@ -245,16 +245,19 @@ func windowsFor(_ pid: pid_t) -> [[String: Any]] {
     guard let entries = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return [] }
     return entries.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }
 }
-/// Whether the app shows a window an observation can target: an Accessibility window whose frame
-/// matches one of its on-screen windows, the same match `get_app_state` uses to list windows.
+/// Whether the app has a window an observation can list: an Accessibility window whose frame matches
+/// one of its window-list entries, the match `get_app_state` uses. A minimized window counts, since it
+/// is listed and `activate_app` can bring it forward.
 func hasObservableWindow(_ pid: pid_t) -> Bool {
     let root = AXUIElementCreateApplication(pid)
     AXUIElementSetMessagingTimeout(root, 0.1)
     guard let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement] else { return false }
-    let frames = windows.compactMap(elementRect)
+    let frames = windows.compactMap { window -> CGRect? in
+        AXUIElementSetMessagingTimeout(window, 0.1)
+        return elementRect(window)
+    }
     return windowsFor(pid).contains { entry in
-        guard entry[kCGWindowIsOnscreen as String] as? Bool == true,
-              let bounds = entry[kCGWindowBounds as String] as? [String: Any],
+        guard let bounds = entry[kCGWindowBounds as String] as? [String: Any],
               let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), rect.width > 0, rect.height > 0 else { return false }
         return frames.contains(rect)
     }
