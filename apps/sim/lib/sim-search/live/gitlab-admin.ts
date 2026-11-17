@@ -22,10 +22,14 @@ import type {
   NativePage,
   NativeSearchInput,
 } from '@/lib/sim-search/live/types'
-import { type GitLabGroupScope, gitLabProjectInGroup } from '@/connectors/gitlab/group'
+import {
+  type GitLabGroupScope,
+  gitLabGroupMatchesConfig,
+  gitLabProjectInGroup,
+} from '@/connectors/gitlab/group'
 import {
   readGitLabPermissionMetadata,
-  seedGitLabCsvContext,
+  seedGitLabPermissionContext,
 } from '@/connectors/gitlab/permission-config/repository'
 import {
   type GitLabCsvSyncContext,
@@ -154,7 +158,7 @@ async function createProjectSession(
   const { config } = source
   const context = {}
   if (groupProject?.csv) setGitLabCsvContext(context, groupProject.identity)
-  else if (!groupProject) await seedGitLabCsvContext(source.id, context)
+  else if (!groupProject) await seedGitLabPermissionContext(source.id, context)
   const csv = getGitLabCsvContext(context)
   const tokens = new Set([own])
   let project: string
@@ -370,15 +374,7 @@ async function createGroupSession(input: GitLabSessionInput, own: string) {
   const { source, client } = input
   const [stored] = await readConnectorPermissionMetadata([source.id])
   const metadata = stored && readGitLabPermissionMetadata(stored.metadata)
-  if (
-    !metadata ||
-    !('group' in metadata) ||
-    metadata.host !== normalizeGitLabHost(source.config.host) ||
-    ![String(metadata.group.id), metadata.group.path].includes(
-      string(source.config.group).trim()
-    ) ||
-    (source.config.includeSubgroups === 'true') !== metadata.group.includeSubgroups
-  )
+  if (!metadata || !('group' in metadata) || !gitLabGroupMatchesConfig(metadata, source.config))
     throw new NativeSearchError('unavailable', 'An admin must update this GitLab group connection.')
   const grants =
     metadata.mode === 'csv'

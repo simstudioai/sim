@@ -17,7 +17,7 @@ import {
   type GitLabSourcePolicy,
 } from '@/connectors/gitlab/permission-policy'
 import type { ConnectorDirectory, ExternalDocument } from '@/connectors/types'
-import { normalizeGitLabHost } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, normalizeGitLabHost } from '@/tools/gitlab/utils'
 
 const logger = createLogger('GitLabPermissions')
 
@@ -81,6 +81,7 @@ export async function discoverGitLabGroup(
     throw new Error('Provide a GitLab group ID or full path without a project.')
   if (![undefined, '', 'true', 'false'].includes(config.includeSubgroups as string | undefined))
     throw new Error('Invalid GitLab subgroup setting')
+  const encodedGroup = encodeGitLabResourceId(requested)
   const base = `https://${host}/api/v4`
   const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, 'account', true, signal)
   if (
@@ -95,7 +96,7 @@ export async function discoverGitLabGroup(
         : 'An active GitLab identity with read_api access is required'
     )
   const record = await read<{ id: number; full_path: string }>(
-    `${base}/groups/${encodeURIComponent(requested)}`,
+    `${base}/groups/${encodedGroup}`,
     token,
     'group',
     true,

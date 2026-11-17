@@ -292,6 +292,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
           accessMode: 'members',
         })
         const rejection = await validateConnectorSourceConfig({
+          isSearchIndex: context.knowledgeBase.isSearchIndex === true,
           principal,
           connector: { ...connector, accessMode: 'members', credentialId },
           sourceConfig,
@@ -324,6 +325,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
         }),
       }
       const rejection = await validateConnectorSourceConfig({
+        isSearchIndex: context.knowledgeBase.isSearchIndex === true,
         principal,
         connector: {
           ...connector,
@@ -347,7 +349,12 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
     }
 
     const outcome = await performUpdateKnowledgeConnectorAccess({
-      knowledgeBase: { id: context.knowledgeBaseId, name: context.knowledgeBase.name, ...owner },
+      knowledgeBase: {
+        id: context.knowledgeBaseId,
+        name: context.knowledgeBase.name,
+        isSearchIndex: context.knowledgeBase.isSearchIndex === true,
+        ...owner,
+      },
       connectorId: context.connectorId,
       target,
       sourceConfig: input.sourceConfig === undefined ? undefined : sourceConfig,

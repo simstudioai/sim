@@ -392,7 +392,7 @@ export async function validateConnectorSourceConfig(input: {
   actingUserId: string
   requestId: string
   permissionChange?: PreparedConnectorPermissions
-  isSearchIndex?: boolean
+  isSearchIndex: boolean
 }): Promise<SourceConfigRejection | null> {
   const accessMode = input.connector.accessMode
   if (!isConnectorAccessMode(accessMode)) {

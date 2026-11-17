@@ -14,7 +14,7 @@ import sys
 import tempfile
 import time
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode, urlsplit
+from urllib.parse import quote, unquote, urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 
@@ -74,6 +74,17 @@ class GitLab:
             raise ExportError("GitLab returned invalid JSON.") from None
 
 
+def resource_id(value):
+    raw = str(value).strip()
+    try:
+        decoded = unquote(raw, errors="strict")
+    except UnicodeDecodeError:
+        decoded = raw
+    if not decoded or decoded in (".", ".."):
+        raise ExportError("Use a valid GitLab project or group ID or full path.")
+    return quote(decoded, safe="")
+
+
 def identifier(value):
     if type(value) is not int or not 0 < value <= 9_007_199_254_740_991:
         raise ExportError("GitLab returned an invalid numeric identity.")
@@ -108,7 +119,7 @@ def verified_email(profile, user_id):
 
 
 def export(client, project, profiles):
-    record, _ = client.get("projects/" + quote(project, safe=""))
+    record, _ = client.get("projects/" + resource_id(project))
     if not isinstance(record, dict):
         raise ExportError("GitLab returned an invalid project.")
     project_id = identifier(record.get("id"))
@@ -185,7 +196,7 @@ def export(client, project, profiles):
 
 
 def group_projects(client, group, include_subgroups):
-    record, _ = client.get("groups/" + quote(group, safe=""))
+    record, _ = client.get("groups/" + resource_id(group))
     if not isinstance(record, dict):
         raise ExportError("GitLab returned an invalid group.")
     group_id = identifier(record.get("id"))

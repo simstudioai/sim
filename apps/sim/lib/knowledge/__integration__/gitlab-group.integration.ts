@@ -18,7 +18,7 @@ import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const transport = vi.hoisted(() => ({ origin: '' }))
+const transport = vi.hoisted(() => ({ origin: '', paths: [] as string[] }))
 vi.mock('@/lib/core/security/input-validation.server', async (original) => {
   const module = await original<typeof import('@/lib/core/security/input-validation.server')>()
   return {
@@ -27,12 +27,14 @@ vi.mock('@/lib/core/security/input-validation.server', async (original) => {
       const target = new URL(url)
       if (target.hostname !== 'gitlab.fixture.test')
         throw new Error('Unexpected fixture destination')
+      transport.paths.push(target.pathname)
       return fetch(`${transport.origin}${target.pathname}${target.search}`, options)
     },
   }
 })
 
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
+import { updateKnowledgeConnectorAccess } from '@/lib/knowledge/application/connector-access'
 import { createKnowledgeConnector } from '@/lib/knowledge/application/connectors'
 import {
   readSearchSourcePermissions,
@@ -241,7 +243,7 @@ describe('GitLab group Search permission boundary', () => {
             boundary:
               'Application use cases, real PostgreSQL and HTTP GitLab API fixture; TLS/SSRF transport substituted',
             checks,
-            passed: checks.length === 6,
+            passed: checks.length === 8,
           },
           null,
           2
@@ -255,6 +257,71 @@ describe('GitLab group Search permission boundary', () => {
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }
     await db.$client.end()
+  })
+
+  it('keeps connection settings usable without scheduling ingestion or bypassing permission scope', async () => {
+    const update = (sourceConfig?: Record<string, unknown>) =>
+      updateKnowledgeConnectorAccess.execute({
+        principal: { kind: 'session', userId: ids.aliceId, sessionId: 'fixture-session' },
+        input: {
+          knowledgeBaseId: ids.knowledgeBaseId,
+          connectorId: sourceId,
+          assertedOrganizationId: ids.organizationId,
+          accessMode: 'admin',
+          ...(sourceConfig ? { sourceConfig } : {}),
+        },
+      })
+    expect((await update()).changed).toBe(false)
+    await update({ ...config, group: '%74eam', issueState: 'opened' })
+    const [saved] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, sourceId))
+    expect(saved?.nextSyncAt).toBeNull()
+    expect(saved?.nextMemberSyncAt).toBeNull()
+    for (const changedScope of [
+      { ...config, group: 'another-group' },
+      { ...config, includeSubgroups: 'true' },
+      { host: config.host, scope: 'project', project: '11' },
+    ]) {
+      await expect(update(changedScope)).rejects.toMatchObject({ code: 'validation' })
+    }
+    const [unchanged] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, sourceId))
+    expect(unchanged).toEqual(saved)
+    expect(
+      await readSearchSourcePermissions.execute({
+        principal: principal(ids.aliceId),
+        input: { organizationId: ids.organizationId, sourceId },
+      })
+    ).toEqual({ revision: 1 })
+    expect((await search(ids.aliceId)).results.length).toBeGreaterThan(0)
+    checks.push('Connection settings preserve live-only scheduling and canonical permission scope')
+  })
+
+  it('rejects dot-segment group identifiers before sending the token', async () => {
+    for (const group of ['.', '..', '%2e', '%2e%2e', '.%2e', '%2e.']) {
+      const requests = transport.paths.length
+      await expect(
+        createKnowledgeConnector.execute({
+          principal: principal(ids.aliceId),
+          input: {
+            knowledgeBaseId: ids.knowledgeBaseId,
+            assertedOrganizationId: ids.organizationId,
+            connectorType: 'gitlab',
+            accessMode: 'admin',
+            apiKey: token,
+            sourceConfig: { ...config, group },
+            permissionConfig: { ...permissions(), mode: 'csv' },
+            syncIntervalMinutes: 60,
+          },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+      expect(transport.paths).toHaveLength(requests)
+    }
+    checks.push('Invalid group IDs fail before provider requests')
   })
 
   it('separates readers by project and rejects cross-project reads', async () => {

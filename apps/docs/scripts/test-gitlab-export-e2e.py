@@ -49,6 +49,7 @@ class GitLabFixture(BaseHTTPRequestHandler):
             if endpoint == "groups/7/projects":
                 query = parse_qs(parsed.query)
                 assert query.get("with_shared") == ["false"]
+                assert query.get("include_subgroups") == ["true" if scenario == "group-subgroups" else "false"]
                 projects = [{"id": 91, "path_with_namespace": "engineering/platform"}]
                 if query.get("page", ["1"]) == ["1"]:
                     self.reply(200, projects, {"X-Next-Page": "2", "X-Total": "2"})
@@ -57,8 +58,6 @@ class GitLabFixture(BaseHTTPRequestHandler):
                 else:
                     path = "outside/shared" if scenario == "group-outside" else (
                         "engineering/sub/backend" if scenario == "group-subgroups" else "engineering/backend")
-                    if scenario == "group-subgroups":
-                        assert query.get("include_subgroups") == ["true"]
                     self.reply(200, [{"id": 92, "path_with_namespace": path}], {"X-Next-Page": "", "X-Total": "2"})
                 return
             if endpoint == "projects/92":
@@ -262,6 +261,19 @@ process.stdout.write(JSON.stringify({
                                     if case == scenario and endpoint.startswith("users/")]
                         assert len(profiles) == len(set(profiles)), "Fetched a shared user profile more than once"
                     report["checks"].append({"name": scenario, "passed": True})
+                for index, group in enumerate((".", "..", "%2e", "%2e%2e", ".%2e", "%2e.")):
+                    output = root / f"invalid-group-{index}"
+                    calls = len(GitLabFixture.calls)
+                    result = subprocess.run([
+                        sys.executable, str(SCRIPT), "--gitlab-url",
+                        f"https://127.0.0.1:{server.server_port}/group", "--group", group,
+                        "--output-dir", str(output),
+                    ], capture_output=True, text=True, timeout=20,
+                        env={**os.environ, "GITLAB_EXPORT_TOKEN": TOKEN, "SSL_CERT_FILE": str(cert)})
+                    assert result.returncode != 0 and not output.exists()
+                    assert TOKEN not in result.stdout + result.stderr
+                    assert len(GitLabFixture.calls) == calls, "Sent a token for an invalid group identifier"
+                report["checks"].append({"name": "invalid-group-identifiers", "passed": True})
                 assert not any(endpoint == "trap" for _, endpoint, _, _ in GitLabFixture.calls)
                 report["passed"] = True
             finally:

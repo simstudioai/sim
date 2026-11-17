@@ -6,7 +6,7 @@ import type { SecureFetchResponse } from '@/lib/core/security/input-validation.s
 import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
-import { gitLabGroupScopeSchema } from '@/connectors/gitlab/group'
+import { gitLabGroupMatchesConfig, gitLabGroupScopeSchema } from '@/connectors/gitlab/group'
 import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
 import { gitLabPermissionConfig } from '@/connectors/gitlab/permission-config/capability'
 import {
@@ -1332,13 +1332,14 @@ export const gitlabConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>,
     syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    if (sourceConfig.scope === 'group') {
+    if (sourceConfig.scope === 'group' || syncContext?.gitLabGroupScope) {
       if (syncContext?.isSearchIndex !== true || syncContext.mirrorsSourceAcls !== true)
         return {
           valid: false,
           error: 'GitLab groups require an administrator-managed Search source.',
         }
-      if (!gitLabGroupScopeSchema.safeParse(syncContext.gitLabGroupScope).success)
+      const scope = gitLabGroupScopeSchema.safeParse(syncContext.gitLabGroupScope)
+      if (!scope.success || !gitLabGroupMatchesConfig(scope.data, sourceConfig))
         return {
           valid: false,
           error: 'Save the GitLab group with its token and permission settings.',

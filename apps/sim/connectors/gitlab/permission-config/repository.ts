@@ -238,13 +238,15 @@ export async function readGitLabPermissionSummaries(
 }
 
 /** Workers load canonical mode without loading the potentially large CSV snapshot. */
-export async function seedGitLabCsvContext(
+export async function seedGitLabPermissionContext(
   connectorId: string,
   context: Record<string, unknown>
 ): Promise<void> {
   const [row] = await readConnectorPermissionMetadata([connectorId])
   if (!row) return
   const metadata = readGitLabPermissionMetadata(row.metadata)
-  if (metadata.mode === 'csv' && !('group' in metadata))
-    setGitLabCsvContext(context, { connectorId, ...metadata })
+  if ('group' in metadata) {
+    const { host, group, projects } = metadata
+    context.gitLabGroupScope = { host, group, projects }
+  } else if (metadata.mode === 'csv') setGitLabCsvContext(context, { connectorId, ...metadata })
 }

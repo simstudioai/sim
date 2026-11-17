@@ -11,7 +11,7 @@ import {
   prepareGitLabPermissions,
   readGitLabPermissionMetadata,
   readGitLabPermissionSummaries,
-  seedGitLabCsvContext,
+  seedGitLabPermissionContext,
 } from '@/connectors/gitlab/permission-config/repository'
 import { setGitLabCsvContext } from '@/connectors/gitlab/permission-config/types'
 import { discoverGitLabGroup } from '@/connectors/gitlab/permissions'
@@ -108,5 +108,5 @@ export const gitLabPermissionConfig: ConnectorPermissionConfigCapability = {
       ])
     )
   },
-  populateSyncContext: seedGitLabCsvContext,
+  populateSyncContext: seedGitLabPermissionContext,
 }

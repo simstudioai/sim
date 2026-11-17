@@ -22,13 +22,13 @@ The instance must be reachable from the Sim server and pass outbound-request pro
 ## Add a project
 
 1. Create a read-only PAT with the chosen scopes and an appropriate expiry.
-2. Open **Settings → Sources → Add source → GitLab → Add project**.
+2. Open **Settings → Sources → Add source → GitLab → Add connection**.
 3. Choose **Administrator token** or **Non-admin token**.
 4. Enter the token, self-managed **Host**, and exact **Project** path or numeric ID.
 5. Choose content and filters. Non-admin mode requires both CSV files below.
 6. Save, then have a permitted teammate search and read known content. Repeat with a teammate who has no grant.
 
-Use **Add project** again for another project. There is no initial sync. Organization membership and a matching verified email are required, but membership alone does not grant project access.
+Use **Add connection** again for another project. There is no initial sync. Organization membership and a matching verified email are required, but membership alone does not grant project access.
 
 ## Resource settings
 
@@ -132,7 +132,7 @@ Reads recheck current settings, permissions, and metadata. A reference from anot
 
 In source settings, replace either CSV file, retaining the other when appropriate. Sim validates the resulting pair before saving. Invalid or stale updates preserve saved grants. Removed readers lose access on the next operation.
 
-To rotate the PAT, supply its replacement in source settings. A blank token retains the saved token. Changing host, project, or permission strategy requires valid configuration for the new identity.
+To rotate the PAT, supply its replacement in source settings. A blank token retains the saved token. Changing host, scope, or permission strategy requires valid configuration for the new identity.
 
 ### Automate updates with GitLab CI
 
