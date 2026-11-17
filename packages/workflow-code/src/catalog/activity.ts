@@ -5,6 +5,11 @@
  * print, materialize and the executable view all ask here, so they agree on what is active.
  */
 
+import {
+  CUSTOM_BLOCK_RESERVED_PARAMS,
+  LEGACY_AGENT_FIELDS,
+  SYSTEM_SUBBLOCK_IDS,
+} from '@sim/workflow-types/blocks'
 import type { CanonicalBlock, SubBlockId } from '../model'
 import { setOwn } from '../records'
 import {
@@ -19,15 +24,8 @@ import { buildCanonicalIndexForSurface, isTriggerSurface, onSurface } from './su
 import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from './types'
 import { catalogBlock, catalogTrigger } from './view'
 
-/** Agent fields the serializer still forwards with no config, for its legacy migration. */
-const LEGACY_AGENT_FIELDS = new Set(['systemPrompt', 'userPrompt', 'memories'])
 /** A custom block's computed wiring; the serializer recomputes it and never forwards it. */
 const CUSTOM_BLOCK_WIRING = new Set(['workflowId', 'inputMapping'])
-/**
- * A custom block's structural ids, never a mapped input (`RESERVED_PARAMS`,
- * blocks/custom/build-config.ts).
- */
-const CUSTOM_BLOCK_RESERVED = new Set([...CUSTOM_BLOCK_WIRING, 'triggerMode', 'advancedMode'])
 
 /**
  * `customBlockHasDeclaredInputs` (serializer/index.ts): a custom block that declares an input
@@ -35,20 +33,14 @@ const CUSTOM_BLOCK_RESERVED = new Set([...CUSTOM_BLOCK_WIRING, 'triggerMode', 'a
  * (legacy, no curated inputs) forwards them all.
  */
 function declaresCustomInputs(block: CatalogBlock): boolean {
-  return block.subBlocks.some((subBlock) => !CUSTOM_BLOCK_RESERVED.has(subBlock.id))
+  return block.subBlocks.some((subBlock) => !CUSTOM_BLOCK_RESERVED_PARAMS.has(subBlock.id))
 }
+
 /**
- * Trigger fields deploy never copies into the webhook provider config (`SYSTEM_SUBBLOCK_IDS`,
- * triggers/constants.ts). `triggerCredentials` is one of them but is read on its own as the
- * credential reference, so it is not listed.
+ * Trigger fields deploy never copies into the webhook provider config, except `triggerCredentials`,
+ * which it reads on its own as the credential reference.
  */
-const DEPLOY_SKIPPED_IDS = new Set([
-  'triggerInstructions',
-  'webhookUrlDisplay',
-  'samplePayload',
-  'setupScript',
-  'scheduleInfo',
-])
+const TRIGGER_SYSTEM_IDS: ReadonlySet<string> = new Set(SYSTEM_SUBBLOCK_IDS)
 
 interface ActivityInputs {
   block: CatalogBlock
@@ -111,7 +103,7 @@ export function deployReadIds(
   const ids = new Set<SubBlockId>()
   for (const subBlock of trigger.subBlocks) {
     if (!isTriggerSurface(subBlock)) continue
-    if (subBlock.id === 'triggerCredentials' || !DEPLOY_SKIPPED_IDS.has(subBlock.id)) {
+    if (subBlock.id === 'triggerCredentials' || !TRIGGER_SYSTEM_IDS.has(subBlock.id)) {
       ids.add(subBlock.id)
     }
   }
