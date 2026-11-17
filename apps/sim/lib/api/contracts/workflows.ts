@@ -448,7 +448,7 @@ export const resumeExecutionParamsSchema = z.object({
  * block's output and can run to many megabytes. The resume page asks for that;
  * API callers keep the documented default of receiving it.
  */
-export const resumeExecutionQuerySchema = z.object({
+const resumeExecutionQuerySchema = z.object({
   includeSnapshot: booleanQueryFlagSchema.optional().default(true),
 })
 
@@ -564,7 +564,8 @@ const pausedWorkflowExecutionsResponseSchema = z.object({
 })
 
 const pausedWorkflowExecutionDetailSchema = pausedWorkflowExecutionSummarySchema.extend({
-  executionSnapshot: z.unknown(),
+  /** Present when the read asked for it; see {@link resumeExecutionQuerySchema}. */
+  executionSnapshot: z.unknown().optional(),
   queue: z.array(z.record(z.string(), z.unknown())),
 })
 
@@ -972,9 +973,7 @@ export const resumeWorkflowExecutionContract = defineRouteContract({
   query: resumeExecutionQuerySchema,
   response: {
     mode: 'json',
-    schema: pausedWorkflowExecutionDetailSchema.extend({
-      executionSnapshot: z.unknown().optional(),
-    }),
+    schema: pausedWorkflowExecutionDetailSchema,
   },
 })
 

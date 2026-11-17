@@ -18,6 +18,7 @@ export const GET = defineInternalJsonRoute({
   mapInput: ({ params }) => ({
     workflowId: params.id,
     executionId: params.executionId,
+    includeSnapshot: true,
   }),
   useCase: readPausedWorkflowExecution,
   responseHeaders: () => ({ 'Cache-Control': 'private, no-store' }),

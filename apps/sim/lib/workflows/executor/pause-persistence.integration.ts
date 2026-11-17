@@ -508,63 +508,79 @@ describe('readPausedRunPoints', () => {
 })
 
 describe('resume page reads', () => {
-  /** Gives the published snapshot a workflow naming the paused block, as a real run's carries. */
-  async function nameApprovalBlockInSnapshot(executionId: string) {
-    const [row] = await db
-      .select({ executionSnapshot: pausedExecutions.executionSnapshot })
-      .from(pausedExecutions)
-      .where(eq(pausedExecutions.executionId, executionId))
-    const seed = row.executionSnapshot as { snapshot: string; triggerIds: string[] }
-    const snapshot = {
-      ...JSON.parse(seed.snapshot),
-      workflow: { blocks: [{ id: CONTEXT_ID, metadata: { name: 'Approval' } }] },
-    }
-    await db
-      .update(pausedExecutions)
-      .set({ executionSnapshot: { ...seed, snapshot: JSON.stringify(snapshot) } })
-      .where(eq(pausedExecutions.executionId, executionId))
-  }
-
-  it('names every parallel branch point from the snapshot and keeps the snapshot out of the pause context', async () => {
-    const registry = registryWithResolvedSecret()
-    const executionId = await publishPausedRun([
-      humanBranchPoint(0, registry),
-      humanBranchPoint(1, registry),
-    ])
-    await nameApprovalBlockInSnapshot(executionId)
-
-    const detail = await readPausedWorkflowExecution.execute({
+  const read = (executionId: string, includeSnapshot = false) =>
+    readPausedWorkflowExecution.execute({
       principal: { kind: 'session', userId: ids.owner, sessionId: generateId() },
-      input: { workflowId: ids.workflow, executionId },
+      input: { workflowId: ids.workflow, executionId, includeSnapshot },
     })
+
+  it('returns the name each point was captured with, on a manual run, without the snapshot', async () => {
+    const registry = registryWithResolvedSecret()
+    const executionId = await publishPausedRun(
+      [humanBranchPoint(0, registry), humanBranchPoint(1, registry)].map((point) => ({
+        ...point,
+        blockName: 'Approval',
+      }))
+    )
+
+    const view = await read(executionId)
     const context = await PauseResumeManager.getPauseContextDetail({
       workflowId: ids.workflow,
       executionId,
       contextId: BRANCH_IDS[1],
     })
 
-    expect(detail.pausePoints.map((point) => point.blockName)).toEqual(['Approval', 'Approval'])
+    expect(view.pausePoints.map((point) => point.blockName)).toEqual(['Approval', 'Approval'])
     expect(context?.pausePoint.blockName).toBe('Approval')
-    expect(context?.execution.pausePoints.map((point) => point.blockName)).toEqual([
-      'Approval',
-      'Approval',
-    ])
+    expect(
+      (await readPausedRunPoints({ workflowId: ids.workflow, executionId }))?.map(
+        (point) => point.blockName
+      )
+    ).toEqual(['Approval', 'Approval'])
+    expect(JSON.stringify(view)).not.toContain(SNAPSHOT_SENTINEL)
     expect(JSON.stringify(context)).not.toContain(SNAPSHOT_SENTINEL)
+    expect(JSON.stringify(await read(executionId, true))).toContain(SNAPSHOT_SENTINEL)
   })
 
-  it('falls back to no block name when the snapshot cannot be read', async () => {
+  it('names a point persisted before names were recorded from the run deployment version', async () => {
     const executionId = await publishPausedRun([humanBranchPoint(0, registryWithResolvedSecret())])
-    await db
-      .update(pausedExecutions)
-      .set({ executionSnapshot: { snapshot: '{not json', triggerIds: [] } })
-      .where(eq(pausedExecutions.executionId, executionId))
-
-    const context = await PauseResumeManager.getPauseContextDetail({
+    const versionId = generateId()
+    await db.insert(workflowDeploymentVersion).values({
+      id: versionId,
       workflowId: ids.workflow,
-      executionId,
-      contextId: BRANCH_IDS[0],
+      version: 3,
+      state: { blocks: { [CONTEXT_ID]: { id: CONTEXT_ID, name: 'Deployed approval' } } },
+      isActive: false,
     })
+    await db
+      .update(workflowExecutionLogs)
+      .set({ deploymentVersionId: versionId })
+      .where(eq(workflowExecutionLogs.executionId, executionId))
 
-    expect(context?.pausePoint).not.toHaveProperty('blockName')
+    const [point] = (await read(executionId)).pausePoints
+    expect(point.blockName).toBe('Deployed approval')
+  })
+
+  it('reads trigger ids from the pause metadata, and from the snapshot only for an older row', async () => {
+    const executionId = await publishPausedRun([humanBranchPoint(0, registryWithResolvedSecret())])
+    const [row] = await db
+      .select({ metadata: pausedExecutions.metadata, seed: pausedExecutions.executionSnapshot })
+      .from(pausedExecutions)
+      .where(eq(pausedExecutions.executionId, executionId))
+    const seed = row.seed as { snapshot: string; triggerIds: string[] }
+    const setTriggerIds = (metadataIds: string[] | undefined) =>
+      db
+        .update(pausedExecutions)
+        .set({
+          metadata: { ...(row.metadata as Record<string, unknown>), triggerIds: metadataIds },
+          executionSnapshot: { ...seed, triggerIds: ['from-snapshot'] },
+        })
+        .where(eq(pausedExecutions.executionId, executionId))
+
+    await setTriggerIds(['from-metadata'])
+    expect((await read(executionId)).triggerIds).toEqual(['from-metadata'])
+
+    await setTriggerIds(undefined)
+    expect((await read(executionId)).triggerIds).toEqual(['from-snapshot'])
   })
 })

@@ -413,7 +413,7 @@ describe('ExecutionEngine', () => {
       expect(nodeOrchestrator.executeNode).toHaveBeenCalledWith(context, 'both')
     })
 
-    it('records paused block completion before returning paused result', async () => {
+    it('records paused block completion and the paused block name before returning paused result', async () => {
       const node = createMockNode('hitl', 'function')
       const dag = createMockDAG([node])
       const context = createMockContext({
@@ -441,6 +441,9 @@ describe('ExecutionEngine', () => {
       const result = await engine.run('hitl')
 
       expect(result.status).toBe('paused')
+      expect(result.pausePoints).toEqual([
+        expect.objectContaining({ contextId: 'pause-1', blockId: 'hitl', blockName: 'Block hitl' }),
+      ])
       expect(nodeOrchestrator.handleNodeCompletion).toHaveBeenCalledWith(
         context,
         'hitl',

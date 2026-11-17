@@ -1,4 +1,3 @@
-import { omit } from '@sim/utils/object'
 import { resumeWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import { internalWorkflowErrorPolicies, internalWorkflowReadAuth } from '@/lib/workflows/api'
@@ -23,8 +22,8 @@ export const GET = defineInternalJsonRoute({
   }),
   useCase: readPausedWorkflowExecution,
   responseHeaders: () => ({ 'Cache-Control': 'private, no-store' }),
-  present: (executionDetail, { input }) => ({
-    ...(input.includeSnapshot ? executionDetail : omit(executionDetail, ['executionSnapshot'])),
+  present: (executionDetail) => ({
+    ...executionDetail,
     pausePoints: executionDetail.pausePoints.map((pausePoint) => ({ ...pausePoint })),
     queue: executionDetail.queue.map((queueEntry) => ({ ...queueEntry })),
   }),
