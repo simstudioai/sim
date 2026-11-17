@@ -831,4 +831,30 @@ describe('workspace source files', () => {
       expect(adopted.needBlobs).toEqual([])
     }
   )
+
+  check('a stored file whose bytes cannot be read refuses only itself', async () => {
+    const workspaceId = await newWorkspace()
+    const readable = Buffer.from('readable')
+    const broken = Buffer.from('gone from storage')
+    await uploadWorkspaceFile(workspaceId, ownerId, readable, 'a.txt', 'text/plain', {
+      notifyWorkspaceChange: false,
+    })
+    const lost = await uploadWorkspaceFile(workspaceId, ownerId, broken, 'b.txt', 'text/plain', {
+      notifyWorkspaceChange: false,
+    })
+    await rm(path.join(fixtureStorage.root, lost.key))
+
+    const planned = await apply(
+      workspaceId,
+      { 'files/a.txt': readable, 'files/b.txt': broken },
+      { dryRun: true }
+    )
+
+    expect(summary(planned.plan)).toEqual(['noop a.txt', 'noop b.txt'])
+    expect(
+      planned.diagnostics
+        .filter((finding) => finding.severity === 'error')
+        .map((finding) => `${finding.code} ${finding.key}`)
+    ).toEqual(['E_APPLY_NO_BASE b.txt'])
+  })
 })

@@ -9,6 +9,7 @@
  * file moved or deleted in the Files tab is recognized by the id its base entry names and never
  * created again at the old path.
  */
+import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import {
   type BaseResource,
@@ -61,6 +62,8 @@ import type {
   StoredSet,
   WorkspaceSourceDiagnostic,
 } from '@/lib/workspace-source/application/types'
+
+const logger = createLogger('WorkspaceSourceFiles')
 
 /** Why a directory never holds a stored file, as the code a declaration of it is refused with. */
 interface Unmanaged {
@@ -170,8 +173,8 @@ function spendHashBudget(ctx: SourceContext, size: number): boolean {
  * Hashes the stored bytes of each declared file whose hash neither the server nor the base
  * records, when its size matches the declared one (only then can the bytes be equal), within the
  * request's hashing budget. Knowing the hash lets an apply whose earlier round wrote the file
- * without saving the base adopt it instead of refusing it. A file past the budget keeps no hash, so it
- * plans as no-base or stale and is never created or deleted.
+ * without saving the base adopt it instead of refusing it. A file past the budget, or whose bytes
+ * cannot be read, keeps no hash, so it plans as no-base or stale and the rest still apply.
  */
 async function hashUnrecorded(
   ctx: PlanContext,
@@ -183,7 +186,11 @@ async function hashUnrecorded(
     if (!file || file.state.unmanaged || file.state.size !== decl.size) continue
     if (serverSha(file, ctx.base?.resources[resourceAddress('file', key)]) !== null) continue
     if (!spendHashBudget(ctx, file.state.size)) continue
-    file.state.sha256 = sha256Hex(await storedBytes(ctx, file.id))
+    try {
+      file.state.sha256 = sha256Hex(await storedBytes(ctx, file.id))
+    } catch (error) {
+      logger.warn('Could not read a stored file to hash it', { fileId: file.id, error })
+    }
   }
 }
 
