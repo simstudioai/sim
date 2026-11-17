@@ -8,13 +8,15 @@ import {
   skill,
   userTableDefinitions,
   workflow,
+  workspaceFiles,
   workspaceResourceKey,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { compareStrings, slugify } from '@sim/utils/string'
 import type { ResourceKind } from '@sim/workflow-code'
-import { and, eq, inArray, isNull, like, or } from 'drizzle-orm'
+import { and, eq, inArray, isNull, like, ne, or } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 
 /**
@@ -24,8 +26,10 @@ import type { DbOrTx } from '@/lib/db/types'
  * A key is allocated the first time something needs one for a resource, derived from the
  * resource's name at that moment, and never changes afterwards. Renaming the resource keeps its
  * key; deleting it leaves the key on the dead id, so the key stops resolving instead of
- * moving to another resource with the same name. Only resources that are live in the given
- * workspace resolve in either direction, so an id or key from another workspace never does.
+ * moving to another resource with the same name; only {@link claimResourceKey}, for workspace
+ * source that names the key explicitly, moves a key off a dead resource. Only resources that are
+ * live in the given workspace resolve in either direction, so an id or key from another workspace
+ * never does.
  *
  * Both functions join the caller's transaction when given one (`executor`). Allocation re-reads
  * after each insert, so the caller's transaction must run at READ COMMITTED (the default).
@@ -128,6 +132,22 @@ const LIVE_RESOURCE_LOADERS: Partial<Record<ResourceKind, LiveResourceLoader>> =
       .select({ id: credential.id, name: credential.displayName, createdAt: credential.createdAt })
       .from(credential)
       .where(and(eq(credential.workspaceId, workspaceId), inArray(credential.id, ids))),
+  file: (executor, workspaceId, ids) =>
+    executor
+      .select({
+        id: workspaceFiles.id,
+        name: workspaceFiles.originalName,
+        createdAt: workspaceFiles.uploadedAt,
+      })
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.workspaceId, workspaceId),
+          inArray(workspaceFiles.id, ids),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      ),
   'file-folder': (executor, workspaceId, ids) =>
     executor
       .select({ id: folder.id, name: folder.name, createdAt: folder.createdAt })
@@ -214,7 +234,11 @@ async function loadLiveResources(
   return load(executor, workspaceId, ids)
 }
 
-async function readKeysByResource(
+/**
+ * The keys bound to `resourceIds` (resource id → key), whether or not each resource is live.
+ * Never allocates.
+ */
+export async function readKeysByResource(
   executor: DbOrTx,
   workspaceId: string,
   kind: ResourceKind,
@@ -398,4 +422,86 @@ export async function resolveIds(
     })
   )
   return new Map(byKind.filter((entry) => entry !== null))
+}
+
+/** Another live resource of the kind holds the key a source claims. */
+export class ResourceKeyTakenError extends OrchestrationError {
+  constructor(
+    readonly kind: ResourceKind,
+    readonly key: string,
+    readonly holderId: string
+  ) {
+    super('conflict', `The ${kind} key "${key}" belongs to another ${kind}.`)
+    this.name = 'ResourceKeyTakenError'
+  }
+}
+
+/** What claiming a key did: bound it, found it already bound, or moved it off a dead resource. */
+export type ResourceKeyClaim = 'bound' | 'kept' | 'rebound'
+
+/**
+ * Binds `key` to `resourceId`, for a source that names the resource by that key: a resource it
+ * created (`origin: 'created'`) or an unbound one it adopted by name (`'adopted'`). A key still
+ * bound to a deleted or archived resource moves to the new one (`'rebound'`), so deleting a
+ * declared resource and applying again re-creates it under the same key. A key held by another
+ * live resource throws {@link ResourceKeyTakenError}. A key the resource held before (allocated
+ * by a get) is replaced, since the source now names it. Runs in one transaction.
+ */
+export async function claimResourceKey(input: {
+  workspaceId: string
+  kind: ResourceKind
+  key: string
+  resourceId: string
+  origin: 'created' | 'adopted'
+  createdBy: string | null
+}): Promise<ResourceKeyClaim> {
+  const { workspaceId, kind, key, resourceId } = input
+  return db.transaction(async (tx) => {
+    const [holder] = await tx
+      .select({ id: workspaceResourceKey.id, resourceId: workspaceResourceKey.resourceId })
+      .from(workspaceResourceKey)
+      .where(
+        and(
+          eq(workspaceResourceKey.workspaceId, workspaceId),
+          eq(workspaceResourceKey.kind, kind),
+          eq(workspaceResourceKey.key, key)
+        )
+      )
+      .for('update')
+    if (holder?.resourceId === resourceId) return 'kept'
+    if (holder) {
+      const live = await loadLiveResources(tx, workspaceId, kind, [holder.resourceId])
+      if (live.length > 0) throw new ResourceKeyTakenError(kind, key, holder.resourceId)
+    }
+    await tx
+      .delete(workspaceResourceKey)
+      .where(
+        and(
+          eq(workspaceResourceKey.workspaceId, workspaceId),
+          eq(workspaceResourceKey.kind, kind),
+          eq(workspaceResourceKey.resourceId, resourceId),
+          ne(workspaceResourceKey.key, key)
+        )
+      )
+    const now = new Date()
+    if (holder) {
+      await tx
+        .update(workspaceResourceKey)
+        .set({ resourceId, origin: input.origin, updatedAt: now })
+        .where(eq(workspaceResourceKey.id, holder.id))
+      return 'rebound'
+    }
+    await tx.insert(workspaceResourceKey).values({
+      id: generateId(),
+      workspaceId,
+      kind,
+      key,
+      resourceId,
+      origin: input.origin,
+      createdBy: input.createdBy,
+      createdAt: now,
+      updatedAt: now,
+    })
+    return 'bound'
+  })
 }

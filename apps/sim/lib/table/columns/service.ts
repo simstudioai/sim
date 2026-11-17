@@ -37,7 +37,7 @@ import {
 import { COLUMN_TYPES, getMaxRowSizeBytes, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { resolveCurrencyCode } from '@/lib/table/currency'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
-import type { DbTransaction } from '@/lib/table/planner'
+import type { DbExecutor, DbTransaction } from '@/lib/table/planner'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
@@ -1365,8 +1365,9 @@ export async function updateColumnCurrency(
  * request passed the first check, committed the conversion, and only then
  * failed the constraint write.
  */
-async function countEmptyCells(
-  trx: DbTransaction,
+/** Rows whose cell in `columnKey` is missing, null or an empty list. */
+export async function countEmptyCells(
+  trx: DbExecutor,
   tableId: string,
   workspaceId: string,
   columnKey: string
@@ -1386,13 +1387,61 @@ async function countEmptyCells(
   return result?.count ?? 0
 }
 
+/** Rows holding a value in `columnKey`: the cells deleting the column would lose. */
+export async function countFilledCells(
+  executor: DbExecutor,
+  tableId: string,
+  workspaceId: string,
+  columnKey: string
+): Promise<number> {
+  const [result] = await executor
+    .select({ count: count() })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
+        sql`${userTableRows.data} ? ${columnKey}`,
+        sql`${userTableRows.data}->>${columnKey}::text IS NOT NULL`,
+        sql`${userTableRows.data}->${columnKey}::text <> '[]'::jsonb`
+      )
+    )
+  return result?.count ?? 0
+}
+
+/**
+ * Up to `limit` stored values of `columnKey` (missing and null cells skipped), for a check that
+ * reads them in Node, such as whether a type change can convert them.
+ */
+export async function readColumnValues(
+  executor: DbExecutor,
+  tableId: string,
+  workspaceId: string,
+  columnKey: string,
+  limit: number
+): Promise<unknown[]> {
+  const rows = await executor
+    .select({ value: sql<unknown>`${userTableRows.data}->${columnKey}::text` })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
+        sql`${userTableRows.data} ? ${columnKey}`,
+        sql`${userTableRows.data}->>${columnKey}::text IS NOT NULL`
+      )
+    )
+    .limit(limit)
+  return rows.map((row) => row.value)
+}
+
 /**
  * Rows that removing these options would leave with no selection at all — a
  * single cell holding a removed id, or a multi cell whose every element is
  * being removed. Rows that keep at least one option are unaffected.
  */
-async function countCellsLosingTheirOptions(
-  trx: DbTransaction,
+export async function countCellsLosingTheirOptions(
+  trx: DbExecutor,
   tableId: string,
   workspaceId: string,
   columnKey: string,
