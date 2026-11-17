@@ -114,7 +114,6 @@ function reorder(workflow: CanonicalWorkflow): CanonicalWorkflow {
   }
   copy.variables = reverseRecord(copy.variables)
   copy.edges = [...copy.edges].reverse()
-  copy.annotations.inactive = reverseRecord(copy.annotations.inactive)
   return copy
 }
 

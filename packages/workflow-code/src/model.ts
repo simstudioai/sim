@@ -277,7 +277,7 @@ export interface CanonicalBlock {
    * Every stored subBlock, keyed by subBlock id, except synthetic tool mirrors, server-owned
    * runtime ids (`webhookId`, `triggerPath`, `triggerConfig`, `triggerId`), parked
    * `_removed_` keys, and `conditions`/`routes` (lifted into `branches`). Stale hidden values are
-   * kept and listed in `annotations.inactive`.
+   * kept (`executableInactiveParams` names them).
    */
   params: Record<SubBlockId, CanonicalParam>
   /**
@@ -385,13 +385,6 @@ export interface CodeComment {
  * `canonicalHash`, `diffCanonical` and `sourceFingerprint`.
  */
 interface WorkflowAnnotations {
-  /**
-   * Per block, the param ids whose value is stored but not serialized under the current values
-   * and not read by deploy (`catalog/activity.ts`; opaque catalog conditions count as
-   * active unless expanded per operation). Source leaves them out and apply restores them from the
-   * stored workflow, so only canonicalize fills this; a compiled workflow has none.
-   */
-  inactive: Record<BlockKey, SubBlockId[]>
   /**
    * Comments by anchor, in source order. Stored server-side in `workflow_source_meta`.
    */

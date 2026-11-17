@@ -8,8 +8,6 @@ import {
   resolveEffectiveErrorEnabled,
   type WorkflowState,
 } from '@sim/workflow-types/workflow'
-import { deployReadIds, isInactive } from '../catalog/activity'
-import { buildCanonicalIndexForSurface } from '../catalog/surface'
 import type { BlockCatalog } from '../catalog/types'
 import { catalogBlock } from '../catalog/view'
 import type { CanonicalizeDiagnosticCode } from '../diagnostics/codes'
@@ -24,7 +22,6 @@ import type {
   CanonicalWorkflowMeta,
   Json,
   ResourceKeyResolver,
-  SubBlockId,
   VarKey,
 } from '../model'
 import { setOwn } from '../records'
@@ -166,7 +163,6 @@ export function canonicalize(
   const canonicalBlocks: Record<BlockKey, CanonicalBlock> = {}
   const identity: LockIdentity = { blocks: {}, variables: {} }
   const layout: Record<BlockKey, LockLayout> = {}
-  const inactive: Record<BlockKey, SubBlockId[]> = {}
 
   for (const [id, block] of Object.entries(blocks)) {
     const key = keyById.get(id) ?? id
@@ -261,24 +257,6 @@ export function canonicalize(
     }
     if (Object.keys(extraFields).length > 0) canonical.extra = extraFields
 
-    if (catalog && !isContainer) {
-      const activityValues = overrides ? { ...rawValues, __canonicalModes: overrides } : rawValues
-      const activityInputs = {
-        block: catalog,
-        blockType: block.type,
-        triggerMode,
-        advancedMode,
-        values: activityValues,
-        overrides,
-        index: buildCanonicalIndexForSurface(catalog, triggerMode),
-        deployRead: deployReadIds(options.catalog, catalog, block.type, triggerMode, rawValues),
-      }
-      const inactiveIds = Object.keys(params).filter((paramId) =>
-        isInactive(paramId, activityInputs)
-      )
-      if (inactiveIds.length > 0) setOwn(inactive, key, inactiveIds)
-    }
-
     setOwn(canonicalBlocks, key, canonical)
     const identityBlock: LockIdentityBlock = { id, parent }
     if (lifted && Object.keys(lifted.ids).length > 0) identityBlock.branches = lifted.ids
@@ -306,7 +284,7 @@ export function canonicalize(
     blocks: canonicalBlocks,
     edges,
     variables,
-    annotations: { inactive, comments: {} },
+    annotations: { comments: {} },
   }
   return { workflow, identity, layout, diagnostics }
 }

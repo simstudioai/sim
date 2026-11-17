@@ -1,5 +1,6 @@
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { describe, expect, it } from 'vitest'
+import { executableInactiveParams } from '../catalog/activity'
 import type { BlockCatalog, CatalogBlock, CatalogSubBlock } from '../catalog/types'
 import { canonicalEquals, canonicalHash } from '../equivalence'
 import type {
@@ -7,6 +8,7 @@ import type {
   CanonicalParam,
   CanonicalWorkflow,
   ResourceKeyResolver,
+  SubBlockId,
   Value,
 } from '../model'
 import type { CanonicalizeOptions } from '.'
@@ -341,6 +343,11 @@ function onlyBlock(result: ReturnType<typeof run>, key: string): CanonicalBlock 
   return found
 }
 
+/** The params source leaves out of a block: the one inactivity rule print and compile use. */
+function inactiveOf(result: ReturnType<typeof run>, key: string): SubBlockId[] {
+  return executableInactiveParams(onlyBlock(result, key), CATALOG)
+}
+
 function value(param: CanonicalParam | undefined): Value | undefined {
   return param?.kind === 'value' ? param.value : undefined
 }
@@ -551,7 +558,7 @@ describe('canonicalize: params', () => {
     expect(value(onlyBlock(result, 'old').params.oldField)).toBe(' {"a":1} ')
     expect(onlyBlock(result, 'old').type).toBe('legacy_v1')
     expect(codes(result)).toContain('W_CANON_UNKNOWN_BLOCK_TYPE')
-    expect(result.workflow.annotations.inactive.old).toBeUndefined()
+    expect(inactiveOf(result, 'old')).toEqual([])
   })
 
   it('keys custom block params by subBlock id', () => {
@@ -675,20 +682,20 @@ describe('canonicalize: modes', () => {
   })
 })
 
-describe('canonicalize: inactive annotation', () => {
+describe('canonicalize: inactive params', () => {
   it('keeps a stale hidden value and marks it inactive', () => {
     const result = run(
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'read', text: 'old' })])
     )
     expect(value(onlyBlock(result, 'slack').params.text)).toBe('old')
-    expect(result.workflow.annotations.inactive.slack).toEqual(['text'])
+    expect(inactiveOf(result, 'slack')).toEqual(['text'])
   })
 
   it('treats a non-empty standalone advanced field as active even with advanced off', () => {
     const result = run(
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'send', threadTs: '1.2' })])
     )
-    expect(result.workflow.annotations.inactive.slack).toBeUndefined()
+    expect(inactiveOf(result, 'slack')).toEqual([])
   })
 
   it('marks the dormant member of a pair inactive and counts an opaque condition as active', () => {
@@ -705,39 +712,39 @@ describe('canonicalize: inactive annotation', () => {
         ),
       ])
     )
-    expect(result.workflow.annotations.inactive.slack).toEqual(['channel'])
+    expect(inactiveOf(result, 'slack')).toEqual(['channel'])
   })
 
   it('reads an opaque condition the catalog expanded per operation from visibleFor', () => {
     const send = run(
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'send', pageLimit: '5' })])
     )
-    expect(send.workflow.annotations.inactive.slack).toEqual(['pageLimit'])
+    expect(inactiveOf(send, 'slack')).toEqual(['pageLimit'])
     const read = run(
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'read', pageLimit: '5' })])
     )
-    expect(read.workflow.annotations.inactive.slack).toBeUndefined()
+    expect(inactiveOf(read, 'slack')).toEqual([])
   })
 
   it('reads the clause an operation still asks (visibleWhen) and the per-model data', () => {
     const inactive = (type: string, values: Record<string, unknown>) =>
-      run(workflow([blockState('b1', type, 'B', values)])).workflow.annotations.inactive.b
+      inactiveOf(run(workflow([blockState('b1', type, 'B', values)])), 'b')
     expect(
       inactive('slack', { operation: 'send', destinationType: 'channel', dmUserId: 'U1' })
     ).toEqual(['dmUserId'])
-    expect(
-      inactive('slack', { operation: 'send', destinationType: 'dm', dmUserId: 'U1' })
-    ).toBeUndefined()
+    expect(inactive('slack', { operation: 'send', destinationType: 'dm', dmUserId: 'U1' })).toEqual(
+      []
+    )
     expect(inactive('agent', { model: 'gpt-5.5', vertexProject: 'p' })).toEqual(['vertexProject'])
-    expect(inactive('agent', { model: 'vertex/gemini', vertexProject: 'p' })).toBeUndefined()
-    expect(inactive('agent', { model: '<start.model>', vertexProject: 'p' })).toBeUndefined()
+    expect(inactive('agent', { model: 'vertex/gemini', vertexProject: 'p' })).toEqual([])
+    expect(inactive('agent', { model: '<start.model>', vertexProject: 'p' })).toEqual([])
   })
 
   it('marks trigger fields inactive outside trigger mode and active inside it', () => {
     const action = run(
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'send', botToken: 't' })])
     )
-    expect(action.workflow.annotations.inactive.slack).toEqual(['botToken'])
+    expect(inactiveOf(action, 'slack')).toEqual(['botToken'])
     const trigger = run(
       workflow([
         blockState(
@@ -749,7 +756,7 @@ describe('canonicalize: inactive annotation', () => {
         ),
       ])
     )
-    expect(trigger.workflow.annotations.inactive.slack).toBeUndefined()
+    expect(inactiveOf(trigger, 'slack')).toEqual([])
   })
 
   it('marks action fields inactive on a trigger-mode block', () => {
@@ -764,14 +771,14 @@ describe('canonicalize: inactive annotation', () => {
         ),
       ])
     )
-    expect(result.workflow.annotations.inactive.slack).toEqual(['operation'])
+    expect(inactiveOf(result, 'slack')).toEqual(['operation'])
   })
 
   it('counts a duplicated id active when any surface declaration serializes', () => {
     const action = run(
       workflow([blockState('b1', 'slack', 'Slack', { operation: 'send', signingSecret: 's' })])
     )
-    expect(action.workflow.annotations.inactive.slack).toEqual(['signingSecret'])
+    expect(inactiveOf(action, 'slack')).toEqual(['signingSecret'])
   })
 
   it('keeps a trigger field active in trigger mode when it shares a canonical id with an action pair', () => {
@@ -786,7 +793,7 @@ describe('canonicalize: inactive annotation', () => {
         ),
       ])
     )
-    expect(trigger.workflow.annotations.inactive.gmail).toBeUndefined()
+    expect(inactiveOf(trigger, 'gmail')).toEqual([])
     const action = run(
       workflow([
         blockState('b1', 'gmail', 'Gmail', {
@@ -796,7 +803,7 @@ describe('canonicalize: inactive annotation', () => {
         }),
       ])
     )
-    expect(action.workflow.annotations.inactive.gmail).toEqual(['triggerCredentials'])
+    expect(inactiveOf(action, 'gmail')).toEqual(['triggerCredentials'])
   })
 
   it('keeps every field of a trigger-category block active in and out of trigger mode', () => {
@@ -812,7 +819,7 @@ describe('canonicalize: inactive annotation', () => {
           ),
         ])
       )
-      expect(result.workflow.annotations.inactive.webhook).toBeUndefined()
+      expect(inactiveOf(result, 'webhook')).toEqual([])
     }
   })
 
@@ -824,9 +831,9 @@ describe('canonicalize: inactive annotation', () => {
         blockState('b3', 'custom_block_legacy', 'Legacy', { undeclared: 'z', workflowId: 'wf' }),
       ])
     )
-    expect(result.workflow.annotations.inactive.slack).toEqual(['scopeNote', 'legacyField'])
-    expect(result.workflow.annotations.inactive.acme).toEqual(['undeclared', 'workflowId'])
-    expect(result.workflow.annotations.inactive.legacy).toEqual(['workflowId'])
+    expect(inactiveOf(result, 'slack')).toEqual(['scopeNote', 'legacyField'])
+    expect(inactiveOf(result, 'acme')).toEqual(['undeclared', 'workflowId'])
+    expect(inactiveOf(result, 'legacy')).toEqual(['workflowId'])
   })
 })
 

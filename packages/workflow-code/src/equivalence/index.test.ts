@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { encodeAnchor } from '../anchors'
 import { compareEdges } from '../canonicalize/edges'
 import { sha256Hex, stableStringify } from '../hash'
 import type { LockIdentity } from '../lock'
-import type { CanonicalBlock, CanonicalWorkflow } from '../model'
+import type { CanonicalBlock, CanonicalWorkflow, CodeComment } from '../model'
 import { canonicalDigests, canonicalEquals, canonicalHash, sourceFingerprint } from '.'
 
 function codeBlock(key: string, overrides: Partial<CanonicalBlock> = {}): CanonicalBlock {
@@ -33,7 +34,7 @@ function base(): CanonicalWorkflow {
       { from: 'a', port: { kind: 'out' }, to: 'b' },
     ],
     variables: { v: { key: 'v', name: 'V', type: 'string', value: 'x' } },
-    annotations: { inactive: {}, comments: {} },
+    annotations: { comments: {} },
   }
 }
 
@@ -53,6 +54,8 @@ const IDENTITY: LockIdentity = {
   variables: { v: 'var-1' },
 }
 
+const LINE: CodeComment = { text: ' note', kind: 'line', placement: 'leading' }
+
 describe('canonicalEquals and canonicalHash', () => {
   it('ignore key order at every depth', () => {
     const reordered = reverseKeys(base())
@@ -70,7 +73,7 @@ describe('canonicalEquals and canonicalHash', () => {
 
   it('ignore annotations', () => {
     const annotated = base()
-    annotated.annotations.inactive = { a: ['code'] }
+    annotated.annotations.comments = { [encodeAnchor({ kind: 'block', block: 'a' })]: [LINE] }
     expect(canonicalEquals(base(), annotated)).toBe(true)
     expect(canonicalHash(annotated)).toBe(canonicalHash(base()))
   })
@@ -138,7 +141,7 @@ describe('sourceFingerprint', () => {
   it('ignores annotations but changes with any id, locked flag or variable', () => {
     const fingerprint = sourceFingerprint(base(), IDENTITY)
     const annotated = base()
-    annotated.annotations.inactive = { a: ['code'] }
+    annotated.annotations.comments = { [encodeAnchor({ kind: 'block', block: 'a' })]: [LINE] }
     expect(sourceFingerprint(annotated, IDENTITY)).toBe(fingerprint)
 
     const reId: LockIdentity = {

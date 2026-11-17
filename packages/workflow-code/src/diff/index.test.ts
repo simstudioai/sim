@@ -1,5 +1,6 @@
 import { omit } from '@sim/utils/object'
 import { describe, expect, it } from 'vitest'
+import { encodeAnchor } from '../anchors'
 import type { LockIdentity } from '../lock'
 import {
   blockState,
@@ -8,7 +9,7 @@ import {
   edge,
   workflowState,
 } from '../materialize/fixtures.test-helpers'
-import type { CanonicalWorkflow } from '../model'
+import type { CanonicalWorkflow, CodeComment } from '../model'
 import { setOwn } from '../records'
 import { diffCanonical, renamesBetween } from '.'
 
@@ -47,11 +48,13 @@ function rename(draft: CanonicalWorkflow, from: string, to: string, name: string
   }))
 }
 
+const LINE: CodeComment = { text: ' note', kind: 'line', placement: 'leading' }
+
 describe('diffCanonical', () => {
   it('is a no-op for equal workflows, whatever the edge order and annotations', () => {
     const target = edit((draft) => {
       draft.edges.reverse()
-      draft.annotations.inactive = { fetch: ['code'] }
+      draft.annotations.comments = { [encodeAnchor({ kind: 'block', block: 'fetch' })]: [LINE] }
     })
     expect(diffCanonical(base.workflow, target).noop).toBe(true)
   })
