@@ -172,6 +172,69 @@ afterEach(() => {
   for (const repo of fixtures.splice(0)) rmSync(repo, { recursive: true, force: true })
 })
 describe('CI task attribution through real Turborepo', () => {
+  describe('reviewed root audits', () => {
+    it.each([
+      { files: ['scripts/check-library-content.ts', 'scripts/check-library-content.test.ts'] },
+      { files: ['scripts/check-utils-enforcement.test.ts'] },
+    ])('runs audits and script tests without app infrastructure for $files', ({ files }) => {
+      const plan = classifyFiles(files)
+      expect(plan.fallback).toBeUndefined()
+      expect(plan.flags).toEqual({
+        docs: false,
+        docs_site: false,
+        docs_platform: false,
+        integration: false,
+        http: false,
+        production: false,
+        e2e_build: false,
+        desktop_live: false,
+        test: true,
+        test_app: false,
+        build: false,
+      })
+      expect(groups(plan)).toEqual([])
+      expect(plan.testPackages).toEqual([])
+      expect(plan.typecheckPackages).toEqual([])
+      expect(plan.docsGroups).toEqual([])
+    })
+    it.each(['apps/sim/lib/server.ts', 'scripts/check-example.ts', 'AGENTS.md'])(
+      'runs everything when a reviewed audit changes alongside %s',
+      (file) => {
+        const plan = classifyFiles(['scripts/check-library-content.ts', file])
+        expect(plan.fallback).toBeDefined()
+        expect(Object.values(plan.flags).every(Boolean)).toBe(true)
+      }
+    )
+    it.each(['delete', 'move'])('runs everything for a reviewed audit %s', (operation) => {
+      const { repo } = fixture()
+      const file = 'scripts/check-library-content.ts'
+      write(repo, file, 'export const audit = true\n')
+      git(repo, 'add', '-A')
+      git(repo, 'commit', '--quiet', '-m', 'audit owner')
+      const base = git(repo, 'rev-parse', 'HEAD')
+      if (operation === 'delete') git(repo, 'rm', file)
+      else git(repo, 'mv', file, 'scripts/unknown-audit.ts')
+      git(repo, 'commit', '--quiet', '-am', 'remove audit owner')
+      const plan = classify(repo, base)
+      expect(plan.fallback).toBeDefined()
+      expect(Object.values(plan.flags).every(Boolean)).toBe(true)
+    })
+    it('requires PR merge provenance even for a reviewed audit', () => {
+      const { repo, base, environment } = pullRequestFixture(['scripts/check-library-content.ts'])
+      const plan = classify(repo, base, { ...environment, GITHUB_REF: 'refs/heads/staging' })
+      expect(plan.fallback).toBeDefined()
+      expect(Object.values(plan.flags).every(Boolean)).toBe(true)
+    })
+    it('keeps unscoped pushes full even for a reviewed audit', () => {
+      const { repo } = fixture()
+      write(repo, 'scripts/check-library-content.ts', 'export const audit = true\n')
+      git(repo, 'add', '-A')
+      git(repo, 'commit', '--quiet', '-m', 'audit change')
+      const plan = classify(repo, '', { GITHUB_EVENT_NAME: 'push' })
+      expect(plan.fallback).toBeDefined()
+      expect(Object.values(plan.flags).every(Boolean)).toBe(true)
+    })
+  })
   it('scopes a shallow multi-commit PR against its tested target after the event base goes stale', () => {
     const files = ['packages/sim-setup/src/index.ts', 'packages/sim-setup/src/second.ts']
     const { repo, base, target, environment } = pullRequestFixture(files)
