@@ -8,7 +8,7 @@ import { Callout } from '@/components/ui/callout'
 Every workflow can be read and written as a TypeScript file. The file and the workflow builder show the same workflow: edit either one and the other follows. Use it to review agent changes as a diff, keep workflows in git, or let a coding agent such as Claude Code build and change them for you.
 
 <Callout type="info">
-Workflows as code is in preview. When it is enabled for your workspace, the workflow builder shows a read-only **Code** tab and the [CLI](/cli) gains the `sim workflows source` commands.
+Workflows as code is in preview. When it is enabled on your Sim deployment, the workflow builder shows a read-only **Code** tab and the [CLI](/cli) gains the `sim workflows source` commands.
 </Callout>
 
 ## What the file holds
@@ -27,7 +27,7 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
 
    This writes `workflow.ts`, any function code under `functions/`, and type declarations for every block and for your workspace's tables, credentials, knowledge bases, and environment variable names. It also writes a `tsconfig.json` that resolves them, unless the directory already has its own `tsconfig.json`, which is left as it is, plus two files for coding agents: `.sim/AGENTS.md`, a short guide, and `.sim/examples/cookbook.ts`, one correct example of each common block to copy from. The example names placeholder resources, so `tsconfig.json` leaves it out of the type-check.
 
-   Getting into a directory that already holds source refuses to overwrite edits you have not applied, and refuses a directory that holds a different workflow. Pass `--force` to replace them.
+   `get` into a directory that already holds source refuses to overwrite edits you have not applied, and refuses a directory that holds a different workflow. Pass `--force` to replace them.
 
 2. Edit `workflow.ts`. Your editor type-checks it against the generated declarations, and `tsc -p ./support-triage` checks it from the command line.
 
@@ -58,7 +58,6 @@ Nothing in the file runs on your machine. Sim reads it statically, checks it aga
    The workflow builder updates for anyone who has the workflow open. Deploy when you are ready.
 
    Lines starting with `note:` explain where the save differs from the file. For example, renaming the workflow in `workflow('…')` does not rename the stored workflow, so the save writes the stored name back into `workflow.ts`.
-
 
 To create a new workflow, write `workflow.ts` in an empty directory and run `sim workflows source create --dir <dir> --yes`. The file starts with the `// @sim-sdk 1` line and default-exports one `workflow('Name', {}, () => { ... })`. The command prints the new workflow ID and writes the same type declarations, `tsconfig.json`, and `.sim/` files that `get` writes, so you can continue editing with `apply`. If another workflow already has that name, the command exits `1`; pass `--name` to choose another.
 
