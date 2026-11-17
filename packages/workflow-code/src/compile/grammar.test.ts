@@ -1176,6 +1176,32 @@ describe('defaults rule: an omitted param is the editor default', () => {
     expect(blockOf(wf, 'call').params).not.toHaveProperty('method')
   })
 
+  it('keeps both members of a basic/advanced pair written as null stored-absent', () => {
+    const table = TEST_CATALOG.blocks.table
+    const catalog = {
+      ...TEST_CATALOG,
+      blocks: {
+        ...TEST_CATALOG.blocks,
+        table: {
+          ...table,
+          subBlocks: table.subBlocks.map((sub) =>
+            'id' in sub && sub.id === 'filter' ? { ...sub, valueDefault: { constant: '{}' } } : sub
+          ),
+        },
+      },
+    }
+    for (const written of ['null', 'todo()']) {
+      const result = compileWorkflow({
+        entry: { path: ENTRY, text: source(`table.insertRow('T', { filterInput: ${written} })`) },
+        files: new Map(),
+        catalog,
+        sdkMajor: 1,
+      })
+      expect(errorsOf(result)).toEqual([])
+      expect(result.workflow?.blocks.t?.params).not.toHaveProperty('filter')
+    }
+  })
+
   it("compiles a doWhile loop's count, which runs when it has no condition", () => {
     const wf = ok(source("const again = loop.doWhile('Again', { count: 3 }, (p) => {})"))
     expect(blockOf(wf, 'again').subflow).toEqual({

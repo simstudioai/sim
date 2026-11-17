@@ -663,8 +663,8 @@ function compileField(
   const compiled = compileValue(ctx, property.value, site)
   if (!compiled) return
   if (compiled.kind === 'absent' || compiled.kind === 'todo') {
-    const member = field.kind === 'pair' ? memberFor(field, 'basic') : field.sub
-    if (member) state.unset.add(member.id)
+    for (const member of field.kind === 'pair' ? field.members : [field.sub])
+      state.unset.add(member.id)
     if (compiled.kind === 'todo') state.todos.set(field.name, property)
     return
   }
