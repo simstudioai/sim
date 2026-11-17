@@ -51,13 +51,17 @@ export function readGitLabPermissionMetadata(value: unknown) {
   const parsed = metadataSchema.safeParse(value)
   if (!parsed.success) return invalidSnapshot()
   const result = parsed.data
+  validateSummaries(result)
+  return result
+}
+
+function validateSummaries(result: Omit<GitLabPermissionSummary, 'revision'>) {
   if (
     result.mode === 'csv'
       ? !result.userMapping || !result.projectPermissions
       : result.userMapping !== null || result.projectPermissions !== null
   )
     return invalidSnapshot()
-  return result
 }
 
 /** Validate stored tuples without allocating another copy of a large CSV snapshot. */
@@ -230,9 +234,15 @@ export async function readGitLabPermissionSummaries(
   connectorIds: readonly string[]
 ): Promise<Map<string, GitLabPermissionSummary>> {
   const result = new Map<string, GitLabPermissionSummary>()
-  for (const row of await readConnectorPermissionMetadata(connectorIds)) {
-    const { mode, userMapping, projectPermissions } = readGitLabPermissionMetadata(row.metadata)
-    result.set(row.connectorId, { mode, revision: row.revision, userMapping, projectPermissions })
+  for (const row of await readConnectorPermissionMetadata(connectorIds, [
+    'mode',
+    'userMapping',
+    'projectPermissions',
+  ])) {
+    const parsed = summarySchema.safeParse(row.metadata)
+    if (!parsed.success) return invalidSnapshot()
+    validateSummaries(parsed.data)
+    result.set(row.connectorId, { ...parsed.data, revision: row.revision })
   }
   return result
 }

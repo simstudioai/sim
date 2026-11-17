@@ -592,7 +592,7 @@ export const organizationOpenApiRoutes = [
       applicationOperation: searchSourcePermissionOperations.replace,
       operationId: 'replaceSearchSourcePermissions',
       summary: 'Replace Search source permissions',
-      description: `Replace the complete permission grants for one Search source. Requires organization Admin access. Supply the current revision and the grants for the configured provider. A stale revision returns 409. GitLab CSV mode accepts both files together, up to 4 MiB and 100,000 data rows each. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Replace the complete permission grants for one Search source. Requires organization Admin access. Supply the current revision and the grants for the configured provider. A stale revision returns 409. GitLab CSV mode accepts both files together, up to 8 MiB and 500,000 data rows each, within a 10 MiB limit for the complete JSON-encoded request. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The new permission revision.', headers: RATE_LIMIT_HEADERS },

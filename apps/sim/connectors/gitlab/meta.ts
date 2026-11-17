@@ -58,7 +58,8 @@ export const gitlabConnectorMeta: ConnectorMeta = {
       required: true,
       condition: { field: 'scope', value: 'group' },
       placeholder: 'group/subgroup or numeric ID',
-      description: 'Up to 1,000 projects. Shared projects are excluded.',
+      description:
+        'Up to 50,000 projects, subject to CSV size limits. Shared projects are excluded.',
     },
     {
       id: 'includeSubgroups',

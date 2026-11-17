@@ -38,11 +38,13 @@ import type {
 } from '@/lib/api/contracts/knowledge/connectors'
 import {
   type ConnectorDocumentsQuery,
+  createConnectorBodySchema,
   type PrepareSearchSourceBody,
   prepareSearchSourceContract,
   readSearchIndexContract,
   type SearchConnectionOAuthQuery,
   type SearchSourcePage,
+  updateConnectorBodySchema,
 } from '@/lib/api/contracts/knowledge/connectors'
 import {
   type ResourceScope,
@@ -54,6 +56,7 @@ import { connectCredentialGroupInPopup } from '@/lib/credential-groups/oauth-pop
 import { isDesktopApp } from '@/lib/desktop'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
+import { getGitLabUploadSizeError } from '@/connectors/gitlab/permission-config/request-size'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
@@ -276,9 +279,12 @@ async function createConnector({
   knowledgeBaseId,
   ...body
 }: CreateConnectorParams): Promise<ConnectorData> {
+  const payload = createConnectorBodySchema.parse(body)
+  const uploadError = payload.permissionConfig?.mode === 'csv' && getGitLabUploadSizeError(payload)
+  if (uploadError) throw new Error(uploadError)
   const result = await requestJson(createKnowledgeConnectorContract, {
     params: { id: knowledgeBaseId },
-    body,
+    body: payload,
   })
 
   return result.data
@@ -323,9 +329,12 @@ async function updateConnector({
   connectorId,
   updates,
 }: UpdateConnectorParams): Promise<ConnectorData> {
+  const payload = updateConnectorBodySchema.parse(updates)
+  const uploadError = payload.permissionConfig?.mode === 'csv' && getGitLabUploadSizeError(payload)
+  if (uploadError) throw new Error(uploadError)
   const result = await requestJson(updateKnowledgeConnectorContract, {
     params: { id: knowledgeBaseId, connectorId },
-    body: updates,
+    body: payload,
   })
 
   return result.data
