@@ -130,8 +130,8 @@ files are stored verbatim. One file per block; imports between function files ar
 
 | Path | Contents |
 |------|----------|
-| `src/core.d.ts` | Authoring types. Exports exactly `SDK_CORE_EXPORTS` from `@sim/workflow-code`; after editing run `bun scripts/generate-core-text.ts`. |
-| `cookbook/workflow.ts` | The example the CLI writes as `.sim/examples/cookbook.ts`. After editing run `bun scripts/generate-cookbook-text.ts`; `apps/sim/lib/workflows/code/real-catalog.test.ts` type-checks and compiles it against the real catalog. |
+| `src/core.d.ts` | Authoring types. Exports exactly `SDK_CORE_EXPORTS` from `@sim/workflow-code`; after editing run `bun scripts/generate-embedded-text.ts`. |
+| `cookbook/workflow.ts` | The example the CLI writes as `.sim/examples/cookbook.ts`. After editing run `bun scripts/generate-embedded-text.ts`; `apps/sim/lib/workflows/code/real-catalog.test.ts` type-checks and compiles it against the real catalog. |
 | `src/runtime.ts` | The runtime entry: every export throws `SimSdkNotExecutable`. |
 | `src/codegen/` | `generateSdkTypes(catalog)` (catalog → `.d.ts`, deterministic, sorted by path) and `generateWorkspaceTypes(manifest)` (`workspace.d.ts`). |
 | `test/examples` | Five example workflows, also compiled against the real catalog with zero diagnostics in `apps/sim/lib/workflows/code/sdk-examples.test.ts`. |
