@@ -23,6 +23,7 @@ import { isBlobPath, kindOfPath, WORKSPACE_BASE_FILE } from '@sim/workspace-code
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import { finding } from '@/lib/workspace-source/application/findings'
+import { checkDeletesInUse } from '@/lib/workspace-source/application/in-use'
 import { KIND_ADAPTERS } from '@/lib/workspace-source/application/registry'
 import type {
   PlanContext,
@@ -240,6 +241,7 @@ export async function planWorkspaceSource(
     pending: [],
   }
   const changes: PlannedChange[] = []
+  let declaredWorkflows: ReadonlyMap<string, unknown> = new Map()
   const references: Array<{
     kind: WorkspaceKind
     key: string
@@ -279,6 +281,7 @@ export async function planWorkspaceSource(
       }
     }
     diagnostics.push(...kindFindings)
+    if (kind === 'workflow') declaredWorkflows = desired
     /** A resource that failed to parse would read as undeclared, so a broken kind is not planned. */
     if (kindFindings.some((finding) => finding.severity === 'error')) continue
     try {
@@ -289,6 +292,7 @@ export async function planWorkspaceSource(
     }
   }
 
+  await checkDeletesInUse(changes, declaredWorkflows, workspaceId)
   const deleted = new Set(
     changes
       .filter((change) => change.action === 'delete')

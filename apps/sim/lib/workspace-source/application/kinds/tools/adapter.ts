@@ -5,15 +5,11 @@
  * `assertValidCustomToolDeclaration` at plan time when it is created or changed, as the use case
  * checks a schema it is sent; an unchanged stored schema is never re-judged by a newer rule.
  */
-import { db } from '@sim/db'
-import { workflow, workflowBlocks } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { Json } from '@sim/workflow-code'
-import type { WorkspaceDiagnosticCode } from '@sim/workspace-code'
 import { type ToolDecl, toolCodec, toolDeclarationPath } from '@sim/workspace-code/kinds/tools'
 import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
-import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { CursorKey } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -48,10 +44,6 @@ interface StoredTool {
 type ToolChange = PlannedChange<ToolDecl, NamedPlan>
 
 const PAGE_SIZE = 200
-/** Workflows a delete warning names before it only counts the rest. */
-const NAMED_WORKFLOWS = 5
-/** The finding of a delete the plan refuses without `--allow-delete`, which still loses workflows. */
-const DELETE_REFUSED = 'E_APPLY_DELETE_NOT_ALLOWED' satisfies WorkspaceDiagnosticCode
 
 const tools: NamedKind<ToolDecl, StoredTool> = {
   kind: 'custom-tool',
@@ -68,50 +60,6 @@ const tools: NamedKind<ToolDecl, StoredTool> = {
 
 function isSchemaObject(value: unknown): value is Record<string, Json> {
   return isRecordLike(value)
-}
-
-/** The stored workflows of the workspace whose blocks name custom tool `toolId`. */
-async function workflowsUsing(workspaceId: string, toolId: string) {
-  return db
-    .selectDistinct({ id: workflow.id, name: workflow.name })
-    .from(workflowBlocks)
-    .innerJoin(workflow, eq(workflow.id, workflowBlocks.workflowId))
-    .where(
-      and(
-        eq(workflow.workspaceId, workspaceId),
-        isNull(workflow.archivedAt),
-        sql`jsonb_path_exists(${workflowBlocks.subBlocks}, '$.**.customToolId ? (@ == $id)', jsonb_build_object('id', ${toolId}::text))`
-      )
-    )
-}
-
-/**
- * Warns on each tool the plan deletes (or would, with `--allow-delete`) that stored workflows
- * still use, naming them and counting them in the delete's destructive line.
- */
-async function warnInUse(changes: ToolChange[], workspaceId: string): Promise<void> {
-  for (const change of changes) {
-    const deleting =
-      change.action === 'delete' ||
-      change.diagnostics.some((finding) => finding.code === DELETE_REFUSED)
-    if (!deleting || !change.storedId) continue
-    const using = await workflowsUsing(workspaceId, change.storedId)
-    if (change.destructive) change.destructive.counts.workflows = using.length
-    if (using.length === 0) continue
-    const listed = using
-      .slice(0, NAMED_WORKFLOWS)
-      .map((row) => `"${row.name}"`)
-      .join(', ')
-    const more = using.length > NAMED_WORKFLOWS ? ` and ${using.length - NAMED_WORKFLOWS} more` : ''
-    change.diagnostics.push({
-      code: 'W_TOOL_IN_USE',
-      severity: 'warning',
-      message: `Deleting tools/${change.key} breaks ${using.length} stored workflow(s) that use it: ${listed}${more}.`,
-      hint: 'Remove the tool from those workflows, or keep its declaration.',
-      kind: 'custom-tool',
-      key: change.key,
-    })
-  }
 }
 
 export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
@@ -168,7 +116,6 @@ export const toolAdapter: KindAdapter<ToolDecl, StoredTool, NamedPlan> = {
       what: 'custom tool',
       counts: { workflows: 0 },
     }))
-    await warnInUse(undeclared, ctx.workspace.workspaceId)
     return [...changes, ...undeclared]
   },
 

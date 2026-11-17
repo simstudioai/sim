@@ -486,6 +486,47 @@ describe('workspace source across kinds', () => {
   )
 
   check(
+    'refuses deleting a table an unchanged declared workflow uses, as the CLI sends that folder (base only)',
+    async () => {
+      const { workspaceId, dir, base } = await setUp()
+      const before = await snapshot(workspaceId)
+      const files = Object.fromEntries(
+        Object.entries(dir.files).filter(([path]) => path !== 'tables/leads.ts')
+      )
+      expect(files['workflows/ingest/workflow.ts']).toBeUndefined()
+
+      const refused = await refusal(
+        apply(workspaceId, { ...dir, files }, { base, allowDelete: true })
+      )
+
+      expect(findings(refused.diagnostics, 'error')).toEqual(['E_PLAN_REF_DELETED workflow:ingest'])
+      expect(await snapshot(workspaceId)).toEqual(before)
+    }
+  )
+
+  check(
+    'deleting a table a workflow outside the directory uses warns, naming that workflow',
+    async () => {
+      const { workspaceId, dir, base } = await setUp()
+      const files = Object.fromEntries(
+        Object.entries(dir.files).filter(([path]) => path !== 'tables/leads.ts')
+      )
+
+      const deleted = await apply(
+        workspaceId,
+        { ...dir, files },
+        { base, allowDelete: true, only: ['table'] }
+      )
+
+      expect(deleted.applied).toMatchObject([{ action: 'delete', kind: 'table', key: 'leads' }])
+      const warning = deleted.diagnostics.find(
+        (finding) => finding.severity === 'warning' && finding.kind === 'table'
+      )
+      expect(warning?.message).toContain('"Ingest"')
+    }
+  )
+
+  check(
     'a delete of a tool, skill or knowledge base changed on the server since the base is stale',
     async () => {
       const { workspaceId, dir, base } = await setUp()
