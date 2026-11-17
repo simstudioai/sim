@@ -33,8 +33,13 @@
  *   against the generated catalog (`INTEGRATION_TOTALS`): no higher than the total, and no
  *   lower than 90% of it. Answer engines quote these figures, so an overclaim such as
  *   "1,000+ integrations" or a figure left from an older catalog spreads to third-party sites.
- *   A count belongs to Sim when the nearest "Sim" before it on the line is at most 12 words back
- *   with no capitalized word between, which leaves competitor counts alone.
+ *   A count belongs to Sim when "Sim" comes before it in the same clause and no other product's
+ *   possessive directly precedes it, or when it sits in a table row whose label cell is Sim
+ *   (other rows are read cell by cell). A comparison that opens a sentence or names a new subject
+ *   ("while Zapier", "Zapier, like Sim,") is its own clause up to the next comma, and the main
+ *   clause resumes after it; ", and" before a new subject also starts a clause.
+ *   A count whose owner is ambiguous within its clause is treated as Sim's; when it belongs to
+ *   another product, name that product as its owner ("Zapier's 9,000+") or give it a sentence.
  *   Blog and changelog posts are dated, so their counts are true as of publication.
  *
  * Run one post with `--slug <section>/<slug>` or `--slug <slug>`.
@@ -138,35 +143,101 @@ const ROUTE_FILES = ['page.tsx', 'page.ts', 'route.tsx', 'route.ts']
 const COUNT_CLAIM = /\b(\d{1,3}(?:,\d{3})+|\d+)\+?\s+(integrations|actions|triggers)\b/gi
 /** Inline emphasis and code markers, which would otherwise split "**1,000+** integrations". */
 const INLINE_MARKERS = /\*\*|__|[*`]/g
-const SIM_NAME = /\bSim\b/g
-const SIM_CLAIM_MAX_WORDS = 12
+/** A Markdown link, read as its visible text so "[Zapier](https://zapier.com)'s" names Zapier. */
+const LINK_TEXT = /\[([^\]\n]*)\]\([^)\n]*\)/g
+/** List, heading, and quote markers, or a quoted YAML key such as `a: "`, ahead of the sentence. */
+const LINE_PREFIX = /^\s*(?:(?:[-*+>]|\d+[.)]|#{1,6})\s+)*(?:\w+:\s*["'])?/
+const SIM_NAME = /\bSim\b/
+/** Words that turn a sentence toward another product: "while Zapier lists ...", "unlike Zapier". */
+const CONTRAST = String.raw`(?:while|whereas|but|unlike|compared (?:with|to)|versus|vs\.?)`
+/** The same words opening a sentence, plus "Like" ("Like Sim, n8n ..."). */
+const OPENING_CONTRAST = String.raw`(?:While|Whereas|But|Unlike|Like|Compared (?:with|to)|Versus|Vs\.?)`
+/** Sentence punctuation, with any closing quote or bracket, before whitespace. */
+const SENTENCE_END = /(?<=[.!?;]['"”’)\]]*)\s+/
+/** The start of a new subject: a capitalized word, or a lowercase product name with a digit (n8n). */
+const SUBJECT = String.raw`(?:[A-Z]|[a-z]+\d)`
+/** ", and" before a new subject, which starts a clause of its own ("..., and Zapier has ..."). */
+const NEW_SUBJECT = new RegExp(String.raw`,\s+and\s+(?=${SUBJECT})`)
+/**
+ * Where a comparison clause starts: a sentence-opening contrast ("Unlike Sim, ..."), or a contrast
+ * followed by a new subject ("..., while Zapier", "Zapier, like Sim, ..."). A contrast that keeps
+ * the subject ("open source but has ...", "while working") does not start one.
+ */
+const COMPARISON_START = new RegExp(
+  String.raw`^(?=${OPENING_CONTRAST}\b)|,\s*(?=(?:like|${CONTRAST})\s+${SUBJECT})|\s+(?=${CONTRAST}\s+${SUBJECT})`
+)
+/** A count continuing a list ("..., 9,000+ actions, and 530+ triggers, ..."), not a new clause. */
+const COUNT_LIST_ITEM = String.raw`(?:and\s+)?\d[\d,]*\+?\s+(?:integrations|actions|triggers)\b\s*(?:,|and\b|$)`
+/**
+ * Where a comparison clause ends: the first comma that is not a thousands separator, not the
+ * start of a relative clause continuing it ("unlike Zapier, which has 9,000+ integrations"), and
+ * not the next item in a list of counts.
+ */
+const COMPARISON_END = new RegExp(
+  String.raw`,(?!\d)(?!\s*(?:which|that|who)\b)(?!\s*${COUNT_LIST_ITEM})`
+)
+/** A contrast with a new subject inside a comparison clause ("..., but Zapier has ..."). */
+const INNER_CONTRAST = new RegExp(String.raw`,?\s+(?=${CONTRAST}\s+${SUBJECT})`)
+/** The product whose possessive directly precedes a count, as in "Zapier's 9,000+". */
+const POSSESSIVE_OWNER = /([\w.-]+)['’]s\s*$/
 /** A Sim count below this share of the catalog total is left from an older catalog. */
 const SIM_COUNT_FLOOR = 0.9
 
 /**
- * The counts on one line of text that belong to Sim, with the claim as written. A sentence or
- * clause that moves on to another product starts with a capitalized word, which ends Sim's claim.
+ * The Sim counts in a table row: every count when its label (first non-empty cell) names Sim, and
+ * otherwise each cell's own Sim claims, read like prose ("| Catalog | Sim has 280+ integrations |").
  */
-function simCountClaims(line: string): { claim: string; count: number; unit: SimCountUnit }[] {
-  const claims: { claim: string; count: number; unit: SimCountUnit }[] = []
-  const text = line.replace(INLINE_MARKERS, '')
-  for (const match of text.matchAll(COUNT_CLAIM)) {
-    const before = text.slice(0, match.index)
-    const lastSim = [...before.matchAll(SIM_NAME)].at(-1)
-    if (lastSim?.index === undefined) continue
-    const words = before
-      .slice(lastSim.index + lastSim[0].length)
-      .split(/\s+/)
-      .map((word) => word.replace(/^[^A-Za-z0-9]+/, ''))
-      .filter(Boolean)
-    if (words.length > SIM_CLAIM_MAX_WORDS || words.some((word) => /^[A-Z]/.test(word))) continue
-    claims.push({
-      claim: match[0],
-      count: Number.parseInt(match[1].replaceAll(',', ''), 10),
-      unit: match[2].toLowerCase() as SimCountUnit,
-    })
+function simTableRowCounts(cells: string[]): RegExpMatchArray[] {
+  const label = cells.map((cell) => cell.trim()).find((cell) => cell !== '') ?? ''
+  return SIM_NAME.test(label.split(/\s/)[0])
+    ? cells.flatMap((cell) => [...cell.matchAll(COUNT_CLAIM)])
+    : cells.flatMap(simProseCounts)
+}
+
+/**
+ * A sentence's clauses: its main clause, with each comparison taken out and read as a clause of
+ * its own, so "Sim, unlike Zapier, has ..." reads as "Sim has ..." plus "unlike Zapier".
+ */
+function sentenceClauses(sentence: string): string[] {
+  const main: string[] = []
+  const comparisons: string[] = []
+  let rest = sentence
+  for (let start = COMPARISON_START.exec(rest); start; start = COMPARISON_START.exec(rest)) {
+    main.push(rest.slice(0, start.index))
+    const comparison = rest.slice(start.index + start[0].length)
+    const end = COMPARISON_END.exec(comparison)
+    comparisons.push(...(end ? comparison.slice(0, end.index) : comparison).split(INNER_CONTRAST))
+    rest = end ? comparison.slice(end.index + 1) : ''
   }
-  return claims
+  return [[...main, rest].join(' '), ...comparisons]
+}
+
+/** Each count whose clause names Sim before it, unless another product's possessive owns it. */
+function simProseCounts(text: string): RegExpMatchArray[] {
+  const clauses = text
+    .replace(LINE_PREFIX, '')
+    .split(SENTENCE_END)
+    .flatMap((sentence) => sentence.split(NEW_SUBJECT))
+    .flatMap(sentenceClauses)
+  return clauses.flatMap((clause) =>
+    [...clause.matchAll(COUNT_CLAIM)].filter((match) => {
+      const before = clause.slice(0, match.index)
+      const owner = POSSESSIVE_OWNER.exec(before)?.[1]
+      return SIM_NAME.test(before) && (owner === undefined || owner === 'Sim')
+    })
+  )
+}
+
+/** The counts on one line of text that belong to Sim, with the claim as written. */
+function simCountClaims(line: string): { claim: string; count: number; unit: SimCountUnit }[] {
+  const text = line.replace(INLINE_MARKERS, '').replace(LINK_TEXT, '$1')
+  const cells = text.split('|')
+  const matches = cells.length > 2 ? simTableRowCounts(cells) : simProseCounts(text)
+  return matches.map((match) => ({
+    claim: match[0],
+    count: Number.parseInt(match[1].replaceAll(',', ''), 10),
+    unit: match[2].toLowerCase() as SimCountUnit,
+  }))
 }
 
 function isSection(value: string): value is Section {
@@ -458,7 +529,7 @@ export async function checkPost(
         count > total
           ? `"${claim}" overstates Sim's catalog, which has ${total} ${unit}.`
           : `"${claim}" is stale: Sim's catalog has ${total} ${unit}.`,
-        `Write ${formatLowerBound(total)} ${unit}, the catalog-derived figure (INTEGRATION_TOTALS in packages/deployment-config/src/integration-totals.ts).`
+        `Write ${formatLowerBound(total)} ${unit}, the catalog-derived figure (INTEGRATION_TOTALS in packages/deployment-config/src/integration-totals.ts). If the count is another product's, name it as the owner ("Zapier's 9,000+") or give it its own sentence.`
       )
     }
   }
