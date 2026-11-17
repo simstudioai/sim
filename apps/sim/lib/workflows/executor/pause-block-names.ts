@@ -2,13 +2,16 @@ import { db } from '@sim/db'
 import { workflowDeploymentVersion, workflowExecutionLogs } from '@sim/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import type { PausePoint } from '@/executor/types'
-import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
+import { stripCloneSuffixes, stripLoopDigest } from '@/executor/utils/subflow-node-id-codec'
 
 type NameablePausePoint = Pick<PausePoint, 'blockId' | 'contextId' | 'blockName'>
 
-/** The workflow block a pause point waits on, without any parallel branch or subflow clone suffix. */
+/**
+ * The workflow block a pause point waits on, without any loop iteration, parallel branch, or
+ * subflow clone suffix. The loop digest goes first: a context ID ends in it (`block₍N₎_loopK`).
+ */
 export function pauseBaseBlockId(point: Pick<PausePoint, 'blockId' | 'contextId'>): string {
-  return stripCloneSuffixes(point.blockId ?? point.contextId)
+  return stripCloneSuffixes(stripLoopDigest(point.blockId ?? point.contextId))
 }
 
 /**
