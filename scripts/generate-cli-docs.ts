@@ -455,6 +455,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
     { title: 'Push and pull', prefixes: ['push-preview', 'push', 'pull-preview', 'pull'] },
     { title: 'Operation status', prefixes: ['operations'] },
     { title: 'Exclusions and recovery', prefixes: ['sync-exclusions', 'fork-rollback', 'unlink'] },
+    { title: 'Workspace as code', prefixes: ['source'] },
   ],
 }
 

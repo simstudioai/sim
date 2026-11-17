@@ -180,7 +180,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     .option('--allow-delete', 'Delete resources, columns and data the directory no longer declares')
     .option('--only <kinds>', `Apply only these kinds (${ONLY_KINDS_HELP})`)
     .allowExcessArguments(false)
-    .description('Apply a workspace source directory of tables and workflows')
+    .description('Apply a workspace source directory')
     .addHelpText('after', EXIT_CODES_HELP)
     .action(async (options: ApplyOptions) => {
       requireConsent(options, 'writes the workspace', 'apply')

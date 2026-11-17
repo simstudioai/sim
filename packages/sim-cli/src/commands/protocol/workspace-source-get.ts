@@ -219,8 +219,9 @@ async function writeWorkspaceSource(
 
 /**
  * `sim workspaces source get --dir <dir> [--only kinds]`: writes the workspace as a source
- * directory: `tables/<key>.ts`, `workflows/<key>/` (each a workflow source directory), the base,
- * and the SDK declarations once at the root, so `workspaces source apply` can write it back.
+ * directory: `tables/`, `tools/`, `skills/`, `knowledge/`, `files/` and `workflows/<key>/` (each a
+ * workflow source directory), the base, and the SDK declarations once at the root, so
+ * `workspaces source apply` can write it back.
  */
 export function attachWorkspaceSourceGet(source: Command): void {
   const [command, connect] = apiCommand(source, 'get', [
@@ -235,7 +236,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
     .option('--only <kinds>', `Read only these kinds (${ONLY_KINDS_HELP})`)
     .option('--force', 'Replace files with edits no apply has saved')
     .allowExcessArguments(false)
-    .description('Write a workspace as a source directory of tables and workflows')
+    .description('Write a workspace as a source directory')
     .addHelpText('after', GET_EXIT_CODES_HELP)
     .action(async (options: { dir: string; only?: string; force?: boolean }) => {
       const kinds = parseKinds(options.only)

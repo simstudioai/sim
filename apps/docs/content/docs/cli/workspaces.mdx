@@ -686,9 +686,9 @@ sim workspaces unlink [options]
 
 API request and response schemas: [unlinkWorkspaceFork](/api-reference/workspace-sync/unlinkWorkspaceFork).
 
-## Other commands
+## Workspace as code
 
-### Write a workspace as a source directory of tables and workflows
+### Write a workspace as a source directory
 
 ```bash
 sim workspaces source get [options]
@@ -710,7 +710,7 @@ Exit codes: 0 written; 1 the command failed, the directory holds edits no apply 
 
 API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [downloadFile](/api-reference/files/downloadFile), [downloadKnowledgeDocument](/api-reference/knowledge-bases/downloadKnowledgeDocument).
 
-### Apply a workspace source directory of tables and workflows
+### Apply a workspace source directory
 
 ```bash
 sim workspaces source apply [options]
