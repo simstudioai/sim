@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import {
   actionSubBlocks,
   type CatalogBlockSummary,
@@ -23,7 +24,6 @@ import {
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { type BlockConfig, isHiddenFromDisplay, type SubBlockConfig } from '@/blocks/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
-import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('CatalogBlockProjection')
 

@@ -120,10 +120,10 @@ export const CUSTOM_BLOCK_RESERVED_PARAMS: ReadonlySet<string> = new Set([
  * `triggerConfig`, copied into a webhook provider config, or validated as user fields.
  */
 export const SYSTEM_SUBBLOCK_IDS: readonly string[] = [
-  'triggerCredentials',
-  'triggerInstructions',
-  'webhookUrlDisplay',
-  'samplePayload',
-  'setupScript',
-  'scheduleInfo',
+  'triggerCredentials', // OAuth credentials subblock
+  'triggerInstructions', // Setup instructions text
+  'webhookUrlDisplay', // Webhook URL display
+  'samplePayload', // Example payload display
+  'setupScript', // Setup script code (e.g., Apps Script)
+  'scheduleInfo', // Schedule status display (next run, last run)
 ]

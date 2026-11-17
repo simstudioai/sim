@@ -2,6 +2,7 @@ import { createLogger, type Logger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import {
   classifyFailure,
@@ -90,7 +91,6 @@ import {
 import { createAgentStreamPump } from '@/providers/stream-pump'
 import { isRunAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { SerializedBlock } from '@/serializer/types'
-import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('BlockExecutor')
 
