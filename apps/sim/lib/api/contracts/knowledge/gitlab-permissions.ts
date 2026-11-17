@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   GITLAB_CSV_MAX_BYTES,
+  GITLAB_CSV_MAX_ROWS,
   GITLAB_PERMISSION_MODES,
 } from '@/connectors/gitlab/permission-config/types'
 
@@ -12,7 +13,7 @@ const gitLabCsvUploadSchema = z
       .min(1)
       .max(GITLAB_CSV_MAX_BYTES)
       .describe(
-        'UTF-8 CSV contents, up to 4 MiB. Both files travel in one request body limited to 10 MiB after JSON encoding.'
+        'UTF-8 CSV contents, up to 8 MiB. Both files travel in one request body limited to 10 MiB after JSON encoding.'
       ),
   })
   .strict()
@@ -38,7 +39,7 @@ export type GitLabPermissionUploadInput = z.input<typeof gitLabPermissionInputSc
 const gitLabCsvFileSummarySchema = z.object({
   filename: z.string().min(1).max(255),
   uploadedAt: z.string().datetime(),
-  rowCount: z.number().int().nonnegative().max(100_000),
+  rowCount: z.number().int().nonnegative().max(GITLAB_CSV_MAX_ROWS),
 })
 export const gitLabPermissionSummarySchema = z.object({
   provider: z.literal('gitlab'),

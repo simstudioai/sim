@@ -60,7 +60,7 @@ export function useGitLabPermissionForm(initial?: GitLabPermissionData) {
     setFiles((previous) => ({ ...previous, [kind]: { loading: true } }))
     let selected: SelectedFile
     try {
-      if (file.size > GITLAB_CSV_MAX_BYTES) throw new Error('The file must be 4 MiB or smaller.')
+      if (file.size > GITLAB_CSV_MAX_BYTES) throw new Error('The file must be 8 MiB or smaller.')
       const content = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer())
       const upload = { filename: file.name, content }
       const rows = parseGitLabCsv(upload, kind)

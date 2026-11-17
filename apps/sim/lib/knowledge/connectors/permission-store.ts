@@ -3,7 +3,7 @@ import {
   knowledgeConnectorPermissionGrant,
   knowledgeConnectorPermissionSnapshot,
 } from '@sim/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
 
@@ -98,8 +98,17 @@ export async function loadConnectorPermissionSnapshot(connectorId: string) {
 }
 
 /** Metadata and worker reads leave the potentially large payload in PostgreSQL. */
-export async function readConnectorPermissionMetadata(connectorIds: readonly string[]) {
+export async function readConnectorPermissionMetadata(
+  connectorIds: readonly string[],
+  fields?: readonly string[]
+) {
   const table = knowledgeConnectorPermissionSnapshot
+  const metadata = fields?.length
+    ? sql<Record<string, unknown>>`jsonb_build_object(${sql.join(
+        fields.map((field) => sql`${field}::text, ${table.metadata} -> ${field}::text`),
+        sql`, `
+      )})`
+    : table.metadata
   const result: Array<Pick<ConnectorPermissionSnapshot, 'connectorId' | 'revision' | 'metadata'>> =
     []
   for (let offset = 0; offset < connectorIds.length; offset += 1000) {
@@ -108,7 +117,7 @@ export async function readConnectorPermissionMetadata(connectorIds: readonly str
         .select({
           connectorId: table.connectorId,
           revision: table.revision,
-          metadata: table.metadata,
+          metadata,
         })
         .from(table)
         .where(inArray(table.connectorId, connectorIds.slice(offset, offset + 1000))))

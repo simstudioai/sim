@@ -1568,7 +1568,7 @@
     "apps/sim/lib/sim-search/live/github.ts": 1,
     "apps/sim/lib/sim-search/live/gitlab-admin.test.ts": 1,
     "apps/sim/lib/sim-search/live/gitlab-admin.ts": 1,
-    "apps/sim/lib/sim-search/live/gitlab.ts": 3,
+    "apps/sim/lib/sim-search/live/gitlab.ts": 2,
     "apps/sim/lib/sim-search/live/google-meet.ts": 1,
     "apps/sim/lib/sim-search/live/granola-mcp.ts": 2,
     "apps/sim/lib/sim-search/live/hubspot-mcp.test.ts": 1,

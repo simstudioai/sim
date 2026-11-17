@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import runpy
 import ssl
 import subprocess
 import sys
@@ -50,6 +51,14 @@ class GitLabFixture(BaseHTTPRequestHandler):
                 query = parse_qs(parsed.query)
                 assert query.get("with_shared") == ["false"]
                 assert query.get("include_subgroups") == ["true" if scenario == "group-subgroups" else "false"]
+                if scenario in ("group-large", "group-too-large"):
+                    if scenario == "group-too-large":
+                        self.reply(200, [], {"X-Total": "50001"})
+                    else:
+                        page = int(query.get("page", ["1"])[0])
+                        self.reply(200, [{"id": index, "path_with_namespace": f"engineering/project-{index}"}
+                                        for index in range(10000 + (page - 1) * 100, min(11200, 10000 + page * 100))])
+                    return
                 projects = [{"id": 91, "path_with_namespace": "engineering/platform"}]
                 if query.get("page", ["1"]) == ["1"]:
                     self.reply(200, projects, {"X-Next-Page": "2", "X-Total": "2"})
@@ -74,6 +83,13 @@ class GitLabFixture(BaseHTTPRequestHandler):
                 if scenario == "group-empty-project" and endpoint.startswith("projects/92/"):
                     members = []
                 self.reply(200, members, {"X-Next-Page": "", "X-Total": str(len(members))})
+                return
+            if scenario == "group-large" and endpoint.startswith("projects/"):
+                project_id = int(endpoint.split("/")[1])
+                if endpoint.endswith("/members/all"):
+                    self.reply(200, [member(1)] if project_id == 11199 else [])
+                else:
+                    self.reply(200, {"id": project_id, "path_with_namespace": f"engineering/project-{project_id}"})
                 return
         if endpoint in ("projects/engineering%2Fplatform", "projects/91"):
             if scenario == "redirect":
@@ -274,6 +290,56 @@ process.stdout.write(JSON.stringify({
                     assert TOKEN not in result.stdout + result.stderr
                     assert len(GitLabFixture.calls) == calls, "Sent a token for an invalid group identifier"
                 report["checks"].append({"name": "invalid-group-identifiers", "passed": True})
+                for scenario in ("group-large", "group-too-large"):
+                    output = root / scenario
+                    result = subprocess.run([
+                        sys.executable, str(SCRIPT), "--gitlab-url",
+                        f"https://127.0.0.1:{server.server_port}/{scenario}", "--group", "engineering",
+                        "--output-dir", str(output), "--requests-per-minute", "600000",
+                    ], capture_output=True, text=True, timeout=60,
+                        env={**os.environ, "GITLAB_EXPORT_TOKEN": TOKEN, "SSL_CERT_FILE": str(cert)})
+                    if scenario == "group-too-large":
+                        assert result.returncode != 0 and not output.exists(), result.stderr
+                        assert "50,000-project limit" in result.stderr, result.stderr
+                    else:
+                        assert result.returncode == 0, result.stderr
+                        with (output / "project-permissions.csv").open() as handle:
+                            assert list(csv.reader(handle)) == [
+                                ["project_path", "user_id"], ["engineering/project-11199", "1"]]
+                        with (output / "users.csv").open() as handle:
+                            assert list(csv.reader(handle)) == [["user_id", "email"], ["1", "alice@example.com"]]
+                    report["checks"].append({"name": scenario, "passed": True})
+                exporter = runpy.run_path(str(SCRIPT))
+                output = root / "large-csv"
+                exporter["write_export"](output,
+                    ((f"engineering/project-{index:06d}-permissions", 1) for index in range(150000)),
+                    {1: "alice@example.com"})
+                assert (output / "project-permissions.csv").stat().st_size > 4 * 1024 * 1024
+                with (output / "project-permissions.csv").open() as handle:
+                    rows = csv.reader(handle)
+                    assert next(rows) == ["project_path", "user_id"]
+                    assert sum(1 for _ in rows) == 150000
+                report["checks"].append({"name": "large-csv", "passed": True})
+                for scenario, grants in (
+                    ("csv-row-bound", (("a/b", 1) for _ in range(500001))),
+                    ("csv-byte-bound", (("a/" + "b" * 1000, 1) for _ in range(9000))),
+                    ("csv-partial-failure", None),
+                ):
+                    if scenario == "csv-partial-failure":
+                        def interrupted_grants():
+                            yield ("a/b", 1)
+                            raise exporter["ExportError"]("Provider failed after the first grant")
+                        grants = interrupted_grants()
+                    output = root / scenario
+                    try:
+                        exporter["write_export"](output, grants, {1: "alice@example.com"})
+                        raise AssertionError(f"{scenario}: export unexpectedly succeeded")
+                    except exporter["ExportError"] as error:
+                        expected = {"csv-row-bound": "500,000-row limit", "csv-byte-bound": "8 MiB CSV limit",
+                                    "csv-partial-failure": "Provider failed after the first grant"}[scenario]
+                        assert expected in str(error), str(error)
+                        assert not output.exists(), "Published an incomplete CSV pair"
+                    report["checks"].append({"name": scenario, "passed": True})
                 assert not any(endpoint == "trap" for _, endpoint, _, _ in GitLabFixture.calls)
                 report["passed"] = True
             finally:
