@@ -278,5 +278,15 @@
     "method": "GET",
     "path": "/api/v2/workspaces",
     "operation": "workspaces.list_public"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/workspaces/[workspaceId]/source",
+    "operation": "workspaces.source.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workspaces/[workspaceId]/source",
+    "operation": "workspaces.source.apply"
   }
 ]
