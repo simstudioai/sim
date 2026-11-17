@@ -197,18 +197,11 @@ interface ParamEntry {
 }
 
 /**
- * A tool entry as JSON for `raw(...)`. The CWM is JSON by contract (`canonicalHash` stringifies
- * it with `stableStringify`, which throws otherwise), so a non-JSON tool is a canonicalize bug.
+ * A tool entry, or one of its params, as JSON for `raw(...)`. The CWM is JSON by contract
+ * (`canonicalHash` stringifies it with `stableStringify`, which throws otherwise), so a non-JSON
+ * tool is a canonicalize bug.
  */
-function toolJson(tool: CanonicalTool): Json {
-  const value: unknown = tool
-  if (!isJson(value)) throw new Error(`Tool entry of type "${tool.type}" is not plain JSON`)
-  return value
-}
-
-/** One param of a tool entry as JSON, under the same contract as {@link toolJson}. */
-function toolParamJson(tool: CanonicalTool, param: Value): Json {
-  const value: unknown = param
+function asToolJson(tool: CanonicalTool, value: unknown): Json {
   if (!isJson(value)) throw new Error(`Tool entry of type "${tool.type}" is not plain JSON`)
   return value
 }
@@ -258,7 +251,7 @@ class WorkflowPrinter {
     }
     const scope: RefScope = {
       hasBlock: (key) => this.blocks.has(key),
-      hasVariable: (key) => key in this.workflow.variables,
+      hasVariable: (key) => Object.hasOwn(this.workflow.variables, key),
       visibility: (from, target) => this.visibility(from, target),
       identOf: (key) => this.idents.get(key) ?? key,
       subflowScope: (from, kind) => this.subflowScope(from, kind),
@@ -420,7 +413,7 @@ class WorkflowPrinter {
     }
     for (const param of Object.values(block.params)) {
       if (param.kind === 'value') walk(param.value)
-      else walk(param.tools.map((tool) => tool.params))
+      else walk(param.tools)
     }
     for (const row of block.branches?.rows ?? []) walk(row.value)
     if (block.subflow) walk(block.subflow)
@@ -429,7 +422,7 @@ class WorkflowPrinter {
 
   private tagFor(
     block: CanonicalBlock,
-    catalogBlock: CatalogBlock | undefined,
+    declared: CatalogBlock | undefined,
     sb?: CatalogSubBlock
   ): Tag {
     if (sb?.valueKind === 'code') {
@@ -437,17 +430,17 @@ class WorkflowPrinter {
       const language = toLanguage(stringParam(block, 'language')) ?? toLanguage(sb.language)
       return language ? CODE_FILE_EXTENSIONS[language] : 'js'
     }
-    if (catalogBlock?.graph.annotationOnly) return 'md'
+    if (declared?.graph.annotationOnly) return 'md'
     return 't'
   }
 
   private context(
     block: CanonicalBlock,
-    catalogBlock: CatalogBlock | undefined,
+    declared: CatalogBlock | undefined,
     sb?: CatalogSubBlock
   ): FieldContext {
     return {
-      tag: this.tagFor(block, catalogBlock, sb),
+      tag: this.tagFor(block, declared, sb),
       from: block.key,
       variablesField: sb?.structured === 'variables',
       ...(sb ? { subBlock: sb } : {}),
@@ -456,7 +449,7 @@ class WorkflowPrinter {
 
   private printParamValue(
     block: CanonicalBlock,
-    catalogBlock: CatalogBlock | undefined,
+    declared: CatalogBlock | undefined,
     id: string,
     sb: CatalogSubBlock | undefined,
     single = false
@@ -474,7 +467,7 @@ class WorkflowPrinter {
       const literal = this.printJsonField(block, param.value)
       if (literal) return literal
     }
-    const context = this.context(block, catalogBlock, sb)
+    const context = this.context(block, declared, sb)
     if (sb?.structured === 'inputFormat' && Array.isArray(param.value)) {
       const sugar = inputFormatSugar(param.value)
       if (sugar) return this.printInputFormat(block, sugar)
@@ -703,24 +696,24 @@ class WorkflowPrinter {
       if (childWorkflow) return this.workflowToolCall(block, childWorkflow)
       const custom = this.customToolCall(block, tool)
       if (custom) return custom
-      const toolBlock = catalogBlock(this.catalog, tool.type)
+      const declared = catalogBlock(this.catalog, tool.type)
       const found = findBuilder(this.catalog, tool.type, false, (id) => {
         if (id === 'operation') return tool.operation
         const value = getOwn(tool.params, id)
         return typeof value === 'string' ? value : undefined
       })
-      const aliases = toolBlock ? paramAliases(toolBlock, false) : new Map<string, string>()
+      const aliases = declared ? paramAliases(declared, false) : new Map<string, string>()
       const aliasNames = new Set(aliases.values())
       // A stored key spelled like an alias would compile back to the param the alias names.
       if (!found || Object.keys(tool.params).some((id) => aliasNames.has(id))) {
-        return this.rawToolCall(tool, toolBlock, aliases)
+        return this.rawToolCall(tool, declared, aliases)
       }
       const pinned = pinnedIds(found.builder)
       const nested: FieldContext = { tag: 't', from: block.key }
       const params: Property[] = Object.entries(tool.params)
         .filter(([id]) => !pinned.has(id))
         .map(([id, value]) => {
-          const sb = toolBlock?.subBlocks.find((candidate) => candidate.id === id)
+          const sb = declared?.subBlocks.find((candidate) => candidate.id === id)
           return {
             key: printKey(aliases.get(id) ?? id),
             value:
@@ -773,18 +766,18 @@ class WorkflowPrinter {
    */
   private rawToolCall(
     tool: CanonicalTool,
-    catalogBlock: CatalogBlock | undefined,
+    declared: CatalogBlock | undefined,
     aliases: ReadonlyMap<string, string>
   ): Expr {
     const passwordIds = new Set<string>()
-    for (const subBlock of catalogBlock?.subBlocks ?? []) {
+    for (const subBlock of declared?.subBlocks ?? []) {
       if (!subBlock.password) continue
       passwordIds.add(subBlock.id)
       const alias = aliases.get(subBlock.id)
       if (alias !== undefined) passwordIds.add(alias)
     }
     const secret = (id: string, value: Value) => passwordIds.has(id) && isLiteralSecret(value)
-    const json = toolJson(tool)
+    const json = asToolJson(tool, tool)
     if (!isPlainRecord(json) || !Object.entries(tool.params).some(([id, v]) => secret(id, v))) {
       return this.values.call('raw', [this.values.json(json)])
     }
@@ -793,7 +786,7 @@ class WorkflowPrinter {
         key: printKey(id),
         value: secret(id, value)
           ? this.values.call('stored', [])
-          : this.values.json(toolParamJson(tool, value)),
+          : this.values.json(asToolJson(tool, value)),
       }))
     )
     return this.values.call('raw', [
@@ -825,7 +818,7 @@ class WorkflowPrinter {
    */
   private activeIfSet(
     block: CanonicalBlock,
-    catalogBlock: CatalogBlock,
+    declared: CatalogBlock,
     sb: CatalogSubBlock,
     value: Value
   ): boolean {
@@ -833,7 +826,7 @@ class WorkflowPrinter {
       ...block,
       params: { ...block.params, [sb.id]: { kind: 'value', value } },
     }
-    return !isInactive(sb.id, canonicalActivityInputs(filled, catalogBlock, this.catalog))
+    return !isInactive(sb.id, canonicalActivityInputs(filled, declared, this.catalog))
   }
 
   /**
@@ -847,17 +840,17 @@ class WorkflowPrinter {
    */
   private collectParams(
     block: CanonicalBlock,
-    catalogBlock: CatalogBlock | undefined,
+    declared: CatalogBlock | undefined,
     pinned: Set<string>
   ): { params: ParamEntry[]; extra: ParamEntry[] } {
     const params: ParamEntry[] = []
     const extra: ParamEntry[] = []
     const handled = new Set<string>(pinned)
-    const branchId = catalogBlock?.graph.branches?.subBlockId
+    const branchId = declared?.graph.branches?.subBlockId
     if (branchId) handled.add(branchId)
     const inactiveIds = new Set(executableInactiveParams(block, this.catalog))
-    const defaults: ReadonlyMap<string, EditorDefault> = catalogBlock
-      ? editorDefaults(catalogBlock)
+    const defaults: ReadonlyMap<string, EditorDefault> = declared
+      ? editorDefaults(declared)
       : new Map()
     const push = (list: ParamEntry[], key: string, value: Expr) => {
       list.push({ key: printKey(key), anchor: anchors.param(block.key, key), value })
@@ -867,8 +860,8 @@ class WorkflowPrinter {
       return param?.kind === 'value' && defaults.has(id) && defaults.get(id) === param.value
     }
 
-    if (catalogBlock) {
-      const index = buildFieldIndex(catalogBlock, block.triggerMode, pinned)
+    if (declared) {
+      const index = buildFieldIndex(declared, block.triggerMode, pinned)
       for (const id of index.subBlocks.keys()) handled.add(id)
       for (const field of index.fields.values()) {
         if (field.kind === 'pair') {
@@ -878,11 +871,11 @@ class WorkflowPrinter {
           if (hasValue(block, effective.id)) {
             if (inactiveIds.has(effective.id)) continue
             if (mode === 'basic' && effective === field.basic && isDefault(effective.id)) continue
-            const printed = this.printParamValue(block, catalogBlock, effective.id, effective)
+            const printed = this.printParamValue(block, declared, effective.id, effective)
             if (printed) push(params, field.name, printed)
           } else if (
             field.members.some((member) => defaults.has(member.id)) &&
-            this.activeIfSet(block, catalogBlock, effective, defaults.get(effective.id) ?? '')
+            this.activeIfSet(block, declared, effective, defaults.get(effective.id) ?? '')
           ) {
             push(params, field.name, NULL_EXPR)
           }
@@ -894,14 +887,14 @@ class WorkflowPrinter {
             push(params, field.name, this.values.call('todo', []))
           } else {
             const fallback = defaults.get(sb.id)
-            if (fallback !== undefined && this.activeIfSet(block, catalogBlock, sb, fallback)) {
+            if (fallback !== undefined && this.activeIfSet(block, declared, sb, fallback)) {
               push(params, field.name, NULL_EXPR)
             }
           }
           continue
         }
         if (inactiveIds.has(sb.id) || isDefault(sb.id)) continue
-        const printed = this.printParamValue(block, catalogBlock, sb.id, sb, true)
+        const printed = this.printParamValue(block, declared, sb.id, sb, true)
         if (printed) push(params, field.name, printed)
       }
     }
@@ -910,8 +903,8 @@ class WorkflowPrinter {
       .filter((id) => !handled.has(id) && !inactiveIds.has(id))
       .sort(compareStrings)
     for (const id of rest) {
-      const printed = this.printParamValue(block, catalogBlock, id, undefined)
-      if (printed) push(catalogBlock ? extra : params, id, printed)
+      const printed = this.printParamValue(block, declared, id, undefined)
+      if (printed) push(declared ? extra : params, id, printed)
     }
     return { params, extra }
   }
@@ -1025,7 +1018,7 @@ class WorkflowPrinter {
             tag: branches.kind === 'condition' ? 'js' : 't',
             from: block.key,
           })
-      entries.push({ key: printMember(row.key).slice(1), value })
+      entries.push({ key: printKey(row.key), value })
       const rowMeta: Property[] = []
       if (row.titleOverride !== undefined) {
         rowMeta.push({ key: 'title', value: this.values.string(row.titleOverride) })
@@ -1042,12 +1035,12 @@ class WorkflowPrinter {
 
   private blockCall(block: CanonicalBlock): Expr {
     if (block.subflow) return this.containerCall(block)
-    const blockSpec = catalogBlock(this.catalog, block.type)
+    const declared = catalogBlock(this.catalog, block.type)
     const found = findBuilder(this.catalog, block.type, block.triggerMode, (id) =>
       stringParam(block, id)
     )
     const pinned = pinnedIds(found?.builder)
-    const collected = this.collectParams(block, blockSpec, pinned)
+    const collected = this.collectParams(block, declared, pinned)
     const { extra } = collected
     const form =
       found?.builder.type === RESPONSE_BLOCK_TYPE
@@ -1060,7 +1053,7 @@ class WorkflowPrinter {
     const params = form ? this.responseFormParams(block, form) : collected.params
     const paramProps = this.paramProperties(params)
     const extraProps = this.paramProperties(extra)
-    const branchSpec = blockSpec?.graph.branches
+    const branchSpec = declared?.graph.branches
     const { entries: branchProps, meta: branchMeta } = this.branchEntries(block)
 
     let generic = found === null
@@ -1103,7 +1096,7 @@ class WorkflowPrinter {
                   {
                     key: printKey(id),
                     anchor: anchors.param(block.key, id),
-                    value: this.values.value(value.value, this.context(block, blockSpec)),
+                    value: this.values.value(value.value, this.context(block, declared)),
                   },
                 ]
               : []
@@ -1403,7 +1396,6 @@ class WorkflowPrinter {
       callback,
     ])
 
-    for (const key of this.preorder) this.comments.takeOrphans(key)
     const header = this.comments.take(anchors.header)
     const footer = this.comments.take(anchors.footer)
     this.comments.dropRemaining()

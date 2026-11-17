@@ -8,8 +8,9 @@
  * gets its `value()` thunk's result for a block with no values (`valueDefault.constant`, or a
  * computed thunk's `initial`); a hidden field gets its `defaultValue`; a read-only field gets
  * nothing. A thunk that mints a fresh value per call (a webhook token) has no static default;
- * a block created from source keeps the value `initBlock` minted (`mintsFreshValue`). Every registry default is a string, number or boolean;
- * anything else is not treated as a default, so it always prints.
+ * a block created from source keeps the value `initBlock` minted (`mintsFreshValue`). Every
+ * registry default is a string, number or boolean; anything else is not treated as a default, so
+ * it always prints.
  */
 
 import type { Json, SubBlockId } from '../model'

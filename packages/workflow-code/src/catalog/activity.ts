@@ -177,7 +177,7 @@ export function isInactive(id: SubBlockId, inputs: ActivityInputs): boolean {
  */
 export function canonicalActivityInputs(
   block: CanonicalBlock,
-  catalogBlock: CatalogBlock,
+  declared: CatalogBlock,
   catalog: BlockCatalog
 ): ActivityInputs {
   const values: Record<string, unknown> = {}
@@ -187,14 +187,14 @@ export function canonicalActivityInputs(
   const overrides: CanonicalModeOverrides = { ...block.modes }
   setOwn(values, '__canonicalModes', overrides)
   return {
-    block: catalogBlock,
+    block: declared,
     blockType: block.type,
     triggerMode: block.triggerMode,
     advancedMode: block.advancedMode,
     values,
     overrides,
-    index: serializedCanonicalIndex(catalogBlock, block.triggerMode),
-    deployRead: deployReadIds(catalog, catalogBlock, block.type, block.triggerMode, values),
+    index: serializedCanonicalIndex(declared, block.triggerMode),
+    deployRead: deployReadIds(catalog, declared, block.type, block.triggerMode, values),
   }
 }
 

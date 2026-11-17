@@ -74,6 +74,7 @@ export type CatalogValueKind =
 /** Structured subBlock types whose stored JSON canonicalize decodes. */
 export type CatalogStructuredKind = 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables'
 
+/** A static dropdown option of a subBlock, as the expanded catalog serves it. */
 export interface CatalogOption {
   id: string
   label: string
@@ -88,6 +89,7 @@ interface CatalogOptionEntry {
   label?: string
 }
 
+/** One subBlock (field) of a block or trigger, in expanded form. */
 export interface CatalogSubBlock {
   id: SubBlockId
   type: SubBlockType
@@ -223,6 +225,7 @@ export interface CatalogDynamicOutputs {
   param: string
 }
 
+/** A block type in expanded form: what `catalogBlock()` returns. */
 export interface CatalogBlock {
   type: string
   name: string
@@ -265,6 +268,7 @@ export interface CatalogBlock {
   custom?: { sourceWorkflowId?: string }
 }
 
+/** A shared trigger in expanded form: what `catalogTrigger()` returns. */
 export interface CatalogTrigger {
   id: string
   provider: string
@@ -299,8 +303,9 @@ export interface CatalogBuilder {
  * Core-shard encoding. The served catalog never repeats itself: a block's trigger-mode subBlocks
  * point at the shared `triggers` table, a subBlock declared identically by several blocks is
  * stored once in `subBlocks`, condition value lists repeated across fields are stored once in
- * `lists`, and option labels that nothing reads are dropped. Every expanded type above is also a valid entry, so a catalog written in expanded
- * form is a valid core shard. Read a catalog only through `catalog/view.ts`, which expands it.
+ * `lists`, and option labels that nothing reads are dropped. Every expanded type above is also a
+ * valid entry, so a catalog written in expanded form is a valid core shard. Read a catalog only
+ * through `catalog/view.ts`, which expands it.
  */
 
 /** A condition value list stored once at `BlockCatalog.lists[list]`. */
@@ -364,18 +369,24 @@ interface CatalogOutputsEntry {
   sharedOutputs?: number
 }
 
+/** A block type as the core shard stores it; expands to a {@link CatalogBlock}. */
 export interface CatalogBlockEntry
   extends Omit<CatalogBlock, 'subBlocks' | 'outputs'>,
     CatalogOutputsEntry {
   subBlocks: Array<CatalogSubBlockEntry | CatalogSharedSubBlockRef | CatalogTriggerSubBlocksRef>
 }
 
+/** A shared trigger as the core shard stores it; expands to a {@link CatalogTrigger}. */
 export interface CatalogTriggerEntry
   extends Omit<CatalogTrigger, 'subBlocks' | 'outputs'>,
     CatalogOutputsEntry {
   subBlocks: Array<CatalogSubBlockEntry | CatalogSharedSubBlockRef>
 }
 
+/**
+ * The block catalog core shard served to compile and print: every block type, shared trigger and
+ * builder of one SDK major, in the encoding above. Read it only through `catalog/view.ts`.
+ */
 export interface BlockCatalog {
   catalogVersion: 1
   /** Content hash of the core shard; the ETag and `lock.catalogHash`. */

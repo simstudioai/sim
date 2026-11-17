@@ -27,6 +27,7 @@ export const hardline: Doc = [hardLineOnly, breakParent]
 /** A newline that resets the column to 0: template-literal content is never re-indented. */
 const literalline: Doc = [literalLineOnly, breakParent]
 
+/** Prettier's `group`: flat when the rest of the line fits, else every line inside breaks. */
 export function group(contents: Doc, options: { shouldBreak?: boolean } = {}): Doc {
   return { type: 'group', contents, break: options.shouldBreak === true }
 }
@@ -36,22 +37,27 @@ export function conditionalGroup(states: Doc[]): Doc {
   return { type: 'group', contents: states[0] ?? '', break: false, states }
 }
 
+/** Indents every line `contents` breaks onto by one level. */
 export function indent(contents: Doc): Doc {
   return { type: 'indent', contents }
 }
 
+/** `breakContents` when the enclosing group breaks, else `flatContents`. */
 export function ifBreak(breakContents: Doc, flatContents: Doc = ''): Doc {
   return { type: 'ifBreak', breakContents, flatContents }
 }
 
+/** Prettier's `fill`: alternating content and separators; only an overflowing separator breaks. */
 export function fill(parts: Doc[]): Doc {
   return { type: 'fill', parts }
 }
 
+/** Defers `contents` to the end of the current line (a trailing comment). */
 export function lineSuffix(contents: Doc): Doc {
   return { type: 'lineSuffix', contents }
 }
 
+/** `docs` with `separator` between each pair. */
 export function join(separator: Doc, docs: Doc[]): Doc[] {
   const out: Doc[] = []
   docs.forEach((doc, index) => {

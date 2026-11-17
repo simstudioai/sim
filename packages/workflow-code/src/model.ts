@@ -38,6 +38,7 @@ export type SubBlockId = string
 /** A canonical basic/advanced group id (registry `canonicalParamId`). */
 export type CanonicalParamId = string
 
+/** A JSON value: what the CWM stores wherever no canonical node can appear. */
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
 
 /** Which member of a basic/advanced pair is effective. */
@@ -198,6 +199,7 @@ export interface CanonicalBranches {
   rows: CanonicalBranchRow[] | null
 }
 
+/** One condition or router branch, keyed by its source branch name. */
 export interface CanonicalBranchRow {
   key: BranchKey
   /** The condition expression (condition) or route description (router), verbatim. */
@@ -248,6 +250,7 @@ export interface ParallelSpec {
   batchSize?: number
 }
 
+/** One block of the canonical workflow, keyed by its normalized name. */
 export interface CanonicalBlock {
   key: BlockKey
   /** Display name exactly as stored; `key` is derived from it. */
@@ -335,6 +338,7 @@ export interface CanonicalEdge {
   to: BlockKey
 }
 
+/** A workflow variable, keyed by its normalized name. */
 export interface CanonicalVariable {
   key: VarKey
   name: string
@@ -391,6 +395,7 @@ interface WorkflowAnnotations {
   comments: Partial<Record<AnchorKey, CodeComment[]>>
 }
 
+/** A whole workflow in canonical form: what canonicalize returns and compile produces. */
 export interface CanonicalWorkflow {
   modelVersion: 1
   meta: CanonicalWorkflowMeta

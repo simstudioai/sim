@@ -9,7 +9,7 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
-import { getOwn } from '../records'
+import { getOwn, setOwn } from '../records'
 import type {
   BlockCatalog,
   CatalogBlock,
@@ -134,7 +134,9 @@ function expandOutputRecord(
   record: Record<string, CatalogOutputEntry>
 ): Record<string, CatalogOutput> {
   const expanded: Record<string, CatalogOutput> = {}
-  for (const [name, entry] of Object.entries(record)) expanded[name] = expandOutput(catalog, entry)
+  for (const [name, entry] of Object.entries(record)) {
+    setOwn(expanded, name, expandOutput(catalog, entry))
+  }
   return expanded
 }
 
@@ -181,7 +183,11 @@ function expandTrigger(catalog: BlockCatalog, id: string): CatalogTrigger {
  * the core shard does not keep reads as its id.
  */
 export function catalogBlock(catalog: BlockCatalog, type: string): CatalogBlock | undefined {
-  if (!Object.hasOwn(catalog.blocks, type)) return undefined
+  return Object.hasOwn(catalog.blocks, type) ? memoBlock(catalog, type) : undefined
+}
+
+/** The memoized expansion of a block type the catalog serves (an own key of `blocks`). */
+function memoBlock(catalog: BlockCatalog, type: string): CatalogBlock {
   const memo = memoOf(catalog)
   let block = memo.blocks.get(type)
   if (!block) {
@@ -198,7 +204,11 @@ export function catalogBlockTypes(catalog: BlockCatalog): string[] {
 
 /** The expanded trigger `id`, or `undefined` when the catalog does not serve it. */
 export function catalogTrigger(catalog: BlockCatalog, id: string): CatalogTrigger | undefined {
-  if (!Object.hasOwn(catalog.triggers, id)) return undefined
+  return Object.hasOwn(catalog.triggers, id) ? memoTrigger(catalog, id) : undefined
+}
+
+/** The memoized expansion of a trigger the catalog serves (an own key of `triggers`). */
+function memoTrigger(catalog: BlockCatalog, id: string): CatalogTrigger {
   const memo = memoOf(catalog)
   let trigger = memo.triggers.get(id)
   if (!trigger) {
@@ -240,12 +250,8 @@ export function catalogBuildersOfType(
 export function expandBlockCatalog(catalog: BlockCatalog): ExpandedBlockCatalog {
   const { blocks, triggers, subBlocks, lists, outputs, ...rest } = catalog
   const expandedBlocks: Record<string, CatalogBlock> = {}
-  for (const type of Object.keys(blocks)) {
-    expandedBlocks[type] = catalogBlock(catalog, type) ?? expandBlock(catalog, type)
-  }
+  for (const type of Object.keys(blocks)) setOwn(expandedBlocks, type, memoBlock(catalog, type))
   const expandedTriggers: Record<string, CatalogTrigger> = {}
-  for (const id of Object.keys(triggers)) {
-    expandedTriggers[id] = catalogTrigger(catalog, id) ?? expandTrigger(catalog, id)
-  }
+  for (const id of Object.keys(triggers)) setOwn(expandedTriggers, id, memoTrigger(catalog, id))
   return { ...rest, blocks: expandedBlocks, triggers: expandedTriggers }
 }

@@ -10,6 +10,7 @@
  * grammar are not mapped at all: callers keep them as literal text, which is exact.
  */
 
+/** One segment of a stored reference path: a dot name or a bracket index. */
 export type RefSegment = { kind: 'name'; name: string } | { kind: 'index'; index: number }
 
 /**
@@ -41,10 +42,12 @@ export function isIdentifierName(text: string): boolean {
   return IDENTIFIER_NAME.test(text)
 }
 
+/** Whether `value` can be a name segment of a mappable path. */
 export function isNameSegment(value: string): boolean {
   return NAME_SEGMENT.test(value)
 }
 
+/** Whether `value` can be a bracket index of a mappable path: a canonical non-negative integer. */
 export function isIndexSegment(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0 && CANONICAL_INDEX.test(String(value))
 }
