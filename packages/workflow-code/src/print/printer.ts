@@ -23,11 +23,7 @@ import { canonicalActivityInputs, executableInactiveParams, isInactive } from '.
 import { type EditorDefault, editorDefaults } from '../catalog/defaults'
 import { buildFieldIndex, memberFor, paramAliases } from '../catalog/surface'
 import type { BlockCatalog, CatalogBlock, CatalogBuilder, CatalogSubBlock } from '../catalog/types'
-import {
-  catalogBlock as catalogBlockOf,
-  catalogBuilderPaths,
-  catalogBuildersOfType,
-} from '../catalog/view'
+import { catalogBlock, catalogBuilderPaths, catalogBuildersOfType } from '../catalog/view'
 import { CODE_FILE_EXTENSIONS, type CodeFileLanguage, checkCodeFileBijection } from '../code-files'
 import type { PrintDiagnosticCode } from '../diagnostics/codes'
 import type { Diagnostic } from '../diagnostics/frame'
@@ -142,7 +138,7 @@ function findBuilder(
   triggerMode: boolean,
   read: (id: string) => string | undefined
 ): { path: string; builder: CatalogBuilder } | null {
-  const triggerBlock = catalogBlockOf(catalog, type)?.category === 'triggers'
+  const triggerBlock = catalogBlock(catalog, type)?.category === 'triggers'
   const candidates = catalogBuildersOfType(catalog, type)
     .filter(([, builder]) => {
       if (!triggerBlock && (builder.triggerMode === true) !== triggerMode) return false
@@ -369,7 +365,7 @@ class WorkflowPrinter {
   }
 
   private isTrigger(block: CanonicalBlock): boolean {
-    return block.triggerMode || catalogBlockOf(this.catalog, block.type)?.category === 'triggers'
+    return block.triggerMode || catalogBlock(this.catalog, block.type)?.category === 'triggers'
   }
 
   private layout(): void {
@@ -734,24 +730,24 @@ class WorkflowPrinter {
       if (childWorkflow) return this.workflowToolCall(block, childWorkflow)
       const custom = this.customToolCall(block, tool)
       if (custom) return custom
-      const catalogBlock = catalogBlockOf(this.catalog, tool.type)
+      const toolBlock = catalogBlock(this.catalog, tool.type)
       const found = findBuilder(this.catalog, tool.type, false, (id) => {
         if (id === 'operation') return tool.operation
         const value = getOwn(tool.params, id)
         return typeof value === 'string' ? value : undefined
       })
-      const aliases = catalogBlock ? paramAliases(catalogBlock, false) : new Map<string, string>()
+      const aliases = toolBlock ? paramAliases(toolBlock, false) : new Map<string, string>()
       const aliasNames = new Set(aliases.values())
       // A stored key spelled like an alias would compile back to the param the alias names.
       if (!found || Object.keys(tool.params).some((id) => aliasNames.has(id))) {
-        return this.rawToolCall(tool, catalogBlock, aliases)
+        return this.rawToolCall(tool, toolBlock, aliases)
       }
       const pinned = pinnedIds(found.builder)
       const nested: FieldContext = { tag: 't', from: block.key }
       const params: Property[] = Object.entries(tool.params)
         .filter(([id]) => !pinned.has(id))
         .map(([id, value]) => {
-          const sb = catalogBlock?.subBlocks.find((candidate) => candidate.id === id)
+          const sb = toolBlock?.subBlocks.find((candidate) => candidate.id === id)
           return {
             key: printKey(aliases.get(id) ?? id),
             value:
@@ -985,7 +981,7 @@ class WorkflowPrinter {
       return false
     if (block.triggerMode) return sb.mode === 'trigger'
     if (sb.mode === 'trigger')
-      return catalogBlockOf(this.catalog, block.type)?.category === 'triggers'
+      return catalogBlock(this.catalog, block.type)?.category === 'triggers'
     return sb.mode === undefined || sb.mode === 'basic' || sb.mode === 'both'
   }
 
@@ -1073,12 +1069,12 @@ class WorkflowPrinter {
 
   private blockCall(block: CanonicalBlock): Expr {
     if (block.subflow) return this.containerCall(block)
-    const catalogBlock = catalogBlockOf(this.catalog, block.type)
+    const blockSpec = catalogBlock(this.catalog, block.type)
     const found = findBuilder(this.catalog, block.type, block.triggerMode, (id) =>
       stringParam(block, id)
     )
     const pinned = pinnedIds(found?.builder)
-    const collected = this.collectParams(block, catalogBlock, pinned)
+    const collected = this.collectParams(block, blockSpec, pinned)
     const { extra } = collected
     const form =
       found?.builder.type === RESPONSE_BLOCK_TYPE
@@ -1091,7 +1087,7 @@ class WorkflowPrinter {
     const params = form ? this.responseFormParams(block, form) : collected.params
     const paramProps = this.paramProperties(params)
     const extraProps = this.paramProperties(extra)
-    const branchSpec = catalogBlock?.graph.branches
+    const branchSpec = blockSpec?.graph.branches
     const { entries: branchProps, meta: branchMeta } = this.branchEntries(block)
 
     let generic = found === null
@@ -1133,7 +1129,7 @@ class WorkflowPrinter {
                   {
                     key: printKey(id),
                     anchor: anchors.param(block.key, id),
-                    value: this.values.value(value.value, this.context(block, catalogBlock)),
+                    value: this.values.value(value.value, this.context(block, blockSpec)),
                   },
                 ]
               : []
@@ -1179,7 +1175,7 @@ class WorkflowPrinter {
     }
     const { params, extra } = this.collectParams(
       block,
-      catalogBlockOf(this.catalog, block.type),
+      catalogBlock(this.catalog, block.type),
       new Set()
     )
     const subflowData: Record<string, Json> = {}
@@ -1281,7 +1277,7 @@ class WorkflowPrinter {
       const isContainer = block.subflow !== undefined
       const hasBranches =
         block.branches !== undefined ||
-        catalogBlockOf(this.catalog, block.type)?.graph.branches !== undefined
+        catalogBlock(this.catalog, block.type)?.graph.branches !== undefined
       const groups = new Map<PortKey, CanonicalEdge[]>()
       for (const edge of edges) {
         const key = portKey(edge.port)
