@@ -67,6 +67,8 @@ type PlanCode =
   | 'E_APPLY_LOCKED'
   /** A change a child operation refused while planning, with its message. */
   | 'E_APPLY_REFUSED'
+  /** A write failed for a reason that is not the source's (logged on the server). */
+  | 'E_APPLY_FAILED'
   /** The apply would make more changes or touch more workflows than one request may. */
   | 'E_PLAN_TOO_LARGE'
   /** A declared resource references one this apply deletes. */
