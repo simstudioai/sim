@@ -10,6 +10,7 @@ import {
   normalizeWorkflowBlockName,
 } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
+import { literalText } from '../babel'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
 import type { BlockKey } from '../model'
 import { isSuspiciousCharacter } from '../print/strings'
@@ -26,7 +27,7 @@ import {
   unsupported,
 } from './context'
 import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
-import { calleePath, literalText, SDK_VALUE_FUNCTIONS } from './values'
+import { calleePath, SDK_VALUE_FUNCTIONS } from './values'
 
 const LOOP_METHODS = new Set(['for', 'forEach', 'while', 'doWhile'])
 const PARALLEL_METHODS = new Set(['count', 'collection'])

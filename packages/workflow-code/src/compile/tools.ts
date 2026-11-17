@@ -6,6 +6,7 @@ import {
   MCP_RESERVED_ARGS,
   type McpToolForm,
 } from '../agent-tools'
+import { literalText } from '../babel'
 import { paramAliases } from '../catalog/surface'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '../catalog/view'
 import {
@@ -26,7 +27,6 @@ import {
   compileJsonLiteral,
   compileNested,
   compileValue,
-  literalText,
   nestedValue as nestedToolValue,
   objectEntries,
   type ValueSite,

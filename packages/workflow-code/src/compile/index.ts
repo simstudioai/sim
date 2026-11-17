@@ -2,6 +2,7 @@ import type { ArrowFunctionExpression, CallExpression, Node } from '@babel/types
 import { compareStrings } from '@sim/utils/string'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import { encodeAnchor, portKey } from '../anchors'
+import { literalText } from '../babel'
 import type { BlockCatalog } from '../catalog/types'
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
 import type { LocatedDiagnostic, SourceSpan } from '../diagnostics/frame'
@@ -17,7 +18,7 @@ import type {
   VarKey,
 } from '../model'
 import { setOwn } from '../records'
-import { OLDEST_SDK_MAJOR } from '../sdk'
+import { OLDEST_SDK_MAJOR, SDK_MODULE } from '../sdk'
 import { compileBlock } from './blocks'
 import { checkStorableLiterals, checkStorableText } from './characters'
 import { CommentCollector } from './comments'
@@ -27,7 +28,7 @@ import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
 import { type CompileLimits, DEFAULT_LIMITS, parseWorkflowSource, sdkHeader } from './parse'
 import { ErrorLimitReached, Reporter } from './report'
 import { collectBody, collisionSuffix } from './scope'
-import { checkCodeFileRefs, compileJsonLiteral, literalText, objectEntries } from './values'
+import { checkCodeFileRefs, compileJsonLiteral, objectEntries } from './values'
 
 /** One compile: the entry file, the code files it may read, and what the server knows. */
 export interface CompileInput {
@@ -72,7 +73,6 @@ export interface CompileResult {
   sdkMajor: number | null
 }
 
-const SDK_MODULE = '@sim/workflow-sdk'
 const VARIABLE_TYPES: ReadonlySet<string> = new Set([
   'string',
   'number',
