@@ -1,5 +1,506 @@
-import { fileCodec } from '@sim/workspace-code/kinds/files'
-import { unsupportedAdapter } from '@/lib/workspace-source/application/kinds/unsupported'
+/**
+ * Workspace files as source: every file under `files/` is one workspace file at that folder path
+ * and name, synced by SHA-256 through the blob rounds. Creates go through
+ * `createWorkspaceFileBufferByPath` (which creates missing folders), content changes through
+ * `updateWorkspaceFileContentFromBuffer` guarded by the revision the plan saw (each one records a
+ * new version), deletes through `deleteWorkspaceFileOperation` (Recently Deleted keeps the file).
+ * Only `context = 'workspace'` files are read; a file over the blob cap, or one whose path no
+ * directory can hold, is left out of a get and never touched by an apply.
+ */
+import { sha256Hex } from '@sim/security/hash'
+import {
+  type BaseResource,
+  fingerprintOf,
+  type ResourceFingerprint,
+  resourceAddress,
+} from '@sim/workspace-code'
+import {
+  type FileDecl,
+  fileBlobPath,
+  fileCodec,
+  filePathProblem,
+  foldedFileKey,
+} from '@sim/workspace-code/kinds/files'
+import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
+import { encodeVfsPathSegments, normalizeDisplaySegment } from '@/lib/vfs/path'
+import { admitCreateWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
+import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
+import {
+  queryWorkspaceFilePage,
+  readWorkspaceFileContentStates,
+  type WorkspaceFileContentState,
+} from '@/lib/workspace-files/application/list-workspace-files'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import {
+  admitUpdateWorkspaceFileContent,
+  updateWorkspaceFileContentFromBuffer,
+} from '@/lib/workspace-files/application/update-workspace-file-content'
+import { createWorkspaceFileBufferByPath } from '@/lib/workspace-files/application/write-workspace-file-by-path'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
+import { ResourceChangedError } from '@/lib/workspace-source/application/errors'
+import {
+  noBaseFinding,
+  planUndeclared,
+  serverChangedFinding,
+  staleFinding,
+} from '@/lib/workspace-source/application/findings'
+import { resolveDeclared } from '@/lib/workspace-source/application/three-way'
+import type {
+  AppliedResource,
+  ApplyContext,
+  KindAdapter,
+  PlanContext,
+  PlannedChange,
+  SourceContext,
+  StoredResource,
+  StoredSet,
+  WorkspaceSourceDiagnostic,
+} from '@/lib/workspace-source/application/types'
 
-/** Workspace files: not supported yet (phase 2 replaces this file with the real adapter). */
-export const fileAdapter = unsupportedAdapter(fileCodec)
+/** One stored workspace file, keyed by its path under `files/`. */
+interface StoredFileState {
+  size: number
+  rev: string
+  /** SHA-256 of the current bytes when version history records it. */
+  sha256: string | null
+  /** Why a directory never holds this file (too large, unsafe path, case collision). */
+  unmanaged?: string
+}
+
+type StoredFile = StoredResource<StoredFileState>
+
+/** The content revision the plan saw; the write refuses a file that moved past it. */
+interface FilePlan {
+  rev: string
+}
+
+type FileChange = PlannedChange<FileDecl, FilePlan>
+
+/** A stored file's path under `files/`: its folder names, then its name. */
+function storedKey(file: WorkspaceFileRecord): string {
+  try {
+    return [...parseWorkspaceFileFolderDisplayPath(file.folderPath ?? ''), file.name].join('/')
+  } catch {
+    return file.name
+  }
+}
+
+function fingerprint(sha256: string): ResourceFingerprint {
+  return fingerprintOf(fileCodec.canonical({ sha256, size: 0 }))
+}
+
+/**
+ * A file's base entry: its id and fingerprint, plus the revision and hash it was read at under its
+ * blob path, so a later plan knows the server's bytes are unchanged even without a stored hash.
+ */
+function fileBase(key: string, id: string, rev: string, sha256: string): BaseResource {
+  return {
+    id,
+    fingerprint: fingerprint(sha256),
+    blobs: { [fileBlobPath(key)]: { id, rev, sha256 } },
+  }
+}
+
+/** The revision the base recorded for a file, as a string. */
+function baseRev(key: string, base?: BaseResource): string | undefined {
+  const rev = base?.blobs?.[fileBlobPath(key)]?.rev
+  return rev === undefined ? undefined : String(rev)
+}
+
+/** The hash the server holds: its own, or the base's when the revision has not moved since. */
+function serverSha(file: StoredFile, base?: BaseResource): string | null {
+  if (file.state.sha256 !== null) return file.state.sha256
+  const recorded = base?.blobs?.[fileBlobPath(file.key)]
+  return recorded && recorded.id === file.id && String(recorded.rev) === file.state.rev
+    ? recorded.sha256
+    : null
+}
+
+/** Reads a stored file's bytes, under the content read's own authorization. */
+async function storedBytes(ctx: SourceContext, fileId: string): Promise<Buffer> {
+  const { content } = await readWorkspaceFileContent.execute({
+    principal: ctx.principal,
+    input: {
+      fileId,
+      assertedWorkspaceId: ctx.workspace.workspaceId,
+      contentView: 'opaque',
+      maxBytes: WORKSPACE_SOURCE_LIMITS.maxBlobBytes,
+    },
+  })
+  return content
+}
+
+/**
+ * Hashes the stored bytes of each declared file whose hash neither the server nor the base
+ * records, when its size matches the declared one (only then can the bytes be equal). Knowing the
+ * hash lets an apply whose earlier round wrote the file without saving the base adopt it instead
+ * of refusing it.
+ */
+async function hashUnrecorded(
+  ctx: PlanContext,
+  desired: ReadonlyMap<string, FileDecl>,
+  stored: StoredSet<StoredFileState>
+): Promise<void> {
+  for (const [key, decl] of desired) {
+    const file = stored.bound.get(key)
+    if (!file || file.state.unmanaged || file.state.size !== decl.size) continue
+    if (serverSha(file, ctx.base?.resources[resourceAddress('file', key)]) !== null) continue
+    file.state.sha256 = sha256Hex(await storedBytes(ctx, file.id))
+  }
+}
+
+function finding(
+  key: string,
+  code: string,
+  message: string,
+  hint: string
+): WorkspaceSourceDiagnostic {
+  return { code, severity: 'error', message, hint, file: fileBlobPath(key), kind: 'file', key }
+}
+
+function contentStates(
+  ctx: SourceContext,
+  fileIds: string[]
+): Promise<Map<string, WorkspaceFileContentState>> {
+  return readWorkspaceFileContentStates.execute({
+    principal: ctx.principal,
+    input: { workspaceId: ctx.workspace.workspaceId, fileIds },
+  })
+}
+
+/** One file's revision and hash now, refusing a file that is gone. */
+async function stateOf(ctx: SourceContext, fileId: string): Promise<WorkspaceFileContentState> {
+  const state = (await contentStates(ctx, [fileId])).get(fileId)
+  if (!state) throw new OrchestrationError('not_found', 'The file no longer exists.')
+  return state
+}
+
+/** A segment the server would store under another name (trimmed, collapsed, NFC), if any. */
+function renamedSegment(key: string): string | null {
+  for (const segment of key.split('/')) {
+    const stored = normalizeDisplaySegment(segment)
+    if (stored !== segment) return `"${segment}" would be stored as "${stored}"`
+  }
+  return null
+}
+
+function planFile(
+  key: string,
+  decl: FileDecl,
+  stored: StoredSet<StoredFileState>,
+  ctx: PlanContext,
+  folded: ReadonlyMap<string, StoredFile>
+): FileChange {
+  const change: FileChange = { kind: 'file', key, action: 'noop', decl, diagnostics: [] }
+  const existing = stored.bound.get(key)
+  if (existing?.state.unmanaged) {
+    change.diagnostics.push(
+      finding(
+        key,
+        'E_FILE_TOO_LARGE',
+        `${fileBlobPath(key)} on the server is never written by source: ${existing.state.unmanaged}.`,
+        'Remove it from files/ and change it in the Files tab.'
+      )
+    )
+    return { ...change, storedId: existing.id }
+  }
+  const resolution = resolveDeclared({
+    local: fingerprint(decl.sha256),
+    stored: existing,
+    base: ctx.base?.resources[resourceAddress('file', key)],
+    fingerprint: (file, base) => {
+      const sha = serverSha(file, base)
+      return sha === null ? `unknown:${file.state.rev}` : fingerprint(sha)
+    },
+  })
+  switch (resolution.action) {
+    case 'stale':
+      change.diagnostics.push(staleFinding('file', key))
+      return { ...change, storedId: resolution.stored.id }
+    case 'no-base':
+      change.diagnostics.push(noBaseFinding('file', key))
+      return { ...change, storedId: resolution.stored.id }
+    case 'noop': {
+      const { state, id } = resolution.stored
+      if (resolution.serverChanged) change.diagnostics.push(serverChangedFinding('file', key))
+      return {
+        ...change,
+        storedId: id,
+        ...(resolution.refreshed ? { base: fileBase(key, id, state.rev, decl.sha256) } : {}),
+      }
+    }
+    case 'update':
+      return {
+        ...change,
+        action: 'update',
+        storedId: resolution.stored.id,
+        fields: [`bytes (${resolution.stored.state.size} → ${decl.size})`],
+        needsBlobs: [fileBlobPath(key)],
+        detail: { rev: resolution.stored.state.rev },
+      }
+    case 'adopt':
+    case 'create': {
+      const renamed = renamedSegment(key)
+      if (renamed !== null) {
+        change.diagnostics.push(
+          finding(
+            key,
+            'E_FILE_NAME',
+            `${fileBlobPath(key)} cannot be created under this name: ${renamed}.`,
+            'Rename it locally to the name the server would store.'
+          )
+        )
+      }
+      const twin = folded.get(foldedFileKey(key))
+      if (twin && twin.key !== key) {
+        change.diagnostics.push(
+          finding(
+            key,
+            'E_FILE_PATH_COLLISION',
+            `${fileBlobPath(key)} differs only in letter case from ${fileBlobPath(twin.key)} on the server.`,
+            'Use the server’s spelling, or delete that file first.'
+          )
+        )
+      }
+      return {
+        ...change,
+        action: 'create',
+        fields: [`bytes (${decl.size})`],
+        needsBlobs: [fileBlobPath(key)],
+      }
+    }
+  }
+}
+
+/**
+ * Files the server holds that the directory no longer declares: only one the base records is
+ * deleted, only with `--allow-delete`, and only while its bytes are the ones the base recorded.
+ */
+function planDeletes(
+  desired: ReadonlyMap<string, FileDecl>,
+  stored: StoredSet<StoredFileState>,
+  ctx: PlanContext
+): FileChange[] {
+  const managed: StoredSet<StoredFileState> = {
+    bound: new Map([...stored.bound].filter(([, file]) => !file.state.unmanaged)),
+    unbound: [],
+  }
+  const undeclared = planUndeclared<StoredFileState, FileDecl, FilePlan>(
+    'file',
+    desired,
+    managed,
+    ctx,
+    (file) => ({ what: 'file', counts: { files: 1, bytes: file.state.size } })
+  )
+  return undeclared.map((change) => {
+    const file = managed.bound.get(change.key)
+    if (change.action !== 'delete' || !file) return change
+    if (
+      baseRev(change.key, ctx.base?.resources[resourceAddress('file', change.key)]) !==
+      file.state.rev
+    ) {
+      return { ...change, action: 'noop', diagnostics: [staleFinding('file', change.key)] }
+    }
+    return { ...change, detail: { rev: file.state.rev } }
+  })
+}
+
+/** The bytes a write sends, refused unless they are the ones the directory declared. */
+function contentOf(change: FileChange, ctx: ApplyContext): Buffer {
+  const bytes = ctx.blobs.get(fileBlobPath(change.key))
+  if (!change.decl || !bytes) throw new Error('A file write needs its declaration and bytes')
+  if (bytes.length !== change.decl.size || sha256Hex(bytes) !== change.decl.sha256) {
+    throw new OrchestrationError(
+      'validation',
+      `${fileBlobPath(change.key)} does not match the hash it was declared with; it changed while it was sent.`
+    )
+  }
+  return bytes
+}
+
+/** The base entry of a file just written, from what the server recorded. */
+async function written(
+  ctx: SourceContext,
+  key: string,
+  fileId: string,
+  sha256: string
+): Promise<AppliedResource> {
+  const state = await stateOf(ctx, fileId)
+  return { id: fileId, base: fileBase(key, fileId, state.rev, state.sha256 ?? sha256), text: {} }
+}
+
+export const fileAdapter: KindAdapter<FileDecl, StoredFileState, FilePlan> = {
+  codec: fileCodec,
+
+  async load(ctx) {
+    const { workspaceId } = ctx.workspace
+    const { maxResourcesPerKind, maxBlobBytes } = WORKSPACE_SOURCE_LIMITS
+    const { files } = await queryWorkspaceFilePage.execute({
+      principal: ctx.principal,
+      input: {
+        workspaceId,
+        sortBy: 'uploadedAt',
+        sortOrder: 'asc',
+        limit: maxResourcesPerKind + 1,
+      },
+    })
+    if (files.length > maxResourcesPerKind) {
+      throw new OrchestrationError(
+        'payload_too_large',
+        `This workspace has more than ${maxResourcesPerKind} files, more than one directory holds. Leave files/ out with --only.`
+      )
+    }
+    const states = await contentStates(
+      ctx,
+      files.map((file) => file.id)
+    )
+    const set: StoredSet<StoredFileState> = { bound: new Map(), unbound: [] }
+    const held = new Map<string, string>()
+    for (const file of files) {
+      const content = states.get(file.id)
+      const key = storedKey(file)
+      if (!content || set.bound.has(key)) continue
+      const problem = filePathProblem(key)
+      const twin = held.get(foldedFileKey(key))
+      const unmanaged =
+        file.size > maxBlobBytes
+          ? `it is ${file.size} bytes, over the ${maxBlobBytes}-byte limit`
+          : problem !== null
+            ? `no directory can hold its path: ${problem}`
+            : twin !== undefined
+              ? `its path differs only in letter case from ${fileBlobPath(twin)}`
+              : undefined
+      if (unmanaged === undefined) held.set(foldedFileKey(key), key)
+      set.bound.set(key, {
+        key,
+        id: file.id,
+        name: key,
+        state: {
+          size: file.size,
+          rev: content.rev,
+          sha256: content.sha256,
+          ...(unmanaged ? { unmanaged } : {}),
+        },
+      })
+    }
+    return set
+  },
+
+  async plan(desired, stored, ctx) {
+    await hashUnrecorded(ctx, desired, stored)
+    const folded = new Map(
+      [...stored.bound.values()]
+        .filter((file) => !file.state.unmanaged)
+        .map((file) => [foldedFileKey(file.key), file])
+    )
+    return [
+      ...[...desired].map(([key, decl]) => planFile(key, decl, stored, ctx, folded)),
+      ...planDeletes(desired, stored, ctx),
+    ]
+  },
+
+  async authorize(change, ctx) {
+    const { principal } = ctx
+    const workspaceId = ctx.workspace.workspaceId
+    if (change.action === 'create') {
+      await admitCreateWorkspaceFile(principal, workspaceId)
+      return
+    }
+    if (!change.storedId) return
+    if (change.action === 'delete') {
+      await deleteWorkspaceFileOperation.authorize({
+        principal,
+        input: { fileId: change.storedId, assertedWorkspaceId: workspaceId },
+      })
+      return
+    }
+    await admitUpdateWorkspaceFileContent(principal, change.storedId)
+  },
+
+  async apply(change, ctx) {
+    const { principal } = ctx
+    const workspaceId = ctx.workspace.workspaceId
+    if (change.action === 'delete') {
+      const fileId = change.storedId
+      if (!fileId || !change.detail) throw new Error('A file delete needs its plan')
+      if ((await stateOf(ctx, fileId)).rev !== change.detail.rev) {
+        throw new ResourceChangedError(change)
+      }
+      await deleteWorkspaceFileOperation.execute({
+        principal,
+        input: { fileId, assertedWorkspaceId: workspaceId },
+      })
+      return { id: fileId, text: {} }
+    }
+    const content = contentOf(change, ctx)
+    const sha256 = sha256Hex(content)
+    if (change.action === 'create') {
+      const segments = change.key.split('/')
+      const created = await createWorkspaceFileBufferByPath.execute({
+        principal,
+        input: {
+          workspaceId,
+          path: fileBlobPath(encodeVfsPathSegments(segments)),
+          content,
+          contentType: resolveEffectiveMimeType(undefined, segments[segments.length - 1] ?? ''),
+          mode: 'create',
+          exactName: true,
+        },
+      })
+      return written(ctx, change.key, created.id, sha256)
+    }
+    const fileId = change.storedId
+    if (!fileId || !change.detail) throw new Error('A file update needs its plan')
+    try {
+      await updateWorkspaceFileContentFromBuffer.execute({
+        principal,
+        input: {
+          fileId,
+          assertedWorkspaceId: workspaceId,
+          content,
+          provenanceMode: 'replace_empty',
+          expectedUpdatedAt: new Date(change.detail.rev),
+        },
+      })
+    } catch (error) {
+      if (error instanceof OrchestrationError && error.code === 'conflict') {
+        throw new ResourceChangedError(change)
+      }
+      throw error
+    }
+    return written(ctx, change.key, fileId, sha256)
+  },
+
+  async read(stored, ctx) {
+    const { state, id, key } = stored
+    if (state.unmanaged) {
+      throw new OrchestrationError(
+        state.size > WORKSPACE_SOURCE_LIMITS.maxBlobBytes ? 'payload_too_large' : 'validation',
+        `${fileBlobPath(key)} is left out: ${state.unmanaged}.`
+      )
+    }
+    const workspaceId = ctx.workspace.workspaceId
+    let { sha256, size } = state
+    if (sha256 === null) {
+      const content = await storedBytes(ctx, id)
+      sha256 = sha256Hex(content)
+      size = content.length
+    }
+    return {
+      text: {},
+      blobs: [
+        {
+          path: fileBlobPath(key),
+          sha256,
+          size,
+          id,
+          href: `/api/v2/files/${encodeURIComponent(id)}?workspaceId=${encodeURIComponent(workspaceId)}`,
+        },
+      ],
+      base: fileBase(key, id, state.rev, sha256),
+    }
+  },
+}
