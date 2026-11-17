@@ -14,12 +14,15 @@ type CodeFileBijection =
  * when reading it back yields the stored code exactly.
  * Code that already names `$ref`/`$env` in code position, or a reference followed by a member
  * access (`<a.b>.length`), reads back differently and fails here, so the printer falls back to an
- * inline `js` template with `W_CODE_FILE_INLINED`.
+ * inline `js` template with `W_CODE_FILE_INLINED`. So does code holding a carriage return: a
+ * checkout normalizes code files to LF (`functions/** text eol=lf`), which would rewrite the
+ * stored code on the next apply, while the inline form escapes `\r`.
  */
 export function checkCodeFileBijection(
   code: string,
   language: CodeFileLanguage
 ): CodeFileBijection {
+  if (code.includes('\r')) return { ok: false, reason: 'lossy' }
   const file = toCodeFile(code, language)
   const back = fromCodeFile(file, language)
   if (!back.ok) return { ok: false, reason: 'syntax' }

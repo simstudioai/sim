@@ -1,5 +1,17 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
+import { compileWorkflow } from '../compile'
+import { diffCanonical } from '../diff'
+import { materialize } from '../materialize'
+import {
+  blockState,
+  CATALOG,
+  canonical,
+  fixtureHooks,
+  RESOURCES,
+  workflowState,
+} from '../materialize/fixtures.test-helpers'
+import { printWorkflow } from '../print/printer'
 import { checkCodeFileBijection, codeFileLanguage, fromCodeFile, toCodeFile } from './index'
 
 describe('toCodeFile rewrites only code-position tokens', () => {
@@ -174,5 +186,45 @@ describe('code-file bijection over a small JS grammar', () => {
       }),
       { numRuns: 1000 }
     )
+  })
+})
+
+describe('code with carriage returns', () => {
+  const CRLF_CODE = 'const a = 1\r\nreturn a\r\n'
+
+  it('is not representable as a code file, which checkouts normalize to LF', () => {
+    expect(checkCodeFileBijection(CRLF_CODE, 'javascript')).toEqual({ ok: false, reason: 'lossy' })
+  })
+
+  it('round-trips through print, an LF checkout, compile and materialize unchanged', () => {
+    const prev = workflowState([
+      blockState('f1', 'function', 'Fn', { language: 'javascript', code: CRLF_CODE }),
+    ])
+    const stored = canonical(prev).workflow
+    const printed = printWorkflow({
+      workflow: stored,
+      catalog: CATALOG,
+      options: { functionCode: 'files' },
+    })
+    const [entry, ...codeFiles] = printed.files
+    if (!entry) throw new Error('expected an entry file')
+    const compiled = compileWorkflow({
+      entry,
+      files: new Map(codeFiles.map((file) => [file.path, file.text.replace(/\r\n/g, '\n')])),
+      catalog: CATALOG,
+      sdkMajor: 1,
+    })
+    expect(compiled.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    if (!compiled.workflow) throw new Error('expected a workflow')
+    const diff = diffCanonical(stored, compiled.workflow)
+    expect(diff.blocks.modified).toEqual([])
+    const result = materialize(compiled.workflow, null, {
+      catalog: CATALOG,
+      hooks: fixtureHooks(),
+      resources: RESOURCES,
+      prev,
+      lockFreshness: 'none',
+    })
+    expect(result.state.blocks.f1?.subBlocks.code?.value).toBe(CRLF_CODE)
   })
 })
