@@ -1,7 +1,8 @@
 /**
  * `generateWorkspaceTypes(manifest)`: one `workspace.d.ts` that narrows the SDK to a workspace's
  * resources. It fills the `Workspace*` interfaces `core.d.ts` declares, so `table('leads')` types
- * its rows, a misspelled `knowledgeBase('dosc')` or `env.STRIPE_KYE` is an error, and so on.
+ * its rows, a misspelled `knowledgeBase('dosc')`, `skill('tirage')` or `env.STRIPE_KYE` is an
+ * error, and so on.
  * Written by `sim workflows source get --dir` from the workspace source resources; without it
  * every key is a plain string.
  */
@@ -27,6 +28,10 @@ export interface WorkspaceManifest {
   credentials?: Record<string, { provider: string }>
   /** Workflows by key, with the inputs their start block declares. */
   workflows?: Record<string, { inputs?: Record<string, string> }>
+  /** Workspace skills by key. */
+  skills?: string[]
+  /** Workspace custom tools by key. */
+  customTools?: string[]
   /** Environment variable names (never values). */
   env?: string[]
 }
@@ -72,6 +77,11 @@ function sortedKeys(record: Record<string, unknown> | undefined): string[] {
   return Object.keys(record ?? {}).sort(compareStrings)
 }
 
+/** Each key once, sorted, as a `'key': true` member. */
+function keyMembers(keys: readonly string[] | undefined): string[] {
+  return [...new Set(keys ?? [])].sort(compareStrings).map((key) => `${quoteString(key)}: true`)
+}
+
 function interfaceBlock(name: string, members: readonly string[]): string[] {
   if (members.length === 0) return []
   return [`  interface ${name} {`, ...members.map((member) => `    ${member}`), '  }']
@@ -86,9 +96,7 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
     )
     return `${quoteString(key)}: { ${fields.join('; ')} }`
   })
-  const knowledgeBases = [...new Set(manifest.knowledgeBases ?? [])]
-    .sort(compareStrings)
-    .map((key) => `${quoteString(key)}: true`)
+  const knowledgeBases = keyMembers(manifest.knowledgeBases)
   const credentials = sortedKeys(manifest.credentials).map(
     (key) =>
       `${quoteString(key)}: { provider: ${quoteString(manifest.credentials?.[key]?.provider ?? '')} }`
@@ -106,6 +114,8 @@ export const generateWorkspaceTypes: GenerateWorkspaceTypesFn = (manifest) => {
     ...interfaceBlock('WorkspaceKnowledgeBases', knowledgeBases),
     ...interfaceBlock('WorkspaceCredentials', credentials),
     ...interfaceBlock('WorkspaceWorkflows', workflows),
+    ...interfaceBlock('WorkspaceSkills', keyMembers(manifest.skills)),
+    ...interfaceBlock('WorkspaceCustomTools', keyMembers(manifest.customTools)),
     ...interfaceBlock('WorkspaceEnv', env),
   ]
   const text = body.join('\n')

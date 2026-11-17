@@ -46,7 +46,7 @@ refuse with `CONFIRMATION_REQUIRED`). `--dry-run` never asks.
 | `.sim/sdk/core.d.ts` | This package: `workflow`, `t`, `env`, `credential`, `table`, `BlockMeta`, ... |
 | `.sim/sdk/blocks/{type}.d.ts` | Every block type's builders, not only the ones in use. |
 | `.sim/sdk/operations/{type}/{operation}.d.ts` | One operation's params and outputs, 1-2 KB. Read these to learn a block. |
-| `.sim/sdk/workspace.d.ts` | This workspace's tables (with columns), knowledge bases, credentials, workflows (with inputs) and env var names, so `table('tickets')`, `credential('support-slack')` and `env.X` are checked. |
+| `.sim/sdk/workspace.d.ts` | This workspace's tables (with columns), knowledge bases, credentials, workflows (with inputs), skills, custom tools and env var names, so `table('tickets')`, `credential('support-slack')`, `skill('triage')` and `env.X` are checked. |
 | `tsconfig.json` | Resolves `@sim/workflow-sdk` to `.sim/sdk`. |
 | `.sim/AGENTS.md` | The authoring guide for agents, linking [the docs](https://docs.sim.ai/workflows/code). A top-level `AGENTS.md` of your own is never touched. |
 | `.sim/examples/cookbook.ts` | One correct example of each common block (agent, condition, function, table, knowledge, Slack, human in the loop, loop, response). Read it before writing. It names example resources, so `tsconfig.json` leaves it out. |
