@@ -37,3 +37,22 @@ export const WORKSPACE_SOURCE_REQUEST_MAX_BYTES =
   2 * (WORKSPACE_SOURCE_LIMITS.maxDeclarationBytes + WORKSPACE_SOURCE_LIMITS.maxWorkflowBytes) +
   Math.ceil((WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest * 4) / 3) +
   2_000_000
+
+/**
+ * The blob paths one apply round carries content for: those `wanted` names, in manifest order,
+ * while they fit `maxBlobBytesPerRequest` (always at least one, so every round makes progress).
+ */
+export function roundPaths(
+  manifest: ReadonlyArray<{ path: string; size: number }>,
+  wanted: ReadonlySet<string>
+): Set<string> {
+  let bytes = 0
+  const carried = new Set<string>()
+  for (const blob of manifest) {
+    if (!wanted.has(blob.path)) continue
+    if (bytes > 0 && bytes + blob.size > WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest) continue
+    bytes += blob.size
+    carried.add(blob.path)
+  }
+  return carried
+}

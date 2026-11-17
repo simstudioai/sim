@@ -18,18 +18,14 @@ import {
   deleteWorkspaceCustomToolUseCase,
   updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
-import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { createSkillUseCase, updateSkillUseCase } from '@/lib/skills/application/use-cases'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import {
-  type ApplyWorkspaceSourceInput,
-  applyWorkspaceSource,
-} from '@/lib/workspace-source/application/apply-workspace-source'
-import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
+import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   codes,
   refusal,
   sourceChecks,
+  sourceRunner,
   sourceWorkspaces,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
@@ -121,23 +117,14 @@ type ApplyOptions = Partial<Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'fil
   principal?: Principal
 }
 
+const runner = sourceRunner(['custom-tool', 'skill'], owner)
+
 function apply(workspaceId: string, files: Record<string, string>, options: ApplyOptions = {}) {
-  const { principal = owner, ...input } = options
-  return withPermissionGroupScope(() =>
-    applyWorkspaceSource.execute({
-      principal,
-      input: { workspaceId, files, kinds: ['custom-tool', 'skill'], ...input },
-    })
-  )
+  return runner.apply(workspaceId, { files, ...options })
 }
 
 function get(workspaceId: string, principal: Principal = owner) {
-  return withPermissionGroupScope(() =>
-    readWorkspaceSource.execute({
-      principal,
-      input: { workspaceId, kinds: ['custom-tool', 'skill'] },
-    })
-  )
+  return runner.get(workspaceId, principal)
 }
 
 function actions(plan: ReadonlyArray<{ kind: string; key: string; action: string }>) {

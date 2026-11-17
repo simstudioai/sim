@@ -70,13 +70,13 @@ import {
   type ApplyWorkspaceSourceResult,
   applyWorkspaceSource,
 } from '@/lib/workspace-source/application/apply-workspace-source'
-import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
 import {
   blobManifest,
   cliRound,
   codes,
   refusal,
   sourceChecks,
+  sourceRunner,
   sourceWorkspaces,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
@@ -134,29 +134,15 @@ type ApplyOptions = Partial<Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'fil
   carry?: Carry
 }
 
+const runner = sourceRunner(['knowledge-base'], owner)
+
 function apply(workspaceId: string, dir: Directory, options: ApplyOptions = {}) {
-  const { principal = owner, carry = 'all', ...input } = options
-  return withPermissionGroupScope(() =>
-    applyWorkspaceSource.execute({
-      principal,
-      input: {
-        workspaceId,
-        files: dir.files,
-        blobs: blobs(dir, carry),
-        kinds: ['knowledge-base'],
-        ...input,
-      },
-    })
-  )
+  const { carry = 'all', ...input } = options
+  return runner.apply(workspaceId, { files: dir.files, blobs: blobs(dir, carry), ...input })
 }
 
 function get(workspaceId: string) {
-  return withPermissionGroupScope(() =>
-    readWorkspaceSource.execute({
-      principal: owner,
-      input: { workspaceId, kinds: ['knowledge-base'] },
-    })
-  )
+  return runner.get(workspaceId)
 }
 
 /** The directory an apply leaves behind: its reprinted files over the ones it sent. */

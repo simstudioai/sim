@@ -56,13 +56,13 @@ import {
   type ApplyWorkspaceSourceInput,
   applyWorkspaceSource,
 } from '@/lib/workspace-source/application/apply-workspace-source'
-import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
 import {
   blobManifest,
   cliRound,
   codes,
   refusal,
   sourceChecks,
+  sourceRunner,
   sourceWorkspaces,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
@@ -107,26 +107,19 @@ interface ApplyOptions {
   principal?: Principal
 }
 
+const runner = sourceRunner(['file'], owner)
+
 function apply(workspaceId: string, files: Record<string, Buffer>, options: ApplyOptions = {}) {
-  const { principal = owner, send, ...input } = options
-  return withPermissionGroupScope(() =>
-    applyWorkspaceSource.execute({
-      principal,
-      input: {
-        workspaceId,
-        files: {},
-        blobs: blobsOf(files, options.dryRun ? [] : send),
-        kinds: ['file'],
-        ...input,
-      },
-    })
-  )
+  const { send, ...input } = options
+  return runner.apply(workspaceId, {
+    files: {},
+    blobs: blobsOf(files, options.dryRun ? [] : send),
+    ...input,
+  })
 }
 
 function get(workspaceId: string) {
-  return withPermissionGroupScope(() =>
-    readWorkspaceSource.execute({ principal: owner, input: { workspaceId, kinds: ['file'] } })
-  )
+  return runner.get(workspaceId)
 }
 
 function summary(changes: ReadonlyArray<{ action: string; key: string }>) {

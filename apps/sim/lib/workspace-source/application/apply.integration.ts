@@ -18,22 +18,18 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import * as columnUseCases from '@/lib/table/application/columns'
 import * as tableUseCases from '@/lib/table/application/tables'
 import { getColumnRetypeScanBatchSize } from '@/lib/table/columns/service'
 import { getTableById } from '@/lib/table/service'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import {
-  type ApplyWorkspaceSourceInput,
-  applyWorkspaceSource,
-} from '@/lib/workspace-source/application/apply-workspace-source'
-import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
+import type { ApplyWorkspaceSourceInput } from '@/lib/workspace-source/application/apply-workspace-source'
 import {
   codes,
   refusal,
   sourceChecks,
+  sourceRunner,
   sourceWorkspaces,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
@@ -95,23 +91,14 @@ type ApplyOptions = Partial<Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'fil
   principal?: Principal
 }
 
+const runner = sourceRunner(['table', 'workflow'], owner)
+
 function apply(workspaceId: string, files: Record<string, string>, options: ApplyOptions = {}) {
-  const { principal = owner, ...input } = options
-  return withPermissionGroupScope(() =>
-    applyWorkspaceSource.execute({
-      principal,
-      input: { workspaceId, files, kinds: ['table', 'workflow'], ...input },
-    })
-  )
+  return runner.apply(workspaceId, { files, ...options })
 }
 
 function get(workspaceId: string) {
-  return withPermissionGroupScope(() =>
-    readWorkspaceSource.execute({
-      principal: owner,
-      input: { workspaceId, kinds: ['table', 'workflow'] },
-    })
-  )
+  return runner.get(workspaceId)
 }
 
 async function tables(workspaceId: string) {

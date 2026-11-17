@@ -1,6 +1,6 @@
 import { APPLY_ORDER, KIND_DIRS, type RefusalClass, refusalClass } from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
-import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import { roundPaths } from '@sim/workspace-code/limits'
 import type { Command } from 'commander'
 import { printError } from '#sim-cli/output/io'
 import { setSoftExitCode } from '../../embed-context'
@@ -108,16 +108,10 @@ async function blobRound(
   submission: WorkspaceSubmission,
   wanted: ReadonlySet<string>
 ): Promise<NonNullable<ApplyWorkspaceSourceBody['blobs']>> {
-  let bytes = 0
+  const carried = roundPaths(submission.blobs, wanted)
   const blobs: NonNullable<ApplyWorkspaceSourceBody['blobs']> = []
   for (const blob of submission.blobs) {
-    const fits = bytes === 0 || bytes + blob.size <= WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest
-    if (!wanted.has(blob.path) || !fits) {
-      blobs.push(blob)
-      continue
-    }
-    bytes += blob.size
-    blobs.push(await blobContent(dir, blob.path))
+    blobs.push(carried.has(blob.path) ? await blobContent(dir, blob.path) : blob)
   }
   return blobs
 }

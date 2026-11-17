@@ -69,6 +69,7 @@ import {
   blobManifest,
   refusal,
   sourceChecks,
+  sourceRunner,
   sourceWorkspaces,
 } from '@/lib/workspace-source/application/workspace-source.test-helpers'
 
@@ -171,26 +172,19 @@ type ApplyOptions = Partial<Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'fil
   carry?: boolean
 }
 
+const runner = sourceRunner(KINDS, owner)
+
 function apply(workspaceId: string, dir: Directory, options: ApplyOptions = {}) {
   const { carry = true, ...input } = options
-  return withPermissionGroupScope(() =>
-    applyWorkspaceSource.execute({
-      principal: owner,
-      input: {
-        workspaceId,
-        files: dir.files,
-        blobs: blobManifest(dir.blobs, () => carry),
-        kinds: KINDS,
-        ...input,
-      },
-    })
-  )
+  return runner.apply(workspaceId, {
+    files: dir.files,
+    blobs: blobManifest(dir.blobs, () => carry),
+    ...input,
+  })
 }
 
 function get(workspaceId: string) {
-  return withPermissionGroupScope(() =>
-    readWorkspaceSource.execute({ principal: owner, input: { workspaceId, kinds: KINDS } })
-  )
+  return runner.get(workspaceId)
 }
 
 function findings(

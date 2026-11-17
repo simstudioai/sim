@@ -5,16 +5,24 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { auditLog, permissions, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { WORKSPACE_SOURCE_LIMITS } from '@sim/workspace-code/limits'
+import type { WorkspaceKind } from '@sim/workspace-code'
+import { roundPaths } from '@sim/workspace-code/limits'
 import { inArray } from 'drizzle-orm'
 import { expect, it } from 'vitest'
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+import {
+  type ApplyWorkspaceSourceInput,
+  applyWorkspaceSource,
+} from '@/lib/workspace-source/application/apply-workspace-source'
 import { WorkspaceSourceRejectedError } from '@/lib/workspace-source/application/errors'
+import { readWorkspaceSource } from '@/lib/workspace-source/application/read-workspace-source'
 
 interface CheckResult {
   name: string
@@ -101,6 +109,32 @@ export function sourceWorkspaces() {
   }
 }
 
+/** What a suite's apply sends: the submission, and who sends it when not the suite's owner. */
+export type SourceSubmission = Omit<ApplyWorkspaceSourceInput, 'workspaceId' | 'kinds'> & {
+  kinds?: WorkspaceKind[]
+  principal?: Principal
+}
+
+/**
+ * A suite's apply and get, for `kinds`, as `owner` unless a call names another principal, each
+ * inside the permission-group scope a request runs in.
+ */
+export function sourceRunner(kinds: WorkspaceKind[], owner: Principal) {
+  return {
+    apply(workspaceId: string, submission: SourceSubmission) {
+      const { principal = owner, ...input } = submission
+      return withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({ principal, input: { workspaceId, kinds, ...input } })
+      )
+    },
+    get(workspaceId: string, principal: Principal = owner) {
+      return withPermissionGroupScope(() =>
+        readWorkspaceSource.execute({ principal, input: { workspaceId, kinds } })
+      )
+    },
+  }
+}
+
 /** The refusal `promise` rejects with; fails the check when it resolves or throws anything else. */
 export async function refusal(promise: Promise<unknown>): Promise<WorkspaceSourceRejectedError> {
   const error = await promise.then(
@@ -142,13 +176,5 @@ export function cliRound(
   manifest: ReadonlyArray<{ path: string; size: number }>,
   wanted: readonly string[]
 ): string[] {
-  let bytes = 0
-  const carried: string[] = []
-  for (const blob of manifest) {
-    if (!wanted.includes(blob.path)) continue
-    if (bytes > 0 && bytes + blob.size > WORKSPACE_SOURCE_LIMITS.maxBlobBytesPerRequest) continue
-    bytes += blob.size
-    carried.push(blob.path)
-  }
-  return carried
+  return [...roundPaths(manifest, new Set(wanted))]
 }
