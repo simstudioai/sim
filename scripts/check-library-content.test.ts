@@ -345,6 +345,18 @@ describe('check-library-content', () => {
       'overstates',
     ],
     [
+      'Zapier, while Sim has 1,000+ integrations, focuses on simple automations.',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    [
+      'Zapier is popular, while Sim has 1,000+ integrations, and both support webhooks.',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    ['Sim, unlike Make.com, has 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    ['Sim connects tools like Slack to 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    [
       'While Sim has 1,000+ integrations, Zapier focuses on simple automations.',
       '1,000+ integrations',
       'overstates',
@@ -407,6 +419,8 @@ describe('check-library-content', () => {
         "Sim has fewer than [Zapier](https://zapier.com)'s 9,000+ integrations.",
         'Sim has 280+ integrations, unlike Zapier, which has 9,000+ integrations.',
         'Zapier, unlike Sim, has 9,000+ integrations.',
+        'Sim is open source but Zapier has 9,000+ integrations.',
+        'While Sim has 280+ integrations, Zapier lists 9,000+ integrations.',
         'Zapier, like Sim, has 9,000+ integrations.',
         'Sim, unlike Zapier, which has 9,000+ integrations, is open source.',
         'n8n | Alternative to Sim | 2,000+ integrations |',

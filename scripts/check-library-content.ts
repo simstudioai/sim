@@ -35,7 +35,8 @@
  *   "1,000+ integrations" or a figure left from an older catalog spreads to third-party sites.
  *   A count belongs to Sim when "Sim" comes before it in the same clause and no other product's
  *   possessive directly precedes it, or when it sits in a table row whose label cell is Sim.
- *   Sentence ends and contrasts ("while", "unlike", "compared with") start a new clause.
+ *   A comparison ("while", "unlike", "compared with", or "like" after a comma) is its own clause
+ *   up to the next comma, and the sentence's main clause resumes after it.
  *   A count whose owner is ambiguous within its clause is treated as Sim's; when it belongs to
  *   another product, name that product as its owner ("Zapier's 9,000+") or give it a sentence.
  *   Blog and changelog posts are dated, so their counts are true as of publication.
@@ -148,26 +149,20 @@ const LINE_PREFIX = /^\s*(?:(?:[-*+>]|\d+[.)]|#{1,6})\s+)*(?:\w+:\s*["'])?/
 const SIM_NAME = /\bSim\b/
 /** Words that turn a sentence toward another product: "while Zapier lists ...", "unlike Zapier". */
 const CONTRAST = String.raw`(?:while|whereas|but|unlike|compared (?:with|to)|versus|vs\.?)`
+const SENTENCE_END = /(?<=[.!?;])\s+/
 /**
- * A comparison set off by commas, as in "Sim, unlike Zapier, has ..." or "Zapier, like Sim, has
- * ...", removed so the sentence keeps its subject. The span stays inside its sentence, ends at the
- * first comma that is not a thousands separator, and is kept when a relative clause follows
- * ("unlike Zapier, which has").
+ * Where a comparison clause starts: a contrast word, or "like" when it opens the sentence or
+ * follows a comma ("Like Sim, ...", "Zapier, like Sim, ..."), but not "tools like Slack".
  */
-const PARENTHETICAL_COMPARISON = new RegExp(
-  String.raw`,\s+(?:like|${CONTRAST})\s+(?:[^,.!?;]|[,.](?=\d))*?,(?!\d)(?!\s*(?:which|that|who)\b)`,
-  'gi'
-)
-/** A sentence end, or a contrast that hands the rest of the sentence to another subject. */
-const CLAUSE_BREAK = new RegExp(String.raw`(?<=[.!?;])\s+|,?\s+${CONTRAST}\s+`, 'i')
-/**
- * An opening comparison ("Unlike Sim, ...") whose main clause is about another product. An opener
- * that states a count of its own ("While Sim has 280+ integrations, ...") is kept.
- */
-const LEADING_COMPARISON = new RegExp(
-  String.raw`^(?:like|${CONTRAST})\b(?:[^,.!?;]|[,.](?=\d))*?,(?!\d)\s*`,
+const COMPARISON_START = new RegExp(
+  String.raw`(?:^|,\s*|\s+)(?=${CONTRAST}\b)|(?:^|,\s*)(?=like\b)`,
   'i'
 )
+/**
+ * Where a comparison clause ends: the first comma that is neither a thousands separator nor the
+ * start of a relative clause continuing it ("unlike Zapier, which has 9,000+ integrations").
+ */
+const COMPARISON_END = /,(?!\d)(?!\s*(?:which|that|who)\b)/
 /** The product whose possessive directly precedes a count, as in "Zapier's 9,000+". */
 const POSSESSIVE_OWNER = /([\w.-]+)['’]s\s*$/
 /** A Sim count below this share of the catalog total is left from an older catalog. */
@@ -181,24 +176,34 @@ function simTableRowCounts(cells: string[]): RegExpMatchArray[] {
     : []
 }
 
+/**
+ * A sentence's clauses: its main clause, with each comparison taken out and read as a clause of
+ * its own, so "Sim, unlike Zapier, has ..." reads as "Sim has ..." plus "unlike Zapier".
+ */
+function sentenceClauses(sentence: string): string[] {
+  const main: string[] = []
+  const comparisons: string[] = []
+  let rest = sentence
+  for (let start = COMPARISON_START.exec(rest); start; start = COMPARISON_START.exec(rest)) {
+    main.push(rest.slice(0, start.index))
+    const comparison = rest.slice(start.index + start[0].length)
+    const end = COMPARISON_END.exec(comparison)
+    comparisons.push(end ? comparison.slice(0, end.index) : comparison)
+    rest = end ? comparison.slice(end.index + 1) : ''
+  }
+  return [[...main, rest].join(' '), ...comparisons]
+}
+
 /** Each count whose clause names Sim before it, unless another product's possessive owns it. */
 function simProseCounts(text: string): RegExpMatchArray[] {
-  const sentences = text
-    .replace(LINE_PREFIX, '')
-    .replace(PARENTHETICAL_COMPARISON, '')
-    .split(CLAUSE_BREAK)
-  return sentences.flatMap((sentence) => {
-    const opener = LEADING_COMPARISON.exec(sentence)?.[0]
-    const clause =
-      opener !== undefined && opener.match(COUNT_CLAIM) === null
-        ? sentence.slice(opener.length)
-        : sentence
-    return [...clause.matchAll(COUNT_CLAIM)].filter((match) => {
+  const clauses = text.replace(LINE_PREFIX, '').split(SENTENCE_END).flatMap(sentenceClauses)
+  return clauses.flatMap((clause) =>
+    [...clause.matchAll(COUNT_CLAIM)].filter((match) => {
       const before = clause.slice(0, match.index)
       const owner = POSSESSIVE_OWNER.exec(before)?.[1]
       return SIM_NAME.test(before) && (owner === undefined || owner === 'Sim')
     })
-  })
+  )
 }
 
 /** The counts on one line of text that belong to Sim, with the claim as written. */
