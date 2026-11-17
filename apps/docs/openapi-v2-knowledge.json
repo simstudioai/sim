@@ -3974,6 +3974,9 @@
               "Content-Disposition": {
                 "$ref": "#/components/headers/Content-Disposition"
               },
+              "Content-Length": {
+                "$ref": "#/components/headers/Content-Length"
+              },
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
               },

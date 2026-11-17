@@ -1819,6 +1819,6 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
     ...routes,
     ...[...workflowSourceOpenApiRoutes, ...sourceResourcesOpenApiRoutes].map(withRequestBodyErrors),
     ...workspaceSyncOpenApiRoutes,
-    ...workspaceSourceOpenApiRoutes,
+    ...workspaceSourceOpenApiRoutes.map(withRequestBodyErrors),
   ],
 })

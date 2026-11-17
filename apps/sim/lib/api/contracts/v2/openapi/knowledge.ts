@@ -1218,7 +1218,7 @@ const declaredRoutes = [
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: {
         description: 'The document as stored.',
-        headers: ['Content-Type', 'Content-Disposition'],
+        headers: ['Content-Type', 'Content-Disposition', 'Content-Length'],
         contentTypes: ['application/octet-stream'],
       },
     }),
