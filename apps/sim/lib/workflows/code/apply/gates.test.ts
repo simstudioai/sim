@@ -160,6 +160,7 @@ interface BlockOptions {
   parentId?: string
   locked?: boolean
   enabled?: boolean
+  retry?: BlockState['retry']
 }
 
 function block(id: string, type: string, name: string, options: BlockOptions = {}): BlockState {
@@ -178,9 +179,12 @@ function block(id: string, type: string, name: string, options: BlockOptions = {
     outputs: {},
     enabled: options.enabled ?? true,
     ...(options.locked ? { locked: true } : {}),
+    ...(options.retry ? { retry: options.retry } : {}),
     data: options.parentId ? { parentId: options.parentId, extent: 'parent' } : {},
   }
 }
+
+const RETRY = { enabled: true, maxTries: 3, waitBetweenTriesMs: 1000 }
 
 function graph(...blocks: BlockState[]): SourceGraph {
   return { blocks: Object.fromEntries(blocks.map((b) => [b.id, b])), edges: [] }
@@ -745,6 +749,43 @@ const CASES: ParityCase[] = [
     base: graph(block(ID.b, 'jira', 'Jira', { sub: { credential: 'bad-cred' } })),
     operations: [{ operation_type: 'edit', block_id: ID.b, params: { name: 'Jira 2' } }],
     target: graph(block(ID.b, 'jira', 'Jira 2', { sub: { credential: 'bad-cred' } })),
+    expected: [],
+  },
+  // retry eligibility (editing/builders.ts applyBlockRetry)
+  {
+    name: 'retry: refuses a retry policy on a new human in the loop block',
+    base: graph(),
+    operations: [
+      {
+        operation_type: 'add',
+        block_id: ID.a,
+        params: { type: 'human_in_the_loop', name: 'Approve', retry: RETRY },
+      },
+    ],
+    target: graph(block(ID.a, 'human_in_the_loop', 'Approve', { retry: RETRY })),
+    expected: [`retry_not_supported:${ID.a}`],
+  },
+  {
+    name: 'retry: refuses setting a retry policy on a stored human in the loop block',
+    base: graph(block(ID.a, 'human_in_the_loop', 'Approve')),
+    operations: [{ operation_type: 'edit', block_id: ID.a, params: { retry: RETRY } }],
+    target: graph(block(ID.a, 'human_in_the_loop', 'Approve', { retry: RETRY })),
+    expected: [`retry_not_supported:${ID.a}`],
+  },
+  {
+    name: 'retry: accepts a retry policy on a block that can retry',
+    base: graph(),
+    operations: [
+      { operation_type: 'add', block_id: ID.a, params: { type: 'agent', name: 'A', retry: RETRY } },
+    ],
+    target: graph(block(ID.a, 'agent', 'A', { retry: RETRY })),
+    expected: [],
+  },
+  {
+    name: 'retry: a stored retry policy the edit leaves alone is not refused',
+    base: graph(block(ID.a, 'human_in_the_loop', 'Approve', { retry: RETRY })),
+    operations: [{ operation_type: 'edit', block_id: ID.a, params: { name: 'Approve 2' } }],
+    target: graph(block(ID.a, 'human_in_the_loop', 'Approve 2', { retry: RETRY })),
     expected: [],
   },
   // sandbox plan (application/apply-workflow-operations.ts)

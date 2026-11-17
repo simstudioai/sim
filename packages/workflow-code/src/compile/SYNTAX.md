@@ -450,9 +450,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_APPLY_BLOCK_NOT_ALLOWED`, `E_APPLY_MODEL_NOT_ALLOWED`, `E_APPLY_TOOL_NOT_ALLOWED` | Refused by the workspace's permission group. |
 | `E_APPLY_INVALID_EDGE_SOURCE`, `E_APPLY_INVALID_EDGE_SCOPE`, `E_APPLY_INVALID_SOURCE_HANDLE`, `E_APPLY_INVALID_TARGET_HANDLE` | An edge the engine refuses. |
 | `E_APPLY_INVALID_SUBBLOCK_FIELD`, `E_APPLY_MISSING_REQUIRED_PARAMS` | A field the engine refuses, or required params missing. |
-| `E_APPLY_INVALID_SUBFLOW_PARENT`, `E_APPLY_NESTED_SUBFLOW_NOT_ALLOWED` | A container placement the engine refuses. |
-| `E_APPLY_DUPLICATE_BLOCK_NAME`, `E_APPLY_RESERVED_BLOCK_NAME` | A name the engine refuses. |
-| `E_APPLY_RETRY_NOT_SUPPORTED` | Retry on a block that always runs once (triggers, human-in-the-loop, containers). |
+| `E_APPLY_RETRY_NOT_SUPPORTED` | A new or changed retry policy on a block that always runs once (triggers, human-in-the-loop, containers). |
 | `E_APPLY_DUPLICATE_TRIGGER`, `E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK` | A second trigger or single-instance block. |
 | `E_APPLY_DISABLED_ANCESTOR` | An enabled block inside a disabled container. |
 | `E_APPLY_CREDENTIAL_UNREACHABLE` | A credential the acting user cannot use. |

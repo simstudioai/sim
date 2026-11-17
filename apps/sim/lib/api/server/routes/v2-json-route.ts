@@ -43,7 +43,12 @@ import {
   ReadOnlyApiKeyError,
   requireOAuthOperationScope,
 } from '@/lib/core/application'
-import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
+import {
+  getRateLimit,
+  RateLimiter,
+  type SubscriptionPlan,
+  type TokenBucketConfig,
+} from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -83,7 +88,7 @@ export const v2ApiKeyAuth = {
 } as const
 
 export interface V2RateLimitPolicy {
-  readonly kind: 'public_api'
+  readonly kind: 'public_api' | 'source_write'
   /** `cost` charges a request that performs several operations, such as a batched read. */
   enforce(
     request: NextRequest,
@@ -93,48 +98,91 @@ export interface V2RateLimitPolicy {
   ): Promise<NextResponse | null>
 }
 
+/**
+ * Charges `cost` to `bucket` for every rate-limit subject of the caller (its key and its user or
+ * workspace) and answers with the most restrictive result: `null` when every bucket admits it,
+ * else the 429.
+ */
+async function enforceV2Buckets(
+  request: NextRequest,
+  auth: V2ApiKeyAuthContext,
+  bucket: string,
+  config: TokenBucketConfig,
+  cost: number
+): Promise<NextResponse | null> {
+  const buckets = await Promise.all(
+    auth.rateLimitSubjectIds.map(async (subjectId) => {
+      try {
+        return await rateLimiter.checkRateLimitDirectOrThrow(
+          `v2:${bucket}:${subjectId}`,
+          config,
+          cost
+        )
+      } catch (error) {
+        throw new V2RouteInfrastructureError('rate_limit', error)
+      }
+    })
+  )
+  const rateLimit = buckets.reduce((mostRestrictive, candidate) => {
+    if (!candidate.allowed && mostRestrictive.allowed) return candidate
+    if (candidate.allowed === mostRestrictive.allowed) {
+      if (candidate.remaining < mostRestrictive.remaining) return candidate
+      if (
+        candidate.remaining === mostRestrictive.remaining &&
+        candidate.resetAt > mostRestrictive.resetAt
+      ) {
+        return candidate
+      }
+    }
+    return mostRestrictive
+  })
+  const snapshot = {
+    allowed: rateLimit.allowed,
+    limit: config.maxTokens,
+    remaining: rateLimit.remaining,
+    resetAt: rateLimit.resetAt,
+    retryAfterMs: rateLimit.retryAfterMs,
+    keyType: auth.keyType,
+  }
+  recordRateLimitSnapshot(request, snapshot)
+  return rateLimit.allowed ? null : v2RateLimitError(snapshot)
+}
+
+/**
+ * The budget for writing workflow source (apply, dry run, and create from source), per subject
+ * and on every plan. Each request parses, compiles, canonicalizes and diffs a body of up to
+ * `SOURCE_REQUEST_MAX_BYTES`, so it costs far more than the row reads the generic budget is sized
+ * for; a dry run costs nearly as much as an apply, so it is charged the same.
+ */
+const V2_SOURCE_WRITE_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 40,
+  refillRate: 20,
+  refillIntervalMs: 60_000,
+}
+
 export const v2RateLimits = {
+  /** The plan's API budget, one bucket per operation. */
   publicApi: {
     kind: 'public_api',
     async enforce(request, auth, operation, cost = 1) {
       const plan = (auth.rateLimitSubscription?.plan ?? 'free') as SubscriptionPlan
-      const config = getRateLimit(plan, 'api-endpoint')
-      const buckets = await Promise.all(
-        auth.rateLimitSubjectIds.map(async (subjectId) => {
-          try {
-            return await rateLimiter.checkRateLimitDirectOrThrow(
-              `v2:${operation.id}:${subjectId}`,
-              config,
-              cost
-            )
-          } catch (error) {
-            throw new V2RouteInfrastructureError('rate_limit', error)
-          }
-        })
+      return enforceV2Buckets(request, auth, operation.id, getRateLimit(plan, 'api-endpoint'), cost)
+    },
+  } satisfies V2RateLimitPolicy,
+  /**
+   * {@link V2_SOURCE_WRITE_RATE_LIMIT}, one bucket shared by every source write, so alternating
+   * an apply and a create from source cannot double it.
+   */
+  sourceWrite: {
+    kind: 'source_write',
+    async enforce(request, auth, _operation, cost = 1) {
+      return enforceV2Buckets(
+        request,
+        auth,
+        'workflows.source.write',
+        V2_SOURCE_WRITE_RATE_LIMIT,
+        cost
       )
-      const rateLimit = buckets.reduce((mostRestrictive, candidate) => {
-        if (!candidate.allowed && mostRestrictive.allowed) return candidate
-        if (candidate.allowed === mostRestrictive.allowed) {
-          if (candidate.remaining < mostRestrictive.remaining) return candidate
-          if (
-            candidate.remaining === mostRestrictive.remaining &&
-            candidate.resetAt > mostRestrictive.resetAt
-          ) {
-            return candidate
-          }
-        }
-        return mostRestrictive
-      })
-      const snapshot = {
-        allowed: rateLimit.allowed,
-        limit: config.maxTokens,
-        remaining: rateLimit.remaining,
-        resetAt: rateLimit.resetAt,
-        retryAfterMs: rateLimit.retryAfterMs,
-        keyType: auth.keyType,
-      }
-      recordRateLimitSnapshot(request, snapshot)
-      return rateLimit.allowed ? null : v2RateLimitError(snapshot)
     },
   } satisfies V2RateLimitPolicy,
 } as const

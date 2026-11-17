@@ -9,6 +9,7 @@ import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import { blockKeyOf, type GraphDiff, type SourceGraph } from '@/lib/workflows/code/apply/graph-diff'
 import { hasDisabledAncestor } from '@/lib/workflows/editing/block-enablement'
 import {
+  applyBlockRetry,
   createSubBlockInputGate,
   filterDisallowedTools,
   normalizeTools,
@@ -36,8 +37,22 @@ import { getBlock } from '@/blocks/registry'
  * the deployment-visibility checks see the acting user's overlay.
  */
 
-/** Skip reasons a graph diff can produce. A deferred forward reference cannot exist in source. */
-type GatedSkipType = Exclude<SkippedItemType, 'invalid_edge_target'>
+/**
+ * Engine skip reasons source refuses before the gates, so no gate reports them: a deferred forward
+ * reference cannot exist in source; compile refuses a duplicate or reserved block name
+ * (`E_DUPLICATE_NAME`, `E_RESERVED_NAME`); and a block's container is the `loop` or `parallel` it
+ * is declared inside, so its parent can never be missing or another type. The engine never refuses
+ * nesting a container in a container either.
+ */
+type SourceRefusedSkipType =
+  | 'invalid_edge_target'
+  | 'invalid_subflow_parent'
+  | 'nested_subflow_not_allowed'
+  | 'duplicate_block_name'
+  | 'reserved_block_name'
+
+/** Skip reasons a graph diff can produce. */
+type GatedSkipType = Exclude<SkippedItemType, SourceRefusedSkipType>
 
 /**
  * The engine's skip vocabulary as apply codes. Total, so a new skip
@@ -56,15 +71,15 @@ export const SKIP_TYPE_APPLY_CODES = {
   invalid_target_handle: 'E_APPLY_INVALID_TARGET_HANDLE',
   invalid_subblock_field: 'E_APPLY_INVALID_SUBBLOCK_FIELD',
   missing_required_params: 'E_APPLY_MISSING_REQUIRED_PARAMS',
-  invalid_subflow_parent: 'E_APPLY_INVALID_SUBFLOW_PARENT',
-  nested_subflow_not_allowed: 'E_APPLY_NESTED_SUBFLOW_NOT_ALLOWED',
-  duplicate_block_name: 'E_APPLY_DUPLICATE_BLOCK_NAME',
-  reserved_block_name: 'E_APPLY_RESERVED_BLOCK_NAME',
   retry_not_supported: 'E_APPLY_RETRY_NOT_SUPPORTED',
   duplicate_trigger: 'E_APPLY_DUPLICATE_TRIGGER',
   duplicate_single_instance_block: 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK',
   disabled_ancestor: 'E_APPLY_DISABLED_ANCESTOR',
 } as const satisfies Record<GatedSkipType, ApplyDiagnosticCode>
+
+function isGatedSkip(item: SkippedItem): item is SkippedItem & { type: GatedSkipType } {
+  return Object.hasOwn(SKIP_TYPE_APPLY_CODES, item.type)
+}
 
 type GateErrorCode =
   | (typeof SKIP_TYPE_APPLY_CODES)[GatedSkipType]
@@ -100,6 +115,11 @@ interface GatedBlock {
   added: boolean
   typeChanged: boolean
   enabledChanged: boolean
+  /**
+   * Whether the diff sets a retry policy: a new block with one, a changed one, or one kept across
+   * a type change (judged against the new type, like the fields).
+   */
+  retrySet: boolean
 }
 
 function subBlockValue(block: BlockState | undefined, field: string): unknown {
@@ -112,6 +132,10 @@ function nonEmptyFields(block: BlockState): string[] {
     .sort(compareStrings)
 }
 
+function hasRetry(block: BlockState): boolean {
+  return block.retry !== undefined && block.retry !== null
+}
+
 function collectGatedBlocks(base: SourceGraph, target: SourceGraph, diff: GraphDiff): GatedBlock[] {
   const gated: GatedBlock[] = []
   for (const id of diff.added) {
@@ -122,6 +146,7 @@ function collectGatedBlocks(base: SourceGraph, target: SourceGraph, diff: GraphD
       added: true,
       typeChanged: false,
       enabledChanged: false,
+      retrySet: hasRetry(block),
     })
   }
   for (const change of diff.modified) {
@@ -138,6 +163,7 @@ function collectGatedBlocks(base: SourceGraph, target: SourceGraph, diff: GraphD
       added: false,
       typeChanged: change.typeChanged,
       enabledChanged: change.enabledChanged,
+      retrySet: hasRetry(block) && (change.typeChanged || change.attributes.includes('retry')),
     })
   }
   return gated
@@ -181,6 +207,21 @@ function gateBlockPlacement(
     operationType,
     blockId: block.id,
     outcome: entry.added ? 'block not added' : 'type change refused',
+  })
+}
+
+/**
+ * A retry policy the diff sets on a block that always runs once (a trigger, a human in the loop, a
+ * container), through the engine's own `applyBlockRetry` so the refusal and its eligibility rule
+ * are the engine's. It writes onto a throwaway copy: the gate only reports.
+ */
+function gateRetry(entry: GatedBlock, skipped: SkippedItem[]): void {
+  if (!entry.retrySet) return
+  const { block } = entry
+  applyBlockRetry({ type: block.type, triggerMode: block.triggerMode }, block.retry, {
+    operationType: entry.added ? 'add' : 'edit',
+    blockId: block.id,
+    skippedItems: skipped,
   })
 }
 
@@ -343,6 +384,9 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
   const record = (skipped: SkippedItem[], param?: string) => {
     for (const item of skipped) {
       if (item.type === 'invalid_edge_target') continue
+      if (!isGatedSkip(item)) {
+        throw new Error(`A source gate reported ${item.type}, which compile already refuses`)
+      }
       const block = target.blocks[item.blockId] ?? base.blocks[item.blockId]
       diagnostics.push({
         code: SKIP_TYPE_APPLY_CODES[item.type],
@@ -373,6 +417,10 @@ export async function gateSourceDiff(args: GateSourceDiffArgs): Promise<SourceGa
         blockKey: blockKeyOf(block),
       })
     }
+
+    const retrySkipped: SkippedItem[] = []
+    gateRetry(entry, retrySkipped)
+    record(retrySkipped)
 
     gateFieldValues(entry, permissionConfig, record)
 

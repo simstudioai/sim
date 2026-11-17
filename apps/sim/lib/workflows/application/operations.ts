@@ -104,9 +104,11 @@ export const workflowOperations = {
    * as any member may read the source that names them; a workspace API key and Copilot may too,
    * like `workflows.source.catalog.read`. Listing allocates keys for resources that have none,
    * which changes no resource (see `readSourceResources`). The result is names, ids, keys, table
-   * column schemas and env names, never stored content, so `contentDelivery` is `none`.
+   * column schemas and env names, never stored content, so `contentDelivery` is `none`. Its
+   * credential and env sections are gated inside the use case, not here, so a member whose group
+   * hides one still gets the rest of the manifest.
    */
-  // permission-group-exempt: lists resource names and their keys, already visible to every workspace member; no group capability withholds them
+  // permission-group-exempt: the manifest as a whole stays readable to every member; its credentials (integrations.manage) and env names (secrets.manage) are omitted in the use case when withheld
   readSourceResources: defineWorkspaceOperation({
     id: 'workflows.source.resources.read',
     oauthScope: 'api:read',
