@@ -39,13 +39,13 @@ import {
   commitSourceReplace,
   previewSourceCommit,
 } from '@/lib/workflows/application/source-commit'
+import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import {
   type WorkflowSourceDiagnostic,
   WorkflowSourceRejectedError,
   WorkflowSourceStaleError,
 } from '@/lib/workflows/application/source-error'
 import { evaluateSource } from '@/lib/workflows/application/source-evaluate'
-import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-locate'
 import { buildSourceCatalog } from '@/lib/workflows/code/catalog/workspace'
 import { requireWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import {

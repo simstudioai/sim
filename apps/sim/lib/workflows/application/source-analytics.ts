@@ -2,11 +2,11 @@ import { isUserCredentialPrincipal, type Principal } from '@sim/auth/principal'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import type { WorkflowWriteSource } from '@/lib/posthog/events'
 import { captureServerEvent } from '@/lib/posthog/server'
+import type { SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import {
   WorkflowSourceRejectedError,
   WorkflowSourceStaleError,
 } from '@/lib/workflows/application/source-error'
-import type { SourceDiffSummary } from '@/lib/workflows/application/source-locate'
 
 type SourceOperation = 'apply' | 'create'
 
