@@ -32,6 +32,10 @@ import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import type { SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import type { PendingResource } from '@/lib/workflows/application/source-evaluate'
+import {
+  countLiveWorkflows,
+  LAST_WORKFLOW_MESSAGE,
+} from '@/lib/workflows/orchestration/workflow-lifecycle'
 import { refusalDiagnostic } from '@/lib/workspace-source/application/errors'
 import {
   kindFinding,
@@ -264,6 +268,30 @@ async function planWorkflow(
   }
 }
 
+/**
+ * Refuses every planned delete when, with the workflows this apply creates, they would leave the
+ * workspace no live workflow: the delete use case refuses its last workflow, so the plan says so
+ * before anything is written. Creates are written before deletes, so a create counts.
+ */
+async function refuseDeletingEveryWorkflow(
+  changes: WorkflowChange[],
+  ctx: PlanContext
+): Promise<void> {
+  const deletes = changes.filter((change) => change.action === 'delete')
+  if (deletes.length === 0) return
+  const created = changes.filter((change) => change.action === 'create').length
+  const live = await countLiveWorkflows(ctx.workspace.workspaceId)
+  if (live + created - deletes.length >= 1) return
+  for (const change of deletes) {
+    change.action = 'noop'
+    change.diagnostics.push(
+      kindFinding('workflow', change.key, 'E_APPLY_REFUSED', LAST_WORKFLOW_MESSAGE, {
+        hint: 'Keep one workflow declared, or add another before deleting this one.',
+      })
+    )
+  }
+}
+
 export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, WorkflowPlan> = {
   codec: workflowCodec,
   keys: 'every-write',
@@ -334,6 +362,7 @@ export const workflowAdapter: KindAdapter<WorkflowDecl, StoredWorkflowState, Wor
         }
       )
     )
+    await refuseDeletingEveryWorkflow(changes, ctx)
     return changes
   },
 

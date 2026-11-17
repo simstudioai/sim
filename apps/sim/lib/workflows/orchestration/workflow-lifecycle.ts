@@ -11,7 +11,7 @@ import {
 } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
-import { and, eq, isNull, ne } from 'drizzle-orm'
+import { and, count, eq, isNull, ne } from 'drizzle-orm'
 import {
   asOrchestrationError,
   OrchestrationError,
@@ -528,6 +528,18 @@ export async function updateWorkflowRecord(
   return { success: true, workflow: updatedWorkflow }
 }
 
+/** Why a delete is refused: a workspace always keeps at least one live workflow. */
+export const LAST_WORKFLOW_MESSAGE = 'Cannot delete the only workflow in the workspace'
+
+/** The workspace's live (not archived) workflows, as the last-workflow guard counts them. */
+export async function countLiveWorkflows(workspaceId: string): Promise<number> {
+  const [row] = await db
+    .select({ count: count() })
+    .from(workflow)
+    .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
+  return row?.count ?? 0
+}
+
 export async function deleteWorkflowRecord(
   params: PerformDeleteWorkflowParams
 ): Promise<PerformDeleteWorkflowResult> {
@@ -545,17 +557,8 @@ export async function deleteWorkflowRecord(
   }
 
   if (!skipLastWorkflowGuard && workflowRecord.workspaceId) {
-    const totalWorkflows = await db
-      .select({ id: workflow.id })
-      .from(workflow)
-      .where(and(eq(workflow.workspaceId, workflowRecord.workspaceId), isNull(workflow.archivedAt)))
-
-    if (totalWorkflows.length <= 1) {
-      return {
-        success: false,
-        error: 'Cannot delete the only workflow in the workspace',
-        errorCode: 'validation',
-      }
+    if ((await countLiveWorkflows(workflowRecord.workspaceId)) <= 1) {
+      return { success: false, error: LAST_WORKFLOW_MESSAGE, errorCode: 'validation' }
     }
   }
 

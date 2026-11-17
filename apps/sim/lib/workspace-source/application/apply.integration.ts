@@ -540,6 +540,49 @@ describe('workspace source apply', () => {
     }
   )
 
+  check(
+    'refuses at plan time deleting the last workflow, and deletes it when the apply creates another',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await setUp(workspaceId)
+      const [ingest] = await workflows(workspaceId)
+      const withoutIngest = Object.fromEntries(
+        Object.entries(read.files).filter(([path]) => !path.startsWith('workflows/ingest/'))
+      )
+
+      const dryRun = await apply(workspaceId, withoutIngest, {
+        base: read.base,
+        allowDelete: true,
+        dryRun: true,
+      })
+
+      expect(codes(dryRun.diagnostics)).toEqual(['E_APPLY_REFUSED'])
+      expect(dryRun.diagnostics.find((finding) => finding.severity === 'error')).toMatchObject({
+        kind: 'workflow',
+        key: 'ingest',
+        message: 'Cannot delete the only workflow in the workspace',
+      })
+      await refusal(apply(workspaceId, withoutIngest, { base: read.base, allowDelete: true }))
+      expect((await workflows(workspaceId)).map((stored) => stored.id)).toEqual([ingest.id])
+
+      const replaced = await apply(
+        workspaceId,
+        {
+          ...withoutIngest,
+          'workflows/intake/workflow.ts': INGEST.replace("workflow('Ingest'", "workflow('Intake'"),
+        },
+        { base: read.base, allowDelete: true }
+      )
+
+      expect(replaced.failed).toBeUndefined()
+      expect(replaced.applied.map(({ kind, key, action }) => `${action} ${kind}:${key}`)).toEqual([
+        'create workflow:intake',
+        'delete workflow:ingest',
+      ])
+      expect((await workflows(workspaceId)).map((stored) => stored.name)).toEqual(['Intake'])
+    }
+  )
+
   check('deletes a workflow the directory no longer declares, with --allow-delete', async () => {
     const workspaceId = await newWorkspace()
     await apply(workspaceId, {
