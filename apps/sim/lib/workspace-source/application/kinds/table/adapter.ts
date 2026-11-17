@@ -370,8 +370,23 @@ export const tableAdapter: KindAdapter<TableDecl, StoredTableState, TablePlan> =
   async plan(desired, stored, ctx) {
     const folders = new Set((await folderIndex(ctx.workspace.workspaceId)).pathById.values())
     const changes: TableChange[] = []
+    const declaredNames = new Map<string, string>()
     for (const [key, decl] of desired) {
-      changes.push(await planTable(key, decl, stored, ctx, folders))
+      const change = await planTable(key, decl, stored, ctx, folders)
+      const folded = decl.name.toLowerCase()
+      const first = declaredNames.get(folded)
+      if (first === undefined) declaredNames.set(folded, key)
+      else {
+        change.diagnostics.push(
+          tableFinding(
+            key,
+            'E_NAME_TAKEN',
+            `The table name "${decl.name}" is also declared by tables/${first}.`,
+            'Give each declared table its own name.'
+          )
+        )
+      }
+      changes.push(change)
     }
     const undeclared = planUndeclared<StoredTableState, TableDecl, TablePlan>(
       'table',

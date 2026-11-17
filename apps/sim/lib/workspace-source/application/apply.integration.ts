@@ -885,4 +885,19 @@ describe('workspace source apply', () => {
     expect(codes(read.diagnostics)).toEqual(['E_APPLY_FORBIDDEN'])
     expect(Object.keys(read.files)).toEqual(['tables/leads.ts'])
   })
+
+  check('refuses two declarations of one table name before creating either', async () => {
+    const workspaceId = await newWorkspace()
+
+    const refused = await refusal(
+      apply(
+        workspaceId,
+        { 'tables/a.ts': LEADS, 'tables/b.ts': LEADS.replace("name: 'leads'", "name: 'LEADS'") },
+        { kinds: ['table'], only: ['table'] }
+      )
+    )
+
+    expect(codes(refused.diagnostics)).toEqual(['E_NAME_TAKEN'])
+    expect(await tables(workspaceId)).toEqual([])
+  })
 })
