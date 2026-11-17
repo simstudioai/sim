@@ -540,7 +540,7 @@ describe('workspace source files', () => {
     'a file over the blob cap, or with a path no directory holds, is skipped by get and never touched by apply',
     async () => {
       const workspaceId = await newWorkspace()
-      const read = await setUp(workspaceId)
+      await setUp(workspaceId)
       const huge = await uploadWorkspaceFile(
         workspaceId,
         ownerId,
@@ -576,11 +576,21 @@ describe('workspace source files', () => {
       expect(codes(emptied.diagnostics, 'warning')).toEqual([])
       expect((await storedFiles(workspaceId)).map((file) => file.id)).toEqual([huge.id, unsafe.id])
 
+      const hugeBefore = (await storedFiles(workspaceId)).find((file) => file.id === huge.id)
       const replaced = await refusal(
         apply(workspaceId, { 'files/huge.bin': Buffer.from('small') }, { base: emptied.base })
       )
       expect(codes(replaced.diagnostics)).toEqual(['E_FILE_TOO_LARGE'])
-      expect(read.base.resources['file:huge.bin']).toBeUndefined()
+      expect((await storedFiles(workspaceId)).find((file) => file.id === huge.id)).toEqual(
+        hugeBefore
+      )
+      const { content } = await readWorkspaceFileContent.execute({
+        principal: owner,
+        input: { fileId: huge.id, assertedWorkspaceId: workspaceId, contentView: 'opaque' },
+      })
+      expect(sha256Hex(content)).toBe(
+        sha256Hex(Buffer.alloc(WORKSPACE_SOURCE_LIMITS.maxBlobBytes + 1, 'h'))
+      )
     }
   )
 
