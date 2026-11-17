@@ -35,8 +35,9 @@
  *   "1,000+ integrations" or a figure left from an older catalog spreads to third-party sites.
  *   A count belongs to Sim when "Sim" comes before it in the same clause and no other product's
  *   possessive directly precedes it, or when it sits in a table row whose label cell is Sim.
- *   A comparison ("while", "unlike", "compared with", or "like" after a comma) is its own clause
- *   up to the next comma, and the sentence's main clause resumes after it.
+ *   A comparison that opens a sentence or names a new subject ("while Zapier", "Zapier, like
+ *   Sim,") is its own clause up to the next comma, and the main clause resumes after it; ", and"
+ *   before a capitalized word also starts a new clause.
  *   A count whose owner is ambiguous within its clause is treated as Sim's; when it belongs to
  *   another product, name that product as its owner ("Zapier's 9,000+") or give it a sentence.
  *   Blog and changelog posts are dated, so their counts are true as of publication.
@@ -149,24 +150,32 @@ const LINE_PREFIX = /^\s*(?:(?:[-*+>]|\d+[.)]|#{1,6})\s+)*(?:\w+:\s*["'])?/
 const SIM_NAME = /\bSim\b/
 /** Words that turn a sentence toward another product: "while Zapier lists ...", "unlike Zapier". */
 const CONTRAST = String.raw`(?:while|whereas|but|unlike|compared (?:with|to)|versus|vs\.?)`
+/** The same words opening a sentence, plus "Like" ("Like Sim, n8n ..."). */
+const OPENING_CONTRAST = String.raw`(?:While|Whereas|But|Unlike|Like|Compared (?:with|to)|Versus|Vs\.?)`
 /** Sentence punctuation, with any closing quote or bracket, before whitespace. */
 const SENTENCE_END = /(?<=[.!?;]['"”’)\]]*)\s+/
+/** ", and" before a capitalized word, which starts a clause with its own subject. */
+const NEW_SUBJECT = /,\s+and\s+(?=[A-Z])/
 /**
- * Where a comparison clause starts: a contrast word, or "like" when it opens the sentence or
- * follows a comma ("Like Sim, ...", "Zapier, like Sim, ..."), but not "tools like Slack".
+ * Where a comparison clause starts: a sentence-opening contrast ("Unlike Sim, ..."), or a contrast
+ * followed by a capitalized word, the new subject ("..., while Zapier", "Zapier, like Sim, ...").
+ * A contrast that keeps the subject ("open source but has ...") does not start one.
  */
 const COMPARISON_START = new RegExp(
-  String.raw`(?:^|,\s*|\s+)(?=${CONTRAST}\b)|(?:^|,\s*)(?=like\b)`,
-  'i'
+  String.raw`^(?=${OPENING_CONTRAST}\b)|,\s*(?=(?:like|${CONTRAST})\s+[A-Z])|\s+(?=${CONTRAST}\s+[A-Z])`
 )
+/** A count continuing a list ("..., 9,000+ actions, and 530+ triggers, ..."), not a new clause. */
+const COUNT_LIST_ITEM = String.raw`(?:and\s+)?\d[\d,]*\+?\s+(?:integrations|actions|triggers)\b\s*(?:,|and\b|$)`
 /**
  * Where a comparison clause ends: the first comma that is not a thousands separator, not the
  * start of a relative clause continuing it ("unlike Zapier, which has 9,000+ integrations"), and
- * not the next item in a list of counts ("280+ integrations, 9,000+ actions, and 530+ triggers").
+ * not the next item in a list of counts.
  */
-const COMPARISON_END = /,(?!\d)(?!\s*(?:which|that|who)\b)(?!\s*(?:and\s+)?\d)/
-/** A contrast inside a comparison clause, which starts a clause of its own ("..., but Zapier"). */
-const INNER_CONTRAST = new RegExp(String.raw`,?\s+(?=${CONTRAST}\b)`, 'i')
+const COMPARISON_END = new RegExp(
+  String.raw`,(?!\d)(?!\s*(?:which|that|who)\b)(?!\s*${COUNT_LIST_ITEM})`
+)
+/** A contrast with a new subject inside a comparison clause ("..., but Zapier has ..."). */
+const INNER_CONTRAST = new RegExp(String.raw`,?\s+(?=${CONTRAST}\s+[A-Z])`)
 /** The product whose possessive directly precedes a count, as in "Zapier's 9,000+". */
 const POSSESSIVE_OWNER = /([\w.-]+)['’]s\s*$/
 /** A Sim count below this share of the catalog total is left from an older catalog. */
@@ -200,7 +209,11 @@ function sentenceClauses(sentence: string): string[] {
 
 /** Each count whose clause names Sim before it, unless another product's possessive owns it. */
 function simProseCounts(text: string): RegExpMatchArray[] {
-  const clauses = text.replace(LINE_PREFIX, '').split(SENTENCE_END).flatMap(sentenceClauses)
+  const clauses = text
+    .replace(LINE_PREFIX, '')
+    .split(SENTENCE_END)
+    .flatMap((sentence) => sentence.split(NEW_SUBJECT))
+    .flatMap(sentenceClauses)
   return clauses.flatMap((clause) =>
     [...clause.matchAll(COUNT_CLAIM)].filter((match) => {
       const before = clause.slice(0, match.index)
