@@ -6,6 +6,7 @@
     "connections",
     "variables",
     "code",
+    "workspace-code",
     "deployment",
     "triggers",
     "blocks"

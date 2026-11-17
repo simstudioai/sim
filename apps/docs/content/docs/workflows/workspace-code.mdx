@@ -1,0 +1,74 @@
+---
+title: Workspace as code
+description: Keep a workspace's tables, knowledge bases, files, custom tools, skills and workflows in one directory, and apply it in one step.
+---
+
+import { Callout } from '@/components/ui/callout'
+
+A whole workspace can be read and written as a directory: one folder per kind of resource, with each workflow written exactly as [workflows as code](/workflows/code) writes it. One apply creates the resources before the workflows that use them, so a coding agent can build a working setup from scratch.
+
+<Callout type="info">
+Workspace as code is in preview, behind the same setting as workflows as code. It adds the `sim workspaces source` commands to the [CLI](/cli/workspaces).
+</Callout>
+
+## The directory
+
+```
+tables/orders.ts                  a table: name, description, columns
+knowledge/policies/knowledge.ts   a knowledge base: name, chunking
+knowledge/policies/docs/*.md      one file per document
+files/templates/reply.md          a workspace file, at its folder path
+tools/lookup-order.ts             a custom tool: title and schema
+tools/lookup-order.js             the tool's code
+skills/tone.md                    a skill: name and description, then its content
+workflows/support/workflow.ts     a workflow source directory
+```
+
+A resource's key is its file or folder name, and a workflow names it by that key:
+
+```ts title="workflows/support/workflow.ts"
+const policy = knowledge.search('Policy Search', {
+  knowledgeBaseId: knowledgeBase('policies'),
+  query: start.question,
+})
+const answer = agent('Answer', {
+  model: 'claude-sonnet-4-6',
+  messages: [{ role: 'user', content: t`${policy.results}\n\n${start.question}` }],
+  tools: [customTool('lookup-order')],
+  skills: [skill('tone')],
+})
+const log = table.insertRow('Log Question', {
+  tableId: table('orders'),
+  data: { orderId: start.orderId, status: 'answered' },
+})
+```
+
+`get` writes `.sim/AGENTS.md`, a guide for coding agents, and `.sim/examples/workspace/`, a complete example of every kind and the workflow that uses them.
+
+## Edit a workspace from the CLI
+
+```bash
+sim workspaces source get --dir ./my-workspace
+sim workspaces source apply --dir ./my-workspace --dry-run
+sim workspaces source apply --dir ./my-workspace --yes
+```
+
+The dry run prints the plan (`+` create, `~` update, `=` adopt an existing resource with the same name, `-` delete) and every error with its file and line. `--only tables,workflows` limits a get or an apply to some kinds.
+
+## Deletes
+
+- A kind is managed only when its folder exists. A directory without `skills/` never touches a skill.
+- Removing the file of a resource the directory manages deletes it only with `--allow-delete`; without the flag the apply is refused. The flag also covers a removed table column, knowledge base document or workspace file.
+- A resource the directory never managed is kept, and the apply names it in a warning.
+- Something deleted in Sim is not re-created by an unchanged directory, and an edit to it is refused as stale.
+- Rows, connector-synced documents and run history are never part of the directory.
+
+## Good to know
+
+- Secret values never appear. Workflows read environment variables as `env.NAME`, tool code as `$env.NAME`, and credentials by key.
+- Renaming a skill does not rewrite the workflows that use it: each agent keeps the name it stored until its skills list is next edited.
+- A document or file over 10 MB, or whose name a directory cannot hold, is left out of `get` and listed in `.sim/skipped.json`. An apply never writes or deletes it.
+- An apply that stops part-way exits `8` and saves what it wrote into the directory. Run the same apply again until it exits `0`.
+- An apply exits `5` when a resource changed in Sim after you read it. Run `get` into a new directory and reapply your edit.
+
+See [CLI workspace commands](/cli/workspaces) for every flag.

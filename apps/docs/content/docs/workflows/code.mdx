@@ -188,4 +188,6 @@ Run `sim workflows source apply <workflowId> --dir <dir> --dry-run` in CI to cat
 - Workflows run in Sim, not locally. `--dry-run` checks everything a save checks, without running the workflow.
 - A workflow can have up to 2,000 blocks, and its source up to 4 MB across `workflow.ts` and its function files together. A larger workflow is refused when you read or save it, and the CLI exits with code `7`.
 
+To keep the tables, knowledge bases, tools and skills a workflow uses in the same directory, see [Workspace as code](/workflows/workspace-code).
+
 See [CLI workflow commands](/cli/workflows) for every flag.
