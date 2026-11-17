@@ -12,9 +12,10 @@
  * `.json`: an imported JSON file this size makes TypeScript infer a type for every entry, which
  * is the type-check cost the tool-metadata artifacts document (`tool-registry-boundary` skill).
  *
- * `--check` (run by `check:audits`) fails when the JSON lacks an entry the registry needs, when any
- * two things share a name (two namespaces, two methods or triggers in one block, or two params on
- * one surface after aliasing), or when the runtime module is stale.
+ * `--check` (run by `check:audits`) fails when the JSON lacks anything the generator would add
+ * (credential aliases included), when any two things share a name (two namespaces, two methods or
+ * triggers in one block, or two params on one surface after aliasing), or when the runtime module
+ * is stale.
  *
  * Usage:
  *   bun run apps/sim/scripts/generate-sdk-names.ts           # add missing names

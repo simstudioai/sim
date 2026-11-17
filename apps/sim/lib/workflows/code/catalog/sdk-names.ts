@@ -292,8 +292,9 @@ function namespaceIsValid(namespace: string): boolean {
 }
 
 /**
- * Every problem with `names` against the registry: a missing entry (the generator was not run),
- * an invalid identifier, or two things sharing one name. Sorted, so the check output is stable.
+ * Every problem with `names` against the registry: anything the generator would add (a namespace,
+ * method, trigger method or credential alias: it was not run), an invalid identifier, or two
+ * things sharing one name. Sorted, so the check output is stable.
  */
 export function validateSdkNames(names: SdkNamesFile, sources: readonly SdkNameSource[]): string[] {
   const issues: string[] = []
@@ -337,24 +338,13 @@ export function validateSdkNames(names: SdkNamesFile, sources: readonly SdkNameS
     }
   }
 
+  for (const added of extendSdkNames(names, sources).added) issues.push(`missing ${added}`)
+
   for (const source of sources) {
     const entry = names.blocks[source.type]
-    if (!entry) {
-      issues.push(`${source.type}: missing entry`)
-      continue
-    }
+    if (!entry) continue
     if (entry.namespace.startsWith(`${TRIGGER_ROOT}.`) && !source.triggerBlock) {
       issues.push(`${source.type}: namespace "${entry.namespace}" is only for trigger blocks`)
-    }
-    for (const operation of source.operations) {
-      if (!entry.methods || !Object.hasOwn(entry.methods, operation.id)) {
-        issues.push(`${source.type}: missing method for operation ${operation.id}`)
-      }
-    }
-    for (const trigger of source.triggers) {
-      if (!entry.triggers || !Object.hasOwn(entry.triggers, trigger.id)) {
-        issues.push(`${source.type}: missing method for trigger ${trigger.id}`)
-      }
     }
     for (const surface of ['action', 'trigger'] as const) {
       const aliases = entry.paramAliases?.[surface] ?? {}
