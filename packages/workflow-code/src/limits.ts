@@ -17,6 +17,8 @@
 export const SOURCE_LIMITS = {
   /** Blocks in one workflow. Mirrors the v2 graph cap (`MAX_WORKFLOW_GRAPH_BLOCKS`). */
   maxBlocks: 2_000,
+  /** Edges in one workflow. Mirrors the v2 graph cap (`MAX_WORKFLOW_GRAPH_EDGES`). */
+  maxEdges: 10_000,
   /** Files in one source: `workflow.ts` plus one code file per block. */
   maxFiles: 2_001,
   /** UTF-8 bytes of every file together, the entry included. */

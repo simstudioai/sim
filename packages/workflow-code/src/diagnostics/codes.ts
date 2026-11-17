@@ -25,7 +25,7 @@ type CompileSyntaxCode =
   | 'E_UNSUPPORTED_SYNTAX'
   /** Not exactly one `export default workflow(...)`. */
   | 'E_WORKFLOW_EXPORT'
-  /** Source exceeds the byte, AST node or depth cap. */
+  /** Source exceeds the block, edge, byte, depth or `codeFile()` reference cap. */
   | 'E_LIMIT_EXCEEDED'
   /**
    * A NUL character or an unpaired UTF-16 surrogate, raw or escaped in a literal: a workflow

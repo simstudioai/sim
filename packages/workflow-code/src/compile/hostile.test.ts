@@ -171,6 +171,24 @@ describe('hostile sources produce diagnostics only', () => {
     for (const d of result.diagnostics) expect(d.message.length).toBeLessThanOrEqual(1_001)
   })
 
+  it('refuses fan-out past the edge cap and stops adding edges', () => {
+    const ids = Array.from({ length: 300 }, (_, i) => `a${i}`)
+    const blocks = ids.map((id) => `const ${id} = api('${id}', { url: 'x' })`).join('\n')
+    const wiring = `a0.to(${ids.slice(1, 150).join(', ')}).to(${ids.slice(150).join(', ')})`
+    const result = run(wrap(`${blocks}\n${wiring}`))
+    expect(result.workflow).toBeNull()
+    expect(codes(result)).toEqual(['E_LIMIT_EXCEEDED'])
+  })
+
+  it('accepts wiring at the edge cap and refuses one edge more', () => {
+    const blocks =
+      "const a = api('A', { url: 'x' })\nconst b = api('B', { url: 'x' })\nconst c = api('C', { url: 'x' })"
+    expect(run(wrap(`${blocks}\na.to(b, c)`), { maxEdges: 2 }).workflow?.edges).toHaveLength(2)
+    const over = run(wrap(`${blocks}\na.to(b, c)\nb.to(c)`), { maxEdges: 2 })
+    expect(over.workflow).toBeNull()
+    expect(codes(over)).toEqual(['E_LIMIT_EXCEEDED'])
+  })
+
   it('never reads a code file outside the repository or past the size cap', () => {
     const text = `// @sim-sdk 1\nimport { codeFile, fn, workflow } from '@sim/workflow-sdk'\n\nexport default workflow('X', {}, () => {\n  const a = fn('A', { code: codeFile('../../etc/passwd.js') })\n  const b = fn('B', { code: codeFile('./big.js') })\n})\n`
     const result = run(text, { maxTotalBytes: 1_000 }, { 'workflows/big.js': 'x'.repeat(5_000) })
