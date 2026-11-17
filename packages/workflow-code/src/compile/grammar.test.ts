@@ -715,6 +715,13 @@ describe('errors, each with its code, location and hint', () => {
       "{ variables: { ab: { type: 'string', value: '' }, 'A B': { type: 'string', value: '' } } }",
     ],
     [
+      'a generic block whose type is not a literal',
+      "const a = block(kind, 'Thing', {})",
+      'E_UNSUPPORTED_SYNTAX',
+      'kind,',
+      "Write block('custom_type', 'Name', { ... }).",
+    ],
+    [
       'a variable without a type',
       START,
       'E_UNSUPPORTED_SYNTAX',

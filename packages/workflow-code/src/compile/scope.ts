@@ -83,7 +83,15 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
   if (root === GENERIC_BUILDER && path.rest.length === 0) {
     const typeArgument = call.arguments[0]
     const type = typeArgument ? literalText(typeArgument) : null
-    if (type === null) return { kind: 'builder', path: dotted, builder: { kind: 'unknown' } }
+    if (type === null) {
+      unsupported(
+        ctx,
+        typeArgument ?? call,
+        'block() takes the type as a string literal.',
+        "Write block('custom_type', 'Name', { ... })."
+      )
+      return { kind: 'builder', path: dotted, builder: { kind: 'unknown' } }
+    }
     return {
       kind: 'builder',
       path: dotted,

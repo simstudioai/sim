@@ -39,7 +39,7 @@ export type ResolvedBuilder =
       /** `null` for the bare `parallel(...)` form, which leaves `parallelType` unset. */
       method: string | null
     }
-  /** `E_UNKNOWN_BUILDER` was reported; the name still claims its key. */
+  /** `E_UNKNOWN_BUILDER` (or a non-literal `block()` type) was reported; the name still claims its key. */
   | { kind: 'unknown' }
 
 export interface BlockDecl {
