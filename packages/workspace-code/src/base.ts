@@ -83,6 +83,14 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
 
+/**
+ * An empty record without a prototype: a key read from the file (`__proto__`, `constructor`, all
+ * valid column names) is an own entry, never the prototype or an inherited member.
+ */
+function plainRecord<T>(): Record<string, T> {
+  return Object.create(null)
+}
+
 function isStringRecord(value: unknown): value is Record<string, string> {
   return isRecordLike(value) && Object.values(value).every(isNonEmptyString)
 }
@@ -179,7 +187,7 @@ function parseResource(
   if (raw.columns !== undefined) {
     if (!isRecordLike(raw.columns)) shape(`${path}/columns`, 'columns must be an object.')
     else {
-      const columns: Record<string, BaseColumn> = {}
+      const columns = plainRecord<BaseColumn>()
       for (const [key, column] of Object.entries(raw.columns)) {
         const columnPath = `${path}/columns/${key}`
         if (!isRecordLike(column) || !isNonEmptyString(column.id)) {
@@ -188,8 +196,9 @@ function parseResource(
         }
         columns[key] = { ...extensionsOf(column, COLUMN_FIELDS, columnPath), id: column.id }
         if (column.options !== undefined) {
-          if (isStringRecord(column.options)) columns[key].options = { ...column.options }
-          else shape(`${columnPath}/options`, 'options must map option names to ids.')
+          if (isStringRecord(column.options)) {
+            columns[key].options = Object.assign(plainRecord<string>(), column.options)
+          } else shape(`${columnPath}/options`, 'options must map option names to ids.')
         }
       }
       entry.columns = columns
@@ -198,7 +207,7 @@ function parseResource(
   if (raw.blobs !== undefined) {
     if (!isRecordLike(raw.blobs)) shape(`${path}/blobs`, 'blobs must be an object.')
     else {
-      const blobs: Record<string, BaseBlob> = {}
+      const blobs = plainRecord<BaseBlob>()
       for (const [name, blob] of Object.entries(raw.blobs)) {
         const blobPath = `${path}/blobs/${name}`
         const rev = isRecordLike(blob) ? blob.rev : undefined

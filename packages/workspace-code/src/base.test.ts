@@ -53,4 +53,31 @@ describe('parseWorkspaceBase', () => {
     expect(parseWorkspaceBase({ version: 2 }).diagnostics?.[0]?.code).toBe('E_BASE_VERSION')
     expect(parseWorkspaceBase('{').diagnostics?.[0]?.code).toBe('E_BASE_JSON')
   })
+
+  it('keeps column, option and blob names that are Object.prototype keys as plain entries', () => {
+    const parsed = parseWorkspaceBase(`{
+      "version": 1,
+      "workspaceId": "ws",
+      "resources": {
+        "table:leads": {
+          "id": "tbl",
+          "columns": {
+            "__proto__": { "id": "col_evil", "options": { "__proto__": "opt_evil" } },
+            "email": { "id": "col_1" }
+          },
+          "blobs": { "__proto__": { "id": "b", "rev": 1, "sha256": "${'a'.repeat(64)}" } }
+        }
+      }
+    }`)
+    const resource = parsed.base?.resources['table:leads']
+    const columns = resource?.columns ?? {}
+
+    expect(Object.keys(columns).sort()).toEqual(['__proto__', 'email'])
+    expect('id' in columns).toBe(false)
+    expect('constructor' in columns).toBe(false)
+    expect(
+      Object.keys(Object.getOwnPropertyDescriptor(columns, '__proto__')?.value.options)
+    ).toEqual(['__proto__'])
+    expect(Object.keys(resource?.blobs ?? {})).toEqual(['__proto__'])
+  })
 })

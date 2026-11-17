@@ -94,8 +94,10 @@ function pairColumns(
   const taken = new Set<string>()
   const pairs = new Map<string, ColumnDefinition>()
   const keys = Object.keys(decl.columns)
+  const bound = (key: string) =>
+    bindings && Object.hasOwn(bindings, key) ? bindings[key] : undefined
   for (const key of keys) {
-    const boundId = bindings?.[key]?.id
+    const boundId = bound(key)?.id
     const column = boundId ? byId.get(boundId) : undefined
     if (column) {
       pairs.set(key, column)
@@ -103,7 +105,7 @@ function pairColumns(
     }
   }
   for (const key of keys) {
-    if (pairs.has(key) || bindings?.[key]) continue
+    if (pairs.has(key) || bound(key)) continue
     const column = byName.get(columnName(key, decl.columns[key]).toLowerCase())
     if (column && !taken.has(getColumnId(column))) {
       pairs.set(key, column)
