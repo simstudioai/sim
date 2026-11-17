@@ -6,13 +6,9 @@
  */
 import { db } from '@sim/db'
 import type { BaseColumn, WorkspaceDiagnosticCode } from '@sim/workspace-code'
-import {
-  columnName,
-  DEFAULT_CURRENCY_CODE,
-  type TableColumnDecl,
-  type TableDecl,
-} from '@sim/workspace-code/kinds/table'
+import { columnName, type TableColumnDecl, type TableDecl } from '@sim/workspace-code/kinds/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { columnTypeById, columnTypeOf, type TypeSpecificColumnKey } from '@/lib/table/column-types'
 import {
   countCellsLosingAnOption,
   countCellsLosingTheirOptions,
@@ -79,23 +75,37 @@ export interface TableChanges {
   diagnostics: WorkspaceSourceDiagnostic[]
 }
 
-/** The add-column input for a declared column, minting option ids. */
+/** Whether a column's type owns `key`, as the column-type registry says. */
+function owns(column: Pick<ColumnDefinition, 'type'>, key: TypeSpecificColumnKey): boolean {
+  return columnTypeOf(column).ownedMetadata.includes(key)
+}
+
+/**
+ * The add-column input for a declared column: the metadata its type owns, minting ids for select
+ * options named in the declaration.
+ */
 export function columnInput(key: string, column: TableColumnDecl): ColumnInput {
-  return {
+  const input: ColumnInput = {
     name: columnName(key, column),
-    type: column.type,
+    // The codec admits only the registry's type ids, so this is the declared type.
+    type: columnTypeById(column.type).id,
     ...(column.required ? { required: true } : {}),
     ...(column.unique ? { unique: true } : {}),
-    ...(column.type === 'select'
-      ? {
-          options: normalizeSelectOptionsInput(column.options ?? []) ?? [],
-          ...(column.multiple ? { multiple: true } : {}),
-        }
-      : {}),
-    ...(column.type === 'currency' && column.currencyCode
-      ? { currencyCode: column.currencyCode }
-      : {}),
   }
+  for (const owned of columnTypeById(column.type).ownedMetadata) {
+    if (owned === 'options') input.options = normalizeSelectOptionsInput(column.options ?? []) ?? []
+    else if (column[owned]) Object.assign(input, { [owned]: column[owned] })
+  }
+  return input
+}
+
+/**
+ * A column's metadata as its type stamps it (`defaultMetadata`): what a column declared without a
+ * currency code, say, ends up holding.
+ */
+function stampedMetadata(column: ColumnInput | ColumnDefinition): Partial<ColumnDefinition> {
+  const shaped = { ...column, id: '' }
+  return { ...shaped, ...columnTypeOf(column).defaultMetadata?.(shaped) }
 }
 
 /** Pairs each declared column with the stored column it updates, if any. */
@@ -142,7 +152,8 @@ async function countIncompatibleCells(
   target: ColumnDefinition
 ): Promise<number> {
   const columnId = getColumnId(current)
-  const leavingSelect = current.type === 'select' && target.type !== 'select'
+  const leavingSelect =
+    columnTypeOf(current).storesOpaqueIds && !columnTypeOf(target).storesOpaqueIds
   const batch = getColumnRetypeScanBatchSize()
   let incompatible = 0
   let scanned = 0
@@ -297,11 +308,11 @@ export async function diffTable(
         )
       }
     }
-    if (target.type === 'select') {
-      // The options a removal in this change keeps, which a multi→single switch counts against.
-      let kept: SelectOption[] | undefined
+    // The options a removal in this change keeps, which a multi→single switch counts against.
+    let kept: SelectOption[] | undefined
+    if (owns(target, 'options')) {
       const names = declared.options ?? []
-      const existing = current.type === 'select' ? (current.options ?? []) : []
+      const existing = owns(current, 'options') ? (current.options ?? []) : []
       if (
         !sameList(
           names,
@@ -314,7 +325,7 @@ export async function diffTable(
         // By id, as the column write removes them: a letter-case rename keeps its option.
         const keptIds = new Set(options.map((option) => option.id))
         const removed = existing.filter((option) => !keptIds.has(option.id)).length
-        if (current.type === 'select' && removed > 0) {
+        if (owns(current, 'options') && removed > 0) {
           kept = options
           changes.removedOptions += removed
           const multiple = Boolean(current.multiple)
@@ -345,29 +356,31 @@ export async function diffTable(
           }
         }
       }
-      if (Boolean(target.multiple) !== Boolean(current.multiple)) {
-        updates.multiple = Boolean(target.multiple)
-        fields.push('multiple')
-        const multiValued =
-          current.type === 'select' && current.multiple && !target.multiple
-            ? await countMultiValuedCells(db, table.id, table.workspaceId, columnId, kept)
-            : 0
-        if (multiValued > 0) {
-          report(
-            'E_APPLY_REFUSED',
-            `Column "${current.name}" cannot become single-select: ${multiValued} row(s) keep several options selected.`,
-            'Reduce them to one option first.'
-          )
-        }
+    }
+    if (owns(target, 'multiple') && Boolean(target.multiple) !== Boolean(current.multiple)) {
+      updates.multiple = Boolean(target.multiple)
+      fields.push('multiple')
+      const multiValued =
+        owns(current, 'multiple') && current.multiple && !target.multiple
+          ? await countMultiValuedCells(db, table.id, table.workspaceId, columnId, kept)
+          : 0
+      if (multiValued > 0) {
+        report(
+          'E_APPLY_REFUSED',
+          `Column "${current.name}" cannot become single-select: ${multiValued} row(s) keep several options selected.`,
+          'Reduce them to one option first.'
+        )
       }
     }
-    if (
-      target.type === 'currency' &&
-      (target.currencyCode ?? DEFAULT_CURRENCY_CODE) !==
-        (current.currencyCode ?? DEFAULT_CURRENCY_CODE)
-    ) {
-      updates.currencyCode = target.currencyCode ?? DEFAULT_CURRENCY_CODE
-      fields.push('currencyCode')
+    // Any other owned metadata is a plain value: compared as each side's type stamps it, so a
+    // currency column declared without a code matches one stored in the default code.
+    const stamped = stampedMetadata(target)
+    const before = stampedMetadata({ ...current, type: target.type })
+    for (const owned of columnTypeById(target.type).ownedMetadata) {
+      if (owned === 'options' || owned === 'multiple') continue
+      if (stamped[owned] === before[owned]) continue
+      updates[owned] = stamped[owned]
+      fields.push(owned)
     }
     if (fields.length === 0) continue
     changes.columns.push({ op: 'update', columnId, updates })

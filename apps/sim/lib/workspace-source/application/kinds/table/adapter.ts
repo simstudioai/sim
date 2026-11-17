@@ -7,7 +7,7 @@
  */
 import { setOwn } from '@sim/workflow-code'
 import { type BaseColumn, fingerprintOf, resourceAddress } from '@sim/workspace-code'
-import { columnName, type TableDecl, tableCodec } from '@sim/workspace-code/kinds/table'
+import { columnName, type TableDecl } from '@sim/workspace-code/kinds/table'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
@@ -28,6 +28,7 @@ import {
   refuseDeclaredTwice,
 } from '@/lib/workspace-source/application/findings'
 import { bindStored } from '@/lib/workspace-source/application/keys'
+import { tableCodec } from '@/lib/workspace-source/application/kinds/table/codec'
 import {
   columnInput,
   diffTable,
