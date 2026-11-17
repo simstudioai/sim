@@ -1,5 +1,5 @@
 import type { AnyApiRouteContract } from '@/lib/api/contracts'
-import type { ApplicationOperation } from '@/lib/core/application'
+import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 
 interface JsonRouteDefinitionMetadata {
   successStatus: number
@@ -91,4 +91,23 @@ function declaredSuccessStatuses(contract: AnyApiRouteContract): JsonRouteDefini
 export function methodMatchesContract(requestMethod: string, contractMethod: string): boolean {
   if (requestMethod === contractMethod) return true
   return requestMethod === 'HEAD' && contractMethod === 'GET'
+}
+
+/**
+ * Refuses at module load to build a `headSafe: false` route whose use case
+ * cannot answer the authorization question on its own — see the `headSafe`
+ * option on the v2 and internal route builders. A use case with no `authorize`
+ * leaves the builder nothing but admission to answer a `HEAD` from, so the gap
+ * is a boot failure rather than a silent 200.
+ */
+export function requireHeadAuthorizableUseCase(
+  contract: { method: string; path: string },
+  headSafe: boolean | undefined,
+  useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'authorize'>
+): void {
+  if (headSafe !== false) return
+  if (typeof useCase.authorize === 'function') return
+  throw new Error(
+    `Route ${contract.method} ${contract.path} declares headSafe: false but its use case has no authorize(); a HEAD would have to answer from authentication alone and would leak the resource's existence.`
+  )
 }

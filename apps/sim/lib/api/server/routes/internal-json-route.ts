@@ -13,6 +13,7 @@ import type { ContractJsonResponse } from '@/lib/api/contracts'
 import { API_KEY_HEADER, BEARER_PREFIX } from '@/lib/api/server/credential-headers'
 import {
   methodMatchesContract,
+  requireHeadAuthorizableUseCase,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
 import { responseWithRequestId, withRequestId } from '@/lib/api/server/routes/request-id'
@@ -307,6 +308,14 @@ type InternalJsonRouteOptions<
   auth: InternalAuthPolicy<P>
   rateLimit: InternalRateLimitPolicy
   errorPolicy: InternalErrorPolicy
+  /**
+   * Whether this route's `GET` is safe enough for Next's `HEAD`→`GET` aliasing to run it.
+   * Defaults to `true`, which is correct for a read. Set `false` when the `GET` writes a row: a
+   * `HEAD` is then authenticated, rate limited, parsed and **authorized** exactly as the `GET`
+   * would be, and answered bodiless without running the use case. Requires a use case exposing
+   * `authorize`, checked at definition time.
+   */
+  headSafe?: boolean
   parseOptions?: InternalJsonParseOptions
   beforeParse?(args: {
     request: NextRequest
@@ -379,6 +388,7 @@ export function defineInternalJsonRoute<
     options.operation,
     options.useCase.operation
   )
+  requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
       if (!methodMatchesContract(request.method, options.contract.method)) {
@@ -420,6 +430,12 @@ export function defineInternalJsonRoute<
 
       try {
         const input = await options.mapInput(parsed.data, { principal, request })
+        if (request.method === 'HEAD' && options.headSafe === false) {
+          const { authorize } = options.useCase
+          if (!authorize) throw new Error('A HEAD reached a use case with no authorize()')
+          await authorize({ principal, input, request })
+          return new NextResponse(null, { status: successStatus })
+        }
         const result = await options.useCase.execute({
           principal,
           input,

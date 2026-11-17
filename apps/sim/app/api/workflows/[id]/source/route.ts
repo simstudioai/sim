@@ -13,10 +13,14 @@ export const revalidate = 0
 /**
  * GET /api/workflows/[id]/source — the draft as TypeScript source for the canvas Code tab. The
  * same use case as `GET /api/v2/workflows/{workflowId}/source`, under session auth.
+ *
+ * `headSafe: false` because the first read that references a resource with no key allocates one
+ * (`workspace_resource_key`), so a `HEAD` probe must not run it.
  */
 export const GET = defineInternalJsonRoute({
   contract: getWorkflowSourceContract,
   auth: internalSessionAuth,
+  headSafe: false,
   operation: readWorkflowSource.operation,
   rateLimit: internalRateLimits.user({
     bucketName: 'workflow-source-read',
