@@ -10,17 +10,19 @@ import type { StoredResource } from '@/lib/workspace-source/application/types'
  * |---|---|---|
  * | equal | any | `noop`, `serverChanged` when the server drifted |
  * | differs | equal | `apply` |
- * | differs | differs | `noop` when local equals server, else `stale` |
+ * | differs | differs | `noop` when local equals server (recording the server as the new base), else `stale` |
  */
 type ThreeWayOutcome =
-  | { action: 'noop'; serverChanged: boolean }
+  | { action: 'noop'; serverChanged: boolean; refreshed?: boolean }
   | { action: 'apply' }
   | { action: 'stale' }
 
 function decide(local: string, base: string, server: string): ThreeWayOutcome {
   if (local === base) return { action: 'noop', serverChanged: server !== base }
   if (server === base) return { action: 'apply' }
-  return local === server ? { action: 'noop', serverChanged: true } : { action: 'stale' }
+  return local === server
+    ? { action: 'noop', serverChanged: false, refreshed: true }
+    : { action: 'stale' }
 }
 
 /** How a declared resource resolves against the server and the base, before kind-specific diffing. */
@@ -32,7 +34,10 @@ export type DeclaredResolution<S> =
       action: 'noop'
       stored: StoredResource<S>
       serverChanged: boolean
-      /** Set when the directory's base lacked this entry: the base the no-op records. */
+      /**
+       * Set when the no-op must record the server's base entry: the directory's base lacked one,
+       * or the directory already holds what the server changed to.
+       */
       refreshed?: boolean
     }
   | { action: 'stale'; stored: StoredResource<S> }
@@ -62,7 +67,12 @@ export function resolveDeclared<S>(input: {
       return { action: 'update', stored, base, serverFingerprint: server }
     }
     if (outcome.action === 'stale') return { action: 'stale', stored }
-    return { action: 'noop', stored, serverChanged: outcome.serverChanged }
+    return {
+      action: 'noop',
+      stored,
+      serverChanged: outcome.serverChanged,
+      ...(outcome.refreshed ? { refreshed: true } : {}),
+    }
   }
   return input.local === input.fingerprint(stored)
     ? { action: 'noop', stored, serverChanged: false, refreshed: true }

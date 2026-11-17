@@ -840,4 +840,32 @@ describe('workspace source apply', () => {
     expect(codes(refused.diagnostics)).toEqual(['E_TABLE_TYPE_CONVERSION'])
     expect(refused.diagnostics[0].message).toContain('3 cell(s)')
   })
+
+  check('a directory that already holds the server’s change advances its base', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await setUp(workspaceId)
+    const [leads] = await tables(workspaceId)
+    await tableUseCases.updateTableUseCase.execute({
+      principal: owner,
+      input: { tableId: leads.id, workspaceId, description: 'Shared' },
+    })
+    const same = {
+      ...read.files,
+      'tables/leads.ts': read.files['tables/leads.ts'].replace(
+        "name: 'leads',",
+        "name: 'leads',\n  description: 'Shared',"
+      ),
+    }
+
+    const settled = await apply(workspaceId, same, { base: read.base })
+
+    expect(settled.applied).toEqual([])
+    const edited = {
+      ...same,
+      'tables/leads.ts': same['tables/leads.ts'].replace("'Shared'", "'Edited'"),
+    }
+    const next = await apply(workspaceId, edited, { base: settled.base })
+
+    expect(next.applied).toMatchObject([{ action: 'update', key: 'leads' }])
+  })
 })

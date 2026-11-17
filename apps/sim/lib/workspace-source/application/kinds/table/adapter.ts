@@ -116,13 +116,14 @@ async function planTable(
       )
     )
   }
+  const entry = ctx.base?.resources[resourceAddress('table', key)]
   const resolution = resolveDeclared({
     local: fingerprintOf(tableCodec.canonical(decl)),
     stored: stored.bound.get(key),
     adoptable: stored.unbound.find(
       (candidate) => candidate.name.toLowerCase() === decl.name.toLowerCase()
     ),
-    base: ctx.base?.resources[resourceAddress('table', key)],
+    base: entry,
     fingerprint: (resource, entry) => tableAsDecl(resource.state, entry?.columns).fingerprint,
   })
   switch (resolution.action) {
@@ -137,7 +138,15 @@ async function planTable(
       return {
         ...change,
         storedId: resolution.stored.id,
-        ...(resolution.refreshed ? { base: printStoredTable(resolution.stored, key).base } : {}),
+        ...(resolution.refreshed
+          ? {
+              base: printStoredTable(
+                resolution.stored,
+                key,
+                entry?.id === resolution.stored.id ? entry.columns : undefined
+              ).base,
+            }
+          : {}),
       }
     case 'create': {
       const holder = [...stored.bound.values(), ...stored.unbound].find(
