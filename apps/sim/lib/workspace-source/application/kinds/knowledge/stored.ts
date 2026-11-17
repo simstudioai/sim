@@ -41,7 +41,7 @@ export interface StoredDoc {
 }
 
 /** A document's revision in the base: when it was uploaded. */
-export function docRevision(doc: StoredDoc): number {
+function docRevision(doc: StoredDoc): number {
   return doc.uploadedAt.getTime()
 }
 

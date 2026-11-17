@@ -88,7 +88,7 @@ const CHUNKING_FIELDS = ['maxSize', 'minSize', 'overlap', 'strategy', 'strategyO
 const STRATEGY_OPTION_FIELDS = ['pattern', 'separators', 'recipe', 'strictBoundaries']
 
 /** `knowledge/<key>/knowledge.ts`. */
-export function knowledgeDeclarationPath(key: string): string {
+function knowledgeDeclarationPath(key: string): string {
   return `${KIND_DIRS['knowledge-base']}/${key}/${DECLARATION_FILE}`
 }
 

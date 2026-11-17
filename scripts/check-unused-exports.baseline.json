@@ -5008,7 +5008,6 @@
   "apps/sim/lib/uploads/utils/file.ts#isSupportedFileType",
   "apps/sim/lib/uploads/utils/validation.ts#ACCEPTED_FILE_EXTENSIONS",
   "apps/sim/lib/uploads/utils/validation.ts#SUPPORTED_ATTACHMENT_EXTENSIONS",
-  "apps/sim/lib/uploads/utils/validation.ts#SUPPORTED_MIME_TYPES",
   "apps/sim/lib/uploads/utils/validation.ts#SupportedAudioExtension",
   "apps/sim/lib/uploads/utils/validation.ts#SupportedCodeExtension",
   "apps/sim/lib/uploads/utils/validation.ts#SupportedImageExtension",
