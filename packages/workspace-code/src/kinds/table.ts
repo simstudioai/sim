@@ -318,7 +318,7 @@ export const tableCodec: KindCodec<TableDecl> = {
   },
   canonical: (decl) => ({
     name: decl.name,
-    description: decl.description ?? null,
+    description: decl.description || null,
     folder: decl.folder ?? '/',
     columns: Object.fromEntries(
       Object.entries(decl.columns).map(([key, column]) => [key, canonicalColumn(key, column)])

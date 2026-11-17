@@ -87,6 +87,13 @@ describe('tableCodec', () => {
     expect(fingerprintOf(tableCodec.canonical(a))).toBe(fingerprintOf(tableCodec.canonical(b)))
   })
 
+  it('fingerprints an empty description as no description, as the server stores it', () => {
+    const columns = { email: { type: 'string' as const } }
+    expect(fingerprintOf(tableCodec.canonical({ name: 'leads', description: '', columns }))).toBe(
+      fingerprintOf(tableCodec.canonical({ name: 'leads', columns }))
+    )
+  })
+
   it('pins a bad column to its line and names the supported fields', () => {
     const file = [
       '// @sim-sdk 1',
