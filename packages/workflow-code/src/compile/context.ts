@@ -201,7 +201,7 @@ export function lookup(scope: Scope, name: string): Binding | null {
 }
 
 /** Every identifier visible from `scope`, innermost first, for did-you-mean. */
-export function visibleNames(scope: Scope): string[] {
+function visibleNames(scope: Scope): string[] {
   const names: string[] = []
   for (let current: Scope | null = scope; current; current = current.parent) {
     names.push(...current.bindings.keys())
