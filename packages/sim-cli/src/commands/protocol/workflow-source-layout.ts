@@ -218,8 +218,13 @@ export interface SourceDirChange {
   remove?: readonly string[]
 }
 
-async function inBatches<T>(items: T[], run: (item: T) => Promise<void>): Promise<void> {
-  for (const batch of chunkArray(items, WRITE_CONCURRENCY)) await Promise.all(batch.map(run))
+/** `run` over `items`, at most `WRITE_CONCURRENCY` at a time; results in `items` order. */
+export async function inBatches<T, R>(items: T[], run: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = []
+  for (const batch of chunkArray(items, WRITE_CONCURRENCY)) {
+    results.push(...(await Promise.all(batch.map(run))))
+  }
+  return results
 }
 
 /**
@@ -318,13 +323,13 @@ export async function locallyEditedFiles(
   for (const path of orphanedCodeFiles(previousLock, answer.lock, touched.keys())) {
     touched.set(path, null)
   }
-  const edited: string[] = []
-  for (const [path, next] of touched) {
-    const current = await readSourceText(dir, path)
-    if (current === null || current === next) continue
-    if (written[path] !== digest(current)) edited.push(path)
-  }
-  return edited
+  const entries = [...touched]
+  const texts = await inBatches(entries, ([path]) => readSourceText(dir, path))
+  return entries.flatMap(([path, next], index) => {
+    const current = texts[index]
+    if (current === null || current === next) return []
+    return written[path] !== digest(current) ? [path] : []
+  })
 }
 
 /** What the server answers a get, apply or create with: the printed files, lock and base. */

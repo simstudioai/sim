@@ -20,6 +20,7 @@ import { printProtocolResult } from './result'
 import { writeSourceDirectory, writeSourceScaffold } from './workflow-source-get'
 import {
   SOURCE_BASE_FILE as BASE_FILE,
+  inBatches,
   SOURCE_LOCK_FILE as LOCK_FILE,
   lockCodeFiles,
   readPreviousLock,
@@ -230,10 +231,12 @@ async function readSourceFiles(
 ): Promise<Record<string, string>> {
   const entry = await requireText(directory, ENTRY_FILE, GET_HINT)
   const files: Record<string, string> = { [ENTRY_FILE]: entry }
-  for (const path of codeFilePaths(entry, lock)) {
-    const text = await readSourceText(directory, path)
+  const paths = codeFilePaths(entry, lock)
+  const texts = await inBatches(paths, (path) => readSourceText(directory, path))
+  paths.forEach((path, index) => {
+    const text = texts[index]
     if (text !== null) files[path] = text
-  }
+  })
   return files
 }
 
