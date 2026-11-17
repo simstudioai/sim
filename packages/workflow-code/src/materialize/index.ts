@@ -186,17 +186,14 @@ export function materialize(
     compiledIdents: options.compiledIdents,
     diagnostics,
   })
+  const prevBlock = (prevKey: BlockKey | null) =>
+    prevKey !== null && prevCanonical ? getOwn(prevCanonical.workflow.blocks, prevKey) : undefined
   // Rewrite after restoring: a restored inactive value can hold `<oldkey.` too, and a canvas
   // rename rewrites every subBlock.
   const workflow = rewriteRenamedReferences(
     withPreservedState(
       input,
-      (key) => {
-        const prevKey = resolution.blocks.get(key)?.prevKey ?? null
-        return prevKey !== null && prevCanonical
-          ? getOwn(prevCanonical.workflow.blocks, prevKey)
-          : undefined
-      },
+      (key) => prevBlock(resolution.blocks.get(key)?.prevKey ?? null),
       catalog
     ),
     resolution.renames
@@ -231,8 +228,8 @@ export function materialize(
     const resolved = resolution.blocks.get(key)
     if (!resolved) continue
     const prevKey = resolved.prevKey
-    const canonicalPrev =
-      prevKey !== null && prevCanonical ? getOwn(prevCanonical.workflow.blocks, prevKey) : undefined
+    const canonicalPrev = prevBlock(prevKey)
+    const prevIdentityEntry = prevKey !== null ? getOwn(prevIdentity, prevKey) : undefined
     const storedPrev = prev ? getOwn(prev.blocks, resolved.id) : undefined
     const result = buildBlock(
       {
@@ -249,8 +246,8 @@ export function materialize(
                   canonicalPrev.parent,
                   (parent) => getOwn(prevIdentity, parent)?.id
                 ),
-                branchIds: getOwn(prevIdentity, prevKey)?.branches,
-                items: getOwn(prevIdentity, prevKey)?.items,
+                branchIds: prevIdentityEntry?.branches,
+                items: prevIdentityEntry?.items,
               }
             : undefined,
         lockBlock: lockById.get(resolved.id),
@@ -280,7 +277,7 @@ export function materialize(
   }
   const prevBranchHandles = new Map<string, BranchHandles>()
   for (const [key, identity] of Object.entries(prevIdentity)) {
-    const prevType = prevCanonical ? getOwn(prevCanonical.workflow.blocks, key)?.type : undefined
+    const prevType = prevBlock(key)?.type
     const kind = prevType && catalogBlock(catalog, prevType)?.graph.branches?.kind
     if (!kind || !identity.branches) continue
     prevBranchHandles.set(identity.id, { kind, ids: identity.branches })
@@ -330,10 +327,7 @@ export function materialize(
     const resolved = resolution.blocks.get(key)
     const block = id !== undefined ? getOwn(blocks, id) : undefined
     if (id === undefined || !block || !resolved || !target.subflow) continue
-    const before =
-      resolved.prevKey !== null && prevCanonical
-        ? getOwn(prevCanonical.workflow.blocks, resolved.prevKey)
-        : undefined
+    const before = prevBlock(resolved.prevKey)
     const prevEntry =
       before && prev
         ? getOwn<Loop | Parallel>(

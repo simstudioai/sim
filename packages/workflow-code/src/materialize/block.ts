@@ -69,11 +69,6 @@ function sameBlock(left: CanonicalBlock, right: CanonicalBlock): boolean {
   return deepEqual(omit(left, ['key', 'parent']), omit(right, ['key', 'parent']))
 }
 
-/** inputFormat ids as canonicalize lifts them into the lock (`liftedFieldIds`). */
-function storedItems(raw: unknown): LockItem[] {
-  return [...liftedFieldIds(parseStoredList(raw) ?? []).values()]
-}
-
 function rawValues(subBlocks: Record<string, SubBlockState>): Record<string, unknown> {
   const values: Record<string, unknown> = {}
   for (const [id, subBlock] of Object.entries(subBlocks)) setOwn(values, id, subBlock?.value)
@@ -316,7 +311,10 @@ export function buildBlock(inputs: BlockInputs, context: MaterializeContext): Bu
     if (param.kind !== 'value') continue
     const declaration = declarationFor(catalog, paramId, target.triggerMode)
     if (declaration?.structured !== 'inputFormat') continue
-    const found = storedItems(getOwn(subBlocks, paramId)?.value)
+    // inputFormat ids as canonicalize lifts them into the lock.
+    const found = [
+      ...liftedFieldIds(parseStoredList(getOwn(subBlocks, paramId)?.value) ?? []).values(),
+    ]
     if (found.length > 0) setOwn(items, paramId, found)
   }
   return { block: built, branchIds, items, needsLayout }
