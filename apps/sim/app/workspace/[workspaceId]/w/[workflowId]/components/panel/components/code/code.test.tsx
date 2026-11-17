@@ -34,6 +34,7 @@ describe('Code tab refresh', () => {
 
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    vi.useFakeTimers()
     sourceReads = []
     vi.stubGlobal(
       'fetch',
@@ -80,7 +81,7 @@ describe('Code tab refresh', () => {
 
   afterEach(() => {
     act(() => root.unmount())
-    vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
   function applyRemoteFieldEdit(workflowId: string, value: string) {
@@ -93,14 +94,14 @@ describe('Code tab refresh', () => {
   }
 
   async function settle() {
-    await act(() => new Promise((done) => setTimeout(done, SETTLE_MS)))
+    await act(() => vi.advanceTimersByTimeAsync(SETTLE_MS))
   }
 
   it("re-reads the source after a collaborator's field edit", async () => {
     await vi.waitFor(() => expect(sourceReads).toHaveLength(1))
     applyRemoteFieldEdit(WORKFLOW_ID, 'return 6 * 7')
     await settle()
-    expect(sourceReads).toHaveLength(2)
+    await vi.waitFor(() => expect(sourceReads).toHaveLength(2))
   })
 
   it("ignores a field edit in another workflow's values", async () => {
