@@ -145,6 +145,32 @@ describe('tableCodec', () => {
     ])
   })
 
+  it('refuses what the server refuses: options repeated in another case, more than 100 options, an unknown currency', () => {
+    const many = Array.from({ length: 101 }, (_, index) => `'o${index}'`).join(', ')
+    const file = [
+      '// @sim-sdk 1',
+      "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+      '',
+      'export default defineTable({',
+      "  name: 'leads',",
+      '  columns: {',
+      "    status: column.select({ options: ['Open', 'open'] }),",
+      `    tier: column.select({ options: [${many}] }),`,
+      "    price: column.currency({ currencyCode: 'ZZZ' }),",
+      "    cost: column.currency({ currencyCode: 'EUR' }),",
+      '  },',
+      '})',
+      '',
+    ].join('\n')
+    const parsed = tableCodec.parse('leads', { 'tables/leads.ts': file }, [])
+    expect(parsed.decl).toBeUndefined()
+    expect(parsed.diagnostics.map((finding) => [finding.code, finding.span?.line])).toEqual([
+      ['E_TABLE_OPTIONS', 7],
+      ['E_TABLE_OPTIONS', 8],
+      ['E_DECL_SHAPE', 9],
+    ])
+  })
+
   it('groups one file per key and refuses anything else in tables/', () => {
     const grouped = tableCodec.group(['tables/leads.ts', 'tables/Bad.ts', 'tables/x/y.ts'])
     expect([...grouped.groups.keys()]).toEqual(['leads'])

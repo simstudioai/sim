@@ -81,6 +81,21 @@ const MAX_TABLE_NAME_LENGTH = 128
 const MAX_COLUMN_NAME_LENGTH = 50
 const MAX_DESCRIPTION_LENGTH = 500
 const CURRENCY_CODE = /^[A-Z]{3}$/
+/** The most options one select column holds (`MAX_SELECT_OPTIONS` in apps/sim/lib/table/constants). */
+const MAX_SELECT_OPTIONS = 100
+
+/**
+ * Whether `code` is an ISO 4217 code this runtime knows, as the server's currency column checks
+ * it (`isSupportedCurrencyCode`); a runtime that cannot list currencies checks the shape alone.
+ */
+function isSupportedCurrencyCode(code: string): boolean {
+  if (!CURRENCY_CODE.test(code)) return false
+  try {
+    return Intl.supportedValuesOf('currency').includes(code)
+  } catch {
+    return true
+  }
+}
 
 const CALLEE = 'defineTable'
 const TABLE_FIELDS = ['name', 'description', 'folder', 'columns']
@@ -175,9 +190,17 @@ function readColumn(
       )
     } else {
       const names = raw as string[]
-      const duplicate = names.find((item, index) => names.indexOf(item) !== index)
+      // The server folds letter case when it checks option names for repeats.
+      const folded = names.map((item) => item.toLowerCase())
+      const duplicate = names.find((_, index) => folded.indexOf(folded[index]) !== index)
       if (duplicate !== undefined)
         report('E_TABLE_OPTIONS', at, `Option "${duplicate}" is listed twice.`)
+      if (names.length > MAX_SELECT_OPTIONS)
+        report(
+          'E_TABLE_OPTIONS',
+          at,
+          `Select column "${key}" lists ${names.length} options; a column holds at most ${MAX_SELECT_OPTIONS}.`
+        )
       column.options = [...names]
     }
     const multiple = readBooleanField(options, 'multiple', optionsPointer, report)
@@ -186,12 +209,12 @@ function readColumn(
   if (type === 'currency') {
     const code = readStringField(options, 'currencyCode', optionsPointer, report)
     if (code !== undefined) {
-      if (CURRENCY_CODE.test(code)) column.currencyCode = code
+      if (isSupportedCurrencyCode(code)) column.currencyCode = code
       else
         report(
           'E_DECL_SHAPE',
           fieldPointer(optionsPointer, 'currencyCode'),
-          'currencyCode is a three-letter ISO 4217 code such as `USD`.'
+          `"${code}" is not a supported currency code; use a three-letter ISO 4217 code such as \`USD\`.`
         )
     }
   }
