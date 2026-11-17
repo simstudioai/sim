@@ -20,6 +20,7 @@ import {
   countFilledCellsByColumn,
   countMultiValuedCells,
   getColumnRetypeScanBatchSize,
+  hasDuplicateValues,
   isValueCompatibleWithColumn,
   readColumnRetypePage,
   selectValueForConversion,
@@ -283,6 +284,18 @@ export async function diffTable(
     if (Boolean(target.unique) !== Boolean(current.unique)) {
       updates.unique = Boolean(target.unique)
       fields.push('unique')
+      // A retype checks its converted values in its own write, before anything commits.
+      if (
+        target.unique &&
+        target.type === current.type &&
+        (await hasDuplicateValues(db, table.id, table.workspaceId, current))
+      ) {
+        report(
+          'E_APPLY_REFUSED',
+          `Column "${current.name}" cannot become unique: two or more rows share a value.`,
+          'Make those values distinct first.'
+        )
+      }
     }
     if (target.type === 'select') {
       // The options a removal in this change keeps, which a multi→single switch counts against.

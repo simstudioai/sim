@@ -794,6 +794,31 @@ export default workflow('Notes', {}, () => {
   })
 
   check(
+    'refuses at plan time a unique column whose rows share a value, writing nothing',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const read = await taggedLeads(workspaceId)
+      await insertRow(workspaceId, { email: 'a@b.c' })
+      await insertRow(workspaceId, { email: 'a@b.c' })
+      const files = {
+        'tables/leads.ts': read.files['tables/leads.ts']
+          .replace("name: 'leads',", "name: 'leads',\n  description: 'Inbound leads',")
+          .replace(
+            'column.string({ required: true })',
+            'column.string({ required: true, unique: true })'
+          ),
+      }
+      const before = await tableSnapshot(workspaceId)
+
+      const refused = await refusal(apply(workspaceId, files, { base: read.base, only: ['table'] }))
+
+      expect(codes(refused.diagnostics)).toEqual(['E_APPLY_REFUSED'])
+      expect(refused.diagnostics[0].message).toContain('"email" cannot become unique')
+      expect(await tableSnapshot(workspaceId)).toEqual(before)
+    }
+  )
+
+  check(
     'refuses at plan time to drop a column of a delete-locked table, writing nothing',
     async () => {
       const workspaceId = await newWorkspace()

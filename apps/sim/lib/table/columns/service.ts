@@ -591,14 +591,15 @@ async function persistColumns(
 /**
  * Whether any two rows share an equal value in this column.
  *
- * Shared by the constraint write and the retype's pre-validation so the two
- * cannot drift — the same reason {@link countEmptyCells} is shared. A retype
+ * Shared by the constraint write, the retype's pre-validation and the workspace
+ * source plan so they cannot drift — the same reason {@link countEmptyCells} is
+ * shared. A retype
  * that sets `unique` in the same request has to run this against the values the
  * conversion is ABOUT to write, not the ones on disk: coercing `"5"` and `"5.0"`
  * to a number manufactures a duplicate that no pre-scan of the raw text sees.
  */
-async function hasDuplicateValues(
-  trx: DbTransaction,
+export async function hasDuplicateValues(
+  trx: DbExecutor,
   tableId: string,
   workspaceId: string,
   column: ColumnDefinition
