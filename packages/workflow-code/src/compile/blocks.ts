@@ -103,8 +103,8 @@ function booleanLiteral(ctx: CompileContext, property: ObjectProperty, decl: Blo
   unsupported(
     ctx,
     property.value,
-    'Write true or false.',
     'This meta field is a boolean literal.',
+    'Write true or false.',
     decl.key
   )
   return false

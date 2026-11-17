@@ -744,6 +744,13 @@ describe('errors, each with its code, location and hint', () => {
       "{ variables: { ab: { type: 'string', value: '' }, 'A B': { type: 'string', value: '' } } }",
     ],
     [
+      'a boolean meta field that is not a boolean literal',
+      "const a = api('A', { url: 'x' }, { disabled: 1 })",
+      'E_UNSUPPORTED_SYNTAX',
+      '1 })',
+      'Write true or false.',
+    ],
+    [
       'codeFile() in an extra field',
       "const a = api('A', { url: 'x' }, { extra: { script: codeFile('./fns/a.js') } })",
       'E_UNSUPPORTED_SYNTAX',
