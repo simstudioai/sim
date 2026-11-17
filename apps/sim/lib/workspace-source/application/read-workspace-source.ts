@@ -1,4 +1,5 @@
 import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { utf8Bytes } from '@sim/workflow-code/limits'
 import {
   APPLY_ORDER,
   emptyBase,
@@ -41,6 +42,35 @@ export interface ReadWorkspaceSourceResult {
 }
 
 /**
+ * What one directory may hold across kinds, so anything a get writes applies back: declaration
+ * bytes (every kind's text but workflow files) and listed blobs. A resource that would take the
+ * directory past either is left out and listed in `skipped`, in apply order, so earlier kinds
+ * are kept whole.
+ */
+function directoryBudget() {
+  const { maxDeclarationBytes, maxBlobs } = WORKSPACE_SOURCE_LIMITS
+  let declarationBytes = 0
+  let blobs = 0
+  return {
+    spend(kind: WorkspaceKind, read: { text: Record<string, string>; blobs: ReadBlob[] }) {
+      const bytes =
+        kind === 'workflow'
+          ? 0
+          : Object.values(read.text).reduce((total, text) => total + utf8Bytes(text), 0)
+      if (declarationBytes + bytes > maxDeclarationBytes) {
+        return `its declaration would take the directory past the ${maxDeclarationBytes}-byte declaration limit`
+      }
+      if (blobs + read.blobs.length > maxBlobs) {
+        return `its binary files would take the directory past the ${maxBlobs}-file limit`
+      }
+      declarationBytes += bytes
+      blobs += read.blobs.length
+      return null
+    },
+  }
+}
+
+/**
  * Reads a workspace as source: for each requested kind, every stored resource printed as the
  * files `sim workspaces source get` writes, plus the base that binds each key to its id. Each
  * resource is read through the use case that owns it. Like a workflow source get, the one write
@@ -72,6 +102,7 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       skipped: [],
       diagnostics: [],
     }
+    const budget = directoryBudget()
     for (const kind of kinds) {
       const adapter = KIND_ADAPTERS[kind]
       let stored: Awaited<ReturnType<typeof adapter.load>>
@@ -91,6 +122,11 @@ export const readWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       for (const [key, resource] of stored.bound) {
         try {
           const read = await adapter.read(resource, ctx)
+          const over = budget.spend(kind, read)
+          if (over) {
+            result.skipped.push({ kind, key, reason: over })
+            continue
+          }
           Object.assign(result.files, read.text)
           result.blobs.push(...read.blobs)
           result.base.resources[resourceAddress(kind, key)] = read.base

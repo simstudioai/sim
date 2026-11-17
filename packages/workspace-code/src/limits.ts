@@ -1,6 +1,7 @@
 /**
  * The limits workspace source shares across reading and writing. A get skips what an apply would
- * refuse (a blob over `maxBlobBytes` is listed in `.sim/skipped.json`), so anything a get writes
+ * refuse (a blob over `maxBlobBytes`, or a resource that would take the directory past
+ * `maxDeclarationBytes` or `maxBlobs`, is listed in `.sim/skipped.json`), so anything a get writes
  * can be applied back unchanged. One workflow keeps its own `SOURCE_LIMITS`.
  *
  * Client-safe: no parser imports, so contracts and the CLI can read it.

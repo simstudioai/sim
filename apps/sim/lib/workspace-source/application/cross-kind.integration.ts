@@ -616,4 +616,38 @@ describe('workspace source across kinds', () => {
       expect(await snapshot(workspaceId)).toEqual(before)
     }
   )
+
+  check(
+    'a get leaves out what would take the directory past the declaration budget, so it applies back unchanged',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const content = 'x'.repeat(50_000)
+      for (let index = 0; index < 41; index++) {
+        await createSkillUseCase.execute({
+          principal: owner,
+          input: { workspaceId, name: `skill-${index}`, description: 'Long', content },
+        })
+      }
+
+      const read = await withPermissionGroupScope(() =>
+        readWorkspaceSource.execute({ principal: owner, input: { workspaceId, kinds: ['skill'] } })
+      )
+
+      expect(read.skipped.length).toBeGreaterThan(0)
+      for (const skipped of read.skipped) {
+        expect(skipped).toMatchObject({
+          kind: 'skill',
+          reason: expect.stringContaining('declaration limit'),
+        })
+      }
+      const again = await withPermissionGroupScope(() =>
+        applyWorkspaceSource.execute({
+          principal: owner,
+          input: { workspaceId, files: read.files, base: read.base, kinds: ['skill'] },
+        })
+      )
+      expect(writes(again)).toEqual([])
+      expect(findings(again.diagnostics, 'error')).toEqual([])
+    }
+  )
 })
