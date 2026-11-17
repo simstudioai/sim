@@ -347,10 +347,13 @@ describe('characters a workflow cannot store', () => {
     expect(refused).toHaveLength(1)
   })
 
-  it('refuses a NUL in a code file', () => {
+  it('refuses a NUL in a code file at its line, for the block reading it', () => {
     const text = `${HEADER.replace('api, ', 'codeFile, fn, ')}export default workflow('Hostile', {}, () => {\n  const f = fn('F', { code: codeFile('./f.js') })\n})\n`
-    const result = run(text, undefined, { 'workflows/f.js': 'return "\u0000"\n' })
-    expect(errorCodes(result)).toContain('E_INVALID_CHARACTER')
+    const code = 'const a = 1\nreturn "x\u0000"\n'
+    const result = run(text, undefined, { 'workflows/f.js': code })
+    const refused = result.diagnostics.find((d) => d.code === 'E_INVALID_CHARACTER')
+    expect(refused?.span).toMatchObject({ file: 'workflows/f.js', line: 2, column: 10 })
+    expect(refused?.blockKey).toBe('f')
   })
 
   it('keeps a well-formed astral character, raw or escaped', () => {

@@ -8,6 +8,7 @@
 
 import type { File, Node } from '@babel/types'
 import { containsNulCharacter, sanitizeForJsonb } from '@sim/utils/string'
+import type { BlockKey } from '../model'
 import type { Reporter } from './report'
 
 /** The index of the first character `sanitizeForJsonb` would replace, or `-1`. */
@@ -24,15 +25,27 @@ function characterName(character: string): string {
   return containsNulCharacter(character) ? 'a NUL character' : 'an unpaired UTF-16 surrogate'
 }
 
-/** Reports the first unstorable character in `text`, a whole file; `false` when there is one. */
-export function checkStorableText(file: string, text: string, reporter: Reporter): boolean {
+/**
+ * Reports the first unstorable character in `text`, a whole file the reporter already holds, so
+ * the diagnostic gets its line; `false` when there is one. `blockKey` names the block reading a
+ * code file.
+ */
+export function checkStorableText(
+  file: string,
+  text: string,
+  reporter: Reporter,
+  blockKey?: BlockKey
+): boolean {
   const index = firstUnstorable(text)
   if (index === -1) return true
   reporter.report(
     'E_INVALID_CHARACTER',
     `The file holds ${characterName(text.charAt(index))}, which a workflow cannot store.`,
     { file, start: index, end: index + 1 },
-    { hint: 'Remove it; write a whole character (an emoji is two code units) or none.' }
+    {
+      hint: 'Remove it; write a whole character (an emoji is two code units) or none.',
+      ...(blockKey !== undefined && { blockKey }),
+    }
   )
   return false
 }
