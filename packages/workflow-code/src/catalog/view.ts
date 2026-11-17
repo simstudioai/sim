@@ -9,6 +9,7 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
+import { getOwn } from '../records'
 import type {
   BlockCatalog,
   CatalogBlock,
@@ -100,9 +101,7 @@ function expandSubBlock(
 }
 
 function triggerRun(catalog: BlockCatalog, ref: CatalogTriggerSubBlocksRef): CatalogSubBlock[] {
-  const trigger = Object.hasOwn(catalog.triggers, ref.trigger)
-    ? catalog.triggers[ref.trigger]
-    : undefined
+  const trigger = getOwn(catalog.triggers, ref.trigger)
   const run = trigger?.subBlocks.slice(ref.start, ref.start + ref.count) ?? []
   if (run.length !== ref.count) {
     throw new Error(
@@ -211,7 +210,7 @@ export function catalogTrigger(catalog: BlockCatalog, id: string): CatalogTrigge
 
 /** The builder at a dotted SDK path (`slack.sendMessage`), or `undefined`. */
 export function catalogBuilder(catalog: BlockCatalog, path: string): CatalogBuilder | undefined {
-  return Object.hasOwn(catalog.builders, path) ? catalog.builders[path] : undefined
+  return getOwn(catalog.builders, path)
 }
 
 /** Every builder path, in catalog order. */

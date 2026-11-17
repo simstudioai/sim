@@ -38,7 +38,7 @@ import type {
   Value,
   VarNode,
 } from '../model'
-import { setOwn } from '../records'
+import { getOwn, setOwn } from '../records'
 import { SDK_RESOURCE_CALLS } from '../sdk'
 import {
   type BlockDecl,
@@ -471,9 +471,7 @@ function outputKnown(outputs: Record<string, CatalogOutput>, segments: RefSegmen
   for (const segment of segments) {
     if (!level) return true
     if (segment.kind === 'index') return true
-    const output: CatalogOutput | undefined = Object.hasOwn(level, segment.name)
-      ? level[segment.name]
-      : undefined
+    const output: CatalogOutput | undefined = getOwn(level, segment.name)
     if (!output) return false
     if (!output.properties) return true
     level = output.properties

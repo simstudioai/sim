@@ -20,7 +20,7 @@ import type {
   ResourceKeyResolver,
   VarKey,
 } from '../model'
-import { deepEqual, setOwn } from '../records'
+import { deepEqual, getOwn, setOwn } from '../records'
 import { type BuiltBlock, buildBlock } from './block'
 import { type MaterializeContext, type MaterializeHooks, report } from './context'
 import { type BranchHandles, writeEdges } from './edges'
@@ -68,7 +68,7 @@ function writeVariables(
       ) ?? hooks.newId()
     used.add(id)
     idByKey.set(key, id)
-    const stored = Object.hasOwn(prevVariables, id) ? prevVariables[id] : undefined
+    const stored = getOwn(prevVariables, id)
     const prevKey = prevKeyById.get(id)
     const before = prevKey !== undefined ? prevCanonical?.workflow.variables[prevKey] : undefined
     const unchanged =

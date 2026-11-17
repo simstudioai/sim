@@ -9,6 +9,7 @@
  * Pure and dependency-free, so the editor's canonical index evaluates through it too.
  */
 
+import { getOwn } from '../records'
 import type { CatalogCondition, CatalogSubBlock, SubBlockConditionClause } from './types'
 
 export type ConditionResult = boolean | 'undecided'
@@ -85,8 +86,7 @@ export function evaluateCondition(
   const operation = lookup('operation')?.value
   if (typeof operation === 'string' && visibleFor && Object.hasOwn(visibleFor, operation)) {
     if (!visibleFor[operation]) return false
-    const asked =
-      visibleWhen && Object.hasOwn(visibleWhen, operation) ? visibleWhen[operation] : undefined
+    const asked = visibleWhen && getOwn(visibleWhen, operation)
     return asked ? evaluateClause(asked, lookup) : true
   }
   const model = lookup('model')?.value
