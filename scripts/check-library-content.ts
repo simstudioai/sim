@@ -131,10 +131,13 @@ const TRAILING_PUNCTUATION = /[.,;:!]+$/
 const LINK_TARGET_OPENER = /(?:\]\(\s*|href=\{?["'`])$/
 const MARKDOWN_LINK = /\[[^\]\n]*\]\([^)\n]*\)/
 const FAQ_HEADING = /^#{1,6}\s+FAQs?\s*:?\s*$/i
-const CODE_FENCE = /^\s*(```|~~~)/
+/** An opening or closing code fence: three or more backticks or tildes. */
+const CODE_FENCE = /^\s*(`{3,}|~{3,})/
 const ROUTE_FILES = ['page.tsx', 'page.ts', 'route.tsx', 'route.ts']
 /** A catalog count such as "1,000+ integrations": group 1 is the number, group 2 the unit. */
-const COUNT_CLAIM = /\b(\d{1,3}(?:,\d{3})+|\d+)\+?\s+(integrations|actions|triggers)\b/g
+const COUNT_CLAIM = /\b(\d{1,3}(?:,\d{3})+|\d+)\+?\s+(integrations|actions|triggers)\b/gi
+/** Inline emphasis and code markers, which would otherwise split "**1,000+** integrations". */
+const INLINE_MARKERS = /\*\*|__|[*`]/g
 const SIM_NAME = /\bSim\b/g
 const SIM_CLAIM_MAX_WORDS = 12
 /** A Sim count below this share of the catalog total is left from an older catalog. */
@@ -144,8 +147,9 @@ const SIM_COUNT_FLOOR = 0.9
  * The counts on one line of text that belong to Sim, with the claim as written. A sentence or
  * clause that moves on to another product starts with a capitalized word, which ends Sim's claim.
  */
-function simCountClaims(text: string): { claim: string; count: number; unit: SimCountUnit }[] {
+function simCountClaims(line: string): { claim: string; count: number; unit: SimCountUnit }[] {
   const claims: { claim: string; count: number; unit: SimCountUnit }[] = []
+  const text = line.replace(INLINE_MARKERS, '')
   for (const match of text.matchAll(COUNT_CLAIM)) {
     const before = text.slice(0, match.index)
     const lastSim = [...before.matchAll(SIM_NAME)].at(-1)
@@ -159,7 +163,7 @@ function simCountClaims(text: string): { claim: string; count: number; unit: Sim
     claims.push({
       claim: match[0],
       count: Number.parseInt(match[1].replaceAll(',', ''), 10),
-      unit: match[2] as SimCountUnit,
+      unit: match[2].toLowerCase() as SimCountUnit,
     })
   }
   return claims
@@ -598,7 +602,7 @@ export async function checkPost(
     const fenceMatch = CODE_FENCE.exec(text)
     if (fenceMatch) {
       if (fence === null) fence = fenceMatch[1]
-      else if (fenceMatch[1] === fence) fence = null
+      else if (fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) fence = null
       return
     }
     if (fence !== null) return

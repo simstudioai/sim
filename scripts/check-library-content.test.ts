@@ -328,6 +328,8 @@ describe('check-library-content', () => {
     ],
     ['Sim ships 9,000+ actions across its catalog.', '9,000+ actions', 'overstates'],
     ['Sim listens for events with 300+ triggers.', '300+ triggers', 'stale'],
+    ['Sim has **1,000+** integrations.', '1,000+ integrations', 'overstates'],
+    ['Sim has 1,000+ Integrations.', '1,000+ Integrations', 'overstates'],
   ])('rejects a Sim count the catalog does not support: %s', async (body, claim, verdict) => {
     writePost('library', 'post', body)
     expect(await findingsFor('library', 'post')).toEqual([
@@ -361,6 +363,7 @@ describe('check-library-content', () => {
         'Sim is open source. Workato cites 14,000+ integrations.',
         'Sim can call any tool that the connector marketplaces built on open protocols expose, often 1,000+ integrations.',
         '```text\nSim has 1,000+ integrations\n```',
+        '````md\n```text\nSim has 1,000+ integrations\n````',
       ].join('\n\n')
     )
     expect(await findingsFor('library', 'post')).toEqual([])
