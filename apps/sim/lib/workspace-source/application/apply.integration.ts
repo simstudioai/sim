@@ -796,4 +796,15 @@ describe('workspace source apply', () => {
 
     expect(edited.plan.map(({ fields }) => fields)).toEqual([['name', 'description']])
   })
+
+  check('warns that a base read from another workspace creates everything anew', async () => {
+    const workspaceId = await newWorkspace()
+    const read = await setUp(workspaceId)
+    const otherId = await newWorkspace()
+
+    const dryRun = await apply(otherId, read.files, { base: read.base, dryRun: true })
+
+    expect(codes(dryRun.diagnostics, 'warning')).toEqual(['W_BASE_OTHER_WORKSPACE'])
+    expect(dryRun.plan.map(({ action }) => action)).toEqual(['create', 'create'])
+  })
 })

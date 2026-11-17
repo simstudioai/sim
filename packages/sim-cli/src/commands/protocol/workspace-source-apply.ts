@@ -43,7 +43,8 @@ interface ApplyOptions {
 
 const EXIT_CODES_HELP = `
 Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as
-file:line:column with its frame and hint) or the command failed; 5 a resource changed on the
+file:line:column with its frame and hint), the directory was read from another workspace than
+the profile's (SOURCE_OTHER_WORKSPACE: pass --workspace to choose), or the command failed; 5 a resource changed on the
 server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply
 the edit, retry); 6 a resource is locked; 7 the directory is too large; 8 the apply stopped
 part-way: what was written is saved into the directory, and applying again continues.`
@@ -123,6 +124,27 @@ async function saveApplied(dir: string, data: ApplyData): Promise<void> {
 }
 
 /**
+ * Refuses a directory read from another workspace than the one targeted, unless `--workspace`
+ * names the target: applying it would create every resource anew there, so the choice is the
+ * caller's to make explicitly.
+ */
+function assertBaseWorkspace(
+  dir: string,
+  base: unknown,
+  workspaceId: string,
+  explicit: boolean
+): void {
+  const readFrom =
+    typeof base === 'object' && base !== null && 'workspaceId' in base ? base.workspaceId : null
+  if (typeof readFrom !== 'string' || readFrom === workspaceId || explicit) return
+  throw new SimApiError(
+    `${dir} was read from workspace ${readFrom}, but this profile targets ${workspaceId}. Pass --workspace ${readFrom} to apply it there, or --workspace ${workspaceId} to create its resources anew in this one.`,
+    0,
+    'SOURCE_OTHER_WORKSPACE'
+  )
+}
+
+/**
  * `sim workspaces source apply --dir <dir>`: applies a directory `workspaces source get` wrote.
  * On a terminal it shows the plan and asks; anywhere else it needs `--yes`. Binary files travel
  * in rounds: each round sends what the server asked for, up to the per-request cap, and the
@@ -177,6 +199,12 @@ export function attachWorkspaceSourceApply(source: Command): void {
       }
 
       let submission = await readWorkspaceDir(options.dir, only)
+      assertBaseWorkspace(
+        options.dir,
+        submission.base,
+        workspaceId,
+        profile.sources.workspaceId === 'flag'
+      )
       let preview: ApplyData | null = null
       if (options.dryRun || !options.yes || submission.blobs.length > 0) {
         preview = await send(submission, true)

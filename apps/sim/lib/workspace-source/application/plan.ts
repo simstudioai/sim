@@ -88,9 +88,10 @@ function readBase(
   }
   if (parsed.base.workspaceId !== workspaceId) {
     diagnostics.push({
-      code: 'I_SERVER_CHANGED',
-      severity: 'info',
+      code: 'W_BASE_OTHER_WORKSPACE',
+      severity: 'warning',
       message: `${WORKSPACE_BASE_FILE} was read from workspace ${parsed.base.workspaceId}, so this apply treats every resource as new here and deletes nothing.`,
+      hint: `To apply to the workspace it was read from, pass --workspace ${parsed.base.workspaceId}.`,
       file: WORKSPACE_BASE_FILE,
     })
     return null

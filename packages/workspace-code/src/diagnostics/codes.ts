@@ -79,6 +79,8 @@ type PlanCode =
   | 'E_WORKFLOW_FILES_MISSING'
   /** A resource the server holds that the directory does not declare (kept without `--allow-delete`). */
   | 'W_UNDECLARED'
+  /** The directory's base was read from another workspace: every resource is created anew. */
+  | 'W_BASE_OTHER_WORKSPACE'
   /** The server changed a resource the directory leaves as it was; the next get shows it. */
   | 'I_SERVER_CHANGED'
   /** A key bound to a deleted resource was bound to its replacement. */

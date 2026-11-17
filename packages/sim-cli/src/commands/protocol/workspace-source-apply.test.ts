@@ -55,6 +55,7 @@ function bodies(): Array<{
 
 beforeEach(() => {
   contextMockState.output = 'json'
+  contextMockState.workspaceSource = 'config'
   request.mockReset()
   dir = mkdtempSync(join(tmpdir(), 'sim-workspace-apply-'))
   write('.sim/base.json', JSON.stringify(BASE))
@@ -147,5 +148,18 @@ describe('workspaces source apply', () => {
     request.mockResolvedValue(answer({ files: { '.git/hooks/pre-commit': 'rm -rf /' } }))
 
     await expect(apply('--yes')).rejects.toThrow(/unsafe file path/)
+  })
+
+  it('refuses a directory read from another workspace unless --workspace names the target', async () => {
+    write('.sim/base.json', JSON.stringify({ ...BASE, workspaceId: 'ws_other' }))
+    request.mockResolvedValue(answer())
+
+    await expect(apply('--yes')).rejects.toMatchObject({ code: 'SOURCE_OTHER_WORKSPACE' })
+    expect(request).not.toHaveBeenCalled()
+
+    contextMockState.workspaceSource = 'flag'
+    await apply('--yes')
+
+    expect(request).toHaveBeenCalledTimes(1)
   })
 })
