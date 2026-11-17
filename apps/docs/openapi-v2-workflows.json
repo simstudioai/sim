@@ -6206,6 +6206,9 @@
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -6385,6 +6388,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
