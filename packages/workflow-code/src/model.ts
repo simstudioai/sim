@@ -71,7 +71,8 @@ export interface VarNode {
  *   resolves becomes the `skill` node itself, so it prints `skill('key')` as the SDK types it.
  *   `name` is display text the agent handler never reads; materialize writes it back from prev's
  *   entry for the same skill, else {@link ResourceKeyResolver.nameOf}. Any other entry (an
- *   unresolved skill, a builtin one, extra keys) stays a verbatim object.
+ *   unresolved skill, a builtin one ({@link ResourceKeyResolver.isBuiltin}), extra keys) stays a
+ *   verbatim object.
  */
 export interface ResourceNode {
   $sim: 'resource'
@@ -93,6 +94,12 @@ export interface ResourceKeyResolver {
    * stands in for the name.
    */
   nameOf?(kind: ResourceKind, id: string): string | null
+  /**
+   * Whether `id` names a resource Sim ships rather than the workspace stores (a built-in skill).
+   * It has no key, so canonicalize keeps its stored entry verbatim without
+   * `W_CANON_UNRESOLVED_ID`: the id is valid, not a miss.
+   */
+  isBuiltin?(kind: ResourceKind, id: string): boolean
 }
 
 /**

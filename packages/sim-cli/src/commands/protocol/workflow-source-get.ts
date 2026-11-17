@@ -146,12 +146,17 @@ async function loadCatalog(
   )
 }
 
-/** The resource manifest as `generateWorkspaceTypes` reads it. */
+/**
+ * The resource manifest as `generateWorkspaceTypes` reads it. A server older than the skills and
+ * custom tools sections omits them, which leaves those keys plain strings.
+ */
 function workspaceManifestFrom({
   tables,
   knowledgeBases,
   credentials,
   workflows,
+  skills = [],
+  customTools = [],
   env,
 }: GetSourceResourcesResponse['data']): WorkspaceManifest {
   return {
@@ -171,6 +176,8 @@ function workspaceManifestFrom({
         { inputs: Object.fromEntries(workflow.inputs.map((input) => [input.name, input.type])) },
       ])
     ),
+    skills: skills.map((entry) => entry.key),
+    customTools: customTools.map((entry) => entry.key),
     env,
   }
 }

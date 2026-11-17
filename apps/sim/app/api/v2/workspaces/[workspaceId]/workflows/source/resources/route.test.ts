@@ -59,6 +59,8 @@ const manifest = {
       inputs: [{ name: 'leads', type: 'array' }],
     },
   ],
+  skills: [{ key: 'triage', id: 'skl_1', name: 'Triage' }],
+  customTools: [{ key: 'lookup-order', id: 'ctl_1', name: 'lookup_order' }],
   env: ['CRM_KEY'],
   truncated: false,
 }

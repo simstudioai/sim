@@ -4,12 +4,14 @@ import {
   agent,
   condition,
   credential,
+  customTool,
   env,
   gmail,
   js,
   knowledge,
   knowledgeBase,
   loop,
+  skill,
   slack,
   t,
   table,
@@ -69,6 +71,19 @@ export default workflow('Rejected', {}, () => {
   knowledgeBase('dosc')
   // @ts-expect-error `CRM_KYE` is not a workspace environment variable
   t`${env.CRM_KYE}`
+  agent('Skilled', {
+    model: 'claude-sonnet-5-5',
+    skills: [
+      skill('triage'),
+      // @ts-expect-error `tirage` is not a skill of the workspace
+      skill('tirage'),
+    ],
+    tools: [
+      customTool('lookup-order'),
+      // @ts-expect-error `lookup-ordr` is not a custom tool of the workspace
+      customTool('lookup-ordr'),
+    ],
+  })
 
   // `true` on a branch other than else.
   // @ts-expect-error only the else branch may be `true`

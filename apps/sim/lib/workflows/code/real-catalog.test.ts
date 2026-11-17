@@ -39,6 +39,7 @@ import {
   typeCheckAgainstSdk,
   writeSdkTypes,
 } from '@/lib/workflows/code/sdk-typecheck.test-helpers'
+import { BUILTIN_SKILLS } from '@/lib/workflows/skills/builtin-skills'
 import { getBlockRegistry } from '@/blocks/registry'
 import { SDK_NAMES } from '@/blocks/sdk-names.generated'
 
@@ -235,6 +236,72 @@ describe('canonicalize and codegen over the real block catalog', () => {
       const agent = Object.values(written.blocks).find((block) => block.type === 'agent')
       expect(agent?.subBlocks.skills?.value).toEqual(stored)
     }
+  }, 120_000)
+
+  it('keeps a built-in skill entry verbatim with no unresolved-id warning, and round-trips it', () => {
+    sdkTypesOnce()
+    const [builtin] = BUILTIN_SKILLS
+    const resources: ResourceKeyResolver = {
+      toKey: () => null,
+      toId: () => null,
+      isBuiltin: (kind, id) => kind === 'skill' && id === builtin.id,
+    }
+    const stored = [{ skillId: builtin.id, name: builtin.name }]
+    const state: WorkflowState = {
+      blocks: {
+        a1: createBlock({
+          id: 'a1',
+          type: 'agent',
+          name: 'Agent',
+          subBlocks: {
+            model: { id: 'model', type: 'combobox', value: 'claude-sonnet-4-5' },
+            skills: { id: 'skills', type: 'skill-input', value: stored },
+          },
+        }),
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+    const result = canonicalize(state, {
+      catalog,
+      meta: { name: 'Builtin skill', description: null },
+      resources,
+    })
+    expect(result.diagnostics.filter((d) => d.code === 'W_CANON_UNRESOLVED_ID')).toEqual([])
+    const canonical = result.workflow
+    const [entry] = printWorkflow({
+      workflow: canonical,
+      catalog,
+      options: { functionCode: 'inline' },
+    }).files
+    expect(entry.text).toContain(
+      `skills: [raw({ skillId: '${builtin.id}', name: '${builtin.name}' })]`
+    )
+    const dir = path.join(workDir, 'builtin-skill')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(path.join(dir, 'builtin-skill.ts'), entry.text)
+    expect(typeCheckAgainstSdk(workDir, 'builtin-skill', [path.join(dir, '*.ts')])).toBe('')
+
+    const compiled = compileWorkflow({
+      entry,
+      files: new Map(),
+      catalog,
+      sdkMajor: catalog.sdkMajor,
+      knownKeys: new Set(Object.keys(canonical.blocks)),
+      stored: canonical,
+    })
+    expect(compiled.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    expect(compiled.workflow && canonicalEquals(compiled.workflow, canonical)).toBe(true)
+    if (!compiled.workflow) return
+    const written = materialize(compiled.workflow, null, {
+      catalog,
+      hooks: createMaterializeHooks(),
+      resources,
+      lockFreshness: 'none',
+    }).state
+    const agent = Object.values(written.blocks).find((block) => block.type === 'agent')
+    expect(agent?.subBlocks.skills?.value).toEqual(stored)
   }, 120_000)
 
   it('generates SDK types the example workflows type-check against', () => {

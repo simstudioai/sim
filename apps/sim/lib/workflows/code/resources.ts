@@ -6,6 +6,7 @@ import { and, asc, eq, inArray, notInArray } from 'drizzle-orm'
 import { SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
 import { credentialAccessClause, credentialMembershipJoin } from '@/lib/credentials/queries'
 import { getWorkspaceEnvironmentVariableNames } from '@/lib/environment/utils'
+import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   type ResourceIdRef,
@@ -145,7 +146,7 @@ interface LoadResourceKeyResolverOptions {
  * result: each referenced live resource's key (allocated on first reference, see `resolveKeys`)
  * and each referenced key's live resource, in both directions (so a fingerprint taken after
  * writing a key's id prints that key). Nothing outside `references` resolves. `nameOf` answers
- * for each resolved skill.
+ * for each resolved skill, and `isBuiltin` for the built-in skills, which have no row to key.
  */
 export async function loadResourceKeyResolver(
   workspaceId: string,
@@ -181,6 +182,7 @@ export async function loadResourceKeyResolver(
     toKey: (kind, id) => lookup(keysById, kind, id) ?? lookup(keysByIdFromKeys, kind, id),
     toId: (kind, key) => lookup(idsByKey, kind, key) ?? lookup(idsByKeyFromIds, kind, key),
     nameOf: (kind, id) => (kind === 'skill' ? (skillNames.get(id) ?? null) : null),
+    isBuiltin: (kind, id) => kind === 'skill' && isBuiltinSkillId(id),
   }
 }
 

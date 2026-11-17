@@ -32,6 +32,8 @@ const SOURCE_RESOURCES_EXAMPLE = {
       inputs: [{ name: 'leads', type: 'array' }],
     },
   ],
+  skills: [{ key: 'triage', id: 'skl_7e2a4c19', name: 'Triage' }],
+  customTools: [{ key: 'lookup-order', id: 'ctl_2b8d6f03', name: 'lookup_order' }],
   env: ['CRM_KEY'],
   truncated: false,
 }
@@ -44,7 +46,7 @@ export const sourceResourcesOpenApiRoutes = [
       operationId: 'getSourceResources',
       summary: 'Get source resources',
       description:
-        'List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while workflows as code is not enabled.',
+        'List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, workspace skills and custom tools, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while workflows as code is not enabled.',
       tags: ['Workflows'],
       errors: RESOURCE_ERRORS,
       success: {

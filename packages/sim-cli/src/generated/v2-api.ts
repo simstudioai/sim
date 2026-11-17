@@ -8361,6 +8361,16 @@ export type GetSourceResourcesResponse = {
         type: string
       }>
     }>
+    skills: Array<{
+      key: string
+      id: string
+      name: string
+    }>
+    customTools: Array<{
+      key: string
+      id: string
+      name: string
+    }>
     env: Array<string>
     truncated: boolean
   }
