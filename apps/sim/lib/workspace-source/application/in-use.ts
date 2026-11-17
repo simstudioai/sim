@@ -20,9 +20,11 @@ interface UsingWorkflow {
 
 /**
  * The live workflows of the workspace whose blocks name any of `ids`, by resource id. A block
- * names a resource by its id in a sub-block value (alone, in a list, or comma-joined), so a match
- * anywhere in the sub-block values counts; ids are opaque and unique, so it never matches by
- * accident. Each block's sub-blocks are cast to text once (a materialized CTE), not once per id.
+ * names a resource by its id as a whole sub-block value, as an item of a list, or as one part of
+ * a comma-joined value, at any depth (a tool's parameters included), the forms a workflow source
+ * read lifts to resource keys. An id that only appears inside other text, such as a prompt that
+ * mentions it, names nothing. Each block's sub-blocks are cast to text once (a materialized CTE)
+ * to find the candidates cheaply; only those are walked value by value.
  */
 async function workflowsUsing(
   workspaceId: string,
@@ -32,7 +34,8 @@ async function workflowsUsing(
   if (ids.length === 0) return using
   const rows = await db.execute<{ resourceId: string; id: string; name: string }>(sql`
     WITH blocks AS MATERIALIZED (
-      SELECT ${workflow.id} AS id, ${workflow.name} AS name, ${workflowBlocks.subBlocks}::text AS text
+      SELECT ${workflow.id} AS id, ${workflow.name} AS name, ${workflowBlocks.subBlocks} AS doc,
+        ${workflowBlocks.subBlocks}::text AS text
       FROM ${workflowBlocks}
       INNER JOIN ${workflow} ON ${workflow.id} = ${workflowBlocks.workflowId}
       WHERE ${workflow.workspaceId} = ${workspaceId} AND ${workflow.archivedAt} IS NULL
@@ -43,6 +46,14 @@ async function workflowsUsing(
       ids.map((id) => sql`${id}`),
       sql`, `
     )}]::text[]) AS referenced(id) ON strpos(blocks.text, referenced.id) > 0
+    WHERE EXISTS (
+      SELECT 1
+      FROM jsonb_path_query(blocks.doc, 'strict $.**') AS leaf(value)
+      WHERE jsonb_typeof(leaf.value) = 'string'
+        AND referenced.id IN (
+          SELECT btrim(part) FROM unnest(string_to_array(leaf.value #>> '{}', ',')) AS part
+        )
+    )
   `)
   for (const row of rows) {
     const list = using.get(row.resourceId) ?? []
