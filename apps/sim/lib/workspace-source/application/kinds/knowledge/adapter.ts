@@ -241,7 +241,6 @@ async function planKnowledgeBase(
         action: 'create',
         fields: uploads.map((upload) => `docs/${upload.name} (add)`),
         needsBlobs: uploadPaths(key, uploads),
-        partialBlobs: true,
         detail: {
           changes: { settings: {}, uploads, deletes: [], superseded: [] },
           hashes: new Map(),
@@ -283,9 +282,7 @@ async function planKnowledgeBase(
         ...(changes.deletes.length > 0
           ? { destructive: { what: 'documents', counts: { documents: changes.deletes.length } } }
           : {}),
-        ...(changes.uploads.length > 0
-          ? { needsBlobs: uploadPaths(key, changes.uploads), partialBlobs: true }
-          : {}),
+        ...(changes.uploads.length > 0 ? { needsBlobs: uploadPaths(key, changes.uploads) } : {}),
         serverFingerprint: view.fingerprint,
         detail: { changes, hashes },
       }

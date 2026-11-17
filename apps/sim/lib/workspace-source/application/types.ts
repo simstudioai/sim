@@ -68,13 +68,11 @@ export interface PlannedChange<D = unknown, P = unknown> {
   fields?: string[]
   /** What a delete (or a dropped column or option) loses, with counts. */
   destructive?: { what: string; counts: Record<string, number> }
-  /** Blob paths the change writes, whose content the request must carry. */
-  needsBlobs?: string[]
   /**
-   * The change writes the blobs a round carries and leaves the rest to the next round, so one
-   * resource's blobs (a knowledge base's documents) may span rounds. Otherwise it waits for all.
+   * Blob paths the change writes, whose content the request must carry. A round that carries some
+   * of them writes those and leaves the rest to the next round.
    */
-  partialBlobs?: boolean
+  needsBlobs?: string[]
   decl?: D
   storedId?: string
   /** The name a create or adopt writes, when a workflow's stored reference repeats it (a skill). */
