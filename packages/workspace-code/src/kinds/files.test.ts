@@ -83,7 +83,7 @@ describe('fileCodec', () => {
     const path = 'files/a.txt'
     const codes = (text: Record<string, string>, blobs: Parameters<typeof fileCodec.parse>[2]) =>
       fileCodec.parse('a.txt', text, blobs).diagnostics.map((finding) => finding.code)
-    expect(codes({ [path]: 'hello' }, [])).toEqual(['E_FILE_CONTENT'])
+    expect(codes({ [path]: 'hello' }, [{ path, sha256: SHA, size: 5 }])).toEqual(['E_FILE_CONTENT'])
     expect(codes({}, [{ path, sha256: 'ABC', size: 1 }])).toEqual(['E_FILE_CONTENT'])
     expect(codes({}, [{ path, sha256: SHA, size: -1 }])).toEqual(['E_FILE_CONTENT'])
     expect(
