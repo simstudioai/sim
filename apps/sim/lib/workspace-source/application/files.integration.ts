@@ -108,7 +108,7 @@ async function newWorkspace(): Promise<string> {
       userId,
       entityType: 'workspace',
       entityId: workspaceId,
-      permissionType: 'admin',
+      permissionType: 'admin' as const,
     }))
   )
   return workspaceId
