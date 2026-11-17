@@ -21,16 +21,19 @@ const ACCOUNTS = "// @sim-sdk 1\nexport default defineTable({ name: 'accounts', 
 let rootDir: string
 let dir: string
 
-function serve(files: Record<string, string>) {
+function serve(
+  files: Record<string, string>,
+  { kinds = ['table'], resources = {} }: { kinds?: string[]; resources?: object } = {}
+) {
   request.mockImplementation(async (path: string) => {
     if (path === SOURCE_PATH) {
       return {
         data: {
           workspaceId: 'ws_local',
-          kinds: ['table'],
+          kinds,
           files,
           blobs: [],
-          base: { version: 1, workspaceId: 'ws_local', resources: {} },
+          base: { version: 1, workspaceId: 'ws_local', resources },
           skipped: [],
           diagnostics: [],
         },
@@ -83,5 +86,27 @@ describe('workspaces source get', () => {
 
     await get('--force')
     expect(readFileSync(join(dir, 'tables/leads.ts'), 'utf8')).toBe(`${LEADS}// server\n`)
+  })
+
+  it('keeps the base entries of the kinds a get leaves unread', async () => {
+    serve(
+      { 'tables/leads.ts': LEADS },
+      {
+        kinds: ['table', 'workflow'],
+        resources: {
+          'table:leads': { id: 'tbl_1', columns: { email: { id: 'col_1' } } },
+          'workflow:old': { id: 'wf_1' },
+        },
+      }
+    )
+    await get()
+
+    serve({}, { kinds: ['workflow'], resources: { 'workflow:ingest': { id: 'wf_2' } } })
+    await get('--only', 'workflow')
+
+    expect(JSON.parse(readFileSync(join(dir, '.sim/base.json'), 'utf8')).resources).toEqual({
+      'table:leads': { id: 'tbl_1', columns: { email: { id: 'col_1' } } },
+      'workflow:ingest': { id: 'wf_2' },
+    })
   })
 })

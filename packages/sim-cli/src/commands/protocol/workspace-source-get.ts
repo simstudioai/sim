@@ -1,4 +1,9 @@
-import { isWorkspaceKind, KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
+import {
+  isWorkspaceKind,
+  KIND_DIRS,
+  parseWorkspaceBase,
+  type WorkspaceKind,
+} from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE, WORKSPACE_SKIPPED_FILE } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
 import type { GetWorkspaceSourceResponse } from '../../generated/v2-api'
@@ -14,6 +19,7 @@ import {
 } from './workflow-source-get'
 import {
   editedFiles,
+  readSourceText,
   readWrittenDigests,
   SOURCE_WRITTEN_FILE,
   updateSourceDir,
@@ -46,6 +52,28 @@ export function parseKinds(value: string | undefined): WorkspaceKind[] | undefin
     )
   }
   return kinds.filter(isWorkspaceKind)
+}
+
+/**
+ * The base a get writes: the answer's, plus the directory's entries for the kinds this get did not
+ * read (a `--only` get), when the directory's base is of the same workspace. Without them, a
+ * later apply would find those resources unbased.
+ */
+async function mergedBase(dir: string, source: WorkspaceSource): Promise<WorkspaceSource['base']> {
+  const text = await readSourceText(dir, WORKSPACE_BASE_FILE)
+  let existing: unknown
+  try {
+    existing = text === null ? null : JSON.parse(text)
+  } catch {
+    return source.base
+  }
+  const current = parseWorkspaceBase(existing)
+  if (!current.base || current.base.workspaceId !== source.workspaceId) return source.base
+  const read = new Set<string>(source.kinds)
+  const kept = Object.entries(current.base.resources).filter(
+    ([address]) => !read.has(address.slice(0, address.indexOf(':')))
+  )
+  return { ...source.base, resources: { ...Object.fromEntries(kept), ...source.base.resources } }
 }
 
 /**
@@ -96,10 +124,11 @@ async function writeWorkspaceSource(
     )
   )
   const skipped = skippedFile(source.skipped)
+  const base = await mergedBase(dir, source)
   const write: Array<readonly [string, string]> = [
     ...Object.entries(source.files),
     ...source.kinds.map((kind) => [keepFile(kind), ''] as const),
-    [WORKSPACE_BASE_FILE, `${JSON.stringify(source.base, null, 2)}\n`],
+    [WORKSPACE_BASE_FILE, `${JSON.stringify(base, null, 2)}\n`],
     [SOURCE_WRITTEN_FILE, writtenRecord(source.files, kept)],
     ...(skipped ? [[WORKSPACE_SKIPPED_FILE, skipped] as const] : []),
     ...tree.change.write,
