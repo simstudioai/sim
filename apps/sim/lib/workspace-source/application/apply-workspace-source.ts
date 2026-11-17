@@ -175,9 +175,14 @@ export const applyWorkspaceSource = defineAuthorizedWorkspaceUseCase({
       const waiting = (change.needsBlobs ?? []).filter((path) => missing.has(path))
       const carried = waiting.length < (change.needsBlobs ?? []).length
       result.remainingBlobs.push(...waiting)
+      /**
+       * Deletes and workflow writes wait for the round that carries every blob: a workflow may
+       * name a resource whose blobs this round left out, which is not written yet.
+       */
+      const waitsForAll = change.action === 'delete' || change.kind === 'workflow'
       if (
         (waiting.length > 0 && !(change.partialBlobs && carried)) ||
-        (change.action === 'delete' && missing.size > 0)
+        (waitsForAll && missing.size > 0)
       ) {
         continue
       }

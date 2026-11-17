@@ -486,6 +486,62 @@ describe('workspace source across kinds', () => {
   )
 
   check(
+    'a round that leaves a knowledge base document for the next defers the workflow using it, and two rounds converge',
+    async () => {
+      const workspaceId = await newWorkspace()
+      const dir: Directory = {
+        files: {
+          'knowledge/policies/knowledge.ts': TEXT['knowledge/policies/knowledge.ts'],
+          'workflows/answer/workflow.ts': `// @sim-sdk 1
+import { knowledge, knowledgeBase, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Answer', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { question: 'string' } })
+  const search = knowledge.search('Policy Search', {
+    knowledgeBaseId: knowledgeBase('policies'),
+    query: start.question,
+    topK: 3,
+  })
+
+  start.to(search)
+})
+`,
+        },
+        blobs: BLOBS,
+      }
+      const send = (carried: readonly string[], base?: WorkspaceBaseV1) =>
+        withPermissionGroupScope(() =>
+          applyWorkspaceSource.execute({
+            principal: owner,
+            input: {
+              workspaceId,
+              files: dir.files,
+              blobs: manifest(BLOBS, false).map((blob) =>
+                carried.includes(blob.path)
+                  ? { ...blob, content: BLOBS[blob.path].toString('base64') }
+                  : blob
+              ),
+              kinds: KINDS,
+              ...(base ? { base } : {}),
+            },
+          })
+        )
+
+      const first = await send(['files/notes.txt'])
+
+      expect(first.failed).toBeUndefined()
+      expect(first.remainingBlobs).toEqual(['knowledge/policies/docs/refunds.md'])
+      const second = await send(first.remainingBlobs, first.base)
+      expect(second.failed).toBeUndefined()
+      expect(second.remainingBlobs).toEqual([])
+      const stored = await snapshot(workspaceId)
+      expect(stored.bases.map((base) => base.name)).toEqual(['Policies'])
+      expect(stored.documents.map((doc) => doc.filename)).toEqual(['refunds.md'])
+      expect(stored.workflows.map((row) => row.name)).toContain('Answer')
+    }
+  )
+
+  check(
     'refuses deleting a table an unchanged declared workflow uses, as the CLI sends that folder (base only)',
     async () => {
       const { workspaceId, dir, base } = await setUp()
