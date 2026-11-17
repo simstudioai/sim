@@ -8,49 +8,15 @@ import { compareStrings } from '@sim/utils/string'
 import type { BlockCatalog, CatalogBuilder } from '@sim/workflow-code'
 import { isIdentifierName, JS_RESERVED_WORDS } from '@sim/workflow-code'
 import { catalogBlock, catalogBuilder, catalogBuilderPaths } from '@sim/workflow-code/catalog/view'
-import { SDK_CORE_EXPORTS } from '@sim/workflow-code/sdk'
+import {
+  SDK_CORE_EXPORTS,
+  SDK_MERGEABLE_CORE_EXPORTS,
+  SDK_SPECIAL_BUILDERS,
+} from '@sim/workflow-code/sdk'
 import { pascal } from './emit'
 
-/**
- * Builders `core.d.ts` declares itself, because their source form is special (named branches,
- * function code files, a typed human form). Generated files type their params and outputs through
- * `SpecialBuilderTypes`. `coreParams` are the params the core signature owns, dropped from the
- * generated params type.
- */
-const SPECIAL_BUILDERS: Readonly<Record<string, { coreParams: readonly string[] }>> = {
-  condition: { coreParams: ['conditions'] },
-  router: { coreParams: ['routes'] },
-  fn: { coreParams: ['code'] },
-  runWorkflow: { coreParams: [] },
-  human: { coreParams: ['inputFormat'] },
-  response: { coreParams: [] },
-  setVariables: { coreParams: [] },
-  note: { coreParams: [] },
-}
-
 /** The builder paths `core.d.ts` declares itself; the catalog must map each to its block type. */
-export const SPECIAL_BUILDER_KEYS: readonly string[] = Object.keys(SPECIAL_BUILDERS)
-
-/**
- * Core exports a generated namespace may merge with: functions (`table.insertRow` beside
- * `table('leads')`, `file.read` beside `file('a.pdf')`) and the empty `trigger` / `legacy` namespaces. Consts (`env`, `loop`, `js`,
- * ...) cannot merge.
- */
-const MERGEABLE_CORE_EXPORTS: ReadonlySet<string> = new Set([
-  'childWorkflow',
-  'credential',
-  'customTool',
-  'file',
-  'folder',
-  'knowledgeBase',
-  'legacy',
-  'mcp',
-  'sandbox',
-  'skill',
-  'table',
-  'trigger',
-  'workflow',
-])
+export const SPECIAL_BUILDER_KEYS: readonly string[] = Object.keys(SDK_SPECIAL_BUILDERS)
 
 const CORE_EXPORTS: ReadonlySet<string> = new Set(SDK_CORE_EXPORTS)
 
@@ -107,11 +73,11 @@ export function builderEntries(catalog: BlockCatalog): BuilderEntry[] {
       )
     }
     const root = path[0]
-    const special = path.length === 1 ? SPECIAL_BUILDERS[root] : undefined
+    const special = path.length === 1 ? SDK_SPECIAL_BUILDERS[root] : undefined
     if (path.length === 1 && !special && CORE_EXPORTS.has(root)) {
       throw new Error(`sdk codegen: builder \`${key}\` redeclares a core export`)
     }
-    if (path.length > 1 && CORE_EXPORTS.has(root) && !MERGEABLE_CORE_EXPORTS.has(root)) {
+    if (path.length > 1 && CORE_EXPORTS.has(root) && !SDK_MERGEABLE_CORE_EXPORTS.has(root)) {
       throw new Error(`sdk codegen: namespace \`${root}\` collides with a core export`)
     }
     entries.push({ key, path, builder, special, typeName: pascal(path) })
