@@ -1,4 +1,5 @@
 import {
+  APPLY_ORDER,
   isWorkspaceKind,
   KIND_DIRS,
   parseWorkspaceBase,
@@ -43,18 +44,27 @@ Exit codes: 0 written; 1 the command failed, the directory holds edits no apply 
 binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace
 has more resources of a kind than one directory holds.`
 
-/** `--only table,workflow` as kinds, refusing an unknown one. */
+/** The kind each folder holds: `--only` takes the folder a user sees as well as the kind id. */
+const KIND_BY_FOLDER = new Map<string, WorkspaceKind>(
+  APPLY_ORDER.map((kind) => [KIND_DIRS[kind], kind])
+)
+
+/** `--only`'s help: every kind by its folder. */
+export const ONLY_KINDS_HELP = `comma-separated folders: ${APPLY_ORDER.map((kind) => KIND_DIRS[kind]).join(', ')}`
+
+/** `--only tables,workflows` (folders) or `--only table,workflow` (kinds) as kinds. */
 export function parseKinds(value: string | undefined): WorkspaceKind[] | undefined {
   if (value === undefined) return undefined
-  const kinds = value.split(',').map((kind) => kind.trim())
-  const unknown = kinds.filter((kind) => !isWorkspaceKind(kind))
+  const names = value.split(',').map((name) => name.trim())
+  const kinds = names.map((name) => (isWorkspaceKind(name) ? name : KIND_BY_FOLDER.get(name)))
+  const unknown = names.filter((_, index) => kinds[index] === undefined)
   if (unknown.length > 0) {
     throw new SimApiError(
-      `Unknown kind ${unknown.join(', ')}; kinds are ${Object.keys(KIND_DIRS).join(', ')}.`,
+      `Unknown kind ${unknown.join(', ')}; name a folder (${[...KIND_BY_FOLDER.keys()].join(', ')}) or a kind (${APPLY_ORDER.join(', ')}).`,
       0
     )
   }
-  return kinds.filter(isWorkspaceKind)
+  return [...new Set(kinds.filter((kind) => kind !== undefined))]
 }
 
 /**
@@ -177,7 +187,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
   ])
   command
     .requiredOption('--dir <dir>', 'Directory to write the workspace source into')
-    .option('--only <kinds>', 'Read only these kinds (comma-separated: table, workflow)')
+    .option('--only <kinds>', `Read only these kinds (${ONLY_KINDS_HELP})`)
     .option('--force', 'Replace files with edits no apply has saved')
     .allowExcessArguments(false)
     .description('Write a workspace as a source directory of tables and workflows')

@@ -215,4 +215,14 @@ describe('workspaces source get', () => {
       ])
     })
   })
+
+  it('reads --only by folder name as well as by kind', async () => {
+    serve({}, { kinds: ['custom-tool', 'knowledge-base'] })
+
+    await get('--only', 'tools,knowledge-base,knowledge')
+
+    const call = request.mock.calls.find(([path]) => path === SOURCE_PATH)
+    expect(call?.[1].query).toEqual({ kinds: 'custom-tool,knowledge-base' })
+    await expect(get('--only', 'gadgets')).rejects.toThrow(/Unknown kind gadgets/)
+  })
 })

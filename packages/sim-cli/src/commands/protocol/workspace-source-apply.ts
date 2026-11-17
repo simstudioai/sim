@@ -29,7 +29,7 @@ import {
   readWorkspaceDir,
   type WorkspaceSubmission,
 } from './workspace-source-dir'
-import { parseKinds } from './workspace-source-get'
+import { ONLY_KINDS_HELP, parseKinds } from './workspace-source-get'
 
 type ApplyData = ApplyWorkspaceSourceResponse['data']
 type Change = ApplyData['plan'][number]
@@ -159,7 +159,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     .option('--dry-run', 'Plan and check without writing anything')
     .option('-y, --yes', 'Apply without asking for confirmation')
     .option('--allow-delete', 'Delete resources, columns and data the directory no longer declares')
-    .option('--only <kinds>', 'Apply only these kinds (comma-separated: table, workflow)')
+    .option('--only <kinds>', `Apply only these kinds (${ONLY_KINDS_HELP})`)
     .allowExcessArguments(false)
     .description('Apply a workspace source directory of tables and workflows')
     .addHelpText('after', EXIT_CODES_HELP)
